@@ -332,12 +332,19 @@
   }
   /* A secret drawn blurred until its eye shows it: plain text, so no password manager fills it. */
   input.in.veiled {
-    color: transparent;
-    text-shadow: 0 0 7px var(--fg);
-    caret-color: var(--fg);
+    /* Discs where the browser draws them (Chrome, Edge, Safari): nothing of it shows. */
+    -webkit-text-security: disc;
   }
-  input.in.veiled::selection {
-    color: transparent;
+  @supports not (-webkit-text-security: disc) {
+    /* Elsewhere, blurred past reading. */
+    input.in.veiled {
+      color: transparent;
+      text-shadow: 0 0 12px var(--fg), 0 0 12px var(--fg), 0 0 12px var(--fg);
+      caret-color: var(--fg);
+    }
+    input.in.veiled::selection {
+      color: transparent;
+    }
   }
   .pw input.in {
     padding-right: 38px;
@@ -607,6 +614,12 @@
     gap: 8px;
     margin-top: 14px;
   }
+  /* One mask, the top one's: a dialog under another, and any dialog under the question, lets
+     the mask above it do the darkening, so stacked masks never darken more. */
+  .dialog-layer:has(~ .dialog-layer) .scrim,
+  body:has(.confirm-scrim) .scrim {
+    background: transparent;
+  }
   .confirm-scrim {
     position: fixed;
     inset: 0;
@@ -850,6 +863,55 @@
     }
   }
 
+  /* A small whole number stepped up and down: two chevrons stacked at the field's right end. */
+  .spin-in {
+    position: relative;
+    display: block;
+  }
+  .spin-in input.in {
+    padding-right: 30px;
+  }
+  .spin-btns {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    bottom: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .spin-btns button {
+    flex: 1;
+    width: 24px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--fg-dim);
+    cursor: pointer;
+    padding: 0;
+  }
+  .spin-btns button:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+  }
+  .spin-btns button:disabled {
+    color: var(--fg-muted);
+    opacity: 0.4;
+    cursor: default;
+    background: transparent;
+  }
+  .spin-btns svg.i {
+    width: 12px;
+    height: 12px;
+  }
+  .spin-btns .up svg.i {
+    transform: rotate(90deg);
+  }
+  .spin-btns .down svg.i {
+    transform: rotate(-90deg);
+  }
   /* A date (S12.18.10): typed, the calendar's button at its right end, a month below it. */
   .date-in {
     position: relative;
@@ -1083,8 +1145,14 @@
     border: 1px solid var(--border-strong);
     border-radius: 10px;
     box-shadow: var(--shadow);
-    /* A gutter at the right for the chevrons, beside the rows. */
+    /* A gutter at the right for the chevrons, at the corners beside the rows. */
     padding: 6px 34px 8px 8px;
+  }
+  /* As tall as 7 AM to 6 PM (two headings and twelve rows); more hours scroll. */
+  .time-scroll {
+    max-height: calc(2 * 28px + 12 * 26px);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
   .time-half {
     display: flex;
@@ -1092,7 +1160,6 @@
     justify-content: space-between;
     min-height: 26px;
     padding: 2px 0 0 4px;
-    margin-right: -30px;
     font-size: 11px;
     font-weight: 600;
     color: var(--fg-muted);
@@ -1133,6 +1200,10 @@
     background: var(--accent);
     color: var(--on-accent);
   }
+  /* A time between quarters marks the quarter before it, outlined. */
+  .time-q.near {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
   .time-q:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
@@ -1141,9 +1212,15 @@
     width: 24px;
     height: 24px;
   }
+  .time-more.up,
   .time-more.down {
     position: absolute;
     right: 4px;
+  }
+  .time-more.up {
+    top: 6px;
+  }
+  .time-more.down {
     bottom: 9px;
   }
   .tag-list .new {

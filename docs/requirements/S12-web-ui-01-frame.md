@@ -20,14 +20,16 @@
       an API key, the SMTP or node password) carries an **eye** button at its right end that
       shows what was typed and hides it again (the eye struck through while shown), labelled
       for screen readers. A secret that isn't the person's own sign-in (a recovery phrase, an
-      API key, a bank's password for the connector) is plain text drawn blurred until the eye
-      shows it, so a password manager neither offers to fill it nor fills the person's
+      API key, a bank's password for the connector) is plain text drawn as discs (blurred past
+      reading where a browser draws no discs) until the eye shows it, so a password manager
+      neither offers to fill it nor fills the person's
       MoolaKata password into it; the person's own password (signing in, setting it, changing
       it, confirming who they are) stays a password field, for the manager. A segmented
       choice (None · Read · Write) cross-fades from one button to the next. A **dialog** masks the content, not the guide: the sidebar and the
       page are dimmed and out of reach, for the pointer, the keyboard and screen readers,
       while the help pane beside it shows the dialog's guide and stays in reach, its links and
-      terms working. The dialog is centred over the content; Tab goes round its fields and
+      terms working. A dialog opened over another, and the question over a dialog, darken the
+      page once: only the top one's mask is drawn. The dialog is centred over the content; Tab goes round its fields and
       then the guide's, Escape or a click on the dimmed content closes it (unless it holds
       changes not saved, S12.15.6), and focus returns to where it was.
    4. An orange **update** pill under the brand when the server was upgraded since the page

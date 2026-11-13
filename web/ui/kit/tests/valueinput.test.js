@@ -23,7 +23,8 @@ function drawn(p) {
     name: b.props['aria-label'],
     tip: b.props['data-tip'],
     off: !!b.props.disabled,
-    press: () => b.props.onClick(),
+    // A click, as the button's handler reads it: from a field that isn't on a page.
+    press: () => b.props.onClick({ currentTarget: { closest: () => null } }),
   }));
   return { input, buttons, got };
 }

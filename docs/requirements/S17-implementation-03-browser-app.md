@@ -114,6 +114,7 @@
           `app/html.js` passes on); the value types (exact decimals, durations, the kinds of
           S12.18, and formatting, told the user's choices by the app); the fields
           (`Field`, `Input`, `TypedInput`, `NumberInput`, `ValueInput`, `CountInput`,
+          `SpinInput` (a small whole number stepped by chevrons and ↑ ↓),
           `Select`, `Switch`, `ReadValue`, `TagInput`, `DateInput`, `TimeInput`); the building
           blocks (tabs,
           chips, avatars, tiles, loading and failure, amounts and percents, and the

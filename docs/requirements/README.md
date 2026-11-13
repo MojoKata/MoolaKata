@@ -340,7 +340,7 @@ The rulings the rest of the requirements apply.
     **all** (a count) fills in the most, each named with the value (*Min: $0.00*, *Use the
     default: 30 days*, *All: 2 contracts*), which is its tooltip. Each is a button reached by
     keyboard; while the field already holds its value it is greyed out, and stays in its
-    place. Each kind of value has its own input (S12.18), which takes only that kind's
+    place; a click on one fills the field in and leaves the focus in it. Each kind of value has its own input (S12.18), which takes only that kind's
     characters: a key or a paste outside them is not taken, and the field is marked. What is
     typed is checked when the field is left and at Save, never while it is being typed: a value
     that doesn't read, is past the field's bounds (or not whole, for a count) or past a bound

@@ -188,32 +188,57 @@ export function Input(
  * holds its value. It draws the controls only: `<TypedInput>` checks what is typed.
  * @param {{ value: string, onInput: (v: string) => void, clear?: boolean,
  *   reset?: { value: string, label: string }, min?: number | string, max?: number | string,
- *   noun?: string, format?: (n: any) => string, fill?: Fill[], id?: string,
+ *   noun?: string, format?: (n: any) => string, fill?: Fill[], id?: string, words?: boolean,
  *   inputmode?: string, type?: string, placeholder?: string, bad?: boolean, [k: string]: any }} p
  */
 export function ValueInput(
-  { value, onInput, clear, reset, min, max, noun, format = String, fill = [], bad, ...rest },
+  {
+    value,
+    onInput,
+    clear,
+    reset,
+    min,
+    max,
+    noun,
+    format = String,
+    fill = [],
+    bad,
+    words: shown = true,
+    ...rest
+  },
 ) {
   const v = value ?? '';
-  const words = /** @type {Fill[]} */ ([
-    min != null && !noun ? { text: 'min', value: String(min), label: `Min: ${format(min)}` } : null,
-    reset
-      ? { text: 'default', value: reset.value, label: `Use the default: ${reset.label}` }
-      : null,
-    max != null
-      ? noun
-        ? { text: 'all', value: String(max), label: `All: ${format(max)} ${noun}` }
-        : { text: 'max', value: String(max), label: `Max: ${format(max)}` }
-      : null,
-    ...fill,
-  ].filter((x) => x !== null));
+  const words = /** @type {Fill[]} */ (shown
+    ? [
+      min != null && !noun
+        ? { text: 'min', value: String(min), label: `Min: ${format(min)}` }
+        : null,
+      reset
+        ? { text: 'default', value: reset.value, label: `Use the default: ${reset.label}` }
+        : null,
+      max != null
+        ? noun
+          ? { text: 'all', value: String(max), label: `All: ${format(max)} ${noun}` }
+          : { text: 'max', value: String(max), label: `Max: ${format(max)}` }
+        : null,
+      ...fill,
+    ].filter((x) => x !== null)
+    : []);
   const clears = clear && v !== '';
   if (!clears && !words.length) {
     return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
   }
+  /** A value filled in, and the focus to the field: the button may go, or go off, under it. */
+  const fillIn = (/** @type {any} */ e, /** @type {string} */ to) => {
+    const field = /** @type {HTMLInputElement | null} */ (e.currentTarget.closest('.value-input')
+      ?.querySelector('input'));
+    onInput(to);
+    field?.focus();
+  };
   const ends = clears
     ? html`<span class="value-ends"><button type="button" class="icon-btn" aria-label="Clear"
-        data-tip="Clear" onClick=${() => onInput('')}><${Icon} name="x" /></button></span>`
+        data-tip="Clear" onClick=${(/** @type {any} */ e) => fillIn(e, '')}><${Icon}
+          name="x" /></button></span>`
     : null;
   const bar = words.length
     ? html`<span class="value-bar">${
@@ -222,7 +247,8 @@ export function ValueInput(
           ${i
             ? html`<span class="sep" aria-hidden="true">·</span>`
             : null}<button type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
-            disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
+            disabled=${v === f.value} onClick=${(/** @type {any} */ e) => fillIn(e, f.value)}>${f
+              .text}</button>
         `
       )
     }</span>`
@@ -530,6 +556,55 @@ export function NumberInput(
       onChange(v);
     }}
       ...${rest} />
+  `;
+}
+
+/**
+ * A small whole number stepped up and down (a few months, a gap limit, contracts): the field,
+ * and at its right end a pair of chevrons that step it by `step`, as ↑ and ↓ do (Page Up and
+ * Page Down by ten steps), held within `min` and `max`, each chevron off at its end. A blank
+ * steps from `min` (or 0). The focus stays in the field; what is typed is checked as a count's
+ * is. The rest is `<TypedInput>`'s.
+ * @param {{ value: string, onInput: (v: string) => void, min?: number, max?: number,
+ *   step?: number, id?: string, [k: string]: any }} p
+ */
+export function SpinInput({ value, onInput, min, max, step = 1, ...rest }) {
+  if (useReading(rest.readonly)) {
+    return html`<${TypedInput} kind="count" value=${value} onInput=${onInput} ...${rest} />`;
+  }
+  const n = /^-?\d+$/.test(String(value ?? '').trim()) ? Number(value) : null;
+  const held = (/** @type {number} */ x) =>
+    Math.min(max ?? Infinity, Math.max(min ?? -Infinity, x));
+  /** @param {number} by */
+  const stepBy = (by) => onInput(String(held(n === null ? (min ?? 0) : n + by)));
+  /** A chevron clicked: a step, and the focus in the field. @param {any} e @param {number} by */
+  const click = (e, by) => {
+    stepBy(by);
+    /** @type {HTMLElement | null} */ (e.currentTarget.closest('.spin-in')?.querySelector('input'))
+      ?.focus();
+  };
+  const atMost = max != null && n !== null && n >= max;
+  const atLeast = min != null && n !== null && n <= min;
+  const keep = (/** @type {MouseEvent} */ e) => e.preventDefault();
+  return html`
+    <span class="spin-in"
+      onKeyDown=${(/** @type {KeyboardEvent} */ e) => {
+        const by =
+          { ArrowUp: step, ArrowDown: -step, PageUp: 10 * step, PageDown: -10 * step }[e.key];
+        if (by === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
+        e.preventDefault();
+        stepBy(by);
+      }}><${TypedInput} kind="count" value=${value} onInput=${onInput} words=${false}
+          negative=${min == null || min < 0} min=${min} max=${max} role="spinbutton"
+          aria-valuenow=${n ??
+            undefined} aria-valuemin=${min} aria-valuemax=${max} ...${rest} /><span
+          class="spin-btns"><button type="button" class="up" tabindex="-1" disabled=${atMost}
+            aria-label=${`Up ${step}`} data-tip=${`Up ${step} (↑)`} onMouseDown=${keep}
+            onClick=${(/** @type {any} */ e) =>
+              click(e, step)}><${Icon} name="chev" /></button><button type="button"
+            class="down" tabindex="-1" disabled=${atLeast} aria-label=${`Down ${step}`}
+            data-tip=${`Down ${step} (↓)`} onMouseDown=${keep} onClick=${(/** @type {any} */ e) =>
+              click(e, -step)}><${Icon} name="chev" /></button></span></span>
   `;
 }
 

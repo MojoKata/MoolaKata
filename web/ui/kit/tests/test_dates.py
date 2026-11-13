@@ -2,6 +2,7 @@
 as people write them, the calendar's keys, the focus coming back, the bounds, the marks."""
 
 import datetime as dt
+import re
 
 from conftest import open_page
 from playwright.sync_api import expect
@@ -217,3 +218,65 @@ def test_the_time_picker_by_the_keys(page, kit):
     expect(page.locator("[data-demo='time-filled'] .time-pop")).to_have_count(0)
     expect(f).to_be_focused()
     expect(f).to_have_value("4:45 PM")
+
+
+def test_a_time_picked_is_shown_marked_and_focused_when_the_picker_opens_again(page, kit):
+    open_page(page, kit, "dates")
+    d = "[data-demo='time']"
+    clock = page.locator(f"{d} button[aria-label='Choose a time']")
+    for picked, more in (("22:45", 2), ("08:30", 0), ("00:15", 0)):
+        clock.click()
+        for _ in range(more):
+            page.locator(f"{d} button[aria-label='Later times']").click()
+        if picked == "00:15":
+            for _ in range(3):
+                page.locator(f"{d} button[aria-label='Earlier times']").click()
+        page.locator(f"{d} [data-time='{picked}']").click()
+        expect(field(page, "time")).to_be_focused()
+        clock.click()
+        cell = page.locator(f"{d} [data-time='{picked}']")
+        expect(cell).to_have_class(re.compile(r"\bon\b"))
+        expect(cell).to_have_attribute("aria-selected", "true")
+        expect(cell).to_be_focused()
+        expect(cell).to_be_in_viewport()
+        # Within what the picker shows, not scrolled out of it.
+        box, view = cell.bounding_box(), page.locator(f"{d} .time-scroll").bounding_box()
+        assert view["y"] <= box["y"] and box["y"] + box["height"] <= view["y"] + view["height"]
+        page.keyboard.press("Escape")
+
+
+def test_a_time_between_quarters_marks_the_quarter_before_it(page, kit):
+    open_page(page, kit, "dates")
+    f = field(page, "time")
+    f.click()
+    page.keyboard.type("8:20 am")
+    page.keyboard.press("ArrowDown")
+    near = page.locator("[data-demo='time'] [data-time='08:15']")
+    expect(near).to_have_class(re.compile(r"\bnear\b"))
+    expect(near).to_be_focused()
+    expect(page.locator("[data-demo='time'] .time-q.on")).to_have_count(0)
+
+
+def test_the_picker_scrolls_past_its_height_and_remembers_what_it_showed(page, kit):
+    open_page(page, kit, "dates")
+    d = "[data-demo='time']"
+    clock = page.locator(f"{d} button[aria-label='Choose a time']")
+    clock.click()
+    sc = page.locator(f"{d} .time-scroll")
+    # 7 AM to 6 PM fits; three hours more scroll, the new ones in sight.
+    assert sc.evaluate("e => e.scrollHeight <= e.clientHeight + 1")
+    page.locator(f"{d} button[aria-label='Later times']").click()
+    assert sc.evaluate("e => e.scrollHeight > e.clientHeight")
+    expect(page.locator(f"{d} [data-time='21:45']")).to_be_in_viewport()
+    page.locator(f"{d} button[aria-label='Earlier times']").click()
+    expect(page.locator(f"{d} .time-half").first).to_be_in_viewport()
+    # Closed and opened again, on this page, it shows what it showed.
+    page.keyboard.press("Escape")
+    clock.click()
+    expect(page.locator(f"{d} .time-row").first).to_have_text("4:00·:15·:30·:45")
+    expect(page.locator(f"{d} .time-row").last).to_have_text("9:00·:15·:30·:45")
+    # Another load starts again at 7 AM to 6 PM.
+    page.reload()
+    page.wait_for_selector(".kit-page h1")
+    page.locator(f"{d} button[aria-label='Choose a time']").click()
+    expect(page.locator(f"{d} .time-row").first).to_have_text("7:00·:15·:30·:45")

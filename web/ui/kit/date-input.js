@@ -231,24 +231,53 @@ export function moveTime(m, key) {
 }
 
 /**
- * The times of day by the quarter hour (S12.18.11): a row an hour, its :00 and :30 bold, under
- * AM and PM; 7 AM to 6 PM at first, three hours more each way from the chevrons, until midnight
- * and 11 PM are in it. One time is the grid's Tab stop; the keys of `moveTime` move it,
- * showing more hours when they go past those shown; Enter picks, Escape closes.
- * @param {{ value: string | null, onPick: (hm: string) => void, onClose: () => void }} p
+ * The hours each field's picker shows, kept while the page is open (not across loads): a picker
+ * opened again shows what it showed when it closed, by the field's id.
+ * @type {Map<string, [number, number]>}
  */
-export function TimePicker({ value, onPick, onClose }) {
+const shownBefore = new Map();
+let timeFields = 0;
+
+/**
+ * The times of day by the quarter hour (S12.18.11): a row an hour, its :00 and :30 bold, under
+ * AM and PM; 7 AM to 6 PM at first (or what this field's picker last showed), three hours more
+ * each way from the chevrons at its corners, until midnight and 11 PM are in it; as tall as 7 AM
+ * to 6 PM, scrolling once more is shown. The field's time is marked (a time between quarters
+ * marks the quarter before it, outlined) and is the grid's Tab stop; the keys of `moveTime`
+ * move it, showing more hours as they go past those shown; Enter picks, Escape closes.
+ * @param {{ value: string | null, onPick: (hm: string) => void, onClose: () => void,
+ *   memo?: string }} p
+ */
+export function TimePicker({ value, onPick, onClose, memo }) {
   const at = value && /^\d{2}:\d{2}$/.test(value) ? minutes(value) : null;
-  const [[from, to], setHours] = useState(() =>
-    hoursShown(at === null ? null : Math.floor(at / 60))
-  );
-  const [focus, setFocus] = useState(() => (at === null ? 7 * 60 : at - (at % 15)));
+  const near = at === null ? null : at - (at % 15);
+  const [[from, to], setShown] = useState(() => {
+    const [f, t] = hoursShown(at === null ? null : Math.floor(at / 60));
+    const was = memo ? shownBefore.get(memo) : undefined;
+    return /** @type {[number, number]} */ (was
+      ? [Math.min(f, was[0]), Math.max(t, was[1])]
+      : [f, t]);
+  });
+  const [focus, setFocus] = useState(() => near ?? 7 * 60);
   const grid = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const scroller = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const reveal = useRef(/** @type {'top' | 'bottom' | null} */ (null));
+  /** @param {[number, number]} hours @param {'top' | 'bottom' | null} [show] */
+  const setHours = (hours, show = null) => {
+    if (memo) shownBefore.set(memo, hours);
+    reveal.current = show;
+    setShown(hours);
+  };
   useLayoutEffect(() => {
     /** @type {HTMLElement | null | undefined} */ (grid.current?.querySelector(
       `[data-time="${hm(focus)}"]`,
-    ))
-      ?.focus();
+    ))?.focus({ preventScroll: true });
+    const sc = scroller.current;
+    const cell = grid.current?.querySelector(`[data-time="${hm(focus)}"]`);
+    if (sc && reveal.current === 'top') sc.scrollTop = 0;
+    else if (sc && reveal.current === 'bottom') sc.scrollTop = sc.scrollHeight;
+    else cell?.scrollIntoView({ block: 'nearest' });
+    reveal.current = null;
   }, [focus, from, to]);
   /** The focus to a time, the hours shown stretched to it three at a time. @param {number} m */
   const go = (m) => {
@@ -283,50 +312,48 @@ export function TimePicker({ value, onPick, onClose }) {
       rows.push(
         html`<div class="time-half" key=${h < 12 ? 'am' : 'pm'} aria-hidden="true">${
           h < 12 ? 'AM' : 'PM'
-        }${
-          h === from && from > 0
-            ? html`
-              <button type="button" class="icon-btn time-more" tabindex="-1"
-                aria-label="Earlier times" data-tip="Earlier times"
-                onMouseDown=${(/** @type {MouseEvent} */ e) => e.preventDefault()}
-                onClick=${() =>
-                  setHours([Math.max(0, from - 3), to])}><${Icon} name="chevs-up" /></button>
-            `
-            : null
         }</div>`,
       );
     }
     const label = `${h % 12 || 12}`;
     rows.push(html`<div class="time-row" role="row" key=${h}>${
       [0, 15, 30, 45].map((q, i) => {
-        const t = hm(h * 60 + q);
+        const m = h * 60 + q;
+        const t = hm(m);
         const half = h < 12 ? 'AM' : 'PM';
+        const on = m === at, nearly = !on && m === near;
         return html`
-          ${i ? html`<span class="sep" aria-hidden="true">·</span>` : null}<button
-            type="button" role="gridcell" data-time=${t}
-            class=${'time-q' + (q % 30 ? '' : ' bold') + (q ? '' : ' hour') +
-              (t === value ? ' on' : '')}
-            tabindex=${h * 60 + q === focus ? '0' : '-1'} aria-selected=${t === value
-              ? 'true'
-              : 'false'}
+          ${i
+            ? html`<span class="sep" aria-hidden="true">·</span>`
+            : null}<button type="button" role="gridcell" data-time=${t}
+            class=${'time-q' + (q % 30 ? '' : ' bold') + (q ? '' : ' hour') + (on ? ' on' : '') +
+              (nearly ? ' near' : '')}
+            tabindex=${m === focus ? '0' : '-1'} aria-selected=${on || nearly ? 'true' : 'false'}
             aria-label=${`${label}:${String(q).padStart(2, '0')} ${half}`}
             onClick=${() => onPick(t)}>${q ? `:${q}` : `${label}:00`}</button>
         `;
       })
     }</div>`);
   }
+  /** A chevron at a corner. @param {'up' | 'down'} way */
+  const more = (way) =>
+    html`
+      <button type="button" class=${'icon-btn time-more ' + way} tabindex="-1"
+        aria-label=${way === 'up' ? 'Earlier times' : 'Later times'}
+        data-tip=${way === 'up' ? 'Earlier times' : 'Later times'}
+        onMouseDown=${(/** @type {MouseEvent} */ e) => e.preventDefault()}
+        onClick=${() =>
+          way === 'up'
+            ? setHours([Math.max(0, from - 3), to], 'top')
+            : setHours([from, Math.min(23, to + 3)], 'bottom')}><${Icon}
+              name=${way === 'up' ? 'chevs-up' : 'chevs-down'} /></button>
+    `;
   return html`
     <div class="time-pop" role="dialog" aria-label="Choose a time" onKeyDown=${onKeyDown}>
-      <div class="time-grid" role="grid" aria-label="Times of day" ref=${grid}>${rows}</div>
-      ${to < 23
-        ? html`
-          <button type="button" class="icon-btn time-more down" tabindex="-1"
-            aria-label="Later times" data-tip="Later times"
-            onMouseDown=${(/** @type {MouseEvent} */ e) => e.preventDefault()}
-            onClick=${() =>
-              setHours([from, Math.min(23, to + 3)])}><${Icon} name="chevs-down" /></button>
-        `
-        : null}
+      <div class="time-scroll" ref=${scroller}>
+        <div class="time-grid" role="grid" aria-label="Times of day" ref=${grid}>${rows}</div>
+      </div>
+      ${from > 0 ? more('up') : null}${to < 23 ? more('down') : null}
     </div>
   `;
 }
@@ -341,6 +368,7 @@ export function TimePicker({ value, onPick, onClose }) {
  */
 export function TimeInput({ value, onInput, id, placeholder, bad, disabled, ...rest }) {
   const [typing, setTyping] = useState(/** @type {string | null} */ (null));
+  const own = useRef(`time-${++timeFields}`);
   const [open, setOpen] = useState(false);
   const wrap = useRef(/** @type {HTMLSpanElement | null} */ (null));
   const input = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -397,7 +425,7 @@ export function TimeInput({ value, onInput, id, placeholder, bad, disabled, ...r
       ${open
         ? html`
           <${TimePicker} value=${readTime(shown) ?? (/^\d{2}:\d{2}$/.test(v) ? v : null)}
-            onClose=${close} onPick=${(/** @type {string} */ t) => {
+            memo=${id || own.current} onClose=${close} onPick=${(/** @type {string} */ t) => {
               setTyping(null);
               onInput(t);
               close();

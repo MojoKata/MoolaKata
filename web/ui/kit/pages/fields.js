@@ -9,6 +9,7 @@ import {
   ReadValue,
   Seg,
   Select,
+  SpinInput,
   Switch,
   SwitchRow,
   TypedInput,
@@ -47,7 +48,10 @@ export default function FieldsPage() {
       keys=${[
         ['Tab', 'Field to field; a read value is reached too, named by its label.'],
         ['Space or Enter', 'A switch: turns it over. A segmented choice: picks the button.'],
-        ['↓ / ↑', 'A list: its options.'],
+        [
+          '↓ / ↑',
+          'A list: its options. A small count: a step down or up (Page Down / Page Up: ten).',
+        ],
       ]}
       props=${[
         [
@@ -58,6 +62,11 @@ export default function FieldsPage() {
         ['readonly', 'boolean', 'Every control: its read persona.'],
         ['Select: options', '[value, label][]', 'Its options; read, the chosen one’s words.'],
         ['Switch: on, onChange, label, why', '', 'why: off, saying why, still reached by Tab.'],
+        [
+          'SpinInput: min, max, step',
+          'number',
+          'A small whole number, its chevrons and ↑ ↓ stepping it within its bounds.',
+        ],
         [
           'ValueInput: clear, reset, min, max, fill',
           '',
@@ -112,6 +121,19 @@ export default function FieldsPage() {
         html`
           <${Field} label="Contracts" id="count">
             <${CountInput} value=${v} onInput=${set} max=${5} noun="contracts" />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="spin" title="A small count, stepped" first="3">${(v, set) =>
+        html`
+          <${Field} label="Months" id="spin" hint="1 to 12.">
+            <${SpinInput} value=${v} onInput=${set} min=${1} max=${12} />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="spin-read" title="A small count, read" first="20">${(v, set) =>
+        html`
+          <${Field} label="Gap limit" id="spin-read">
+            <${SpinInput} value=${v} onInput=${set} min=${1} max=${100}
+              readonly=${true} />
             </${Field}>
         `}</${Kept}>
       <${Kept} id="value" title="A value with Clear and Use the default" first="30">${(v, set) =>

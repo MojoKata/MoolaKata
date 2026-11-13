@@ -166,3 +166,87 @@ def test_a_toast_slides_up_and_back_down(page, kit):
         == "toast-out"
     )
     expect(t).to_have_count(0, timeout=3000)
+
+
+def test_a_secret_shows_nothing_of_itself_until_its_eye(page, kit):
+    open_page(page, kit, "fields")
+    f = page.locator("#f-secret")
+    f.fill("sk-live-123")
+    assert f.evaluate("e => getComputedStyle(e).webkitTextSecurity") == "disc"
+
+
+def test_the_words_and_clear_hand_the_focus_to_the_field(page, kit):
+    open_page(page, kit, "numbers")
+    f = page.locator("[data-demo='amount-bounded'] input")
+    page.click("[data-demo='amount-bounded'] button:has-text('max')")
+    expect(f).to_be_focused()
+    expect(f).to_have_value("500.00")
+    page.click("[data-demo='amount-bounded'] button:has-text('min')")
+    expect(f).to_be_focused()
+    open_page(page, kit, "fields")
+    v = page.locator("[data-demo='value'] input")
+    page.click("[data-demo='value'] button[aria-label='Clear']")
+    expect(v).to_be_focused()
+    page.click("[data-demo='value'] button:has-text('default')")
+    expect(v).to_be_focused()
+
+
+def test_a_pick_from_any_list_leaves_the_focus_in_its_field(page, kit):
+    open_page(page, kit, "tags")
+    b = page.locator("[data-demo='tags'] .tag-box input")
+    b.click()
+    page.keyboard.press("ArrowDown")
+    page.locator("[data-demo='tags'] [role='option']").first.click()
+    expect(b).to_be_focused()
+    page.locator("[data-demo='tags'] .tag button").first.click()
+    expect(b).to_be_focused()
+    open_page(page, kit, "dates")
+    page.click("[data-demo='date'] button[aria-label='Open the calendar']")
+    page.locator("[data-demo='date'] .cal-row button").nth(3).click()
+    expect(page.locator("[data-demo='date'] input")).to_be_focused()
+    page.click("[data-demo='time'] button[aria-label='Choose a time']")
+    page.locator("[data-demo='time'] [data-time='09:15']").click()
+    expect(page.locator("[data-demo='time'] input")).to_be_focused()
+    assert page.evaluate("document.activeElement !== document.body")
+
+
+def test_stacked_dialogs_darken_the_page_once(page, kit):
+    open_page(page, kit, "overlays")
+    page.click("[data-demo='dialog'] button")
+    page.click(".dialog button:has-text('Open one over it')")
+    expect(page.locator(".dialog")).to_have_count(2)
+    expect(page.locator(".dialog-layer").last.locator("input")).to_be_focused()
+    scrims = page.locator(".scrim")
+    bg = [s.evaluate("e => getComputedStyle(e).backgroundColor") for s in scrims.all()]
+    assert bg[0] == "rgba(0, 0, 0, 0)" and bg[1] != "rgba(0, 0, 0, 0)", bg
+    page.keyboard.press("Escape")
+    expect(page.locator(".dialog")).to_have_count(1)
+    assert scrims.first.evaluate("e => getComputedStyle(e).backgroundColor") != "rgba(0, 0, 0, 0)"
+    page.keyboard.press("Escape")
+
+
+def test_a_small_count_steps_within_its_bounds(page, kit):
+    open_page(page, kit, "fields")
+    f = page.locator("#f-spin")
+    assert f.get_attribute("role") == "spinbutton"
+    up = page.locator("[data-demo='spin'] button.up")
+    down = page.locator("[data-demo='spin'] button.down")
+    up.click()
+    expect(f).to_have_value("4")
+    expect(f).to_be_focused()
+    expect(page.locator("[data-report='spin'] code")).to_have_text('"4"')
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    expect(f).to_have_value("2")
+    page.keyboard.press("PageUp")
+    expect(f).to_have_value("12")
+    expect(up).to_be_disabled()
+    page.keyboard.press("PageDown")
+    expect(f).to_have_value("2")
+    down.click()
+    expect(f).to_have_value("1")
+    expect(down).to_be_disabled()
+    f.fill("")
+    up.click()
+    expect(f).to_have_value("1")
+    expect(page.locator("[data-demo='spin-read'] .in.read")).to_have_text("20")

@@ -94,8 +94,10 @@
            each row the hour (`7:00`, bold), `:15`, `:30` (bold) and `:45`, a dot between,
            lined up on their colons. It shows 7 AM to 6 PM, stretched to take in the field's
            time; a chevron at its top right shows three hours earlier until midnight is in it,
-           one at its bottom right three hours later until 11 PM is. The field's time is
-           marked and has the focus: ← → move a quarter, ↑ ↓ an hour, Page Up and Page Down
+           one at its bottom right three hours later until 11 PM is. It is as tall as 7 AM to
+           6 PM, and scrolls, to the hours just shown, once more are. While the page is open,
+           it opens again showing the hours it last showed. The field's time is marked (a time
+           between quarters marks the quarter before it, outlined) and has the focus: ← → move a quarter, ↑ ↓ an hour, Page Up and Page Down
            three hours, Home and End to the hour's :00 and :45, showing more hours as they go
            past those shown; Enter or a click picks, Escape closes, and the focus goes back to
            the field.
@@ -117,3 +119,6 @@
            end (the box to type in) at rest, and a count over its left edge (‹ 3) says how
            many chips are out of sight there; a click on it goes back to the first, and a
            screen reader reads it as *3 before*.
+    13. **The focus stays with the field**: a click on anything in or under it (its ×, a word
+        under it, a list's option, a calendar's day, a picker's time, a chevron) leaves the
+        focus in the field, never on the page.
