@@ -454,3 +454,35 @@ def test_the_apps_styles_never_reach_inside_a_note(page, kit):
     spacing = "e => getComputedStyle(e).letterSpacing"
     assert page.locator(".kit-page > .about").evaluate(spacing) == "6px"
     assert page.evaluate(probe) == before
+
+
+def test_a_screen_claims_the_heading_levels_a_note_takes_when_read(page, kit):
+    """Each level drawn from the claim's top; a level past the levels claimed takes the last; none
+    past h6. The note's own level rides along whatever the tag."""
+    open_page(page, kit, "notes")
+    drawn = page.evaluate(
+        """async () => {
+          const { render } = await import('preact');
+          const { html } = await import('../html.js');
+          const { NoteView } = await import('../note-view.js');
+          const h = (level) => ({ type: 'heading', attrs: { level },
+            content: [{ type: 'text', text: 'x' }] });
+          const doc = { type: 'doc', content: [h(1), h(2), h(3)] };
+          const out = {};
+          const claims = [['default', undefined], ['top 5, two', { top: 5, count: 2 }],
+            ['top 6', { top: 6, count: 3 }], ['one', { top: 3, count: 1 }]];
+          for (const [name, heading] of claims) {
+            const el = document.createElement('div');
+            render(html`<${NoteView} doc=${doc} heading=${heading} />`, el);
+            out[name] = [...el.querySelectorAll('h1, h2, h3, h4, h5, h6')]
+              .map((e) => `${e.tagName}:${e.dataset.noteLevel}`);
+          }
+          return out;
+        }"""
+    )
+    assert drawn == {
+        "default": ["H2:1", "H3:2", "H4:3"],
+        "top 5, two": ["H5:1", "H6:2", "H6:3"],
+        "top 6": ["H6:1", "H6:2", "H6:3"],
+        "one": ["H3:1", "H3:2", "H3:3"],
+    }
