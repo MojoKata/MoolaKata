@@ -950,6 +950,13 @@
   .spin-in input.in {
     padding-right: 30px;
   }
+  /* A unit sits left of the chevrons, with × or without. */
+  .spin-in .unit-in .unit.post {
+    right: 30px;
+  }
+  .spin-in .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 30px);
+  }
   .spin-btns {
     position: absolute;
     top: 3px;

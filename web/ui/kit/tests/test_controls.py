@@ -297,6 +297,11 @@ def test_clear_sits_beside_the_fields_other_tools_and_hands_back_the_focus(
     expect(field).to_be_focused()
     expect(field).to_have_value(cleared)
     expect(x).to_have_count(0)
+    if demo == "spin-unit-clear":
+        assert _apart(
+            page.locator(f"{d} .unit.post").bounding_box(),
+            page.locator(f"{d} .spin-btns").bounding_box(),
+        ), "cleared, the unit still clear of the chevrons"
 
 
 def test_tabs_choose_in_place_and_cross_fade(page, kit):

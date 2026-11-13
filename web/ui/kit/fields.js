@@ -155,7 +155,7 @@ export function Input(
     // A unit in the field (S12.18.9): neither typed nor stored; a click on it is the field's.
     return html`
       <span class=${'unit-in' + (prefix ? ' pre' : '') + (suffix ? ' post' : '')}
-        style=${suffix ? { '--unit-w': `${String(suffix).length + 2}ch` } : undefined}>${prefix
+        style=${suffix ? { '--unit-w': `${String(suffix).length + 1}ch` } : undefined}>${prefix
           ? html`<span class="unit pre" aria-hidden="true">${prefix}</span>`
           : null}${input}${suffix
           ? html`<span class="unit post" aria-hidden="true">${suffix}</span>`

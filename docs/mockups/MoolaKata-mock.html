@@ -269,7 +269,7 @@ input.in.veiled { -webkit-text-security: disc; }
 .unit-in .unit.pre { left: 10px; }
 .unit-in .unit.post { right: 10px; }
 .unit-in.pre input.in { padding-left: 22px; }
-.unit-in.post input.in { padding-right: 60px; }
+.unit-in.post input.in { padding-right: calc(var(--unit-w, 4ch) + 10px); }
 input.in.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* A date (S12.18.10): typed, the calendar at its right end, a month of days below it. */
 .date-in { position: relative; display: block; }
@@ -305,6 +305,8 @@ input.in.num { text-align: right; font-variant-numeric: tabular-nums; }
 .time-scroll { max-height: calc(2 * 28px + 12 * 26px); overflow-y: auto; scrollbar-width: thin; }
 .spin-in { position: relative; display: block; }
 .spin-in input.in { padding-right: 30px; }
+.spin-in .unit-in .unit.post { right: 30px; }
+.spin-in .unit-in.post input.in { padding-right: calc(var(--unit-w, 4ch) + 30px); }
 .spin-btns { position: absolute; top: 3px; right: 3px; bottom: 3px; display: flex; flex-direction: column; gap: 1px; }
 .spin-btns button { flex: 1; width: 24px; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-dim); cursor: pointer; padding: 0; }
 .spin-btns button:hover { background: var(--bg-3); color: var(--fg); }
@@ -1058,7 +1060,7 @@ function inp(v = '', ph = '', type = 'text', unit = '') {
   if (type === 'money' || (type === 'quantity' && unit)) {
     const pre = type === 'money';
     const el = `<input class="in num" type="text" data-kind="${type}" inputmode="decimal" value="${esc(pre ? grouped(v) : v)}" placeholder="${esc(ph)}">`;
-    return `<span class="unit-in ${pre ? 'pre' : 'post'}">${pre ? '<span class="unit pre" aria-hidden="true">$</span>' : ''}${el}${pre ? '' : `<span class="unit post" aria-hidden="true">${esc(unit)}</span>`}</span>`;
+    return `<span class="unit-in ${pre ? 'pre' : 'post'}"${pre ? '' : ` style="--unit-w:${String(unit).length + 1}ch"`}>${pre ? '<span class="unit pre" aria-hidden="true">$</span>' : ''}${el}${pre ? '' : `<span class="unit post" aria-hidden="true">${esc(unit)}</span>`}</span>`;
   }
   const k = KINDS[type];
   const el = k
