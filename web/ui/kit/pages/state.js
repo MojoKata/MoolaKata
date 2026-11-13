@@ -79,9 +79,7 @@ export default function StatePage() {
         <div class="toolbar">
           <${Avatar} name="Alice Griffin" id="User_alice" />
           <${Avatar} name="Bob Griffin" id="User_bob" sm=${true} />
-          <${Amt} v="-1234.5" />
-          <${Amt} v="250" signed=${true} />
-          <${Pct} v="5.875" />
+          <${Amt} v="-1234.5" />${' '}<${Amt} v="250" signed=${true} />${' '}<${Pct} v="5.875" />
         </div>
       </${Demo}>
       <${Demo} id="loading" title="Loading, and failed">

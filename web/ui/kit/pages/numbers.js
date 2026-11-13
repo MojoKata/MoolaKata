@@ -34,8 +34,8 @@ export default function NumbersPage() {
   return html`
     <${Page} title="Numbers" about=${html`An amount in dollars is typed from its cents, as a cash
       register takes it; a quantity is typed as written. Either way the digits sit at the right
-      and the commas appear as they are typed. A unit (<code>$</code>, <code>shares</code>,
-      <code>%</code>) sits in the field and is neither typed nor stored. A field holds its
+      and the commas appear as they are typed. A unit
+      (<code>$</code>, <code>shares</code>, <code>%</code>) sits in the field and is neither typed nor stored. A field holds its
       number as its caller asks: exact decimal text, a JS number, or a whole number of the
       smallest unit.`}
       keys=${[

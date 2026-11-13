@@ -49,8 +49,8 @@ export default function ThemePage() {
   }, []);
   const css = getComputedStyle(document.documentElement);
   return html`
-    <${Page} title="Theme" about=${html`Every colour, size and radius is a custom property set on
-      <code>:root</code> in <code>theme/tokens.css</code>, dark first and then light; the
+    <${Page} title="Theme" about=${html`Every colour, size and radius is a custom property set
+      on <code>:root</code> in <code>theme/tokens.css</code>, dark first and then light; the
       controls and the app draw only from them, so a theme is one file. Switch the page between
       dark and light above to see both.`}>
       <section class="demo" data-demo="tokens">
