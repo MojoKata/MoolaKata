@@ -334,12 +334,13 @@ The rulings the rest of the requirements apply.
 11. **Input means what it says.** A value that looks wrong (a blank, 0, one out of range) is
     refused, never taken to mean all, none or the default. A field with such a value offers it
     as a control that fills the field in, saved like anything typed: inside the field, at its
-    end, **×** clears it (shown while it holds something) and **↺** puts back its default
-    (shown while it differs, named: *Use the default: 30 days*); outside it, a little apart,
-    **All** (a count) or **Max** (an amount) fills in the most and **Min** the least, named
-    with the value (*All: 2 contracts*), which is its tooltip. Each is a button reached by
-    keyboard; while the field already holds its value, one inside is hidden and one outside
-    greyed out. Each kind of value has its own input (S12.18), which takes only that kind's
+    end, **×** clears it (shown while it holds something); under it, at its right with a small
+    gap, a row of small words that read as links, a dot between each, in lower case:
+    **min** fills in the least, **default** puts back its default, **max** (an amount) or
+    **all** (a count) fills in the most, each named with the value (*Min: $0.00*, *Use the
+    default: 30 days*, *All: 2 contracts*), which is its tooltip. Each is a button reached by
+    keyboard; while the field already holds its value it is greyed out, and stays in its
+    place. Each kind of value has its own input (S12.18), which takes only that kind's
     characters: a key or a paste outside them is not taken, and the field is marked. What is
     typed is checked when the field is left and at Save, never while it is being typed: a value
     that doesn't read, is past the field's bounds (or not whole, for a count) or past a bound

@@ -1367,6 +1367,9 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     page.get_by_role("row", name=re.compile(r"KO .* 60 P")).locator("button.linklike").click()
     page.get_by_role("button", name="Expired, assigned or exercised…").click()
     wait(page, ".dialog .value-input input", problems)
+    # The dialog puts the focus in its first field once drawn; typed before that, the field
+    # would be left, and checked, when it does.
+    wait(page, ".dialog :focus", problems)
     field = page.locator(".dialog .value-input input")
     assert field.input_value() == ""
     field.fill("0")

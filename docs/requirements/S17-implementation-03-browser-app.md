@@ -93,7 +93,7 @@
          pattern each typed or pasted character is tested against, in `beforeinput`), its
          paste clean-up (also for text put in whole), its whole-value check and what it says
          when one fails. Over
-         `<ValueInput>`'s controls (× ↺ Min Max All), it keeps the mark: set when the field is
+         `<ValueInput>`'s controls (× in the field; min · default · max or all under it), it keeps the mark: set when the field is
          left, at Save, or when a key or paste is refused, and cleared by any change. Kinds are
          plain data and functions, tested without a page. Read (S12.18.6), every input of
          the kit draws `<ReadValue>` instead, the text its kind gives it (`readText`, and a

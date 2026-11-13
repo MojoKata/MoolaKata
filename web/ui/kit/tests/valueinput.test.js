@@ -28,17 +28,35 @@ function drawn(p) {
   return { input, buttons, got };
 }
 
-Deno.test('clear and reset sit in the field, each while it would change something', () => {
+Deno.test('× clears while the field holds something; default sits under it, off while held', () => {
   const reset = { value: '30', label: '30 days' };
   const d = drawn({ value: '45', clear: true, reset });
   equal(d.buttons.map((b) => b.name), ['Clear', 'Use the default: 30 days']);
   equal(d.buttons.map((b) => b.tip), ['Clear', 'Use the default: 30 days']);
   d.buttons.forEach((b) => b.press());
   equal(d.got, ['', '30']);
-  equal(drawn({ value: '30', clear: true, reset }).buttons.map((b) => b.name), ['Clear']);
+  equal(drawn({ value: '30', clear: true, reset }).buttons.map((b) => [b.name, b.off]), [
+    ['Clear', false],
+    ['Use the default: 30 days', true],
+  ]);
   equal(drawn({ value: '', clear: true, reset }).buttons.map((b) => b.name), [
     'Use the default: 30 days',
   ]);
+});
+
+Deno.test('the words read min · default · max, lower case, in that order', () => {
+  const tree = all(
+    ValueInput({
+      value: '',
+      onInput: () => {},
+      min: 0,
+      max: 9,
+      reset: { value: '5', label: '5' },
+    }),
+  );
+  const words = tree.filter((x) => x.type === 'button').map((b) => b.props.children);
+  equal(words, ['min', 'default', 'max']);
+  equal(tree.filter((x) => x.props?.class === 'dot').length, 2);
 });
 
 Deno.test('an amount has Min and Max, named with their values, greyed while held', () => {

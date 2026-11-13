@@ -94,7 +94,8 @@ export default function NumbersPage() {
       <${Typed} id="amount-natural" title="An amount, typed as written" kind="money"
         entry="natural" label="Price" note="entry=natural" />
       <${Typed} id="amount-bounded" title="An amount with its bounds" kind="money"
-        min="0" max="500" label="Contribution" note="min=0 max=500: Min and Max fill them in" />
+        min="0" max="500" label="Contribution"
+        note="min=0 max=500: min and max under it fill them in" />
       <${Typed} id="quantity" title="A quantity, as written" kind="quantity" suffix="shares"
         negative=${false} label="Quantity" />
       <${Typed} id="percent" title="A percent" kind="percent" suffix="%" entry="none"

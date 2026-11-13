@@ -61,7 +61,7 @@ export default function FieldsPage() {
         [
           'ValueInput: clear, reset, min, max, fill',
           '',
-          'Controls that fill it in: ×, ↺, Min, Max or All, and others.',
+          '× in the field clears it; under it, min · default · max (all for a count) and others fill it in.',
         ],
       ]}>
       <${Kept} id="text" title="Text" first="">${(v, set) =>

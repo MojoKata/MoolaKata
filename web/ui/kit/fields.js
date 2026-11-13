@@ -179,12 +179,13 @@ export function Input(
 
 /**
  * A field whose special values are controls that fill it in, never meanings of a blank or a 0
- * (R3.11). Inside it, at its end: × clears it (`clear`), ↺ puts back its default (`reset`).
- * Right after it, a little apart: from `max`, **All** for a count (`noun` given: "All: 2
- * contracts") or **Max** for an amount, and from `min` **Min** (an amount only: a count's least
- * is quicker typed); then any other value in `fill`. Each names its value as its tooltip
- * (`format` shows it as the field does); one inside hides, and one outside greys out, while the
- * field holds its value. It draws the controls only: `<TypedInput>` checks what is typed.
+ * (R3.11). Inside it, at its end, × clears it (`clear`), while it holds something. Under it, at
+ * its right, a row of words that read as links: **min** (from `min`; an amount only, a
+ * count's least being quicker typed), **default** (`reset`), **max** (from `max`), or **all**
+ * for a count (`noun` given), then any other value in `fill`, a dot between each. Each names its
+ * value as its tooltip and to a screen reader ("Min: $0.00", "Use the default: 30 days",
+ * "All: 2 contracts"; `format` shows it as the field does), and is off, greyed, while the field
+ * holds its value. It draws the controls only: `<TypedInput>` checks what is typed.
  * @param {{ value: string, onInput: (v: string) => void, clear?: boolean,
  *   reset?: { value: string, label: string }, min?: number | string, max?: number | string,
  *   noun?: string, format?: (n: any) => string, fill?: Fill[], id?: string,
@@ -194,46 +195,43 @@ export function ValueInput(
   { value, onInput, clear, reset, min, max, noun, format = String, fill = [], bad, ...rest },
 ) {
   const v = value ?? '';
-  const bounds = [
-    min != null && !noun ? { text: 'Min', value: String(min), label: `Min: ${format(min)}` } : null,
+  const words = /** @type {Fill[]} */ ([
+    min != null && !noun ? { text: 'min', value: String(min), label: `Min: ${format(min)}` } : null,
+    reset
+      ? { text: 'default', value: reset.value, label: `Use the default: ${reset.label}` }
+      : null,
     max != null
       ? noun
-        ? { text: 'All', value: String(max), label: `All: ${format(max)} ${noun}` }
-        : { text: 'Max', value: String(max), label: `Max: ${format(max)}` }
+        ? { text: 'all', value: String(max), label: `All: ${format(max)} ${noun}` }
+        : { text: 'max', value: String(max), label: `Max: ${format(max)}` }
       : null,
-  ].filter((x) => x !== null);
-  const control = (
-    /** @type {string} */ name,
-    /** @type {string} */ tip,
-    /** @type {string} */ to,
-  ) =>
-    html`
-      <button type="button" class="icon-btn" aria-label=${tip} data-tip=${tip}
-        onClick=${() => onInput(to)}><${Icon} name=${name} /></button>
-    `;
-  const inside = [
-    clear && v !== '' ? control('x', 'Clear', '') : null,
-    reset && v !== reset.value
-      ? control('reset', `Use the default: ${reset.label}`, reset.value)
-      : null,
-  ].filter(Boolean);
-  const outside = [...bounds, ...fill];
-  if (!inside.length && !outside.length) {
+    ...fill,
+  ].filter((x) => x !== null));
+  const clears = clear && v !== '';
+  if (!clears && !words.length) {
     return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
   }
   return html`
-    <span
-      class="value-input"><span class=${'value-in' +
-        (inside.length
-          ? ` ends-${inside.length}`
-          : '')}><${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />${inside.length
-        ? html`<span class="value-ends">${inside}</span>`
-        : null}</span>${outside.map((f) =>
-          html`
-            <button type="button" class="btn" aria-label=${f.label} data-tip=${f.label}
-              disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
-          `
-        )}</span>
+    <span class="value-input">
+      <span class=${'value-in' + (clears ? ' ends-1' : '')}><${Input} value=${v} onInput=${onInput}
+          bad=${bad} ...${rest} />${clears
+            ? html`
+              <span class="value-ends"><button type="button" class="icon-btn" aria-label="Clear"
+                data-tip="Clear" onClick=${() => onInput('')}><${Icon} name="x" /></button></span>
+            `
+            : null}</span>
+      ${words.length
+        ? html`
+          <span class="value-bar">${words.map((f, i) =>
+            html`
+              ${i ? html`<span class="dot" aria-hidden="true">·</span>` : null}<button
+                type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
+                disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
+            `
+          )}</span>
+        `
+        : null}
+    </span>
   `;
 }
 

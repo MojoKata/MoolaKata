@@ -250,8 +250,12 @@ table.t { width: 100%; border-collapse: collapse; }
 input.in, select.in, textarea.in { height: var(--control); border-radius: 8px; border: 1px solid var(--border-strong); background: var(--inset); padding: 0 10px; width: 100%; }
 textarea.in { height: auto; padding: 8px 10px; min-height: 64px; }
 .pw { position: relative; display: block; }
-.value-input { display: flex; gap: 8px; align-items: center; }
+.value-input { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
 .value-input input { flex: 1; min-width: 0; }
+.value-bar { display: flex; justify-content: flex-end; align-items: baseline; gap: 4px; font-size: 12px; line-height: 1.2; }
+.value-bar .dot { color: var(--fg-muted); }
+.link-btn { border: 0; background: transparent; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
+.link-btn:disabled { color: var(--fg-muted); cursor: default; }
 .pw input.in { padding-right: 38px; }
 input.in.veiled { color: transparent; text-shadow: 0 0 7px var(--fg); caret-color: var(--fg); }
 /* Units (S12.18.9), inert in the field; numbers grow from the right (S12.18.8). */
@@ -1054,10 +1058,11 @@ function openCalendar(btn) {
   at.insertAdjacentHTML('beforeend', calendar(iso));
   (at.querySelector('.cal-grid button.on') || at.querySelector('.cal-grid button')).focus();
 }
-// A field with Min (R3.11): fills in the least, named as its tooltip.
-const withMin = (input, v, label) => `<span class="value-input">${input}<button type="button" class="btn" data-act="fill" data-v="${v}" title="Min: ${label}" aria-label="Min: ${label}">Min</button></span>`;
-// A field with ↺, which fills in its default.
-const withReset = (input, v, label) => `<span class="pw">${input}<button type="button" class="icon-btn" data-act="fill-in" data-v="${v}" title="Use the default: ${label}" aria-label="Use the default: ${label}">${icon('reset')}</button></span>`;
+// A field and, under it at its right, the words that fill it in (R3.11): min · default · max
+// (all for a count), small, read as links, each named with its value as its tooltip.
+const withWords = (input, words) => `<span class="value-input">${input}<span class="value-bar">${words.map(([text, v, label], i) => `${i ? '<span class="dot" aria-hidden="true">·</span>' : ''}<button type="button" class="link-btn" data-act="fill" data-v="${v}" title="${label}" aria-label="${label}">${text}</button>`).join('')}</span></span>`;
+const withMin = (input, v, label) => withWords(input, [['min', v, `Min: ${label}`]]);
+const withReset = (input, v, label) => withWords(input, [['default', v, `Use the default: ${label}`]]);
 // An action (S12.19.1): `why` shows it off, reached by Tab, its reason its tooltip.
 const act = (label, why, cls = 'btn sm', attrs = '') => why
   ? `<button type="button" class="${cls}" aria-disabled="true" title="${esc(why)}" aria-description="${esc(why)}">${label}</button>`
@@ -2097,7 +2102,7 @@ DIALOGS.trade = (d) => ({ title: d.close ? `Close ${d.close}` : 'Record trade', 
   ${field('Account', sel(['Schwab · Options', 'Fidelity · Individual', 'Vanguard · Roth IRA'], 'Schwab · Options'))}
   <div class="row">${field('Underlying', inp(d.close ? d.close.split(' ')[0] : 'AAPL'))}${field('Expiry', inp('2026-12-18', '', 'date'))}${field('Strike', inp('250'))}</div>
   <div class="row">${field('Right', sel(['Call', 'Put'], 'Call'))}${field('Action', sel(['Sell to open', 'Buy to open', 'Buy to close', 'Sell to close', 'Expired', 'Assigned', 'Exercised'], d.close ? 'Buy to close' : 'Sell to open'))}</div>
-  <div class="row">${field('Contracts', inp('1'))}${field('Price per share', inp('4.12'))}${field('Fees', `<span class="pw">${inp('0.66')}<button type="button" class="icon-btn" data-act="fill-in" data-v="0.65" title="Use the default: $0.65" aria-label="Use the default: $0.65">${icon('reset')}</button></span>`, 'Typed, 0 for none: left blank, they’re refused.')}</div>
+  <div class="row">${field('Contracts', inp('1'))}${field('Price per share', inp('4.12'))}${field('Fees', withReset(inp('0.66', '', 'money'), '0.65', '$0.65'), 'Typed, 0 for none: left blank, they’re refused.')}</div>
   ${field('Trade date', inp('2026-10-10', '', 'date'))}
   <div class="notice">${icon('info')}<div>Sell to open 1 × AAPL 18 Dec 26 250 C at 4.12 → credit <b class="amt">$411.34</b>. Covered by 100 AAPL in Fidelity · Individual? <a>Link as covered call</a></div></div>`, ok: 'Record' });
 // A sale's lots picked (S2.3, specific identification): the open lots on the trade date, how
@@ -2399,7 +2404,7 @@ DIALOGS.assetItem = (d) => {
 DIALOGS.optionMark = () => ({ title: 'Mark MSFT 16 Oct 26 480 P', body: `<div class="row">${field('Marked on', inp('2026-10-10', '', 'date'))}${field('Mark', inp('0.22'), 'A share, as quoted.')}</div>
   <p class="small dim">Used until the price source has a close for it. Without either, an option is marked at its intrinsic value.</p>`, ok: 'Save' });
 DIALOGS.optionSettle = () => ({ title: 'MSFT 20NOV26 480 P: what happened?', body: `<div class="field"><label>It was</label><div class="seg"><button data-act="seg">Expired worthless</button><button class="on" data-act="seg">Assigned</button></div></div>
-  <div class="row">${field('Settled on', inp('2026-11-20', '', 'date'))}${field('Contracts settled', `<span class="value-input">${inp('')}<button type="button" class="btn" data-act="fill" data-v="2" title="All: 2 contracts" aria-label="All: 2 contracts">All</button></span>`)}</div>
+  <div class="row">${field('Settled on', inp('2026-11-20', '', 'date'))}${field('Contracts settled', withWords(inp(''), [['all', '2', 'All: 2 contracts']]))}</div>
   <p class="small dim">200 MSFT bought at 480, the $1,279.35 credit taking off their basis.</p>`, ok: 'Record' });
 DIALOGS.taxBook = () => ({ title: 'New tax book', body: `<div class="row">${field('Year', sel(['2027', '2026', '2025'], '2027'))}${field('Filing together', sel(['No: one filer', 'Yes: married filing jointly'], 'Yes: married filing jointly'))}</div>
     <div class="field"><label>Filers</label>${['alice', 'bob', 'carol'].map((u) => `<label class="list-item" style="cursor:pointer"><input type="checkbox" ${u !== 'carol' ? 'checked' : ''}> <span class="avatar sm av-${u}">${USERS[u].initials}</span><span class="grow">${USERS[u].name}${u === state.user ? ' <span class="small dim">(you)</span>' : ''}</span>${u === 'bob' ? '<span class="small dim">asked to accept</span>' : ''}</label>`).join('')}<div class="hint">One user, or two who are married. A filer you name is asked to accept before their accounts count.</div></div>
@@ -2923,7 +2928,7 @@ const GUIDES = {
     <h2 id="h-record-trade">Record trade</h2><p>Stocks, options and crypto. For options: <b>Sell to open</b> writes a contract (credit), <b>Buy to close</b> ends it.</p>
     <h2 id="h-lots">Lots</h2><p>A sale of shares or coins lists the lots held on its trade date: when each was bought, how many are held, their cost and whether a sale that day is long or short term. Type how many to take from each to pick them (specific identification): the sale takes those, and what isn't picked goes oldest first. Leave them empty and the account's lot method chooses. A lot a wash sale split is shown whole, and a pick takes from both parts.</p><h2 id="h-take">Take</h2><p>How many shares of that lot the sale takes; no more than the lot holds.</p><h2 id="h-symbol">Symbol</h2><p>The stock, fund or coin traded, such as <i>VTI</i>.</p><h2 id="h-quantity">Quantity</h2><p>How many shares or units.</p><h2 id="h-price">Price</h2><p>Per share or unit.</p>
     <h2 id="h-underlying">Underlying</h2><p>The stock or ETF the option is on.</p><h2 id="h-strike">Strike</h2><p>The contract’s price per share.</p><h2 id="h-action">Action</h2><p><b>Expired</b>, <b>Assigned</b> and <b>Exercised</b> close the option. Assignment and exercise create stock lots at the strike, with the premium folded into their basis.</p>
-    <h2 id="h-contracts">Contracts</h2><p>Each is 100 shares unless the contract says otherwise.</p><h2 id="h-price-per-share">Price per share</h2><p>The premium as quoted: 4.12 means $412 per contract.</p><h2 id="h-fees">Fees</h2><p>Commission and regulatory fees; part of the cost or proceeds. They start at $0.65, and ↺ puts that back; type 0 for none. Left blank, they’re refused.</p>
+    <h2 id="h-contracts">Contracts</h2><p>Each is 100 shares unless the contract says otherwise.</p><h2 id="h-price-per-share">Price per share</h2><p>The premium as quoted: 4.12 means $412 per contract.</p><h2 id="h-fees">Fees</h2><p>Commission and regulatory fees; part of the cost or proceeds. They start at $0.65, and <b>default</b> under the field puts that back; type 0 for none. Left blank, they’re refused.</p>
     <h2 id="h-wash-sale">Wash sale</h2><p>A loss sale with a purchase of the same security within 30 days either side. The loss is disallowed now and added to the new lot’s basis.</p>
     <h2 id="h-account">Account</h2><p>The account the trade was made in.</p>
     <h2 id="h-expiry">Expiry</h2><p>The option’s expiration date.</p>
@@ -3092,7 +3097,7 @@ const GUIDES = {
     <h2>Sync progress</h2><p>A first full sync, or a large change, arrives oldest first, so the linked household’s copy fills from its earliest records. While it runs, the link shows how far it has come in time and in size: <i>Up to July 2022 (47 MB of 2 GB)</i>.</p>
     <h2>Broken</h2><p>The other server answered that it has no link with this one, restored from an older backup, say. End the link, or link again: a new link code, made and entered on either side, replaces this link, and the new link pulls everything afresh. Only the other server ending the link ends it here.</p>
     <h2 id="h-certificate-changed">Its certificate changed</h2><p>The connection to each server is TLS, checked before anything is sent: a public certificate against the trusted roots, a server’s own certificate by its key, pinned when the link was made. A server whose own key changes tells its peers first; one that presents a key it didn’t announce is refused until you compare the new key with its admin and <b>Accept it</b>, after your password again. What crosses a link is sealed to the receiving copy’s key, so nothing in between reads it.</p>
-    <h2 id="h-pause-for">Pause for</h2><p>How long the link stays paused, then resumes on its own: a duration such as <code>12h</code>, or <code>2w 3d 4h</code> for two weeks, three days and four hours. Units are w, d, h and m, largest first. ↺ fills in the default, <code>1d</code>; a blank is refused. <b>Resume now</b> ends a pause early.</p>
+    <h2 id="h-pause-for">Pause for</h2><p>How long the link stays paused, then resumes on its own: a duration such as <code>12h</code>, or <code>2w 3d 4h</code> for two weeks, three days and four hours. Units are w, d, h and m, largest first. <b>default</b> fills in <code>1d</code>; a blank is refused. <b>Resume now</b> ends a pause early.</p>
     <h2>Users on linked servers</h2><p>Each linked server’s active users, sent at every pull and updated in place. They can be chosen when sharing, always read only, and never sign in here, join a group or own anything.</p>
     <h2 id="h-outgoing">Shared from here</h2><p>What this server sends each linked server at its pulls: each item shared with people there, by its kind and its owner here, since when, and the people there it names. They see it read only, and only what changes travels after the first pull.</p>
     <h2>Shared from a linked server</h2><p>The owner on the other server chooses who here sees each share, from this server’s list of users, which links exchange. You see only the kind, the owner, the date and who it names.</p>
@@ -3530,8 +3535,7 @@ document.addEventListener('click', (e) => {
     case 'scenario': state.scenario = +v; render(); break;
     case 'switch': t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); break;
     case 'seg': $$('button', t.parentElement).forEach((b) => b.classList.toggle('on', b === t)); break;
-    case 'fill': t.previousElementSibling.value = t.dataset.v; markIn(t.previousElementSibling, null); break; // All, Max or Min
-    case 'fill-in': t.parentElement.querySelector('input').value = t.dataset.v; markIn(t.parentElement.querySelector('input'), null); break; // a field's ↺
+    case 'fill': { const f = t.closest('.value-input').querySelector('input'); f.value = t.dataset.v; markIn(f, null); t.closest('.value-bar').querySelectorAll('.link-btn').forEach((b) => (b.disabled = b.dataset.v === f.value)); break; } // min, default, max or all
     case 'dlg': e.stopPropagation(); showDialog(v, { ...t.dataset }); break;
     case 'tourstart': closeAllDialogs(); state.tour = 'uses'; state.tourDone = false; render(); break;
     case 'tourclose': state.tour = null; render(); break;

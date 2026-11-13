@@ -9,7 +9,7 @@
 2. **Option transactions:** *buy to open*, *sell to open*, *buy to close*, *sell to close*,
    **expire** (worthless), **assigned** and **exercised**. Each carries contracts, premium per
    share, fees and commission. A trade's fees are typed, 0 for none, and a blank is refused
-   (R3.11): an option trade starts at $0.65, which ↺ puts back; a stock trade at 0. A
+   (R3.11): an option trade starts at $0.65, which **default** puts back; a stock trade at 0. A
    file's trade without fees had none. A trade to close takes at most the contracts the
    account holds on that side at the end of its day.
    1. **From a broker's file**: an OFX file's option trades (`BUYOPT`, `SELLOPT`) are the four
@@ -100,7 +100,7 @@
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
    underlying's closing price. An in-the-money expiry asks the user what happened: expired,
    assigned or exercised, on which day, and how many contracts, from 1 to those held (an
-   **All** button fills in every one; a blank or 0 is refused, never taken for all). The close
+   **all** fills in every one; a blank or 0 is refused, never taken for all). The close
    used is the expiry day's, a price source's stored close: no one's typed price, statement
    value or trade decides it; without it, the user is asked too. A close exactly at the strike
    counts as out of the money.
