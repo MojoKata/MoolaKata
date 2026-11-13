@@ -73,6 +73,10 @@ def test_scrolling_everything_breaks_nothing(page, kit, name, width):
     every = page.locator(".kit-page .demo *")
     for i, w, h in scrollers:
         el = every.nth(i)
-        for step in range(0, max(w, h) + 1, 3):
+        far = max(w, h)
+        # Fine over the first stretch, where a loop shows; then in at most a hundred steps, so a
+        # long note's text doesn't take thousands.
+        steps = [*range(0, min(far, 150) + 1, 3), *range(150, far + 1, max(3, far // 100)), far]
+        for step in steps:
             el.evaluate(f"e => {{ e.scrollLeft = {min(step, w)}; e.scrollTop = {min(step, h)}; }}")
         assert page.title(), "the page answers"

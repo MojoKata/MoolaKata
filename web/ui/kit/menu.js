@@ -1,10 +1,10 @@
 // The one popup menu (requirements S12.1.3): it closes on choosing, Escape, or a click or focus
 // outside it.
 import { signal } from '@preact/signals';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { html } from './html.js';
 
-/** @type {import('@preact/signals').Signal<{ x: number, y: number, items: any[], back: any } | null>} */
+/** @type {import('@preact/signals').Signal<{ x: number, y: number, above: number, items: any[], back: any } | null>} */
 const open = signal(null);
 
 /**
@@ -15,7 +15,7 @@ const open = signal(null);
 export function openMenu(e, items) {
   const el = /** @type {HTMLElement} */ (e.currentTarget);
   const r = el.getBoundingClientRect();
-  open.value = { x: r.left, y: r.bottom + 4, items, back: el };
+  open.value = { x: r.left, y: r.bottom + 4, above: r.top - 4, items, back: el };
 }
 
 function close() {
@@ -27,6 +27,12 @@ function close() {
 export function MenuHost() {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const m = open.value;
+  // Under its button, or above it where the window has no room below.
+  const [top, setTop] = useState(/** @type {number | null} */ (null));
+  useLayoutEffect(() => {
+    const h = ref.current?.offsetHeight ?? 0;
+    setTop(m && m.y + h > innerHeight && m.above - h >= 0 ? m.above - h : null);
+  }, [m]);
   useEffect(() => {
     if (!m) return;
     /** @type {HTMLElement | null} */ (ref.current?.querySelector('button,a'))?.focus();
@@ -46,7 +52,7 @@ export function MenuHost() {
   if (!m) return null;
   return html`<div class="menu" role="menu" ref=${ref} style=${{
     left: m.x + 'px',
-    top: m.y + 'px',
+    top: (top ?? m.y) + 'px',
   }}>
     ${
     m.items.map((it) =>
