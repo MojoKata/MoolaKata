@@ -127,7 +127,19 @@ def test_the_site_holds_the_reports_the_history_and_a_page(monkeypatch, tmp_path
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     before = point("0" * 40, {"server/core": area(89.0, 80.0)}, pr=17)
     monkeypatch.setattr(cs, "get", site({"history.json": json.dumps([before]).encode()}))
+    mockups = tmp_path / "mockups"
+    mockups.mkdir()
+    (mockups / "MoolaKata-mock.html").write_text("hand")
+    monkeypatch.setattr(cs, "MOCKUPS", mockups)
 
+    assert cs.build() == 0
+    # The mockups beside the reports (S12.9): the generated one only when the run built it.
+    assert (out / "site" / "mockup" / "MoolaKata-mock.html").read_text() == "hand"
+    assert not (out / "site" / "mockup" / "MoolaKata-app.html").exists()
+    (mockups / "MoolaKata-app.html").write_text("generated")
+    assert cs.build() == 0
+    assert (out / "site" / "mockup" / "MoolaKata-app.html").read_text() == "generated"
+    monkeypatch.setattr(cs, "get", site({"history.json": json.dumps([before]).encode()}))
     assert cs.build() == 0
     history = json.loads((out / "site" / "history.json").read_text())
     assert len(history) == 2 and history[0]["commit"] == "0" * 40
@@ -153,6 +165,7 @@ def test_ci_fails_when_the_history_cannot_be_read(monkeypatch, tmp_path):
     monkeypatch.setattr(coverage, "OUT", tmp_path)
     monkeypatch.setattr(cs, "SITE", tmp_path / "site")
     monkeypatch.setattr(cs, "get", site({"history.json": OSError("unreachable")}))
+    monkeypatch.setattr(cs, "MOCKUPS", tmp_path / "no-mockups")
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_REPOSITORY", "MojoKata/MoolaKata")
     with pytest.raises(OSError):

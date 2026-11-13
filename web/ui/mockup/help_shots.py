@@ -118,7 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("keys", nargs="*", help="only these screenshots")
     args = p.parse_args(argv)
     if not PAGE.exists():
-        sys.exit(f"no {PAGE.relative_to(ROOT)}: run web/dev.sh mockup first")
+        sys.exit(
+            f"no {PAGE.relative_to(ROOT)}: build it (web/dev.sh mockup), or save main's from "
+            "https://mojokata.github.io/MoolaKata/mockup/MoolaKata-app.html there"
+        )
     keys = set(args.keys) or wanted()
 
     from PIL import Image

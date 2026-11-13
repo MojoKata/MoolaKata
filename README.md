@@ -46,10 +46,12 @@ sweep by area: findings closed, coverage, mutation runs, and the path's steps do
    mockup, the design reference for every screen. Open it in a browser from disk; it sends
    nothing anywhere. The purple **MOCK** pill jumps to any screen, switches users, changes
    state and opens every dialog. **F1** toggles the help pane.
-4. [`docs/mockups/MoolaKata-app.html`](docs/mockups/MoolaKata-app.html): the mockup generated
-   from the app for the screens built so far (`web/dev.sh mockup`), on recorded sample data.
-   It opens from disk too; its **MOCK** pill jumps to screens and dialogs and switches users.
-   The help guides' screenshots are made from it (`web/dev.sh help-shots`).
+4. [The mockup generated from the app](https://mojokata.github.io/MoolaKata/mockup/MoolaKata-app.html)
+   for the screens built so far, on recorded sample data, as of the last merge to `main`. CI
+   builds it on every run, so it isn't committed: a pull request's is linked from its run's
+   summary, and `web/dev.sh mockup` builds one into `docs/mockups/` to open from disk. Its
+   **MOCK** pill jumps to screens and dialogs and switches users. The help guides' screenshots
+   are made from it (`web/dev.sh help-shots`).
 5. [`CLAUDE.md`](CLAUDE.md): the working rules: keep the mockup in step with the
    requirements, keep the requirements a statement rather than a changelog, keep the repo
    free standing, and track gaps by id.

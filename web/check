@@ -72,8 +72,11 @@ step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
   --import-map "$WEB/ui/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/tests/"
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 fi
+# The mockup generated from the app (S12.9): built, then opened screen by screen; CI keeps it as
+# the run's artifact and publishes main's.
 if want app-mockup && [[ -f "$WEB/ui/mockup/build.py" ]]; then
-  step "generated mockup drift" py python "$WEB/ui/mockup/build.py" --check
+  step "generated mockup" py python "$WEB/ui/mockup/build.py"
+  step "generated mockup opened" py python -m pytest -n 3 -m mockup tests/test_mockup_app.py
 fi
 # The server's tests across a worker per core (S17.5), each its own process measured as the rest
 # are, with the 30 slowest listed so a test that grows shows in the log. The browser modules' across four, each worker with its own servers, seeded household and
@@ -81,7 +84,7 @@ fi
 want server &&
   step "pytest (server, schema)" py coverage run -m pytest -n auto -m "not browser and not audit" --durations=30
 want browser &&
-  step "pytest (browser)" py coverage run -m pytest -n 4 --dist loadgroup -m browser
+  step "pytest (browser)" py coverage run -m pytest -n 4 --dist loadgroup -m "browser and not mockup"
 want connector && step "pytest (the connector)" py coverage run -m pytest "$ROOT/connector/tests"
 want coverage &&
   step "coverage: by area, the changed lines, the floor" py python -m moolakata.dev.coverage report --check

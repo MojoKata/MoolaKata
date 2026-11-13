@@ -81,6 +81,7 @@ testpaths = ["tests"]
 addopts = "-q -m 'not audit'"
 markers = [
     "browser: drives headless Chromium through Playwright",
+    "mockup: opens the generated mockup, run after web/check's app-mockup part builds it",
     "audit: the no-network run of web/dev.sh audit (S17.2.1)",
 ]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]

@@ -191,10 +191,11 @@
    stale, privacy mode). There are two files while the app is being built:
    1. **`docs/mockups/MoolaKata-mock.html`**, hand-written: the design reference for every
       screen. A change to what users see updates it in the same change.
-   2. **`docs/mockups/MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the
-      app and an in-page fake backend, for the screens built so far, the linked household
-      window among them (recorded from a seeded peer with its copy unlocked), and `web/check`
-      fails while it is out of date. It records each sample user in turn, as each signs in
+   2. **`MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the app and an
+      in-page fake backend, for the screens built so far, the linked household window among
+      them. Not committed: CI builds and opens it each run, keeps it as the run's artifact
+      (linked from its summary), and publishes main's on the Pages site. It records each
+      sample user in turn, as each signs in
       (what one sees can show who has signed in so far): several browsers in that user's
       session open the screens, tabs, ranges and dialogs at once, and each answer is asked of
       the server once and kept as one browser opening them all in order would keep it.

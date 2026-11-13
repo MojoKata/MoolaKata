@@ -4,17 +4,15 @@ A seeded dev server runs on a fixed day with repeatable ids. Headless Chromium s
 sample user and opens every screen, tab, range and dialog; each answer the app asks the API for
 is recorded. The page that comes out holds the app's own modules, styles and icons, the guides
 and those answers, with a small backend in the page that serves them, so it opens from disk
-and sends nothing anywhere.
+and sends nothing anywhere. It isn't committed: CI builds it on every run, keeps a pull
+request's as the run's artifact and publishes main's on the Pages site (S12.9).
 
     python web/ui/mockup/build.py           write the file
-    python web/ui/mockup/build.py --check   fail if the file is not what the app makes now
 """
 
 import argparse
 import base64
 import contextlib
-import difflib
-import itertools
 import json
 import os
 import re
@@ -717,61 +715,10 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     return page
 
 
-def drift(old: str, new: str):
-    """What changed, for a reader: a recorded answer by its fields, each with both values,
-    and any other line as it is, cut short. An answer is one line of the file, often long."""
-
-    def answer(line: str):
-        try:
-            return json.loads("{" + line.rstrip(",") + "}")
-        except ValueError:
-            return None
-
-    def fields(a, b, path=""):
-        if isinstance(a, dict) and isinstance(b, dict):
-            for k in sorted(set(a) | set(b)):
-                yield from fields(a.get(k), b.get(k), f"{path}.{k}" if path else k)
-        elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
-            for i, (x, y) in enumerate(zip(a, b, strict=True)):
-                yield from fields(x, y, f"{path}[{i}]")
-        elif a != b:
-            yield f"    {path}: {json.dumps(a)[:80]} -> {json.dumps(b)[:80]}"
-
-    before, after = old.splitlines(), new.splitlines()
-    ops = difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes()
-    for tag, i1, i2, j1, j2 in ops:
-        if tag == "equal":
-            continue
-        pairs = zip(before[i1:i2], after[j1:j2], strict=False) if tag == "replace" else []
-        for a, b in pairs:
-            x, y = answer(a), answer(b)
-            if x and y and x.keys() == y.keys():
-                for key in x:
-                    yield f"~ {key}"
-                    yield from itertools.islice(fields(x[key], y[key]), 6)
-            else:
-                yield f"- {a[:160]}"
-                yield f"+ {b[:160]}"
-        if tag != "replace" or i2 - i1 != j2 - j1:
-            for a in before[i1 + (j2 - j1) if tag == "replace" else i1 : i2]:
-                yield f"- {a[:160]}"
-            for b in after[j1 + (i2 - i1) if tag == "replace" else j1 : j2]:
-                yield f"+ {b[:160]}"
-
-
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--check", action="store_true", help="fail if the file is out of date")
-    args = p.parse_args(argv)
+    p.parse_args(argv)
     html = assemble(*record())
-    if args.check:
-        now = OUT.read_text() if OUT.exists() else ""
-        if now != html:
-            for line in itertools.islice(drift(now, html), 400):
-                print(line, file=sys.stderr)
-            print(f"{OUT.relative_to(ROOT)} is out of date: run web/dev.sh mockup", file=sys.stderr)
-            return 1
-        return 0
     OUT.write_text(html)
     print(f"wrote {OUT.relative_to(ROOT)} ({len(html.encode()) // 1024} KiB)")
     return 0
