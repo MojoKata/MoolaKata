@@ -72,6 +72,10 @@ export function dialogHasChanges() {
   return [...unsaved].some((has) => has()) || place.changes();
 }
 
+/** The history entries the dialogs add: this page's, and each one's place, the later higher. */
+const PAGE = Math.random();
+let marks = 0;
+
 /** The history entry a closing dialog takes back with it, while it goes (a Promise). */
 let leaving = Promise.resolve();
 
@@ -144,12 +148,16 @@ export function DialogHost() {
  * saved: then Escape, ✕, Cancel (a footer button marked data-cancel) or the browser's Back ask
  * before closing, a click on the dimmed
  * content does nothing, and leaving the page brings the browser's own question.
- * `save`, for such a dialog, saves from the question (resolving to whether it saved).
+ * `save`, for such a dialog, saves from the question (resolving to whether it saved). `size`
+ * sets its width and least height where its content doesn't.
  * @param {{ title: string, wide?: boolean, guide?: string, close: (v?: any) => void,
  *   footer?: any, note?: any, children: any, onSubmit?: () => void,
- *   changed?: () => boolean, save?: () => Promise<boolean> }} p
+ *   changed?: () => boolean, save?: () => Promise<boolean>,
+ *   size?: { width?: string, minHeight?: string } }} p
  */
-export function Dialog({ title, wide, close, footer, note, children, onSubmit, changed, save }) {
+export function Dialog(
+  { title, wide, close, footer, note, children, onSubmit, changed, save, size },
+) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const top = useContext(OnTop);
   const topRef = useRef(top);
@@ -172,10 +180,12 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
     if (!changed) return;
     unsaved.add(has);
     // Back goes to the entry the dialog adds, so it can be asked about; the entry goes with it.
-    const mark = { mkDialog: Math.random() };
+    const mark = { mkDialog: PAGE, at: ++marks };
     history.pushState(mark, '', location.href);
     const onPop = () => {
-      if (history.state?.mkDialog === mark.mkDialog) return;
+      // Back to this dialog's entry, or one above it (a dialog over it): not this one's.
+      const st = history.state;
+      if (st?.mkDialog === PAGE && st.at >= mark.at) return;
       // Beneath another dialog, Back is the top one's: this one keeps its entry.
       if (!topRef.current) {
         history.pushState(mark, '', location.href);
@@ -195,7 +205,7 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
       removeEventListener('popstate', onPop);
       removeEventListener('beforeunload', onUnload);
       unsaved.delete(has);
-      if (history.state?.mkDialog === mark.mkDialog) {
+      if (history.state?.mkDialog === PAGE && history.state.at === mark.at) {
         leaving = new Promise((done) => {
           addEventListener('popstate', () => done(undefined), { once: true });
           setTimeout(done, 1000); // a browser that never says: go on regardless
@@ -253,7 +263,7 @@ export function Dialog({ title, wide, close, footer, note, children, onSubmit, c
   return html`
     <div class="scrim" style=${{ right: beside + 'px' }} onClick=${(/** @type {any} */ e) =>
       e.target === e.currentTarget && !has() && close()}>
-      <div class=${'dialog' + (wide ? ' wide' : '')} role="dialog"
+      <div class=${'dialog' + (wide ? ' wide' : '')} style=${size} role="dialog"
         aria-modal=${beside ? undefined : 'true'} aria-labelledby=${ids +
           'dialog-title'} ref=${box}>
         <form onSubmit=${(/** @type {Event} */ e) => {

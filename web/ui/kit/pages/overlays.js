@@ -13,15 +13,21 @@ import { Demo, Page, show } from './parts.js';
 
 const size = signal(100);
 
-/** A dialog with a field; changes ask before they are lost. @param {any} p */
-function Edit({ close, title = 'Edit a note' }) {
+/**
+ * A dialog with a field; changes ask before they are lost. Each opened over another is
+ * narrower and taller than the one beneath it, and can open one more over itself.
+ * @param {any} p
+ */
+function Edit({ close, depth = 0 }) {
   const [v, setV] = useState('');
   return html`
-    <${Dialog} title=${title} close=${close} changed=${() => v !== ''}
-      onSubmit=${() => close(v)} footer=${html`
+    <${Dialog} title=${depth ? `Over it (${depth})` : 'Edit a note'} close=${close}
+      changed=${() => v !== ''} onSubmit=${() => close(v)}
+      size=${{ width: `${520 - depth * 90}px`, minHeight: `${240 + depth * 90}px` }}
+      footer=${html`
         <button type="button" class="btn" data-cancel>Cancel</button>
-        <button type="button" class="btn" onClick=${() => openDialog(Edit, { title: 'Over it' })}>
-          Open one over it</button>
+        <button type="button" class="btn" onClick=${() =>
+          openDialog(Edit, { depth: depth + 1 })}>Open one over it</button>
         <button type="submit" class="btn primary">Save</button>
       `}>
       <${Field} label="Note" id="note">

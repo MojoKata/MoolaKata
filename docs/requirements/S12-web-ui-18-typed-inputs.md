@@ -93,8 +93,9 @@
            day below it by the quarter hour: a row an hour, under **AM** and **PM** headings,
            each row the hour (`7:00`, bold), `:15`, `:30` (bold) and `:45`, a dot between,
            lined up on their colons. It shows 7 AM to 6 PM, stretched to take in the field's
-           time; a chevron at its top right shows three hours earlier until midnight is in it,
-           one at its bottom right three hours later until 11 PM is. It is as tall as 7 AM to
+           time; a chevron at its top left shows three hours earlier until midnight is in it,
+           one at its bottom left three hours later until 11 PM is, in a margin of their own
+           that stays when they go, so the times never move and the scroll bar has the right. It is as tall as 7 AM to
            6 PM, and scrolls, to the hours just shown, once more are. While the page is open,
            it opens again showing the hours it last showed. The field's time is marked (a time
            between quarters marks the quarter before it, outlined) and has the focus: ← → move a quarter, ↑ ↓ an hour, Page Up and Page Down

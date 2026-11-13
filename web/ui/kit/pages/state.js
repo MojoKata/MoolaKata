@@ -10,6 +10,7 @@ import { Demo, Page, show } from './parts.js';
 export default function StatePage() {
   const [line, setLine] = useState('nothing yet');
   const [chip, setChip] = useState('month');
+  const [tab, setTab] = useState('state');
   const said = (/** @type {any} */ x) => setLine(show(x));
   return html`
     <${Page} title="Actions and state" about=${html`An action not open now is shown off with its
@@ -68,11 +69,11 @@ export default function StatePage() {
           ['year', 'Year'],
         ]} />
       </${Demo}>
-      <${Demo} id="tabs" title="Tabs">
-        <${Tabs} current="state" base="#" tabs=${[
-          ['state', 'State', '#state'],
-          ['fields', 'Fields', '#fields'],
-          ['numbers', 'Numbers', '#numbers'],
+      <${Demo} id="tabs" title="Tabs" report=${tab}>
+        <${Tabs} current=${tab} onChange=${setTab} tabs=${[
+          ['state', 'State'],
+          ['fields', 'Fields'],
+          ['numbers', 'Numbers'],
         ]} />
       </${Demo}>
       <${Demo} id="avatars" title="Avatars and amounts">

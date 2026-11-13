@@ -3,8 +3,10 @@ pages: a list, a switch, a switch off saying why, a count with All, a value's ×
 off, a dialog that asks before losing changes and one over it, the question before a delete, a
 menu, the pager; and the theme's tokens and icons."""
 
+import itertools
 import re
 
+import pytest
 from conftest import open_page
 from playwright.sync_api import expect
 
@@ -250,3 +252,102 @@ def test_a_small_count_steps_within_its_bounds(page, kit):
     up.click()
     expect(f).to_have_value("1")
     expect(page.locator("[data-demo='spin-read'] .in.read")).to_have_text("20")
+
+
+def _apart(a, b) -> bool:
+    """Two boxes that don't overlap."""
+    return a["x"] + a["width"] <= b["x"] or b["x"] + b["width"] <= a["x"]
+
+
+@pytest.mark.parametrize(
+    ("demo", "other", "cleared"),
+    [
+        ("password-clear", ".pw > .icon-btn", ""),
+        ("secret-clear", ".pw > .icon-btn", ""),
+        ("select-clear", None, ""),
+        ("spin-clear", ".spin-btns", ""),
+        ("spin-unit-clear", ".unit.post", ""),
+        ("value", ".unit.post", ""),
+    ],
+)
+def test_clear_sits_beside_the_fields_other_tools_and_hands_back_the_focus(
+    page, kit, demo, other, cleared
+):
+    open_page(page, kit, "fields")
+    d = f"[data-demo='{demo}']"
+    x = page.locator(f"{d} button[aria-label='Clear']")
+    box = x.bounding_box()
+    if other:
+        assert _apart(box, page.locator(f"{d} {other}").first.bounding_box()), "× clear of it"
+    if demo == "spin-unit-clear":
+        assert _apart(
+            page.locator(f"{d} .unit.post").bounding_box(),
+            page.locator(f"{d} .spin-btns").bounding_box(),
+        ), "the unit clear of the chevrons"
+    field = page.locator(f"{d} input, {d} select").first
+    if demo == "select-clear":
+        # Left of the list's chevron, drawn at its end inside the list's padding.
+        f = field.bounding_box()
+        pad, chev = field.evaluate(
+            "e => [getComputedStyle(e).paddingRight, getComputedStyle(e, '::picker-icon').width]"
+            ".map(parseFloat)"
+        )
+        assert box["x"] + box["width"] <= f["x"] + f["width"] - pad - chev
+    x.click()
+    expect(field).to_be_focused()
+    expect(field).to_have_value(cleared)
+    expect(x).to_have_count(0)
+
+
+def test_tabs_choose_in_place_and_cross_fade(page, kit):
+    open_page(page, kit, "state")
+    tabs = page.locator("[data-demo='tabs'] .tab")
+    tabs.nth(2).click()
+    expect(page).to_have_url(re.compile(r"#state$"))
+    expect(tabs.nth(2)).to_have_class(re.compile(r"\bon\b"))
+    expect(page.locator("[data-report='tabs'] code")).to_have_text("numbers")
+    assert "background-color" in tabs.first.evaluate("e => getComputedStyle(e).transitionProperty")
+    assert tabs.first.evaluate("e => getComputedStyle(e).textDecorationLine") == "none"
+    # Chips cross-fade the same way.
+    fade = page.locator("[data-demo='chips'] .chip").first.evaluate(
+        "e => getComputedStyle(e).transitionProperty"
+    )
+    assert "background-color" in fade
+
+
+def test_the_pager_marks_its_gaps(page, kit):
+    open_page(page, kit, "overlays")
+    jump = page.locator("[data-demo='pager'] .jump")
+    # 24 pages from page 1: 1 2 3 · 11 · 23 24.
+    expect(jump.locator("button[aria-label^='Page']")).to_have_text(
+        ["1", "2", "3", "11", "23", "24"]
+    )
+    expect(jump.locator(".sep")).to_have_count(2)
+    fade = jump.locator("button").first.evaluate("e => getComputedStyle(e).transitionProperty")
+    assert "background-color" in fade
+
+
+def test_dialogs_stack_three_deep_each_narrower_and_taller_and_close_one_at_a_time(page, kit):
+    open_page(page, kit, "overlays")
+    page.click("[data-demo='dialog'] button")
+    for depth in (1, 2):
+        expect(page.locator(".dialog-layer").last.locator("input")).to_be_focused()
+        page.locator(".dialog-layer").last.locator("button:has-text('Open one over it')").click()
+        expect(page.locator(".dialog")).to_have_count(depth + 1)
+    expect(page.locator(".dialog-layer").last.locator("input")).to_be_focused()
+    boxes = [d.bounding_box() for d in page.locator(".dialog").all()]
+    for under, over in itertools.pairwise(boxes):
+        assert over["width"] < under["width"] and over["height"] > under["height"]
+    bg = [
+        s.evaluate("e => getComputedStyle(e).backgroundColor") for s in page.locator(".scrim").all()
+    ]
+    assert bg[:2] == ["rgba(0, 0, 0, 0)"] * 2 and bg[2] != "rgba(0, 0, 0, 0)"
+    # Back takes the top one alone, and each Escape the next; none takes two.
+    page.go_back()
+    expect(page.locator(".dialog")).to_have_count(2)
+    for depth in (1, 0):
+        expect(page.locator(".dialog-layer").last.locator(":focus")).to_have_count(1)
+        page.keyboard.press("Escape")
+        expect(page.locator(".dialog")).to_have_count(depth)
+        page.wait_for_timeout(200)
+        expect(page.locator(".dialog")).to_have_count(depth)

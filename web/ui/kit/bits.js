@@ -5,19 +5,25 @@ import { initials } from './format.js';
 import { Icon } from './icon.js';
 
 /**
- * Tabs as links, so each tab has its own address: the base and its key, or one of its own.
+ * Tabs: as links, so each tab has its own address (the base and its key, or one of its own);
+ * or, given `onChange`, as buttons that choose a tab in place.
  * @param {{ tabs: ([string, string] | [string, string, string])[], current: string,
- *   base: string }} p
+ *   base?: string, onChange?: (key: string) => void }} p
  */
-export function Tabs({ tabs, current, base }) {
+export function Tabs({ tabs, current, base = '', onChange }) {
   return html`<div class="tabs" role="tablist">${
-    tabs.map(([k, l, href]) =>
-      html`
-        <a role="tab" aria-selected=${k === current ? 'true' : 'false'} class=${'tab' +
-          (k === current ? ' on' : '')} href=${href || `${base}/${k}`}
-          data-v=${l}>${l}</a>
-      `
-    )
+    tabs.map(([k, l, href]) => {
+      const cls = 'tab' + (k === current ? ' on' : '');
+      return onChange
+        ? html`
+          <button type="button" role="tab" aria-selected=${k === current ? 'true' : 'false'}
+            class=${cls} data-v=${l} onClick=${() => onChange(k)}>${l}</button>
+        `
+        : html`
+          <a role="tab" aria-selected=${k === current ? 'true' : 'false'} class=${cls}
+            href=${href || `${base}/${k}`} data-v=${l}>${l}</a>
+        `;
+    })
   }</div>`;
 }
 

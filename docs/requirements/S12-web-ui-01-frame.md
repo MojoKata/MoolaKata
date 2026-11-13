@@ -15,7 +15,8 @@
       outside), dialogs, styled tooltips that also show on keyboard focus and reach screen
       readers, and a **pager** for long lists (Transactions, Activity): a page size of 100,
       500 or 1000 kept per browser, the rows shown out of the list's total ("1–500 of 2,624")
-      with a jump to its pages (S13.8.5), and rows that arrive while reading counted on an
+      with a jump to its pages (S13.8.5), a dot where pages are skipped (`1 2 3 · 11 · 23 24`) and
+      the page shown cross-fading from one button to the next, and rows that arrive while reading counted on an
       orange **+N new** pill instead of shifting the page. Every password field (a password,
       an API key, the SMTP or node password) carries an **eye** button at its right end that
       shows what was typed and hides it again (the eye struck through while shown), labelled
@@ -25,11 +26,15 @@
       neither offers to fill it nor fills the person's
       MoolaKata password into it; the person's own password (signing in, setting it, changing
       it, confirming who they are) stays a password field, for the manager. A segmented
-      choice (None · Read · Write) cross-fades from one button to the next. A **dialog** masks the content, not the guide: the sidebar and the
+      choice (None · Read · Write) cross-fades from one button to the next, as do tabs and chips (Month · Quarter · Year);
+      a tab's background changes under the pointer as a button's does, its words never
+      underlined. A list opens and closes with a short fade where the browser can, and at once
+      where it can't. A **dialog** masks the content, not the guide: the sidebar and the
       page are dimmed and out of reach, for the pointer, the keyboard and screen readers,
       while the help pane beside it shows the dialog's guide and stays in reach, its links and
       terms working. A dialog opened over another, and the question over a dialog, darken the
-      page once: only the top one's mask is drawn. The dialog is centred over the content; Tab goes round its fields and
+      page once: only the top one's mask is drawn, and Escape or the browser's Back closes the
+      top one alone. The dialog is centred over the content; Tab goes round its fields and
       then the guide's, Escape or a click on the dimmed content closes it (unless it holds
       changes not saved, S12.15.6), and focus returns to where it was.
    4. An orange **update** pill under the brand when the server was upgraded since the page

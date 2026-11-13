@@ -334,7 +334,9 @@ The rulings the rest of the requirements apply.
 11. **Input means what it says.** A value that looks wrong (a blank, 0, one out of range) is
     refused, never taken to mean all, none or the default. A field with such a value offers it
     as a control that fills the field in, saved like anything typed: inside the field, at its
-    end, **×** clears it (shown while it holds something); under it, at its right with a small
+    end, **×** clears it (shown while it holds something) and leaves the focus in it, set after
+    the value and any unit (*30 days ×*) and just left of the field's other controls (a
+    password's eye, a list's chevron, a count's step chevrons), never over one; under it, at its right with a small
     gap, a row of small words that read as links, a dot between each, in lower case:
     **min** fills in the least, **default** puts back its default, **max** (an amount) or
     **all** (a count) fills in the most, each named with the value (*Min: $0.00*, *Use the

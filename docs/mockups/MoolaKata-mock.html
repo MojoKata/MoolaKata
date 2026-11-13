@@ -172,7 +172,7 @@ main { overflow-y: auto; min-width: 0; position: relative; }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 .toolbar .spacer { flex: 1; }
 .chips { max-width: 100%; overflow-x: auto; display: inline-flex; background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-.chip { border: 0; background: transparent; padding: 5px 11px; border-radius: 6px; cursor: pointer; color: var(--fg-dim); font-size: 13px; white-space: nowrap; }
+.chip { border: 0; background: transparent; padding: 5px 11px; border-radius: 6px; cursor: pointer; color: var(--fg-dim); font-size: 13px; white-space: nowrap; transition: background-color .18s ease, color .18s ease; }
 .chip.on { background: var(--bg-2); color: var(--fg); box-shadow: 0 0 0 1px var(--border-strong); }
 .pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 1px 8px; font-size: 11.5px; border: 1px solid var(--border-strong); color: var(--fg-dim); white-space: nowrap; }
 .pill.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
@@ -183,7 +183,8 @@ main { overflow-y: auto; min-width: 0; position: relative; }
 .ocr { color: var(--info); }
 .pager { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .jump { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.jump button { min-width: 30px; height: 28px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-3); cursor: pointer; font-size: 12px; }
+.jump button { min-width: 30px; height: 28px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-3); cursor: pointer; font-size: 12px; transition: background-color .18s ease, color .18s ease, border-color .18s ease; }
+.jump .sep { align-self: center; color: var(--fg-muted); padding: 0 2px; }
 .jump button.on { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .ocr-text { font-family: var(--mono); font-size: 11.5px; white-space: pre; background: var(--inset); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; max-height: 160px; overflow: auto; color: var(--fg-dim); }
 @keyframes pulse { 50% { opacity: .45; } }
@@ -235,7 +236,8 @@ table.t { width: 100%; border-collapse: collapse; }
 .group-head h2 { font-size: 15px; margin: 0; }
 .group-head .num { margin-left: auto; font-weight: 600; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-.tab { padding: 9px 14px; border: 0; background: transparent; cursor: pointer; color: var(--fg-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tab { padding: 9px 14px; border: 0; background: transparent; cursor: pointer; color: var(--fg-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; text-decoration: none; border-radius: 6px 6px 0 0; transition: background-color .18s ease, color .18s ease, border-color .18s ease; }
+.tab:hover { background: var(--bg-3); color: var(--fg); }
 .tab.on { color: var(--fg); border-bottom-color: var(--accent); }
 .bar { height: 8px; border-radius: 99px; background: var(--bg-4); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 99px; background: var(--ok); }
@@ -299,7 +301,7 @@ input.in.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tag-box .before svg { width: 12px; height: 12px; }
 .tag-wrap { position: relative; }
 .tag-list.up { top: auto; bottom: calc(100% + 4px); }
-.time-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px 34px 8px 8px; }
+.time-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px 8px 8px 34px; }
 .time-scroll { max-height: calc(2 * 28px + 12 * 26px); overflow-y: auto; scrollbar-width: thin; }
 .spin-in { position: relative; display: block; }
 .spin-in input.in { padding-right: 30px; }
@@ -319,7 +321,7 @@ input.in.num { text-align: right; font-variant-numeric: tabular-nums; }
 .time-q:hover { background: var(--bg-4); }
 .time-q.on { background: var(--accent); color: var(--on-accent); }
 .time-more { width: 24px; height: 24px; }
-.time-more.up, .time-more.down { position: absolute; right: 4px; }
+.time-more.up, .time-more.down { position: absolute; left: 4px; }
 .time-more.up { top: 6px; }
 .time-more.down { bottom: 9px; }
 .tag-box .tag:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -456,7 +458,19 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
 .toast.leaving { animation: toast-out .24s ease-in forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(24px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(24px); } }
-@media (prefers-reduced-motion: reduce) { .toast, .toast.leaving { animation: none; } .seg button { transition: none; } }
+@supports (appearance: base-select) {
+  select.in:not([multiple]), select.in:not([multiple])::picker(select) { appearance: base-select; }
+  select.in:not([multiple]) { display: flex; align-items: center; }
+  select.in:not([multiple])::picker-icon { color: var(--fg-muted); transition: rotate .15s; }
+  select.in:not([multiple]):open::picker-icon { rotate: 180deg; }
+  select.in:not([multiple])::picker(select) { opacity: 0; translate: 0 -4px; transition: opacity .15s ease, translate .15s ease, display .15s allow-discrete, overlay .15s allow-discrete; background: var(--bg-3); color: var(--fg); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 4px; margin-top: 4px; max-height: min(360px, 50vh); }
+  select.in:not([multiple]):open::picker(select) { opacity: 1; translate: 0 0; }
+  @starting-style { select.in:not([multiple]):open::picker(select) { opacity: 0; translate: 0 -4px; } }
+  select.in:not([multiple]) option { padding: 6px 10px; border-radius: 6px; }
+  select.in:not([multiple]) option:hover, select.in:not([multiple]) option:focus-visible { background: var(--bg-4); outline: none; }
+  select.in:not([multiple]) option:checked, select.in:not([multiple]) option::checkmark { color: var(--accent); }
+}
+@media (prefers-reduced-motion: reduce) { .toast, .toast.leaving { animation: none; } .seg button, .chip, .tab, .jump button { transition: none; } }
 
 @media (max-width: 2200px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g-main { grid-template-columns: 1fr; } .help { width: 300px; } }
 @media (max-width: 1520px) {
@@ -1460,7 +1474,7 @@ function txTable(rows) {
 function pager(shown, total, key) {
   const pages = Math.ceil(total / 500), cur = 1;
   const nums = [...new Set([1, 2, cur, cur + 1, cur + 2, cur + 10, pages - 1, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
-  return `<div class="pager"><label class="small dim" for="pg-${key}">Page size</label><select class="in" id="pg-${key}" style="width:90px;height:30px" data-act="pgsize"><option>100</option><option selected>500</option><option>1000</option></select><span class="small dim">${shown}</span><div class="jump">${nums.map((n) => `<button class="${n === cur ? 'on' : ''}">${n}</button>`).join('')}</div><span class="spacer"></span>${state.newItems ? `<button class="pill new" data-act="newitems">+${state.newItems} New items</button>` : ''}</div>`;
+  return `<div class="pager"><label class="small dim" for="pg-${key}">Page size</label><select class="in" id="pg-${key}" style="width:90px;height:30px" data-act="pgsize"><option>100</option><option selected>500</option><option>1000</option></select><span class="small dim">${shown}</span><div class="jump">${nums.map((n, i) => `${i && n > nums[i - 1] + 1 ? '<span class="sep" aria-hidden="true">·</span>' : ''}<button class="${n === cur ? 'on' : ''}">${n}</button>`).join('')}</div><span class="spacer"></span>${state.newItems ? `<button class="pill new" data-act="newitems">+${state.newItems} New items</button>` : ''}</div>`;
 }
 // Transactions (S12.2.3): the Transactions and Rules tabs, each at its own address.
 function txTabs(cur) {

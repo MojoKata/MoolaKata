@@ -280,3 +280,19 @@ def test_the_picker_scrolls_past_its_height_and_remembers_what_it_showed(page, k
     page.wait_for_selector(".kit-page h1")
     page.locator(f"{d} button[aria-label='Choose a time']").click()
     expect(page.locator(f"{d} .time-row").first).to_have_text("7:00·:15·:30·:45")
+
+
+def test_the_pickers_chevrons_sit_left_in_a_gutter_kept_when_they_go(page, kit):
+    open_page(page, kit, "dates")
+    d = "[data-demo='time']"
+    page.click(f"{d} button[aria-label='Choose a time']")
+    pop = page.locator(f"{d} .time-pop")
+    first = pop.locator(".time-row").first.bounding_box()
+    up = pop.locator("button[aria-label='Earlier times']").bounding_box()
+    assert up["x"] + up["width"] <= first["x"], "left of the rows"
+    for _ in range(3):
+        pop.locator("button[aria-label='Earlier times']").click()
+    for _ in range(2):
+        pop.locator("button[aria-label='Later times']").click()
+    expect(pop.locator(".time-more")).to_have_count(0)
+    assert pop.locator(".time-row").first.bounding_box()["x"] == first["x"], "the gutter kept"

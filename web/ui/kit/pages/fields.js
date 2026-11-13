@@ -13,6 +13,7 @@ import {
   Switch,
   SwitchRow,
   TypedInput,
+  ValueInput,
 } from '../fields.js';
 import { Demo, Page, show } from './parts.js';
 
@@ -89,6 +90,39 @@ export default function FieldsPage() {
         html`
           <${Field} label="API key" id="secret" hint="Not your sign-in: no password manager fills it.">
             <${Input} type="secret" value=${v} onInput=${set} placeholder="paste the key" />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="password-clear" title="A password with ×" first="hunter22">${(v, set) =>
+        html`
+          <${Field} label="Password" id="password-clear">
+            <${ValueInput} type="password" value=${v} onInput=${set} clear=${true} />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="secret-clear" title="A secret with ×" first="sk-live-42">${(v, set) =>
+        html`
+          <${Field} label="API key" id="secret-clear">
+            <${ValueInput} type="secret" value=${v} onInput=${set} clear=${true} />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="select-clear" title="A list with ×" first="savings">${(v, set) =>
+        html`
+          <${Field} label="Kind" id="select-clear">
+            <${Select} value=${v} onChange=${set} options=${KINDS} clear=${true} />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="spin-clear" title="A small count with ×" first="6">${(v, set) =>
+        html`
+          <${Field} label="Months" id="spin-clear">
+            <${SpinInput} value=${v} onInput=${set} min=${1} max=${12}
+              clear=${true} />
+            </${Field}>
+        `}</${Kept}>
+      <${Kept} id="spin-unit-clear" title="A small count with a unit and ×" first="30">${(v, set) =>
+        html`
+          <${Field} label="Keep for" id="spin-unit-clear">
+            <${SpinInput} value=${v} onInput=${set} min=${1} max=${90}
+              clear=${true}
+              suffix="days" />
             </${Field}>
         `}</${Kept}>
       <${Kept} id="select" title="A list" first="">${(v, set) =>

@@ -45,9 +45,12 @@ export function Pager({ shown, page, total, onPage, size, newer = 0, onNewer, la
       <button type="button" disabled=${page <= 1} onClick=${() =>
     onPage(page - 1)} aria-label="Previous page">‹</button>
       ${
-    jumps(page, pages).map((n) =>
+    jumps(page, pages).map((n, i, all) =>
       html`
-        <button type="button" class=${n === page ? 'on' : ''} aria-current=${n === page
+        ${// A dot where pages are left out between two offered.
+        i && n - all[i - 1] > 1
+          ? html`<span class="sep" aria-hidden="true">·</span>`
+          : null}<button type="button" class=${n === page ? 'on' : ''} aria-current=${n === page
           ? 'page'
           : undefined} aria-label=${`Page ${n} of ${pages}`}
           onClick=${() => onPage(n)}>${n}</button>

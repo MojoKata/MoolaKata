@@ -225,7 +225,7 @@ export function ValueInput(
     ].filter((x) => x !== null)
     : []);
   const clears = clear && v !== '';
-  if (!clears && !words.length) {
+  if (!clear && !words.length) {
     return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
   }
   /** A value filled in, and the focus to the field: the button may go, or go off, under it. */
@@ -638,10 +638,11 @@ export function CountInput({ value, onInput, max, noun, ...rest }) {
  * A list. Read, the chosen option's words in the list's place; one naming a record with a page
  * of its own (an account, a budget) is a link to it, when it is among the options, so one the
  * reader may open.
+ * `clear` gives it a ×, left of its chevron, that clears it back to its blank.
  * @param {{ value: any, onChange: (v: string) => void, options: ([string, string] | string)[],
- *   id?: string, readonly?: boolean, [k: string]: any }} p
+ *   id?: string, readonly?: boolean, clear?: boolean, [k: string]: any }} p
  */
-export function Select({ value, onChange, options, readonly, ...rest }) {
+export function Select({ value, onChange, options, readonly, clear, ...rest }) {
   if (useReading(readonly)) {
     const v = String(value ?? '');
     const chosen = options.map((o) => (Array.isArray(o) ? o : [o, o])).find(([x]) => x === v);
@@ -653,7 +654,7 @@ export function Select({ value, onChange, options, readonly, ...rest }) {
         aria-describedby=${rest['aria-describedby']} data-help=${rest['data-help']} />
     `;
   }
-  return html`
+  const select = html`
     <select class="in" value=${value ?? ''}
       onChange=${(/** @type {any} */ e) => onChange(e.currentTarget.value)} ...${rest}>
         ${options.map((o) => {
@@ -662,6 +663,18 @@ export function Select({ value, onChange, options, readonly, ...rest }) {
         })}
       </select>
   `;
+  // × clears it back to its blank (`clear`, while it holds something), left of its chevron.
+  if (!clear || value == null || value === '') {
+    return clear ? html`<span class="value-in sel">${select}</span>` : select;
+  }
+  return html`<span class="value-in sel ends-1">${select}<span class="value-ends"><button
+      type="button" class="icon-btn" aria-label="Clear" data-tip="Clear"
+      onClick=${(/** @type {any} */ e) => {
+    const field = /** @type {HTMLElement | null} */ (e.currentTarget.closest('.value-in')
+      ?.querySelector('select'));
+    onChange('');
+    field?.focus();
+  }}><${Icon} name="x" /></button></span></span>`;
 }
 
 /**
