@@ -117,7 +117,9 @@ def test_a_reader_with_a_budget_of_their_own_leaves_a_transaction_out_of_it(
     wait(page, ".dialog [role=switch]", problems)
     dialog = page.locator(".dialog")
     beyond = dialog.locator(".body p.small").first.inner_text()
-    assert beyond.startswith("Money out · split: Travel −$200.00, Travel −$100.00"), beyond
+    said, parts = beyond.split(" · split: ")
+    assert said == "Money out", beyond
+    assert sorted(parts.split(", ")) == ["Travel −$100.00", "Travel −$200.00"], beyond
     assert re.fullmatch(r".+ · [A-Z][a-z]{2} \d{1,2}, \d{4} · −?\$[\d,]+\.\d\d",
                         page.locator("#dialog-title").inner_text())  # fmt: skip
     assert dialog.locator(".in.read, input:not([type=file]), select, textarea").count() == 0
