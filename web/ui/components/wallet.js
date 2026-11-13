@@ -10,6 +10,8 @@ import { Field, FormError } from './fields.js';
 import { RecField } from './draft-form.js';
 import { Failed, Loading } from './bits.js';
 import { toast } from './toast.js';
+import { READ_ONLY } from '../app/draft.js';
+import { Action } from './state.js';
 
 const SCRIPT = /** @type {Record<string, string>} */ ({
   p2pkh: 'legacy (1…)',
@@ -161,13 +163,9 @@ export function WalletCard({ a, rec }) {
         `
         : null}
       <${FormError} error=${check.error} />
-      ${owner
-        ? html`
-          <div
-            class="toolbar mt"><button type="button" class="btn" disabled=${check.busy ||
-              !v.keys.length} onClick=${() => check.run().catch(() => {})}>Check now</button></div>
-        `
-        : null}
+      <div class="toolbar mt"><${Action} disabled=${check.busy} why=${owner
+        ? v.keys.length ? null : 'Give it a key or an address first'
+        : READ_ONLY} onClick=${() => check.run().catch(() => {})}>Check now</${Action}></div>
     </div>
   `;
 }

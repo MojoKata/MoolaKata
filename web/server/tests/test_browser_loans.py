@@ -163,7 +163,7 @@ def test_an_empty_plan_shows_the_schedule(browser, household, new_loan):
     assert month(r["plan"]["payoffDate"]) == month(r["schedule"]["payoffDate"])
     card = page.locator(RESULTS)
     assert card.locator(".legend").inner_text().split() == ["Schedule", "With", "your", "plan"]
-    assert flat(page.locator(SAVED).inner_text()).startswith("Saved plans None yet. Save a plan")
+    assert flat(page.locator(SAVED).inner_text()).startswith("Saved plans No saved plans")
     # The plan's schedule, shown and hidden again: no extra on any row.
     page.get_by_role("button", name="Show the plan’s schedule").click()
     wait(page, PLAN_ROWS, problems)
@@ -465,7 +465,7 @@ def test_a_plan_saved_followed_shown_again_and_deleted(browser, household, new_l
     wait(page, f'{SAVED} button:text-is("Follow")', problems)
     page.get_by_role("button", name="Delete Extra $200 and a bonus").click()
     wait(page, '.toast:has-text("Extra $200 and a bonus deleted")', problems)
-    wait(page, f'{SAVED} p:has-text("None yet.")', problems)
+    wait(page, f'{SAVED} .empty:has-text("No saved plans")', problems)
     assert h.c.get(f"/ui/api/accounts/{a['id']}/loan/plans").json()["items"] == []
     assert problems == []
     page.close()
@@ -508,17 +508,14 @@ def test_a_loan_without_terms_says_where_to_set_them(browser, household, new_loa
     a = new_loan("Termless loan", type="loan")
     summary = '.card:has(h3:text-is("Loan"))'
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", f"{summary} .empty")
-    assert page.locator(f"{summary} .empty").inner_text() == (
-        "No terms yet. Set them in Settings to compute the schedule."
-    )
-    tab(page, problems, "Payoff", 'main .empty:has-text("plan the payoff")')
-    assert page.locator("main .empty").inner_text() == (
-        "No terms yet. Set them in Settings to plan the payoff."
-    )
-    tab(page, problems, "Schedule", 'main .empty:has-text("compute the schedule")')
-    assert page.locator("main .empty").inner_text() == (
-        "No terms yet. Set them in Settings to compute the schedule."
-    )
+    # S12.19.2: the empty line, beside the way to its Settings, where the terms are set.
+    settings = f"/ui/accounts/{a['id']}/settings"
+    assert flat(page.locator(f"{summary} .empty").inner_text()) == "No terms yet Settings"
+    assert page.locator(f"{summary} .empty a").get_attribute("href") == settings
+    for name in ("Payoff", "Schedule"):
+        tab(page, problems, name, 'main .empty:has-text("No terms yet")')
+        assert flat(page.locator("main .empty").inner_text()) == "No terms yet Settings"
+        assert page.locator("main .empty a").get_attribute("href") == settings
     assert problems == []
     page.close()
 

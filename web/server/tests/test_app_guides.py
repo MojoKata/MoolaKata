@@ -263,7 +263,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # The giving plan, a donation of shares, a recorded donation and an organisation.
     visit(page, "/ui/giving/overview")
-    page.get_by_role("link", name="Edit").click()
+    page.get_by_role("button", name="Edit").click()
     wait_guide(page, "dialog-giving-plan")
     check_guide(page, ".dialog", "the giving plan")
     close_dialog(page)

@@ -124,7 +124,7 @@ function Open({ rows, reload }) {
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
   // Legs selected to group as a strategy by hand (S3.5.1).
   const [picked, setPicked] = useState(/** @type {string[]} */ ([]));
-  if (!rows.length) return html`<${Empty}>Nothing open.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>Nothing open</${Empty}>`;
   const keyOf = (/** @type {any} */ r) => r.accountId + r.instrumentId;
   const pick = (/** @type {string} */ k) =>
     setPicked(picked.includes(k) ? picked.filter((x) => x !== k) : [...picked, k]);
@@ -259,7 +259,7 @@ function Open({ rows, reload }) {
 
 /** @param {{ rows: any[] }} p */
 function Closed({ rows }) {
-  if (!rows.length) return html`<${Empty}>Nothing closed yet.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>Nothing closed yet</${Empty}>`;
   const total = Dec.sum(rows.map((r) => dec(r.realized)));
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
@@ -326,7 +326,7 @@ function Trades() {
   const rows = /** @type {any[]} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} lines=${4} />`;
-  if (!rows.length) return html`<${Empty}>No option trades yet.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>No option trades yet</${Empty}>`;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">

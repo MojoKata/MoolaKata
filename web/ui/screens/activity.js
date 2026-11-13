@@ -77,7 +77,7 @@ export default function Activity() {
           </table>
         </div>
       `
-      : html`<${Empty}>Nothing yet.</${Empty}>`}
+      : html`<${Empty}>Nothing yet</${Empty}>`}
     ${d
       ? html`
         <${Pager} label="activity" shown=${d.items.length} page=${page} total=${d.total}

@@ -12,6 +12,7 @@ import { Draft } from '../app/draft.js';
 import { Dialog, openDialog } from './dialog.js';
 import { guardForm } from '../app/guard.js';
 import { Field, FormError, Input, Select, Switch, TypedInput } from './fields.js';
+import { Action } from './state.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
@@ -173,11 +174,12 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * again after a 412. `f` is what `useDraft` gave. `before` runs ahead of a save (false stops
  * it); `changed` replaces the draft's own answer for a dialog that puts its choices into the
  * draft only when it saves. `extra` draws the footer's other buttons, given the save (a
- * Delete removes its record and saves); `hideSave` leaves the save's button out.
+ * Delete removes its record and saves); `saveWhy` shows the save's button off, saying why
+ * (S12.19.1: one who can only read sees it, *Shared with you to read*).
  * @param {{ f: ReturnType<typeof useDraft>, title: string, close: (v?: any) => void,
  *   what: string, done?: Done, label?: string, confirm?: string, wide?: boolean, note?: any,
  *   before?: () => boolean | void, changed?: () => boolean, disabled?: boolean,
- *   saved?: (o: any) => void, hideSave?: boolean,
+ *   saved?: (o: any) => void, saveWhy?: string | null,
  *   extra?: (s: { save: any, outcome: any }) => any, children: any }} p
  */
 /**
@@ -214,17 +216,19 @@ export function DraftDialog(p) {
   return html`
     <${Dialog} title=${p.title} wide=${p.wide} close=${close} note=${p.note}
       changed=${p.changed || (() => !!draft?.changed)}
-      save=${p.hideSave ? undefined : () => saveFromQuestion(save)}
-      onSubmit=${() => save.run().catch(() => {})}
+      save=${p.saveWhy ? undefined : () => saveFromQuestion(save)}
+      onSubmit=${() => p.saveWhy || save.run().catch(() => {})}
       footer=${html`
-        ${p.extra?.({ save, outcome }) || null}${p.hideSave ? null : html`
-          <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
-            disabled=${p.disabled} label=${p.label || 'Save'}
-            confirm=${p.confirm || 'Save anyway'} reload=${() => {
-              clear();
-              f.reload();
-            }} />
-        `}
+        ${p.extra?.({ save, outcome }) || null}${p.saveWhy
+          ? html`<${Action} class="btn primary" why=${p.saveWhy}>${p.label || 'Save'}</${Action}>`
+          : html`
+            <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
+              disabled=${p.disabled} label=${p.label || 'Save'}
+              confirm=${p.confirm || 'Save anyway'} reload=${() => {
+                clear();
+                f.reload();
+              }} />
+          `}
       `}>
       ${f.error
         ? html`<${Failed} error=${f.error} />`

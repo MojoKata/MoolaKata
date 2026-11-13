@@ -5,6 +5,9 @@ How your money might grow toward a goal, and whether it will pay for it: **retir
 
 ![Projections](shots/projections.png)
 
+A projection asks how your money will grow and what it will pay for: retirement, education, or a
+savings target by a date.
+
 ## Active
 
 The plans you follow. At most one per subject: one retirement plan for the same people, one per

@@ -2,6 +2,9 @@
 
 The budgets you can see: the one you follow, and the scenarios beside it.
 
+A budget plans spending per category over the accounts you choose; share it with a group at write
+for a household budget.
+
 ## Month
 
 The month the budget's other tabs show.

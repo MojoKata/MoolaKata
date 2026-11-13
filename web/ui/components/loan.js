@@ -2,7 +2,7 @@
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { canAdd, Record } from '../app/draft.js';
+import { canAdd, Record, whyNotAdd } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
@@ -18,6 +18,7 @@ import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { CategoryField } from './categories.js';
 import { dec, num } from '../app/dec.js';
+import { Action } from './state.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -196,17 +197,17 @@ export function LoanSummary({ a, reload }) {
     return html`
       <div class="card">
         <h3>Loan</h3>
-        <${Empty}>No terms yet. Set them in Settings to compute the schedule.</${Empty}></div>
+        <${Empty} action=${html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Settings</a>`}>No terms yet</${Empty}></div>
     `;
   }
   const t = v.terms;
   const s = v.servicer;
   return html`
-    <div class="card facts"><h3>Loan<span class="spacer"></span>${canAdd('Txn', a)
-      ? html`<button class="btn sm" onClick=${() =>
+    <div class="card facts">
+      <h3>Loan<span class="spacer"></span><${Action} class="btn sm"
+      why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(PaymentDialog, { a, v }).then((ok) => ok && again())}><${Icon}
-          name="plus" /> Record a payment</button>`
-      : null}</h3>
+        name="plus" /> Record a payment</${Action}></h3>
       <div class="list-item"><span class="grow dim">Owed</span><${Amt} v=${v.balance} /></div>
       <div class="list-item"><span class="grow dim">Rate</span>${String(dec(v.rate))}% ${t
           .resets.length
@@ -284,10 +285,9 @@ export function LoanSummary({ a, reload }) {
             ? html`<span class="pill ok"><${Icon} name="check" /> matches</span>`
             : html`<span class="pill warn">off by <${Amt} v=${s.difference} signed /></span>`
         }</span>`
-        : html`<span class="dim">not typed</span>`}${canAdd('Anchr', a)
-        ? html`${'\u00a0'}<button class="btn sm" onClick=${() =>
-          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</button>`
-        : null}</div>
+        : html`<span class="dim">not typed</span>`}${'\u00a0'}<${Action} class="btn sm"
+        why=${whyNotAdd('Anchr', a)} onClick=${() =>
+          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</${Action}></div>
     </div>
     ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
   `;
@@ -344,7 +344,7 @@ export function Schedule({ a }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} />`;
   if (!v.terms) {
-    return html`<${Empty}>No terms yet. Set them in Settings to compute the schedule.</${Empty}>`;
+    return html`<${Empty} action=${html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Settings</a>`}>No terms yet</${Empty}>`;
   }
   const escrow = v.rows.some((/** @type {any} */ r) => num(r.escrow) || num(r.pmi));
   const firstAhead = v.rows.findIndex((/** @type {any} */ r) => !r.past);

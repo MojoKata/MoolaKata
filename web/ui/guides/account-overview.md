@@ -4,6 +4,8 @@ One account's balance over time and its details.
 
 ![An account's Overview](shots/account-overview.png)
 
+A loan's schedule is computed from its terms, set in its Settings.
+
 ## Range
 
 How far back the chart goes. **Show as table** lists every point.

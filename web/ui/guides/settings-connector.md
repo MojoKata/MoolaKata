@@ -11,6 +11,10 @@ it last reported and whether it is **locked**. It starts locked after every rest
 an admin unlocks it with its 12 words on its page, or on its host. A connector not heard from
 for 15 minutes, or locked, raises an alert for admins.
 
+After pairing, compare the fingerprint shown here with the one the connector's page showed, or that
+`moolakata-connector pair` printed on its host. If they match, confirm: until then the connector
+gets no sign-in and posts no file. If they differ, someone else answered the code first: unpair.
+
 ## Its page {#its-page}
 
 The connector serves a small page of its own, on its own port, linked here once it has

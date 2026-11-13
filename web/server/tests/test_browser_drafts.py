@@ -264,8 +264,8 @@ FORMS = [
     Form(
         "the year's giving plan on gross income",
         lambda h: "/ui/giving",
-        '.card a:has-text("Edit")',
-        '.card a:has-text("Edit")',
+        '.card button:has-text("Edit")',
+        '.card button:has-text("Edit")',
         giving_of,
     ),
     Form(

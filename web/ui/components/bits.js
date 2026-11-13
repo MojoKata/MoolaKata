@@ -88,10 +88,8 @@ export function Tile({ group, icon }) {
   `;
 }
 
-/** @param {{ children: any }} p */
-export function Empty({ children }) {
-  return html`<div class="empty">${children}</div>`;
-}
+// An empty card or list's line (S12.19.2), drawn where everything else is.
+export { Empty } from './state.js';
 
 /** @param {{ lines?: number }} p */
 export function Loading({ lines = 3 }) {

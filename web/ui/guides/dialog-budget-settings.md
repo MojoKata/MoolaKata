@@ -2,6 +2,9 @@
 
 A budget's name, its options and its accounts, and where its money comes from. It keeps its method.
 
+An account left out that gets transfers from the budget's accounts is offered to include: left out,
+a transfer to it counts by its category, or waits to be sorted.
+
 ## Name
 
 Such as _Household_.

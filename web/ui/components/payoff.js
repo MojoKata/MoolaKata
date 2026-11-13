@@ -14,9 +14,10 @@ import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { TimeChart } from '../charts/chart.js';
 import { dec, num as float } from '../app/dec.js';
-import { Record } from '../app/draft.js';
+import { READ_ONLY, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { saveNow } from './draft-form.js';
+import { Action } from './state.js';
 
 const MONTHS = /** @type {[string, string][]} */ ([
   'January',
@@ -112,7 +113,7 @@ export function Payoff({ a }) {
   if (loan.error || plans.error) return html`<${Failed} error=${loan.error || plans.error} />`;
   if (!v || !saved) return html`<${Loading} />`;
   if (!v.terms) {
-    return html`<${Empty}>No terms yet. Set them in Settings to plan the payoff.</${Empty}>`;
+    return html`<${Empty} action=${html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Settings</a>`}>No terms yet</${Empty}>`;
   }
   // It opens on the plan being followed.
   const followed = saved.find((p) => p.following);
@@ -507,29 +508,31 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
         ? plans.map((p) =>
           html`
             <div
-              class="list-item wraps"><div class="grow">${p.name}<div class="small dim">${p
+              class="list-item wraps">
+              <div class="grow">${p.name}<div class="small dim">${p
                   .following
                 ? html`the plan you're following, since ${date(p.followingSince)} ·${' '}`
                 : null}${p.headline}</div></div>
-                        <button class="btn sm" onClick=${() => load(p.inputs)}>Show</button>
-                        ${canWrite
-                          ? html`
-                            <button class=${'btn sm' + (p.following ? ' primary' : '')}
-                              aria-pressed=${p.following ? 'true' : 'false'} onClick=${() =>
-                                follow.run(p).catch(() => {})}>${p.following
-                                ? html`<${Icon} name="check" /> Following`
-                                : 'Follow'}</button><button class="icon-btn"
-                              aria-label=${'Delete ' + p.name}
-                              onClick=${() =>
-                                remove.run(p).catch(() => {})}><${Icon} name="x" /></button>
-                          `
-                          : null}</div>
+              <button class="btn sm" onClick=${() => load(p.inputs)}>Show</button>
+              <${Action} class=${'btn sm' + (p.following ? ' primary' : '')}
+                why=${canWrite ? null : READ_ONLY}
+                aria-pressed=${p.following ? 'true' : 'false'}
+                onClick=${() => follow.run(p).catch(() => {})}>${p.following
+                  ? html`<${Icon} name="check" /> Following`
+                  : 'Follow'}</${Action}><${Action} class="icon-btn"
+                          why=${canWrite ? null : READ_ONLY} aria-label=${'Delete ' + p.name}
+                          onClick=${() =>
+                            remove.run(p).catch(() => {})}><${Icon} name="x" /></${Action}></div>
           `
         )
-        : html`<p class="small dim" style=${{ marginTop: 0 }}>None yet. Save a plan to compare it
-          later, and follow one to see whether you're ahead of it.</p>`}
-      ${canWrite
+        : html`<${Empty}>No saved plans</${Empty}>`}
+      ${!canWrite
         ? html`
+          <div class="toolbar mt">
+            <${Action} class="btn primary" why=${READ_ONLY}>Save
+                    plan</${Action}></div>
+        `
+        : html`
           <form class="row mt" onSubmit=${(/** @type {Event} */ ev) => {
             ev.preventDefault();
             save.run().catch(() => {});
@@ -538,8 +541,7 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
                     onInput=${setName} placeholder="ex: Extra $300 a month" required /></${Field}><button
                     class="btn primary" style=${{ alignSelf: 'end' }} disabled=${save
                       .busy}>Save plan</button></form>
-        `
-        : null}
+        `}
     </div>
   `;
 }

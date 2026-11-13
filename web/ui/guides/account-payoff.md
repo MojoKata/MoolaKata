@@ -6,6 +6,8 @@ was until it is corrected.
 
 ![A loan's Payoff](shots/account-payoff.png)
 
+The planner needs the loan's terms, set in its Settings.
+
 ## The chart
 
 The balance owed on the schedule (dashed), with your plan, and recast after the lump sums when you

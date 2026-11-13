@@ -7,7 +7,7 @@ import { ACCEPT, ReceiptLinkRec, uploadAll } from '../components/receipt.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
-import { canAdd, Record } from '../app/draft.js';
+import { canAdd, READ_ONLY, Record, whyRead } from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
@@ -20,6 +20,7 @@ import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
 import { confirmAction } from '../components/confirm.js';
 import { openDialog } from '../components/dialog.js';
+import { Action } from '../components/state.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -229,10 +230,12 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
       done=${deleting ? 'Deleted' : editing ? 'Saved' : 'Added'}
       label=${editing ? 'Save' : 'Add'}
       confirm=${deleting ? 'Delete it anyway' : 'Change it anyway'}
-      hideSave=${readOnly && !draft?.changed}
+      saveWhy=${readOnly && !draft?.changed ? READ_ONLY : null}
       extra=${({ save }) =>
         readOnly
-          ? html`<button type="button" class="btn" onClick=${() => close()}>Close</button>`
+          ? html`<${Action} class="btn danger" why=${READ_ONLY}>Delete</${Action}><span
+            class="spacer"></span><button type="button" class="btn" onClick=${() =>
+            close()}>Close</button>`
           : html`
             ${editing
               ? html`
@@ -543,8 +546,8 @@ function InBudgets({ txn, rec }) {
                 r.countsAs || 'nothing yet: uncategorised'
               }`}</div></span> <span class="small dim">Leave out</span>
                     <${Switch} on=${left} onChange=${(/** @type {boolean} */ on) => flip(r, on)}
-                      label=${`Leave out of ${r.name}`} help="leave-out" disabled=${!r.access
-                        .writable} /></div>
+                      label=${`Leave out of ${r.name}`} help="leave-out"
+                      why=${whyRead(r)} /></div>
         `;
       })}
       <div class="hint">The category is the transaction's: changing it changes every budget that
@@ -591,18 +594,16 @@ function TxnReceipts({ txn, draft, canWrite }) {
               onClick=${() => draft.remove(x)}><${Icon} name="x" /></button>
           `
         )}
-        ${canWrite
-          ? html`
+        ${!canWrite
+          ? html`<${Action} class="btn sm" why=${READ_ONLY}>Add a receipt</${Action}>`
+          : html`
             <label class="btn sm" for="f-add-receipt">Add a receipt</label>
             <input id="f-add-receipt" class="sr-only" type="file" multiple accept=${ACCEPT}
               onChange=${(/** @type {any} */ e) => {
                 add(e.currentTarget.files);
                 e.currentTarget.value = '';
               }} />
-          `
-          : rows.length || adding.length
-          ? null
-          : html`<span class="small dim">None.</span>`}
+          `}
       </div>
     </div>
   `;

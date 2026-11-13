@@ -11,6 +11,7 @@ import { Icon } from './icon.js';
 import { openDialog } from './dialog.js';
 import { toast } from './toast.js';
 import { TransactionDialog } from '../screens/transaction-dialog.js';
+import { whyRead } from '../app/draft.js';
 
 export { useCategories };
 
@@ -68,9 +69,12 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
           </thead>
           <tbody>${rows.map((t) =>
             html`<tr class=${sel.has(t.id) ? 'tr-sel' : ''}>
-        <td><input type="checkbox" aria-label=${'Select ' + (t.payee || 'transaction')}
-          disabled=${!t.access.writable} checked=${sel.has(t.id)} onChange=${() =>
-              toggle(t.id)} /></td>
+        <td><span class="tip-wrap" data-tip=${whyRead(t) || undefined}><input type="checkbox"
+          aria-label=${'Select ' + (t.payee || 'transaction')} aria-description=${
+              whyRead(t) ||
+              undefined
+            } disabled=${!t.access.writable} checked=${sel.has(t.id)} onChange=${() =>
+              toggle(t.id)} /></span></td>
         <td class="dim" style=${{ whiteSpace: 'nowrap' }}>${date(t.date)}</td>
         <td><button type="button" class="linklike" style=${{
               color: 'var(--fg)',

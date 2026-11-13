@@ -5,6 +5,9 @@ went.
 
 ![Giving](shots/giving-overview.png)
 
+A giving plan sets a target, as a percentage of income or an amount, to follow your giving against
+it.
+
 ## Year
 
 The year shown.

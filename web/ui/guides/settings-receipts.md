@@ -3,6 +3,10 @@
 How receipts are kept: encrypted in the data directory, each file once however often it is uploaded.
 Backups hold the database alone; the host's own backup of the data directory keeps the files.
 
+Reading runs without its file sandbox on a host that doesn't offer Landlock (Linux 5.13 or later,
+and a container that allows it): the reader could then open the data directory. It still has no
+network, and it still runs apart from the server. Admins have an alert while it lasts.
+
 ## Largest file (MB) {#receipt-max-mb}
 
 The largest receipt that can be uploaded, 25 MB by default. The file types are PDF, JPEG, PNG, WebP

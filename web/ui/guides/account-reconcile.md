@@ -5,6 +5,9 @@ quiet checks; ticking off is there when you want it.
 
 ![An account's Reconcile tab](shots/account-reconcile.png)
 
+When the next statement or import is overdue, import it, or type today's balance from the
+institution's site.
+
 ## Coverage
 
 The periods your imports cover. A **gap** is a stretch nothing was imported for; an **overlap** is

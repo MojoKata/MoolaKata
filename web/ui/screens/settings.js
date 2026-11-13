@@ -33,6 +33,7 @@ import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
 import { confirmAction } from '../components/confirm.js';
+import { Attention } from '../components/state.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -794,14 +795,10 @@ function ReadingQueue() {
       <h3>Reading</h3>
       ${q.fileSandbox === false
         ? html`
-          <div class="notice small" role="status" data-help="file-sandbox">
-            <${Icon}
-              name="info" />
-            <div>Reading runs without its file sandbox on this host: it doesn't offer
-                    Landlock (Linux 5.13 or later, and a container that allows it), so the reader
-                    could open the data directory. It still has no network, and it still runs
-                    apart from the server. Admins have an alert while it lasts.</div>
-          </div>
+          <div data-help="file-sandbox">
+            <${Attention} tone="info"
+              icon=${html`<${Icon} name="info" />`}>Reading runs without its file sandbox on this
+            host</${Attention}></div>
         `
         : null}
       <div class="list-item"><span class="grow">Waiting</span>${q.waiting + q.reading}</div>
@@ -899,10 +896,10 @@ function EmailSection() {
         <${Input} value=${f.smtpFrom} onInput=${set('smtpFrom')} />
       </${Field}>
       ${v.waiting || v.setAside || v.lastError
-        ? html`<div class=${'notice small' + (v.lastError ? ' bad' : '')} role="status">
-          ${v.waiting} waiting to be sent${
-          v.setAside ? `, ${v.setAside} set aside (refused by the SMTP server)` : ''
-        }${v.lastError ? html`. Last try ${ago(v.lastRun)}: ${v.lastError}` : ''}</div>`
+        ? html`<${Attention} tone=${v.lastError ? 'bad' : 'info'}>${v.waiting} waiting to be${' '}
+          sent${v.setAside ? `, ${v.setAside} set aside (refused by the SMTP server)` : ''}${
+          v.lastError ? ` · last try ${ago(v.lastRun)}: ${v.lastError}` : ''
+        }</${Attention}>`
         : null}
       <${FormError} error=${test.error} />
       ${values.smtpHost ? null : html`<${WrittenEmails} />`}
@@ -1112,23 +1109,17 @@ function BitcoinSection() {
         : null}
       ${s.data.records.bitcoinSource
         ? html`
-          <div class=${'notice small' + (v.lastError ? ' bad' : '')} role="status"
-            data-help="checked">
-            <${Icon} name=${v.lastError ? 'alert' : 'sync'} />
-            <div>${v.wallets} wallet${v
-                .wallets === 1
-              ? ''
-              : 's'} · ${v.lastRun
+          <div data-help="checked">
+            <${Attention} tone=${v.lastError ? 'bad' : 'info'}
+              icon=${html`<${Icon} name=${v.lastError ? 'alert' : 'sync'} />`}>${v.wallets}${' '}
+            wallet${v.wallets === 1 ? '' : 's'} · ${v.lastRun
               ? html`last checked ${ago(v.lastRun)}${v.lastError ? html`: ${v.lastError}` : ''}`
-              : 'not checked yet'}. Checked every hour.</div>
-          </div>
+              : 'not checked yet'}</${Attention}></div>
         `
         : html`
-          <div class="notice small warn" role="status" data-help="checked">
-            <${Icon} name="alert" />
-            <div>Not saved yet: no wallet is read until you save this
-              section.</div>
-          </div>
+          <div data-help="checked">
+            <${Attention} icon=${html`<${Icon} name="alert" />`}>Not saved
+            yet</${Attention}></div>
         `}
       <${FormError} error=${test.error} />
       <p class="small dim">Test asks the saved explorer or node for the chain's height: save
@@ -1221,17 +1212,17 @@ function Backups() {
                   res.reload();
                   s.reload();
                 }
-              }, (e) => toast(e.message))}>Change</button></div></div></div>
-        <div class=${'notice ' + (v.lastError ? 'bad' : '')}><${Icon} name=${v.lastError
-          ? 'alert'
-          : 'check'} /><div>${v.lastRun
-          ? html`Last backup ${moment(v.lastRun)}${
-            v.lastError ? html`: failed (${v.lastError})` : ': encrypted and verified'
-          }.`
-          : 'No backup yet.'} Directory (set on the host): <code>${v
-          .directory}</code>. A backup is the database and its keyring, a coherent copy
-          for the host's own backup to pick up; receipt files are never copied, the host
-          backs them up with the data directory. Backups open with the recovery phrase.</div></div>
+              }, (e) => toast(e.message))}>Change</button></div></div>
+          </div>
+          <${Attention} tone=${v.lastError ? 'bad' : 'info'} icon=${html`<${Icon} name=${
+            v.lastError ? 'alert' : 'check'
+          } />`}>${v.lastRun
+            ? html`Last backup ${moment(v.lastRun)}${
+              v.lastError ? html`: failed (${v.lastError})` : ': encrypted and verified'
+            }`
+            : 'No backup yet'}</${Attention}>
+        <div class="list-item"><span class="grow dim">Directory (set on the host)</span><code>${v
+          .directory}</code></div>
         ${v.backups.length
           ? html`
             <table class="t mt">
@@ -1655,12 +1646,11 @@ function Keys() {
                         : ': everything opened'}.</div>
                       ${last.rotationUnfinished
                         ? html`
-                          <div class="notice small bad mt" role="status">
-                            <${Icon} name="alert" />
-                            <div>The
-                                        rotation didn't finish: the keyring stayed under <code>${last
-                                          .rotationUnfinished}</code>, so it re-encrypted under that phrase. Rotate again.</div>
-                          </div>
+                          <div class="mt">
+                            <${Attention} tone="bad"
+                              icon=${html`<${Icon} name="alert" />`}>The rotation didn't finish:
+                            re-encrypted under <code>${last
+                              .rotationUnfinished}</code></${Attention}></div>
                         `
                         : null}
                       ${lastCopies.length
@@ -1689,30 +1679,24 @@ function Keys() {
           : null}
         ${v.scheduled
           ? html`
-            <div class="notice mt" role="status" data-help="scheduled">
-              <${Icon} name="refresh" />
-              <div
-                class="grow">A re-encryption${v.scheduled.why === 'rotation'
+            <div class="mt" data-help="scheduled">
+              <${Attention} tone="info"
+                icon=${html`<${Icon} name="refresh" />`}>A re-encryption${v.scheduled.why ===
+                    'rotation'
                   ? ', brought by a rotation,'
-                  : ''} waits for the restart: the unlock runs it before the server serves, with the phrase
-                      given there, its progress on the locked screen.</div>
+                  : ''} waits for the restart</${Attention}>
             </div>
           `
           : null}${v.lastRestore &&
             (v.lastRestore.receiptsUnopened.length || v.lastRestore.secretsUnopened.length ||
               v.lastRestore.receiptsSetAside.length)
           ? html`
-            <div class="notice small bad mt" role="status" data-help="after-restore">
-              <${Icon}
-                name="alert" />
-              <div>After the restore of <code>${v.lastRestore.source}</code>:${' '}
-                      ${v.lastRestore.receiptsUnopened
-                        .length} receipts' files don't open (or are missing),${' '}
-                      ${v.lastRestore.secretsUnopened.length} secrets don't open, and${' '}
-                      ${v.lastRestore.receiptsSetAside
-                        .length} files were set aside. Put the receipts back from
-                      the host's own backup of the same moment; enter the secrets again.</div>
-            </div>
+            <div class="mt" data-help="after-restore">
+              <${Attention} tone="bad"
+                icon=${html`<${Icon} name="alert" />`}>After the restore of${' '}
+              <code>${v.lastRestore.source}</code>: ${v.lastRestore.receiptsUnopened.length}${' '}
+              receipts' files don't open, ${v.lastRestore.secretsUnopened.length} secrets don't
+              open, ${v.lastRestore.receiptsSetAside.length} files set aside</${Attention}></div>
           `
           : null}
         <div class="toolbar mt"><button type="button" class="btn" onClick=${() =>

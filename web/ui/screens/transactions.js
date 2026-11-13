@@ -22,6 +22,7 @@ import { TransactionDialog } from './transaction-dialog.js';
 import { Field, TypedInput } from '../components/fields.js';
 import { check, KINDS } from '../app/kinds.js';
 import { Dec } from '../app/dec.js';
+import { Action, StatePill } from '../components/state.js';
 
 const EMPTY = { account: '', category: '', from: '', to: '', min: '', max: '', payee: '', tag: '' };
 
@@ -65,6 +66,9 @@ function TransactionList() {
   const res = useApi('/transactions', params, []);
   const d = /** @type {any} */ (res.data);
   const all = /** @type {any[]} */ (accounts.data) || [];
+  const addWhy = all.some((a) => canAdd('Txn', a))
+    ? null
+    : 'No account here takes transactions from you';
 
   useEffect(() => {
     const t = setTimeout(() => set('payee')(typing), 300);
@@ -125,12 +129,12 @@ function TransactionList() {
         <option value="">All categories</option><option value="none">Uncategorised</option>
         ${cats.list.map((c) => html`<option value=${c.id}>${c.path}</option>`)}</select>
       <span class="spacer"></span>
-      <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
+      <${Action} why=${addWhy}
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all }).then(
             fresh,
-          )}><${Icon} name="upload" /> Import</button>
-      <button type="button" class="btn primary" disabled=${!all.some((a) => canAdd('Txn', a))}
+          )}><${Icon} name="upload" /> Import</${Action}>
+      <${Action} class="btn primary" why=${addWhy}
         onClick=${() =>
           openDialog(TransactionDialog, { accounts: all }).then((v) =>
             v && fresh()
@@ -170,10 +174,10 @@ function TransactionList() {
     </details>
     ${f.category === 'none' && d?.items.length
       ? html`
-        <div class="notice warn" style=${{ marginBottom: '12px' }}>
-          <${Icon} name="info" />
-          <div><b>Uncategorised.</b> Select rows to categorise them together.</div>
-        </div>
+        <div style=${{ marginBottom: '12px' }}>
+          <${StatePill} tone="warn"
+            why="Select rows to categorise them together.">${d
+              .total} uncategorised</${StatePill}></div>
       `
       : null}
     ${res.error
@@ -182,9 +186,7 @@ function TransactionList() {
       ? html`<${Loading} lines=${8} />`
       : d.items.length
       ? html`<${TxTable} rows=${d.items} onChanged=${res.reload} accounts=${all} />`
-      : html`<${Empty}>${
-        all.length ? 'No transactions match.' : 'No accounts yet: make one on Accounts.'
-      }</${Empty}>`}
+      : html`<${Empty}>${all.length ? 'No transactions match' : 'No accounts yet'}</${Empty}>`}
     ${d
       ? html`
         <${Pager} label="tx" shown=${d.items.length} page=${page} total=${d.total} newer=${newer}

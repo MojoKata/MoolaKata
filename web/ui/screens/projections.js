@@ -16,9 +16,10 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
 import { num } from '../app/dec.js';
-import { Record as Rec } from '../app/draft.js';
+import { READ_ONLY, Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
+import { Action } from '../components/state.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -90,10 +91,8 @@ export default function Projections({ id }) {
     </div>
     ${current
       ? html`<${Detail} key=${current.id} id=${current.id} reloadList=${list.reload} />`
-      : html`<${Empty}>No projections yet. A projection asks how your money will grow and
-        what it will pay for: retirement, education, or a savings target by a date.
-        <div class="mt"><button type="button" class="btn primary" onClick=${create}>
-          <${Icon} name="plus" /> New projection</button></div></${Empty}>`}
+      : html`<${Empty} action=${html`<button type="button" class="btn primary" onClick=${create}>
+          <${Icon} name="plus" /> New projection</button>`}>No projections yet</${Empty}>`}
   `;
 }
 
@@ -138,12 +137,14 @@ function Detail({ id, reloadList }) {
             ? ` · ${x.status}`
             : ''
         }</span>`
-        : html`<span class="pill">scenario</span>`}<span class="spacer"></span>${x.access.shareable
-        ? html`<button type="button" class="btn" onClick=${() =>
+        : html`<span class="pill">scenario</span>`}<span class="spacer"></span><${Action} why=${whyNot(
+          x,
+          'shareable',
+        )}
+        onClick=${() =>
           openDialog(ShareDialog, { kind: 'projection', id: x.id, name: x.name }).then(
             reload,
-          )}><${Icon} name="share" /> Share</button>`
-        : null}
+          )}><${Icon} name="share" /> Share</${Action}>
       ${!mine
         ? html`<label class="small dim" style=${{
           display: 'flex',
@@ -154,16 +155,16 @@ function Detail({ id, reloadList }) {
           showOnDashboard(x).then(reload, (e) => toast(e.message))} /> Show on my
           Dashboard</label>`
         : null}
-      ${x.access.configurable && !x.active
-        ? html`<button type="button" class="btn primary" onClick=${activate}>Make active</button>`
-        : null}
-      ${x.access.configurable && x.active
-        ? html`<button type="button" class="btn" onClick=${() =>
+      ${!x.active
+        ? html`
+          <${Action} class="btn primary" why=${whyNot(x, 'configurable')}
+            onClick=${activate}>Make active</${Action}>
+        `
+        : html`<${Action} why=${whyNot(x, 'configurable')} onClick=${() =>
           api.post(`/projections/${x.id}/deactivate`).then(() => {
             toast('It is a scenario again');
             reload();
-          })}>Stop following</button>`
-        : null}
+          })}>Stop following</${Action}>`}
     </div>
     ${x.tracking && x.tracking.status !== 'untracked'
       ? html`<${Tracking} x=${x} />`
@@ -229,8 +230,7 @@ function Detail({ id, reloadList }) {
           `}
         ${x.access.writable ? html`<${Inputs} x=${x} reload=${reload} />` : html`
           <div class="card">
-            <p class="small dim">Shared with you to read.</p>
-          </div>
+            <${Action} why=${READ_ONLY}>Change its inputs</${Action}></div>
         `}
       </div>
     </div>

@@ -18,6 +18,7 @@ import { connectionState, DRIVERS } from './connector.js';
 import { Record } from '../app/draft.js';
 import { saveNow } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
+import { Attention } from './state.js';
 
 const DRIVER_OPTIONS = /** @type {[string, string][]} */ ([
   ['schwab', 'Schwab'],
@@ -242,12 +243,8 @@ export function ConnectionDialog({ close, connection }) {
         before it is sent: MoolaKata can't read it.</p>
       ${v.paired && !v.confirmed
         ? html`
-          <div class="notice">
-            <${Icon} name="alert" />
-            <div>An admin has not yet confirmed
-                      that the paired connector is the household's own (Settings › Connector). Until then
-                      no sign-in is sealed for it.</div>
-          </div>
+          <${Attention} icon=${html`<${Icon} name="alert" />`}>Connector not confirmed by an admin
+            yet</${Attention}>
         `
         : null}
       ${existing ? null : html`
@@ -335,11 +332,9 @@ export function ConnectionDialog({ close, connection }) {
           </${Field}>
         ${f.how === 'host' ? null : !sealedOk
           ? html`
-            <div class="notice">
-              <${Icon} name="alert" />
-              <div>This browser can't seal
-                          credentials (no X25519 in WebCrypto). Choose the stricter way: an admin types them
-                          on the connector's host.</div>
+            <div>
+              <${Attention} icon=${html`<${Icon} name="alert" />`}>This browser can't seal
+              credentials</${Attention}>
             </div>
           `
           : f.driver === 'schwab'

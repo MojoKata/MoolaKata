@@ -493,7 +493,7 @@ def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
     """S8.12, S8.13: a mortgage's interest, PMI and escrowed tax under the home it's secured
     by, a student loan's 1098-E; a collectable and a personal-use loss sold, and a primary
     residence's gain and years owned."""
-    page, problems = opened(browser, world, YEAR, "property", ':text("your primary residence")')
+    page, problems = opened(browser, world, YEAR, "property", ':text("TP cottage sold")')
     loans = _text(page, _card("Loans (1098, 1098-E)"))
     assert (
         "TP mortgage · 1098 · TP cottage Interest $400.00 PMI $50.00 Property tax through "
@@ -504,10 +504,7 @@ def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
     assert "TP coin May 1, 2021 · collectable +$2,000.00" in sold
     assert "TP car May 1, 2021 · a loss on personal-use property, not deductible $0.00" in sold
     assert "TP cottage Jul 1, 2021 +$100,000.00" in sold
-    assert (
-        "TP cottage, your primary residence, sold Jul 1, 2021 after 6.1 years: a gain of "
-        "$100,000.00. The exclusion is the preparer's to apply."
-    ) in sold
+    assert "TP cottage sold Jul 1, 2021 after 6.1 years: a gain of $100,000.00" in sold
     assert "10 IBM" not in sold and "SCHD" not in sold
     assert problems == []
     page.close()
@@ -569,8 +566,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     hrefs = [a.get_attribute("href") for a in exports.locator("a.btn").all()]
     assert hrefs == [f"{base}/8949.csv", f"{base}/moolakata.txf", f"{base}/summary.pdf"]
     assert " ".join(exports.locator(".notice").inner_text().split()) == (
-        "TXF leaves out 3 sales (1 collectable, 1 personal-use loss, 1 sale without a lot): "
-        "enter them from the CSV."
+        "TXF leaves out 3 sales (1 collectable, 1 personal-use loss, 1 sale without a lot)"
     )
     status, kind, csv = page.evaluate(
         "async (u) => { const r = await fetch(u);"
@@ -595,10 +591,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
         "TP Leo Son · qualifying child · 12 months turns 13: no longer under 13 for the childcare "
         "credit Age 13 on Dec 31, 2021: under 17"
     ) in deps
-    assert (
-        "Emma Griffin's TP custodial earned $3,000.00 of unearned income this year, above the "
-        "$2,200.00 threshold: Form 8615 (the kiddie tax) may apply."
-    ) in deps
+    assert "Emma Griffin: $3,000.00 unearned, above $2,200.00 · Form 8615 may apply" in deps
     assert problems == []
     page.close()
 
@@ -640,7 +633,8 @@ def test_the_documents_tab_shows_what_came_and_what_was_filed(browser, world):
         "1099-INT TP Ally From TP savings: $10 or more of interest received tp-1099-int.pdf"
     ) in rows
     assert "1098-T — For Emma Griffin: a student received" in rows
-    assert "1099-DA TP Coinbase From TP exchange: a crypto exchange Attach" in rows
+    # Each row says whether its document came; Attach beside one that hasn't (S12.19.1).
+    assert "1099-DA TP Coinbase From TP exchange: a crypto exchange missing Attach" in rows
     expected = world.book(YEAR)["expected"]
     assert len(rows) == len(expected)
     assert table.locator('button:has-text("Attach")').count() == sum(
@@ -694,11 +688,11 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
 
 
 EMPTY_STATES = {
-    "gains": ["No sales in 2020.", "None found: no loss sale was replaced within 30 days."],
-    "income": ["No interest in 2020.", "None in 2020.", "No staking or rewards in 2020."],
+    "gains": ["No sales in 2020", "None found: no loss sale was replaced within 30 days."],
+    "income": ["No interest in 2020", "None in 2020", "No staking or rewards in 2020"],
     "retirement": [
         "No retirement accounts in this book.",
-        "None in 2020.",
+        "None in 2020",
         "None due: no owner has reached the RMD age.",
     ],
     "deductions": [
@@ -708,7 +702,7 @@ EMPTY_STATES = {
     ],
     "giving": ["Deductible $0.00", "None."],
     "education": ["No 529 plans in this book.", "No one received more than the annual exclusion."],
-    "property": ["No loans in this book.", "Nothing sold in 2020."],
+    "property": ["No loans in this book.", "Nothing sold in 2020"],
     "summary": ["Net capital gain or loss $0", "0 payers", "deductible", "Nothing carried forward"],
 }
 

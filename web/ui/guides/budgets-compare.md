@@ -5,6 +5,8 @@ month or the year to it. Over the year, a line's available is what it carried in
 first month plus what each month put in and moved, so a rolled-over remainder counts once, and
 what is left is what its last month leaves.
 
+**Copy as scenario…** on Budgets makes another to compare.
+
 ## Month
 
 The month compared, or the last month of the year to it.

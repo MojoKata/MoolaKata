@@ -1,6 +1,18 @@
 /// <reference lib="deno.ns" />
 // Editing records (requirements S12.15, S17.3.9): what a draft sends, puts back and saves.
-import { canAdd, countedIds, Draft, idMaker, isId, Record, typeOf } from '../app/draft.js';
+import {
+  canAdd,
+  countedIds,
+  Draft,
+  idMaker,
+  isId,
+  READ_ONLY,
+  Record,
+  typeOf,
+  whyNot,
+  whyNotAdd,
+  whyRead,
+} from '../app/draft.js';
 import { Dec } from '../app/dec.js';
 import { equal, truthy } from './assert.js';
 
@@ -372,4 +384,31 @@ Deno.test('Add is offered as the server will judge it: the parent holds what its
     thrown = true;
   }
   equal(thrown, true);
+});
+
+Deno.test('an action off says why: read only, a permission lacking, or none to give', () => {
+  const read = { access: { writable: false, shareable: false, deletable: false } };
+  const mine = { access: { writable: true, shareable: true, deletable: true, configurable: true } };
+  equal([whyRead(mine), whyRead(read), whyRead(null)], [null, READ_ONLY, READ_ONLY]);
+  equal(whyNot(read, 'shareable'), 'Only its owner shares it');
+  equal(whyNot(read, 'deletable'), 'Only its owner deletes it');
+  equal(whyNot(read, 'configurable'), 'Only its owner changes its settings');
+  equal(whyNot(read, 'writable'), READ_ONLY);
+  equal(whyNot(mine, 'shareable'), null);
+  equal(whyNot(read, 'something-else'), READ_ONLY, 'a permission with no words of its own');
+});
+
+Deno.test('an Add off says why canAdd refuses it', () => {
+  const read = { access: { writable: false, configurable: false, shareable: false } };
+  const mine = { access: { writable: true, configurable: true, shareable: true } };
+  equal([whyNotAdd('Anchr', mine), whyNotAdd('Anchr', read)], [null, READ_ONLY]);
+  equal(whyNotAdd('TxBkA', read), 'Only its owner changes its settings');
+  equal(whyNotAdd('AcShr', read), 'Only its owner shares it');
+  equal(canAdd('Anchr', mine), true);
+  equal([whyNotAdd('Setng', {}), whyNotAdd('Setng', {}, { admin: true })], [
+    'Only admins can',
+    null,
+  ]);
+  equal(whyNotAdd('Rmbrs', { spendingId: mine, paybackId: read }), READ_ONLY, 'each it needs');
+  equal(whyNotAdd('Rmbrs', { spendingId: mine, paybackId: mine }), null);
 });

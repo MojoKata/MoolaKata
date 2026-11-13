@@ -4,6 +4,8 @@ Every account you own or that someone has shared with you, grouped by kind.
 
 ![Accounts](shots/accounts.png)
 
+Make an account with New account, then import its files.
+
 ## Show
 
 **Mine**, **Shared with me** and **Shared by me**. A shared account shows its owner's avatar with an

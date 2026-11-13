@@ -5,6 +5,8 @@ household's own node. Admins only.
 
 ![Bitcoin settings](shots/settings-bitcoin.png)
 
+Wallets are checked every hour; none is read until this section is saved.
+
 ## Explorer or node
 
 **Public: mempool.space** or **Blockstream**: nothing to set up, but the explorer sees which

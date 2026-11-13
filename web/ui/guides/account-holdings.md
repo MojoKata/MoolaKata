@@ -4,6 +4,11 @@ What the account holds, worked out from its trades and lots.
 
 ![An account's Holdings](shots/account-holdings.png)
 
+Holdings come from the broker's file, or from trades added here.
+
+A sale without a lot, or a position the imported history doesn't explain, is counted as a thing to
+check.
+
 ## Price
 
 The latest daily close. Hover it for its source and date: a close from a price source, the broker's

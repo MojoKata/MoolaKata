@@ -4,6 +4,9 @@ What was taken out of a 529 each year, against the qualified expenses it paid fo
 
 ![A 529's Withdrawals](shots/account-withdrawals.png)
 
+When school starts, each year lists what was taken out against the qualified expenses and their
+receipts.
+
 ## Each year
 
 Distributions (as on Form 1099-Q) against qualified expenses. What isn't covered may have taxable

@@ -3,7 +3,7 @@
 // marks (S10.6). New account and Import start here.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { canAdd } from '../app/draft.js';
+import { canAdd, whyNot } from '../app/draft.js';
 import { useList } from '../app/hooks.js';
 import { ago } from '../app/format.js';
 import { useTitle } from '../components/frame.js';
@@ -16,6 +16,7 @@ import { ShareDialog } from '../components/share.js';
 import { NewAccount } from './new-account.js';
 import { ImportDialog } from './import.js';
 import { BY_TYPE } from '../account-types/index.js';
+import { Action } from '../components/state.js';
 
 const FILTERS = /** @type {[string, string][]} */ ([
   ['all', 'All'],
@@ -77,19 +78,23 @@ export default function Accounts() {
   };
   return html`
     <div
-      class="toolbar"><${Chips} label="Show" value=${filter} onChange=${setFilter} options=${FILTERS} />
+      class="toolbar">
+      <${Chips} label="Show" value=${filter} onChange=${setFilter} options=${FILTERS} />
       <span class="spacer"></span>
-      <button type="button" class="btn" disabled=${!all.some((a) => canAdd('Txn', a))}
+      <${Action} why=${all.some((a) => canAdd('Txn', a))
+        ? null
+        : 'No account here takes transactions from you'}
         onClick=${() =>
-          openDialog(ImportDialog, { accounts: all })}><${Icon} name="upload" /> Import</button>
+          openDialog(ImportDialog, { accounts: all })}><${Icon} name="upload" /> Import</${Action}>
       <button type="button" class="btn primary" onClick=${() => openDialog(NewAccount)}><${Icon}
         name="plus" /> New account</button></div>
     ${!list.length
-      ? html`<${Empty}>${
-        all.length
-          ? 'No accounts match this filter.'
-          : 'No accounts yet. Make one with New account, then import its files.'
-      }</${Empty}>`
+      ? html`<${Empty} action=${
+        all.length ? null : html`
+          <button type="button" class="btn primary"
+            onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New account</button>
+        `
+      }>${all.length ? 'No accounts match this filter' : 'No accounts yet'}</${Empty}>`
       : null}
     ${ORDER.map((g) => {
       const as = list.filter((a) => a.group === g);
@@ -137,16 +142,16 @@ export default function Accounts() {
                         <td class="num"><b><${Amt} v=${a.balance} /></b>${a.change != null
                           ? html`<div class="small"><${Amt} v=${a.change} signed /> <span class="dim">30d</span></div>`
                           : null}</td>
-                        <td class="num">${a.access.shareable
-                          ? html`
-                            <button type="button" class="icon-btn" aria-label=${'Share ' +
-                              a.name} data-tip="Share"
-                              onClick=${() =>
-                                openDialog(ShareDialog, { kind: 'account', id: a.id, name: a.name })
-                                  .then(() => res.reload())}><${Icon} name="share" /></button>
-                          `
-                          : null}</td>
-                      </tr>
+                        <td class="num">
+                          <${Action} class="icon-btn" aria-label=${'Share ' +
+                            a.name} data-tip="Share" why=${whyNot(a, 'shareable')}
+                            onClick=${() =>
+                              openDialog(ShareDialog, { kind: 'account', id: a.id, name: a.name })
+                                .then(() => res.reload())}>
+                            <${Icon} name="share" />
+                            </${Action}>
+                            </td>
+                            </tr>
                     `
                   )}
                 </tbody>

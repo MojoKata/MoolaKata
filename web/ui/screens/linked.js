@@ -317,7 +317,7 @@ function Screen({ id, rows, sub, subId, tab }) {
 /** @param {{ base: string, rows: any[] }} p */
 function Dashboard({ base, rows }) {
   useGuide('linked-dashboard');
-  if (!rows.length) return html`<${Empty}>Nothing is shared with you yet.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>Nothing is shared with you yet</${Empty}>`;
   const accounts = rows.filter((r) => r.kind === 'account');
   // A newer MoolaKata on the other side may share kinds this one can't show yet (version skew).
   const unknown = rows.filter((r) => !KIND[r.kind]);
@@ -393,7 +393,7 @@ const KIND = /** @type {Record<string, string>} */ ({
 /** @param {{ base: string, rows: any[] }} p */
 function Accounts({ base, rows }) {
   useGuide('linked-accounts');
-  if (!rows.length) return html`<${Empty}>No accounts are shared with you.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>No accounts are shared with you</${Empty}>`;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -526,7 +526,7 @@ function Txns({ aid }) {
 
 /** @param {{ items: any[] }} p */
 function TxList({ items }) {
-  if (!items.length) return html`<${Empty}>No transactions.</${Empty}>`;
+  if (!items.length) return html`<${Empty}>No transactions</${Empty}>`;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -578,7 +578,7 @@ function AllTransactions({ rows }) {
  */
 function List({ guide, rows, href, value, label }) {
   useGuide(guide);
-  if (!rows.length) return html`<${Empty}>Nothing of this kind is shared with you.</${Empty}>`;
+  if (!rows.length) return html`<${Empty}>Nothing of this kind is shared with you</${Empty}>`;
   return html`<div class="card">${
     rows.map((r) =>
       html`
@@ -853,7 +853,7 @@ function BudgetRecurring({ bid }) {
 function Positions({ rows }) {
   useGuide('linked-positions');
   const investing = rows.filter((r) => r.row?.investing);
-  if (!investing.length) return html`<${Empty}>No investing account is shared with you.</${Empty}>`;
+  if (!investing.length) return html`<${Empty}>No investing account is shared with you</${Empty}>`;
   return html`${
     investing.map((r) =>
       html`
@@ -890,7 +890,7 @@ function TaxDocuments({ id, bid }) {
   }
   if (!b || !files.data) return html`<${Loading} lines=${3} />`;
   const sent = new Map((/** @type {any[]} */ (files.data)).map((f) => [f.id, f]));
-  if (!b.documents.length) return html`<${Empty}>No documents in this book.</${Empty}>`;
+  if (!b.documents.length) return html`<${Empty}>No documents in this book</${Empty}>`;
   /** @param {any} d */
   const file = (d) =>
     !d.receiptId
@@ -1062,7 +1062,7 @@ function Receipts({ id }) {
   const v = /** @type {any[]} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} lines=${4} />`;
-  if (!v.length) return html`<${Empty}>No receipts came with what is shared with you.</${Empty}>`;
+  if (!v.length) return html`<${Empty}>No receipts came with what is shared with you</${Empty}>`;
   return html`<div class="card">${
     v.map((f) =>
       // A receipt still on its way (S11.4): listed with what came with it, opened once it has.

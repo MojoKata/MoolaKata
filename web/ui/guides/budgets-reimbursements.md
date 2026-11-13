@@ -3,6 +3,9 @@
 Spending marked **Reimbursable** in its transaction and not yet paid back in full, oldest first. It
 keeps its category, and the budget doesn't count it while it's awaited.
 
+Mark spending **Reimbursable** in its transaction, and it's listed here, not counted, until a
+deposit pays it back.
+
 ## Month
 
 The month the budget's other tabs show; this list isn't by month.

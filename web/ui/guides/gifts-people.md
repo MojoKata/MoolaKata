@@ -5,6 +5,8 @@ them this year and the last gift you gave.
 
 ![People](shots/gifts-people.png)
 
+Add the people you give gifts to, with their dates.
+
 ## People
 
 Click a person to change their dates, budget and notes, see what you gave before, or share the

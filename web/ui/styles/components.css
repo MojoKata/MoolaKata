@@ -1312,6 +1312,35 @@
   .tip-wrap {
     display: inline-block;
   }
+  /* An action not open now (S12.19.1): off, still reached by Tab, its tooltip saying why. */
+  [aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn[aria-disabled='true']:hover {
+    background: var(--bg-3);
+  }
+  .btn.primary[aria-disabled='true']:hover {
+    background: var(--accent);
+    filter: none;
+  }
+  /* Empty (S12.19.2): a line and the action that makes the first one. */
+  .empty {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  /* Something needing attention (S12.19.4): one line, its actions after it. */
+  .notice.attention {
+    align-items: center;
+  }
+  .attention-actions {
+    display: inline-flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
   .tip-wrap > button:disabled {
     pointer-events: none;
   }
