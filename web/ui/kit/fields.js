@@ -211,27 +211,28 @@ export function ValueInput(
   if (!clears && !words.length) {
     return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
   }
-  return html`
-    <span class="value-input">
-      <span class=${'value-in' + (clears ? ' ends-1' : '')}><${Input} value=${v} onInput=${onInput}
-          bad=${bad} ...${rest} />${clears
-            ? html`
-              <span class="value-ends"><button type="button" class="icon-btn" aria-label="Clear"
-                data-tip="Clear" onClick=${() => onInput('')}><${Icon} name="x" /></button></span>
-            `
-            : null}</span>
-      ${words.length
-        ? html`
-          <span class="value-bar">${words.map((f, i) =>
-            html`
-              ${i ? html`<span class="dot" aria-hidden="true">·</span>` : null}<button
-                type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
-                disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
-            `
-          )}</span>
+  const ends = clears
+    ? html`<span class="value-ends"><button type="button" class="icon-btn" aria-label="Clear"
+        data-tip="Clear" onClick=${() => onInput('')}><${Icon} name="x" /></button></span>`
+    : null;
+  const bar = words.length
+    ? html`<span class="value-bar">${
+      words.map((f, i) =>
+        html`
+          ${i
+            ? html`<span class="dot" aria-hidden="true">·</span>`
+            : null}<button type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
+            disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
         `
-        : null}
-    </span>
+      )
+    }</span>`
+    : null;
+  return html`
+    <span
+      class="value-input"><span class=${'value-in' +
+        (clears
+          ? ' ends-1'
+          : '')}><${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />${ends}</span>${bar}</span>
   `;
 }
 
