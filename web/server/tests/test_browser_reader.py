@@ -196,3 +196,20 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     off(dialog, "Delete plan", "Only its owner deletes it")
     assert problems == []
     page.close()
+
+
+def test_a_category_another_may_delete_shows_delete_off_with_why(browser, household, reader):
+    """S12.19.1: a shipped category nothing uses is an admin's to delete; for anyone else its
+    Delete is shown off, saying so, never replaced by a line."""
+    h = household
+    items = h.c.get("/ui/api/categories").json()["items"]
+    cat = next(c for c in items if c["shipped"] and not c["inUse"] and not c["serverNamed"])
+    page, problems = signed_in_as_reader(
+        browser, h, "/ui/budgets/none/categories", "table.categories"
+    )
+    page.click(f'button[aria-label="Edit {cat["path"]}"]')
+    wait(page, ".dialog #f-name", problems)
+    off(page.locator(".dialog"), "Delete", "Only admins delete a shipped category")
+    assert "Only admins delete" not in page.locator(".dialog .body").inner_text()
+    assert problems == []
+    page.close()

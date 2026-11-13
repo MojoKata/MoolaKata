@@ -584,7 +584,7 @@ function Documents({ b, done }) {
                     : null
                 }`
                 : html`
-                  <${Action} class="btn sm"
+                  <span class="pill warn">missing</span> <${Action} class="btn sm"
                     why=${whyRead(b)} onClick=${(/** @type {Event} */ ev) => {
                       ev.stopPropagation();
                       add({

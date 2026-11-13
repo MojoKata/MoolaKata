@@ -633,7 +633,8 @@ def test_the_documents_tab_shows_what_came_and_what_was_filed(browser, world):
         "1099-INT TP Ally From TP savings: $10 or more of interest received tp-1099-int.pdf"
     ) in rows
     assert "1098-T — For Emma Griffin: a student received" in rows
-    assert "1099-DA TP Coinbase From TP exchange: a crypto exchange Attach" in rows
+    # Each row says whether its document came; Attach beside one that hasn't (S12.19.1).
+    assert "1099-DA TP Coinbase From TP exchange: a crypto exchange missing Attach" in rows
     expected = world.book(YEAR)["expected"]
     assert len(rows) == len(expected)
     assert table.locator('button:has-text("Attach")').count() == sum(

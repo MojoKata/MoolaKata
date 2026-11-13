@@ -27,6 +27,7 @@ import {
   NEW,
   usesWords,
 } from '../app/categories.js';
+import { Action } from './state.js';
 
 export { categoryOptions, defaultMapping, mergeTargets, NEW };
 
@@ -150,6 +151,18 @@ export function CategoryField(p) {
   `;
 }
 
+/**
+ * Why the reader may not delete a category nothing uses (S7.2.3, S12.19.1), or null when they
+ * may: a shipped category, or another user's, is an admin's to delete.
+ * @param {any} c
+ */
+function deleteWhy(c) {
+  if (c.allowed.delete) return null;
+  return c.shipped
+    ? 'Only admins delete a shipped category'
+    : 'Only admins delete another user’s category';
+}
+
 /** Why a field is locked for the reader (S7.2.3). @param {any} c */
 function lockedWhy(c) {
   if (c.serverNamed) {
@@ -190,8 +203,8 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
           ? html`<${FindThem} cat=${cat} close=${close} leave=${async () =>
             !f.draft?.changed ||
             await askToLeave('this category', () => {}, () => saveFromQuestion(save))} />`
-          : cat?.allowed.delete
-          ? html`<button type="button" class="btn danger" onClick=${async () => {
+          : cat && !cat.serverNamed
+          ? html`<${Action} class="btn danger" why=${deleteWhy(cat)} onClick=${async () => {
             if (!f.draft || !rec) return;
             const sure = await confirmAction({
               title: `Delete ${cat.path}?`,
@@ -201,7 +214,7 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
             f.draft.remove(rec);
             const out = await save.run().catch(() => null);
             if (out?.status !== 'saved') f.draft.unremove(rec);
-          }}>Delete</button>`
+          }}>Delete</${Action}>`
           : null}>
       ${rec
         ? html`
@@ -223,11 +236,7 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
               disabled=${locked} options=${TAX_TAGS}
               hint="Puts its transactions in Taxes › Deductions." />
           </div>
-          ${cat?.inUse
-            ? html`<${InUse} cat=${cat} />`
-            : cat && !cat.allowed.delete && !cat.serverNamed
-            ? html`<p class="small dim">Only admins delete a shipped category or another user’s.</p>`
-            : null}
+          ${cat?.inUse ? html`<${InUse} cat=${cat} />` : null}
         `
         : null}
     </${DraftDialog}>
