@@ -7,8 +7,9 @@
 // cash register takes an amount, each digit coming in at the right of the smallest unit.
 
 /**
- * The field's text and its caret (or selection). `text` is what is shown, grouped.
- * @typedef {{ text: string, start: number, end: number }} Edit
+ * The field's text and its caret (or selection). `text` is what is shown, grouped; `refused`,
+ * why a key wasn't taken, the text left as it was.
+ * @typedef {{ text: string, start: number, end: number, refused?: string }} Edit
  */
 
 /**
@@ -42,17 +43,19 @@ export function groupText(t) {
 const digitsAfter = (text, at) => (text.slice(at).match(/\d/g) || []).length;
 
 /**
- * The place in `text` with `n` digits after it: just before the n-th digit from the end, after
- * any comma before that digit, so the caret stays by its digit.
+ * The place in `text` with `n` digits after it: just after the digit before them, so the caret
+ * stays against what was typed or kept, a comma or a `.` after it rather than before.
  * @param {string} text @param {number} n
  */
 function placeBefore(text, n) {
-  if (n <= 0) return text.length;
+  const total = (text.match(/\d/g) || []).length;
+  const keep = total - n;
+  if (keep <= 0) return text.search(/\d|\.|$/);
   let seen = 0;
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (/\d/.test(text[i]) && ++seen === n) return i;
+  for (let i = 0; i < text.length; i++) {
+    if (/\d/.test(text[i]) && ++seen === keep) return i + 1;
   }
-  return 0;
+  return text.length;
 }
 
 /**
@@ -105,8 +108,17 @@ export function typeNatural(e, op, way) {
     out = flat.slice(0, s) + flat.slice(t);
     after = digitsAfter(flat, t);
   }
-  const text = groupText(tidy(out, way));
-  const caret = placeBefore(text, after);
+  const tidied = tidy(out, way);
+  // A digit past the field's places is not taken (S12.18.8.2): dollars stop at the cents.
+  const frac = tidied.split('.')[1];
+  if ('insert' in op && way.places != null && frac !== undefined && frac.length > way.places) {
+    const was = ungroup(e.text).split('.')[1] ?? '';
+    if (frac.length > was.length) return { ...e, refused: `At most ${way.places} places.` };
+  }
+  const text = groupText(tidied);
+  let caret = placeBefore(text, after);
+  // A `.` just typed: the caret goes on past it, to the fraction.
+  if ('insert' in op && op.insert.endsWith('.') && text[caret] === '.') caret += 1;
   return { text, start: caret, end: caret };
 }
 

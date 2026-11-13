@@ -115,7 +115,7 @@ def test_a_tour_says_when_nothing_is_left(browser, household):
     page.click(f"{TOUR} button:has-text('open Browser kites')")
     wait(page, '.dialog button:has-text("Delete")', problems)
     page.click('.dialog button:has-text("Delete")')
-    page.click('.dialog-ask-box button:has-text("Yes, delete")')
+    page.click('.dialog-ask-box button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     wait(page, f"{TOUR}:has-text('The category is gone')", problems)
     page.click(f"{TOUR} button[aria-label='Close the tour']")

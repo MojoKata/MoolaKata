@@ -417,7 +417,7 @@ function Prices() {
     }
   };
   const remove = async (/** @type {any} */ src) => {
-    const sure = await confirmAction({ title: `Remove ${src.label}?`, yes: 'Yes, remove' });
+    const sure = await confirmAction({ title: `Remove ${src.label}?` });
     if (!sure) return;
     try {
       await saveNow((d) => d.remove(d.load(SrcRec, src)));
@@ -594,7 +594,7 @@ function RemoveCopy({ close, c }) {
       <p class="small" style=${{ marginTop: 0 }}>It can't be put back. The server's recovery phrase
         says it is you, as well as your password.</p>
       <${Field} label="Recovery phrase" error=${errAt(remove.error, 'phrase')}>
-        <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+        <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
         <${FormError} error=${remove.error} shown=${['phrase']} />
@@ -618,7 +618,7 @@ function VerifyKey({ close }) {
         check.</p>
       <${Field} label="Recovery phrase" error=${errAt(check.error, 'phrase')}
         hint="Four letters of each word are enough.">
-        <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+        <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
         <${FormError} error=${check.error} shown=${['phrase']} />
@@ -639,7 +639,7 @@ function SetKey({ close, src }) {
         ? html`
           <${Field} label="API key" error=${rec.error('apiKey')}
             hint="Stored encrypted and never shown again; Settings shows only that it is set, when and by whom.">
-            <${Input} type="password" value=${rec.get('apiKey') || ''} autocomplete="off"
+            <${Input} type="secret" value=${rec.get('apiKey') || ''} autocomplete="off"
               onInput=${(/** @type {string} */ x) => {
                 // A key turns the source on with it.
                 if (x) {
@@ -1162,7 +1162,7 @@ function CopiesKept({ close, v }) {
             deletes some, which can't be undone. The server's recovery phrase says it is you, as
             well as your password.</p>
           <${Field} label="Recovery phrase" error=${errAt(save.error, 'phrase')}>
-            <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+            <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
               autocorrect="off" autocapitalize="off" spellcheck=${false} required />
             </${Field}>
         `
@@ -1399,7 +1399,7 @@ function RotateKey({ close, copies }) {
           : html`
             <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}
               hint="Four letters of each word are enough.">
-              <${Input} type="password" value=${current} onInput=${setCurrent} autocomplete="off"
+              <${Input} type="secret" value=${current} onInput=${setCurrent} autocomplete="off"
                 autocorrect="off" autocapitalize="off" spellcheck=${false} required />
               </${Field}>
           `}
@@ -1530,7 +1530,6 @@ function Keys() {
     const sure = await confirmAction({
       title: `Forget ${fp}?`,
       detail: 'A copy that needs it can no longer be opened here.',
-      yes: 'Yes, forget it',
     });
     if (!sure) return;
     await withReauth(() => api.del(`/settings/keys/previous/${encodeURIComponent(fp)}`));

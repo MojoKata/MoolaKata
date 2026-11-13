@@ -56,10 +56,21 @@ Deno.test('the caret keeps as many digits to its right as before', () => {
   equal(typed('12.3|4', '.', money), '12.3|4');
 });
 
+Deno.test('a digit past the places is not taken, and says why', () => {
+  equal(typed('|', '12.345', money), '12.34|');
+  const e = typeNatural(at('1.23|'), { insert: '4' }, money);
+  equal(e.refused, 'At most 2 places.');
+  equal(shown(e), '1.23|');
+  // Typed into the whole part, a digit is taken however many places there are.
+  equal(typed('1|.23', '9', money), '19|.23');
+  // A quantity takes as many as are typed.
+  equal(typed('|', '0.12345678', qty), '0.12345678|');
+});
+
 Deno.test('Backspace just after a comma takes the digit before it', () => {
   equal(typed('1,|234', '⌫', qty), '|234');
-  equal(typed('12,|345', '⌫', qty), '1,|345');
-  equal(typed('1,234,|567', '⌫', qty), '123,|567');
+  equal(typed('12,|345', '⌫', qty), '1|,345');
+  equal(typed('1,234,|567', '⌫', qty), '123|,567');
 });
 
 Deno.test('a minus changes the sign where the field takes one, wherever the caret is', () => {

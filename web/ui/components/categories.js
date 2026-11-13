@@ -309,7 +309,6 @@ export function MergeDialog({ close, cat }) {
     const sure = await confirmAction({
       title: `Merge ${cat.path} into ${target?.path}?`,
       detail: 'Everything filed under it moves, for every user, and it is deleted.',
-      yes: 'Merge',
     });
     if (!sure) return;
     const out = await api.post(`/categories/${cat.id}/merge`, { into, children: mapping }, {

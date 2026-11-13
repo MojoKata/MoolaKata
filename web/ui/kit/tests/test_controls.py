@@ -3,6 +3,8 @@ pages: a list, a switch, a switch off saying why, a count with All, a value's ×
 off, a dialog that asks before losing changes and one over it, the question before a delete, a
 menu, the pager; and the theme's tokens and icons."""
 
+import re
+
 from conftest import open_page
 from playwright.sync_api import expect
 
@@ -95,7 +97,7 @@ def test_the_question_before_a_delete_has_no_as_its_default(page, kit):
     page.keyboard.press("Enter")
     expect(report(page, "confirm")).to_have_text("false")
     page.click("[data-demo='confirm'] button")
-    page.click("button:has-text('Yes, delete')")
+    page.click(".dialog-ask-buttons button:text-is('Yes')")
     expect(report(page, "confirm")).to_have_text("true")
 
 
@@ -122,3 +124,45 @@ def test_the_theme_lists_its_tokens_and_icons(page, kit):
     open_page(page, kit, "theme")
     expect(page.locator(".token code", has_text="--accent").first).to_be_visible()
     expect(page.locator(".glyph code", has_text="calendar")).to_be_visible()
+
+
+def test_a_secret_is_text_drawn_blurred_and_its_eye_shows_it(page, kit):
+    open_page(page, kit, "fields")
+    f = page.locator("#f-secret")
+    # Plain text, so no password manager offers or fills it; blurred until shown.
+    assert f.get_attribute("type") == "text"
+    assert f.get_attribute("autocomplete") == "off"
+    assert f.get_attribute("data-1p-ignore") == "true"
+    f.fill("sk-live-123")
+    expect(f).to_have_class(re.compile(r"\bveiled\b"))
+    page.click("[data-demo='secret'] button[aria-label='Show it']")
+    expect(f).not_to_have_class(re.compile(r"\bveiled\b"))
+    expect(f).to_have_value("sk-live-123")
+    page.click("[data-demo='secret'] button[aria-label='Hide it']")
+    expect(f).to_have_class(re.compile(r"\bveiled\b"))
+
+
+def test_the_question_is_yes_or_no_and_nothing_more(page, kit):
+    open_page(page, kit, "overlays")
+    page.click("[data-demo='confirm'] button")
+    buttons = page.locator(".dialog-ask-buttons button")
+    expect(buttons).to_have_text(["Yes", "No"])
+    box = page.locator(".dialog-ask-box")
+    assert box.evaluate("e => getComputedStyle(e).backgroundColor") != "rgba(0, 0, 0, 0)"
+    yes, no = (b.bounding_box() for b in buttons.all())
+    assert no["x"] > yes["x"] + yes["width"], "at the right, a gap between them"
+    page.keyboard.press("Escape")
+
+
+def test_a_toast_slides_up_and_back_down(page, kit):
+    open_page(page, kit, "overlays")
+    page.click("[data-demo='toast'] button:has-text('Save')")
+    t = page.locator(".toast")
+    expect(t).to_have_text("Saved")
+    assert t.evaluate("e => getComputedStyle(e).animationName") == "toast-in"
+    expect(page.locator(".toast.leaving")).to_have_count(1, timeout=6000)
+    assert (
+        page.locator(".toast.leaving").evaluate("e => getComputedStyle(e).animationName")
+        == "toast-out"
+    )
+    expect(t).to_have_count(0, timeout=3000)

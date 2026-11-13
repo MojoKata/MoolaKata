@@ -88,7 +88,6 @@ export default function OverlaysPage() {
               await confirmAction({
                 title: 'Delete this rule?',
                 detail: 'Transactions it filed keep their category.',
-                yes: 'Yes, delete',
               }),
             )}>Delete…</button>
           </${Demo}>

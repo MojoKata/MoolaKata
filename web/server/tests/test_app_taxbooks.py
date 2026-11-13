@@ -39,7 +39,7 @@ def test_a_book_youre_named_on_is_accepted_or_declined(dev_server):
             notice = '.notice:has-text("2018")'
             pg.wait_for_selector(notice)
             pg.click(f'{notice} button:has-text("Decline")')
-            pg.click('[role=alertdialog] button:has-text("Decline")')
+            pg.click('[role=alertdialog] button:text-is("Yes")')
             pg.wait_for_selector(notice, state="detached")
             other = '.notice:has-text("2017")'
             pg.click(f'{other} button:has-text("Accept")')

@@ -932,7 +932,7 @@ def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, househo
         assert page.is_visible(".dialog"), f"{key} answers No and leaves the dialog open"
     assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 200
     page.click('.dialog button:has-text("Delete")')
-    page.click('[role=alertdialog] button:has-text("Yes, delete")')
+    page.click('[role=alertdialog] button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 404
     assert problems == []
@@ -958,7 +958,7 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     page.click('tr:has-text("Rocket") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog footer button:has-text("Remove")')
-    page.click('[role=alertdialog] button:has-text("Yes, remove")')
+    page.click('[role=alertdialog] button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     assert "Rocket" not in {x["issuer"] for x in book_of(h)["received"]}
     assert problems == []

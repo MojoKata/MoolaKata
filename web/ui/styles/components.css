@@ -1045,15 +1045,6 @@
   .legend span {
     white-space: nowrap;
   }
-  .dialog-ask {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background: var(--scrim);
-    border-radius: 14px;
-    z-index: 1;
-  }
   /* "Ignore future lines starting with:", beneath a statement's line (S1.3.3.4). */
   .ask-inline {
     display: flex;
@@ -1064,24 +1055,6 @@
   .ask-inline .in {
     flex: 1;
     min-width: 160px;
-  }
-  .dialog-ask-box {
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    padding: 18px 22px;
-    width: min(400px, 90%);
-    box-shadow: var(--shadow);
-  }
-  .dialog-ask-box h3 {
-    margin: 0 0 6px;
-    font-size: 16px;
-  }
-  .dialog-ask-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 14px;
   }
   /* The form between the frame and its parts passes the frame's height on, so a tall body
      scrolls between the header and the buttons rather than running past the frame. */

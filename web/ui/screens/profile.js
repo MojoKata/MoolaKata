@@ -346,7 +346,6 @@ function RelationshipDialog({ close, me, r }) {
               onClick=${async () => {
                 const sure = await confirmAction({
                   title: 'Remove this relationship?',
-                  yes: 'Yes, remove',
                 });
                 if (sure) remove.run().catch(() => {});
               }}>Remove</button><span class="spacer"
@@ -797,7 +796,6 @@ function IgnoredLines() {
     const sure = await confirmAction({
       title: `Stop ignoring lines starting “${x.start}”?`,
       detail: `They are read again from ${x.institution}'s next statement.`,
-      yes: 'Yes, remove',
     });
     if (!sure) return;
     try {

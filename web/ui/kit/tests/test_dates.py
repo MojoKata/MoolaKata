@@ -157,3 +157,29 @@ def test_the_month_buttons_move_the_calendar_and_a_click_outside_closes_it(page,
     expect(page.locator("[data-demo='date'] .cal-pop")).to_be_visible()
     b.click()
     expect(page.locator("[data-demo='date'] .cal-pop")).to_have_count(0)
+
+
+def test_a_time_is_picked_from_the_list_by_the_keys_or_the_pointer(page, kit):
+    open_page(page, kit, "dates")
+    f = field(page, "time-filled")
+    f.click()
+    page.keyboard.press("ArrowDown")
+    expect(f).to_have_attribute("aria-expanded", "true")
+    # On the field's time: 5:30 PM, every 15 minutes.
+    active = f.get_attribute("aria-activedescendant")
+    expect(page.locator(f"#{active}")).to_have_text("5:30 PM")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    expect(f).to_have_value("5:45 PM")
+    expect(report(page, "time-filled")).to_have_text('"17:45"')
+    expect(f).to_have_attribute("aria-expanded", "false")
+    expect(f).to_be_focused()
+    # The clock button lists them too; a click picks one; Escape closes without a pick.
+    page.click("[data-demo='time'] button[aria-label='List the times']")
+    page.click("[data-demo='time'] [role='option']:has-text('12:15 AM')")
+    expect(field(page, "time")).to_have_value("12:15 AM")
+    expect(report(page, "time")).to_have_text('"00:15"')
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Escape")
+    expect(field(page, "time")).to_have_attribute("aria-expanded", "false")
+    expect(field(page, "time")).to_have_value("12:15 AM")

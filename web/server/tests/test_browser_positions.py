@@ -549,7 +549,7 @@ def test_a_strategy_ungrouped_leaves_its_legs(browser, household):
     page.get_by_role("button", name="No", exact=True).click()
     assert page.locator(".dialog").count() == 1 and len(strategies_of(h, acct)) == 1
     page.get_by_role("button", name="Ungroup").click()
-    page.get_by_role("button", name="Yes, ungroup").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Yes", exact=True).click()
     wait(page, ".dialog", problems, state="detached")
     toast(page, "Ungrouped: the legs stand on their own", problems)  # CR3-407
     wait(page, 'main tbody tr:has-text("Ungrouped desk")', problems, state="detached")

@@ -133,16 +133,57 @@ def test_many_chips_grow_to_three_rows_and_then_scroll(page, kit):
 
 def test_one_line_counts_the_chips_out_of_sight_and_goes_back_to_the_first(page, kit):
     open_page(page, kit, "tags")
-    b = box(page, "one-line")
     before = page.locator("[data-demo='one-line'] .before")
-    expect(before).to_have_count(0)
-    b.click()
+    # At rest the line shows its end, the box to type in, and counts what is out of sight.
     expect(before).to_be_visible()
     n = int(before.inner_text().strip())
     assert n > 0
     assert before.get_attribute("aria-label") == f"{n} tags before"
     before.click()
     expect(before).to_have_count(0)
+    expect(page.locator("[data-demo='one-line'] .tag").first).to_be_focused()
+
+
+def test_a_chip_takes_the_focus_and_the_arrows_move_along_the_chips(page, kit):
+    open_page(page, kit, "tags")
+    d = "[data-demo='tags-filled']"
+    b = box(page, "tags-filled")
+    b.click()
+    page.keyboard.type("x")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Home")
+    # ← at the start of the box goes on to the last chip; what was typed stays typed.
+    page.keyboard.press("ArrowLeft")
+    expect(page.locator(f"{d} .tag").nth(1)).to_be_focused()
+    expect(b).to_have_value("x")
+    page.keyboard.press("ArrowLeft")
+    expect(page.locator(f"{d} .tag").nth(0)).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("ArrowRight")
+    expect(b).to_be_focused()
+    # A click on a chip focuses it; Backspace takes it off, the focus to the one before.
+    page.locator(f"{d} .tag-name", has_text="coffee").click()
+    expect(page.locator(f"{d} .tag").nth(1)).to_be_focused()
+    page.keyboard.press("Backspace")
+    assert chips(page, "tags-filled") == ["work"]
+    expect(page.locator(f"{d} .tag").nth(0)).to_be_focused()
+    # Delete takes off the last, and the box has the focus.
+    page.keyboard.press("Delete")
+    assert chips(page, "tags-filled") == []
+    expect(b).to_be_focused()
+    expect(b).to_have_value("x")
+
+
+def test_the_list_stays_open_for_the_next_pick(page, kit):
+    open_page(page, kit, "tags")
+    b = box(page, "tags")
+    b.click()
+    page.keyboard.press("ArrowDown")
+    page.click("[data-demo='tags'] [role='option']:has-text('work')")
+    expect(b).to_have_attribute("aria-expanded", "true")
+    page.click("[data-demo='tags'] [role='option']:has-text('coffee')")
+    assert chips(page, "tags") == ["work", "coffee"]
+    expect(b).to_be_focused()
 
 
 def test_off_and_read(page, kit):

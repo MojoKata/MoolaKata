@@ -9,7 +9,7 @@ import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
 import { loadSession, lostChanges, restarting } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { Field, FormError } from '../kit/fields.js';
+import { Field, FormError, Input } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
 import NewServer from './new-server.js';
 
@@ -28,7 +28,6 @@ const RESTART_WAIT = 60_000;
 
 export default function Locked() {
   const [words, setWords] = useState('');
-  const [shown, setShown] = useState(false);
   const [lock, setLock] = useState(/** @type {any} */ (null));
   const [late, setLate] = useState(false);
   const poll = async () => {
@@ -131,16 +130,8 @@ export default function Locked() {
       }}>
         <${Field} label="Recovery phrase" id="recovery-phrase"
           hint="The 12 words from the recovery sheet, in order. Four letters of each are enough.">
-          <span class="pw" id="recovery-phrase-box"><input class="in" id="f-recovery-phrase"
-              type=${shown ? 'text' : 'password'} value=${words} required
-              autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck=${false}
-              data-1p-ignore data-lpignore="true"
-              onInput=${(/** @type {any} */ ev) => setWords(ev.currentTarget.value)} /><button
-              type="button" class="icon-btn" aria-pressed=${shown ? 'true' : 'false'}
-              aria-label=${shown ? 'Hide the phrase' : 'Show the phrase'}
-              onClick=${() => setShown(!shown)}><${Icon} name=${shown
-                ? 'eye-off'
-                : 'eye'} /></button></span>
+          <${Input} type="secret" value=${words} onInput=${setWords} required
+            autocorrect="off" />
           </${Field}>
           ${lock?.error
             ? html`<div class="notice small bad" role="status">The last unlock couldn't

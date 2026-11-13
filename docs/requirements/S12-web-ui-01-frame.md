@@ -8,7 +8,9 @@
       tile with the **theme** button (crescent moon for dark, lightbulb for light, palette
       for the system's; a click moves to the next). A round button on its edge collapses it
       to icons and opens it again; the browser remembers which.
-   2. The **help pane** on the right (S12.7), and a **toast** area for confirmations.
+   2. The **help pane** on the right (S12.7), and a **toast** area for confirmations: each
+      slides up from the bottom, stays a moment and slides back down, so it is noticed (no
+      movement with reduced motion).
    3. Shared components: one popup menu (closes on choosing, Escape, or a click or focus
       outside), dialogs, styled tooltips that also show on keyboard focus and reach screen
       readers, and a **pager** for long lists (Transactions, Activity): a page size of 100,
@@ -17,7 +19,12 @@
       orange **+N new** pill instead of shifting the page. Every password field (a password,
       an API key, the SMTP or node password) carries an **eye** button at its right end that
       shows what was typed and hides it again (the eye struck through while shown), labelled
-      for screen readers. A **dialog** masks the content, not the guide: the sidebar and the
+      for screen readers. A secret that isn't the person's own sign-in (a recovery phrase, an
+      API key, a bank's password for the connector) is plain text drawn blurred until the eye
+      shows it, so a password manager neither offers to fill it nor fills the person's
+      MoolaKata password into it; the person's own password (signing in, setting it, changing
+      it, confirming who they are) stays a password field, for the manager. A segmented
+      choice (None · Read · Write) cross-fades from one button to the next. A **dialog** masks the content, not the guide: the sidebar and the
       page are dimmed and out of reach, for the pointer, the keyboard and screen readers,
       while the help pane beside it shows the dialog's guide and stays in reach, its links and
       terms working. The dialog is centred over the content; Tab goes round its fields and

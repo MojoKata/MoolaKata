@@ -57,7 +57,6 @@ export function AccessTokens() {
                           if (
                             !(await confirmAction({
                               title: 'Revoke this token?',
-                              yes: 'Yes, revoke',
                             }))
                           ) return;
                           revoke.run(t).catch(() => {});

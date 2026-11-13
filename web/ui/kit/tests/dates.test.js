@@ -38,6 +38,8 @@ Deno.test('a date typed in each way people write one', () => {
       'sept 3',
       'today',
       '  TODAY ',
+      'tomorrow',
+      'Yesterday',
     ].map(read),
     [
       '2026-10-12',
@@ -55,6 +57,8 @@ Deno.test('a date typed in each way people write one', () => {
       '2026-09-03',
       TODAY,
       TODAY,
+      '2026-11-14',
+      '2026-11-12',
     ],
   );
 });
@@ -75,7 +79,7 @@ Deno.test('what is not a date is not read as one', () => {
       'oct',
       '2026-13-01',
       '1/2/3/4',
-      'yesterday',
+      'tmrw',
     ].map(read),
     Array(13).fill(null),
   );

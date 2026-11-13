@@ -5,7 +5,7 @@
 // matches none is a new item; where it can't (people), it is refused. The field grows a row at a
 // time to `maxRows` rows of chips and then scrolls; kept to one line, it scrolls sideways behind
 // a count of the chips out of sight.
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { html } from './html.js';
 import { Icon } from './icon.js';
 import { ReadValue, useReading } from './fields.js';
@@ -147,6 +147,7 @@ export function TagInput({
   const [mark, setMark] = useState(/** @type {string | null} */ (null));
   const [said, setSaid] = useState('');
   const [before, setBefore] = useState(0);
+  const wrap = useRef(/** @type {HTMLDivElement | null} */ (null));
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const input = useRef(/** @type {HTMLInputElement | null} */ (null));
   const own = useRef(`tags-${++seq}`);
@@ -160,22 +161,23 @@ export function TagInput({
   const offerNew = allowNew && !!text.trim() && !exact;
   const count = options.length + (offerNew ? 1 : 0);
 
-  // Kept to one line: the chips scrolled out of sight to the left, counted.
+  // Kept to one line: the chips scrolled out of sight to the left, counted. The count is drawn
+  // over the line, not in it, so showing it moves no chip and can't change what it counts.
   const recount = () => {
     const b = box.current;
     if (!b || autoGrow) return;
     const chips = /** @type {HTMLElement[]} */ ([...b.querySelectorAll('.tag')]);
     setBefore(chips.filter((c) => c.offsetLeft + c.offsetWidth / 2 < b.scrollLeft + 8).length);
   };
-  useLayoutEffect(recount);
-  useEffect(() => {
-    // The box being typed in stays in view: at the end of one line, at the bottom of the rows.
+  // The box being typed in stays in view: at the end of one line (so at rest the count says
+  // what is out of sight), at the bottom of the rows while it is being typed in.
+  useLayoutEffect(() => {
     const b = box.current;
-    if (b && document.activeElement === input.current) {
-      if (autoGrow) b.scrollTop = b.scrollHeight;
-      else b.scrollLeft = b.scrollWidth;
-    }
-  }, [value.length, text]);
+    if (!b) return;
+    if (!autoGrow) b.scrollLeft = b.scrollWidth;
+    else if (document.activeElement === input.current) b.scrollTop = b.scrollHeight;
+    recount();
+  }, [value.length, text, autoGrow]);
 
   if (reading) {
     const shown = value.map(labelOf).join(', ');
@@ -206,22 +208,68 @@ export function TagInput({
     if (!text.trim()) return;
     if (add([text])) setText('');
   };
-  /** @param {number} i */
+  /** An option picked: added, and the list stays open for the next. @param {number} i */
   const pick = (i) => {
     if (i < options.length) {
       change([...value, options[i].key], `Added ${options[i].label}`);
       setText('');
     } else commitText();
-    setState({ open: false, active: -1 });
+    setState({ open: true, active: -1 });
   };
-  /** @param {number} i */
-  const remove = (i) => {
+  /** The chips, as elements. */
+  const chipEls =
+    () => /** @type {HTMLElement[]} */ ([...(box.current?.querySelectorAll('.tag') || [])]);
+  /** The focus to a chip, or past the last, to the box. @param {number} i */
+  const focusChip = (i) => {
+    const el = chipEls()[i];
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    } else input.current?.focus();
+  };
+  /**
+   * A chip taken off; the focus goes to `to` (a chip's place after it goes, or the box).
+   * @param {number} i @param {number | null} [to]
+   */
+  const remove = (i, to = null) => {
     const gone = labelOf(value[i]);
     change(value.filter((_, j) => j !== i), `Removed ${gone}`);
-    input.current?.focus();
+    requestAnimationFrame(() => (to === null ? input.current?.focus() : focusChip(to)));
+  };
+  /** A chip's keys: the arrows move along the chips, Backspace and Delete take it off. */
+  const chipKey = (/** @type {KeyboardEvent} */ e, /** @type {number} */ i) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || disabled) return;
+    const last = value.length - 1;
+    const to = {
+      ArrowLeft: Math.max(0, i - 1),
+      ArrowRight: i + 1,
+      Home: 0,
+      End: value.length,
+    }[e.key];
+    if (to !== undefined) {
+      e.preventDefault();
+      focusChip(to);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      remove(i, i > 0 ? i - 1 : last > 0 ? 0 : null);
+    } else if (e.key === 'Delete') {
+      e.preventDefault();
+      remove(i, i < last ? i : null);
+    }
   };
 
   const onKeyDown = (/** @type {KeyboardEvent} */ e) => {
+    const el = /** @type {HTMLInputElement} */ (e.currentTarget);
+    // ← at the start of the box goes on to the chips before it.
+    if (
+      e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+      el.selectionStart === 0 && el.selectionEnd === 0 && value.length
+    ) {
+      e.preventDefault();
+      setState({ open: false, active: -1 });
+      focusChip(value.length - 1);
+      return;
+    }
     const a = boxKey(e, state, count, text);
     if (!a) return;
     if (a.prevent) e.preventDefault();
@@ -240,10 +288,12 @@ export function TagInput({
     } else setText(e.currentTarget.value);
     setState({ open: true, active: -1 });
   };
+  /** Whether the focus is going somewhere else in the field. @param {FocusEvent} e */
+  const within = (e) => !!wrap.current?.contains(/** @type {Node | null} */ (e.relatedTarget));
   const active = state.open && state.active >= 0 ? `${listId}-${state.active}` : undefined;
   const [one, many] = noun;
   return html`
-    <div class="tag-wrap">
+    <div class="tag-wrap" ref=${wrap}>
       <div ref=${box} class=${'tag-box' + (autoGrow ? '' : ' one-line') +
         (bad || mark ? ' bad' : '') + (disabled ? ' off' : '')}
         style=${{ '--tag-rows': String(maxRows) }}
@@ -254,20 +304,15 @@ export function TagInput({
             input.current?.focus();
           }
         }}>
-        ${before
-          ? html`
-            <button type="button" class="before" tabindex="-1"
-              aria-label=${`${before} ${before === 1 ? one : many} before`}
-              data-tip=${`${before} ${before === 1 ? one : many} before`}
-              onClick=${() => box.current && (box.current.scrollLeft = 0)}><${Icon}
-                          name="chev" />${before}</button>
-          `
-          : null}
         ${value.map((k, i) =>
-          html`<span class="tag" key=${k}><span class="tag-name">${labelOf(k)}</span><button
-            type="button" class="icon-btn" disabled=${disabled}
-            aria-label=${`Remove ${labelOf(k)}`} data-tip=${`Remove ${labelOf(k)}`}
-            onClick=${() => remove(i)}><${Icon} name="x" /></button></span>`
+          html`
+            <span class="tag" key=${k} tabindex="-1" role="group" aria-label=${labelOf(k)}
+              onKeyDown=${(/** @type {KeyboardEvent} */ e) => chipKey(e, i)}><span
+                class="tag-name">${labelOf(k)}</span><button type="button" class="icon-btn"
+                tabindex="-1" disabled=${disabled} aria-label=${`Remove ${labelOf(k)}`}
+                data-tip=${`Remove ${labelOf(k)}`} onClick=${() => remove(i)}><${Icon}
+                  name="x" /></button></span>
+          `
         )}
         <input ...${rest} ref=${input} id=${id} type="text" role="combobox" autocomplete="off"
           aria-autocomplete="list" aria-expanded=${state.open && count > 0 ? 'true' : 'false'}
@@ -277,11 +322,23 @@ export function TagInput({
           disabled=${disabled} value=${text} placeholder=${value.length ? '' : placeholder}
           onInput=${onInput} onKeyDown=${onKeyDown}
           onFocus=${() => setState({ open: false, active: -1 })}
-          onBlur=${() => {
+          onBlur=${(/** @type {FocusEvent} */ e) => {
             setState({ open: false, active: -1 });
-            commitText();
+            // Typed text becomes a chip when the field is left, not when a chip takes the focus.
+            if (!within(e)) commitText();
           }} />
       </div>
+      ${before
+        ? html`
+          <button type="button" class="before" tabindex="-1"
+            aria-label=${`${before} ${before === 1 ? one : many} before`}
+            data-tip=${`${before} ${before === 1 ? one : many} before`}
+            onClick=${() => {
+              if (box.current) box.current.scrollLeft = 0;
+              focusChip(0);
+            }}><${Icon} name="chev" />${before}</button>
+        `
+        : null}
       ${state.open && (count > 0 || (text.trim() && !allowNew))
         ? html`
           <ul class="tag-list" role="listbox" id=${listId} aria-label=${`Your ${many}`}>

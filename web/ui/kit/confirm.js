@@ -1,26 +1,26 @@
 // The question before anything is deleted, removed, revoked, ended or reset (requirements
-// S12.16): one small box over the page or the dialog it comes from, No focused and the
-// default (Enter and Escape both answer it), Yes named for what it does.
+// S12.16): one small box over the page or the dialog it comes from, its title saying what
+// would happen; Yes and No, nothing more on either, No focused and the default (Enter and
+// Escape both answer it).
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { html } from './html.js';
 
-/** @type {import('@preact/signals').Signal<{ title: string, detail?: string, yes: string,
+/** @type {import('@preact/signals').Signal<{ title: string, detail?: string,
  *   resolve: (v: boolean) => void, back: HTMLElement | null } | null>} */
 const asked = signal(null);
 
 /**
  * Ask before a destructive action; true only for Yes.
- * @param {{ title: string, detail?: string, yes?: string }} q
+ * @param {{ title: string, detail?: string }} q
  * @returns {Promise<boolean>}
  */
-export function confirmAction({ title, detail, yes = 'Yes, delete' }) {
+export function confirmAction({ title, detail }) {
   return new Promise((resolve) => {
     asked.value?.resolve(false);
     asked.value = {
       title,
       detail,
-      yes,
       resolve,
       back: /** @type {HTMLElement | null} */ (document.activeElement),
     };
@@ -67,8 +67,8 @@ export function ConfirmHost() {
         <h3 id="confirm-title">${q.title}</h3>
         ${q.detail ? html`<p class="small dim" id="confirm-detail">${q.detail}</p>` : null}
         <div class="dialog-ask-buttons">
-          <button type="button" class="btn danger" ref=${yes} onClick=${() => answer(true)}>${q
-            .yes}</button>
+          <button type="button" class="btn danger" ref=${yes} onClick=${() =>
+            answer(true)}>Yes</button>
           <button type="button" class="btn primary" ref=${no} onClick=${() =>
             answer(false)}>No</button>
         </div>

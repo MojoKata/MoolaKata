@@ -37,14 +37,16 @@ export const partsOf = (
 
 /**
  * A date as it is typed, or null where it isn't one: `10/12/2026`, `10/12/26` (the 2000s),
- * `10/12` (this year), `oct 12`, `Oct 12, 2026`, `12 oct 2026`, `2026-10-12` or `today`.
- * Dashes and dots may stand for slashes.
+ * `10/12` (this year), `oct 12`, `Oct 12, 2026`, `12 oct 2026`, `2026-10-12`, `today`,
+ * `tomorrow` or `yesterday`. Dashes and dots may stand for slashes.
  * @param {string} text @param {string} today `YYYY-MM-DD`
  */
 export function readDate(text, today) {
   const t = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!t) return null;
   if (t === 'today') return today;
+  if (t === 'tomorrow') return addDays(today, 1);
+  if (t === 'yesterday') return addDays(today, -1);
   const [ty] = partsOf(today);
   const year = (/** @type {string | undefined} */ y) =>
     y === undefined ? ty : y.length <= 2 ? 2000 + Number(y) : Number(y);

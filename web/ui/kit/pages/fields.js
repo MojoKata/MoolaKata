@@ -76,6 +76,12 @@ export default function FieldsPage() {
             <${Input} type="password" value=${v} onInput=${set} />
             </${Field}>
         `}</${Kept}>
+      <${Kept} id="secret" title="A secret, blurred" first="">${(v, set) =>
+        html`
+          <${Field} label="API key" id="secret" hint="Not your sign-in: no password manager fills it.">
+            <${Input} type="secret" value=${v} onInput=${set} placeholder="paste the key" />
+            </${Field}>
+        `}</${Kept}>
       <${Kept} id="select" title="A list" first="">${(v, set) =>
         html`
           <${Field} label="Kind" id="select">
@@ -108,7 +114,7 @@ export default function FieldsPage() {
             <${CountInput} value=${v} onInput=${set} max=${5} noun="contracts" />
             </${Field}>
         `}</${Kept}>
-      <${Kept} id="value" title="A value with × and ↺" first="30">${(v, set) =>
+      <${Kept} id="value" title="A value with Clear and Use the default" first="30">${(v, set) =>
         html`
           <${Field} label="Keep receipts for" id="value" hint="Days.">
             <${TypedInput} kind="count" value=${v} onInput=${set} clear=${true} suffix="days"

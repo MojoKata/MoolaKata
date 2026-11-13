@@ -18,6 +18,7 @@ import {
   within,
 } from './dates.js';
 import { today as todayInZone } from './format.js';
+import { listAction, listKey } from './listbox.js';
 
 const WEEKDAYS = [
   ['Su', 'Sunday'],
@@ -196,32 +197,121 @@ export function DateInput(
   `;
 }
 
+/** The times of day a list offers, every `step` minutes: `00:00`, `00:15`, … @param {number} step */
+export function timesOfDay(step) {
+  const out = [];
+  for (let m = 0; m < 24 * 60; m += step) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  }
+  return out;
+}
+
 /**
  * A time-of-day field: it reads `5:30 PM` at rest; in it, a time may be typed as people write
- * it (`5:30p`, `17:30`, `noon`). `onInput` hears it as `HH:MM` as soon as it reads as one.
+ * it (`5:30p`, `17:30`, `noon`), or picked from the times of day every `step` minutes, which its
+ * clock button or ↓ lists, on the field's time. `onInput` hears it as `HH:MM` as soon as it
+ * reads as one.
  * @param {{ value: string | null | undefined, onInput: (v: string) => void, id?: string,
- *   placeholder?: string, bad?: boolean, [k: string]: any }} p
+ *   placeholder?: string, bad?: boolean, step?: number, disabled?: boolean, [k: string]: any }} p
  */
-export function TimeInput({ value, onInput, id, placeholder, bad, ...rest }) {
+export function TimeInput({ value, onInput, id, placeholder, bad, step = 15, disabled, ...rest }) {
   const [typing, setTyping] = useState(/** @type {string | null} */ (null));
+  const [list, setList] = useState(
+    /** @type {import('./listbox.js').ListState} */ ({
+      open: false,
+      active: -1,
+    }),
+  );
+  const wrap = useRef(/** @type {HTMLSpanElement | null} */ (null));
+  const input = useRef(/** @type {HTMLInputElement | null} */ (null));
   const v = String(value ?? '');
   const shown = typing ?? (/^\d{2}:\d{2}$/.test(v) ? timeText(v) : v);
-  const { onBlur, onInput: _drop, ...pass } = rest;
+  const times = timesOfDay(step);
+  const listId = `${id || 'time'}-times`;
+  useLayoutEffect(() => {
+    if (!list.open) return;
+    wrap.current?.querySelector(`#${CSS.escape(`${listId}-${list.active}`)}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [list.open, list.active]);
+  /** The list, open on the field's time or the next on the list. */
+  const openList = () => {
+    const at = readTime(shown) ?? '';
+    const i = times.findIndex((t) => t >= at);
+    setList({ open: true, active: at ? (i < 0 ? times.length - 1 : i) : 0 });
+  };
+  /** @param {number} i */
+  const pick = (i) => {
+    setTyping(null);
+    onInput(times[i]);
+    setList({ open: false, active: -1 });
+    input.current?.focus();
+  };
+  const { onBlur, onKeyDown, onInput: _drop, ...pass } = rest;
   return html`
-    <input class=${'in' + (bad ? ' bad' : '')} type="text" id=${id} value=${shown}
-      placeholder=${placeholder ?? 'ex: 5:30 PM'} autocomplete="off"
-      onInput=${(/** @type {any} */ e) => {
-        const t = e.currentTarget.value;
-        setTyping(t);
-        onInput(readTime(t) ?? t);
-      }}
-      onBlur=${(/** @type {any} */ e) => {
-        if (typing !== null) {
-          const read = readTime(typing);
-          setTyping(null);
-          if (read) e.currentTarget.value = timeText(read);
-        }
-        onBlur?.(e);
-      }} ...${pass} />
+    <span class="date-in" ref=${wrap}>
+      <input ref=${input} class=${'in' + (bad ? ' bad' : '')} type="text" id=${id}
+        value=${shown} placeholder=${placeholder ?? 'ex: 5:30 PM'} autocomplete="off"
+        disabled=${disabled} role="combobox" aria-autocomplete="none"
+        aria-expanded=${list.open ? 'true' : 'false'} aria-controls=${listId}
+        aria-activedescendant=${list.open && list.active >= 0
+          ? `${listId}-${list.active}`
+          : undefined}
+        onInput=${(/** @type {any} */ e) => {
+          const t = e.currentTarget.value;
+          setTyping(t);
+          onInput(readTime(t) ?? t);
+        }}
+        onKeyDown=${(/** @type {KeyboardEvent} */ e) => {
+          const key = listKey(e);
+          if (!list.open) {
+            if (key === 'ArrowDown' || key === 'Alt+ArrowDown') {
+              e.preventDefault();
+              openList();
+              return;
+            }
+            onKeyDown?.(e);
+            return;
+          }
+          if (!key) return;
+          const a = listAction(key, list, times.length);
+          if (a.prevent) e.preventDefault();
+          if (a.stop) e.stopPropagation();
+          if (a.pick >= 0) pick(a.pick);
+          else setList(a.state);
+        }}
+        onBlur=${(/** @type {any} */ e) => {
+          if (!wrap.current?.contains(e.relatedTarget)) setList({ open: false, active: -1 });
+          if (typing !== null) {
+            const read = readTime(typing);
+            setTyping(null);
+            if (read) e.currentTarget.value = timeText(read);
+          }
+          onBlur?.(e);
+        }} ...${pass} />
+      <button type="button" class="icon-btn" tabindex="-1" disabled=${disabled}
+        aria-label="List the times" data-tip="List the times (↓)"
+        onMouseDown=${(/** @type {MouseEvent} */ e) => e.preventDefault()}
+        onClick=${() => {
+          input.current?.focus();
+          if (list.open) setList({ open: false, active: -1 });
+          else openList();
+        }}><${Icon} name="clock" /></button>
+      ${list.open
+        ? html`
+          <ul class="tag-list time-list" role="listbox" id=${listId} aria-label="Times of day">
+            ${times.map((t, i) =>
+              html`
+                <li role="option" id=${`${listId}-${i}`} key=${t}
+                  aria-selected=${list.active === i ? 'true' : 'false'}
+                  onMouseDown=${(/** @type {MouseEvent} */ e) => {
+                    e.preventDefault();
+                    pick(i);
+                  }}>${timeText(t)}</li>
+              `
+            )}
+          </ul>
+        `
+        : null}
+    </span>
   `;
 }

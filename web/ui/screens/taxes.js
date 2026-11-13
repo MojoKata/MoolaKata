@@ -107,7 +107,6 @@ export default function Taxes({ tab }) {
           title: `Decline the ${r.label} tax book?`,
           detail: 'You are taken off it; its owner is told. Your own book for the year is ' +
             'yours to make.',
-          yes: 'Decline',
         });
         if (!sure) return;
         await api.post(`/tax-books/${r.id}/decline`);
@@ -445,7 +444,6 @@ function DependentDialog({ close, b, d, fromRow }) {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
                   title: 'Remove this dependent?',
-                  yes: 'Yes, remove',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);
@@ -1140,7 +1138,6 @@ function DocumentDialog({ close, b, start, doc, fromRow }) {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
                   title: 'Remove this document?',
-                  yes: 'Yes, remove',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);

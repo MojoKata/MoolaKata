@@ -63,7 +63,8 @@
           `1.23`. A `.` is passed over, and Backspace takes the last digit off.
        2. **A quantity, and bitcoin, are typed as written**: a `.` starts the fraction, and
           leaving the field pads the fraction to the places its kind has, where it has a fixed
-          number.
+          number. A field with fixed places takes no digit past them as it is typed: the key is
+          refused and the field marked (*At most 2 places.*).
        3. A paste is read as a whole value (S12.18.2), whichever way the field is typed:
           `$1,234.5` pasted into an amount is `1,234.50`. A `-` changes the sign where the field
           takes a negative.
@@ -72,7 +73,8 @@
        in Profile, S1.6.4). A unit is neither typed nor stored: a click on it puts the caret in
        the field, and a `%` typed into a percent is taken and dropped.
     10. **Dates**: at rest a date reads `Oct 12, 2026`. In the field it can be typed as
-        `10/12/2026`, `10/12/26`, `10/12` (this year), `oct 12`, `Oct 12, 2026` or `today`;
+        `10/12/2026`, `10/12/26`, `10/12` (this year), `oct 12`, `Oct 12, 2026`, `today`,
+        `tomorrow` or `yesterday`;
         leaving the field shows it as `Oct 12, 2026` again, and anything else is marked
         (S12.18.3, *Type a date, such as 10/12/2026.*).
         1. **The calendar**: a button at the field's right end, or ↓ (with Alt or without),
@@ -86,17 +88,24 @@
     11. **Times of day**: at rest a time reads `5:30 PM`. It can be typed as `5:30 pm`,
         `5:30p`, `530p`, `5p`, `17:30`, `noon` or `midnight`; without am or pm a time is read
         on the 24-hour clock (`5:30` is morning). Anything else is marked (*Type a time, such
-        as 5:30 PM.*).
+        as 5:30 PM.*). A clock button at the field's right end, or ↓, lists the times of day
+        every 15 minutes below it, on the field's time: the arrows move through them, Enter or
+        a click picks one, Escape closes the list, and the focus stays in the field.
     12. **Several of a list** (a record's tags, a gift's people): each chosen item is a chip
         with its own ×, and after them a box to type in. Typing lists the matches below it
         (tags most used first, people by name); Enter, or a comma, adds the one highlighted,
-        or what was typed; Backspace in the empty box takes off the last chip; a paste of
-        names separated by commas adds each. Two names that differ only in case are one, and
+        or what was typed, and the list stays open for the next; Backspace in the empty box
+        takes off the last chip; a paste of names separated by commas adds each. A click on a
+        chip, or ← at the start of the box, takes the focus to the chips: the arrows move
+        along them, Home and End to the first and back to the box, and Backspace or Delete
+        takes the chip off. What was typed becomes a chip when the field is left, not when a
+        chip takes the focus. Two names that differ only in case are one, and
         the spelling chosen first is kept; an item already chosen is not added again.
         1. **New items**: where the list may grow (tags), a name that matches none is a new
            item, made with the record when it is saved. Where it can't (people, who are
            added on their own page), a name that matches none is refused (*No match*).
         2. **Many chips**: the field grows a row at a time to three rows of chips, and then
-           scrolls. A field kept to one line (a filter) scrolls sideways instead, and a count
-           before the chips (‹ 3) says how many are out of sight to the left; a click on it
-           goes back to the first, and a screen reader reads it as *3 before*.
+           scrolls. A field kept to one line (a filter) scrolls sideways instead, showing its
+           end (the box to type in) at rest, and a count over its left edge (‹ 3) says how
+           many chips are out of sight there; a click on it goes back to the first, and a
+           screen reader reads it as *3 before*.

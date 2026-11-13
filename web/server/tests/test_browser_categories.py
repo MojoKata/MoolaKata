@@ -71,8 +71,8 @@ def test_a_category_nothing_uses_is_deleted_from_its_dialog(browser, household):
     page.click('button[aria-label="Edit Browser spare"]')
     wait(page, '.dialog button:has-text("Delete")', problems)
     page.click('.dialog button:has-text("Delete")')
-    wait(page, '.dialog-ask-box button:has-text("Yes, delete")', problems)
-    page.click('.dialog-ask-box button:has-text("Yes, delete")')
+    wait(page, '.dialog-ask-box button:text-is("Yes")', problems)
+    page.click('.dialog-ask-box button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     assert "Browser spare" not in cats(h)
     assert problems == []
@@ -181,8 +181,8 @@ def test_a_merge_maps_each_of_its_categories(browser, household):
     assert page.input_value(cat_pick) == cat["id"]
     wait(page, '.dialog [data-help="merge-budgets"]', problems)
     page.click(".dialog footer button.danger")
-    wait(page, '.dialog-ask-box button:has-text("Merge")', problems)
-    page.click('.dialog-ask-box button:has-text("Merge")')
+    wait(page, '.dialog-ask-box button:text-is("Yes")', problems)
+    page.click('.dialog-ask-box button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     now = cats(h)
     assert "Browser pet" not in now and "Browser pets two › Cat" in now

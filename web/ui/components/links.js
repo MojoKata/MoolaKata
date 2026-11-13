@@ -223,7 +223,6 @@ export function LinksSection() {
                               if (
                                 !(await confirmAction({
                                   title: invited ? 'Withdraw this invitation?' : 'End this link?',
-                                  yes: invited ? 'Yes, withdraw' : 'Yes, end it',
                                 }))
                               ) return;
                               act.run(l.id, 'end').catch(() => {});
@@ -442,7 +441,7 @@ function copies(live, values, reload, act, release) {
                           : null
                       }<button class="btn sm danger" onClick=${async () => {
                         if (
-                          !(await confirmAction({ title: 'Reset this copy?', yes: 'Yes, reset' }))
+                          !(await confirmAction({ title: 'Reset this copy?' }))
                         ) return;
                         act.run(l.id, 'reset-copy').catch(() => {});
                       }}>Reset copy</button>`}</td>

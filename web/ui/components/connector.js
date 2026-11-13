@@ -164,7 +164,6 @@ export function ConnectorSection() {
             const sure = await confirmAction({
               title: 'Unpair the connector?',
               detail: "Every Connection stops and every account's sync turns off.",
-              yes: 'Yes, unpair',
             });
             if (sure) unpair.run().catch(() => {});
           }}>Unpair…</button>`

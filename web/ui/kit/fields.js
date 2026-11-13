@@ -108,7 +108,8 @@ export function Field({ label, id, hint, error, help, children }) {
 
 /**
  * A text input bound to a value. A password input carries an eye button that shows what was
- * typed and hides it again (S12.1.3). `prefix` and `suffix` are a unit shown in the field
+ * typed and hides it again (S12.1.3); so does a `secret`, a secret that isn't the person's own
+ * sign-in, drawn blurred rather than as a password, so a password manager leaves it alone. `prefix` and `suffix` are a unit shown in the field
  * (S12.18.9); `num` sets its text at the right, as a number's is.
  * @param {{ value: any, onInput: (v: string) => void, type?: string, placeholder?: string,
  *   bad?: boolean, autocomplete?: string, id?: string, inputmode?: string, required?: boolean,
@@ -118,18 +119,35 @@ export function Input(
   { value, onInput, type = 'text', placeholder, bad, readonly, prefix, suffix, num, ...rest },
 ) {
   const [shown, setShown] = useState(false);
+  const secret = type === 'secret';
   if (useReading(readonly)) {
     const v = String(value ?? '');
     return html`
-      <${ReadValue} text=${v === '' ? '—' : type === 'password' ? '••••••••' : v}
+      <${ReadValue} text=${v === '' ? '—' : type === 'password' || secret ? '••••••••' : v}
         ...${rest} />
     `;
   }
+  // A secret that isn't the person's own sign-in (a recovery phrase, an API key, a bank's
+  // password) is plain text drawn blurred: a password manager offers nothing for it, and fills
+  // nothing into it (S12.1.3).
+  const keep = secret
+    ? {
+      autocomplete: 'off',
+      spellcheck: false,
+      autocapitalize: 'off',
+      'data-1p-ignore': 'true',
+      'data-lpignore': 'true',
+      'data-bwignore': 'true',
+      'data-form-type': 'other',
+    }
+    : {};
   const input = html`
-    <input class=${'in' + (bad ? ' bad' : '') + (num ? ' num' : '')} type=${type === 'password' &&
-        shown
+    <input class=${'in' + (bad ? ' bad' : '') + (num ? ' num' : '') +
+      (secret && !shown ? ' veiled' : '')} type=${type === 'password' && !shown
+      ? 'password'
+      : secret || type === 'password'
       ? 'text'
-      : type} value=${value ?? ''}
+      : type} value=${value ?? ''} ...${keep}
       placeholder=${placeholder} onInput=${(/** @type {any} */ e) => onInput(e.currentTarget.value)}
       ...${rest} />
   `;
@@ -144,9 +162,10 @@ export function Input(
           : null}</span>
     `;
   }
-  if (type !== 'password') return input;
+  if (type !== 'password' && !secret) return input;
+  const what = secret ? 'it' : 'password';
   return html`<span class="pw">${input}<button type="button" class="icon-btn"
-    aria-label=${shown ? 'Hide password' : 'Show password'} aria-pressed=${shown ? 'true' : 'false'}
+    aria-label=${shown ? `Hide ${what}` : `Show ${what}`} aria-pressed=${shown ? 'true' : 'false'}
     onClick=${() => setShown(!shown)}><${Icon} name=${
     shown ? 'eye-off' : 'eye'
   } /></button></span>`;
@@ -244,6 +263,12 @@ export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onC
       op,
       way,
     );
+    if (next.refused) {
+      onMark(next.refused);
+      el.setAttribute('data-tip', next.refused);
+      showTip(el);
+      return;
+    }
     el.value = next.text;
     el.setSelectionRange(next.start, next.end);
     if (mark) hideTip();

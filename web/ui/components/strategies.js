@@ -398,7 +398,6 @@ function StrategyDialog({ close, x }) {
               const sure = await confirmAction({
                 title: 'Ungroup this strategy?',
                 detail: 'Its legs stay, each on its own.',
-                yes: 'Yes, ungroup',
               });
               if (!sure) return;
               draft.remove(rec);

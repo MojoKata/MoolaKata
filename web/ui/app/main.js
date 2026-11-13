@@ -137,7 +137,6 @@ whenClosedYear((problem) =>
   confirmAction({
     title: 'Change a filed year?',
     detail: problem?.detail || '',
-    yes: problem?.confirm || 'Change it anyway',
   })
 );
 

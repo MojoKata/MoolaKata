@@ -25,7 +25,7 @@ export default function DatesPage() {
       keys=${[
         [
           'Typing a date',
-          '10/12/2026, 10/12/26, 10/12 (this year), oct 12, Oct 12, 2026, 12 oct, 2026-10-12, today.',
+          '10/12/2026, 10/12/26, 10/12 (this year), oct 12, Oct 12, 2026, 12 oct, 2026-10-12, today, tomorrow, yesterday.',
         ],
         [
           'Typing a time',

@@ -189,7 +189,11 @@
     gap: 4px;
     border-bottom: 1px solid var(--border);
     margin-bottom: 18px;
+    /* Sideways when they don't fit, with no scrollbar of its own; the chosen tab's line sits on
+       the border, which mustn't make the row scroll up and down. */
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
   }
   .tab {
     padding: 9px 14px;
@@ -265,12 +269,34 @@
     opacity: 0.45;
     cursor: default;
   }
+  /* A unit sits left of the controls inside the field, never under them. */
+  .value-in.ends-1 .unit.post {
+    right: 38px;
+  }
+  .value-in.ends-2 .unit.post {
+    right: 66px;
+  }
+  .value-in.ends-1 .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 38px);
+  }
+  .value-in.ends-2 .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 66px);
+  }
   .value-ends {
     position: absolute;
     right: 3px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
+  }
+  /* A secret drawn blurred until its eye shows it: plain text, so no password manager fills it. */
+  input.in.veiled {
+    color: transparent;
+    text-shadow: 0 0 7px var(--fg);
+    caret-color: var(--fg);
+  }
+  input.in.veiled::selection {
+    color: transparent;
   }
   .pw input.in {
     padding-right: 38px;
@@ -388,6 +414,8 @@
     font-size: 12.5px;
     cursor: pointer;
     color: var(--fg-dim);
+    /* The choice cross-fades from one button to the next. */
+    transition: background-color 0.18s ease, color 0.18s ease;
   }
   .seg button + button {
     border-left: 1px solid var(--border-strong);
@@ -509,6 +537,35 @@
     position: relative;
   }
   /* The question before a delete (S12.16), over the page or a dialog. */
+  /* A question over a dialog or the page (S12.15.6, S12.16): its box, its buttons at the right,
+     a gap between them. */
+  .dialog-ask {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    border-radius: 14px;
+    z-index: 1;
+  }
+  .dialog-ask-box {
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 18px 22px;
+    width: min(400px, 90%);
+    box-shadow: var(--shadow);
+  }
+  .dialog-ask-box h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .dialog-ask-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
   .confirm-scrim {
     position: fixed;
     inset: 0;
@@ -596,13 +653,39 @@
     gap: 8px;
     z-index: 70;
   }
+  /* A toast slides up from the bottom, and back down when it goes, so it is seen. */
   .toast {
+    animation: toast-in 0.24s ease-out;
     background: var(--bg-4);
     border: 1px solid var(--border-strong);
     padding: 10px 16px;
     border-radius: 10px;
     box-shadow: var(--shadow);
     font-size: 13px;
+  }
+  .toast.leaving {
+    animation: toast-out 0.24s ease-in forwards;
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast,
+    .toast.leaving {
+      animation: none;
+    }
+    .seg button {
+      transition: none;
+    }
   }
   .sr-only {
     position: absolute;
@@ -893,26 +976,32 @@
   .tag-box.one-line .tag {
     flex: none;
   }
-  .tag-box .before {
-    position: sticky;
-    left: -6px;
-    z-index: 1;
-    flex: none;
+  /* The count of chips out of sight, over the line's left edge: drawn over it, never in it,
+     so showing it moves nothing. */
+  .tag-wrap > .before {
+    position: absolute;
+    z-index: 2;
+    top: 1px;
+    left: 1px;
+    height: calc(var(--control) - 2px);
     display: inline-flex;
     align-items: center;
     gap: 1px;
-    height: 26px;
-    padding: 0 6px 0 2px;
-    margin-left: -6px;
-    color: var(--fg-muted);
+    padding: 0 14px 0 6px;
     border: 0;
-    background: var(--inset);
+    border-radius: 8px 0 0 8px;
+    color: var(--fg-muted);
+    background: linear-gradient(to right, var(--inset) 65%, transparent);
     cursor: pointer;
     font: inherit;
   }
-  .tag-box .before svg.i {
+  .tag-wrap > .before svg.i {
     width: 12px;
     height: 12px;
+  }
+  .tag-box .tag:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   .tag-list {
     position: absolute;
@@ -941,6 +1030,11 @@
   .tag-list [role='option'][aria-selected='true'],
   .tag-list [role='option']:hover {
     background: var(--bg-4);
+  }
+  .time-list {
+    max-height: 220px;
+    width: 160px;
+    right: auto;
   }
   .tag-list .new {
     color: var(--accent);
