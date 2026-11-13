@@ -4,13 +4,69 @@ import { cloneElement, createContext, isValidElement } from 'preact';
 import { useContext, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { slug } from '../app/format.js';
+import { READ_ONLY } from '../app/draft.js';
 import { Icon } from './icon.js';
-import { accepts, check, cleanPaste, kindOf, says } from '../app/kinds.js';
+import { accepts, check, cleanPaste, kindOf, pageOf, readText, says } from '../app/kinds.js';
 import { hideTip, showTip } from './tooltip.js';
 
 /** What a dialog opened over another puts before its fields' ids ("d1-"), so they stay its own
  * (S12.15.7); the help pane reads past it. */
 export const IdPrefix = createContext('');
+
+/**
+ * Whether the fields inside draw their read persona (S12.18.6): a form or dialog shown to one
+ * who can only read sets it once, and every input in it reads; its value is why, when it
+ * isn't *Shared with you to read*. A control's own `readonly` wins over it.
+ */
+export const Reading = createContext(/** @type {boolean | string} */ (false));
+
+/** Whether a control reads: its own `readonly`, else its form's. @param {boolean | undefined} own */
+export function useReading(own) {
+  const form = useContext(Reading);
+  return own ?? !!form;
+}
+
+/**
+ * Why a form's own actions (add a part, remove a row) are off while it reads, or null: the
+ * form's reason, *Shared with you to read* unless it gave another (S12.19.1).
+ */
+export function useReadWhy() {
+  const form = useContext(Reading);
+  return typeof form === 'string' ? form : form ? READ_ONLY : null;
+}
+
+/**
+ * A value in the read persona (S12.18.6): the edit control's box, unframed, its text where the
+ * control's text would be, so nothing moves when a form flips between the two. Reached by Tab,
+ * so the help pane follows it; named by its field's label. `href` makes it a link (a record's
+ * page, a web address); `select` keeps a list's chevron space, `rows` a text box's height.
+ * @param {{ text: string, href?: string | null, external?: boolean, select?: boolean,
+ *   rows?: number, id?: string, style?: any, [k: string]: any }} p
+ */
+export function ReadValue({ text, href, external, select, rows, id, style, ...rest }) {
+  const blank = text === '—';
+  const cls = 'in read' + (select ? ' select' : '') + (rows ? ' multi' : '') +
+    (blank ? ' blank' : '');
+  const named = {
+    'aria-label': rest['aria-label'],
+    'aria-labelledby': rest['aria-label'] || !id ? undefined : id + '-label',
+    'aria-describedby': rest['aria-describedby'],
+    'data-help': rest['data-help'],
+  };
+  if (href && !blank) {
+    return html`<span class=${cls} style=${style}><a id=${id} href=${href} ...${named}
+      target=${external ? '_blank' : undefined} rel=${
+      external ? 'noopener noreferrer' : undefined
+    }>${text}</a></span>`;
+  }
+  return html`
+    <span class=${cls} id=${id} role="textbox" aria-readonly="true"
+      aria-multiline=${rows ? 'true' : undefined} tabindex="0" style=${{
+        ...(style || {}),
+        ...(rows ? { minHeight: `calc(${rows} * 1.5em + 18px)` } : {}),
+      }} ...${named}>${text}</span>
+  `;
+}
 
 /**
  * @param {{ label: string, id?: string, hint?: any, error?: string | null, help?: string,
@@ -32,7 +88,7 @@ export function Field({ label, id, hint, error, help, children }) {
       : c
   );
   return html`<div class="field">
-    <label for=${fid}>${label}</label>
+    <label for=${fid} id=${fid + '-label'}>${label}</label>
     ${control}
     ${hint ? html`<div class="hint">${hint}</div>` : null}
     ${error ? html`<div class="err" id=${fid + '-err'} role="alert">${error}</div>` : null}
@@ -43,10 +99,18 @@ export function Field({ label, id, hint, error, help, children }) {
  * A text input bound to a value. A password input carries an eye button that shows what was
  * typed and hides it again (S12.1.3).
  * @param {{ value: any, onInput: (v: string) => void, type?: string, placeholder?: string,
- *   bad?: boolean, autocomplete?: string, id?: string, inputmode?: string, required?: boolean }} p
+ *   bad?: boolean, autocomplete?: string, id?: string, inputmode?: string, required?: boolean,
+ *   readonly?: boolean }} p
  */
-export function Input({ value, onInput, type = 'text', placeholder, bad, ...rest }) {
+export function Input({ value, onInput, type = 'text', placeholder, bad, readonly, ...rest }) {
   const [shown, setShown] = useState(false);
+  if (useReading(readonly)) {
+    const v = String(value ?? '');
+    return html`
+      <${ReadValue} text=${v === '' ? '—' : type === 'password' ? '••••••••' : v}
+        ...${rest} />
+    `;
+  }
   const input = html`
     <input class=${'in' + (bad ? ' bad' : '')} type=${type === 'password' && shown
       ? 'text'
@@ -213,13 +277,37 @@ export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onC
  *   onCommit?: (v: string, ok: boolean) => void, mark?: string | null, negative?: boolean,
  *   above?: number | string, atMost?: number | string, min?: number | string, max?: number | string, noun?: string, format?: (n: any) => string,
  *   clear?: boolean, reset?: { value: string, label: string }, fill?: Fill[], bad?: boolean,
- *   [k: string]: any }} p
+ *   readonly?: boolean, [k: string]: any }} p
  */
 export function TypedInput(
-  { kind = 'text', value, onInput, onCommit, mark: outer, negative, above, atMost, bad, ...rest },
+  {
+    kind = 'text',
+    value,
+    onInput,
+    onCommit,
+    mark: outer,
+    negative,
+    above,
+    atMost,
+    bad,
+    readonly,
+    ...rest
+  },
 ) {
   const [mark, setMark] = useState(/** @type {string | null} */ (null));
   const k = kindOf(kind);
+  if (useReading(readonly)) {
+    // Read, the value as its kind shows it; a web address is a link. Its controls go: they
+    // fill in what is typed.
+    const { id, style, 'aria-label': label, 'aria-describedby': described } = rest;
+    const text = readText(kind, value, rest.format);
+    return html`
+      <${ReadValue} text=${text} id=${id} style=${style} aria-label=${label}
+        aria-describedby=${described} data-help=${rest['data-help']}
+        href=${kind === 'url' && !k.read(String(value ?? '').trim()) ? value : null}
+        external=${kind === 'url'} />
+    `;
+  }
   const least = above ?? rest.min;
   const bounds = {
     negative: negative ?? (least == null || Number(least) < 0),
@@ -286,10 +374,23 @@ export function CountInput({ value, onInput, max, noun, ...rest }) {
 }
 
 /**
+ * A list. Read, the chosen option's words in the list's place; one naming a record with a page
+ * of its own (an account, a budget) is a link to it, when it is among the options, so one the
+ * reader may open.
  * @param {{ value: any, onChange: (v: string) => void, options: ([string, string] | string)[],
- *   id?: string }} p
+ *   id?: string, readonly?: boolean, [k: string]: any }} p
  */
-export function Select({ value, onChange, options, ...rest }) {
+export function Select({ value, onChange, options, readonly, ...rest }) {
+  if (useReading(readonly)) {
+    const v = String(value ?? '');
+    const chosen = options.map((o) => (Array.isArray(o) ? o : [o, o])).find(([x]) => x === v);
+    const text = chosen ? chosen[1] || '—' : v === '' ? '—' : 'Not shared with you';
+    return html`
+      <${ReadValue} text=${text} select href=${chosen ? pageOf(v) : null} id=${rest.id}
+        style=${rest.style} aria-label=${rest['aria-label']}
+        aria-describedby=${rest['aria-describedby']} data-help=${rest['data-help']} />
+    `;
+  }
   return html`
     <select class="in" value=${value ?? ''}
       onChange=${(/** @type {any} */ e) => onChange(e.currentTarget.value)} ...${rest}>
@@ -305,11 +406,20 @@ export function Select({ value, onChange, options, ...rest }) {
  * A switch: a button with role=switch. `why` shows it off, saying why (S12.19.1): it stays in
  * reach of the keyboard and its tooltip gives the reason.
  * One switch per row of a table names its heading with help, keeping a unique id.
+ * Read, its footprint holds a check or a dash, never a live switch (S12.18.6).
  * @param {{ on: boolean, onChange: (v: boolean) => void, label: string, id?: string,
- *   disabled?: boolean, help?: string, why?: string | null }} p
+ *   disabled?: boolean, help?: string, why?: string | null, readonly?: boolean }} p
  */
-export function Switch({ on, onChange, label, id, disabled, help, why }) {
+export function Switch({ on, onChange, label, id, disabled, help, why, readonly }) {
   const ids = useContext(IdPrefix);
+  if (useReading(readonly)) {
+    return html`
+      <span class=${'switch read' + (on ? ' on' : '')} role="switch" aria-readonly="true"
+        aria-checked=${on ? 'true' : 'false'} aria-label=${label} tabindex="0"
+        id=${ids + (help ? 'x-' : 'f-') + (id || slug(label))} data-help=${help}><${Icon}
+        name=${on ? 'check' : 'minus'} /></span>
+    `;
+  }
   return html`
     <button type="button" class=${'switch' + (on ? ' on' : '')} role="switch"
       aria-checked=${on ? 'true' : 'false'} aria-label=${label} id=${ids + (help ? 'x-' : 'f-') +
@@ -323,23 +433,29 @@ export function Switch({ on, onChange, label, id, disabled, help, why }) {
 /**
  * A row with a label and a switch, as Settings and account forms use.
  * @param {{ label: string, hint?: string, on: boolean, onChange: (v: boolean) => void,
- *   disabled?: boolean }} p
+ *   disabled?: boolean, readonly?: boolean }} p
  */
-export function SwitchRow({ label, hint, on, onChange, disabled }) {
+export function SwitchRow({ label, hint, on, onChange, disabled, readonly }) {
   return html`
     <div
       class="list-item"><span class="grow">${label}${hint
         ? html`<div class="small dim">${hint}</div>`
-        : null}</span><${Switch} on=${on} onChange=${onChange} label=${label} disabled=${disabled} /></div>
+        : null}</span><${Switch} on=${on} onChange=${onChange} label=${label} disabled=${disabled}
+          readonly=${readonly} /></div>
   `;
 }
 
 /**
  * A segmented choice, such as None · Read · Write.
+ * Read, the chosen one's words.
  * @param {{ value: string, onChange: (v: string) => void, options: [string, string][],
- *   label: string, disabled?: string[] }} p
+ *   label: string, disabled?: string[], readonly?: boolean }} p
  */
-export function Seg({ value, onChange, options, label, disabled = [] }) {
+export function Seg({ value, onChange, options, label, disabled = [], readonly }) {
+  if (useReading(readonly)) {
+    const chosen = options.find(([v]) => v === value);
+    return html`<${ReadValue} text=${chosen ? chosen[1] : '—'} aria-label=${label} />`;
+  }
   return html`<div class="seg" role="radiogroup" aria-label=${label}>${
     options.map(([v, l]) =>
       html`

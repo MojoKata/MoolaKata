@@ -865,6 +865,7 @@ function FilingDialog({ close, b, f: filing }) {
     <${DraftDialog} f=${f} wide close=${close} what="This filing"
       title=${filing ? `${filing.label} · ${b.year}` : 'Add a filing'}
       done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} saveWhy=${whyRead(b)}
+      read=${!can}
       extra=${({ save }) =>
         filing
           ? html`
@@ -880,129 +881,131 @@ function FilingDialog({ close, b, f: filing }) {
           : null}>
       ${rec
         ? html`
-          <fieldset disabled=${!can} style=${{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <div class="row">
-              <${RecField} rec=${rec} name="jurisdiction" label="Jurisdiction" options=${[
-                ['federal', 'Federal'],
-                ['state', 'A state'],
-                ['local', 'A locality'],
+          <div class="row">
+            <${RecField} rec=${rec} name="jurisdiction" label="Jurisdiction" options=${[
+              ['federal', 'Federal'],
+              ['state', 'A state'],
+              ['local', 'A locality'],
+            ]} />
+            <${RecField} rec=${rec} name="place" id="place"
+              label=${where === 'state' ? 'State' : 'Locality'}
+              placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
+            <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
+            <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
+              ['', 'Nothing: an original return'],
+              ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
+                /** @type {any} */ x,
+              ) => [x.id, x.label]),
+            ]} />
+          </div>
+          <div class="row">
+            <${RecField} rec=${rec} name="filingStatus" label="Filing status"
+              id="filing-status" hint="As filed. MoolaKata never chooses it." options=${[
+                ['', 'Not chosen yet'],
+                ...statuses.map((/** @type {string} */ x) => [x, x]),
               ]} />
-              <${RecField} rec=${rec} name="place" id="place"
-                label=${where === 'state' ? 'State' : 'Locality'}
-                placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
-              <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
-              <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
-                ['', 'Nothing: an original return'],
-                ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
-                  /** @type {any} */ x,
-                ) => [x.id, x.label]),
-              ]} />
-            </div>
-            <div class="row">
-              <${RecField} rec=${rec} name="filingStatus" label="Filing status"
-                id="filing-status" hint="As filed. MoolaKata never chooses it." options=${[
-                  ['', 'Not chosen yet'],
-                  ...statuses.map((/** @type {string} */ x) => [x, x]),
-                ]} />
-              <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by"
-                placeholder="yourself, software, a preparer" />
-              <${RecField} rec=${rec} name="sentBy" label="Sent by" id="sent-by" options=${[
-                ['e-file', 'E-file'],
-                ['paper', 'Paper'],
-              ]} />
-            </div>
-            <div class="field" data-help="progress" id="x-progress"><label>Progress</label>
-              <${Seg} label="Progress" value=${rec.get('progress')} onChange=${(
-                /** @type {string} */ v,
-              ) => rec.set('progress', v)} options=${PROGRESS} />
-              ${rec.error('progress')
-                ? html`<div class="err" role="alert">${rec.error('progress')}</div>`
-                : null}</div>
-            <div class="row">
-              <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
-                hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
-              <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
-                id="extension-filed-on" type="date" />
-              <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
-                type="date" />
-              <${RecField} rec=${rec} name="filedOn" label="Date filed" id="filed-on"
-                type="date" />
-            </div>
-            <${RecField} rec=${rec} name="confirmation" label="Confirmation number"
-              id="confirmation" placeholder="submission ID or mailing receipt" />
-            <div class="row">
-              <${RecField} rec=${rec} name="resultKind" label="Result" id="result-kind" options=${[
+            <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by"
+              placeholder="yourself, software, a preparer" />
+            <${RecField} rec=${rec} name="sentBy" label="Sent by" id="sent-by" options=${[
+              ['e-file', 'E-file'],
+              ['paper', 'Paper'],
+            ]} />
+          </div>
+          <div class="field" data-help="progress" id="x-progress"><label>Progress</label>
+            <${Seg} label="Progress" value=${rec.get('progress')} onChange=${(
+              /** @type {string} */ v,
+            ) => rec.set('progress', v)} options=${PROGRESS} />
+            ${rec.error('progress')
+              ? html`<div class="err" role="alert">${rec.error('progress')}</div>`
+              : null}</div>
+          <div class="row">
+            <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
+              hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
+            <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
+              id="extension-filed-on" type="date" />
+            <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
+              type="date" />
+            <${RecField} rec=${rec} name="filedOn" label="Date filed" id="filed-on"
+              type="date" />
+          </div>
+          <${RecField} rec=${rec} name="confirmation" label="Confirmation number"
+            id="confirmation" placeholder="submission ID or mailing receipt" />
+          <div class="row">
+            <${RecField} rec=${rec} name="resultKind" label="Result" id="result-kind"
+              options=${[
                 ['', 'Not known yet'],
                 ['refund', 'Refund'],
                 ['owed', 'Amount owed'],
                 ['none', 'Nothing due'],
               ]} />
-              <${RecField} rec=${rec} name="resultAmount" label="Amount" id="result-amount" />
-              <${RecField} rec=${rec} name="resultTransactionId" label="Paid or received in"
-                id="result-transaction" hint="Match the transaction." options=${[
-                  ['', 'Not yet'],
-                  ...items.map((/** @type {any} */ t) => [
-                    t.id,
-                    `${t.accountName || ''} · ${date(t.date)} · ${t.payee || ''} ${t.amount}`,
-                  ]),
-                ]} />
-            </div>
-            <div class="toolbar"><b class="small" data-help="estimated-payments">Estimated
-                payments</b><span class="spacer"></span><button type="button" class="btn sm"
-                onClick=${() =>
-                  draft?.add(PaymentRec, {
-                    filingId: rec.id,
-                    quarter: Math.min(4, payments.length + 1),
-                  })}><${Icon} name="plus" /> Add a payment</button></div>
-            ${payments.map((p, i) =>
-              html`
-                <div class="row" key=${p.key}>
-                  <${Field} label="Quarter" help="estimated-payments" id=${'quarter-' + i}>
-                    <${RecField} rec=${p} name="quarter" bare label="Quarter"
-                      options=${['1', '2', '3', '4']} />
+            <${RecField} rec=${rec} name="resultAmount" label="Amount" id="result-amount" />
+            <${RecField} rec=${rec} name="resultTransactionId" label="Paid or received in"
+              id="result-transaction" hint="Match the transaction." options=${[
+                ['', 'Not yet'],
+                ...items.map((/** @type {any} */ t) => [
+                  t.id,
+                  `${t.accountName || ''} · ${date(t.date)} · ${t.payee || ''} ${t.amount}`,
+                ]),
+              ]} />
+          </div>
+          <div class="toolbar"><b class="small" data-help="estimated-payments">Estimated
+              payments</b><span class="spacer"></span><${Action} class="btn sm"
+              why=${whyRead(b)} onClick=${() =>
+                draft?.add(PaymentRec, {
+                  filingId: rec.id,
+                  quarter: Math.min(4, payments.length + 1),
+                })}><${Icon} name="plus" /> Add a payment</${Action}></div>
+          ${payments.map((p, i) =>
+            html`
+              <div class="row" key=${p.key}>
+                <${Field} label="Quarter" help="estimated-payments" id=${'quarter-' + i}>
+                  <${RecField} rec=${p} name="quarter" bare label="Quarter"
+                    options=${['1', '2', '3', '4']} />
+                  </${Field}>
+                  <${Field} label="Due" help="estimated-payments" id=${'pay-due-' + i}>
+                    <${RecField} rec=${p} name="dueDate" bare label="Due" type="date" />
                     </${Field}>
-                    <${Field} label="Due" help="estimated-payments" id=${'pay-due-' + i}>
-                      <${RecField} rec=${p} name="dueDate" bare label="Due" type="date" />
+                    <${Field} label="Amount" help="estimated-payments" id=${'pay-amount-' + i}
+                      error=${p.error('amount')}>
+                      <${RecField} rec=${p} name="amount" bare label="Amount" />
                       </${Field}>
-                      <${Field} label="Amount" help="estimated-payments" id=${'pay-amount-' + i}
-                        error=${p.error('amount')}>
-                        <${RecField} rec=${p} name="amount" bare label="Amount" />
+                      <${Field} label="Paid on" help="estimated-payments" id=${'pay-on-' + i}>
+                        <${RecField} rec=${p} name="paidOn" bare label="Paid on" type="date" />
                         </${Field}>
-                        <${Field} label="Paid on" help="estimated-payments" id=${'pay-on-' + i}>
-                          <${RecField} rec=${p} name="paidOn" bare label="Paid on" type="date" />
-                          </${Field}>
-                          <button type="button" class="icon-btn" aria-label="Remove the payment"
-                            onClick=${() => draft?.remove(p)}><${Icon} name="x" /></button>
+                        <${Action} class="icon-btn" aria-label="Remove the payment"
+                          why=${whyRead(b)} onClick=${() => draft?.remove(p)}>
+                          <${Icon}
+                            name="x" />
+                          </${Action}>
                           </div>
+            `
+          )}
+          <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried forward to
+            next year</h4>
+          <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
+            year's tax book shows them under <b>From last year</b>.</p>
+          <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
+            k === 'basis8606'
+              ? b.filers.map((/** @type {any} */ who) =>
+                html`<${BasisField} rec=${rec} who=${who} label=${
+                  b.filers.length > 1 ? `${label}, ${who.name}` : label
+                } />`
+              )
+              : html`
+                <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
+                  error=${rec.error('carried-' + k)}>
+                  <${TypedInput} kind="money" value=${rec.typed('carried-' + k) ??
+                    (carried[k] == null ? '' : String(carried[k]))}
+                    onInput=${(/** @type {string} */ x) =>
+                      rec.inputAs('carried-' + k, x, (t) => {
+                        const r = carriedAmount(t);
+                        return 'error' in r
+                          ? r
+                          : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
+                      })} />
+                  </${Field}>
               `
-            )}
-            <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried forward to
-              next year</h4>
-            <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
-              year's tax book shows them under <b>From last year</b>.</p>
-            <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
-              k === 'basis8606'
-                ? b.filers.map((/** @type {any} */ who) =>
-                  html`<${BasisField} rec=${rec} who=${who} label=${
-                    b.filers.length > 1 ? `${label}, ${who.name}` : label
-                  } />`
-                )
-                : html`
-                  <${Field} label=${label} help="carried-forward" id=${'carried-' + k}
-                    error=${rec.error('carried-' + k)}>
-                    <${TypedInput} kind="money" value=${rec.typed('carried-' + k) ??
-                      (carried[k] == null ? '' : String(carried[k]))}
-                      onInput=${(/** @type {string} */ x) =>
-                        rec.inputAs('carried-' + k, x, (t) => {
-                          const r = carriedAmount(t);
-                          return 'error' in r
-                            ? r
-                            : { value: { carried: { ...rec.get('carried'), [k]: r.value } } };
-                        })} />
-                    </${Field}>
-                `
-            )}</div>
-          </fieldset>
+          )}</div>
         `
         : null}
     </${DraftDialog}>

@@ -6,7 +6,7 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { ago } from '../app/format.js';
-import { Field, FormError } from './fields.js';
+import { Field, FormError, ReadValue, useReading } from './fields.js';
 import { RecField } from './draft-form.js';
 import { Failed, Loading } from './bits.js';
 import { toast } from './toast.js';
@@ -51,11 +51,13 @@ const refusal = (what) =>
 
 /**
  * The keys box and gap limit, fields of the account's draft in the New account form and the
- * wallet's Settings. A secret is cleared from the box at once, never put in the draft.
- * @param {{ rec: import('../app/draft.js').Record }} p
+ * wallet's Settings. A secret is cleared from the box at once, never put in the draft. Read,
+ * the keys as text (S12.18.6).
+ * @param {{ rec: import('../app/draft.js').Record, readonly?: boolean }} p
  */
-export function WalletFields({ rec }) {
+export function WalletFields({ rec, readonly }) {
   const [refused, setRefused] = useState(/** @type {string | null} */ (null));
+  const reading = useReading(readonly);
   const onText = (/** @type {any} */ ev) => {
     const v = ev.currentTarget.value;
     const what = looksSecret(v);
@@ -72,11 +74,14 @@ export function WalletFields({ rec }) {
     <${Field} label="Extended public keys or addresses" id="wallet-keys" error=${refused ||
       rec.error('walletKeys')}
       hint="An xpub, ypub or zpub, a descriptor (wpkh, tr, wsh multisig…), or addresses, one a line. Public data only.">
-      <textarea class="in mono" rows="3" value=${rec.shown('walletKeys')} onInput=${onText}
-        placeholder="ex: zpub6r…, wpkh([…]xpub…/<0;1>/*)#…, or bc1q… one a line" spellcheck="false"
-        autocomplete="off"></textarea>
+      ${reading ? html`<${ReadValue} text=${rec.shown('walletKeys') || '—'} rows=${3} />` : html`
+        <textarea class="in mono" rows="3" value=${rec.shown('walletKeys')}
+          onInput=${onText}
+          placeholder="ex: zpub6r…, wpkh([…]xpub…/<0;1>/*)#…, or bc1q… one a line"
+          spellcheck="false" autocomplete="off"></textarea>
+      `}
       </${Field}>
-      <${RecField} rec=${rec} name="gapLimit" label="Gap limit"
+      <${RecField} rec=${rec} name="gapLimit" label="Gap limit" readonly=${reading}
         hint="Addresses derived past the last one used. 20 suits most wallets." />
   `;
 }
@@ -110,7 +115,7 @@ export function WalletCard({ a, rec }) {
   return html`
     <div class="card">
       <h3>Keys and addresses</h3>
-      ${owner ? html`<${WalletFields} rec=${rec} />` : null}
+      <${WalletFields} rec=${rec} readonly=${!owner} />
       <p class="small dim" data-help="watched">${v.watched} addresses watched, ${v.used} used${v
           .checkedAt
         ? `, last checked ${ago(v.checkedAt)}`

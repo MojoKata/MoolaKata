@@ -10,7 +10,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { openDialog } from '../components/dialog.js';
-import { Field, Input, Seg, Select } from '../components/fields.js';
+import { Field, Input, Reading, ReadValue, Seg, Select } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -565,31 +565,33 @@ function PersonDialog({ close, row }) {
       )}
       ${who && plan
         ? html`
-          <fieldset disabled=${!canWrite} style=${{
-            border: 0,
-            padding: 0,
-            margin: 0,
-            minWidth: 0,
-          }}>
-            <fieldset disabled=${!ownPerson || using} class="card" style=${{
-              margin: '0 0 12px',
-              padding: '10px 12px',
-              minWidth: 0,
-            }} data-help="the-person">
-              <div class="small dim">The person, seen by the household${p?.private
-                ? ' (private: only those it is shared with)'
-                : ''}</div>
-              <div class="row">
-                <${RecField} rec=${who} name="name" label="Name" placeholder="ex: Emma Griffin"
-                  onEdit=${unuse} />
-                <${RecField} rec=${who} name="sex" label="Sex" options=${[
-                  ['', 'Choose…'],
-                  ['female', 'Female'],
-                  ['male', 'Male'],
-                ]} />
-                <${Field} label="Birthday" error=${who.error('birthday') ||
-                  who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
-                  hint="2018-10-20, or 10-20 without the year.">
+          <${Reading.Provider} value=${canWrite ? false : READ_ONLY}>
+            <${Reading.Provider} value=${!canWrite
+              ? READ_ONLY
+              : !ownPerson
+              ? 'Only its owner changes the person'
+              : using
+              ? 'Already here: changed on their own plan'
+              : false}>
+              <div class="card" style=${{
+                margin: '0 0 12px',
+                padding: '10px 12px',
+                minWidth: 0,
+              }} data-help="the-person">
+                <div class="small dim">The person, seen by the household${p?.private
+                  ? ' (private: only those it is shared with)'
+                  : ''}</div>
+                <div class="row">
+                  <${RecField} rec=${who} name="name" label="Name" placeholder="ex: Emma Griffin"
+                    onEdit=${unuse} />
+                  <${RecField} rec=${who} name="sex" label="Sex" options=${[
+                    ['', 'Choose…'],
+                    ['female', 'Female'],
+                    ['male', 'Male'],
+                  ]} />
+                  <${Field} label="Birthday" error=${who.error('birthday') ||
+                    who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
+                    hint="2018-10-20, or 10-20 without the year.">
                   <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
                     /** @type {string} */ v,
                   ) =>
@@ -627,7 +629,7 @@ function PersonDialog({ close, row }) {
                     ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
                 `
                 : null}
-            </fieldset>
+            </div></${Reading.Provider}>
             ${clash && !using
               ? html`
                 <div class="notice" role="status">
@@ -658,21 +660,27 @@ function PersonDialog({ close, row }) {
                 placeholder="none" />
             </div>
             <div class="field" data-help="holidays" id="x-holidays"><label>Holidays</label>
-              <div class="chips" style=${{
-                flexWrap: 'wrap',
-              }}>${(/** @type {any[]} */ (hols.data) || []).map((h) => {
-                const on = !!holiday(h.key) && !holiday(h.key)?.removed;
-                return html`
-                  <button type="button" class=${'chip' + (on ? ' on' : '')}
-                    aria-pressed=${on ? 'true' : 'false'} onClick=${() => toggle(h.key)}>${h
-                      .label}</button>
-                `;
-              })}</div></div>
+              ${canWrite
+                ? html`<div class="chips" style=${{ flexWrap: 'wrap' }}>${
+                  (/** @type {any[]} */ (hols.data) || []).map((h) => {
+                    const on = !!holiday(h.key) && !holiday(h.key)?.removed;
+                    return html`
+                      <button type="button" class=${'chip' + (on ? ' on' : '')}
+                        aria-pressed=${on ? 'true' : 'false'} onClick=${() => toggle(h.key)}>${h
+                          .label}</button>
+                    `;
+                  })
+                }</div>`
+                : html`<${ReadValue} aria-label="Holidays" text=${
+                  (/** @type {any[]} */ (hols.data) || []).filter((h) =>
+                    holiday(h.key) && !holiday(h.key)?.removed
+                  ).map((h) => h.label).join(', ') || '—'
+                } />`}</div>
             <div class="toolbar"><b class="small" data-help="dates">Anniversaries and other
-                dates</b><span class="spacer"></span><button type="button" class="btn sm"
-                onClick=${() =>
+                dates</b><span class="spacer"></span><${Action} class="btn sm"
+                why=${canWrite ? null : READ_ONLY} onClick=${() =>
                   draft?.add(OccasionRec, { giftPlanId: plan.id, kind: 'anniversary' })}><${Icon}
-                name="plus" /> Add a date</button></div>
+                name="plus" /> Add a date</${Action}></div>
             ${dated.map((o, i) =>
               html`
                 <div class="row" key=${o.key}>
@@ -700,9 +708,11 @@ function PersonDialog({ close, row }) {
                           error=${o.error('budget')}>
                           <${RecField} rec=${o} name="budget" bare label="Budget" />
                           </${Field}>
-                          <button type="button" class="icon-btn" aria-label="Remove the date"
-                            onClick=${() => draft?.remove(o)}><${Icon} name="x" /></button>
-                          </div>
+                          <${Action} class="icon-btn" aria-label="Remove the date"
+                            why=${canWrite ? null : READ_ONLY} onClick=${() => draft?.remove(o)}>
+                            <${Icon} name="x" />
+                            </${Action}>
+                            </div>
               `
             )}
             <${RecField} rec=${plan} name="leadDays" label="Remind me" id="lead-days" options=${[
@@ -712,7 +722,7 @@ function PersonDialog({ close, row }) {
             ]} />
             <${RecField} rec=${plan} name="notes" label="Notes" rows=${3}
               hint="Sizes, likes, what they already have." />
-          </fieldset>
+          </${Reading.Provider}>
         `
         : null}
       ${p ? html`<${History} p=${p} />` : null}
@@ -849,24 +859,27 @@ function GiftDialog({ close, gift, start }) {
           : null}>
       ${rec
         ? html`
-          <fieldset disabled=${!canWrite} style=${{
-            border: 0,
-            padding: 0,
-            margin: 0,
-            minWidth: 0,
-          }}>
+          <${Reading.Provider} value=${!canWrite}>
             <div class="field" data-help="status" id="x-status"><label>Status</label>
               <${Seg} label="Status" value=${rec.get('status')} onChange=${(
                 /** @type {string} */ v,
               ) => rec.set('status', v)} options=${STATUS} /></div>
             <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
               hint=${received ? '' : 'One or more people.'}>
-              <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))}
-                onChange=${(/** @type {any} */ ev) =>
-                  rec.set('people', [...ev.currentTarget.selectedOptions].map((o) => o.value))}>
-                ${list.map((p) =>
-                  html`<option value=${p.id} selected=${who.includes(p.id)}>${p.name}</option>`
-                )}</select></${Field}>
+              ${canWrite
+                ? html`
+                  <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))}
+                    onChange=${(/** @type {any} */ ev) =>
+                      rec.set('people', [...ev.currentTarget.selectedOptions].map((o) => o.value))}>
+                                  ${list.map((p) =>
+                                    html`<option value=${p.id} selected=${
+                                      who.includes(p.id)
+                                    }>${p.name}</option>`
+                                  )}</select>
+                `
+                : html`<${ReadValue} text=${
+                  list.filter((p) => who.includes(p.id)).map((p) => p.name).join(', ') || '—'
+                } />`}</${Field}>
             <${Field} label="Occasion" error=${rec.error('occasionYear')}>
               <${Select} value=${occasion} onChange=${(/** @type {string} */ v) => {
                 const [occ, y] = v ? v.split('|') : [null, null];
@@ -919,7 +932,7 @@ function GiftDialog({ close, gift, start }) {
                     </div>
               `}
             <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
-          </fieldset>
+          </${Reading.Provider}>
           ${gift && !canWrite
             ? html`
               <div class="toolbar">

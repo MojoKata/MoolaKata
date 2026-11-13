@@ -8,10 +8,20 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { useSubmit } from '../app/hooks.js';
 import { api } from '../api/client.js';
-import { Draft } from '../app/draft.js';
+import { Draft, READ_ONLY } from '../app/draft.js';
 import { Dialog, openDialog } from './dialog.js';
 import { guardForm } from '../app/guard.js';
-import { Field, FormError, Input, Select, Switch, TypedInput } from './fields.js';
+import {
+  Field,
+  FormError,
+  Input,
+  Reading,
+  ReadValue,
+  Select,
+  Switch,
+  TypedInput,
+  useReading,
+} from './fields.js';
 import { Action } from './state.js';
 import { Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
@@ -175,11 +185,12 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * it); `changed` replaces the draft's own answer for a dialog that puts its choices into the
  * draft only when it saves. `extra` draws the footer's other buttons, given the save (a
  * Delete removes its record and saves); `saveWhy` shows the save's button off, saying why
- * (S12.19.1: one who can only read sees it, *Shared with you to read*).
+ * (S12.19.1); `read` draws every field in it in its read persona (S12.18.6), its Save off
+ * for that reason (*Shared with you to read*, or the words it is).
  * @param {{ f: ReturnType<typeof useDraft>, title: string, close: (v?: any) => void,
  *   what: string, done?: Done, label?: string, confirm?: string, wide?: boolean, note?: any,
  *   before?: () => boolean | void, changed?: () => boolean, disabled?: boolean,
- *   saved?: (o: any) => void, saveWhy?: string | null,
+ *   saved?: (o: any) => void, saveWhy?: string | null, read?: boolean | string,
  *   extra?: (s: { save: any, outcome: any }) => any, children: any }} p
  */
 /**
@@ -187,6 +198,11 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * What a save says once done: words, or words worked out from what was saved, at that moment
  * (Ungroup removes the strategy in the click that saves it, CR3-407).
  */
+
+/** Why a form that reads saves nothing (S12.19.1). @param {boolean | string | undefined} read */
+function readWhy(read) {
+  return typeof read === 'string' ? read : read ? READ_ONLY : null;
+}
 
 /** @param {Done} done @param {any} draft */
 function doneText(done, draft) {
@@ -196,6 +212,8 @@ function doneText(done, draft) {
 export function DraftDialog(p) {
   const { f, close } = p;
   const draft = f.draft;
+  // Read, its Save is off for the reading's reason, unless it gives another.
+  const saveWhy = p.saveWhy ?? readWhy(p.read);
   // The fields come once the records are read: the first takes the focus then (S12.1.3).
   useEffect(() => {
     if (!draft) return;
@@ -216,11 +234,11 @@ export function DraftDialog(p) {
   return html`
     <${Dialog} title=${p.title} wide=${p.wide} close=${close} note=${p.note}
       changed=${p.changed || (() => !!draft?.changed)}
-      save=${p.saveWhy ? undefined : () => saveFromQuestion(save)}
-      onSubmit=${() => p.saveWhy || save.run().catch(() => {})}
+      save=${saveWhy ? undefined : () => saveFromQuestion(save)}
+      onSubmit=${() => saveWhy || save.run().catch(() => {})}
       footer=${html`
-        ${p.extra?.({ save, outcome }) || null}${p.saveWhy
-          ? html`<${Action} class="btn primary" why=${p.saveWhy}>${p.label || 'Save'}</${Action}>`
+        ${p.extra?.({ save, outcome }) || null}${saveWhy
+          ? html`<${Action} class="btn primary" why=${saveWhy}>${p.label || 'Save'}</${Action}>`
           : html`
             <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
               disabled=${p.disabled} label=${p.label || 'Save'}
@@ -234,7 +252,7 @@ export function DraftDialog(p) {
         ? html`<${Failed} error=${f.error} />`
         : !draft
         ? html`<${Loading} lines=${4} />`
-        : p.children}
+        : html`<${Reading.Provider} value=${p.read || false}>${p.children}</${Reading.Provider}>`}
       <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
         again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
@@ -297,8 +315,10 @@ export async function askToLeave(where, answered, saveIt) {
  * `extra` draws the buttons beside Save, given the save (a Delete removes its record and saves);
  * `class` styles the form (a card). `changed` replaces the draft's own answer (a new record
  * not yet saved is a change, S12.2.3.2.2). `discard`, given, shows Discard and Save only
- * while the form holds changes (S12.2.3.2.1); Discard calls it.
+ * while the form holds changes (S12.2.3.2.1); Discard calls it. `read` draws every field in
+ * its read persona (S12.18.6).
  * @param {{ f: ReturnType<typeof useDraft>, where: string, what: string, done?: Done,
+ *   read?: boolean | string,
  *   label?: string, confirm?: string, before?: () => boolean | void,
  *   saved?: (o: any) => void, extra?: (s: { save: any, outcome: any }) => any,
  *   changed?: () => boolean, discard?: () => void, class?: string, children: any }} p
@@ -334,31 +354,38 @@ export function DraftForm(p) {
   return html`
     <form class=${p.class || 'draft-form'} onSubmit=${(/** @type {Event} */ e) => {
       e.preventDefault();
-      save.run().catch(() => {});
+      if (!p.read) save.run().catch(() => {});
     }}>
       ${f.error
         ? html`<${Failed} error=${f.error} />`
         : !draft
         ? html`<${Loading} lines=${4} />`
-        : p.children}
+        : html`<${Reading.Provider} value=${p.read || false}>${p.children}</${Reading.Provider}>`}
       <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
         again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
       <div class="toolbar mt">
         ${p.extra?.({ save, outcome }) || null}<span class="spacer"></span>
-        ${p.discard && !has() && outcome?.status !== 'stale' ? null : html`
-          ${p.discard
-            ? html`<button type="button" class="btn" onClick=${() => {
-              clear();
-              p.discard?.();
-            }}>Discard</button>`
-            : null}
-          <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
-            label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
-              clear();
-              f.reload();
-            }} />
-        `}
+        ${p.read
+          ? html`<${Action} class="btn primary" why=${readWhy(p.read)}>${
+            p.label ||
+            'Save'
+          }</${Action}>`
+          : p.discard && !has() && outcome?.status !== 'stale'
+          ? null
+          : html`
+            ${p.discard
+              ? html`<button type="button" class="btn" onClick=${() => {
+                clear();
+                p.discard?.();
+              }}>Discard</button>`
+              : null}
+            <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
+              label=${p.label || 'Save'} confirm=${p.confirm || 'Save anyway'} reload=${() => {
+                clear();
+                f.reload();
+              }} />
+          `}
       </div>
     </form>
   `;
@@ -392,10 +419,11 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  *   atMost?: number | string,
  *   negative?: boolean, noun?: string,
  *   format?: (n: any) => string, clear?: boolean, fill?: import('./fields.js').Fill[],
- *   mark?: string | null }} p
+ *   mark?: string | null, readonly?: boolean }} p
  */
 export function RecField(p) {
   const { rec, name } = p;
+  const reading = useReading(p.readonly);
   if (!rec.applies(name)) return null;
   const spec = rec.spec(name);
   const error = rec.error(name);
@@ -407,6 +435,7 @@ export function RecField(p) {
       <${Switch} on=${!!rec.get(name)} label=${p.label} help=${p.bare
         ? p.help
         : undefined} disabled=${p.disabled}
+        readonly=${reading}
         onChange=${(/** @type {boolean} */ v) => {
           rec.set(name, v);
           edited();
@@ -433,12 +462,15 @@ export function RecField(p) {
     const options = p.options || (spec.choices || []).map(String);
     control = html`
       <${Select} value=${rec.get(name) ?? ''} options=${options}
-        disabled=${p.disabled} aria-invalid=${error ? 'true' : undefined} ...${named}
+        disabled=${p.disabled} readonly=${reading} aria-invalid=${error ? 'true' : undefined}
+        ...${named}
         onChange=${(/** @type {string} */ v) => {
           rec.input(name, v);
           edited();
         }} />
     `;
+  } else if (p.rows && reading) {
+    control = html`<${ReadValue} text=${rec.shown(name) || '—'} rows=${p.rows} ...${named} />`;
   } else if (p.rows) {
     control = html`
       <textarea class="in" rows=${p.rows} disabled=${p.disabled} ...${named}
@@ -461,7 +493,7 @@ export function RecField(p) {
         clear=${p.clear} fill=${p.fill} mark=${p.mark} type=${p.type === 'date'
           ? undefined
           : p.type} placeholder=${p.placeholder}
-        disabled=${p.disabled} style=${p.style}
+        disabled=${p.disabled} style=${p.style} readonly=${reading}
         ...${named} onInput=${(/** @type {string} */ v) => {
           rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
           edited();

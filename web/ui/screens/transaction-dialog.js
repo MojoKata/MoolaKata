@@ -12,7 +12,15 @@ import { Dec } from '../app/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { NewRuleDialog } from '../components/rules.js';
-import { Field, Seg, Switch, SwitchRow, TypedInput } from '../components/fields.js';
+import {
+  Field,
+  Reading,
+  Seg,
+  Switch,
+  SwitchRow,
+  TypedInput,
+  useReadWhy,
+} from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { money, today } from '../app/format.js';
 import { CategoryField } from '../components/categories.js';
@@ -282,7 +290,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
           `}>
       ${t
         ? html`
-          <fieldset disabled=${readOnly} style=${{ border: 0, padding: 0, margin: 0 }}>
+          <${Reading.Provider} value=${readOnly}>
             ${!editing
               ? html`
                 <${RecField} rec=${t} name="accountId" label="Account"
@@ -332,8 +340,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                     <span class="small dim">${parts.length
                       ? 'Split across categories'
                       : ''}</span><span class="spacer"></span>
-                    <button type="button" class="btn sm" onClick=${addPart}>
-                      ${parts.length ? 'Add a part' : 'Split…'}</button>
+                    <${Action} class="btn sm" why=${readOnly ? READ_ONLY : null}
+                      onClick=${addPart}>${parts.length ? 'Add a part' : 'Split…'}</${Action}>
                   </div>
                   ${parts.map((r, i) =>
                     html`
@@ -355,9 +363,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                                   id=${'split-' + i + '-deductible'} />
                               `
                               : null}
-                            <button type="button" class="icon-btn" aria-label=${'Remove part ' +
-                              (i + 1)} onClick=${() => draft?.remove(r)}
-                              style=${{ marginBottom: '14px' }}>×</button>
+                            <${Action} class="icon-btn" aria-label=${'Remove part ' +
+                              (i + 1)} why=${readOnly ? READ_ONLY : null}
+                              onClick=${() => draft?.remove(r)}
+                              style=${{ marginBottom: '14px' }}>×</${Action}>
                             </div>
                     `
                   )}
@@ -416,7 +425,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                   : null}
               `
               : null}
-          </fieldset>
+          </${Reading.Provider}>
           ${editing ? html`<${InBudgets} txn=${txn} rec=${t} />` : null}
           ${editing && draft
             ? html`<${TxnReceipts} txn=${txn} draft=${draft} canWrite=${!readOnly} />`
@@ -615,6 +624,7 @@ function TxnReceipts({ txn, draft, canWrite }) {
  * @param {{ t: Txn }} p
  */
 function TransferLots({ t }) {
+  const why = useReadWhy();
   const rows = /** @type {any[]} */ (t.get('transferLots') || []);
   /** @param {any[]} next */
   const put = (next) => t.set('transferLots', next.length ? next : null);
@@ -640,21 +650,20 @@ function TransferLots({ t }) {
             }: cost basis`}
               placeholder="cost basis" onInput=${(/** @type {string} */ v) =>
                 edit(i, 'costBasis', v)} />
-            <button type="button" class="btn sm" onClick=${() =>
-              put(rows.filter((_, j) => j !== i))}>
-              Remove</button>
+            <${Action} class="btn sm" why=${why} onClick=${() =>
+              put(rows.filter((_, j) => j !== i))}>Remove</${Action}>
           </div>
         `
       )}
       <div class="toolbar"><span class="small dim">${rows.length
         ? 'They add up to the shares moved in.'
         : 'None typed: one lot whose day bought is missing, its term unknown until you add it.'}</span><span
-        class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
+        class="spacer"></span><${Action} class="btn sm" why=${why} onClick=${() =>
           put([...rows, {
             acquiredOn: null,
             quantity: null,
             costBasis: null,
-          }])}>Add a lot</button></div>
+          }])}>Add a lot</${Action}></div>
     </div>
   `;
 }

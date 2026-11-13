@@ -37,12 +37,14 @@ def reader(household):
     plan = h.c.get("/ui/api/giving", params={"year": int(months_back(0)[:4])}).json()["plan"]
     given = [("account", h.checking["id"]), ("account", h.extra["homes"]["id"]),
              ("budget", h.budget["id"]), ("gift-plan", h.extra["emma"]["id"]),
-             ("giving-plan", plan["id"])]  # fmt: skip
+             ("giving-plan", plan["id"]), ("projection", h.extra["retire"]["id"])]  # fmt: skip
     # And a 529 of its own, for its contributions and expenses.
     a529 = made(make(h.c, "Acct", name="Reader's 529", type="529", institution="my529"))
     emma = h.c.get(f"/ui/api/persons/{h.extra['emma']['personId']}").json()
     saved(plan529(h.c, a529["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
                   openedOn="2018-05-02", stateDeduction="2410"))  # fmt: skip
+    made(make(h.c, "Txn", accountId=a529["id"], date=f"{months_back(1)}-05", kind="deposit",
+              amount="2500"))  # fmt: skip
     given.append(("account", a529["id"]))
     for kind, item in given:
         made(share(h.c, kind, item, users=rita))
@@ -105,6 +107,22 @@ def test_a_reader_opens_a_transaction_its_changes_off(browser, household, reader
         b = page.locator(".dialog").get_by_role("button", name=name, exact=True)
         assert b.get_attribute("aria-disabled") == "true", name
         assert b.get_attribute("data-tip") == "Shared with you to read", name
+    # Read, every field is its read persona (S12.18.6): no control to type in or choose from.
+    dialog = page.locator(".dialog .body")
+    assert dialog.locator("input:not([type=file]), select, textarea").count() == 0
+    assert dialog.locator(".in.read").count() >= 4
+    date = dialog.locator("#f-date")
+    assert date.get_attribute("role") == "textbox"
+    assert date.get_attribute("aria-readonly") == "true"
+    assert date.get_attribute("aria-labelledby") == "f-date-label"
+    assert re.fullmatch(r"[A-Z][a-z]{2} \d{1,2}, \d{4}", date.inner_text())
+    assert dialog.locator("#f-amount").inner_text().startswith(("$", "−$"))
+    # Tab reaches a read value, and the help pane follows it.
+    date.focus()
+    assert page.evaluate("document.activeElement.id") == "f-date"
+    page.screenshot(
+        path="/tmp/claude-1000/-home-dev-kata-MoolaKata/fceeb2e9-8ad1-4304-bb0d-696ee67b0a32/scratchpad/read-txn.png"
+    )
     page.locator('.dialog footer button:has-text("Close")').click()
     wait(page, ".dialog", problems, state="detached")
     assert problems == []
@@ -134,6 +152,12 @@ def off(scope, name: str, why: str = READ) -> None:
     assert b.get_attribute("data-tip") == why, (name, b.get_attribute("data-tip"))
 
 
+def read_only(dialog) -> None:
+    """Every field of the dialog is its read persona (S12.18.6): nothing to type or choose."""
+    assert dialog.locator("input:not([type=file]), select, textarea, .chip").count() == 0
+    assert dialog.locator(".in.read").count() >= 3
+
+
 def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     h = household
     page, problems = signed_in_as_reader(
@@ -146,6 +170,16 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     for name in ("Save", "Add a valuation", "Add improvement", "Add", "Record the sale…"):
         off(dialog, name)
     off(dialog, "Remove Kitchen remodel")
+    read_only(dialog)
+    assert dialog.locator("#f-name").inner_text() == "1428 Elm St"
+    # A yes or no keeps the switch's footprint, a check or a dash in it, never a live switch.
+    home = dialog.locator("#f-primary-residence")
+    assert home.get_attribute("role") == "switch"
+    assert home.get_attribute("aria-readonly") == "true"
+    assert home.get_attribute("aria-checked") == "true"
+    page.screenshot(
+        path="/tmp/claude-1000/-home-dev-kata-MoolaKata/fceeb2e9-8ad1-4304-bb0d-696ee67b0a32/scratchpad/read-item.png"
+    )
     assert problems == []
     page.close()
 
@@ -157,6 +191,12 @@ def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household
         browser, h, f"/ui/accounts/{a['id']}/contributions", "text=Record a contribution"
     )
     off(page, "Record a contribution")
+    # Who each came from reads, its tag a value, never a list to change it (S12.18.6).
+    who = page.locator('[aria-label^="Who the"]').first
+    wait(page, '[aria-label^="Who the"]', problems)
+    assert who.get_attribute("role") == "textbox"
+    assert who.inner_text() == "Admin"
+    assert page.locator("table select").count() == 0
     page.goto(h.base + f"/ui/accounts/{a['id']}/withdrawals")
     wait(page, "text=Add a qualified expense", problems)
     off(page, "Add a qualified expense")
@@ -194,6 +234,12 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     off(dialog, "Save")
     off(dialog, "Share", "Only its owner shares it")
     off(dialog, "Delete plan", "Only its owner deletes it")
+    off(dialog, "Add a date")
+    read_only(dialog)
+    assert dialog.locator("#f-name").inner_text() == "Emma Griffin"
+    page.screenshot(
+        path="/tmp/claude-1000/-home-dev-kata-MoolaKata/fceeb2e9-8ad1-4304-bb0d-696ee67b0a32/scratchpad/read-plan.png"
+    )
     assert problems == []
     page.close()
 
@@ -211,5 +257,25 @@ def test_a_category_another_may_delete_shows_delete_off_with_why(browser, househ
     wait(page, ".dialog #f-name", problems)
     off(page.locator(".dialog"), "Delete", "Only admins delete a shipped category")
     assert "Only admins delete" not in page.locator(".dialog .body").inner_text()
+    assert problems == []
+    page.close()
+
+
+def test_a_readers_projection_shows_its_inputs_read_and_run_off(browser, household, reader):
+    """S12.18.6: the inputs one may only read are read values; Run is off, saying why."""
+    h = household
+    page, problems = signed_in_as_reader(
+        browser, h, f"/ui/projections/{h.extra['retire']['id']}", "h3:has-text('Inputs')"
+    )
+    card = page.locator("form.card:has(h3:has-text('Inputs'))")
+    off(card, "Run")
+    read_only(card)
+    assert card.locator("#f-retirement-age").inner_text() == "62"
+    assert card.locator("#f-contribution").inner_text() == "$30,000.00"
+    # The portfolio it is built on isn't shared with the reader: said so, never its id.
+    assert card.locator("#f-built-on").inner_text() == "Not shared with you"
+    page.screenshot(
+        path="/tmp/claude-1000/-home-dev-kata-MoolaKata/fceeb2e9-8ad1-4304-bb0d-696ee67b0a32/scratchpad/read-proj.png"
+    )
     assert problems == []
     page.close()

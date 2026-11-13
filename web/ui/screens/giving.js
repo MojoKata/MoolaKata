@@ -15,7 +15,7 @@ import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { canAdd, READ_ONLY, Record as Rec, whyRead } from '../app/draft.js';
+import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
 import { Action, Attention } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
@@ -751,30 +751,23 @@ function OrganisationDialog({ close, o }) {
   const canWrite = !o || o.access.writable;
   return html`
     <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
-      what="This organisation" done="Saved" saveWhy=${canWrite ? null : READ_ONLY}>
+      what="This organisation" done="Saved" read=${!canWrite}>
       ${rec
         ? html`
-          <fieldset disabled=${!canWrite} style=${{
-            border: 0,
-            padding: 0,
-            margin: 0,
-            minWidth: 0,
-          }}>
-            <${RecField} rec=${rec} name="name" label="Name"
-              placeholder="ex: Greater Chicago Food Depository" />
-            <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
-            <${RecField} rec=${rec} name="deductible" label="Deductible"
-              hint="A 501(c)(3) charity. Not a political campaign or a person." />
-            <${RecField} rec=${rec} name="causes" label="Causes"
-              hint="Separated by commas: Hunger, Local." />
-            <div class="row">
-              <${RecField} rec=${rec} name="pledge" label="Pledge"
-                hint="Shown as expected donations." />
-              <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
-                options=${[['month', 'Month'], ['year', 'Year']]} />
-            </div>
-            <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
-          </fieldset>
+          <${RecField} rec=${rec} name="name" label="Name"
+            placeholder="ex: Greater Chicago Food Depository" />
+          <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
+          <${RecField} rec=${rec} name="deductible" label="Deductible"
+            hint="A 501(c)(3) charity. Not a political campaign or a person." />
+          <${RecField} rec=${rec} name="causes" label="Causes"
+            hint="Separated by commas: Hunger, Local." />
+          <div class="row">
+            <${RecField} rec=${rec} name="pledge" label="Pledge"
+              hint="Shown as expected donations." />
+            <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
+              options=${[['month', 'Month'], ['year', 'Year']]} />
+          </div>
+          <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `
         : null}
     </${DraftDialog}>

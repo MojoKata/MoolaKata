@@ -10,7 +10,7 @@ import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Input, Select, TypedInput } from './fields.js';
+import { Field, Input, Reading, Select, TypedInput } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
@@ -342,13 +342,9 @@ export function ItemDialog({ close, a, id }) {
       ${rec
         ? html`
           <div class="split" style=${{ alignItems: 'flex-start' }}>
-            <fieldset disabled=${!canWrite} style=${{
-              flex: '1 1 320px',
-              border: 0,
-              padding: 0,
-              margin: 0,
-              minWidth: 0,
-            }}>
+            <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
+              <${Reading.Provider}
+                value=${!canWrite}>
               <${RecField} rec=${rec} name="name" label="Name" placeholder=${{
                 'precious-metals': 'American Gold Eagle, 1 oz',
                 collectables: 'Rolex Submariner 124060',
@@ -445,7 +441,7 @@ export function ItemDialog({ close, a, id }) {
                 `
                 : null}
               <${RecField} rec=${rec} name="notes" label="Notes" hint="Markdown." rows=${3} />
-            </fieldset>
+            </${Reading.Provider}></div>
             ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
           </div>
         `

@@ -8,7 +8,7 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { date, money, today } from '../app/format.js';
 import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
-import { Field, Select } from './fields.js';
+import { Field, ReadValue, Select } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, ReceiptLinkRec, uploadAll } from './receipt.js';
@@ -262,23 +262,29 @@ export function Contributions({ a }) {
             <table class="t">
               <caption class="sr-only">Contributions</caption>
               <thead>
-                <tr><th>Date</th><th>From</th><th class="num">Amount</th>
-                      ${a.access.writable ? html`<th></th>` : null}</tr>
+                <tr>
+                  <th>Date</th>
+                  <th>From</th>
+                  <th class="num">Amount</th>
+                </tr>
               </thead>
               <tbody>${v.rows.map((/** @type {any} */ c) =>
-                html`<tr><td>${date(c.date)}</td><td>${c.name}${
-                  c.relationship ? html`<span class="small dim"> · ${c.relationship}</span>` : null
-                }${
-                  c.fiveYear ? html`${' '}<span class="pill info">five-year election</span>` : null
-                }</td><td class="num"><${Amt} v=${c.amount} /></td>${
-                  a.access.writable
-                    ? html`
-                      <td>
-                        <${Retag} a=${a} c=${c} done=${again} />
-                      </td>
-                    `
-                    : null
-                }</tr>`
+                html`
+                  <tr>
+                    <td>${date(c.date)}</td>
+                    <td>
+                      <div class="retag"><${Retag} a=${a} c=${c}
+                                    done=${again} />${c.relationship
+                                      ? html`<span class="small dim">${c.relationship}</span>`
+                                      : null}${c.fiveYear
+                                      ? html`<span class="pill info">five-year election</span>`
+                                      : null}</div>
+                    </td>
+                    <td class="num">
+                      <${Amt} v=${c.amount} />
+                    </td>
+                  </tr>
+                `
               )}</tbody>
             </table>
           </div>
@@ -363,8 +369,11 @@ function AddContribution({ a, done }) {
   `;
 }
 
-/** Who an existing deposit came from: its tag made, or changed, at once. */
-/** @param {{ a: any, c: any, done: () => void }} p */
+/**
+ * Who an existing deposit came from: its tag made, or changed, at once; read, who it is
+ * (S12.18.6).
+ * @param {{ a: any, c: any, done: () => void }} p
+ */
 function Retag({ a, c, done }) {
   const people = useList('/persons');
   const save = useSubmit(async (/** @type {string} */ who) => {
@@ -386,10 +395,14 @@ function Retag({ a, c, done }) {
     toast('Saved');
     done();
   });
+  const label = `Who the ${date(c.date)} contribution was from`;
+  if (!a.access.writable) {
+    return html`<${ReadValue} aria-label=${label} data-help="from" text=${c.name || '—'} />`;
+  }
   return html`
-    <${Select} aria-label=${`Who the ${date(c.date)} contribution was from`}
-      data-help="from" value=${c.contributor} onChange=${(/** @type {string} */ v) =>
-        save.run(v).catch((e) => toast(e.message))} options=${[
+    <${Select} aria-label=${label} data-help="from" value=${c.contributor}
+      onChange=${(/** @type {string} */ v) => save.run(v).catch((e) => toast(e.message))}
+      options=${[
         ['owner', a.ownerName],
         ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
       ]} />
