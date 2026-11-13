@@ -26,7 +26,7 @@ import { toast } from '../components/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { canAdd, Record } from '../app/draft.js';
+import { READ_ONLY, Record, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
 import {
   DraftDialog,
   RecField,
@@ -40,6 +40,7 @@ import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
 import { Amt } from '../components/amount.js';
 import { CategoriesTab, CategoryField } from '../components/categories.js';
+import { Action, Attention, StatePill } from '../components/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -109,11 +110,11 @@ export default function Budgets({ id, tab }) {
   if (!budgets.length) {
     if (current === 'categories') return html`<${CategoriesTab} />`;
     return html`
-      <${Empty}>No budget yet. A budget plans spending per category over the accounts you
-        choose; share it with a group at write for a household budget.
-        <div class="mt"><button type="button" class="btn primary" onClick=${newBudget}>
-          <${Icon} name="plus" /> New budget</button>
-          <a class="btn" href="/ui/budgets/none/categories">Categories</a></div></${Empty}>
+      <${Empty} action=${html`
+        <button type="button" class="btn primary" onClick=${newBudget}>
+                  <${Icon} name="plus" /> New budget</button>
+        <a class="btn" href="/ui/budgets/none/categories">Categories</a>
+      `}>No budget yet</${Empty}>
     `;
   }
   const b = budgets.find((x) => x.id === id) || budgets[0];
@@ -147,17 +148,15 @@ export default function Budgets({ id, tab }) {
     </div>
     ${!b.active
       ? html`
-        <div class="notice warn" style=${{ marginBottom: '12px' }}>
-          <${Icon} name="info" />
-          <div class="grow"><b>Scenario:</b> not the budget you follow. ${b.method === 'envelope'
-            ? 'An envelope'
-            : 'A tracking'} budget.</div>
-          <button type="button" class="btn sm" onClick=${() =>
-            openDialog(MakeActiveDialog, { b, from: budgets.find((x) => x.active) }).then((x) =>
-              x && list.reload()
-            )}>Make active</button>
-          <a class="btn sm" href=${`/ui/budgets/${b.id}/compare`}>Compare</a>
-        </div>
+        <div style=${{ marginBottom: '12px' }}>
+          <${Attention} icon=${html`<${Icon} name="info" />`}
+            actions=${html`
+              <${Action} class="btn sm" why=${whyRead(b)} onClick=${() =>
+                openDialog(MakeActiveDialog, { b, from: budgets.find((x) => x.active) }).then((x) =>
+                  x && list.reload()
+                )}>Make active</${Action}>
+              <a class="btn sm" href=${`/ui/budgets/${b.id}/compare`}>Compare</a>
+            `}>Scenario · ${b.method === 'envelope' ? 'envelope' : 'tracking'}</${Attention}></div>
       `
       : null}
     <${Tabs} tabs=${TABS} current=${current} base=${`/ui/budgets/${b.id}`} />
@@ -212,7 +211,9 @@ function ThisMonth({ b, month, reloadList }) {
   const edit = () => openDialog(PlanDialog, { b, month }).then((x) => x && res.reload());
   const estimate = () =>
     openDialog(EstimateDialog, { b, month, months: 6 }).then((x) => x && res.reload());
-  const canMove = b.moves && canAdd('BdgMv', b);
+  // Moves are the budget's own setting; one who may not make them sees them off (S12.19.1).
+  const canMove = !!b.moves;
+  const moveWhy = whyNotAdd('BdgMv', b);
   const moveTo = (/** @type {string} */ to = '') =>
     openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
       x && res.reload()
@@ -252,8 +253,8 @@ function ThisMonth({ b, month, reloadList }) {
               ? 'more is assigned than there is'
               : 'left to hand out'}${canMove
               ? html`
-                ${' '}· <button type="button" class="linklike"
-                  onClick=${() => moveTo()}>Assign</button>
+                ${' '}· <${Action} class="linklike" why=${moveWhy}
+                  onClick=${() => moveTo()}>Assign</${Action}>
               `
               : null}</div>
           </div>
@@ -309,33 +310,30 @@ function ThisMonth({ b, month, reloadList }) {
           </div>
         </div>
       `}
-    <div class="card mt"><h3>${envelope ? 'Envelopes' : 'Categories'}<span
+    <div class="card mt">
+      <h3>${envelope ? 'Envelopes' : 'Categories'}<span
       class="spacer"></span><span class="small dim" style=${{ fontWeight: 400 }}>${b.access.mine
         ? b.sharedWith ? `shared with ${b.sharedWith}` : 'yours'
-        : `${b.ownerName}'s · ${b.access.writable ? 'write' : 'read'}`}</span>${b.access.shareable
-        ? html`<button type="button" class="btn sm" onClick=${() =>
+        : `${b.ownerName}'s · ${b.access.writable ? 'write' : 'read'}`}</span><${Action}
+        class="btn sm" why=${whyNot(b, 'shareable')} onClick=${() =>
           openDialog(ShareDialog, { kind: 'budget', id: b.id, name: b.name }).then(
             reloadList,
-          )}><${Icon} name="share" /> Share</button>`
-        : null}
-      ${b.access.writable
-        ? html`
-          <button type="button" class="btn sm" onClick=${settings}>Settings</button>
-          <button type="button" class="btn sm" onClick=${estimate}>Estimate from history…</button>
-          <button type="button" class="btn sm" onClick=${edit}>Edit plan</button>
-        `
-        : null}</h3>
+          )}><${Icon} name="share" /> Share</${Action}>
+      <${Action} class="btn sm" why=${whyRead(b)} onClick=${settings}>Settings</${Action}>
+      <${Action} class="btn sm" why=${whyRead(b)} onClick=${estimate}>Estimate from
+        history…</${Action}>
+      <${Action} class="btn sm" why=${whyRead(b)} onClick=${edit}>Edit plan</${Action}></h3>
       ${spend.length
         ? spend.map((/** @type {any} */ r) =>
-          html`<${BudgetRow} r=${r} cover=${canMove ? () => moveTo(r.categoryId) : null} />`
+          html`
+            <${BudgetRow} r=${r} cover=${canMove ? () => moveTo(r.categoryId) : null}
+              coverWhy=${moveWhy} />
+          `
         )
-        : html`<p class="small dim">Nothing planned for this month yet.${
-          b.access.writable
-            ? html`
-              <button type="button" class="linklike" onClick=${edit}>Plan it</button>
-            `
-            : ''
-        }</p>`}
+        : html`<${Empty} action=${html`
+          <${Action} class="btn sm" why=${whyRead(b)}
+            onClick=${edit}>Plan it</${Action}>
+        `}>Nothing planned this month</${Empty}>`}
       ${v.cards.length
         ? html`<h4 class="small dim mt">Cards</h4>${
           v.cards.map((/** @type {any} */ x) =>
@@ -353,8 +351,12 @@ function ThisMonth({ b, month, reloadList }) {
                   )} owed</span>${dec(x.notBacked).gt(0)
                     ? html`<div class="down">${money(x.notBacked)} owed, not backed</div>${
                       canMove
-                        ? html`<div><button type="button" class="linklike" data-help="cover-from"
-                      onClick=${() => moveTo('card:' + x.accountId)}>Cover from…</button></div>`
+                        ? html`
+                          <div>
+                            <${Action} class="linklike" data-help="cover-from"
+                              why=${moveWhy} onClick=${() =>
+                                moveTo('card:' + x.accountId)}>Cover from…</${Action}></div>
+                        `
                         : null
                     }`
                     : null}</div>
@@ -411,8 +413,8 @@ function ThisMonth({ b, month, reloadList }) {
       ? html`
         <div class="card mt"><h3>Moves in ${monthLabel(month).split(' ')[0]}<span
           class="spacer"></span>${canMove
-            ? html`<button type="button" class="btn sm" onClick=${() => moveTo()}><${Icon}
-            name="plus" /> Move</button>`
+            ? html`<${Action} class="btn sm" why=${moveWhy} onClick=${() => moveTo()}><${Icon}
+            name="plus" /> Move</${Action}>`
             : null}</h3>
           ${v.moves.length
             ? v.moves.map((/** @type {any} */ m) =>
@@ -422,14 +424,12 @@ function ThisMonth({ b, month, reloadList }) {
                     class="small dim">${date(m.createdAt.slice(0, 10))}${m.byName
                       ? ` · ${m.byName}`
                       : ''}${m.note ? ` · “${m.note}”` : ''}</div></div>
-                  ${b.access.writable
-                    ? html`
-                      <button type="button" class="icon-btn" aria-label="Delete the move"
-                        onClick=${() => unmove(m).catch((e) => toast(e.message))}><${Icon}
-                                            name="x" /></button>
-                    `
-                    : null}
-                </div>
+                  <${Action} class="icon-btn" why=${whyRead(b)} aria-label="Delete the move"
+                    onClick=${() => unmove(m).catch((e) => toast(e.message))}>
+                    <${Icon}
+                      name="x" />
+                    </${Action}>
+                    </div>
               `
             )
             : html`<p class="small dim">None this month. A move covers one category from another
@@ -465,8 +465,8 @@ function ThisMonth({ b, month, reloadList }) {
   `;
 }
 
-/** @param {{ r: any, cover?: (() => void) | null }} p */
-function BudgetRow({ r, cover }) {
+/** @param {{ r: any, cover?: (() => void) | null, coverWhy?: string | null }} p */
+function BudgetRow({ r, cover, coverWhy }) {
   const p = num(r.planned) > 0 ? num(r.actual) / num(r.planned) : 1;
   return html`
     <div class="budget-row">
@@ -487,8 +487,11 @@ function BudgetRow({ r, cover }) {
         })}</span>${r.state === 'over'
           ? html`${' '}<span class="pill bad">over</span>`
           : null}${r.state === 'over' && cover
-          ? html`<div><button type="button" class="linklike" data-help="cover-from"
-            onClick=${cover}>Cover from…</button></div>`
+          ? html`
+            <div>
+              <${Action} class="linklike" data-help="cover-from" why=${coverWhy}
+                onClick=${cover}>Cover from…</${Action}></div>
+          `
           : null}${num(r.moved)
           ? html`<div class="dim">${dec(r.moved).gt(0) ? '+' : '−'}${
             money(dec(r.moved).abs(), { cents: false })
@@ -543,27 +546,18 @@ function Review({ b }) {
           setMonth(e.currentTarget.value)}>
         ${months.map((x) => html`<option value=${x}>${monthLabel(x)}</option>`)}
       </select>
-      <span class="spacer"></span>${write
-        ? html`
-          <button type="button" class="btn primary" disabled=${mark.busy}
-            onClick=${() => mark.run().catch(() => {})}><${Icon} name="check" /> ${v.reviewed
-              ? 'Review again'
-              : 'Mark reviewed'}</button>
-        `
-        : null}
+      <span class="spacer"></span><${Action} class="btn primary" disabled=${mark.busy}
+        why=${write ? null : READ_ONLY} onClick=${() => mark.run().catch(() => {})}><${Icon}
+        name="check" /> ${v.reviewed ? 'Review again' : 'Mark reviewed'}</${Action}>
     </div>
     ${v.reviewed
       ? html`
-        <div class=${'notice' + (v.reviewed.changes.length ? ' warn' : '')} style=${{
-          marginBottom: '12px',
-        }}>
-          <${Icon} name=${v.reviewed.changes.length ? 'alert' : 'check'} />
-          <div>Reviewed ${date(
-            v.reviewed.at.slice(0, 10),
-          )}${v.reviewed.byName ? ` by ${v.reviewed.byName}` : ''}${v.reviewed.changes.length
-            ? html`: <b>changed since reviewed</b>. ${v.reviewed.changes.join('; ')}.`
-            : '.'}</div>
-        </div>
+        <div style=${{ marginBottom: '12px' }}>${v.reviewed.changes.length
+          ? html`<${Attention} icon=${html`<${Icon} name="alert" />`}>Changed since reviewed:${' '}
+            ${v.reviewed.changes.join('; ')}</${Attention}>`
+          : html`<${StatePill} tone="ok" why=${`Reviewed ${date(v.reviewed.at.slice(0, 10))}${
+            v.reviewed.byName ? ` by ${v.reviewed.byName}` : ''
+          }`}><${Icon} name="check" /> Reviewed</${StatePill}>`}</div>
       `
       : null}
     <div class="card"><h3>${monthLabel(month)}</h3>
@@ -616,7 +610,7 @@ function Review({ b }) {
         : null}
       ${!v.overspent.length && !v.toMove.length && !v.uncategorised && !v.moved &&
           (v.toBudget == null || dec(v.toBudget).isZero())
-        ? html`<p class="small dim">Nothing left to do for ${monthLabel(month)}.</p>`
+        ? html`<${Empty}>Nothing left to do for ${monthLabel(month)}</${Empty}>`
         : null}
     </div>
     ${v.history.length
@@ -769,8 +763,7 @@ function Compare({ b, budgets, month }) {
   const res = useApi(other ? `/budgets/${b.id}/compare` : '', { other, month, span });
   const v = /** @type {any} */ (res.data);
   if (!others.length) {
-    return html`<${Empty}>Only one budget so far. <b>Copy as scenario…</b> on Budgets makes another
-      to compare.</${Empty}>`;
+    return html`<${Empty}>Only one budget so far</${Empty}>`;
   }
   const otherName = others.find((x) => x.id === other)?.name || '';
   const left = (/** @type {any} */ a, /** @type {any} */ s) =>
@@ -960,8 +953,7 @@ function WhereMoneyIs({ b, month }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!w) return html`<${Loading} lines=${6} />`;
   if (!w.heldIn.length && !w.cards.length) {
-    return html`<${Empty}>No reserve is held in an account, and no card is among the budget's
-      accounts. Give a reserve an account it's held in with <b>Edit plan</b>.</${Empty}>`;
+    return html`<${Empty}>No reserve held in an account, and no card</${Empty}>`;
   }
   // A transfer in kept as the account's own: a move to no category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
@@ -1277,8 +1269,7 @@ function Recurring({ b }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} lines=${6} />`;
   if (!rows.length) {
-    return html`<${Empty}>Nothing recurring found yet. A payee needs three or more payments at a
-      steady interval.</${Empty}>`;
+    return html`<${Empty}>Nothing recurring found yet</${Empty}>`;
   }
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
@@ -1327,8 +1318,7 @@ function Reimbursements({ b }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} lines=${4} />`;
   if (!rows.length) {
-    return html`<${Empty}>Nothing awaits being paid back. Mark spending <b>Reimbursable</b> in its
-      transaction, and it's listed here, not counted, until a deposit pays it back.</${Empty}>`;
+    return html`<${Empty}>Nothing awaits being paid back</${Empty}>`;
   }
   const pair = (/** @type {any} */ r) =>
     openDialog(PairDialog, { item: r }).then((x) => x && res.reload());
@@ -1460,13 +1450,15 @@ function AccountsPicker({ ids, setIds, error }) {
     </fieldset>
     ${left.map((x) =>
       html`
-        <div class="notice" style=${{ marginBottom: '12px' }}>
-          <${Icon} name="info" />
-          <div><b>${x.name}</b> gets transfers from these accounts (${x.transfers} this year):
-            <button type="button" class="linklike" onClick=${() =>
-              setIds(new Set([...ids, x.accountId]))}>include it?</button> Left out, a
-            transfer to it counts by its category, or waits to be sorted.</div>
-        </div>
+        <div style=${{ marginBottom: '12px' }}>
+          <${Attention} tone="info"
+            icon=${html`<${Icon} name="info" />`}
+            actions=${html`
+              <button type="button" class="btn sm"
+                onClick=${() => setIds(new Set([...ids, x.accountId]))}>Include it</button>
+            `}>${x
+              .name} gets transfers from these accounts (${x.transfers} this
+          year)</${Attention}></div>
       `
     )}
   `;

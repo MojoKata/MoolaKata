@@ -15,11 +15,12 @@ import { ACCEPT, ReceiptLinkRec, uploadAll } from './receipt.js';
 import { FanChart } from '../charts/chart.js';
 import { EducationAnswer } from '../screens/projections.js';
 import { num } from '../app/dec.js';
-import { canAdd, Record } from '../app/draft.js';
+import { canAdd, READ_ONLY, Record, whyNotAdd } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
+import { Action } from './state.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {
@@ -209,7 +210,11 @@ export function Contributions({ a }) {
   // A contribution is a deposit made into the account: a transaction of it.
   const contributes = canAdd('Txn', a);
   return html`
-    ${contributes ? html`<${AddContribution} a=${a} done=${again} />` : null}
+    ${contributes ? html`<${AddContribution} a=${a} done=${again} />` : html`
+      <div class="toolbar">
+        <${Action} class="btn sm" why=${whyNotAdd('Txn', a)}><${Icon}
+              name="plus" /> Record a contribution</${Action}></div>
+    `}
     <div class="card mt" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>Against the annual gift exclusion</h3>
       ${v.years.length
@@ -247,7 +252,7 @@ export function Contributions({ a }) {
             </table>
           </div>
         `
-        : html`<${Empty}>No contributions yet.</${Empty}>`}
+        : html`<${Empty}>No contributions yet</${Empty}>`}
     </div>
     <div class="card mt" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>Contributions</h3>
@@ -437,12 +442,15 @@ export function Withdrawals({ a }) {
                       out (Form 1099-Q). The earnings in what isn't covered by qualified expenses may be
                       taxable, with a 10% additional tax; your preparer applies the rules.</p>
         `
-        : html`<${Empty}>No withdrawals yet. When school starts, each year lists what was taken
-          out against the qualified expenses and their receipts.</${Empty}>`}
+        : html`<${Empty}>No withdrawals yet</${Empty}>`}
     </div>
     ${canAdd('QExpn', a)
       ? html`<${AddExpense} a=${a} kinds=${v.kinds} done=${res.reload} />`
-      : null}
+      : html`
+        <div class="toolbar mt">
+          <${Action} class="btn sm" why=${whyNotAdd('QExpn', a)}><${Icon}
+                name="plus" /> Add a qualified expense</${Action}></div>
+      `}
     ${v.expenses.length
       ? html`<div class="card mt"><h3>Qualified expenses</h3>${
         v.expenses.map((
@@ -527,8 +535,14 @@ function Expense({ x, canWrite, done }) {
         ? html`${' '}· <${Icon} name="clip" /> ${x.documents.length} receipt${
           x.documents.length === 1 ? '' : 's'
         }`
-        : ''}</div></div><${Amt} v=${x.amount} />${canWrite
+        : ''}</div></div><${Amt} v=${x.amount} />${!canWrite
         ? html`
+          <${Action} class="btn sm"
+            why=${READ_ONLY}><${Icon} name="clip" /> Receipt</${Action}><${Action}
+                    class="icon-btn" why=${READ_ONLY} aria-label=${'Remove ' +
+                      (x.description || x.kindLabel)}><${Icon} name="x" /></${Action}>
+        `
+        : html`
           <label class="btn sm" for=${fid}><${Icon} name="clip" /> ${busy
             ? 'Uploading…'
             : 'Receipt'}</label><input
@@ -540,8 +554,7 @@ function Expense({ x, canWrite, done }) {
             class="icon-btn" aria-label=${'Remove ' +
               (x.description || x.kindLabel)} onClick=${() =>
               remove.run().catch(() => {})}><${Icon} name="x" /></button>
-        `
-        : null}</div>
+        `}</div>
   `;
 }
 
@@ -557,16 +570,16 @@ export function Goal({ a }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!v) return html`<${Loading} />`;
   if (!v.beneficiary) {
-    return html`<${Empty}>Choose the beneficiary in Settings to project their education.</${Empty}>`;
+    return html`<${Empty} action=${html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Settings</a>`}>No beneficiary chosen</${Empty}>`;
   }
   const x = v.projection;
   if (!x) {
-    return html`<${Empty}>No education projection for ${v.beneficiary.name} yet.
-      <div class="mt"><button type="button" class="btn primary" disabled=${start.busy}
-        onClick=${() =>
-      start.run().catch(
-        () => {},
-      )}><${Icon} name="plus" /> Project ${v.beneficiary.name}'s education</button></div></${Empty}>`;
+    return html`<${Empty} action=${html`
+      <button type="button" class="btn primary" disabled=${start.busy}
+        onClick=${() => start.run().catch(() => {})}><${Icon} name="plus" /> Project ${v.beneficiary
+          .name}'s
+              education</button>
+    `}>No education projection yet</${Empty}>`;
   }
   const r = x.result;
   const ans = r.answer;

@@ -5,6 +5,9 @@ shared: share it with a group at **Write** for a household budget everyone in it
 
 ![Budgets](shots/budgets-month.png)
 
+A scenario is a budget you don't follow; **Make active** follows it, **Compare** sets it beside the
+one you do.
+
 ## Month
 
 The month shown. Past months keep the plan they had; a change to the plan applies from the month it

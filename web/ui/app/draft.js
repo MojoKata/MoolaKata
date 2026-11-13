@@ -619,6 +619,56 @@ export function canAdd(kind, parent, who = {}) {
   return allows(prefix, rule, parent, who, false);
 }
 
+/** Why an action is off for one who can only read the record (S12.19.1). */
+export const READ_ONLY = 'Shared with you to read';
+
+/** What each permission a record may lack keeps from the reader, as an action's reason. */
+const LACKS = /** @type {{ [needs: string]: string }} */ ({
+  writable: READ_ONLY,
+  shareable: 'Only its owner shares it',
+  configurable: 'Only its owner changes its settings',
+  deletable: 'Only its owner deletes it',
+});
+
+/**
+ * Why the reader may not act on a record as `perm` (writable, shareable, deletable,
+ * configurable) allows, or null when they may (S12.19.1).
+ * @param {any} record @param {string} perm
+ */
+export function whyNot(record, perm) {
+  return record?.access?.[perm] ? null : LACKS[perm] || READ_ONLY;
+}
+
+/**
+ * Why the reader may not change a record, or null when they may (S12.19.1): its `access`.
+ * @param {any} record
+ */
+export function whyRead(record) {
+  return record?.access?.writable ? null : READ_ONLY;
+}
+
+/**
+ * Why the reader may not make a record of a kind, or null when they may: `canAdd`'s answer as
+ * the reason an Add shown off gives (S12.19.1).
+ * @param {string | { prefix: string }} kind @param {any} parent @param {{ admin?: boolean }} [who]
+ * @returns {string | null}
+ */
+export function whyNotAdd(kind, parent, who = {}) {
+  if (canAdd(kind, parent, who)) return null;
+  const prefix = typeof kind === 'string' ? kind : kind.prefix;
+  const rule = CREATES[/** @type {keyof typeof CREATES} */ (prefix)];
+  const rules = rule.allOf || [rule];
+  for (const r of rules) {
+    if (r.who === 'admin') return 'Only admins can';
+    if (r.via) {
+      const p = rule.allOf ? parent?.[r.via] : parent;
+      const needs = /** @type {string} */ (r.needs);
+      if (!p?.access?.[needs]) return LACKS[needs] || READ_ONLY;
+    }
+  }
+  return 'Not made here';
+}
+
 /**
  * @param {string} prefix @param {CreateRule} rule @param {any} parent
  * @param {{ admin?: boolean }} who @param {boolean} keyed

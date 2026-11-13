@@ -16,6 +16,7 @@ import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { DraftForm } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
+import { Attention, StatePill } from './state.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -94,27 +95,27 @@ export function ConnectorSection() {
                   ? ` by ${v.confirmedBy}`
                   : ''} <span class="small dim">· the fingerprints were compared</span></div>
             `
-            : html`<div class="notice"><${Icon} name="alert" /><div>Compare the fingerprint above with
-                the one the connector's page showed, or that${' '}
-                <code>moolakata-connector pair</code>${' '}
-                printed on its host. If they match, confirm: until then the connector gets no
-                sign-in and posts no file. If they differ, someone else answered the code first:
-                unpair.</div>
-                <button class="btn primary" onClick=${() =>
-              withReauth(() => api.post('/settings/connector/confirm')).then(() => {
-                toast('Pairing confirmed');
-                res.reload();
-              }, (e) => toast(e.message))}>Confirm</button></div>`}
+            : html`<${Attention} icon=${html`<${Icon} name="alert" />`} actions=${html`
+              <button
+                class="btn primary" onClick=${() =>
+                  withReauth(() => api.post('/settings/connector/confirm')).then(() => {
+                    toast('Pairing confirmed');
+                    res.reload();
+                  }, (e) => toast(e.message))}>Confirm</button>
+            `}>Fingerprints not compared
+              yet</${Attention}>`}
           ${v.newAddress
-            ? html`<div class="notice" data-help="accept"><${Icon} name="alert" /><div>The connector
-                reports from <code>${v.newAddress}</code>, not its known address <code>${v.knownAddress}</code>.
-                If it moved, accept the new address; if not, its host or volume may have been copied:
-                unpair it now.</div>
-                <button class="btn" onClick=${() =>
-              withReauth(() => api.post('/settings/connector/accept-address')).then(() => {
-                toast('Address accepted');
-                res.reload();
-              }, (e) => toast(e.message))}>Accept</button></div>`
+            ? html`
+              <div data-help="accept">
+                <${Attention} icon=${html`<${Icon} name="alert" />`}
+                  actions=${html`<button class="btn" onClick=${() =>
+                    withReauth(() => api.post('/settings/connector/accept-address')).then(() => {
+                      toast('Address accepted');
+                      res.reload();
+                    }, (e) => toast(e.message))}>Accept</button>`}>Reports from${' '}
+                            <code>${v.newAddress}</code>, not <code>${v
+                              .knownAddress}</code></${Attention}></div>
+            `
             : null}
           <div class="list-item"><span class="grow dim">Last report</span>${v.lastReportAt
             ? html`${ago(v.lastReportAt)}${
@@ -128,20 +129,15 @@ export function ConnectorSection() {
         `
         : v.state === 'pairing'
         ? html`
-          <div class="notice">
-            <${Icon} name="info" />
-            <div>A pairing code is out until${' '}
-                      ${moment(v.codeExpiresAt)}. Paste it into Pair on the connector's page (or run
-                      it on its host), then compare the fingerprint both sides show.</div>
-          </div>
+          <${StatePill} tone="info"
+            why="Paste it into Pair on the connector's page, or run it on its host; then compare the fingerprint both sides show.">Code
+            out until ${moment(v.codeExpiresAt)}</${StatePill}>
         `
         : html`
-          <div class="notice">
-            <${Icon} name="info" />
-            <div>No connector is paired. This
-                      server's key fingerprint, which the pairing code carries:${' '}
-                      <code>${v.serverFingerprint}</code></div>
-          </div>
+          <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}>No connector
+            paired</${Attention}>
+          <div class="list-item"><span class="grow dim">This server's fingerprint</span><code>${v
+            .serverFingerprint}</code></div>
         `}
       <${DraftForm} f=${fd} class="draft-form mt" where="Settings › Connector"
         what="The address the connector reaches MoolaKata at" saved=${() => {

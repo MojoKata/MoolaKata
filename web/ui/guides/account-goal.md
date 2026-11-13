@@ -5,6 +5,8 @@ years of school will cost.
 
 ![A 529's Goal](shots/account-goal.png)
 
+Choose the beneficiary in the account's Settings to project their education.
+
 ## Funded
 
 The median balance when school starts (Sep 1) against what its years will cost then, as a

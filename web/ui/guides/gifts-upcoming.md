@@ -5,6 +5,8 @@ budget, the gifts planned so far, and what's still missing.
 
 ![Upcoming occasions](shots/gifts-upcoming.png)
 
+Occasions come from the people on the People tab: their birthdays, anniversaries and holidays.
+
 ## Next 60 days
 
 Each date with how far off it is. One inside its person's reminder time, with nothing bought, also

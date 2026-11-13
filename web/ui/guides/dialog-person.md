@@ -3,6 +3,9 @@
 Your plan for someone you give gifts to: your budget, their holidays and dates, and your notes.
 Yours alone unless you share it.
 
+A user of a linked server who may be this person can be joined: the linked server's user is then
+this person here, who stays as private as now.
+
 ## The person {#the-person}
 
 Name, sex and birthday belong to the person, seen by the whole household unless whoever added them

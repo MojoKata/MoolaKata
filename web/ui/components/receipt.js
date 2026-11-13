@@ -8,11 +8,12 @@ import { date, day, money } from '../app/format.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
-import { Record as Rec } from '../app/draft.js';
+import { Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TagsField } from './tags.js';
 import { confirmAction } from './confirm.js';
+import { Action, Attention, Empty } from './state.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -173,36 +174,30 @@ export function ReceiptDialog({ close, id }) {
   const file = `/ui/api/receipts/${id}/file`;
   return html`
     <${DraftDialog} f=${f} title=${r.fileName} wide close=${close} what="This receipt"
-      done=${rec.removed ? 'Receipt deleted' : 'Saved'} hideSave=${!canEdit}
+      done=${rec.removed ? 'Receipt deleted' : 'Saved'} saveWhy=${whyRead(r)}
       extra=${({ save }) =>
-        r.access.deletable
-          ? html`
-            <button type="button" class="btn danger" style=${{ marginRight: 'auto' }}
-              disabled=${save.busy || r.links.length > 0 || r.alsoKeptWith > 0 ||
-                linkRecs.length > 0}
-              title=${r.links.length || linkRecs.length
+        html`
+          <${Action} class="btn danger" style=${{ marginRight: 'auto' }}
+            disabled=${save.busy} why=${whyNot(r, 'deletable') ||
+              (r.links.length || linkRecs.length
                 ? 'Detach it first'
                 : r.alsoKeptWith
                 ? 'It is kept with something not shared with you'
-                : undefined} onClick=${async () => {
-                const draft = f.draft;
-                if (!draft) return;
-                if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
-                draft.remove(rec);
-                const o = await save.run().catch(() => null);
-                if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
-              }}>Delete</button>
-          `
-          : null}>
+                : null)} onClick=${async () => {
+              const draft = f.draft;
+              if (!draft) return;
+              if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
+              draft.remove(rec);
+              const o = await save.run().catch(() => null);
+              if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
+            }}>Delete</${Action}>
+        `}>
       <div class="split" style=${{ alignItems: 'flex-start' }}>
         <div class="receipt-view">
           ${r.filePrunedAt
             ? html`
-              <div class="notice" role="note">
-                <${Icon} name="info" />
-                <div>${r.kept}: its
-                            record keeps its amounts, dates and links.</div>
-              </div>
+              <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}>${r
+                .kept}</${Attention}>
             `
             : r.mediaType === 'application/pdf'
             ? html`<a href=${file} target="_blank" rel="noopener" class="pdf-open">
@@ -232,15 +227,12 @@ export function ReceiptDialog({ close, id }) {
             : r.readMethod === 'ocr'
             ? 'Read with OCR'
             : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span><span
-              class="spacer"></span>${canEdit && !reading
-                ? html`
-                  <button type="button" class="btn sm" disabled=${again.busy}
-                    onClick=${() =>
-                      again.run().catch((e) =>
-                        toast(e.message)
-                      )}><${Icon} name="refresh" /> Read again</button>
-                `
-                : null}</div>
+              class="spacer"></span><${Action} class="btn sm" disabled=${again.busy}
+                why=${whyRead(r) || (reading ? 'Being read now' : null)}
+                onClick=${() =>
+                  again.run().catch((e) =>
+                    toast(e.message)
+                  )}><${Icon} name="refresh" /> Read again</${Action}></div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'
@@ -255,19 +247,13 @@ export function ReceiptDialog({ close, id }) {
         <div style=${{ flex: '0 1 280px' }}>
           ${reading
             ? html`
-              <div class="notice" role="status">
-                <${Icon} name="refresh" />
-                <div>Reading this receipt on
-                            the server. The fields fill in when it's done; you can type them now.</div>
-              </div>
+              <${Attention} tone="info" icon=${html`<${Icon} name="refresh" />`}>Being read on the
+                server</${Attention}>
             `
             : r.readStatus === 'failed'
             ? html`
-              <div class="notice bad" role="status">
-                <${Icon} name="alert" />
-                <div>Couldn't read it: ${r
-                  .readError}. Type the fields by hand.</div>
-              </div>
+              <${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>Couldn't read it:${' '}
+                ${r.readError}</${Attention}>
             `
             : null}
           <div class="row">
@@ -298,12 +284,11 @@ export function ReceiptDialog({ close, id }) {
                         : ''}</div>
                   `
                   : l.label
-              }</div>${
-                (l.rec || l.access?.deletable) && canEdit
-                  ? html`<button type="button" class="btn sm" onClick=${() =>
-                    detach(l)}>Detach</button>`
-                  : null
-              }</div>`
+              }</div>${html`
+                <${Action} class="btn sm" why=${whyRead(r) ||
+                  (l.rec || l.access?.deletable ? null : 'Only its owner detaches it')}
+                  onClick=${() => detach(l)}>Detach</${Action}>
+              `}</div>`
             )
             : r.alsoKeptWith
             ? null
@@ -317,7 +302,7 @@ export function ReceiptDialog({ close, id }) {
                   : 'things'} not shared with you.</p>
             `
             : null}
-          ${r.matches.length && !added.length && canEdit
+          ${r.matches.length && !added.length
             ? html`
               <div class="notice mt">
                 <${Icon} name="clip" />
@@ -329,20 +314,18 @@ export function ReceiptDialog({ close, id }) {
                               /** @type {number} */ i,
                             ) =>
                               html`
-                                <button type="button" class=${'btn sm' + (i ? '' : ' primary')}
-                                  onClick=${() => attach(m.transactionId)}>${i
+                                <${Action} class=${'btn sm' + (i ? '' : ' primary')}
+                                  why=${whyRead(r)} onClick=${() => attach(m.transactionId)}>${i
                                     ? `${m.payee || 'Transaction'} · ${date(m.date)}`
-                                    : 'Attach'}</button>
+                                    : 'Attach'}</${Action}>
                               `
                             )}</div></div>
               </div>
             `
             : !kept.length && !added.length
-            ? html`<p class="small dim">${
-              r.amount
-                ? 'No transaction of this amount within five days of its date yet. Attach it from the transaction when it arrives.'
-                : 'Give it a date and amount to find the transaction it belongs to, or attach it from the transaction itself.'
-            }</p>`
+            ? html`<${Empty}>${
+              r.amount ? 'No matching transaction yet' : 'No date and amount yet'
+            }</${Empty}>`
             : null}
         </div>
       </div>

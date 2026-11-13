@@ -12,13 +12,14 @@ import { Dec, dec } from '../app/dec.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { Dialog, openDialog } from './dialog.js';
 import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
-import { Record as Rec } from '../app/draft.js';
+import { Record as Rec, whyRead } from '../app/draft.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
+import { Action } from './state.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -162,12 +163,11 @@ export function Strategies() {
                       <td class="num">${atRisk(x, 'capitalAtRiskAtOpen')}${x.returnPct != null
                         ? html`<div class="small">${x.returnPct}%</div>`
                         : null}</td>
-                      <td>${x.access.writable
-                        ? html`<button type="button" class="btn sm" onClick=${() =>
+                      <td>
+                        <${Action} class="btn sm" why=${whyRead(x)} onClick=${() =>
                           openDialog(StrategyDialog, { x }).then((ok) =>
                             ok && res.reload()
-                          )}>Edit…</button>`
-                        : null}</td>
+                          )}>Edit…</${Action}></td>
                     </tr>
                   `
                 )}</tbody>
@@ -194,8 +194,7 @@ export function Strategies() {
           </div>
         </div>
       `
-      : html`<${Empty}>No strategies yet. Legs opened together are offered here; or select legs on
-        the Open tab and Group them.</${Empty}>`}
+      : html`<${Empty}>No strategies yet</${Empty}>`}
     <div class="toolbar mt"><span class="small dim">Grouping is a label: each leg keeps its own
       lots, gains and wash sales. Capital at risk is the most the strategy can lose at expiry; for
       undefined risk, the margin you type.</span><span class="spacer"></span><button type="button"

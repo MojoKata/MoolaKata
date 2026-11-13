@@ -15,7 +15,8 @@ import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { canAdd, Record as Rec } from '../app/draft.js';
+import { canAdd, READ_ONLY, Record as Rec, whyRead } from '../app/draft.js';
+import { Action, Attention } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -78,10 +79,10 @@ function Overview({ v, reload }) {
     return [d, String(Math.round(num(v.target) * days / 365))];
   });
   if (!plan) {
-    return html`<${Empty}>No giving plan for ${v.year} yet. Set a target, as a percentage of
-      income or an amount, to follow your giving against it.
-      <div class="mt"><button type="button" class="btn primary" onClick=${editPlan}>Set a
-        target</button></div></${Empty}>
+    return html`<${Empty} action=${html`
+      <button type="button" class="btn primary"
+        onClick=${editPlan}>Set a target</button>
+    `}>No giving plan for ${v.year} yet</${Empty}>
       ${
       num(v.given)
         ? html`<p class="small dim">Given so far in ${v.year}: <${Amt} v=${v.given} />.</p>`
@@ -104,23 +105,21 @@ function Overview({ v, reload }) {
               agi: 'estimated AGI',
             }[/** @type {'take-home'|'gross'|'agi'} */ (plan.incomeBasis)]
           }`
-          : 'a fixed amount'} · ${!plan.access.writable
-          ? html`shared by ${plan.ownerName}`
-          : html`<a href="#" onClick=${(/** @type {Event} */ e) => {
-            e.preventDefault();
-            editPlan();
-          }}>Edit</a>`}${plan.access.shareable
-          ? html`
-            ${' '}· <a href="#" onClick=${(/** @type {Event} */ e) => {
-              e.preventDefault();
-              openDialog(ShareDialog, {
-                kind: 'giving-plan',
-                id: plan.id,
-                name: `Giving plan ${plan.year}`,
-              });
-            }}>Share</a>
-          `
-          : null}</div>
+          : 'a fixed amount'} · ${plan.access.writable
+          ? null
+          : `shared by ${plan.ownerName} · `}<${Action} class="linklike" why=${whyRead(plan)}
+            onClick=${() => editPlan()}>Edit</${Action}>${plan.access.shareable
+              ? html`
+                ${' '}· <a href="#" onClick=${(/** @type {Event} */ e) => {
+                  e.preventDefault();
+                  openDialog(ShareDialog, {
+                    kind: 'giving-plan',
+                    id: plan.id,
+                    name: `Giving plan ${plan.year}`,
+                  });
+                }}>Share</a>
+              `
+              : null}</div>
       </div>
       <div class="card kpi" data-help="given">
         <div class="label">Given</div>
@@ -152,13 +151,11 @@ function Overview({ v, reload }) {
     </div>
     ${v.missingAcks
       ? html`
-        <div class="notice warn mt">
-          <${Icon} name="alert" />
-          <div>${v.missingAcks} donation${v
-              .missingAcks === 1
-            ? ''
-            : 's'} of $250 or more without a written acknowledgement. <a
-                href="/ui/giving/donations">See the donations</a>.</div>
+        <div class="mt">
+          <${Attention} icon=${html`<${Icon} name="alert" />`}
+            actions=${html`<a class="btn sm" href="/ui/giving/donations">See them</a>`}>${v
+              .missingAcks} donation${v.missingAcks === 1 ? '' : 's'} of $250 or more without a
+          written acknowledgement</${Attention}>
         </div>
       `
       : null}
@@ -284,7 +281,7 @@ function Donations({ year, reload }) {
           </div>
         </div>
       `
-      : html`<${Empty}>No donations in ${year} yet.</${Empty}>`}
+      : html`<${Empty}>No donations in ${year} yet</${Empty}>`}
   `;
 }
 
@@ -342,8 +339,7 @@ function Organisations() {
           </div>
         </div>
       `
-      : html`<${Empty}>No organisations yet. Add the charities, churches and causes you give
-        to, with their EIN, and any pledges.</${Empty}>`}
+      : html`<${Empty}>No organisations yet</${Empty}>`}
   `;
 }
 
@@ -404,7 +400,7 @@ function Fund({ v, year }) {
               : 'pending'}</span> <${Amt} v=${g.amount} cents=${false} /></div>
         `
       )
-      : html`<p class="small dim">No grants in ${year}.</p>`}
+      : html`<${Empty}>No grants in ${year}</${Empty}>`}
       <p class="small dim">${v.plan?.dafCounted === 'granted'
         ? 'This plan counts the fund toward the target when it grants.'
         : "This plan counts the fund toward the target when it's funded, so grants aren't counted again."}</p>
@@ -669,19 +665,19 @@ function DonationView({ close, d }) {
   };
   return html`
     <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
-      what="This donation" hideSave=${!d.access.writable}
+      what="This donation" saveWhy=${whyRead(d)}
       done=${rec?.removed ? 'Donation deleted' : 'Saved'}
       extra=${({ save }) =>
-        d.access.writable
+        rec
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(d)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Delete</button><span class="spacer"></span>
+              }}>Delete</${Action}><span class="spacer"></span>
           `
           : null}>
       <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
@@ -755,7 +751,7 @@ function OrganisationDialog({ close, o }) {
   const canWrite = !o || o.access.writable;
   return html`
     <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
-      what="This organisation" done="Saved" hideSave=${!canWrite}>
+      what="This organisation" done="Saved" saveWhy=${canWrite ? null : READ_ONLY}>
       ${rec
         ? html`
           <fieldset disabled=${!canWrite} style=${{

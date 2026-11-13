@@ -5,6 +5,10 @@ your browser for the connector before it is sent: MoolaKata keeps only what it c
 the connector collects it, and never shows it back. Sealing asks for your password again when it
 was given over 10 minutes ago, and waits until an admin has confirmed the connector's pairing.
 
+Until an admin confirms that the paired connector is the household's own (Settings › Connector), no
+sign-in is sealed for it. A browser that can't seal credentials (its WebCrypto lacks the key
+exchange they need): choose the stricter way, where an admin types them on the connector's host.
+
 ## Institution {#driver}
 
 Which driver fetches it: **Schwab** (its official Trader API, signed in on Schwab's own page),

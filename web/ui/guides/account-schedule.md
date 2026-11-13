@@ -4,6 +4,8 @@ A loan's amortization schedule, computed from its terms and the payments made.
 
 ![A loan's Schedule](shots/account-schedule.png)
 
+The schedule is computed from the loan's terms, set in its Settings.
+
 ## Due
 
 Each payment's due date. Payments already made are marked **paid**, with what was actually paid and

@@ -5,6 +5,8 @@ the transactions they belong to.
 
 ![Receipts](shots/receipts.png)
 
+The inbox holds receipts not yet attached to anything; a receipt dropped above lands there.
+
 ## Drop PDFs or photos here {#receipt-files}
 
 PDF, JPEG, PNG, WebP and HEIC (iPhone photos), many at once, each up to the size in Settings ›

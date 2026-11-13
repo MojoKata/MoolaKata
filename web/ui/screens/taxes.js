@@ -18,7 +18,8 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
-import { canAdd, Record as Rec, TYPES } from '../app/draft.js';
+import { canAdd, Record as Rec, TYPES, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
+import { Action, Attention } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import {
   DraftDialog,
@@ -93,8 +94,8 @@ export default function Taxes({ tab }) {
   const chosen = held.find((r) => r.id === bookPref.value) || held[0];
   return html`
     ${pending.map((r) =>
-      html`<div class="notice mb"><${Icon} name="info" /><div>You're named as a filer in
-        the ${r.label} tax book. Once you accept, it counts your accounts.</div><button
+      html`<div class="notice attention info mb" role="status"><${Icon} name="info" /><span
+        class="grow">Named as a filer in the ${r.label} tax book</span><button
         class="btn sm primary" onClick=${() =>
         api.post(`/tax-books/${r.id}/accept`).then(() => {
           toast('Accepted');
@@ -125,20 +126,21 @@ export default function Taxes({ tab }) {
         `
         : null}<span class="spacer"></span>
       <button class="btn" onClick=${create}><${Icon} name="plus" /> New tax book</button>
-      ${chosen && chosen.access.shareable
-        ? html`<button class="btn" onClick=${() =>
+      ${chosen
+        ? html`<${Action} why=${whyNot(chosen, 'shareable')} onClick=${() =>
           openDialog(ShareDialog, {
             kind: 'tax-book',
             id: chosen.id,
             name: `Tax book ${chosen.label}`,
-          })}><${Icon} name="share" /> Share</button>`
+          })}><${Icon} name="share" /> Share</${Action}>`
         : null}
     </div>
     ${chosen
       ? html`<${Book} key=${chosen.id} id=${chosen.id} tab=${current} />`
-      : html`<${Empty}>No tax book yet. A tax book is one year's tax record, for you or for you
-        and your spouse filing jointly.<div class="mt"><button class="btn primary"
-          onClick=${create}><${Icon} name="plus" /> New tax book</button></div></${Empty}>`}
+      : html`<${Empty} action=${html`
+        <button class="btn primary"
+          onClick=${create}><${Icon} name="plus" /> New tax book</button>
+      `}>No tax book yet</${Empty}>`}
   `;
 }
 
@@ -229,11 +231,11 @@ function Summary({ b, done }) {
       ) =>
         html`
           <div
-            class="list-item"><div class="grow">${a.name}<div class="small dim">${a
-              .ownerName}</div></div>${b.access.configurable
-              ? html`<button class="btn sm" onClick=${() =>
-                count.run(a, false).catch(() => {})}>Leave out</button>`
-              : null}</div>
+            class="list-item">
+            <div class="grow">${a.name}<div class="small dim">${a
+              .ownerName}</div></div>
+            <${Action} class="btn sm" why=${whyNot(b, 'configurable')}
+              onClick=${() => count.run(a, false).catch(() => {})}>Leave out</${Action}></div>
         `
       )}
         ${b.leftOut.length
@@ -241,17 +243,20 @@ function Summary({ b, done }) {
             <h4 style=${{ margin: '12px 0 6px' }}>Left out</h4>${b.leftOut.map((
               /** @type {any} */ a,
             ) =>
-              html`<div class="list-item"><span class="grow dim">${a.name}</span>${
-                b.access.writable
-                  ? html`<button class="btn sm" onClick=${() =>
-                    count.run(a, null).catch(() => {})}>Count it</button>`
-                  : null
-              }</div>`
+              html`<div class="list-item"><span class="grow dim">${a.name}</span><${Action}
+                class="btn sm" why=${whyRead(b)} onClick=${() =>
+                count.run(a, null).catch(() => {})}>Count it</${Action}></div>`
             )}<p
               class="small dim">The panels leave these out, and say so.</p>
           `
           : null}
-        ${canAdd('TxBkA', b) && b.addable.length
+        ${!canAdd('TxBkA', b) && b.addable.length
+          ? html`
+            <div class="mt">
+              <${Action} class="btn sm" why=${whyNotAdd('TxBkA', b)}>Add an
+                        account</${Action}></div>
+          `
+          : b.addable.length
           ? html`
             <div class="row mt">
               <${Field} label="Add an account" id="add-account"
@@ -316,11 +321,10 @@ function Dependents({ b, done }) {
   const open = (/** @type {any} */ d) => openDialog(DependentDialog, { b, d }).then(done);
   return html`
     <div
-      class="card mt"><h3 data-help="dependents">Dependents<span class="spacer"></span>${b
-          .access.writable
-        ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add
-          dependent</button>`
-        : null}</h3>
+      class="card mt">
+      <h3 data-help="dependents">Dependents<span class="spacer"></span><${Action}
+        class="btn sm" why=${whyRead(b)} onClick=${() => open(null)}><${Icon} name="plus" /> Add
+        dependent</${Action}></h3>
       ${b.dependents.length
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
@@ -342,27 +346,20 @@ function Dependents({ b, done }) {
                 : null}</div>
           `
         )
-        : html`<p class="small dim">No one claimed this year. Add the people you claim: their
-          ages feed the credits panel, and a student's 1098-T is expected.</p>`}
+        : html`<${Empty}>No dependents</${Empty}>`}
       ${b.form8615.map((/** @type {any} */ f) =>
         html`
-          <div class="notice mt">
-            <${Icon} name="alert" />
-            <div>${f.name}'s ${f.accounts.join(
-              ' and ',
-            )} earned ${money(f.unearned)} of unearned income this year, above the ${money(
-              f.threshold,
-            )} threshold: Form 8615 (the kiddie tax) may apply.</div>
-          </div>
+          <div class="mt">
+            <${Attention} icon=${html`<${Icon} name="alert" />`}>${f.name}:${' '}
+            ${money(f.unearned)} unearned, above ${money(f.threshold)} · Form 8615 may
+            apply</${Attention}></div>
         `
       )}
       ${b.claimedElsewhere.map((/** @type {string} */ n) =>
         html`
-          <div class="notice mt">
-            <${Icon} name="info" />
-            <div>${n} is claimed as a dependent on
-                    another ${b.year} tax book.</div>
-          </div>
+          <div class="mt">
+            <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}>${n}${' '}
+            is claimed on another ${b.year} tax book</${Attention}></div>
         `
       )}
     </div>
@@ -494,10 +491,9 @@ function Filings({ b, done }) {
   const open = (/** @type {any} */ f) => openDialog(FilingDialog, { b, f }).then(done);
   return html`
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
-      of its own.</span><span class="spacer"></span>${canAdd('Filng', b)
-        ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add a
-        filing</button>`
-        : null}</div>
+      of its own.</span><span class="spacer"></span><${Action} class="btn sm"
+        why=${whyNotAdd('Filng', b)} onClick=${() => open(null)}><${Icon} name="plus" /> Add a
+        filing</${Action}></div>
     ${b.filings.length
       ? b.filings.map((/** @type {any} */ f) =>
         html`
@@ -541,7 +537,7 @@ function Filings({ b, done }) {
                   </div>
         `
       )
-      : html`<${Empty}>No filings yet. Add the federal return, and any state or local ones.</${Empty}>`}
+      : html`<${Empty}>No filings yet</${Empty}>`}
   `;
 }
 
@@ -556,11 +552,9 @@ function Documents({ b, done }) {
   );
   return html`
     <div
-      class="toolbar"><h3 style=${{ margin: 0 }}>Received</h3><span class="spacer"></span>${b
-          .access.writable
-        ? html`<button class="btn sm" onClick=${() => add(null)}><${Icon} name="plus" /> Add a
-        document</button>`
-        : null}</div>
+      class="toolbar"><h3 style=${{ margin: 0 }}>Received</h3><span class="spacer"></span><${Action}
+        class="btn sm" why=${whyRead(b)} onClick=${() => add(null)}><${Icon} name="plus" /> Add a
+        document</${Action}></div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
         <table class="t">
@@ -589,16 +583,17 @@ function Documents({ b, done }) {
                     ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${e.document.fileName}</span>`
                     : null
                 }`
-                : b.access.writable
-                ? html`<button class="btn sm" onClick=${(/** @type {Event} */ ev) => {
-                  ev.stopPropagation();
-                  add({
-                    form: e.form,
-                    issuer: e.issuer,
-                    accountId: e.accountId,
-                  });
-                }}><${Icon} name="upload" /> Attach</button>`
-                : html`<span class="pill warn">missing</span>`}</td>
+                : html`
+                  <${Action} class="btn sm"
+                    why=${whyRead(b)} onClick=${(/** @type {Event} */ ev) => {
+                      ev.stopPropagation();
+                      add({
+                        form: e.form,
+                        issuer: e.issuer,
+                        accountId: e.accountId,
+                      });
+                    }}><${Icon} name="upload" /> Attach</${Action}>
+                `}</td>
             </tr>
           `
         )}
@@ -622,14 +617,13 @@ function Documents({ b, done }) {
     <div
       class="toolbar mt"><h3 style=${{
         margin: 0,
-      }}>Filed</h3><span class="spacer"></span>${canAdd('TxDoc', b) && b.filings.length
-        ? html`<button class="btn sm" onClick=${() =>
+      }}>Filed</h3><span class="spacer"></span><${Action} class="btn sm"
+        why=${whyNotAdd('TxDoc', b) || (b.filings.length ? null : 'Add a filing first')}
+        onClick=${() =>
           add({
             direction: 'filed',
             filingId: b.filings[0].id,
-          })}><${Icon} name="plus" /> Add a filed
-        document</button>`
-        : null}</div>
+          })}><${Icon} name="plus" /> Add a filed document</${Action}></div>
     ${filed.length
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
@@ -870,18 +864,18 @@ function FilingDialog({ close, b, f: filing }) {
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This filing"
       title=${filing ? `${filing.label} · ${b.year}` : 'Add a filing'}
-      done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} hideSave=${!can}
+      done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} saveWhy=${whyRead(b)}
       extra=${({ save }) =>
-        can && filing
+        filing
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !draft) return;
                 if (!(await confirmAction({ title: 'Delete this filing?' }))) return;
                 draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
-              }}>Delete</button><span class="spacer"></span>
+              }}>Delete</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec

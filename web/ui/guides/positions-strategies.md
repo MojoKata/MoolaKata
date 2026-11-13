@@ -5,6 +5,8 @@ Grouping is a label: each leg keeps its own lots, gains and wash sales.
 
 ![Strategies](shots/positions-strategies.png)
 
+Legs opened together are offered here as a strategy; or select legs on the Open tab and Group them.
+
 ## Proposed
 
 Legs on one underlying opened in one account on the same day are offered as a strategy, and so is a

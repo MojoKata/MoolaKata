@@ -5,6 +5,12 @@ figures carried from last year.
 
 ![The tax summary](shots/taxes-summary.png)
 
+A tax book is one year's tax record, for you or for you and your spouse filing jointly.
+
+Once you accept being named as a filer in a tax book, it counts your accounts.
+
+Add the people you claim: their ages feed the credits panel, and a student's 1098-T is expected.
+
 ## Tax book
 
 The book shown: one tax year, for you alone or for you and your spouse filing jointly. **New tax

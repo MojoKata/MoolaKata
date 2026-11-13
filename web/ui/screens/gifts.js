@@ -16,10 +16,11 @@ import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { dec, num } from '../app/dec.js';
-import { Record as Rec } from '../app/draft.js';
+import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
+import { Action, Attention } from '../components/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -118,8 +119,7 @@ function Upcoming() {
             </div>
           `
         )
-        : html`<${Empty}>Nothing in the next 60 days. Add people, with their birthdays,
-          anniversaries and holidays, on the People tab.</${Empty}>`}
+        : html`<${Empty}>Nothing in the next 60 days</${Empty}>`}
     </div>
   `;
 }
@@ -204,7 +204,7 @@ function People() {
             </table>
           </div>
         `
-        : html`<${Empty}>No people yet. Add the people you give gifts to, with their dates.</${Empty}>`}
+        : html`<${Empty}>No people yet</${Empty}>`}
     </div>
     <p class="small dim">People are the household's; your gift plans and gifts are yours alone,
       unless you share a plan. A gift for someone who is a user here is never shown to them, even
@@ -269,7 +269,7 @@ function GiftList() {
           </div>
         </div>
       `
-      : html`<${Empty}>No gifts${status ? ' with that status' : ''} yet.</${Empty}>`}
+      : html`<${Empty}>No gifts${status ? ' with that status' : ''} yet</${Empty}>`}
   `;
 }
 
@@ -287,13 +287,11 @@ function Spending() {
         options=${[now - 2, now - 1, now].map((y) => [String(y), String(y)])} />
     </div>
     ${v.flagged.length
-      ? html`<div class="notice warn">${
-        v.flagged.map((/** @type {any} */ f) =>
-          html`<div>Money given to ${f.person.name} in ${v.year} comes to <${Amt} v=${f.given}
-          cents=${false} />, above the <${Amt} v=${f.exclusion} cents=${false} /> annual
-          exclusion: a gift-tax return (Form 709) is needed, even when no tax is due.</div>`
-        )
-      }</div>`
+      ? v.flagged.map((/** @type {any} */ f) =>
+        html`<${Attention} icon=${html`<${Icon} name="alert" />`}>${f.person.name}: <${Amt}
+          v=${f.given} cents=${false} /> given in ${v.year}, above the <${Amt} v=${f.exclusion}
+          cents=${false} /> exclusion · Form 709</${Attention}>`
+      )
       : null}
     <div class="grid g-main mt">
       <div class="card"><h3>By person, ${v.year}</h3>${v.byPerson.length
@@ -514,7 +512,7 @@ function PersonDialog({ close, row }) {
         : p
         ? 'Saved'
         : `${who?.get('name') || 'They'} added`}
-      hideSave=${!canWrite}
+      saveWhy=${canWrite ? null : READ_ONLY}
       extra=${({ save }) => {
         /** Delete the plan, or the person with it (S7.8.6): asked first, then saved. */
         const drop = async (/** @type {string} */ what) => {
@@ -529,39 +527,41 @@ function PersonDialog({ close, row }) {
           if (out?.status !== 'asks' && out?.status !== 'saved') draft.unremove(r);
         };
         return html`${
-          planRow && planRow.access.shareable
-            ? html`<button type="button" class="btn" onClick=${() =>
+          planRow
+            ? html`<${Action} why=${whyNot(planRow, 'shareable')} onClick=${() =>
               openDialog(ShareDialog, {
                 kind: 'gift-plan',
                 id: planRow.id,
                 name: `Gift plan for ${p.name}`,
-              })}><${Icon} name="share" /> Share</button>`
+              })}><${Icon} name="share" /> Share</${Action}>`
             : null
         }${
-          planRow && planRow.access.deletable
+          planRow
             ? html`
-              <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('plan')}>Delete plan</button>
+              <${Action} class="btn danger" why=${whyNot(planRow, 'deletable')}
+                disabled=${save.busy} onClick=${() => drop('plan')}>Delete plan</${Action}>
             `
             : null
         }${
-          p && p.access.deletable && !p.userId
+          p && !p.userId
             ? html`
-              <button type="button" class="btn danger" disabled=${save.busy}
-                onClick=${() => drop('person')}>Delete person</button>
+              <${Action} class="btn danger" why=${whyNot(p, 'deletable')} disabled=${save.busy}
+                onClick=${() => drop('person')}>Delete person</${Action}>
             `
             : null
         }<span class="spacer"></span>`;
       }}>
       ${(p?.sameAs || []).map((/** @type {any} */ r) =>
-        html`<div class="notice" role="status" key=${r.id} style=${{
-          marginBottom: '12px',
-        }}><${Icon}
-          name="link" /><div class="grow">
-          ${r.name} on ${r.server} may be ${p.name}. Joined, the linked server's user is this
-          person here, and ${p.name} stays as private as now.</div><button type="button"
-            class="btn sm" disabled=${join.busy} onClick=${() =>
-          join.run(r).catch(() => {})}>Join them</button></div>`
+        html`
+          <div key=${r.id} style=${{ marginBottom: '12px' }}>
+            <${Attention} tone="info"
+              icon=${html`<${Icon} name="link" />`} actions=${html`
+                <button type="button" class="btn sm"
+                  disabled=${join.busy} onClick=${() =>
+                    join.run(r).catch(() => {})}>Join them</button>
+              `}>${r.name} on ${r.server} may be${' '}
+                    ${p.name}</${Attention}></div>
+        `
       )}
       ${who && plan
         ? html`
@@ -831,20 +831,20 @@ function GiftDialog({ close, gift, start }) {
   };
   const received = rec?.get('status') === 'received';
   return html`
-    <${DraftDialog} f=${f} close=${close} what="This gift" hideSave=${!canWrite}
+    <${DraftDialog} f=${f} close=${close} what="This gift" saveWhy=${canWrite ? null : READ_ONLY}
       title=${gift ? gift.description : 'Add a gift'}
       done=${rec?.removed ? 'Gift deleted' : 'Gift saved'}
       extra=${({ save }) =>
-        gift && canWrite
+        gift
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(gift)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Delete</button><span class="spacer"></span>
+              }}>Delete</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec
@@ -920,7 +920,13 @@ function GiftDialog({ close, gift, start }) {
               `}
             <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
           </fieldset>
-          ${gift && canWrite
+          ${gift && !canWrite
+            ? html`
+              <div class="toolbar">
+                <${Action} class="btn sm" why=${READ_ONLY}><${Icon}
+                            name="clip" /> Attach a receipt</${Action}></div>
+            `
+            : gift
             ? html`
               <div class="toolbar"><label class="btn sm" for="f-gift-files"><${Icon}
                 name="clip" /> ${busy

@@ -7,6 +7,10 @@ directory belongs inside what the host backs up.
 
 ![Settings: Backups](shots/settings-backups.png)
 
+A backup is the database and its keyring, a coherent copy for the host's own backup to pick up;
+receipt files are never copied, the host backs them up with the data directory. Backups open with
+the recovery phrase.
+
 ## Time of day
 
 When the daily backup runs.

@@ -55,11 +55,12 @@ import {
   useDraft,
 } from '../components/draft-form.js';
 import { TransactionDialog, Txn } from './transaction-dialog.js';
-import { canAdd, Record as Rec } from '../app/draft.js';
+import { Record as Rec, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../components/pager.js';
 import { pageSize } from '../store/prefs.js';
 import { Dec, dec } from '../app/dec.js';
+import { Action, Attention } from '../components/state.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -204,18 +205,16 @@ function Holdings({ a }) {
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
-  const trade = canAdd('Txn', a)
-    ? html`
-      <div
-        class="toolbar"><span class="spacer"></span><button class="btn sm" onClick=${() =>
-          openDialog(OptionTrade, { accountId: a.id }).then((x) =>
-            x && res.reload()
-          )}>Record an option
-            trade</button></div>
-    `
-    : null;
+  const trade = html`
+    <div
+      class="toolbar"><span class="spacer"></span><${Action} class="btn sm"
+      why=${whyNotAdd('Txn', a)} onClick=${() =>
+        openDialog(OptionTrade, { accountId: a.id }).then((x) =>
+          x && res.reload()
+        )}>Record an option trade</${Action}></div>
+  `;
   if (!h.holdings.length) {
-    return html`${trade}<${Empty}>Nothing held yet. Import the broker's file, or add a trade.</${Empty}>`;
+    return html`${trade}<${Empty}>Nothing held yet</${Empty}>`;
   }
   return html`
     ${trade}
@@ -333,12 +332,9 @@ function Holdings({ a }) {
     </div>
       ${h.problems.length
         ? html`
-          <div class="notice warn mt">
-            <${Icon} name="alert" />
-            <div>${h.problems.length} thing${h.problems.length === 1
-              ? ''
-              : 's'} to check: a sale without a lot, or a position the imported history doesn't explain.</div>
-          </div>
+          <div class="mt">
+            <${Attention} icon=${html`<${Icon} name="alert" />`}>${h.problems.length}${' '}
+            thing${h.problems.length === 1 ? '' : 's'} to check</${Attention}></div>
         `
         : null}
       <p class="small dim">Prices are daily closes, delayed; hover a price for its source and date.</p>
@@ -354,21 +350,18 @@ function Transactions({ a, all }) {
     offset: offsetOf(page),
   }, ['import']);
   const d = /** @type {any} */ (res.data);
-  return html`<div class="toolbar"><span class="spacer"></span>${
-    canAdd('Txn', a)
-      ? html`
-        <button type="button" class="btn" onClick=${() =>
-          openDialog(ImportDialog, {
-            accounts: all,
-            accountId: a.id,
-          })}><${Icon} name="upload" /> Import</button>
-        <button type="button" class="btn primary"
-          onClick=${() =>
-            openDialog(TransactionDialog, { accounts: all, accountId: a.id })
-              .then((v) => v && res.reload())}><${Icon} name="plus" /> Add</button>
-      `
-      : null
-  }</div>
+  const why = whyNotAdd('Txn', a);
+  return html`<div class="toolbar"><span class="spacer"></span>
+    <${Action} why=${why} onClick=${() =>
+    openDialog(ImportDialog, {
+      accounts: all,
+      accountId: a.id,
+    })}><${Icon} name="upload" /> Import</${Action}>
+    <${Action} class="btn primary" why=${why}
+      onClick=${() =>
+    openDialog(TransactionDialog, { accounts: all, accountId: a.id })
+      .then((v) => v && res.reload())}><${Icon} name="plus" /> Add</${Action}>
+  </div>
     ${
     res.error
       ? html`<${Failed} error=${res.error} />`
@@ -380,7 +373,7 @@ function Transactions({ a, all }) {
         <${Pager} label="account-tx" shown=${d.items.length} page=${page} total=${d.total}
           onPage=${setPage} />
       `
-      : html`<${Empty}>No transactions yet.</${Empty}>`
+      : html`<${Empty}>No transactions yet</${Empty}>`
   }`;
 }
 
@@ -432,18 +425,17 @@ function Reconcile({ a, all, reload }) {
         }</div>`
         : null}
       ${v.gaps.map((/** @type {string[]} */ g) =>
-        html`<div class="list-item mt"><${Icon} name="alert" />
-        <div class="grow small"><b>Gap</b>: nothing imported between ${date(g[0])} and ${
-          date(g[1])
-        }.</div>
-        ${
-          canAdd('Txn', a)
-            ? html`<button type="button" class="btn sm" onClick=${() =>
+        html`
+          <div class="list-item mt">
+            <${Icon} name="alert" />
+            <div class="grow small"><b>Gap</b>: nothing imported between ${date(g[0])} and ${date(
+              g[1],
+            )}.</div>
+            <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
-              )}>Import a file</button>`
-            : null
-        }</div>`
+              )}>Import a file</${Action}></div>
+        `
       )}
       ${v.overlaps.map((/** @type {string[]} */ o) =>
         html`
@@ -462,22 +454,27 @@ function Reconcile({ a, all, reload }) {
     </div>
     ${v.needsAnchor
       ? html`
-        <div class="notice warn mt">
-          <${Icon} name="info" />
-          <div>The next statement or import is overdue. Import it, or type today's balance from the institution's site.</div>
-        </div>
+        <div class="mt">
+          <${Attention} icon=${html`<${Icon} name="info" />`} actions=${html`
+            <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
+              openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
+                again,
+              )}>Import</${Action}>
+            <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
+              openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's
+              balance</${Action}>
+          `}>Statement overdue</${Attention}></div>
       `
       : null}
-    <div class="card mt"><h3>Balance checks<span class="spacer"></span>${canAdd('Anchr', a)
-      ? html`
-        <button type="button" class="btn sm" onClick=${() =>
-          openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</button>
-        <button type="button" class="btn sm" onClick=${() =>
-          openDialog(TickOff, { a }).then((x) =>
-            x && again()
-          )}>Tick off against a statement</button>
-      `
-      : null}</h3>
+    <div class="card mt">
+      <h3>Balance checks<span class="spacer"></span>
+      <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
+        openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</${Action}>
+      <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
+        openDialog(TickOff, { a }).then((x) =>
+          x && again()
+        )}>Tick off against a statement</${Action}>
+    </h3>
       ${v.checks.length
         ? html`
           <div class="table-wrap">
@@ -563,17 +560,15 @@ function Mismatch({ a, check, all, again }) {
           ? `Between the last match (${date(check.windowFrom)}) and ${date(check.date)}.`
           : `Up to ${date(check.date)}; no earlier balance matched.`}</p>
         ${s.duplicates.map((/** @type {string[]} */ ids) =>
-          html`<div class="list-item"><${Icon} name="receipt" />
-      <div class="grow"><b>Possible duplicate</b>: ${ids.length} identical rows on one day.</div>
-      ${
-            a.access.writable
-              ? html`
-                <button type="button" class="btn sm" onClick=${() =>
-                  both.run(ids[0])}>Both are real</button>
-                <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove one</a>
-              `
-              : null
-          }</div>`
+          html`
+            <div class="list-item">
+              <${Icon} name="receipt" />
+              <div class="grow"><b>Possible duplicate</b>: ${ids
+                .length} identical rows on one day.</div>
+              <${Action} class="btn sm" why=${whyRead(a)} onClick=${() =>
+                both.run(ids[0])}>Both are real</${Action}>
+                  <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove one</a></div>
+          `
         )}
         ${s.changed.length
           ? html`
@@ -590,15 +585,15 @@ function Mismatch({ a, check, all, again }) {
         ${s.gaps.map((/** @type {string[]} */ g) =>
           html`
             <div
-              class="list-item"><${Icon} name="alert" /><div class="grow"><b>Gap</b>: ${date(
+              class="list-item">
+              <${Icon} name="alert" />
+              <div class="grow"><b>Gap</b>: ${date(
                 g[0],
               )} to ${date(g[1])} has no imports.</div>
-                  ${canAdd('Txn', a)
-                    ? html`<button type="button" class="btn sm" onClick=${() =>
-                      openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
-                        again,
-                      )}>Import a file</button>`
-                    : null}</div>
+              <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
+                openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
+                  again,
+                )}>Import a file</${Action}></div>
           `
         )}
         ${s.firstParting
@@ -610,13 +605,11 @@ function Mismatch({ a, check, all, again }) {
             </div>
           `
           : null}
-        ${canAdd('Txn', a)
-          ? html`<div class="toolbar mt"><span class="spacer"></span><button type="button" class="btn sm"
-      onClick=${() =>
+        <div class="toolbar mt"><span class="spacer"></span><${Action} class="btn sm"
+          why=${whyNotAdd('Txn', a)} onClick=${() =>
             openDialog(Adjust, { a, check }).then((x) =>
               x && again()
-            )}>Accept as an adjustment…</button></div>`
-          : null}
+            )}>Accept as an adjustment…</${Action}></div>
       </div>
   `;
 }
@@ -1055,13 +1048,13 @@ function StatementsExpected({ a, rec }) {
       ]} />
     ${p && rec.get('statementInterval') !== p && rec.get('statementIntervalDismissed') !== p
       ? html`
-        <div class="notice" role="status">
-          <${Icon} name="info" />
-          <div>Statements seem to arrive ${label(p).toLowerCase()}. <button type="button"
-              class="btn sm" onClick=${() => rec.set('statementInterval', p)}>Use ${label(p)
-                .toLowerCase()}</button> <button type="button" class="btn sm"
-              onClick=${() => rec.set('statementIntervalDismissed', p)}>Dismiss</button></div>
-        </div>
+        <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}
+          actions=${html`
+            <button type="button" class="btn sm" onClick=${() =>
+              rec.set('statementInterval', p)}>Use ${label(p).toLowerCase()}</button>
+            <button type="button" class="btn sm" onClick=${() =>
+              rec.set('statementIntervalDismissed', p)}>Dismiss</button>
+          `}>Statements seem to arrive ${label(p).toLowerCase()}</${Attention}>
       `
       : null}
   `;

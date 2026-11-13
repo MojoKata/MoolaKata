@@ -2,6 +2,8 @@
 
 A physical asset: what it is, when and how it was acquired, its cost basis, and how it's valued.
 
+Without a valuation, an item counts at its cost basis, depreciated when it depreciates.
+
 ## Name
 
 What the item is called in the list.

@@ -16,9 +16,10 @@ import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { Dec, dec, num } from '../app/dec.js';
-import { canAdd, Record } from '../app/draft.js';
+import { READ_ONLY, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
+import { Action } from './state.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],
@@ -110,10 +111,9 @@ export function Items({ a }) {
       }</div>`
       : null}
     <div class=${'card' + (v.metals.length ? ' mt' : '')} style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span>${canAdd('Item', a)
-        ? html`<button class="btn sm" onClick=${() => open(null)}><${Icon} name="plus" /> Add an
-          item</button>`
-        : null}</h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span><${Action}
+        class="btn sm" why=${whyNotAdd('Item', a)} onClick=${() => open(null)}><${Icon}
+        name="plus" /> Add an item</${Action}></h3>
       ${v.items.length
         ? html`
           <div class="table-wrap">
@@ -186,11 +186,7 @@ export function Items({ a }) {
             </table>
           </div>
         `
-        : html`<${Empty}>No items yet.${
-          canAdd('Item', a)
-            ? ' Add each with its purchase date, cost basis and how it is valued.'
-            : ''
-        }</${Empty}>`}
+        : html`<${Empty}>No items yet</${Empty}>`}
       ${metals
         ? html`<p class="small dim" style=${{ padding: '0 8px' }}>Gold spot from PAXG, and silver,
           platinum and palladium from their trusts' metal per share. Gains on metals are taxed
@@ -336,7 +332,8 @@ export function ItemDialog({ close, a, id }) {
   const spot = rec?.get('valuation') === 'spot';
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This item"
-      title=${it ? it.name : 'Add an item'} label=${it ? 'Save' : 'Add'} hideSave=${!canWrite}
+      title=${it ? it.name : 'Add an item'} label=${it ? 'Save' : 'Add'}
+      saveWhy=${canWrite ? null : READ_ONLY}
       saved=${(/** @type {any} */ o) => {
         toast(it ? 'Saved' : `${rec?.get('name')} added`);
         if (it) res.reload();
@@ -522,22 +519,19 @@ function Valuations({ it, rec, draft }) {
           v.errors.length
             ? html`<div class="err">${v.errors.map((e) => e.message).join(' ')}</div>`
             : null
-        }</div></div>${
-          it.access.writable
-            ? html`
-              <button type="button" class="icon-btn" aria-label=${`Remove the ${
-                date(v.get('date'))
-              } valuation`}
-                onClick=${() => draft.remove(v)}><${Icon} name="x" /></button>
-            `
-            : null
-        }</div>`
+        }</div></div>${html`
+          <${Action} class="icon-btn" why=${whyRead(it)} aria-label=${`Remove the ${
+            date(v.get('date'))
+          } valuation`} onClick=${() => draft.remove(v)}>
+            <${Icon} name="x" />
+            </${Action}>
+        `}</div>`
       )
-      : html`<p class="small dim">None yet: it counts at its cost basis${
-        rec.get('valuation') === 'depreciation' ? ', depreciated' : ''
-      }.</p>`}
-    ${it.access.writable
-      ? html`
+      : html`<${Empty}>No valuations yet</${Empty}>`}
+    ${!it.access.writable
+      ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="plus" /> Add a
+        valuation</${Action}>`
+      : html`
         <div class="row">
           <${Field} label="Value" help="valuations" id="valuation-value">
             <${TypedInput} kind="money" value=${f.value}
@@ -554,8 +548,7 @@ function Valuations({ it, rec, draft }) {
               setF({ ...f, source: x })} /></${Field}><button type="button" class="btn sm"
             style=${{ alignSelf: 'end' }} disabled=${!clean(f.value)} onClick=${add}><${Icon}
             name="plus" /> Add</button></div>
-      `
-      : null}
+      `}
   `;
 }
 
@@ -578,19 +571,24 @@ function Improvements({ it, rec, draft }) {
     <h4 style=${{ margin: '14px 0 8px' }} data-help="improvements">Improvements</h4>
     ${rows.map((m) =>
       html`
-        <div class="list-item" key=${m.key}><div class="grow">${m.get('description')}<div
+        <div class="list-item" key=${m.key}>
+          <div class="grow">${m.get('description')}<div
           class="small dim">${date(m.get('date'))}${m.errors.length
             ? html`<div class="err">${m.errors.map((e) => e.message).join(' ')}</div>`
-            : null}</div></div><${Amt} v=${m.get('amount')} cents=${false} />${it.access.writable
-            ? html`
-              <button type="button" class="icon-btn" aria-label=${'Remove ' + m.get('description')}
-                onClick=${() => draft.remove(m)}><${Icon} name="x" /></button>
-            `
-            : null}</div>
+            : null}</div></div>
+          <${Amt} v=${m.get('amount')} cents=${false} />
+          <${Action} class="icon-btn" why=${whyRead(it)}
+            aria-label=${'Remove ' + m.get('description')} onClick=${() => draft.remove(m)}>
+            <${Icon}
+              name="x" />
+            </${Action}>
+            </div>
       `
     )}
-    ${it.access.writable
-      ? html`
+    ${!it.access.writable
+      ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="plus" /> Add
+        improvement</${Action}>`
+      : html`
         <${Field} label="What was done" help="improvements" id="improvement-description">
           <${Input} value=${f.description} placeholder="ex: Kitchen remodel"
             onInput=${(/** @type {string} */ x) => setF({ ...f, description: x })} />
@@ -608,8 +606,7 @@ function Improvements({ it, rec, draft }) {
                 <button type="button" class="btn sm" disabled=${!f
                   .description} onClick=${add}><${Icon}
           name="plus" /> Add improvement</button>
-      `
-      : null}
+      `}
   `;
 }
 
@@ -643,19 +640,17 @@ function Documents({ it, rec }) {
         html`
           <div
             class="list-item"><span class="grow"><${Icon} name="clip" /> ${names[id] ||
-              'A file'}</span>${it.access.writable
-              ? html`
-                <button type="button" class="icon-btn" aria-label=${'Remove ' + (names[id] || '')}
-                  onClick=${() => rec.set('receiptIds', ids.filter((x) => x !== id))}><${Icon}
-                  name="x" /></button>
-              `
-              : null}</div>
+              'A file'}</span><${Action} class="icon-btn" why=${whyRead(it)}
+              aria-label=${'Remove ' + (names[id] || '')}
+              onClick=${() => rec.set('receiptIds', ids.filter((x) => x !== id))}><${Icon}
+              name="x" /></${Action}></div>
         `
       )
       : html`<p class="small dim">The purchase receipt, an appraisal, a certificate, the title.</p>`}
     ${rec.error('receiptIds') ? html`<div class="err">${rec.error('receiptIds')}</div>` : null}
-    ${it.access.writable
-      ? html`
+    ${!it.access.writable
+      ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="upload" /> Add</${Action}>`
+      : html`
         <label class="btn sm" for="f-item-files"><${Icon} name="upload" /> ${busy
           ? 'Uploading…'
           : 'Add'}</label><input
@@ -664,8 +659,7 @@ function Documents({ it, rec }) {
             send(e.currentTarget.files);
             e.currentTarget.value = '';
           }} />
-      `
-      : null}
+      `}
   `;
 }
 
@@ -692,23 +686,20 @@ function SaleCard({ it, rec }) {
       ${!s.deductible
         ? html`<p class="small dim">A loss on property you used yourself isn't deductible.</p>`
         : null}
-      ${it.access.writable
-        ? html`<button type="button" class="btn sm" onClick=${() => {
-          rec.set('soldOn', null);
-          rec.set('proceeds', null);
-          rec.set('saleFees', null);
-        }}>Undo the sale</button>`
-        : null}
+      <${Action} class="btn sm" why=${whyRead(it)} onClick=${() => {
+        rec.set('soldOn', null);
+        rec.set('proceeds', null);
+        rec.set('saleFees', null);
+      }}>Undo the sale</${Action}>
     `;
   }
-  if (!it.access.writable) return null;
-  if (!sold) {
+  if (!sold || !it.access.writable) {
     return html`
       <div
         class="toolbar mt">${s
           ? html`<span class="small dim grow">The sale is undone when you save.</span>`
-          : null}<button type="button" class="btn sm" onClick=${() =>
-          rec.set('soldOn', today())}>Record the sale…</button></div>
+          : null}<${Action} class="btn sm" why=${whyRead(it)} onClick=${() =>
+          rec.set('soldOn', today())}>Record the sale…</${Action}></div>
     `;
   }
   return html`

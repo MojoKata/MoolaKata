@@ -23,6 +23,7 @@ import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
 import { confirmAction } from '../components/confirm.js';
+import { StatePill } from '../components/state.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -537,7 +538,13 @@ function TwoStep({ p, reload }) {
           code${ts.recoveryCodesLeft === 1 ? '' : 's'} left.`
         : 'Ask for a code from an authenticator app on your phone after your password.'}</p>
       ${ts.on && ts.recoveryCodesLeft <= 3
-        ? html`<div class="notice warn small">Make new recovery codes before they run out.</div>`
+        ? html`
+          <${StatePill} tone="warn"
+            why="Make new recovery codes before they run out.">${ts
+              .recoveryCodesLeft} recovery code${ts.recoveryCodesLeft === 1
+              ? ''
+              : 's'} left</${StatePill}>
+        `
         : null}
       ${needPassword
         ? html`

@@ -14,6 +14,8 @@ import { openDialog } from '../components/dialog.js';
 import { ShareDialog } from '../components/share.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
 import { BENCHMARKS, PortfolioDialog } from './portfolio-dialog.js';
+import { whyNot, whyRead } from '../app/draft.js';
+import { Action } from '../components/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['performance', 'Performance'],
@@ -35,24 +37,18 @@ export default function Portfolio({ id, tab }) {
       class="toolbar"><${Tile} group="investing" icon="pie" /><b style=${{ fontSize: '16px' }}>${p
         .name}</b> ${!p.access.mine
         ? html`<span class="pill">${p.ownerName} · ${p.access.writable ? 'write' : 'read'}</span>`
-        : null}<span class="spacer"></span>${p.access.shareable && !p.implicit
+        : null}<span class="spacer"></span>${!p.implicit
         ? html`
-          <button type="button" class="btn" onClick=${() =>
+          <${Action} why=${whyNot(p, 'shareable')} onClick=${() =>
             openDialog(ShareDialog, { kind: 'portfolio', id: p.id, name: p.name }).then(
               res.reload,
-            )}>
-            <${Icon} name="share" /> Share</button>
+            )}><${Icon} name="share" /> Share</${Action}>
+          <${Action} why=${whyRead(p)} onClick=${() =>
+            openDialog(PortfolioDialog, { portfolio: p }).then((x) =>
+              x && res.reload()
+            )}>Edit</${Action}>
         `
-        : null}
-        ${p.access.writable && !p.implicit
-          ? html`
-            <button type="button" class="btn"
-              onClick=${() =>
-                openDialog(PortfolioDialog, { portfolio: p }).then((x) =>
-                  x && res.reload()
-                )}>Edit</button>
-          `
-          : null}</div>
+        : null}</div>
         <${Tabs} tabs=${TABS} current=${current} base=${`/ui/portfolios/${p.id}`} />
         ${current === 'performance'
           ? html`<${Performance} p=${p} />`
@@ -173,7 +169,7 @@ function Holdings({ p }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!h) return html`<${Loading} />`;
   if (!h.holdings.length && !h.others.length) {
-    return html`<${Empty}>Nothing held in these accounts yet.</${Empty}>`;
+    return html`<${Empty}>Nothing held in these accounts yet</${Empty}>`;
   }
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>

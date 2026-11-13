@@ -4,6 +4,8 @@ The organisations you give to, with what each received this year.
 
 ![Organisations](shots/giving-organisations.png)
 
+Add the charities, churches and causes you give to, with their EIN, and any pledges.
+
 ## Year
 
 The year shown.

@@ -69,11 +69,7 @@ export default function Receipts() {
       ? html`<${Loading} lines=${4} />`
       : !rows.length
       ? html`<${Empty}>${
-        show === 'inbox'
-          ? 'The inbox is empty: every receipt is attached to something.'
-          : q
-          ? 'No receipt matches.'
-          : 'No receipts yet. Drop one above.'
+        show === 'inbox' ? 'The inbox is empty' : q ? 'No receipt matches' : 'No receipts yet'
       }</${Empty}>`
       : html`<div class="receipts mt">${
         rows.map((r) =>

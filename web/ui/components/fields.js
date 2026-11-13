@@ -302,18 +302,21 @@ export function Select({ value, onChange, options, ...rest }) {
 }
 
 /**
- * A switch: a button with role=switch.
+ * A switch: a button with role=switch. `why` shows it off, saying why (S12.19.1): it stays in
+ * reach of the keyboard and its tooltip gives the reason.
  * One switch per row of a table names its heading with help, keeping a unique id.
  * @param {{ on: boolean, onChange: (v: boolean) => void, label: string, id?: string,
- *   disabled?: boolean, help?: string }} p
+ *   disabled?: boolean, help?: string, why?: string | null }} p
  */
-export function Switch({ on, onChange, label, id, disabled, help }) {
+export function Switch({ on, onChange, label, id, disabled, help, why }) {
   const ids = useContext(IdPrefix);
   return html`
     <button type="button" class=${'switch' + (on ? ' on' : '')} role="switch"
       aria-checked=${on ? 'true' : 'false'} aria-label=${label} id=${ids + (help ? 'x-' : 'f-') +
         (id || slug(label))} data-help=${help}
-      disabled=${disabled} onClick=${() => onChange(!on)}></button>
+      disabled=${disabled}
+      aria-disabled=${why ? 'true' : undefined} data-tip=${why || undefined}
+      aria-description=${why || undefined} onClick=${() => why || onChange(!on)}></button>
   `;
 }
 

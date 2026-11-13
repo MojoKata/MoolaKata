@@ -4,6 +4,8 @@ One filing per return: federal, a state's or a locality's. An amended return is 
 
 ![Filings](shots/taxes-filings.png)
 
+Add the federal return, and any state or local ones.
+
 ## Tax book
 
 The book shown: one tax year, for you alone or for you and your spouse filing jointly. **New tax

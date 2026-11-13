@@ -5,6 +5,8 @@ rows, with the Schedule D totals.
 
 ![Capital gains (8949)](shots/taxes-gains.png)
 
+A sale TXF can't carry is left out of it: enter those from the CSV.
+
 ## Tax book
 
 The book shown, for one tax year. Its panels count the book's accounts only, and say which were left

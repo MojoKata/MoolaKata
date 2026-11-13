@@ -11,6 +11,8 @@ import { Amt } from './amount.js';
 import { Chips, Empty, Failed, Loading } from './bits.js';
 import { Icon } from './icon.js';
 import { Dec, dec, num } from '../app/dec.js';
+import { whyRead } from '../app/draft.js';
+import { Action, Attention } from './state.js';
 
 export const PANEL_TABS = /** @type {[string, string][]} */ ([
   ['gains', 'Capital gains (8949)'],
@@ -139,11 +141,9 @@ function txfLeftOut(n) {
   if (!all) return null;
   const why = kinds.map(([c, one, many]) => `${c} ${c === 1 ? one : many}`).join(', ');
   return html`
-    <div class="notice warn" role="status">
-      <${Icon} name="alert" />
-      <div>TXF leaves out ${all} sale${all === 1 ? '' : 's'} (${why}): enter ${all === 1
-        ? 'it'
-        : 'them'} from the CSV.</div>
+    <div>
+      <${Attention} icon=${html`<${Icon} name="alert" />`}>TXF leaves out ${all}${' '}
+      sale${all === 1 ? '' : 's'} (${why})</${Attention}>
     </div>
   `;
 }
@@ -216,7 +216,7 @@ function Gains({ p }) {
               </table>
             </div>
           `
-          : html`<${Empty}>No sales in ${p.year}.</${Empty}>`}
+          : html`<${Empty}>No sales in ${p.year}</${Empty}>`}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <div class="card facts"><h3>Schedule D</h3>${d.boxes.map((/** @type {any} */ x) =>
@@ -271,7 +271,7 @@ function Income({ p }) {
         ? i.interest.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
-        : html`<p class="small dim">No interest in ${p.year}.</p>`}</div>
+        : html`<${Empty}>No interest in ${p.year}</${Empty}>`}</div>
       <div class="card facts"><h3>Dividends (1099-DIV)</h3>
         <div class="list-item"><span class="grow dim">Ordinary (1a)</span><${Amt} v=${i
           .ordinary} /></div>
@@ -290,12 +290,12 @@ function Income({ p }) {
         ? i.foreignTax.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
-        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+        : html`<${Empty}>None in ${p.year}</${Empty}>`}</div>
       <div class="card"><h3 data-help="crypto-income">Crypto income</h3>${i.cryptoIncome.length
         ? i.cryptoIncome.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
-        : html`<p class="small dim">No staking or rewards in ${p.year}.</p>`}</div>
+        : html`<${Empty}>No staking or rewards in ${p.year}</${Empty}>`}</div>
     </div>
   `;
 }
@@ -346,7 +346,7 @@ function Retirement({ p }) {
         ? r.distributions.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
-        : html`<p class="small dim">None in ${p.year}.</p>`}
+        : html`<${Empty}>None in ${p.year}</${Empty}>`}
         ${r.bases.map((/** @type {any} */ b) =>
           html`
             <p class="small dim"
@@ -387,13 +387,13 @@ function Retirement({ p }) {
               : ''
           }</div></span><${Amt} v=${m.amount} /></div>`
         )
-        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+        : html`<${Empty}>None in ${p.year}</${Empty}>`}</div>
       <div class="card"><h3 data-help="rollovers">Rollovers</h3>${r.rollovers.length
         ? r.rollovers.map((/** @type {any} */ m) =>
           html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
             class="small dim">${date(m.date)}</div></span><${Amt} v=${m.amount} /></div>`
         )
-        : html`<p class="small dim">None in ${p.year}.</p>`}</div>
+        : html`<${Empty}>None in ${p.year}</${Empty}>`}</div>
     </div>
   `;
 }
@@ -638,16 +638,14 @@ function Property({ p }) {
             </div>
           `
         )
-        : html`<p class="small dim">Nothing sold in ${p.year}.</p>`}
+        : html`<${Empty}>Nothing sold in ${p.year}</${Empty}>`}
         ${p.residences.map((/** @type {any} */ h) =>
           html`
-            <div class="notice mt">
-              <${Icon} name="home" />
-              <div>${h.name}, your primary residence,
-                        sold ${date(h.sold)} after ${h.yearsOwned} years: a gain of <${Amt} v=${h
-                          .gain} />. The
-                        exclusion is the preparer's to apply.</div>
-            </div>
+            <div class="mt">
+              <${Attention} tone="info"
+                icon=${html`<${Icon} name="home" />`}>${h
+                  .name} sold ${date(h.sold)} after ${h.yearsOwned} years: a gain of <${Amt} v=${h
+                  .gain} /></${Attention}></div>
           `
         )}</div>
     </div>
@@ -667,11 +665,10 @@ function Issues({ p, b, reload }) {
         html`
           <div
             class="list-item"><${Icon} name="alert" /><span class="grow">${i.text}</span>${i
-                    .kind === 'changed-after-filing' && b.access.writable
+                .kind === 'changed-after-filing'
               ? html`
-                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><button
-                  class="btn sm"
-                  onClick=${waive}>No amendment needed</button>
+                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><${Action}
+                  class="btn sm" why=${whyRead(b)} onClick=${waive}>No amendment needed</${Action}>
               `
               : i.link
               ? html`<a class="small" href=${i.link}>Look</a>`
