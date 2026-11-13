@@ -76,12 +76,16 @@ def test_the_block_menu_makes_headings_pre_formatted_text_and_quotes(page, kit):
     ed.click()
     page.keyboard.type("Plan")
     menu = page.locator("[data-demo='note-empty'] .note-block")
-    for pick, kind in (("Heading", "heading"), ("Pre-formatted", "pre"), ("Quote", "quote")):
+    for pick, kind in (("Heading 2", "heading"), ("Pre-formatted", "pre"), ("Quote", "quote")):
         menu.click()
         page.get_by_role("menuitem", name=pick, exact=True).click()
         expect(ed).to_be_focused()
         expect(menu).to_contain_text(pick)
         assert blocks(page, "note-empty") == [kind], pick
+        if kind == "heading":
+            assert kept(page, "note-empty")["content"][0]["attrs"] == {"level": 2}
+            # Drawn in the editor as its own level.
+            assert ed.locator("h2").count() == 1
         if kind == "pre":
             # No marks in pre-formatted text: the buttons say so.
             b = page.locator("[data-demo='note-empty'] button[aria-label='Bold']")
@@ -216,7 +220,8 @@ def test_pasted_markup_keeps_only_what_a_note_holds(page, kit):
         "note-empty",
         {
             "text/html": (
-                "<h1>Title</h1><p style='color:red'>a<b>b</b><script>window.pwned=1</script>"
+                "<h1>Title</h1><h5 data-note-level='2'>Copied</h5>"
+                "<p style='color:red'>a<b>b</b><script>window.pwned=1</script>"
                 "<img src=x onerror='window.pwned=2'><a href='javascript:window.pwned=3'>bad</a>"
                 "<a href='https://example.com/'>good</a><span style='font-weight:700'>w</span></p>"
                 "<b style='font-weight:normal' id='docs-internal-guid-1'><span"
@@ -232,12 +237,16 @@ def test_pasted_markup_keeps_only_what_a_note_holds(page, kit):
     doc = kept(page, "note-empty")
     assert [b["type"] for b in doc["content"]] == [
         "heading",
+        "heading",
         "paragraph",
         "paragraph",
         "paragraph",
         "paragraph",
     ]
-    assert doc["content"][0]["attrs"] == {"level": 2}
+    # A pasted h1 is a note's first level; a heading copied from a note read keeps its own.
+    assert doc["content"][0]["attrs"] == {"level": 1}
+    assert doc["content"][1]["attrs"] == {"level": 2}
+    doc["content"].pop(1)
     para = doc["content"][1]["content"]
     assert "".join(t["text"] for t in para) == "abbadgoodw"
     marks = {t["text"]: t.get("marks") for t in para}
@@ -272,6 +281,13 @@ def test_a_note_read_opens_its_links_and_greys_a_page_out_of_reach(page, kit):
     off = page.locator(f"{d} .note-link.off")
     expect(off).to_have_text("Backups")
     expect(off).to_have_attribute("data-tip", "Settings › Backups · Not shared with you")
+    # Its headings at the levels this card claims (h4 to h6), each keeping the note's own.
+    heads = page.locator(f"{d} h4, {d} h5, {d} h6")
+    assert heads.evaluate_all("els => els.map(e => [e.tagName, e.dataset.noteLevel])") == [
+        ["H4", "1"],
+        ["H5", "2"],
+        ["H6", "3"],
+    ]
     # Read, the note has no editor.
     assert page.locator(f"{d} .ProseMirror, {d} .note-bar").count() == 0
 

@@ -113,5 +113,5 @@ def shot(page, name: str) -> None:
 def open_page(page, kit: str, name: str):
     """A kit page by its name, drawn."""
     page.goto(f"{kit}#{name}")
-    page.wait_for_selector(".kit-page h1")
+    page.wait_for_selector(".kit-page > h1")
     return page

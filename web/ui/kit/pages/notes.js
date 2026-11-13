@@ -39,7 +39,7 @@ const li = (...c) => ({ type: 'item', content: c });
 export const SAMPLE = {
   type: 'doc',
   content: [
-    { type: 'heading', attrs: { level: 2 }, content: [t('Refinancing the house')] },
+    { type: 'heading', attrs: { level: 1 }, content: [t('Refinancing the house')] },
     p(
       t('Rates dropped to '),
       t('5.4%', [{ type: 'bold' }]),
@@ -49,7 +49,7 @@ export const SAMPLE = {
       t('keep three months of expenses', [{ type: 'highlight' }]),
       t('.'),
     ),
-    { type: 'heading', attrs: { level: 3 }, content: [t('To do')] },
+    { type: 'heading', attrs: { level: 2 }, content: [t('To do')] },
     {
       type: 'bullets',
       content: [
@@ -67,6 +67,7 @@ export const SAMPLE = {
         )),
       ],
     },
+    { type: 'heading', attrs: { level: 3 }, content: [t('Worth knowing')] },
     { type: 'quote', content: [p(t('Points pay off only if we stay past the break-even.'))] },
     {
       type: 'pre',
@@ -148,7 +149,7 @@ export default function NotesPage() {
       keys=${[
         ['Ctrl/Cmd+B, I, U', 'Bold, italic, underline.'],
         ['Ctrl/Cmd+Shift+X, H, M', 'Strikethrough, highlight, monospace.'],
-        ['Ctrl/Cmd+Alt+0, 2, 3', 'Paragraph, heading, subheading.'],
+        ['Ctrl/Cmd+Alt+0, 1, 2, 3', 'Paragraph; heading 1, 2, 3.'],
         [
           '- or * then Space; 1. then Space',
           'A bulleted or numbered list; Backspace right after puts the text back.',
@@ -188,14 +189,20 @@ export default function NotesPage() {
           'Read: the note drawn without the editor. Off: shown, not editable.',
         ],
         ['placeholder', 'string', 'What a blank note means.'],
+        [
+          'heading',
+          '{ top, count }',
+          'Read: the levels a note’s headings take here, from h<top>, count of them (a deeper one takes the last); h2 to h4 unless said. The note keeps 1 to 3.',
+        ],
       ]}>
       <${Editing} id="note" title="A note" first=${SAMPLE}
         note="Paste https://moolakata.loco/ui/budgets/Bud_3K9 over some words: it is kept as the page. Paste an address alone, or type one and a space: it becomes its own link." />
       <${Editing} id="note-empty" title="Empty" first=${null}
         extra=${{ placeholder: 'No note' }} />
       <${Demo} id="note-read" title="Read"
-        note="As a linked household's window draws it: the Backups link names a screen it doesn't show.">
-        <${NoteView} doc=${SAMPLE} pages=${pages} open=${setOpened} />
+        note="As a linked household's window draws it: the Backups link names a screen it doesn't show. This card claims h4 to h6 for its headings (heading={ top: 4, count: 3 }), drawn as the page draws them.">
+        <${NoteView} doc=${SAMPLE} pages=${pages} open=${setOpened}
+          heading=${{ top: 4, count: 3 }} />
         <div class="report small" data-report="note-read">Reported: ${opened
           ? html`opened <code>${opened}</code>`
           : 'nothing yet'}</div>

@@ -78,7 +78,7 @@
     padding: 12px 14px;
     min-width: 0;
   }
-  .demo h3 {
+  .demo > h3 {
     margin: 0 0 4px;
     font-size: 13px;
     color: var(--fg-dim);

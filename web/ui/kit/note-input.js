@@ -19,10 +19,23 @@ export function loadEditor() {
 /**
  * @param {{ value: any, onChange: (doc: any) => void, id?: string, placeholder?: string,
  *   readonly?: boolean, disabled?: boolean, own?: import('./note-links.js').Own[],
- *   pages?: import('./note-view.js').Pages, open?: (page: string) => void, empty?: any }} p
+ *   pages?: import('./note-view.js').Pages, open?: (page: string) => void, empty?: any,
+ *   heading?: import('./note-view.js').Heading }} p
  */
 export function NoteInput(
-  { value, onChange, id, placeholder, readonly, disabled, own, pages = noPages, open, empty },
+  {
+    value,
+    onChange,
+    id,
+    placeholder,
+    readonly,
+    disabled,
+    own,
+    pages = noPages,
+    open,
+    empty,
+    heading,
+  },
 ) {
   const reading = useReading(readonly);
   const [mod, setMod] = useState(loaded);
@@ -33,7 +46,7 @@ export function NoteInput(
   const check = () => setBad(value ? checkNote(value).problems[0] : undefined);
   if (reading) {
     return html`
-      <${NoteView} doc=${value} pages=${pages} open=${open} id=${id}
+      <${NoteView} doc=${value} pages=${pages} open=${open} id=${id} heading=${heading}
         empty=${empty ?? html`<span class="dim">No note</span>`} />
     `;
   }

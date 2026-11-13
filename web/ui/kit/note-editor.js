@@ -37,9 +37,11 @@ const HERE = /** @type {Own[]} */ (
 );
 
 /**
- * How each kind of block is drawn and read back from pasted markup. A heading is drawn a level
- * below its name (the screen holds the page's own headings); a pasted table's cells come in as
- * paragraphs; anything not named here comes in as its text.
+ * How each kind of block is drawn and read back from pasted markup. A heading is drawn as its
+ * level (h1 to h3) inside the editor, which styles them itself; where a note is read, the screen
+ * says which levels they take (NoteView's `heading`). A heading copied from a note read keeps its
+ * level; any other comes in as the nearest; a pasted table's cells come in as paragraphs;
+ * anything not named here comes in as its text.
  * @type {Record<string, any>}
  */
 const NODE_DOM = {
@@ -49,12 +51,18 @@ const NODE_DOM = {
   },
   heading: {
     defining: true,
-    toDOM: (/** @type {any} */ n) =>
-      n.attrs.level === 3 ? ['h4', { class: 'note-h3' }, 0] : ['h3', { class: 'note-h2' }, 0],
+    toDOM: (/** @type {any} */ n) => [`h${n.attrs.level}`, 0],
     parseDOM: [
-      { tag: 'h3.note-h2', attrs: { level: 2 }, priority: 60 },
-      { tag: 'h4.note-h3', attrs: { level: 3 }, priority: 60 },
-      { tag: 'h1', attrs: { level: 2 } },
+      {
+        tag:
+          'h1[data-note-level], h2[data-note-level], h3[data-note-level], h4[data-note-level], h5[data-note-level], h6[data-note-level]',
+        priority: 60,
+        getAttrs: (/** @type {HTMLElement} */ dom) => {
+          const level = Number(dom.getAttribute('data-note-level'));
+          return level >= 1 && level <= 3 ? { level } : { level: 3 };
+        },
+      },
+      { tag: 'h1', attrs: { level: 1 } },
       { tag: 'h2', attrs: { level: 2 } },
       { tag: 'h3', attrs: { level: 3 } },
       { tag: 'h4', attrs: { level: 3 } },
@@ -256,10 +264,9 @@ function commandsOf(schema) {
       return wrapIn(n.quote)(state, dispatch) ||
         steps(setBlockType(n.paragraph), wrapIn(n.quote))(state, dispatch);
     }
-    const to = kind === 'heading'
-      ? setBlockType(n.heading, { level: 2 })
-      : kind === 'subheading'
-      ? setBlockType(n.heading, { level: 3 })
+    const level = /^h([1-3])$/.exec(kind)?.[1];
+    const to = level
+      ? setBlockType(n.heading, { level: Number(level) })
       : kind === 'pre'
       ? setBlockType(n.pre)
       : setBlockType(n.paragraph);
@@ -325,8 +332,9 @@ const MARK_BUTTONS = [
 /** The block menu's kinds: its key, its words, its keys. @type {[string, string, string][]} */
 const BLOCKS = [
   ['paragraph', 'Paragraph', 'Ctrl/Cmd+Alt+0'],
-  ['heading', 'Heading', 'Ctrl/Cmd+Alt+2'],
-  ['subheading', 'Subheading', 'Ctrl/Cmd+Alt+3'],
+  ['h1', 'Heading 1', 'Ctrl/Cmd+Alt+1'],
+  ['h2', 'Heading 2', 'Ctrl/Cmd+Alt+2'],
+  ['h3', 'Heading 3', 'Ctrl/Cmd+Alt+3'],
   ['pre', 'Pre-formatted', ''],
   ['quote', 'Quote', ''],
 ];
@@ -336,7 +344,7 @@ function blockOf(state) {
   const $f = state.selection.$from;
   for (let d = $f.depth; d > 0; d--) if ($f.node(d).type.name === 'quote') return 'quote';
   const p = $f.parent;
-  if (p.type.name === 'heading') return p.attrs.level === 3 ? 'subheading' : 'heading';
+  if (p.type.name === 'heading') return `h${p.attrs.level}`;
   return p.type.name === 'pre' ? 'pre' : 'paragraph';
 }
 
@@ -495,8 +503,9 @@ export function NoteEditor(
           'Mod-k': (_s, _d, view) => (view ? askLink(view) : true),
           'Mod-Enter': (s) => follow(s, s.selection.from),
           'Mod-Alt-0': cmd.block('paragraph'),
-          'Mod-Alt-2': cmd.block('heading'),
-          'Mod-Alt-3': cmd.block('subheading'),
+          'Mod-Alt-1': cmd.block('h1'),
+          'Mod-Alt-2': cmd.block('h2'),
+          'Mod-Alt-3': cmd.block('h3'),
           Enter: splitListItem(schema.nodes.item),
           Tab: cmd.indent,
           'Shift-Tab': cmd.outdent,

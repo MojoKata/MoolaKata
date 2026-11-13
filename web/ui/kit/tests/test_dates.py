@@ -150,7 +150,7 @@ def test_the_month_buttons_move_the_calendar_and_a_click_outside_closes_it(page,
     page.click("[data-demo='date-filled'] button[aria-label='Previous month']")
     page.click("[data-demo='date-filled'] button[aria-label='Previous month']")
     expect(cal.locator("b")).to_have_text("September 2026")
-    page.click(".kit-page h1")
+    page.click(".kit-page > h1")
     expect(cal).to_have_count(0)
     # The button closes what it opened.
     b = page.locator("[data-demo='date'] button[aria-label='Open the calendar']")
@@ -277,7 +277,7 @@ def test_the_picker_scrolls_past_its_height_and_remembers_what_it_showed(page, k
     expect(page.locator(f"{d} .time-row").last).to_have_text("9:00·:15·:30·:45")
     # Another load starts again at 7 AM to 6 PM.
     page.reload()
-    page.wait_for_selector(".kit-page h1")
+    page.wait_for_selector(".kit-page > h1")
     page.locator(f"{d} button[aria-label='Choose a time']").click()
     expect(page.locator(f"{d} .time-row").first).to_have_text("7:00·:15·:30·:45")
 

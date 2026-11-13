@@ -21,7 +21,7 @@ def test_the_packed_pages_open_on_their_own(chromium, tmp_path):
     page.on("console", lambda m: m.type == "error" and problems.append(f"console: {m.text}"))
     for name in PAGES_IN_ORDER:
         page.goto(f"{packed.as_uri()}#{name}")
-        page.wait_for_selector(".kit-page h1")
+        page.wait_for_selector(".kit-page > h1")
         if name == "notes":
             # The editor, loaded on demand: its import found in the packed page too.
             page.wait_for_selector(".ProseMirror")

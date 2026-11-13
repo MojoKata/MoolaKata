@@ -54,7 +54,7 @@ def test_clicking_everything_breaks_nothing(page, kit, name, width):
                 assert page.title(), "the page answers"
         settle(page)
     assert crashed == []
-    assert page.locator(".kit-page h1").is_visible()
+    assert page.locator(".kit-page > h1").is_visible()
 
 
 @pytest.mark.parametrize("width", [1440, 1180, 980])

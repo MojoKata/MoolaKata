@@ -134,8 +134,9 @@ const problems = (d) => checkNote(d).problems;
 
 Deno.test('every kind of block and mark a note holds passes', () => {
   const all = doc(
-    { type: 'heading', attrs: { level: 2 }, content: [t('H')] },
-    { type: 'heading', attrs: { level: 3 }, content: [t('S')] },
+    { type: 'heading', attrs: { level: 1 }, content: [t('H')] },
+    { type: 'heading', attrs: { level: 2 }, content: [t('S')] },
+    { type: 'heading', attrs: { level: 3 }, content: [t('T')] },
     p(
       ...['bold', 'italic', 'underline', 'strike', 'highlight', 'mono'].map((m) =>
         t(m, [{ type: m }])
@@ -150,7 +151,7 @@ Deno.test('every kind of block and mark a note holds passes', () => {
     p(),
   );
   equal(problems(all), []);
-  equal(checkNote(all).chars, 63);
+  equal(checkNote(all).chars, 64);
 });
 
 Deno.test('what a note refuses, each in its place', () => {
@@ -170,8 +171,11 @@ Deno.test('what a note refuses, each in its place', () => {
   equal(problems(doc({ ...p(t('x')), style: 'x' })), ['doc[0]: style not known']);
   // Attributes: a heading's level, and none where none belong.
   equal(problems(doc({ type: 'heading', content: [t('x')] })), ['doc[0].heading: no level']);
-  equal(problems(doc({ type: 'heading', attrs: { level: 1 }, content: [t('x')] })), [
-    'doc[0].heading: level 1',
+  equal(problems(doc({ type: 'heading', attrs: { level: 4 }, content: [t('x')] })), [
+    'doc[0].heading: level 4',
+  ]);
+  equal(problems(doc({ type: 'heading', attrs: { level: 0 }, content: [t('x')] })), [
+    'doc[0].heading: level 0',
   ]);
   equal(problems(doc({ type: 'heading', attrs: { level: 2, id: 'x' }, content: [t('x')] })), [
     'doc[0].heading: id not known',

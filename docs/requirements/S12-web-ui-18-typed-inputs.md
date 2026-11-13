@@ -136,24 +136,25 @@
     15. **A note** is formatted text, kept as a document of the parts it may hold and never as
         markup (a table of them, `web/ui/kit/note-spec.json`, is the editor's schema and what
         the server checks a saved note against):
-        1. **What it holds**: paragraphs and line breaks, **Heading** and **Subheading**,
-           bulleted and numbered lists (three deep at most), quotes, **Pre-formatted** blocks
-           (text kept as typed, in a fixed-width font, with no other formatting), and on its
-           words bold, italic, underline, strikethrough, a one-colour highlight, **Monospace**
-           and links. A pasted image, file or table's frame is left out (a table's cells come
-           in as paragraphs, #57 for images), as is anything else not named here.
-        2. **The toolbar** above the text: a list of the block's kind (*Paragraph · Heading ·
-           Subheading · Pre-formatted · Quote*), the marks, Link, the two lists, Outdent and
-           Indent. A button is on while the selection carries what it does, and off, saying
-           why, where it can't apply (a mark in pre-formatted text). The toolbar is one Tab
-           stop: ← → move along it, Alt+F10 reaches it from the text and Escape goes back.
-           Each button's tooltip names its keys: Ctrl/Cmd+B, I, U, Ctrl/Cmd+Shift+X (strike),
-           H (highlight), M (monospace), Ctrl/Cmd+Alt+0, 2, 3 (paragraph, heading,
-           subheading), Ctrl/Cmd+Z and Shift+Z. `- ` or `* ` at a paragraph's start makes a
-           bulleted list and `1. ` a numbered one, Backspace straight after putting the text
-           back; nothing else typed turns into formatting. In a list Tab indents and
-           Shift+Tab outdents, and Tab doesn't leave the note; elsewhere it goes on to the next
-           field.
+        1. **What it holds**: paragraphs and line breaks, headings of three levels (**Heading
+           1** to **3**, kept as the note's own levels 1 to 3), bulleted and numbered lists
+           (three deep at most), quotes, **Pre-formatted** blocks (text kept as typed, in a
+           fixed-width font, with no other formatting), and on its words bold, italic,
+           underline, strikethrough, a one-colour highlight, **Monospace** and links. A pasted
+           image, file or table's frame is left out (a table's cells come in as paragraphs,
+           #57 for images), as is anything else not named here.
+        2. **The toolbar** above the text: a list of the block's kind (*Paragraph · Heading 1 ·
+           Heading 2 · Heading 3 · Pre-formatted · Quote*), the marks, Link, the two lists,
+           Outdent and Indent. A button is on while the selection carries what it does, and
+           off, saying why, where it can't apply (a mark in pre-formatted text). The toolbar is
+           one Tab stop: ← → move along it, Alt+F10 reaches it from the text and Escape goes
+           back. Each button's tooltip names its keys: Ctrl/Cmd+B, I, U, Ctrl/Cmd+Shift+X
+           (strike), H (highlight), M (monospace), Ctrl/Cmd+Alt+0 (paragraph) and 1, 2, 3 (the
+           headings), Ctrl/Cmd+Z and Shift+Z. The editor draws the headings as h1 to h3, in its
+           own sizes. `- ` or `* ` at a paragraph's start makes a bulleted list and `1. ` a
+           numbered one, Backspace straight after putting the text back; nothing else typed
+           turns into formatting. In a list Tab indents and Shift+Tab outdents, and Tab doesn't
+           leave the note; elsewhere it goes on to the next field.
         3. **Links** go to an http or https address, or to a page of MoolaKata. Ctrl/Cmd+K or
            Link opens a popover under the selection with the **Address** (×) and **Apply**,
            and **Remove** for a link already there; an address pasted over words links them,
@@ -167,9 +168,12 @@
            its API), other schemes and an address with a password in it are refused at the
            address.
         4. **Read**, a note is drawn from its document without the editor, which loads the
-           first time a note is edited: an address opens in a new tab, its address its
-           tooltip; a page opens in place, its tooltip naming it (*Accounts › Everyday
-           Checking*).
+           first time a note is edited. The screen says which heading levels it gives a note:
+           from h2, three of them, unless it says otherwise (h4 to h6 in a card, say); a level
+           past those it gives is drawn as the last. They take the page's own heading styles,
+           and a heading copied from a note read keeps the note's level when pasted. An
+           address opens in a new tab, its address its tooltip; a page opens in place, its
+           tooltip naming it (*Accounts › Everyday Checking*).
         5. **Limits**: 20,000 characters (a count shows from 16,000), lists three deep, a link
            of 2,000 characters, and the document kept at 256 KB. Past them the note is marked
            when it is left and at Save, as any field is (R3.11). A note with no text is no

@@ -10,6 +10,15 @@ import { html } from './html.js';
  * @typedef {(page: string) => PageLink} Pages
  */
 
+/**
+ * The heading levels a screen gives a note: its first (`top`, h1 to h6) and how many; a
+ * note's deeper headings take the last of them.
+ * @typedef {{ top: number, count: number }} Heading
+ */
+
+/** Under a screen's title: h2 to h4. @type {Heading} */
+export const HEADINGS = { top: 2, count: 3 };
+
 /** Without a caller's own: a page shown by its name alone, out of reach. @type {Pages} */
 export const noPages = (page) => ({ href: '', tip: page, off: true, why: 'Opens in MoolaKata' });
 
@@ -50,11 +59,11 @@ function link(attrs, c, pages, open) {
 /**
  * The elements of a node, its marks wrapped round its text in their order.
  * @param {any} n @param {Pages} pages @param {((page: string) => void) | undefined} open
- * @param {number} key
+ * @param {number} key @param {Heading} heading
  * @returns {any}
  */
-function draw(n, pages, open, key) {
-  const kids = () => (n.content ?? []).map((c, i) => draw(c, pages, open, i));
+function draw(n, pages, open, key, heading) {
+  const kids = () => (n.content ?? []).map((c, i) => draw(c, pages, open, i, heading));
   switch (n.type) {
     case 'text': {
       let out = n.text;
@@ -67,10 +76,13 @@ function draw(n, pages, open, key) {
       return html`<br key=${key} />`;
     case 'paragraph':
       return html`<p key=${key}>${kids()}</p>`;
-    case 'heading':
-      return n.attrs?.level === 3
-        ? html`<h4 key=${key} class="note-h3">${kids()}</h4>`
-        : html`<h3 key=${key} class="note-h2">${kids()}</h3>`;
+    case 'heading': {
+      // The levels this screen gives a note's headings: from `top`, `count` of them, the rest
+      // drawn as the last; never past h6. The note's own level rides along, for a copy.
+      const level = Math.min(Math.max(Number(n.attrs?.level) || 1, 1), heading.count);
+      const H = `h${Math.min(heading.top + level - 1, 6)}`;
+      return html`<${H} key=${key} data-note-level=${n.attrs?.level}>${kids()}</${H}>`;
+    }
     case 'pre':
       return html`<pre key=${key} class="note-pre">${kids()}</pre>`;
     case 'quote':
@@ -90,12 +102,12 @@ function draw(n, pages, open, key) {
  * A note read. Nothing in it is ever taken as markup: each kind of block and mark is drawn by
  * its own element, and anything else is left out.
  * @param {{ doc: any, pages?: Pages, open?: (page: string) => void, empty?: any,
- *   id?: string }} p
+ *   id?: string, heading?: Heading }} p
  */
-export function NoteView({ doc, pages = noPages, open, empty = null, id }) {
+export function NoteView({ doc, pages = noPages, open, empty = null, id, heading = HEADINGS }) {
   const blocks = doc?.type === 'doc' ? doc.content ?? [] : [];
   if (!blocks.length) return empty;
   return html`<div class="note-text note-read" id=${id}>${
-    blocks.map((b, i) => draw(b, pages, open, i))
+    blocks.map((b, i) => draw(b, pages, open, i, heading))
   }</div>`;
 }

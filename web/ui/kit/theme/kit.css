@@ -1416,12 +1416,17 @@
   .note-text p {
     margin: 0 0 0.5em;
   }
-  .note-text .note-h2 {
-    font-size: 1.2em;
+  /* The editor's own headings; where a note is read, its headings are the page's. */
+  .note-body .note-text h1 {
+    font-size: 1.35em;
     margin: 0.8em 0 0.3em;
   }
-  .note-text .note-h3 {
-    font-size: 1.05em;
+  .note-body .note-text h2 {
+    font-size: 1.18em;
+    margin: 0.8em 0 0.3em;
+  }
+  .note-body .note-text h3 {
+    font-size: 1.04em;
     margin: 0.7em 0 0.25em;
   }
   .note-text ul,

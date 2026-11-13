@@ -7,7 +7,7 @@
       "group": "block",
       "content": "inline*",
       "marks": "_",
-      "attrs": { "level": [2, 3] }
+      "attrs": { "level": [1, 2, 3] }
     },
     "pre": { "group": "block", "content": "text*", "marks": "" },
     "quote": { "group": "block", "content": "(paragraph | bullets | numbers)+" },
