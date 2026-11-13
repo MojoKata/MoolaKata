@@ -36,9 +36,11 @@ def test_the_filters_amount_bounds_are_taken_when_left(browser, household):
     least.press_sequentially("-")
     assert least.input_value() == ""
     assert least.get_attribute("data-tip") == "Digits and . only."
-    # Typed, nothing changes until the field is left; then the list is bounded.
+    # Typed (dollars from the cents, S12.18.8.1: 500 is $5.00), nothing changes until the field
+    # is left; then the list is bounded.
     with page.expect_response(lambda r: "/transactions?" in r.url and "min=5" in r.url):
-        least.press_sequentially("5")
+        least.press_sequentially("500")
+        assert least.input_value() == "5.00"
         assert least.get_attribute("data-tip") is None, "a change clears the mark"
         least.press("Tab")
     wait(page, f"{LIST}:not(:has-text('$3.00'))", problems)
@@ -119,5 +121,52 @@ def test_a_gifts_link_is_marked_when_left_and_refused_at_save(browser, household
     link.fill("https://shop.example.com/item")
     link.press("Tab")
     assert link.get_attribute("data-tip") is None
+    assert problems == []
+    page.close()
+
+
+# What each kind draws, read from the page: a date its own field with the calendar's button, an
+# amount its digits at the right with $ before them, a percent its %, a count digits only.
+DRAWN = """() => [...document.querySelectorAll('[data-kind]')].map((el) => {
+    const unit = (side) => el.closest('.unit-in')?.querySelector('.unit.' + side)?.textContent;
+    const k = el.dataset.kind;
+    const ok = {
+      date: el.type === 'text' && !!el.closest('.date-in')
+        ?.querySelector('button[aria-label="Open the calendar"]'),
+      time: el.type === 'text',
+      money: el.classList.contains('num') && unit('pre') === '$',
+      quantity: el.classList.contains('num'),
+      percent: unit('post') === '%',
+      count: el.inputMode === 'numeric',
+      duration: el.type === 'text',
+      url: el.inputMode === 'url',
+    }[k];
+    return { kind: k, id: el.id, ok: ok !== false };
+})"""
+
+
+def test_each_kind_draws_its_own_control(browser, household):
+    """S12.18 (the RecField category of the date field drawn as text): every field a form draws
+    by its kind is that kind's control, wherever it is drawn. Two forms between them hold
+    dates, amounts, quantities, percents and counts."""
+    h = household
+    acct = made(make(h.c, "Acct", name="Drawn", type="brokerage"))
+    page, problems = signed_in(browser, h, "/ui/transactions", 'button:has-text("Add")')
+    page.click('main button:has-text("Add")')
+    wait(page, ".dialog #f-date", problems)
+    page.select_option(".dialog #f-account", acct["id"])
+    page.select_option(".dialog #f-kind", "buy")
+    wait(page, ".dialog #f-quantity", problems)
+    seen = page.evaluate(DRAWN)
+    page.keyboard.press("Escape")
+    page.goto(page.url.replace("/ui/transactions", "/ui/accounts"))
+    wait(page, 'button:has-text("New account")', problems)
+    page.click('button:has-text("New account")')
+    page.click('button.type-card:has-text("HELOC")')
+    wait(page, "#f-term-months", problems)
+    seen += page.evaluate(DRAWN)
+    wrong = [f"{x['id']} ({x['kind']})" for x in seen if not x["ok"]]
+    assert wrong == []
+    assert {"date", "money", "quantity", "percent", "count"} <= {x["kind"] for x in seen}
     assert problems == []
     page.close()

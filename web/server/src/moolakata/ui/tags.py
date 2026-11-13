@@ -3,11 +3,14 @@ records of the save (`Tag`), a rename reaching every transaction, receipt and ru
 carries it."""
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import false, select
+from sqlalchemy import false, func, select
 
 from .. import activity, clock, tags
 from ..errors import Problem, refuse
+from ..store import views
 from ..store.entities.accounts import Tag
+from ..store.tables.accounts import Rule, RuleTags, Transaction, TransactionTags
+from ..store.tables.receipts import Receipt, ReceiptTags
 from . import save
 from .conventions import ExactRoute, Model
 from .deps import Caller, caller, server
@@ -19,6 +22,9 @@ class TagOut(Model):
     id: str
     name: str
     version: int
+    # How many of the records the caller sees carry it: transactions, receipts and rules. A
+    # tag box lists the most used first (S12.18.12).
+    uses: int = 0
 
 
 class TagRecord(Model):
@@ -27,18 +33,50 @@ class TagRecord(Model):
     name: str
 
 
-def tag_out(t: Tag) -> TagOut:
-    return TagOut(id=t.id, name=t.name, version=t.version)
+def tag_out(t: Tag, uses: int = 0) -> TagOut:
+    return TagOut(id=t.id, name=t.name, version=t.version, uses=uses)
+
+
+# What carries a tag: each record table, its pairs with tags, and the key naming the record.
+CARRIERS = (
+    (Transaction, TransactionTags, "transactionId"),
+    (Receipt, ReceiptTags, "receiptId"),
+    (Rule, RuleTags, "ruleId"),
+)
+
+
+def uses(s) -> dict[str, int]:
+    """How many live records carry each tag, counting only records the session's user reads:
+    each record table is joined, so its access view scopes the count (schema.md §7.6)."""
+    counts: dict[str, int] = {}
+    for table, pair, key in CARRIERS:
+        q = (
+            select(pair.c.tagId, func.count())
+            .join(table, table.c.id == pair.c[key])
+            .where(pair.c.deleted == false())
+            .group_by(pair.c.tagId)
+        )
+        if views.parents(table):
+            view = views.view_table(table)
+            q = q.join(view, view.c.id == table.c.id).where(view.c.effectiveDeleted == false())
+        else:
+            q = q.where(table.c.deleted == false())
+        for tag_id, n in s.execute(q):
+            counts[tag_id] = counts.get(tag_id, 0) + n
+    return counts
 
 
 @router.get("/tags", response_model=list[TagOut])
 def list_tags(request: Request, c: Caller = Depends(caller)):
-    """The caller's own tags, by name."""
+    """The caller's own tags, by name, each with how many records carry it."""
     with server(request).db.read(user=c.id) as s:
-        rows = s.scalars(
-            select(Tag).where(Tag.ownerId == c.id, Tag.deleted == false()).order_by(Tag.name)
+        rows = list(
+            s.scalars(
+                select(Tag).where(Tag.ownerId == c.id, Tag.deleted == false()).order_by(Tag.name)
+            )
         )
-        return [tag_out(t) for t in rows]
+        n = uses(s)
+        return [tag_out(t, n.get(t.id, 0)) for t in rows]
 
 
 def _create(ctx, record_id: str, body: TagRecord) -> None:

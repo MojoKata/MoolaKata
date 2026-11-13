@@ -3,23 +3,23 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { date, money, quantity, thisYear, today } from '../app/format.js';
+import { date, money, quantity, thisYear, today } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { openDialog } from '../components/dialog.js';
-import { Field, Seg, Select } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
+import { Field, Seg, Select } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
-import { Dec, dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../kit/dec.js';
 import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
-import { Action, Attention, RowTool } from '../components/state.js';
+import { Action, Attention, RowTool } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
-import { confirmAction } from '../components/confirm.js';
+import { confirmAction } from '../kit/confirm.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],

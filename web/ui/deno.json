@@ -34,6 +34,7 @@
       "components/",
       "charts/",
       "account-types/",
+      "kit/",
       "mockup/",
       "tests/"
     ],
@@ -51,6 +52,7 @@
       "components/",
       "charts/",
       "account-types/",
+      "kit/",
       "mockup/",
       "tests/"
     ],

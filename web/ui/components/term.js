@@ -6,7 +6,7 @@
 // guide scrolls, and closes when the term scrolls out of sight.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { Icon } from './icon.js';
+import { Icon } from '../kit/icon.js';
 
 /**
  * @typedef {{ title: string, text: string, source?: { label: string, href: string } }} Entry

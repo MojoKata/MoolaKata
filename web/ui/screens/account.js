@@ -28,19 +28,20 @@ import {
 } from '../components/edu.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { ago, bitcoin, date, price, quantity, today } from '../app/format.js';
+import { ago, bitcoin, date, price, quantity, today } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Chips, Empty, Failed, Loading, Tabs, Tile } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { confirmAction } from '../components/confirm.js';
-import { Dialog, openDialog } from '../components/dialog.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { Tile } from '../components/groups.js';
+import { Icon } from '../kit/icon.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, SwitchRow, TypedInput } from '../components/fields.js';
+import { errAt, Field, FormError, SwitchRow, TypedInput } from '../kit/fields.js';
 import { ShareDialog } from '../components/share.js';
 import { TxTable } from '../components/txtable.js';
-import { toast } from '../components/toast.js';
+import { toast } from '../kit/toast.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
@@ -57,10 +58,10 @@ import {
 import { TransactionDialog, Txn } from './transaction-dialog.js';
 import { Record as Rec, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
-import { offsetOf, Pager } from '../components/pager.js';
+import { offsetOf, Pager } from '../kit/pager.js';
 import { pageSize } from '../store/prefs.js';
-import { Dec, dec } from '../app/dec.js';
-import { Action, Attention } from '../components/state.js';
+import { Dec, dec } from '../kit/dec.js';
+import { Action, Attention } from '../kit/state.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -347,7 +348,7 @@ function Transactions({ a, all }) {
   const res = useApi('/transactions', {
     account: a.id,
     limit: pageSize.value,
-    offset: offsetOf(page),
+    offset: offsetOf(page, pageSize.value),
   }, ['import']);
   const d = /** @type {any} */ (res.data);
   const why = whyNotAdd('Txn', a);
@@ -370,7 +371,8 @@ function Transactions({ a, all }) {
       : d.items.length
       ? html`
         <${TxTable} rows=${d.items} showAccount=${false} onChanged=${res.reload} accounts=${all} />
-        <${Pager} label="account-tx" shown=${d.items.length} page=${page} total=${d.total}
+        <${Pager} label="account-tx" size=${pageSize} shown=${d.items.length} page=${page}
+          total=${d.total}
           onPage=${setPage} />
       `
       : html`<${Empty}>No transactions yet</${Empty}>`

@@ -5,19 +5,19 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow, TypedInput } from './fields.js';
-import { check, KINDS } from '../app/kinds.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { date } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow, TypedInput } from '../kit/fields.js';
+import { check, KINDS } from '../kit/kinds.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { TimeChart } from '../charts/chart.js';
-import { dec, num as float } from '../app/dec.js';
+import { dec, num as float } from '../kit/dec.js';
 import { READ_ONLY, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { saveNow } from './draft-form.js';
-import { Action } from './state.js';
+import { Action } from '../kit/state.js';
 
 const MONTHS = /** @type {[string, string][]} */ ([
   'January',

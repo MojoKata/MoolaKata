@@ -112,9 +112,10 @@
           custom property, dark first and then light; `theme/kit.css`, the controls' styles,
           drawn only from the tokens; the icon sprite); the HTM binding (`kit/html.js`, which
           `app/html.js` passes on); the value types (exact decimals, durations, the kinds of
-          S12.18, and formatting that takes the user's choices as arguments); the fields
-          (`Field`, `Input`, `TypedInput`, `ValueInput`, `CountInput`, `Select`, `Switch`,
-          `ReadValue`, `TagInput`, `DateInput`, `TimeInput`); the building blocks (tabs,
+          S12.18, and formatting, told the user's choices by the app); the fields
+          (`Field`, `Input`, `TypedInput`, `NumberInput`, `ValueInput`, `CountInput`,
+          `Select`, `Switch`, `ReadValue`, `TagInput`, `DateInput`, `TimeInput`); the building
+          blocks (tabs,
           chips, avatars, tiles, loading and failure, amounts and percents, and the
           components of S17.3.9.9); and the overlays (the dialog shell and its stack, the
           question before an action, menus, tooltips, toasts, the pager). What knows records,

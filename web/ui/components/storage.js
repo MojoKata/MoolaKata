@@ -7,16 +7,16 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { withReauth } from './reauth.js';
-import { Failed, Loading } from './bits.js';
-import { Dialog, openDialog } from './dialog.js';
-import { errAt, Field, FormError, Input, TypedInput } from './fields.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import { errAt, Field, FormError, Input, TypedInput } from '../kit/fields.js';
 import { useDialogGuide } from './help.js';
-import { toast } from './toast.js';
+import { toast } from '../kit/toast.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, DraftForm, RecField, useDraft } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
 import { FIELDS } from '../api/fields.js';
-import { RowTool } from './state.js';
+import { RowTool } from '../kit/state.js';
 
 const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 

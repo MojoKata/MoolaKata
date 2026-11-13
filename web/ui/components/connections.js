@@ -7,18 +7,18 @@ import { api } from '../api/client.js';
 import { withReauth } from './reauth.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { canSeal, seal, sealingKeyIsSigned } from '../app/sealed.js';
-import { confirmAction } from './confirm.js';
-import { Dialog, openDialog } from './dialog.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select, SwitchRow } from './fields.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow } from '../kit/fields.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { connectionState, DRIVERS } from './connector.js';
 import { Record } from '../app/draft.js';
 import { saveNow } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Attention } from './state.js';
+import { Attention } from '../kit/state.js';
 
 const DRIVER_OPTIONS = /** @type {[string, string][]} */ ([
   ['schwab', 'Schwab'],

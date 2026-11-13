@@ -9,17 +9,17 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { Record } from '../app/draft.js';
 import { changes } from '../app/stream.js';
 import { FIELDS } from '../api/fields.js';
-import { slug } from '../app/format.js';
+import { slug } from '../kit/format.js';
 import { session } from '../store/session.js';
-import { confirmAction } from './confirm.js';
-import { Dialog, openDialog } from './dialog.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { askToLeave, DraftDialog, RecField, saveFromQuestion, useDraft } from './draft-form.js';
 import { startTour } from '../store/tour.js';
-import { Field, FormError, IdPrefix, Select } from './fields.js';
+import { Field, FormError, IdPrefix, Select } from '../kit/fields.js';
 import { useDialogGuide } from './help.js';
-import { Icon } from './icon.js';
-import { Failed, Loading } from './bits.js';
-import { toast } from './toast.js';
+import { Icon } from '../kit/icon.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { toast } from '../kit/toast.js';
 import {
   categoryOptions,
   defaultMapping,
@@ -27,7 +27,7 @@ import {
   NEW,
   usesWords,
 } from '../app/categories.js';
-import { Action, RowTool } from './state.js';
+import { Action, RowTool } from '../kit/state.js';
 
 export { categoryOptions, defaultMapping, mergeTargets, NEW };
 

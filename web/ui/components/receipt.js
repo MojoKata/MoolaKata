@@ -4,16 +4,16 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { date, day, money } from '../app/format.js';
+import { date, day, money } from '../kit/format.js';
 import { useDialogGuide } from './help.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TagsField } from './tags.js';
-import { confirmAction } from './confirm.js';
-import { Action, Attention, Empty } from './state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Action, Attention, Empty } from '../kit/state.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -269,7 +269,7 @@ export function ReceiptDialog({ close, id }) {
           ${f.draft
             ? html`
               <${TagsField} rec=${rec} draft=${f.draft} id="receipt-tags"
-                hint="Yours only, separated by commas." disabled=${!canEdit} />
+                hint="Yours only." disabled=${!canEdit} />
             `
             : null}
           <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>

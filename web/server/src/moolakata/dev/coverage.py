@@ -34,8 +34,11 @@ SERVER = paths.WEB / "server" / "src" / "moolakata"
 CONNECTOR = paths.ROOT / "connector" / "moolakata_connector"
 # The browser app's own code: the served directories (static.SERVED_DIRS) that hold scripts,
 # less the vendored libraries; api/types.js holds type definitions only.
-BROWSER_DIRS = ("app", "api", "store", "screens", "components", "charts", "account-types")
+BROWSER_DIRS = ("kit", "app", "api", "store", "screens", "components", "charts", "account-types")
 NOT_CODE = {"api/types.js"}
+# The ui-kit's tests and pages drive its code; they aren't code of the app.
+NOT_CODE_DIRS = ("kit/tests/", "kit/pages/")
+KIT_AREA = "browser/kit"
 ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine largest gaps
 # The lines or branches an area's measure may move by between runs: a count, not points, since
 # one branch is a point of a one-file area. The server's and the connector's tests measure the
@@ -100,6 +103,8 @@ def area_of(rel: str) -> str | None:
     if rel.startswith("connector/moolakata_connector/"):
         return "connector"
     if rel.startswith("web/ui/") and len(parts) > 3 and parts[2] in BROWSER_DIRS:
+        if rel.removeprefix("web/ui/").startswith(NOT_CODE_DIRS):
+            return None
         return f"browser/{parts[2]}"
     return None
 
@@ -171,7 +176,7 @@ def unloaded(js: Path) -> None:
     for d in BROWSER_DIRS:
         for f in sorted((paths.UI / d).rglob("*.js")):
             rel = f.relative_to(paths.UI).as_posix()
-            if rel in NOT_CODE or f.as_uri() in seen:
+            if rel in NOT_CODE or rel.startswith(NOT_CODE_DIRS) or f.as_uri() in seen:
                 continue
             length = _utf16_length(f.read_text())
             entry = {
@@ -204,17 +209,20 @@ def browser_files() -> dict[str, File]:
         return {}
     unloaded(js)
     include = "^" + re.escape(paths.UI.as_uri()) + "/(" + "|".join(BROWSER_DIRS) + ")/"
+    # Deno's own default (test files), and the ui-kit's tests and pages.
+    exclude = r"/kit/(tests|pages)/|test\.(js|mjs|ts|jsx|tsx)$"
     deno(
         "coverage",
         "--quiet",
         f"--include={include}",
+        f"--exclude={exclude}",
         "--lcov",
         f"--output={OUT / 'browser.lcov'}",
         str(js),
     )
     html = js / "html"
     shutil.rmtree(html, ignore_errors=True)
-    deno("coverage", "--quiet", f"--include={include}", "--html", str(js))
+    deno("coverage", "--quiet", f"--include={include}", f"--exclude={exclude}", "--html", str(js))
     shutil.rmtree(OUT / "html" / "browser", ignore_errors=True)
     shutil.move(str(html), str(OUT / "html" / "browser"))
     out: dict[str, File] = {}
@@ -471,6 +479,10 @@ def cmd_report(check: bool) -> int:
         print("nothing measured: run web/check or web/dev.sh coverage first")
         return 1
     fl = floors()
+    if os.environ.get("MK_KIT_TESTED") == "0":
+        # A pull request that leaves the ui-kit alone skips its own tests (S17.10.1): the app's
+        # tests reach the kit only as far as it uses it, so its floor isn't held this run.
+        fl = {area: f for area, f in fl.items() if area != KIT_AREA}
     base = base_ref()
     d = diff(files, changed_lines(base)) if base else None
     below = under(areas, fl)

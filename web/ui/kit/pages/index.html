@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The app's policy (requirements S17.3.3): scripts and styles from here alone, the import
+         map by its hash (changed with the map: the page tests fail on the refusal otherwise),
+         nothing from elsewhere. -->
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-L66zQtxPzzc3fh1y3GZ94AXGBYXFSRsgNk2hH4iMUTE='; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>ui-kit</title>
+    <link rel="stylesheet" href="../theme/tokens.css">
+    <link rel="stylesheet" href="../theme/base.css">
+    <link rel="stylesheet" href="../theme/kit.css">
+    <link rel="stylesheet" href="pages.css">
+    <script type="importmap">
+    {
+      "imports": {
+        "preact": "../../vendor/preact/dist/preact.mjs",
+        "preact/hooks": "../../vendor/preact/hooks/dist/hooks.mjs",
+        "htm": "../../vendor/htm/dist/htm.mjs",
+        "@preact/signals-core": "../../vendor/signals-core/dist/signals-core.mjs",
+        "@preact/signals": "../../vendor/signals/dist/signals.mjs"
+      }
+    }
+    </script>
+    <script type="module" src="catalog.js"></script>
+  </head>
+  <body>
+    <div id="kit"></div>
+    <noscript>The ui-kit's pages need JavaScript.</noscript>
+  </body>
+</html>

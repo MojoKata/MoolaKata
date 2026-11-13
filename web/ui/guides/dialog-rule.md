@@ -47,4 +47,4 @@ it, and the rules match on the bank's text.
 
 ## Tags
 
-Your own tags, added to each match: `coffee, work`.
+Your own tags, added to each match. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.

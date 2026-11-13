@@ -44,7 +44,7 @@ Anything worth keeping with it.
 
 ## Tags {#receipt-tags}
 
-Words to find it by, separated by commas, such as _medical_ or _warranty_.
+Words to find it by, such as _medical_ or _warranty_. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
 
 ## Attached to {#attached-to}
 

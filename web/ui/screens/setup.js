@@ -7,7 +7,7 @@ import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
 import { ended, session, setSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select } from '../kit/fields.js';
 
 export default function Setup() {
   const [displayName, setName] = useState('');

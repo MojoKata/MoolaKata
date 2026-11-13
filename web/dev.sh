@@ -43,6 +43,8 @@ web/dev.sh <command>
   mockup-link PR [hand]
                the address of the generated mockup a pull request's latest CI run built;
                with hand, of the hand-written mockup it kept
+  kit-link PR  the address of the ui-kit's pages (kit.html) a pull request's latest CI run kept
+  kit-pack OUT pack the ui-kit's pages into OUT/kit.html, a file that opens on its own
   ci-times [RUN | --pr N]
                a CI run's job times against the budget, and how evenly its parts split
   ci-durations [RUN | --pr N]
@@ -184,12 +186,14 @@ case "$cmd" in
   mockup)
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/build.py"
     ;;
-  mockup-link)
+  mockup-link | kit-link)
     # The generated mockup a pull request's latest CI run built (S12.9), or with `hand` the
-    # hand-written one it kept: its artifact, uploaded as the file itself, for the pull request.
-    pr="${1:?usage: web/dev.sh mockup-link PR [hand]}"
+    # hand-written one it kept; `kit-link`, the ui-kit's pages packed into one file (S17.3.10.4):
+    # its artifact, uploaded as the file itself, for the pull request.
+    pr="${1:?usage: web/dev.sh mockup-link PR [hand] | kit-link PR}"
     file=MoolaKata-app.html
     [[ "${2:-}" == hand ]] && file=MoolaKata-mock.html
+    [[ "$cmd" == kit-link ]] && file=kit.html
     repo=MojoKata/MoolaKata
     sha=$(gh pr view "$pr" -R "$repo" --json headRefOid -q .headRefOid)
     run=$(gh run list -R "$repo" --commit "$sha" --workflow check --limit 1 --json databaseId \
@@ -201,6 +205,11 @@ case "$cmd" in
     ;;
   help-shots)
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/help_shots.py" "$@"
+    ;;
+  kit-pack)
+    # The ui-kit's pages packed into one file that opens on its own (S17.3.10.4): OUT/kit.html.
+    out="${1:?usage: web/dev.sh kit-pack OUT}"
+    exec python3 "$WEB/ui/kit/pages/pack.py" "$out"
     ;;
   vendor)
     cd "$SERVER" && exec uv run --frozen python "$WEB/ui/vendor/vendor.py" "$@"

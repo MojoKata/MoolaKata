@@ -6,12 +6,13 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useDialogGuide } from './help.js';
-import { Seg, Switch } from './fields.js';
+import { Seg, Switch } from '../kit/fields.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftDialog, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Avatar, Loading, Tile } from './bits.js';
-import { Icon } from './icon.js';
+import { Avatar, Loading } from '../kit/bits.js';
+import { Tile } from './groups.js';
+import { Icon } from '../kit/icon.js';
 
 const ALLOWS =
   /** @type {[string, string][]} */ ([['none', 'None'], ['read', 'Read'], ['write', 'Write']]);

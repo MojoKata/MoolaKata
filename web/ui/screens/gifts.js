@@ -4,23 +4,25 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, thisYear } from '../app/format.js';
+import { date, thisYear } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { openDialog } from '../components/dialog.js';
-import { Field, Input, Reads, ReadValue, Seg, Select } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
+import { Field, Input, ReadValue, Seg, Select } from '../kit/fields.js';
+import { Reads } from '../components/reads.js';
+import { Icon } from '../kit/icon.js';
 import { ShareDialog } from '../components/share.js';
-import { toast } from '../components/toast.js';
+import { toast } from '../kit/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
-import { dec, num } from '../app/dec.js';
+import { dec, num } from '../kit/dec.js';
 import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
-import { confirmAction } from '../components/confirm.js';
-import { Action, Attention, RowTool } from '../components/state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Action, Attention, RowTool } from '../kit/state.js';
+import { TagInput } from '../kit/tags.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -887,29 +889,11 @@ function GiftDialog({ close, gift, start, fromRow }) {
               ) => rec.set('status', v)} options=${STATUS} /></div>`}
             ${onRow ? null : html`
               <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
-                hint=${received ? '' : 'One or more people.'}>
-                            ${canWrite
-                              ? html`
-                                <select class="in" multiple size=${Math.min(
-                                  4,
-                                  Math.max(2, list.length),
-                                )}
-                                  onChange=${(/** @type {any} */ ev) =>
-                                    rec.set(
-                                      'people',
-                                      [...ev.currentTarget.selectedOptions].map((o) => o.value),
-                                    )}>
-                                                ${list.map((p) =>
-                                                  html`<option value=${p.id} selected=${
-                                                    who.includes(p.id)
-                                                  }>${p.name}</option>`
-                                                )}</select>
-                              `
-                              : html`<${ReadValue} text=${
-                                list.filter((p) => who.includes(p.id)).map((p) => p.name).join(
-                                  ', ',
-                                ) || '—'
-                              } />`}</${Field}>
+                hint=${received ? '' : 'One or more of your people.'}>
+                <${TagInput} value=${who} items=${list.map((p) => ({ key: p.id, label: p.name }))}
+                  onChange=${(/** @type {string[]} */ keys) => rec.set('people', keys)}
+                  noun=${['person', 'people']} readonly=${!canWrite} />
+                </${Field}>
             `}
             ${onRow ? null : html`
               <${Field} label="Occasion" error=${rec.error('occasionYear')}>

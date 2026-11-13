@@ -3,7 +3,7 @@
 Reads the browser app's source: an expression that draws a button only when the record allows
 it (`access.writable`, `canWrite`, `canAdd(…)`, …) hides the action from one who may not; and a
 button switched off by access, with `disabled`, gives no reason. Each is drawn with `<Action
-why=…>` instead (`components/state.js`). A form one may only read draws its read persona
+why=…>` instead (`kit/state.js`). A form one may only read draws its read persona
 (S12.18.6), never a disabled fieldset. A writer's list of tasks is theirs alone: those are
 named below, each with why.
 """
@@ -33,7 +33,7 @@ FIELDSET_OFF = re.compile(r"<fieldset\b[^>]*\bdisabled=", re.S)
 
 def sources():
     root = paths.WEB / "ui"
-    for sub in ("components", "screens"):
+    for sub in ("kit", "components", "screens"):
         for f in sorted((root / sub).glob("*.js")):
             yield f.relative_to(root).as_posix(), f.read_text()
 

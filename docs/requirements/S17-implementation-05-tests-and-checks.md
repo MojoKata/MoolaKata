@@ -31,7 +31,7 @@
    total and merchant, with an accuracy floor that a change must not drop below.
 
    **Kinds of test** that each change in their area adds to:
-   1. **Browser modules** without a page (`app/draft.js`, `app/dec.js`, `app/duration.js`)
+   1. **Browser modules** without a page (`app/draft.js`, `kit/dec.js`, `kit/duration.js`)
       are unit-tested by `deno test`, with the draft's id maker passed in so ids repeat.
    2. **Saved unchanged changes nothing**: every form that edits through a draft is opened in
       Chromium and saved untouched, and the records read back are what they were: one

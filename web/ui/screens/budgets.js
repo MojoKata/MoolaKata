@@ -7,25 +7,17 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../app/format.js';
+import { date, money, today } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import {
-  errAt,
-  Field,
-  FormError,
-  Input,
-  Select,
-  SwitchRow,
-  TypedInput,
-} from '../components/fields.js';
-import { toast } from '../components/toast.js';
+import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow, TypedInput } from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { BarChart, FlowChart } from '../charts/chart.js';
-import { Dec, dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../kit/dec.js';
 import { READ_ONLY, Record, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
 import {
   DraftDialog,
@@ -38,9 +30,9 @@ import {
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
-import { Amt } from '../components/amount.js';
+import { Amt } from '../kit/amount.js';
 import { CategoriesTab, CategoryField } from '../components/categories.js';
-import { Action, Attention, StatePill } from '../components/state.js';
+import { Action, Attention, StatePill } from '../kit/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],

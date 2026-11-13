@@ -5,11 +5,11 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
-import { date } from '../app/format.js';
+import { date } from '../kit/format.js';
 import { loadSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { errAt, Field, FormError, Input } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
+import { errAt, Field, FormError, Input } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
 
 const WIDE = { width: '100%', justifyContent: 'center' };
 

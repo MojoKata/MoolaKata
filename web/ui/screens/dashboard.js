@@ -3,16 +3,17 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { ago } from '../app/format.js';
+import { ago } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Chips, Failed, GROUP_LABELS, Loading, Tile } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Failed, Loading } from '../kit/bits.js';
+import { GROUP_LABELS, Tile } from '../components/groups.js';
+import { Icon } from '../kit/icon.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
-import { openDialog } from '../components/dialog.js';
+import { openDialog } from '../kit/dialog.js';
 import { NewAccount } from './new-account.js';
-import { num } from '../app/dec.js';
+import { num } from '../kit/dec.js';
 
 const GROUP_COLORS = /** @type {Record<string, string>} */ ({
   banking: '--hue-banking',

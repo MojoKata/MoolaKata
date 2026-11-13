@@ -5,12 +5,12 @@ import { html } from '../app/html.js';
 import { dev } from '../app/config.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, date, day, moment } from '../app/format.js';
+import { ago, date, day, moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { Dialog, openDialog } from '../components/dialog.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import {
   errAt,
   Field,
@@ -20,8 +20,8 @@ import {
   Switch,
   SwitchRow,
   TypedInput,
-} from '../components/fields.js';
-import { toast } from '../components/toast.js';
+} from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
 import { awaitRestart, loadSession } from '../store/session.js';
 import { disconnect } from '../app/stream.js';
 import { LinksSection } from '../components/links.js';
@@ -32,8 +32,8 @@ import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-f
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
-import { confirmAction } from '../components/confirm.js';
-import { Attention, RowTool } from '../components/state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Attention, RowTool } from '../kit/state.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],

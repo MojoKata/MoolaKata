@@ -8,17 +8,17 @@ import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { openDialog } from './dialog.js';
+import { date, money, today } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { errAt, Field, FormError, Select, TypedInput } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { CategoryField } from './categories.js';
-import { dec, num } from '../app/dec.js';
-import { Action } from './state.js';
+import { dec, num } from '../kit/dec.js';
+import { Action } from '../kit/state.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],

@@ -5,18 +5,18 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, moment } from '../app/format.js';
+import { ago, moment } from '../kit/format.js';
 import { withReauth } from './reauth.js';
-import { Dialog, openDialog } from './dialog.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, FormError, Input } from './fields.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
-import { confirmAction } from './confirm.js';
+import { Field, FormError, Input } from '../kit/fields.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
+import { confirmAction } from '../kit/confirm.js';
 import { DraftForm } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
-import { Attention, StatePill } from './state.js';
+import { Attention, StatePill } from '../kit/state.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',

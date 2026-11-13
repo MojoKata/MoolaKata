@@ -2,7 +2,7 @@
 // A route outside the save that would move a filed year's gains (requirements S2.8.2): the
 // client asks once, and sends the request again confirmed only if the person agrees.
 import { api, CONFIRM_HEADER, whenClosedYear } from '../api/client.js';
-import { equal } from './assert.js';
+import { equal } from '../kit/tests/assert.js';
 
 /** @param {{ status: number, body: any }[]} answers */
 function serving(answers) {

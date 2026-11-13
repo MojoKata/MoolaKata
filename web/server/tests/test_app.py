@@ -300,7 +300,7 @@ def test_a_moment_shows_its_day_in_the_viewers_zone(page):
     the page's zone is left as it is.)"""
     got = page.evaluate("""async () => {
         const main = document.querySelector('script[src$="/app/main.js"]').src;
-        const f = await import(new URL('format.js?zone-test', main).href);
+        const f = await import(new URL('../kit/format.js?zone-test', main).href);
         f.setZone('America/Los_Angeles');
         const days = [f.day('2026-10-19T00:26:00Z'), f.date('2026-10-19'), f.day(null)];
         f.setZone('Pacific/Kiritimati');

@@ -144,3 +144,14 @@ inside the page.
 | @preact/signals | 2.11.3 | 2026-09-30 | verified | state (R1.1) | Preact's own | none known | — |
 | preact-iso | 2.12.2 | 2026-08-11 | verified | routes and lazy screens (R1.1) | Preact's own router | none known | — |
 | echarts | 6.1.0 | 2026-05-19 | none | every chart (S17.4) | the only candidate covering donut, treemap, Sankey and the fan without code of our own | large surface (~330 KB gzip, loaded only by chart screens); publishes no provenance, so a release is trusted on the integrity hash and the diff alone | if a smaller library gains treemap and Sankey, or if ECharts starts publishing provenance |
+
+## Copied code
+
+Code adapted into MoolaKata from an open-source project, rather than loaded as a library: it is
+the repository's own from then on, tested with it, and never updated by itself; a later fix
+there is copied as a change of its own (S17.3.10.5). Its licence and what was taken where are
+in the notice beside it.
+
+| Source | Commit | Licence | Into | What | Notice | Revisit |
+|---|---|---|---|---|---|---|
+| preact-components (the fork MojoKata/preact-components, of spy4x/preact-components) | `5be54c4` (14.6.0) | MIT | `web/ui/kit/listbox.js`, `web/ui/kit/tags.js` | the list's key table; the tag box's rules (names split at commas, case aside, the keys) | `web/ui/kit/NOTICE.md` | when a fix to those rules lands there |

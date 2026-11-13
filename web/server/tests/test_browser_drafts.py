@@ -442,7 +442,7 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     assert page.evaluate("document.activeElement.textContent.trim()") == "Keep editing"
     page.keyboard.press("Escape")
     assert page.locator(".dialog-ask").count() == 0
-    assert amount_of(page).input_value() == "12.", "what was typed stays as typed"
+    assert amount_of(page).input_value() == "12.00", "what was typed stays, at its places"
     page.mouse.click(5, 5)
     assert page.locator(".dialog").count() == 1, "a click outside doesn't close it"
     page.click(".dialog-x")

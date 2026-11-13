@@ -4,18 +4,19 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
 import { useApi, useList } from '../app/hooks.js';
-import { bitcoin, date, quantity } from '../app/format.js';
+import { bitcoin, date, quantity } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt, Pct } from '../components/amount.js';
-import { Chips, Empty, Failed, Loading, Tabs, Tile } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { openDialog } from '../components/dialog.js';
+import { Amt, Pct } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { Tile } from '../components/groups.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
 import { ShareDialog } from '../components/share.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
 import { BENCHMARKS, PortfolioDialog } from './portfolio-dialog.js';
 import { whyNot, whyRead } from '../app/draft.js';
-import { Action } from '../components/state.js';
+import { Action } from '../kit/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['performance', 'Performance'],

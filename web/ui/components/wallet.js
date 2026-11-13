@@ -5,13 +5,13 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago } from '../app/format.js';
-import { Field, FormError, ReadValue, useReading } from './fields.js';
+import { ago } from '../kit/format.js';
+import { Field, FormError, ReadValue, useReading } from '../kit/fields.js';
 import { RecField } from './draft-form.js';
-import { Failed, Loading } from './bits.js';
-import { toast } from './toast.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { toast } from '../kit/toast.js';
 import { READ_ONLY } from '../app/draft.js';
-import { Action } from './state.js';
+import { Action } from '../kit/state.js';
 
 const SCRIPT = /** @type {Record<string, string>} */ ({
   p2pkh: 'legacy (1…)',

@@ -5,22 +5,22 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { Field, ReadValue, Select } from './fields.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { date, money, today } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { Field, ReadValue, Select } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { ACCEPT, ReceiptLinkRec, uploadAll } from './receipt.js';
 import { FanChart } from '../charts/chart.js';
 import { EducationAnswer } from '../screens/projections.js';
-import { num } from '../app/dec.js';
+import { num } from '../kit/dec.js';
 import { canAdd, READ_ONLY, Record, whyNotAdd } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
-import { openDialog } from './dialog.js';
+import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Action } from './state.js';
+import { Action } from '../kit/state.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {

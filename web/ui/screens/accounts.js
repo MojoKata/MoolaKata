@@ -5,18 +5,19 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { canAdd, whyNot } from '../app/draft.js';
 import { useList } from '../app/hooks.js';
-import { ago } from '../app/format.js';
+import { ago } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Avatar, Chips, Empty, Failed, GROUP_LABELS, Loading, Tile } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { openDialog } from '../components/dialog.js';
+import { Amt } from '../kit/amount.js';
+import { Avatar, Chips, Empty, Failed, Loading } from '../kit/bits.js';
+import { GROUP_LABELS, Tile } from '../components/groups.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
 import { ShareDialog } from '../components/share.js';
 import { NewAccount } from './new-account.js';
 import { ImportDialog } from './import.js';
 import { BY_TYPE } from '../account-types/index.js';
-import { Action } from '../components/state.js';
+import { Action } from '../kit/state.js';
 
 const FILTERS = /** @type {[string, string][]} */ ([
   ['all', 'All'],

@@ -211,7 +211,7 @@ def _js_type(schema: dict) -> str:
     t = schema.get("type")
     if t == "number" and schema.get("format") in ("money", "decimal"):
         # An exact number (S13.8.2): the client decodes it as a Dec, never a float.
-        return "import('../app/dec.js').Dec"
+        return "import('../kit/dec.js').Dec"
     if t == "string":
         return "string"
     if t in ("integer", "number"):

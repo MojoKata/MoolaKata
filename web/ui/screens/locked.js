@@ -9,8 +9,8 @@ import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
 import { loadSession, lostChanges, restarting } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { Field, FormError } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
+import { Field, FormError } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
 import NewServer from './new-server.js';
 
 const STAGES = /** @type {Record<string, string>} */ ({

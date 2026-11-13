@@ -3,9 +3,9 @@
 // can read (S12.8) and no animation when the system asks for reduced motion.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { date, money, short } from '../app/format.js';
+import { date, money, short } from '../kit/format.js';
 import { theme } from '../store/prefs.js';
-import { floats, num } from '../app/dec.js';
+import { floats, num } from '../kit/dec.js';
 
 /** @type {Promise<typeof import('echarts')> | null} */
 let loading = null;

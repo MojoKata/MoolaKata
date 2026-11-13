@@ -4,8 +4,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
-import { Dialog, openDialog } from './dialog.js';
-import { Field, FormError, Input } from './fields.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import { Field, FormError, Input } from '../kit/fields.js';
 
 /** @param {{ close: (v?: any) => void }} p */
 function Reauth({ close }) {

@@ -5,12 +5,12 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi } from '../app/hooks.js';
 import { refreshBadges } from '../app/stream.js';
-import { moment } from '../app/format.js';
+import { moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { toast } from '../components/toast.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 
 const EMAILS = /** @type {Record<string, string>} */ ({
   each: 'each alert',

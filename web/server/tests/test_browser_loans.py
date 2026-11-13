@@ -6,6 +6,7 @@ split corrected. What the screen shows is checked against what the API works out
 plan. Each test's loans are deleted again, so the shared household's figures stay as they were.
 """
 
+import datetime as dt
 from decimal import ROUND_HALF_UP, Decimal
 
 import pytest
@@ -137,7 +138,13 @@ def tab(page, problems, name: str, ready: str) -> None:
 
 
 def value(page, selector: str) -> Decimal:
-    return Decimal(page.locator(selector).input_value())
+    """An amount as its field holds it, its grouping commas aside (S12.18.8)."""
+    return Decimal(page.locator(selector).input_value().replace(",", ""))
+
+
+def iso(shown: str) -> str:
+    """A date as its field shows it (`Nov 13, 2026`, S12.18.10), as the API holds it."""
+    return dt.datetime.strptime(shown, "%b %d, %Y").date().isoformat()
 
 
 def extras(page) -> list[tuple[str, str]]:
@@ -336,7 +343,7 @@ def test_the_plans_refusals_show_at_their_fields(browser, household, new_loan):
     # A minus isn't one of an amount's characters here: refused, and marked with what it takes.
     page.fill("#f-extra-each-month", "-5")
     extra = page.locator("#f-extra-each-month")
-    assert extra.input_value() == "100"
+    assert extra.input_value() == "100.00"
     assert extra.get_attribute("data-tip") == "Digits and . only."
     # One that doesn't read is marked when left, and the plan stays as it was worked out.
     extra.fill("1.2.3")
@@ -449,7 +456,7 @@ def test_a_plan_saved_followed_shown_again_and_deleted(browser, household, new_l
     assert flat(following) == "Following Extra $200 and a bonus · ahead by $0.00"
     tab(page, problems, "Payoff", f"{RESULTS} .kv")
     assert value(page, "#f-extra-each-month") == 200
-    assert page.locator("#x-lump-date-0").input_value() == ahead(5)
+    assert iso(page.locator("#x-lump-date-0").input_value()) == ahead(5)
     assert value(page, "#x-lump-amount-0") == 15000
     assert page.locator("#f-recast-after-the-lump-sums").get_attribute("aria-checked") == "true"
     assert value(page, "#f-recast-fee") == 300
@@ -819,7 +826,7 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     # A later statement, $1,000 under the schedule's balance.
     row.get_by_role("button", name="Type it").click()
     wait(page, ".dialog #f-owed", problems)
-    as_of = page.locator("#f-as-of").input_value()
+    as_of = iso(page.locator("#f-as-of").input_value())
     page.fill("#f-owed", "299000")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
@@ -852,8 +859,8 @@ def test_a_payments_split_is_corrected_before_it_is_recorded(browser, household,
     assert hint.inner_text() == (
         "Split by the schedule. Correct it from the servicer’s statement if it differs."
     )
-    principal = Decimal(page.locator("#x-part-principal").input_value())
-    interest = Decimal(page.locator("#x-part-interest").input_value())
+    principal = value(page, "#x-part-principal")
+    interest = value(page, "#x-part-interest")
     assert principal + interest == Decimal(str(due["total"]))
     # The servicer's statement put $10 more to interest.
     page.fill("#x-part-principal", str(principal - 10))

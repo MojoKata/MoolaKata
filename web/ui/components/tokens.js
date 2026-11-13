@@ -2,17 +2,17 @@
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
 import { html } from '../app/html.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { ago, day } from '../app/format.js';
-import { confirmAction } from './confirm.js';
-import { Dialog, openDialog } from './dialog.js';
+import { ago, day } from '../kit/format.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Select } from './fields.js';
-import { Failed, Loading } from './bits.js';
+import { Field, Select } from '../kit/fields.js';
+import { Failed, Loading } from '../kit/bits.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 
 const endpoint = () => `${location.origin}/mcp`;
 

@@ -5,7 +5,7 @@ import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
 import { setSession } from '../store/session.js';
 import { AuthCard, tokenFromHash } from '../components/auth.js';
-import { errAt, Field, FormError, Input } from '../components/fields.js';
+import { errAt, Field, FormError, Input } from '../kit/fields.js';
 
 export default function Welcome() {
   const token = tokenFromHash();

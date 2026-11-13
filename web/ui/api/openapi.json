@@ -29413,6 +29413,11 @@
             "title": "Name",
             "type": "string"
           },
+          "uses": {
+            "default": 0,
+            "title": "Uses",
+            "type": "integer"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -38363,7 +38368,7 @@
     },
     "/ui/api/tags": {
       "get": {
-        "description": "The caller's own tags, by name.",
+        "description": "The caller's own tags, by name, each with how many records carry it.",
         "operationId": "list_tags_ui_api_tags_get",
         "parameters": [
           {

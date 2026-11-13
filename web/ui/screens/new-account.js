@@ -2,14 +2,14 @@
 import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
-import { Dialog } from '../components/dialog.js';
+import { Dialog } from '../kit/dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { Field, Select } from '../components/fields.js';
+import { Field, Select } from '../kit/fields.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
-import { Tile } from '../components/bits.js';
-import { toast } from '../components/toast.js';
+import { Tile } from '../components/groups.js';
+import { toast } from '../kit/toast.js';
 import { BY_TYPE, TYPES } from '../account-types/index.js';
 import { LoanRec, newTerms, TermsFields } from '../components/loan.js';
 import { EduPlanRec, PlanFields } from '../components/edu.js';

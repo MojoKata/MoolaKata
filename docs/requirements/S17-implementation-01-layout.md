@@ -13,11 +13,12 @@
                          mockups/MoolaKata-mock.html
    web/
      VERSION  dev.sh  release.sh  check  pins
-     ui/                 index.html, deno.json, app/{main,router,config,hooks,format}.js,
-                         api/, store/, screens/, components/, charts/ (the chart wrappers),
+     ui/                 index.html, deno.json, kit/ (the ui-kit, S17.3.10: its controls,
+                         value types, theme/{tokens,base,kit}.css and icons.svg, pages/,
+                         tests/), app/{main,router,config,hooks,draft}.js, api/, store/,
+                         screens/, components/, charts/ (the chart wrappers),
                          account-types/ (one module per type: fields, icon, help),
-                         styles/{tokens,base,components}.css, assets/icons.svg,
-                         guides/, vendor/, tests/, mockup/
+                         styles/components.css, assets/, guides/, vendor/, tests/, mockup/
      server/             src/moolakata/: main.py, app.py, config.py, runtime.py, listener.py,
                          middleware.py, static.py, settings.py, tasks.py, alerts.py, mail.py,
                          mcp.py, ui/ (routes per area), auth/, keys/ (the master key, its

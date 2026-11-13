@@ -6,13 +6,13 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi } from '../app/hooks.js';
 import { api } from '../api/client.js';
-import { date, money, quantity } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Chips, Empty, Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { Dec, dec, num } from '../app/dec.js';
+import { date, money, quantity } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dec, dec, num } from '../kit/dec.js';
 import { whyRead } from '../app/draft.js';
-import { Action, Attention } from './state.js';
+import { Action, Attention } from '../kit/state.js';
 
 export const PANEL_TABS = /** @type {[string, string][]} */ ([
   ['gains', 'Capital gains (8949)'],

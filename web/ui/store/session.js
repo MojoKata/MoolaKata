@@ -1,7 +1,7 @@
 // Who is signed in, and the household, from GET /ui/api/session.
 import { signal } from '@preact/signals';
 import { api } from '../api/client.js';
-import { setBitcoinUnit, setZone } from '../app/format.js';
+import { setBitcoinUnit, setZone } from '../kit/format.js';
 import { Draft, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 

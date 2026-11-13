@@ -3,27 +3,27 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { date } from '../app/format.js';
+import { date } from '../kit/format.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
-import { Avatar, Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { errAt, Field, FormError, Input, Select, TypedInput } from '../components/fields.js';
-import { toast } from '../components/toast.js';
-import { Dialog, openDialog } from '../components/dialog.js';
+import { Avatar, Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { ModelsChart } from '../charts/chart.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { applyTheme, theme } from '../store/prefs.js';
 import { loadSession, session } from '../store/session.js';
 import { AccessTokens } from '../components/tokens.js';
 import { Connections } from '../components/connections.js';
-import { num } from '../app/dec.js';
+import { num } from '../kit/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
-import { confirmAction } from '../components/confirm.js';
-import { RowTool, StatePill } from '../components/state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { RowTool, StatePill } from '../kit/state.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {

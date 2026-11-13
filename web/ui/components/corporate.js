@@ -8,8 +8,8 @@ import { useApi } from '../app/hooks.js';
 import { api } from '../api/client.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { useDialogGuide } from './help.js';
-import { Field, Select } from './fields.js';
-import { money, today } from '../app/format.js';
+import { Field, Select } from '../kit/fields.js';
+import { money, today } from '../kit/format.js';
 
 const KINDS = [
   ['split', 'Split or reverse split'],
