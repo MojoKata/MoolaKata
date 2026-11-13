@@ -257,6 +257,9 @@ input.in.bad { border-color: var(--deny); }
 .notice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--info-bg); color: var(--fg-dim); font-size: 13px; }
 .notice.warn { background: var(--ask-bg); } .notice.bad { background: var(--deny-bg); }
 .notice svg.i { margin-top: 1px; }
+[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
+.notice.attention { align-items: center; } .notice.attention .grow { flex: 1; } .attention-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.empty .empty-action { margin-left: 12px; }
 .locked-card { text-align: center; max-width: 480px; margin: 32px auto; display: grid; justify-items: center; gap: 6px; }
 .locked-card h3 { margin: 4px 0 0; }
 .locked-card p { margin: 0; }
@@ -939,6 +942,14 @@ function inp(v = '', ph = '', type = 'text') {
 const withMin = (input, v, label) => `<span class="value-input">${input}<button type="button" class="btn" data-act="fill" data-v="${v}" title="Min: ${label}" aria-label="Min: ${label}">Min</button></span>`;
 // A field with ↺, which fills in its default.
 const withReset = (input, v, label) => `<span class="pw">${input}<button type="button" class="icon-btn" data-act="fill-in" data-v="${v}" title="Use the default: ${label}" aria-label="Use the default: ${label}">${icon('reset')}</button></span>`;
+// An action (S12.19.1): `why` shows it off, reached by Tab, its reason its tooltip.
+const act = (label, why, cls = 'btn sm', attrs = '') => why
+  ? `<button type="button" class="${cls}" aria-disabled="true" title="${esc(why)}" aria-description="${esc(why)}">${label}</button>`
+  : `<button type="button" class="${cls}" ${attrs}>${label}</button>`;
+// Something needing attention (S12.19.4): one line, its actions after it.
+const attention = (text, actions = '', tone = 'warn', ic = 'info') => `<div class="notice attention ${tone}" role="status">${icon(ic)}<span class="grow">${text}</span>${actions ? `<span class="attention-actions">${actions}</span>` : ''}</div>`;
+// A count or a status (S12.19.3): a pill whose tooltip says why, reached by Tab.
+const statePill = (text, why, tone = '') => `<span class="pill ${tone}" tabindex="0" title="${esc(why)}" aria-description="${esc(why)}">${text}</span>`;
 function sw(on) { return `<button class="switch ${on ? 'on' : ''}" data-act="switch" role="switch" aria-checked="${on}"></button>`; }
 
 /* ---------- screens ---------- */
@@ -1020,7 +1031,7 @@ SCREENS.accounts = () => {
       <td class="small dim hide-sm">${a.linked ? '' : icon('sync') + ' '}${esc(a.sync)}${a.id === 'chk' ? ' <span class="pill warn" title="A balance anchor doesn’t match: see Reconcile">1 mismatch</span>' : ''}</td>
       <td class="num hide-sm">${sparkline(a.id.length * 7 + a.name.length, a.chg >= 0)}</td>
       <td class="num"><b>${money(a.bal)}</b><div class="small">${signed(a.chg)} <span class="dim">30d</span></div></td>
-      <td class="num">${a.owner === state.user && !a.linked ? `<button class="icon-btn" data-act="dlg" data-v="share" data-name="${esc(a.name)}" title="Share">${icon('share')}</button>` : ''}</td></tr>`).join('')}
+      <td class="num">${a.linked ? '' : a.owner === state.user ? `<button class="icon-btn" data-act="dlg" data-v="share" data-name="${esc(a.name)}" title="Share">${icon('share')}</button>` : act(icon('share'), 'Only its owner shares it', 'icon-btn', '')}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   }).join('')}
   <div class="group-head"><h2>Linked households</h2><span class="dim small">1</span></div>
@@ -1194,7 +1205,7 @@ function contribTab() {
   <div class="card"><h3>Rollover to a Roth IRA</h3><div class="list-item"><span class="grow dim">Possible from</span>2033-05-02 <span class="small dim">· open 15 years</span></div><div class="list-item"><span class="grow dim">Lifetime limit</span>${money(35000, { cents: false })} · used $0</div><div class="list-item"><span class="grow dim">Not eligible</span>contributions of the last 5 years</div></div></div>`;
 }
 function withdrawTab() {
-  return `<div class="card"><div class="empty" style="padding:16px 0">${icon('grad')}<div><b>No withdrawals yet</b></div><div class="small dim">When school starts, each year lists its distributions (Form 1099-Q) against the qualified expenses and their receipts, and any part not covered.</div></div>
+  return `<div class="card"><div class="empty" style="padding:16px 0">No withdrawals yet</div>
   <div class="table-wrap"><table class="t mt"><thead><tr><th>Example year</th><th class="num">Distributions</th><th class="num">Qualified expenses</th><th class="num">Not covered</th></tr></thead><tbody><tr><td class="dim">2036</td><td class="num dim">${money(46000, { cents: false })}</td><td class="num dim">${money(44200, { cents: false })}</td><td class="num"><span class="pill warn">${money(1800, { cents: false })}</span></td></tr></tbody></table></div>
   <p class="small dim">The earnings in what isn’t covered may be taxable, with a 10% additional tax. Your preparer applies the rules, and coordinates them with education credits.</p></div>
   <div class="card mt"><h3>Add a qualified expense</h3><div class="row">${field('Expense date', inp('2026-08-15', '', 'date'))}${field('Kind', sel(['Tuition and fees', 'Room and board', 'Books and supplies', 'A computer and internet', 'K-12 tuition', 'Apprenticeship', 'Student-loan repayment'], 'Tuition and fees'))}${field('Expense amount', inp('', 'ex: 22100.00', 'money'))}</div>${field('Description', inp('', 'ex: Fall tuition, State University'))}<div class="toolbar"><button class="btn sm" data-act="dlg" data-v="upload">${icon('clip')} Receipt</button><span class="spacer"></span><button class="btn primary" data-act="toast" data-v="Expense added">Add</button></div></div>`;
@@ -1295,7 +1306,7 @@ SCREENS.transactions = (param) => param === 'rules' ? txTabs('Rules') + rulesTab
     ${filterChips('tx', ['All', 'Uncategorised', 'Tax-tagged', 'With receipt'], 'All')}<span class="spacer"></span>
     <button class="btn" data-act="dlg" data-v="import">${icon('upload')} Import</button><button class="btn primary" data-act="dlg" data-v="newTx">${icon('plus')} Add</button></div>
   <details class="mt" style="margin-bottom:12px"${state.txFilters ? ' open' : ''}><summary class="small">More filters</summary><div class="row mt">${field('From', inp('', '', 'date'))}${field('To', inp('', '', 'date'))}${field('At least', inp('', 'any', 'money'))}${field('At most', inp(state.txFilters === 'below' ? '4' : '', 'any', 'money').replace('class="in"', state.txFilters === 'below' ? 'class="in bad" title="Below At least." aria-description="Below At least."' : 'class="in"'))}${field('Tag', inp(''))}</div><button type="button" class="btn sm">Clear the filters</button></details>
-  <div class="notice warn" style="margin-bottom:12px">${icon('info')}<div><b>3 uncategorised.</b> Select rows to categorise them together, or make a rule from one.</div></div>
+  <div style="margin-bottom:12px">${statePill('3 uncategorised', 'Select rows to categorise them together, or make a rule from one.', 'warn')}</div>
   ${txTable((() => { const f = state.filters.tx || 'All'; return TX.filter((t) => f === 'All' || (f === 'Uncategorised' && !t.cat) || (f === 'Tax-tagged' && t.tax) || (f === 'With receipt' && t.rc)); })())}
   ${pager('1–500 of 2,624', 2624, 'tx')}`;
 
@@ -1476,7 +1487,7 @@ SCREENS.budgets = (param) => {
     <tr><td>Sep 18</td><td>Delta Air Lines</td><td>Travel</td><td>Acme Corp</td><td class="num">${money(412.6)}</td><td>36 days</td><td><button class="btn sm" data-act="dlg" data-v="reimbursePair">Pair a payback</button></td></tr>
     <tr><td>Oct 6</td><td>City Utilities <span class="small dim">(one split)</span></td><td>Housing › Utilities</td><td>Sam</td><td class="num">${money(87.5)}</td><td>18 days</td><td></td></tr></tbody></table></div>
     <div class="notice mt" style="margin:8px">${icon('info')}<div>A deposit may pay back the Delta flight: <b>ACME CORP EXPENSE RPT</b>, ${money(412.6)} on Oct 9. <a data-act="dlg" data-v="reimbursePair">Pair it</a></div></div></div>`;
-  const banner = scenario ? `<div class="notice warn" style="margin-bottom:12px">${icon('info')}<div class="grow"><b>Scenario:</b> not the budget you follow. ${b.made || b.share}.</div><button class="btn sm" data-act="dlg" data-v="makeBudgetActive">Make active</button><button class="btn sm" data-act="tab" data-k="bud" data-v="Compare">Compare</button></div>` : '';
+  const banner = scenario ? `<div style="margin-bottom:12px">${attention('Scenario · not the budget you follow', `<button class="btn sm" data-act="dlg" data-v="makeBudgetActive">Make active</button><button class="btn sm" data-act="tab" data-k="bud" data-v="Compare">Compare</button>`)}</div>` : '';
   return `<div class="toolbar">${sel(['October 2026', 'September 2026', 'August 2026'], 'October 2026').replace('class="in"', 'class="in" style="max-width:180px" aria-label="Month"')}${sel(BUDGETS.map((x) => x.name + (x.active ? ' (active)' : '')), b.name + (b.active ? ' (active)' : '')).replace('class="in"', 'class="in" style="max-width:220px" aria-label="Budget"')}<button class="icon-btn" data-act="toast" data-v="October worked out again" title="Refresh: work the month out again" aria-label="Refresh">${icon('refresh')}</button><span class="spacer"></span><a data-go="transactions">3 uncategorised →</a><button class="btn" data-act="dlg" data-v="newBudget">${icon('plus')} New budget</button></div>${banner}${bar}${body}`;
 };
 

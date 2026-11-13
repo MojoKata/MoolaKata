@@ -118,6 +118,15 @@ def main(out: Path) -> int:
             errors.append("transactions: At most under At least isn't marked")
         page.evaluate("state.txFilters = null")
 
+        # An action not open to the reader (S12.19.1): shown off, its reason its tooltip.
+        page.evaluate("state.user = 'bob'; location.hash = '#/accounts'; render()")
+        page.wait_for_timeout(120)
+        off = page.locator("table button[aria-disabled='true'][title='Only its owner shares it']")
+        if not off.count():
+            errors.append("accounts: Share on an account shared with the reader isn't shown off")
+        shot("accounts-share-off")
+        page.evaluate("state.user = 'alice'; render()")
+
         page.evaluate("state.locked = true; location.hash = '#/settings'")
         page.wait_for_timeout(120)
         for section in index["settings"]:
