@@ -38,6 +38,14 @@ export default function DatesPage() {
         ['Enter or Space', 'Picks the day; the calendar closes and the field has the focus.'],
         ['Escape', 'Closes the calendar, the focus back in the field; a dialog around it stays.'],
         ['Tab', 'Out of the calendar closes it.'],
+        [
+          '↓ or the clock (a time)',
+          'Opens the times by the quarter hour, on its time; 7 AM to 6 PM, the chevrons show three hours more.',
+        ],
+        [
+          '← → ↑ ↓ (the times)',
+          'A quarter, an hour; Page Up and Page Down three hours; Home and End to :00 and :45.',
+        ],
       ]}
       props=${[
         ['kind', "'date' | 'time'", 'Which it is.'],

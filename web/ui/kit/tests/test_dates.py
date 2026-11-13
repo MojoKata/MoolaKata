@@ -159,27 +159,61 @@ def test_the_month_buttons_move_the_calendar_and_a_click_outside_closes_it(page,
     expect(page.locator("[data-demo='date'] .cal-pop")).to_have_count(0)
 
 
-def test_a_time_is_picked_from_the_list_by_the_keys_or_the_pointer(page, kit):
+def test_the_time_picker_shows_7_am_to_6_pm_by_the_quarter_hour(page, kit):
+    open_page(page, kit, "dates")
+    page.click("[data-demo='time'] button[aria-label='Choose a time']")
+    pop = page.locator("[data-demo='time'] .time-pop")
+    expect(pop).to_be_visible()
+    expect(pop.locator(".time-half")).to_have_text(["AM", "PM"])
+    rows = pop.locator(".time-row")
+    expect(rows).to_have_count(12)
+    expect(rows.first).to_have_text("7:00·:15·:30·:45")
+    expect(rows.last).to_have_text("6:00·:15·:30·:45")
+    # The top of the hour and its half bold; each named in full.
+    first = rows.first.locator("button")
+    assert [("bold" in (b.get_attribute("class") or "")) for b in first.all()] == [
+        True,
+        False,
+        True,
+        False,
+    ]
+    assert first.nth(1).get_attribute("aria-label") == "7:15 AM"
+    # Three hours more each way, until midnight and 11 PM are in it; then no chevron.
+    for _ in range(3):
+        pop.locator("button[aria-label='Earlier times']").click()
+    expect(rows.first).to_have_text("12:00·:15·:30·:45")
+    expect(pop.locator("button[aria-label='Earlier times']")).to_have_count(0)
+    for _ in range(2):
+        pop.locator("button[aria-label='Later times']").click()
+    expect(rows.last).to_have_text("11:00·:15·:30·:45")
+    expect(pop.locator("button[aria-label='Later times']")).to_have_count(0)
+    pop.locator("button[aria-label='10:45 PM']").click()
+    expect(field(page, "time")).to_have_value("10:45 PM")
+    expect(report(page, "time")).to_have_text('"22:45"')
+    expect(field(page, "time")).to_be_focused()
+
+
+def test_the_time_picker_by_the_keys(page, kit):
     open_page(page, kit, "dates")
     f = field(page, "time-filled")
     f.click()
     page.keyboard.press("ArrowDown")
-    expect(f).to_have_attribute("aria-expanded", "true")
-    # On the field's time: 5:30 PM, every 15 minutes.
-    active = f.get_attribute("aria-activedescendant")
-    expect(page.locator(f"#{active}")).to_have_text("5:30 PM")
-    page.keyboard.press("ArrowDown")
+    # On the field's time, 5:30 PM.
+    expect(page.locator("[data-demo='time-filled'] [data-time='17:30']")).to_be_focused()
+    for key, at in (("ArrowRight", "17:45"), ("ArrowDown", "18:45"), ("Home", "18:00"),
+                    ("ArrowDown", "19:00"), ("PageUp", "16:00"), ("End", "16:45")):  # fmt: skip
+        page.keyboard.press(key)
+        expect(page.locator(f"[data-demo='time-filled'] [data-time='{at}']")).to_be_focused()
+    # Past 6 PM, three more hours came into sight.
+    expect(page.locator("[data-demo='time-filled'] .time-row").last).to_have_text(
+        "9:00·:15·:30·:45"
+    )
     page.keyboard.press("Enter")
-    expect(f).to_have_value("5:45 PM")
-    expect(report(page, "time-filled")).to_have_text('"17:45"')
-    expect(f).to_have_attribute("aria-expanded", "false")
+    expect(f).to_have_value("4:45 PM")
+    expect(report(page, "time-filled")).to_have_text('"16:45"')
     expect(f).to_be_focused()
-    # The clock button lists them too; a click picks one; Escape closes without a pick.
-    page.click("[data-demo='time'] button[aria-label='List the times']")
-    page.click("[data-demo='time'] [role='option']:has-text('12:15 AM')")
-    expect(field(page, "time")).to_have_value("12:15 AM")
-    expect(report(page, "time")).to_have_text('"00:15"')
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Escape")
-    expect(field(page, "time")).to_have_attribute("aria-expanded", "false")
-    expect(field(page, "time")).to_have_value("12:15 AM")
+    expect(page.locator("[data-demo='time-filled'] .time-pop")).to_have_count(0)
+    expect(f).to_be_focused()
+    expect(f).to_have_value("4:45 PM")

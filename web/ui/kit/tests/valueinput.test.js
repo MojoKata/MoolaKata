@@ -56,7 +56,7 @@ Deno.test('the words read min · default · max, lower case, in that order', () 
   );
   const words = tree.filter((x) => x.type === 'button').map((b) => b.props.children);
   equal(words, ['min', 'default', 'max']);
-  equal(tree.filter((x) => x.props?.class === 'dot').length, 2);
+  equal(tree.filter((x) => x.props?.class === 'sep').length, 2);
 });
 
 Deno.test('an amount has Min and Max, named with their values, greyed while held', () => {

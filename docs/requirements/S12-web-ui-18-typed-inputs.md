@@ -88,9 +88,17 @@
     11. **Times of day**: at rest a time reads `5:30 PM`. It can be typed as `5:30 pm`,
         `5:30p`, `530p`, `5p`, `17:30`, `noon` or `midnight`; without am or pm a time is read
         on the 24-hour clock (`5:30` is morning). Anything else is marked (*Type a time, such
-        as 5:30 PM.*). A clock button at the field's right end, or ↓, lists the times of day
-        every 15 minutes below it, on the field's time: the arrows move through them, Enter or
-        a click picks one, Escape closes the list, and the focus stays in the field.
+        as 5:30 PM.*).
+        1. **The picker**: a clock button at the field's right end, or ↓, opens the times of
+           day below it by the quarter hour: a row an hour, under **AM** and **PM** headings,
+           each row the hour (`7:00`, bold), `:15`, `:30` (bold) and `:45`, a dot between,
+           lined up on their colons. It shows 7 AM to 6 PM, stretched to take in the field's
+           time; a chevron at its top right shows three hours earlier until midnight is in it,
+           one at its bottom right three hours later until 11 PM is. The field's time is
+           marked and has the focus: ← → move a quarter, ↑ ↓ an hour, Page Up and Page Down
+           three hours, Home and End to the hour's :00 and :45, showing more hours as they go
+           past those shown; Enter or a click picks, Escape closes, and the focus goes back to
+           the field.
     12. **Several of a list** (a record's tags, a gift's people): each chosen item is a chip
         with its own ×, and after them a box to type in. Typing lists the matches below it
         (tags most used first, people by name); Enter, or a comma, adds the one highlighted,

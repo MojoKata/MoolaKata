@@ -220,7 +220,7 @@ export function ValueInput(
       words.map((f, i) =>
         html`
           ${i
-            ? html`<span class="dot" aria-hidden="true">·</span>`
+            ? html`<span class="sep" aria-hidden="true">·</span>`
             : null}<button type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
             disabled=${v === f.value} onClick=${() => onInput(f.value)}>${f.text}</button>
         `

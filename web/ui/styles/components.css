@@ -1056,13 +1056,6 @@
     flex: 1;
     min-width: 160px;
   }
-  /* The form between the frame and its parts passes the frame's height on, so a tall body
-     scrolls between the header and the buttons rather than running past the frame. */
-  .dialog-form {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
   .type-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1110,14 +1103,7 @@
 
 /* What the app adds to the mockup's components. */
 @layer components {
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-  .nav-item:focus-visible,
-  .btn:focus-visible,
-  .chip:focus-visible,
-  .tab:focus-visible {
+  .nav-item:focus-visible {
     outline-offset: -2px;
   }
   .pill-dev {

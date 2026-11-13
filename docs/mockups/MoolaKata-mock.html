@@ -253,7 +253,7 @@ textarea.in { height: auto; padding: 8px 10px; min-height: 64px; }
 .value-input { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
 .value-input input { flex: 1; min-width: 0; }
 .value-bar { display: flex; justify-content: flex-end; align-items: baseline; gap: 4px; font-size: 12px; line-height: 1.2; }
-.value-bar .dot { color: var(--fg-muted); }
+.value-bar .sep { color: var(--fg-muted); }
 .link-btn { border: 0; background: transparent; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
 .link-btn:disabled { color: var(--fg-muted); cursor: default; }
 .pw input.in { padding-right: 38px; }
@@ -296,7 +296,17 @@ input.in.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tag-box .before svg { width: 12px; height: 12px; }
 .tag-wrap { position: relative; }
 .tag-list.up { top: auto; bottom: calc(100% + 4px); }
-.time-list { width: 160px; right: auto; max-height: 220px; overflow-y: auto; }
+.time-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px 34px 8px 8px; }
+.time-half { display: flex; align-items: center; justify-content: space-between; min-height: 26px; padding: 2px 0 0 4px; margin-right: -30px; font-size: 11px; font-weight: 600; color: var(--fg-muted); }
+.time-row { display: grid; grid-template-columns: 3.4em auto 2.4em auto 2.4em auto 2.4em; align-items: center; column-gap: 2px; }
+.time-row .sep { color: var(--fg-muted); text-align: center; }
+.time-q { height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-dim); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; text-align: left; padding: 0 3px; }
+.time-q.hour { text-align: right; }
+.time-q.bold { font-weight: 650; color: var(--fg); }
+.time-q:hover { background: var(--bg-4); }
+.time-q.on { background: var(--accent); color: var(--on-accent); }
+.time-more { width: 24px; height: 24px; }
+.time-more.down { position: absolute; right: 4px; bottom: 9px; }
 .tag-box .tag:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .tag-list { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 4px; }
 .tag-list [role=option] { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
@@ -479,7 +489,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
   <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
   <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.5-1.5 0-1.2-1-1.5-1-2.5s.8-1.5 1.8-1.5H17a4 4 0 0 0 4-4c0-4.7-4-8.5-9-8.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
-  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol><symbol id="i-chevs-up" viewBox="0 0 24 24"><path d="M7 12l5-5 5 5M7 18l5-5 5 5"/></symbol><symbol id="i-chevs-down" viewBox="0 0 24 24"><path d="M7 6l5 5 5-5M7 12l5 5 5-5"/></symbol>
   <symbol id="i-clip" viewBox="0 0 24 24"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
   <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 1.07-4M4 4v4h4"/></symbol>
@@ -1041,14 +1051,26 @@ function calendar(iso) {
   const cells = Array.from({ length: 42 }, (_, i) => i - first + 1);
   return `<div class="cal-pop" role="dialog" aria-label="Choose a date"><div class="cal-head"><button type="button" class="icon-btn" aria-label="Previous month">${icon('chev')}</button><b>${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1]} ${y}</b><button type="button" class="icon-btn next" aria-label="Next month">${icon('chev')}</button></div><div class="cal-grid" role="grid">${['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w) => `<span class="wd">${w}</span>`).join('')}${cells.map((n) => (n < 1 || n > days ? '<span class="out"></span>' : `<button type="button" data-act="cal-pick" data-v="${y}-${String(m).padStart(2, '0')}-${String(n).padStart(2, '0')}" class="${n === d ? 'on' : ''}${y === 2026 && m === 10 && n === 12 ? ' today' : ''}" tabindex="${n === d ? 0 : -1}">${n}</button>`)).join('')}</div></div>`;
 }
-// The times of day every 15 minutes, under a time field, on its time (S12.18.11).
+// The times of day by the quarter hour under a time field (S12.18.11): a row an hour under AM
+// and PM, :00 and :30 bold; 7 AM to 6 PM, the chevrons showing three hours more each way.
+function timePicker(at, from, to) {
+  const rows = [];
+  for (let h = from; h <= to; h++) {
+    if (h === from || h === 12) rows.push(`<div class="time-half">${h < 12 ? 'AM' : 'PM'}${h === from && from > 0 ? `<button type="button" class="icon-btn time-more" data-act="times-more" data-v="-3" aria-label="Earlier times">${icon('chevs-up')}</button>` : ''}</div>`);
+    const l = h % 12 || 12, half = h < 12 ? 'AM' : 'PM';
+    rows.push(`<div class="time-row">${[0, 15, 30, 45].map((q, i) => { const t = `${l}:${String(q).padStart(2, '0')} ${half}`; return `${i ? '<span class="sep">·</span>' : ''}<button type="button" class="time-q${q % 30 ? '' : ' bold'}${q ? '' : ' hour'}${t === at ? ' on' : ''}" data-act="time-pick" data-v="${t}" aria-label="${t}">${q ? `:${q}` : `${l}:00`}</button>`; }).join('')}</div>`);
+  }
+  return `<div class="time-pop" data-from="${from}" data-to="${to}">${rows.join('')}${to < 23 ? `<button type="button" class="icon-btn time-more down" data-act="times-more" data-v="3" aria-label="Later times">${icon('chevs-down')}</button>` : ''}</div>`;
+}
 function openTimes(btn) {
-  const at = btn.closest('.date-in'), open = at.querySelector('.time-list');
+  const at = btn.closest('.date-in'), open = at.querySelector('.time-pop');
   if (open) { open.remove(); return; }
-  const now = at.querySelector('input').value;
-  const times = Array.from({ length: 96 }, (_, i) => timeRead(`${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`));
-  at.insertAdjacentHTML('beforeend', `<div class="tag-list time-list" role="listbox">${times.map((t) => `<div role="option" data-act="time-pick" data-v="${t}" aria-selected="${t === now}">${t}</div>`).join('')}</div>`);
-  at.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' });
+  at.insertAdjacentHTML('beforeend', timePicker(at.querySelector('input').value, 7, 18));
+}
+function moreTimes(btn, by) {
+  const at = btn.closest('.date-in'), pop = at.querySelector('.time-pop');
+  const from = +pop.dataset.from, to = +pop.dataset.to;
+  pop.outerHTML = timePicker(at.querySelector('input').value, by < 0 ? Math.max(0, from + by) : from, by > 0 ? Math.min(23, to + by) : to);
 }
 function openCalendar(btn) {
   const at = btn.closest('.date-in'), open = at.querySelector('.cal-pop');
@@ -1060,7 +1082,7 @@ function openCalendar(btn) {
 }
 // A field and, under it at its right, the words that fill it in (R3.11): min · default · max
 // (all for a count), small, read as links, each named with its value as its tooltip.
-const withWords = (input, words) => `<span class="value-input">${input}<span class="value-bar">${words.map(([text, v, label], i) => `${i ? '<span class="dot" aria-hidden="true">·</span>' : ''}<button type="button" class="link-btn" data-act="fill" data-v="${v}" title="${label}" aria-label="${label}">${text}</button>`).join('')}</span></span>`;
+const withWords = (input, words) => `<span class="value-input">${input}<span class="value-bar">${words.map(([text, v, label], i) => `${i ? '<span class="sep" aria-hidden="true">·</span>' : ''}<button type="button" class="link-btn" data-act="fill" data-v="${v}" title="${label}" aria-label="${label}">${text}</button>`).join('')}</span></span>`;
 const withMin = (input, v, label) => withWords(input, [['min', v, `Min: ${label}`]]);
 const withReset = (input, v, label) => withWords(input, [['default', v, `Use the default: ${label}`]]);
 // An action (S12.19.1): `why` shows it off, reached by Tab, its reason its tooltip.
@@ -2571,7 +2593,7 @@ DIALOGS.editTxStale = () => ({ ...DIALOGS.editTx(), body: `<div class="notice" s
 DIALOGS.settingsDiscard = () => ({ title: 'Save your changes?', more: '<button class="btn danger" data-act="discard">Discard</button>', body: `<p class="small dim" style="margin:0">What you changed in Settings › General isn’t saved. Save it, or discard it and go on.</p>`, ok: 'Save', cancel: 'Keep editing', focusCancel: true });
 DIALOGS.newTx = (d = {}) => ({ title: 'Add transaction', body: `${field('Account', sel(visibleAccounts().filter((a) => !a.linked).map((a) => a.name), 'Everyday Checking'))}<div class="row">${field('Date', inp('2026-10-10', '', 'date'))}${field('Amount', inp('-42.00', '', 'money'))}</div>${field('Payee', inp(''))}${field('Category', sel(['Food › Groceries', 'Food › Dining', 'Housing › Utilities', 'New category…', 'Split…'], 'Food › Dining'))}${field('Memo', inp(''))}${field('Tags', d.tags || tagBox([], 'ex: coffee, work'))}`, ok: 'Add', after: d.after });
 // Its date's calendar open (S12.18.10.1), and a tag being typed with its matches listed (S12.18.12).
-DIALOGS.alertTimes = () => ({ title: 'Daily summary', body: `<div style="min-height:280px">${field('Daily summary at', inp('07:00', '', 'time'), 'In each person’s time zone.')}</div>`, ok: 'Save', after: (s) => openTimes(s.querySelector('[data-act=times]')) });
+DIALOGS.alertTimes = () => ({ title: 'Daily summary', body: `<div style="min-height:470px">${field('Daily summary at', inp('07:00', '', 'time'), 'In each person’s time zone.')}</div>`, ok: 'Save', after: (s) => openTimes(s.querySelector('[data-act=times]')) });
 DIALOGS.newTxCalendar = () => DIALOGS.newTx({ after: (s) => openCalendar(s.querySelector('[data-act=calendar]')) });
 DIALOGS.newTxTags = () => DIALOGS.newTx({ tags: tagBox(['dining'], '', { typed: 'wo', up: true, list: [['work', 41], ['work trips', 6], ['woodworking', 2], ['Make the tag “wo”', null]] }), after: (s) => s.querySelector('.tag-box input').focus() });
 // New category… chosen: the new one's fields open below, saved with the transaction (S12.15.7).
@@ -3341,7 +3363,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && termOpen
 document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (e.key === 'ArrowDown' && t.dataset?.kind === 'date' && !t.closest('.date-in').querySelector('.cal-pop')) { e.preventDefault(); openCalendar(t); }
-  else if (e.key === 'ArrowDown' && t.dataset?.kind === 'time' && !t.closest('.date-in').querySelector('.time-list')) { e.preventDefault(); openTimes(t); }
+  else if (e.key === 'ArrowDown' && t.dataset?.kind === 'time' && !t.closest('.date-in').querySelector('.time-pop')) { e.preventDefault(); openTimes(t); }
   else if (e.key === 'Escape' && t.closest?.('.cal-pop')) { e.stopPropagation(); const at = t.closest('.date-in'); at.querySelector('.cal-pop').remove(); at.querySelector('input').focus(); }
 }, true);
 document.addEventListener('scroll', () => termOpen && !placeTerm() && hideTerm(0), true);
@@ -3504,7 +3526,8 @@ document.addEventListener('click', (e) => {
     case 'mock': e.stopPropagation(); $('#menu') ? closeMenu() : mockMenu(t); break;
     case 'calendar': openCalendar(t); break;
     case 'times': openTimes(t); break;
-    case 'time-pick': { const at = t.closest('.date-in'), f = at.querySelector('input'); f.value = v; at.querySelector('.time-list').remove(); f.focus(); break; }
+    case 'time-pick': { const at = t.closest('.date-in'), f = at.querySelector('input'); f.value = v; at.querySelector('.time-pop').remove(); f.focus(); break; }
+    case 'times-more': moreTimes(t, +v); break;
     case 'cal-pick': { const at = t.closest('.date-in'), inpEl = at.querySelector('input'); inpEl.value = dateRead(v); at.querySelector('.cal-pop').remove(); inpEl.focus(); break; }
     case 'tag-x': { const box = t.closest('.tag-box'); t.closest('.tag').remove(); box.querySelector('input').focus(); break; }
     case 'tag-first': t.closest('.tag-box').scrollLeft = 0; break;

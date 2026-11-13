@@ -219,3 +219,27 @@ Deno.test('the bounds: outside which, and held within', () => {
     within('2026-10-10', null, null),
   ], [null, min, max, '2026-10-10', '2026-10-10']);
 });
+
+Deno.test("the time picker's hours, and where each key moves its time", async () => {
+  const g = /** @type {any} */ (globalThis);
+  g.document ??= { querySelector: () => null, getElementById: () => null };
+  const { hoursShown, moveTime } = await import('../date-input.js');
+  equal([hoursShown(null), hoursShown(9), hoursShown(5), hoursShown(22)], [
+    [7, 18],
+    [7, 18],
+    [5, 18],
+    [7, 22],
+  ]);
+  const at = 9 * 60 + 15; // 9:15
+  equal(
+    ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'x']
+      .map((k) => moveTime(at, k)),
+    [540, 570, 495, 615, 375, 735, 540, 585, undefined],
+  );
+  // Held within the day.
+  equal([moveTime(0, 'ArrowLeft'), moveTime(23 * 60 + 45, 'ArrowRight'), moveTime(60, 'PageUp')], [
+    0,
+    1425,
+    0,
+  ]);
+});
