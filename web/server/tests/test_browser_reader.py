@@ -110,12 +110,14 @@ def test_a_reader_with_a_budget_of_their_own_leaves_a_transaction_out_of_it(
     page, problems = signed_in_as_reader(
         browser, h, f"/ui/accounts/{h.checking['id']}/transactions", "table tbody tr .row-tool"
     )
-    tool = page.locator("table tbody tr .row-tool").first
-    label = tool.get_attribute("aria-label")
-    assert label.startswith("Leave ") and label.endswith(" out of your budgets"), label
+    # The hotel bill, split in two: what it holds beyond its row is one line.
+    tool = page.locator('tr:has-text("Grand Hotel") .row-tool')
+    assert tool.get_attribute("aria-label") == "Leave Grand Hotel out of your budgets"
     tool.click()
     wait(page, ".dialog [role=switch]", problems)
     dialog = page.locator(".dialog")
+    beyond = dialog.locator(".body p.small").first.inner_text()
+    assert beyond.startswith("Money out · split: Travel −$200.00, Travel −$100.00"), beyond
     assert re.fullmatch(r".+ · [A-Z][a-z]{2} \d{1,2}, \d{4} · −?\$[\d,]+\.\d\d",
                         page.locator("#dialog-title").inner_text())  # fmt: skip
     assert dialog.locator(".in.read, input:not([type=file]), select, textarea").count() == 0
