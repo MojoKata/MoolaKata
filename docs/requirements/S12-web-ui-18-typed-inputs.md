@@ -120,9 +120,12 @@
            end (the box to type in) at rest, and a count over its left edge (‹ 3) says how
            many chips are out of sight there; a click on it goes back to the first, and a
            screen reader reads it as *3 before*.
-    13. **The focus stays with the field**: a click on anything in or under it (its ×, a word
+    13. **The focus and the keys stay with the field**: a click on anything in or under it (its ×, a word
         under it, a list's option, a calendar's day, a picker's time, a chevron) leaves the
-        focus in the field, never on the page.
+        focus in the field, never on the page. In anything typed into, Home and End go to the
+        start and end of the line as drawn (with Shift, selecting to it; with Ctrl or Cmd, in a
+        box of several lines, to its start and end), on a Mac too, where a browser would
+        otherwise scroll the page; an open list's Home and End stay its own.
     14. **Small counts are stepped**: a whole number with bounds a hundred or so apart (months
         lived with a dependent, a loan's term and draw period, a wallet's gap limit, the days
         of backups kept, the years receipts and statements are kept, lockout failures, a

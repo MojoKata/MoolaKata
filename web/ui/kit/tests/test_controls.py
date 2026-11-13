@@ -351,3 +351,42 @@ def test_dialogs_stack_three_deep_each_narrower_and_taller_and_close_one_at_a_ti
         expect(page.locator(".dialog")).to_have_count(depth)
         page.wait_for_timeout(200)
         expect(page.locator(".dialog")).to_have_count(depth)
+
+
+def test_home_and_end_go_to_the_lines_ends_in_anything_typed_into(page, kit):
+    open_page(page, kit, "fields")
+    # Whether a key reached the page with its default stopped: the kit took it.
+    page.evaluate(
+        "() => document.addEventListener('keydown', (e) => { window.taken = e.defaultPrevented })"
+    )
+    sel = "e => [e.selectionStart, e.selectionEnd, e.selectionDirection]"
+    one = page.locator("[data-demo='home-end'] input")
+    one.click()
+    n = len(one.input_value())
+    one.evaluate("e => e.setSelectionRange(10, 10)")
+    page.keyboard.press("End")
+    assert one.evaluate(sel)[:2] == [n, n]
+    assert page.evaluate("window.taken")
+    page.keyboard.press("Home")
+    assert one.evaluate(sel)[:2] == [0, 0]
+    page.keyboard.press("Shift+End")
+    assert one.evaluate(sel) == [0, n, "forward"]
+
+    box = page.locator("[data-demo='home-end'] textarea")
+    box.click()
+    text = box.input_value()
+    at = 70  # on a line drawn after the first: the memo wraps
+    box.evaluate(f"e => e.setSelectionRange({at}, {at})")
+    page.keyboard.press("Home")
+    home = box.evaluate(sel)[0]
+    assert 0 < home < at and text[home - 1] == " ", "the drawn line's start, not the text's"
+    page.keyboard.press("End")
+    end = box.evaluate(sel)[0]
+    assert at < end < len(text)
+    page.keyboard.press("Shift+Home")
+    assert box.evaluate(sel) == [home, end, "backward"]
+    page.keyboard.press("Control+End")
+    assert box.evaluate(sel)[:2] == [len(text), len(text)]
+    page.keyboard.press("Control+Shift+Home")
+    assert box.evaluate(sel)[:2] == [0, len(text)]
+    expect(box).to_be_focused()

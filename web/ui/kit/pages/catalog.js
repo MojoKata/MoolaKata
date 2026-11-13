@@ -10,6 +10,7 @@ import { MenuHost } from '../menu.js';
 import { Toasts } from '../toast.js';
 import { installTooltips, TooltipHost } from '../tooltip.js';
 import { checkOnSubmit } from '../fields.js';
+import { homeEndInText } from '../keys.js';
 import NumbersPage from './numbers.js';
 import TagsPage from './tags.js';
 import DatesPage from './dates.js';
@@ -76,4 +77,5 @@ function Catalog() {
 
 installTooltips();
 checkOnSubmit();
+homeEndInText();
 render(html`<${Catalog} />`, /** @type {HTMLElement} */ (document.getElementById('kit')));

@@ -119,7 +119,7 @@
           blocks (tabs,
           chips, avatars, tiles, loading and failure, amounts and percents, and the
           components of S17.3.9.9); and the overlays (the dialog shell and its stack, the
-          question before an action, menus, tooltips, toasts, the pager). What knows records,
+          question before an action, menus, tooltips, toasts, the pager); and the keys every field shares (Home and End in typed text). What knows records,
           drafts, guides, screens or the server stays in the app: `RecField` binds a kit
           control to a record's field, a dialog's guide and its guard against losing changes
           are passed to the dialog shell, and so is the pager's page size.

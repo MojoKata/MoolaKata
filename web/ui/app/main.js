@@ -17,6 +17,7 @@ import { MenuHost } from '../kit/menu.js';
 import { Toasts } from '../kit/toast.js';
 import { installTooltips, TooltipHost } from '../kit/tooltip.js';
 import { checkOnSubmit, linkRecords } from '../kit/fields.js';
+import { homeEndInText } from '../kit/keys.js';
 import { formChanges, installGuard } from './guard.js';
 import { endTour } from '../store/tour.js';
 import { paneWidth } from '../components/help.js';
@@ -129,6 +130,8 @@ document.addEventListener('keydown', (e) => {
 installTooltips();
 // Before any form's own submit, so a typed input marked stops it (S12.18.3).
 checkOnSubmit();
+// Home and End to the line's ends in anything typed into, a Mac too (S12.18.13).
+homeEndInText();
 // Before the router, so a screen's form hears Back first (S12.15.6).
 installGuard();
 whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' : 'expired'));

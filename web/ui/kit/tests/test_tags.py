@@ -204,3 +204,21 @@ def test_a_click_picks_from_the_list_and_on_the_box_takes_the_focus(page, kit):
     page.click("[data-demo='tags'] [role='option'].new")
     assert chips(page, "tags") == ["medical", "hobby"]
     expect(report(page, "tags")).to_have_text('["medical","hobby"]')
+
+
+def test_an_open_list_keeps_home_and_end_and_a_closed_one_gives_them_to_the_caret(page, kit):
+    open_page(page, kit, "tags")
+    d = "[data-demo='tags']"
+    b = box(page, "tags")
+    b.click()
+    page.keyboard.type("o")
+    options = page.locator(f"{d} [role='option']")
+    expect(options.first).to_be_visible()
+    page.keyboard.press("End")
+    expect(options.last).to_have_attribute("aria-selected", "true")
+    assert b.evaluate("e => e.selectionStart") == 1, "the caret stays"
+    page.keyboard.press("Home")
+    expect(options.first).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Home")
+    assert b.evaluate("e => e.selectionStart") == 0

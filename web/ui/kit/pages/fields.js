@@ -53,6 +53,10 @@ export default function FieldsPage() {
           '↓ / ↑',
           'A list: its options. A small count: a step down or up (Page Down / Page Up: ten).',
         ],
+        [
+          'Home / End',
+          'Anything typed into: the start or end of the line as drawn (Shift: selecting to it); with Ctrl or Cmd, in a box of several lines, its start or end.',
+        ],
       ]}
       props=${[
         [
@@ -125,6 +129,21 @@ export default function FieldsPage() {
               suffix="days" />
             </${Field}>
         `}</${Kept}>
+      <${Kept} id="home-end" title="Home and End in typed text"
+        note="Home and End go to the start and end of the line as drawn, Shift selecting; Ctrl or Cmd with them, in the box of several lines, to its start and end. A Mac too, where a browser would scroll the page."
+        first="Rent, the car's insurance and the last of the school fees, paid from savings this month while the bonus clears; next month the account is topped back up.">${(
+          v,
+          set,
+        ) =>
+          html`
+            <${Field} label="Payee" id="home-end-line">
+              <input class="in" value="Whole Foods Market, South Lamar, Austin" />
+              </${Field}>
+              <${Field} label="Memo" id="home-end">
+                <textarea class="in" rows="4" style="height:auto" value=${v}
+                  onInput=${(/** @type {any} */ e) => set(e.currentTarget.value)}></textarea>
+                </${Field}>
+          `}</${Kept}>
       <${Kept} id="select" title="A list" first="">${(v, set) =>
         html`
           <${Field} label="Kind" id="select">

@@ -3714,6 +3714,16 @@ document.addEventListener('keydown', (e) => {
     closeMenu(); leaveDialog();
   }
 });
+// Home and End in anything typed into: the drawn line's ends (Shift selecting), Ctrl or Cmd the
+// box's; a Mac's browsers would scroll the page instead (S12.18.13).
+document.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (e.defaultPrevented || e.altKey || (e.key !== 'Home' && e.key !== 'End')) return;
+  if (!(el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.selectionStart !== null))) return;
+  e.preventDefault();
+  const all = el instanceof HTMLTextAreaElement && (e.ctrlKey || e.metaKey);
+  getSelection().modify(e.shiftKey ? 'extend' : 'move', e.key === 'Home' ? 'backward' : 'forward', all ? 'documentboundary' : 'lineboundary');
+});
 addEventListener('hashchange', () => { closeAllDialogs(); render(); helpFor(null); });
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
 render(); helpFor(null);
