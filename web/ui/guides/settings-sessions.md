@@ -6,7 +6,8 @@ How long a sign-in lasts and when repeated failures lock the address they come f
 
 ## Idle timeout {#idle-timeout}
 
-Hours without using MoolaKata before a session ends. 8 by default.
+Hours without using MoolaKata before a session ends: 1 to 168 (a week), 8 by default. The
+chevrons, and ↑ ↓, step by 4 hours, to a multiple of 4; Page Up and Page Down by 40.
 
 ## Longest session {#longest-session}
 

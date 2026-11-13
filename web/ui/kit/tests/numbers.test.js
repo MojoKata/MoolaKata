@@ -162,3 +162,10 @@ Deno.test('what a field holds: a decimal, a number, or the smallest unit', () =>
   equal(valueOf('12a', {}), undefined);
   equal(textOf(null, {}), '');
 });
+
+Deno.test('a field with no places refuses a point, and keeps what it had', () => {
+  const way = { entry: /** @type {const} */ ('natural'), places: 0, negative: false };
+  const e = { text: '12,345', start: 6, end: 6 };
+  equal(typeNatural(e, { insert: '.' }, way), { ...e, refused: 'Whole numbers only.' });
+  equal(typeNatural(e, { insert: '6' }, way).text, '123,456');
+});

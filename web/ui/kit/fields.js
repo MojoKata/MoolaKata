@@ -17,6 +17,7 @@ import {
   valueOf,
 } from './numbers.js';
 import { DateInput, TimeInput } from './date-input.js';
+import { useFormats } from './formats.js';
 
 /**
  * The page of the record an id names, or null: a list of references reads as a link to the
@@ -273,9 +274,9 @@ export function ValueInput(
  * @param {{ kind: string, bounds: import('./kinds.js').Bounds,
  *   format?: (n: any) => string, mark: string | null, onMark: (m: string | null) => void,
  *   onInput: (v: string) => void, onCommit?: (v: string, ok: boolean) => void,
- *   way?: import('./numbers.js').Way | null }} p
+ *   way?: import('./numbers.js').Way | null, now?: string }} p
  */
-export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onCommit, way }) {
+export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onCommit, way, now }) {
   const k = kindOf(kind);
   /** What the field holds: its text, less a number's grouping. @param {HTMLInputElement} el */
   const read = (el) => (way ? ungroup(el.value) : el.value);
@@ -329,7 +330,7 @@ export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onC
     onInput(el.value);
   };
   const commit = (/** @type {string} */ v) => {
-    const m = check(k, bounds, v, format);
+    const m = check(k, bounds, v, format, now);
     onMark(m);
     onCommit?.(v, !m);
     return m;
@@ -412,13 +413,14 @@ export function typedHandlers({ kind, bounds, format, mark, onMark, onInput, onC
  * An amount or a quantity groups as it is typed (S12.18.8): `entry` says how (`register` for
  * dollars, `natural` for the rest, as its kind has it; `none` types it as text), and `places`
  * how many places it has. `prefix` and `suffix` are its unit, shown in the field (S12.18.9):
- * an amount's `$` is its kind's, `prefix={null}` leaves it out.
+ * an amount's `$` is its kind's, `prefix={null}` leaves it out. A date's `today` and `tomorrow`
+ * are in its `timezone`, its part of the page's (`Formats`), or the person's.
  * @param {{ kind?: string, value: string, onInput: (v: string) => void,
  *   onCommit?: (v: string, ok: boolean) => void, mark?: string | null, negative?: boolean,
  *   above?: number | string, atMost?: number | string, min?: number | string, max?: number | string, noun?: string, format?: (n: any) => string,
  *   clear?: boolean, reset?: { value: string, label: string }, fill?: Fill[], bad?: boolean,
  *   entry?: 'natural' | 'register' | 'none', places?: number | null, prefix?: string | null,
- *   suffix?: string | null, readonly?: boolean, [k: string]: any }} p
+ *   suffix?: string | null, readonly?: boolean, timezone?: string, [k: string]: any }} p
  */
 export function TypedInput(
   {
@@ -433,6 +435,7 @@ export function TypedInput(
     bad,
     readonly,
     entry,
+    timezone,
     places,
     prefix,
     suffix,
@@ -471,6 +474,8 @@ export function TypedInput(
       negative: !!bounds.negative,
     }
     : null;
+  // Today where this field is: its own time zone, its part of the page's, or the person's.
+  const now = useFormats({ timezone }).today();
   const handlers = typedHandlers({
     kind,
     bounds,
@@ -480,6 +485,7 @@ export function TypedInput(
     onInput,
     onCommit,
     way,
+    now,
   });
   // The mark is the field's tooltip, and its description for a screen reader.
   const marked = {
@@ -494,7 +500,8 @@ export function TypedInput(
       rest;
     const C = kind === 'date' ? DateInput : TimeInput;
     return html`
-      <${C} value=${value} min=${min} max=${max} ...${pass} ...${handlers}
+      <${C} value=${value} min=${min} max=${max} today=${kind === 'date' ? now : undefined}
+        ...${pass} ...${handlers}
         onBeforeInput=${undefined} onPaste=${undefined} onDrop=${undefined} ...${marked} />
     `;
   }
@@ -520,26 +527,58 @@ export function TypedInput(
  * how many places what is shown and typed sits from what is held: bitcoin held in BTC and
  * shown in sats is 8; held in sats and shown in BTC, with `minor` and 8 `minorDigits`, 0.
  * `onChange` hears what is held, or null for a blank; text that can't be held yet is kept and
- * marked. The rest is `<TypedInput>`'s (a `quantity` by default).
+ * marked. `bitcoin` makes it a bitcoin amount (held in BTC, or in sats with `minor`), typed and
+ * shown in its `bitcoinUnit`, its part of the page's (`Formats`), or the person's, with that
+ * unit after it. The rest is `<TypedInput>`'s (a `quantity` by default).
  * @param {{ value: any, onChange: (v: any) => void, valueType?: 'dec' | 'number' | 'minor',
- *   minorDigits?: number, show?: number, kind?: string, [k: string]: any }} p
+ *   minorDigits?: number, show?: number, kind?: string, bitcoin?: boolean,
+ *   bitcoinUnit?: 'btc' | 'sats', [k: string]: any }} p
  */
 export function NumberInput(
-  { value, onChange, valueType, minorDigits, show, kind = 'quantity', ...rest },
+  {
+    value,
+    onChange,
+    valueType,
+    minorDigits,
+    show,
+    kind = 'quantity',
+    bitcoin,
+    bitcoinUnit,
+    ...rest
+  },
 ) {
-  const held = { valueType, minorDigits, show };
+  const unit = useFormats({ bitcoinUnit }).bitcoinUnit;
+  const sats = !!bitcoin && unit === 'sats';
+  const held = {
+    valueType,
+    minorDigits: minorDigits ?? (bitcoin ? 8 : undefined),
+    show: show ?? (bitcoin ? (sats ? 8 : 0) : undefined),
+  };
+  // Typed to the places what is held has, and no more (S12.18.8): sats are whole.
+  const places = rest.places !== undefined
+    ? rest.places
+    : held.minorDigits != null && valueType !== 'number'
+    ? Math.max(0, held.minorDigits - (held.show ?? 0))
+    : undefined;
+  const suffix = rest.suffix ?? (bitcoin ? (sats ? 'sats' : 'BTC') : undefined);
   const [text, setText] = useState(() => textOf(value, held));
   const [mark, setMark] = useState(/** @type {string | null} */ (null));
-  // What this field last said it holds: a value the caller sets otherwise is shown afresh.
+  // What this field last said it holds: a value the caller sets otherwise is shown afresh, and
+  // so is one shown another way (the bitcoin unit changed).
   const sent = useRef(/** @type {any} */ (value));
-  if (String(value ?? '') !== String(sent.current ?? '')) {
+  const way = useRef(`${held.show}|${held.minorDigits}`);
+  if (
+    String(value ?? '') !== String(sent.current ?? '') ||
+    way.current !== `${held.show}|${held.minorDigits}`
+  ) {
     sent.current = value;
+    way.current = `${held.show}|${held.minorDigits}`;
     const t = textOf(value, held);
     if (t !== text) setText(t);
   }
   const why = valueType === 'number'
     ? 'At most 15 digits.'
-    : `At most ${(minorDigits ?? 0) - (show ?? 0)} places.`;
+    : `At most ${(held.minorDigits ?? 0) - (held.show ?? 0)} places.`;
   return html`
     <${TypedInput} kind=${kind} value=${text} mark=${mark || rest.mark} onInput=${(
       /** @type {string} */ t,
@@ -555,15 +594,15 @@ export function NumberInput(
       sent.current = v;
       onChange(v);
     }}
-      ...${rest} />
+      ...${rest} suffix=${suffix} places=${places} />
   `;
 }
 
 /**
  * A small whole number stepped up and down (a few months, a gap limit, contracts): the field,
  * and at its right end a pair of chevrons that step it by `step`, as ↑ and ↓ do (Page Up and
- * Page Down by ten steps), held within `min` and `max`, each chevron off at its end. A blank
- * steps from `min` (or 0). The focus stays in the field; what is typed is checked as a count's
+ * Page Down by ten steps), held within `min` and `max`, each chevron off at its end; a step
+ * lands on a multiple of `step` (37 ↑ by 5 is 40). A blank steps from `min` (or 0). The focus stays in the field; what is typed is checked as a count's
  * is. The rest is `<TypedInput>`'s.
  * @param {{ value: string, onInput: (v: string) => void, min?: number, max?: number,
  *   step?: number, id?: string, [k: string]: any }} p
@@ -575,8 +614,13 @@ export function SpinInput({ value, onInput, min, max, step = 1, ...rest }) {
   const n = /^-?\d+$/.test(String(value ?? '').trim()) ? Number(value) : null;
   const held = (/** @type {number} */ x) =>
     Math.min(max ?? Infinity, Math.max(min ?? -Infinity, x));
-  /** @param {number} by */
-  const stepBy = (by) => onInput(String(held(n === null ? (min ?? 0) : n + by)));
+  /** By a number of steps, landing on a multiple of the step (37 ↑ by 5 is 40), within the
+   * bounds; a blank steps from the least. @param {number} by */
+  const stepBy = (by) => {
+    if (n === null) return onInput(String(held(min ?? 0)));
+    const k = Math.round(by / step);
+    onInput(String(held((k > 0 ? Math.floor(n / step) : Math.ceil(n / step)) * step + k * step)));
+  };
   /** A chevron clicked: a step, and the focus in the field. @param {any} e @param {number} by */
   const click = (e, by) => {
     stepBy(by);

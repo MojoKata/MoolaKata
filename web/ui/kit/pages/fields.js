@@ -114,6 +114,14 @@ export default function FieldsPage() {
             <${Select} value=${v} onChange=${set} options=${KINDS} clear=${true} />
             </${Field}>
         `}</${Kept}>
+      <${Kept} id="spin-step" title="A count stepped by 5" first="37">${(v, set) =>
+        html`
+          <${Field} label="Largest file" id="spin-step">
+            <${SpinInput} value=${v} onInput=${set} min=${1} max=${200}
+              step=${5}
+              suffix="MB" />
+            </${Field}>
+        `}</${Kept}>
       <${Kept} id="spin-clear" title="A small count with ×" first="6">${(v, set) =>
         html`
           <${Field} label="Months" id="spin-clear">

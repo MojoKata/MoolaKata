@@ -17,7 +17,7 @@ import {
   timeText,
   within,
 } from './dates.js';
-import { today as todayInZone } from './format.js';
+import { useFormats } from './formats.js';
 
 const WEEKDAYS = [
   ['Su', 'Sunday'],
@@ -119,17 +119,19 @@ export function Calendar({ value, today, min, max, onPick, onClose, label = 'Cho
  * the focus comes back to the field when it closes. `onInput` hears the date as `YYYY-MM-DD`
  * as soon as what is typed reads as one, else what is typed.
  * @param {{ value: string | null | undefined, onInput: (v: string) => void, min?: string | null,
- *   max?: string | null, today?: string, id?: string, placeholder?: string, bad?: boolean,
- *   disabled?: boolean, [k: string]: any }} p
+ *   max?: string | null, today?: string, timezone?: string, id?: string, placeholder?: string,
+ *   bad?: boolean, disabled?: boolean, [k: string]: any }} p
  */
 export function DateInput(
-  { value, onInput, min, max, today, id, placeholder, bad, disabled, ...rest },
+  { value, onInput, min, max, today, timezone, id, placeholder, bad, disabled, ...rest },
 ) {
   const [typing, setTyping] = useState(/** @type {string | null} */ (null));
   const [open, setOpen] = useState(false);
   const wrap = useRef(/** @type {HTMLSpanElement | null} */ (null));
   const input = useRef(/** @type {HTMLInputElement | null} */ (null));
-  const now = today || todayInZone();
+  // Today: as given, else in its time zone, its part of the page's, or the person's.
+  const zoned = useFormats({ timezone }).today();
+  const now = today || zoned;
   const v = String(value ?? '');
   const iso = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
   const shown = typing ?? (iso ? dateText(iso) : v);

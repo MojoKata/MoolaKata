@@ -154,3 +154,22 @@ def test_each_way_of_holding_a_number_reports_what_it_holds(page, kit):
     btc.select_text()
     page.keyboard.type("1.5")
     expect(report(page, "sats-in-btc")).to_have_text("150000000n")
+
+
+def test_bitcoin_is_typed_in_the_pages_unit_unless_the_field_names_its_own(page, kit):
+    open_page(page, kit, "numbers")
+    sats = field(page, "btc-page-unit")
+    expect(sats).to_have_value("12,345")
+    expect(page.locator("[data-demo='btc-page-unit'] .unit.post")).to_have_text("sats")
+    sats.click()
+    sats.press("Control+a")
+    page.keyboard.type("100000000")
+    expect(report(page, "btc-page-unit")).to_have_text('"1"')
+    own = field(page, "btc-own-unit")
+    expect(own).to_have_value("0.00012345")
+    expect(page.locator("[data-demo='btc-own-unit'] .unit.post")).to_have_text("BTC")
+    # Sats are whole: a point is refused as typed, and the field keeps what it had.
+    sats.press("End")
+    page.keyboard.type(".")
+    expect(sats).to_have_attribute("data-tip", "Whole numbers only.")
+    expect(sats).to_have_value("100,000,000")

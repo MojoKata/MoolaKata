@@ -131,7 +131,10 @@
        2. **A control's contract**: its value in and its change out, `readOnly` (its read
           persona, S12.18.6), `invalid` and `disabled`. The `id` it is given is on the element
           that takes the focus, so the app's guide follows it (S12.7.3). It keeps no state
-          its caller can't set.
+          its caller can't set. What depends on the person is a prop that wins over its part
+          of the page's: `readonly` over `Reading`, and `timezone` (a date's *today*) and
+          `bitcoinUnit` (BTC or sats) over `Formats`, which the app sets at its root from the
+          session; the plain format functions take the person's, set at sign-in.
        3. **On its own**: a module in `kit/` imports only `kit/` and the vendored libraries,
           and a check fails on any other import. So the kit's tests run only when the kit
           changes (S17.10.1), while the app's tests, which draw the kit's controls, run on

@@ -193,10 +193,8 @@ function Plain({ section }) {
         <div class="row">
           <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}
             hint="Signed out after this long without using MoolaKata.">
-            <${TypedInput} kind="count" value=${f.sessionIdleHours} onInput=${set(
-              'sessionIdleHours',
-              true,
-            )} />
+            <${SpinInput} min=${1} max=${168} step=${4} value=${f.sessionIdleHours}
+              onInput=${set('sessionIdleHours', true)} />
             </${Field}>
             <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}
               hint="Signed out after this long, used or not.">
@@ -387,7 +385,7 @@ function Plain({ section }) {
       <div
         class="list-item"><span class="grow dim">File types</span>OFX, QFX, CSV; statements as PDF, JPEG, PNG, WebP, HEIC <span class="small dim">· checked from the content</span></div>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
-        <${TypedInput} kind="count" value=${f.importMaxMb}
+        <${SpinInput} min=${1} max=${200} step=${5} value=${f.importMaxMb}
           onInput=${set('importMaxMb', true)} />
         </${Field}>
         <${SwitchRow} label="Read statements" on=${f.readStatements}

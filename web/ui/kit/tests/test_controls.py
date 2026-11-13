@@ -395,3 +395,33 @@ def test_home_and_end_go_to_the_lines_ends_in_anything_typed_into(page, kit):
     page.keyboard.press("Control+Shift+Home")
     assert box.evaluate(sel)[:2] == [0, len(text)]
     expect(box).to_be_focused()
+
+
+def test_a_wider_count_steps_by_its_step_to_a_multiple_within_its_bounds(page, kit):
+    open_page(page, kit, "fields")
+    d = "[data-demo='spin-step']"
+    f = page.locator(f"{d} input")
+    up = page.locator(f"{d} button.up")
+    down = page.locator(f"{d} button.down")
+    expect(up).to_have_attribute("aria-label", "Up 5")
+    f.click()
+    for key, to in (("ArrowUp", "40"), ("ArrowUp", "45"), ("ArrowDown", "40"), ("PageUp", "90")):
+        page.keyboard.press(key)
+        expect(f).to_have_value(to)
+    f.fill("37")
+    down.click()
+    expect(f).to_have_value("35")
+    expect(f).to_be_focused()
+    f.fill("198")
+    up.click()
+    expect(f).to_have_value("200")
+    expect(up).to_be_disabled()
+    f.fill("3")
+    down.click()
+    expect(f).to_have_value("1")
+    expect(down).to_be_disabled()
+    up.click()
+    expect(f).to_have_value("5")
+    f.fill("")
+    page.keyboard.press("ArrowUp")
+    expect(f).to_have_value("1")

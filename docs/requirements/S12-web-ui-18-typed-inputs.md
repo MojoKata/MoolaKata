@@ -131,8 +131,10 @@
         of backups kept, the years receipts and statements are kept, lockout failures, a
         password's least length, the largest receipt, a projection's ages and years) has, at
         its right end, a chevron up and one down that step it by one, as ↑ and ↓ do (Page Up and
-        Page Down by ten), each off at its bound; a blank steps from its least. It is still
-        typed, and checked, as a count is.
+        Page Down by ten), each off at its bound; a blank steps from its least. A wider one
+        steps further: the largest import by 5 MB (1 to 200), the idle timeout by 4 hours (1 to
+        168). A step lands on a multiple of it (37 ↑ by 5 is 40). It is still typed, and
+        checked, as a count is.
     15. **A note** is formatted text, kept as a document of the parts it may hold and never as
         markup (a table of them, `web/ui/kit/note-spec.json`, is the editor's schema and what
         the server checks a saved note against):

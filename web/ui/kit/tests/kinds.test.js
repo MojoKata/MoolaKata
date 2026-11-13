@@ -171,3 +171,17 @@ Deno.test('a value read shows as its kind shows it, a blank as a dash (S12.18.6)
   // A field's own format reads a number as it shows it.
   equal(readText('quantity', '0.5', (/** @type {any} */ n) => `${n} BTC`), '0.5 BTC');
 });
+
+Deno.test('a date is checked by today where its field is: its words and its bounds', () => {
+  const d = KINDS.date;
+  const now = '2026-01-31';
+  equal([check(d, {}, 'tomorrow', String, now), check(d, {}, 'yesterday', String, now)], [
+    null,
+    null,
+  ]);
+  equal(check(d, { min: '2026-02-01' }, 'today', String, now), 'On or after Feb 1, 2026.');
+  equal(check(d, { min: '2026-02-01' }, 'tomorrow', String, now), null);
+  equal(check(d, { max: '2026-01-30' }, 'today', String, now), 'On or before Jan 30, 2026.');
+  equal(d.read('today', now), null);
+  equal(d.read('oct 45', now), 'Type a date, such as 10/12/2026.');
+});

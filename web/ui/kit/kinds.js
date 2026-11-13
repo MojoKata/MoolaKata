@@ -21,7 +21,7 @@ import { readDate, readTime, timeText } from './dates.js';
  * unit before it (`prefix`); a date is read as people write it (S12.18.10).
  * @typedef {{ chars: RegExp | null, takes: string[], inputmode?: string, numeric?: boolean,
  *   entry?: 'natural' | 'register', places?: number | null, prefix?: string, date?: boolean,
- *   read: (text: string) => string | null }} Kind
+ *   read: (text: string, today?: string) => string | null }} Kind
  */
 
 /** @param {number | null} places @param {string} error @returns {(t: string) => string | null} */
@@ -81,7 +81,7 @@ export const KINDS = {
     chars: null,
     takes: [],
     date: true,
-    read: (t) => (readDate(t, today()) ? null : 'Type a date, such as 10/12/2026.'),
+    read: (t, now) => (readDate(t, now ?? today()) ? null : 'Type a date, such as 10/12/2026.'),
   },
   time: {
     chars: null,
@@ -165,14 +165,15 @@ const bound = (n) => Dec.parse(String(n));
  * is refused is refused at Save. `format` shows a bound as the field shows it.
  * @param {Kind} k @param {Bounds} b @param {string} text
  * @param {(n: number | string) => string} [format]
+ * @param {string} [now]  today where the field is (a date's `today`, `tomorrow`)
  */
-export function check(k, b, text, format = String) {
+export function check(k, b, text, format = String, now = undefined) {
   const t = text.trim();
   if (t === '') return null;
-  const bad = k.read(t);
+  const bad = k.read(t, now);
   if (bad) return bad;
   if (k.date) {
-    const iso = /** @type {string} */ (readDate(t, today()));
+    const iso = /** @type {string} */ (readDate(t, now ?? today()));
     if (b.min != null && iso < String(b.min)) return `On or after ${date(String(b.min))}.`;
     if (b.max != null && iso > String(b.max)) return `On or before ${date(String(b.max))}.`;
     return null;

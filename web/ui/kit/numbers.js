@@ -91,6 +91,10 @@ export function typeNatural(e, op, way) {
   let out = flat;
   let after;
   if ('insert' in op) {
+    // A field with no places (sats) takes no `.`: refused, as a digit past the places is.
+    if (way.places === 0 && op.insert.includes('.')) {
+      return { ...e, refused: 'Whole numbers only.' };
+    }
     const minus = op.insert.includes('-');
     let put = op.insert.replace(/[^\d.]/g, '');
     // One `.` at most: a second is passed over. Typed before digits, those become the fraction.
@@ -282,6 +286,10 @@ export function valueOf(text, held) {
     const units = shift(base, held.minorDigits ?? 0);
     if (units.includes('.')) return undefined;
     return BigInt(units);
+  }
+  // An exact decimal with a smallest unit (bitcoin in BTC: 8) holds no more places than it.
+  if (held.minorDigits != null && (base.split('.')[1] ?? '').length > held.minorDigits) {
+    return undefined;
   }
   return base;
 }

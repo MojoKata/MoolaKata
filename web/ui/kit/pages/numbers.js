@@ -3,6 +3,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../html.js';
 import { Field, NumberInput, TypedInput } from '../fields.js';
+import { Formats } from '../formats.js';
 import { Demo, Page, useReport } from './parts.js';
 
 /** A typed field and its report: the text it holds, as its caller hears it. @param {any} p */
@@ -112,8 +113,14 @@ export default function NumbersPage() {
         minorDigits=${2} first=${123456n} />
       <${Held} id="btc-in-sats" title="Bitcoin held in BTC, shown in sats" show=${8}
         suffix="sats" first="0.12345678" />
-      <${Held} id="sats-in-btc" title="Bitcoin held in sats, shown in BTC" valueType="minor"
-        minorDigits=${8} suffix="BTC" first=${12345678n} />
-      </${Page}>
+      <${Formats.Provider} value=${{ bitcoinUnit: 'sats' }}>
+        <${Held} id="btc-page-unit" title="Bitcoin by the page's unit (sats)" bitcoin=${true}
+          first="0.00012345" note="Formats says sats here; typed and shown in sats, held in BTC." />
+        <${Held} id="btc-own-unit" title="Bitcoin by its own unit (BTC)" bitcoin=${true}
+          bitcoinUnit="btc" first="0.00012345" note="Its own bitcoinUnit wins over the page's." />
+        </${Formats.Provider}>
+        <${Held} id="sats-in-btc" title="Bitcoin held in sats, shown in BTC" valueType="minor"
+          minorDigits=${8} suffix="BTC" first=${12345678n} />
+        </${Page}>
   `;
 }

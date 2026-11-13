@@ -17,6 +17,7 @@ import { MenuHost } from '../kit/menu.js';
 import { Toasts } from '../kit/toast.js';
 import { installTooltips, TooltipHost } from '../kit/tooltip.js';
 import { checkOnSubmit, linkRecords } from '../kit/fields.js';
+import { Formats } from '../kit/formats.js';
 import { homeEndInText } from '../kit/keys.js';
 import { formChanges, installGuard } from './guard.js';
 import { endTour } from '../store/tour.js';
@@ -105,15 +106,23 @@ function App() {
 }
 
 function Root() {
+  // The kit's controls draw by the person's time zone and bitcoin unit (S17.3.10.2).
+  const user = session.value?.user;
+  const formats = {
+    timezone: user?.zone || undefined,
+    bitcoinUnit: user?.bitcoinUnit || undefined,
+  };
   return html`
-    <${LocationProvider}>
-      <${App} />
-      <${DialogHost} />
-      <${ConfirmHost} />
-      <${MenuHost} />
-      <${TooltipHost} />
-      <${Toasts} />
-      </${LocationProvider}>
+    <${Formats.Provider} value=${formats}>
+      <${LocationProvider}>
+        <${App} />
+        <${DialogHost} />
+        <${ConfirmHost} />
+        <${MenuHost} />
+        <${TooltipHost} />
+        <${Toasts} />
+        </${LocationProvider}>
+        </${Formats.Provider}>
   `;
 }
 

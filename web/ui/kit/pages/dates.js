@@ -63,6 +63,11 @@ export default function DatesPage() {
         ['readonly, disabled', 'boolean', 'Read: Oct 12, 2026. Off: no changes.'],
       ]}>
       <${Typed} id="date" title="A date" kind="date" label="Date" />
+      <${Typed} id="date-east" title="Today in Kiritimati (UTC+14)" kind="date" label="Date"
+        timezone="Pacific/Kiritimati"
+        note="Its own timezone: today, tomorrow and yesterday are Kiritimati's." />
+      <${Typed} id="date-west" title="Today in Pago Pago (UTC−11)" kind="date" label="Date"
+        timezone="Pacific/Pago_Pago" note="A day behind Kiritimati, at any hour." />
       <${Typed} id="date-filled" title="A date, filled" kind="date" first="2026-10-12"
         label="Paid on" />
       <${Typed} id="date-bounded" title="A date with its bounds" kind="date"

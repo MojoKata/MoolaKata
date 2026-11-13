@@ -296,3 +296,15 @@ def test_the_pickers_chevrons_sit_left_in_a_gutter_kept_when_they_go(page, kit):
         pop.locator("button[aria-label='Later times']").click()
     expect(pop.locator(".time-more")).to_have_count(0)
     assert pop.locator(".time-row").first.bounding_box()["x"] == first["x"], "the gutter kept"
+
+
+def test_today_is_where_the_field_is(page, kit):
+    open_page(page, kit, "dates")
+    today = "z => new Intl.DateTimeFormat('en-CA', { timeZone: z }).format(new Date())"
+    east = page.evaluate(today, "Pacific/Kiritimati")
+    west = page.evaluate(today, "Pacific/Pago_Pago")
+    assert east != west, "a day apart at any hour"
+    for demo, iso in (("date-east", east), ("date-west", west)):
+        field(page, demo).fill("today")
+        page.keyboard.press("Tab")
+        expect(report(page, demo)).to_have_text(f'"{iso}"')

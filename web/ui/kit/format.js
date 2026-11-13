@@ -58,6 +58,10 @@ let btcUnit = 'btc';
 export function setBitcoinUnit(u) {
   btcUnit = u === 'sats' ? 'sats' : 'btc';
 }
+/** The bitcoin unit set at sign-in: `btc` or `sats`. */
+export function defaultBitcoinUnit() {
+  return btcUnit;
+}
 
 /**
  * A bitcoin amount, as the user chose: "0.12345678 BTC" or "12,345,678 sats". From BTC (a
@@ -131,11 +135,16 @@ export function date(iso, opts = {}) {
   return `${MONTHS[m - 1]} ${d}` + (opts.year === false ? '' : `, ${y}`);
 }
 
-/** The time zone moments are shown in: the user's (Profile), set at sign-in. */
+/** The time zone moments are shown in: the user's (Profile), set at sign-in. A control takes
+ * its own, or its part of the page's, through `Formats` (formats.js). */
 let zone = 'UTC';
 /** @param {string} z */
-export function setZone(z) {
+export function setTimezone(z) {
   zone = z || 'UTC';
+}
+/** The time zone set at sign-in. */
+export function defaultTimezone() {
+  return zone;
 }
 
 /**
@@ -162,9 +171,10 @@ export function day(iso) {
     .format(new Date(iso));
 }
 
-/** Today in the viewer's zone, as a calendar date: "2026-10-12" (S14.9.5). */
-export function today() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date());
+/** Today in the viewer's zone, or the one given, as a calendar date: "2026-10-12" (S14.9.5).
+ * @param {string} [timezone] */
+export function today(timezone = zone) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
 }
 
 /** This year in the viewer's zone (S14.9.5). */
