@@ -520,7 +520,7 @@ def test_a_strategy_named_cash_secured_and_given_a_margin(browser, household):
     h = household
     acct = short_put_strategy(h, "Wheel desk", "ZWH")
     page, problems = signed_in(browser, h, "/ui/positions/strategies", "text=Wheel desk")
-    row(page, "Wheel desk").locator(".row-tool").locator("button.linklike").first.click()
+    row(page, "Wheel desk").locator(".row-tool").click()
     wait(page, "#f-strategy-name", problems)
     assert "Empty: its shape, short put." in page.locator(".dialog").inner_text()
     page.fill("#f-strategy-name", "The wheel")
@@ -543,7 +543,7 @@ def test_a_strategy_ungrouped_leaves_its_legs(browser, household):
     h = household
     acct = short_put_strategy(h, "Ungrouped desk", "ZUG")
     page, problems = signed_in(browser, h, "/ui/positions/strategies", "text=Ungrouped desk")
-    row(page, "Ungrouped desk").locator(".row-tool").locator("button.linklike").first.click()
+    row(page, "Ungrouped desk").locator(".row-tool").click()
     wait(page, "#f-strategy-name", problems)
     page.get_by_role("button", name="Ungroup").click()
     page.get_by_role("button", name="No", exact=True).click()
