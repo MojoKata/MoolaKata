@@ -196,6 +196,22 @@ jobs:
         env:
           URL: ${{ steps.mockup.outputs.artifact-url }}
         run: echo "**The mockup generated from the app:** [MoolaKata-app.html]($URL)" >> "$GITHUB_STEP_SUMMARY"
+      # The hand-written mockup as this commit has it, kept the same way, so a pull request's
+      # design changes open from the run; main's is published with the coverage site.
+      - name: the hand-written mockup
+        id: hand
+        if: matrix.part == 'hand-mockup'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: docs/mockups/MoolaKata-mock.html
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: the hand-written mockup's link, in the run's summary
+        if: matrix.part == 'hand-mockup'
+        env:
+          URL: ${{ steps.hand.outputs.artifact-url }}
+        run: echo "**The hand-written mockup:** [MoolaKata-mock.html]($URL)" >> "$GITHUB_STEP_SUMMARY"
       - name: say what failed
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"

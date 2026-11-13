@@ -5,7 +5,9 @@
    pill goes) jumps to any screen, switches users, opens dialogs and changes state (prices
    stale, privacy mode). There are two files while the app is being built:
    1. **`docs/mockups/MoolaKata-mock.html`**, hand-written: the design reference for every
-      screen. A change to what users see updates it in the same change.
+      screen. A change to what users see updates it in the same change. CI keeps each run's
+      copy as its artifact (linked from its summary), so a pull request's design opens from
+      it, and publishes main's on the Pages site.
    2. **`MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the app and an
       in-page fake backend, for the screens built so far, the linked household window among
       them. Not committed: CI builds and opens it each run, keeps it as the run's artifact
