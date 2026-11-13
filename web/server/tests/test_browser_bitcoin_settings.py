@@ -9,7 +9,7 @@ from browser import PASSWORD, client, made, open_page, save, stop, unlocked, wai
 pytestmark = pytest.mark.browser
 
 FORM = 'form.card:has-text("Test asks")'
-UNSAVED = "text=Not saved yet: no wallet is read until you save this section."
+UNSAVED = "text=Not saved yet"
 
 
 def test_the_first_save_writes_the_source_and_a_saved_section_saves_nothing(tmp_path, browser):
@@ -47,7 +47,7 @@ def test_the_first_save_writes_the_source_and_a_saved_section_saves_nothing(tmp_
         after = settings()
         assert set(after["records"]) - set(before["records"]) == {"bitcoinSource"}
         assert after["values"] == before["values"], "written at the value it stood at"
-        wait(page, f'{FORM} .notice:has-text("Checked every hour")', problems)
+        wait(page, f'{FORM} .notice.attention:has-text("wallet")', problems)
         assert page.locator(UNSAVED).count() == 0
 
         # Saved, then saved untouched again: nothing changes (CR3-2).

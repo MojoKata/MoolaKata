@@ -13,7 +13,7 @@ from moolakata import paths
 
 INLINE = {"a", "b", "i", "em", "strong", "code", "span", "small", "abbr", "kbd", "sup", "sub"}
 # Components that draw inside a line of text; the rest draw blocks (a field, a dialog, a route).
-INLINE_COMPONENTS = {"Amt", "Icon", "Pct", "StatusPill"}
+INLINE_COMPONENTS = {"Amt", "Icon", "Pct", "StatePill", "StatusPill"}
 
 
 def templates(src: str):

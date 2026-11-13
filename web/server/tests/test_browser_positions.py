@@ -671,7 +671,7 @@ def test_a_portfolio_of_accounts_holding_nothing_says_so(browser, household):
     acct = brokerage(h, "Nothing held")
     p = made(make(h.c, "Portf", name="Empty one", accountIds=[acct], benchmark="60-40"))
     page, problems = signed_in(
-        browser, h, f"/ui/portfolios/{p['id']}/holdings", "text=Nothing held in these accounts yet."
+        browser, h, f"/ui/portfolios/{p['id']}/holdings", "text=Nothing held in these accounts yet"
     )
     assert problems == []
     page.close()
