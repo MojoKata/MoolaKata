@@ -8,10 +8,17 @@ from devapp import api_items
 
 from moolakata import paths
 
-pytestmark = pytest.mark.browser
+# Run in web/check's app-mockup part, after the build writes the file (S12.9).
+pytestmark = [pytest.mark.browser, pytest.mark.mockup]
 
 PAGE = paths.ROOT / "docs" / "mockups" / "MoolaKata-app.html"
 LOCAL = ("file:", "blob:", "data:")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def built():
+    if not PAGE.exists():
+        pytest.fail(f"{PAGE.name} isn't built: run web/dev.sh mockup first")
 
 
 @pytest.fixture(scope="module")

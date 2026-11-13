@@ -20,9 +20,13 @@ import shutil
 import urllib.error
 import urllib.request
 
+from .. import paths
 from . import coverage, hardening
 
 SITE = coverage.OUT / "site"
+# The mockups published beside the reports (S12.9): the hand-written one, committed, and the one
+# generated from the app, which CI downloads here before the site is built.
+MOCKUPS = paths.ROOT / "docs" / "mockups"
 PUBLISHED = "https://mojokata.github.io/MoolaKata/"
 REPO = "https://github.com/MojoKata/MoolaKata"
 PR = re.compile(r"\(#(\d+)\)$")
@@ -458,7 +462,9 @@ Line by line: <a href="server/index.html">the server and the connector</a>,
 <a href="browser/index.html">the browser app</a>. The history:
 <a href="history.json">history.json</a> ({merges_count} merges); each file's counts:
 <a href="files.json">files.json</a>. Each area's findings, mutation runs and the path to the end
-of the sweep: <a href="hardening.html">hardening</a>.</p>
+of the sweep: <a href="hardening.html">hardening</a>. The mockups, as of this merge:
+<a href="mockup/MoolaKata-mock.html">the hand-written one</a>, the design reference, and
+<a href="mockup/MoolaKata-app.html">the one generated from the app</a>.</p>
 
 <h2>By area</h2>
 <div class="tools"><input id="filter" type="search"
@@ -645,6 +651,10 @@ def build() -> int:
     )
     if files_file.exists():
         shutil.copy(files_file, SITE / "files.json")
+    (SITE / "mockup").mkdir()
+    for name in ("MoolaKata-mock.html", "MoolaKata-app.html"):
+        if (MOCKUPS / name).exists():
+            shutil.copy(MOCKUPS / name, SITE / "mockup" / name)
     (SITE / "index.html").write_text(page(history, coverage.floors(), files, base, repo_url()))
     (SITE / "hardening.html").write_text(hardening.page(history, files, repo_url()))
     print(f"{SITE / 'index.html'}: {len(history)} merges" + ("" if in_ci() else ", a preview"))

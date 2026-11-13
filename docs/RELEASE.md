@@ -129,16 +129,12 @@ an earlier one between releases.
    notes. Bring the base image's row in `docs/dependencies.md` up to date by hand: the date
    it last moved and what the move picked up.
 4. **Regenerate what carries the version**: the API's OpenAPI document (S13.8.9), in a few
-   seconds, and the generated mockup, in about ten minutes:
+   seconds. (The generated mockup isn't committed: CI builds it, with the version, on the
+   release's pull request.)
 
    ```sh
    web/dev.sh codegen                                                       # web/ui/api/openapi.json
-   web/dev.sh mockup                                                        # docs/mockups/MoolaKata-app.html
    ```
-
-   The mockup's diff is the version alone, in its `mk-version` meta tag and the recorded
-   `/ui/api/session` and `/ui/api/unlock` answers. Anything more means `main` had drifted
-   already. Find out why before going on.
 5. **Bring every document that goes with the release up to date**, in this same pull
    request. Its documents describe the release from the moment it is tagged. Start from
    what changed since the last release, `git log --oneline v0.1.0..upstream/main`, and
@@ -165,9 +161,9 @@ an earlier one between releases.
 6. **Run every check**: `web/check`, which takes about 20 minutes, and look for its last line,
    `all checks passed`. A compose file or a `DEPLOY.md` tag left at the old version fails
    `test_install.py`.
-   The generated mockup's crawl sometimes fails without a diff: a Playwright route-handler
-   error, or a screen that *drew nothing in 20 s*. When that is the only failure, run it
-   again alone, `web/dev.sh uv run --frozen python ../ui/mockup/build.py --check`.
+   The generated mockup's crawl sometimes fails: a Playwright route-handler error, or a
+   screen that *drew nothing in 20 s*. When that is the only failure, run it again alone,
+   `web/check app-mockup`.
 7. **Commit and open the pull request** against `MojoKata/MoolaKata`'s `main`, titled
    `Release 0.2.0`. Because it touches `web/install/`, two workflows run on it: `check`
    (`web/check`, about half an hour) and `release`, which builds both images and smoke-runs
@@ -417,9 +413,7 @@ it really takes (§3 step 2).
    published release and that `0.3.0` comes after it. It then writes `0.3.0-dev` into
    `web/VERSION`, `connector/pyproject.toml` and `connector/moolakata_connector/__init__.py`,
    and regenerates the API's document, `web/ui/api/openapi.json`.
-3. **Regenerate the generated mockup**: `web/dev.sh mockup`, in about ten minutes. Its diff
-   is the version alone, as in §3 step 4.
-4. **Run every check** (`web/check`), then commit and open the pull request, titled
+3. **Run every check** (`web/check`), then commit and open the pull request, titled
    `Open 0.3.0-dev`, and squash-merge it. The compose files and the documents still name
    the published release, which is what they install.
 

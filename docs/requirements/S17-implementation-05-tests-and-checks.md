@@ -3,7 +3,7 @@
 5. **Tests and checks**, all run by `web/check`, with no Node.js: pytest with a throwaway SQLite per test (most of the
    weight: lots, gains, wash sales, option assignment, imports, budgets, projections, sharing,
    links), browser component tests in headless Chromium driven by Playwright for Python, Deno
-   check/lint/fmt, ruff, OpenAPI and typedef drift, mockup drift, the help-guide checks and
+   check/lint/fmt, ruff, OpenAPI and typedef drift, the generated mockup built and opened, the help-guide checks and
    the dependency register's hash check (S17.2.1), and the requirements' own checks: every id
    cited in the documents or the code names an item, the README's tables match the files,
    no section file passes 500 lines, and the schema's prefixes are in order.

@@ -26,7 +26,9 @@ phones will get a separate, focused PWA later (requirements S12.8).
 While the app is being built there are two mockups (requirements S12.9): the hand-written
 `MoolaKata-mock.html`, which stays the design reference and is updated with every UI-facing
 change, and `MoolaKata-app.html`, generated from the app by `web/ui/mockup/build.py` for the
-screens built so far, which `web/check` keeps current.
+screens built so far. The generated one isn't committed: CI builds it on every run (a pull
+request's is the run's artifact, `web/dev.sh mockup-link PR`) and publishes main's on the
+Pages site; don't rebuild it locally for a change.
 
 ## Requirements are a statement, not a changelog
 
