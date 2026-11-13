@@ -10,7 +10,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { openDialog } from '../components/dialog.js';
-import { Field, Input, Reading, ReadValue, Seg, Select } from '../components/fields.js';
+import { Field, Input, Reads, ReadValue, Seg, Select } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -218,7 +218,8 @@ function GiftList() {
   const [status, setStatus] = useState('');
   const res = useList('/gifts', { status: status || undefined });
   const rows = /** @type {any[]} */ (res.data);
-  const open = (/** @type {any} */ g) => openDialog(GiftDialog, { gift: g }).then(res.reload);
+  const open = (/** @type {any} */ g) =>
+    openDialog(GiftDialog, { gift: g, fromRow: !!g }).then(res.reload);
   return html`
     <div class="toolbar"><${Chips} label="Show" value=${status} onChange=${setStatus}
       options=${[['', 'All'], ...STATUS]} /><span class="spacer"></span><button
@@ -264,8 +265,14 @@ function GiftList() {
                         class="dim">—</span>
                     `}</td>
                     <td class="tool">
-                      <${RowTool} name=${g.description}
-                        read=${!g.access.writable} onClick=${() => open(g)} />
+                      ${g.access.writable || g.notes || g.store || g.link || g.paid || g.cash ||
+                          g.thankYou ||
+                          g.documents?.length
+                        ? html`
+                          <${RowTool} name=${g.description}
+                            read=${!g.access.writable} onClick=${() => open(g)} />
+                        `
+                        : null}
                     </td>
                   </tr>
                 `
@@ -570,8 +577,8 @@ function PersonDialog({ close, row }) {
       )}
       ${who && plan
         ? html`
-          <${Reading.Provider} value=${canWrite ? false : READ_ONLY}>
-            <${Reading.Provider} value=${!canWrite
+          <${Reads} why=${canWrite ? false : READ_ONLY} row=${row ? PLAN_ROW : []}>
+            <${Reads} row=${row ? PLAN_ROW : []} why=${!canWrite
               ? READ_ONLY
               : !ownPerson
               ? 'Only its owner changes the person'
@@ -634,7 +641,7 @@ function PersonDialog({ close, row }) {
                     ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
                 `
                 : null}
-            </div></${Reading.Provider}>
+            </div></${Reads}>
             ${clash && !using
               ? html`
                 <div class="notice" role="status">
@@ -727,7 +734,7 @@ function PersonDialog({ close, row }) {
             ]} />
             <${RecField} rec=${plan} name="notes" label="Notes" rows=${3}
               hint="Sizes, likes, what they already have." />
-          </${Reading.Provider}>
+          </${Reads}>
         `
         : null}
       ${p ? html`<${History} p=${p} />` : null}
@@ -782,8 +789,13 @@ class GiftRec extends Rec {
   };
 }
 
-/** @param {{ close: (v?: any) => void, gift?: any, start?: any }} p */
-function GiftDialog({ close, gift, start }) {
+/** What a gift plan's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const PLAN_ROW = ['name', 'giftBudget', 'private'];
+/** What a gift's row shows. */
+const GIFT_ROW = ['description', 'status', 'cost', 'people', 'occasion'];
+
+/** @param {{ close: (v?: any) => void, gift?: any, start?: any, fromRow?: boolean }} p */
+function GiftDialog({ close, gift, start, fromRow }) {
   useDialogGuide('dialog-gift');
   const people = usePlans();
   const buys = useList('/gifts/purchases');
@@ -845,6 +857,8 @@ function GiftDialog({ close, gift, start }) {
     }
   };
   const received = rec?.get('status') === 'received';
+  // Read from its row, what the row shows is left out (S12.18.6.5).
+  const onRow = !!fromRow && !canWrite;
   return html`
     <${DraftDialog} f=${f} close=${close} what="This gift" saveWhy=${canWrite ? null : READ_ONLY}
       title=${gift ? gift.description : 'Add a gift'}
@@ -864,33 +878,48 @@ function GiftDialog({ close, gift, start }) {
           : null}>
       ${rec
         ? html`
-          <${Reading.Provider} value=${!canWrite}>
-            <div class="field" data-help="status" id="x-status"><label>Status</label>
+          <${Reads} why=${!canWrite} row=${fromRow ? GIFT_ROW : []}>
+            ${onRow
+              ? null
+              : html`<div class="field" data-help="status" id="x-status"><label>Status</label>
               <${Seg} label="Status" value=${rec.get('status')} onChange=${(
                 /** @type {string} */ v,
-              ) => rec.set('status', v)} options=${STATUS} /></div>
-            <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
-              hint=${received ? '' : 'One or more people.'}>
-              ${canWrite
-                ? html`
-                  <select class="in" multiple size=${Math.min(4, Math.max(2, list.length))}
-                    onChange=${(/** @type {any} */ ev) =>
-                      rec.set('people', [...ev.currentTarget.selectedOptions].map((o) => o.value))}>
-                                  ${list.map((p) =>
-                                    html`<option value=${p.id} selected=${
-                                      who.includes(p.id)
-                                    }>${p.name}</option>`
-                                  )}</select>
-                `
-                : html`<${ReadValue} text=${
-                  list.filter((p) => who.includes(p.id)).map((p) => p.name).join(', ') || '—'
-                } />`}</${Field}>
-            <${Field} label="Occasion" error=${rec.error('occasionYear')}>
-              <${Select} value=${occasion} onChange=${(/** @type {string} */ v) => {
-                const [occ, y] = v ? v.split('|') : [null, null];
-                rec.set('occasion', occ);
-                rec.set('occasionYear', y ? Number(y) : null);
-              }} options=${occasions} /></${Field}>
+              ) => rec.set('status', v)} options=${STATUS} /></div>`}
+            ${onRow ? null : html`
+              <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
+                hint=${received ? '' : 'One or more people.'}>
+                            ${canWrite
+                              ? html`
+                                <select class="in" multiple size=${Math.min(
+                                  4,
+                                  Math.max(2, list.length),
+                                )}
+                                  onChange=${(/** @type {any} */ ev) =>
+                                    rec.set(
+                                      'people',
+                                      [...ev.currentTarget.selectedOptions].map((o) => o.value),
+                                    )}>
+                                                ${list.map((p) =>
+                                                  html`<option value=${p.id} selected=${
+                                                    who.includes(p.id)
+                                                  }>${p.name}</option>`
+                                                )}</select>
+                              `
+                              : html`<${ReadValue} text=${
+                                list.filter((p) => who.includes(p.id)).map((p) => p.name).join(
+                                  ', ',
+                                ) || '—'
+                              } />`}</${Field}>
+            `}
+            ${onRow ? null : html`
+              <${Field} label="Occasion" error=${rec.error('occasionYear')}>
+                <${Select} value=${occasion} onChange=${(/** @type {string} */ v) => {
+                  const [occ, y] = v ? v.split('|') : [null, null];
+                  rec.set('occasion', occ);
+                  rec.set('occasionYear', y ? Number(y) : null);
+                }} options=${occasions} />
+                </${Field}>
+            `}
             <${RecField} rec=${rec} name="description" label="Description"
               placeholder="ex: Watercolour set" />
             ${received
@@ -937,7 +966,7 @@ function GiftDialog({ close, gift, start }) {
                     </div>
               `}
             <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
-          </${Reading.Provider}>
+          </${Reads}>
           ${gift && !canWrite
             ? html`
               <div class="toolbar">

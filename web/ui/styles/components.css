@@ -1045,6 +1045,11 @@
     width: 14px;
     height: 14px;
   }
+  /* A form that reads leaves out a field with nothing in it (S12.18.6.5). */
+  .reads .field:has(> .in.read.blank),
+  .reads .list-item:has(> .switch.read:not(.on)) {
+    display: none;
+  }
   /* A 529 contribution's From: who it was from, then its relationship and election. */
   .retag {
     display: flex;

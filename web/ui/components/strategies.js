@@ -386,7 +386,7 @@ function StrategyDialog({ close, x }) {
   );
   return html`
     <${DraftDialog} f=${f} title=${`${x.name} · ${x.underlying}`} close=${close}
-      what="This strategy" read=${!x.access.writable}
+      what="This strategy" read=${!x.access.writable} row=${['name']}
       done=${(/** @type {any} */ d) =>
         d?.records[0]?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
       extra=${({ save }) =>

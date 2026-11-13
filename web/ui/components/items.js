@@ -10,7 +10,7 @@ import { Amt } from './amount.js';
 import { Empty, Failed, Loading } from './bits.js';
 import { openDialog } from './dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Input, Reading, Select, TypedInput } from './fields.js';
+import { Field, Input, Reads, Select, TypedInput } from './fields.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
@@ -306,6 +306,9 @@ function newItem(type, accountId) {
   };
 }
 
+/** What an item's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const ITEM_ROW = ['name', 'metal', 'category', 'quantity', 'acquiredOn', 'costBasis'];
+
 /** @param {{ close: (v?: any) => void, a: any, id: string | null }} p */
 export function ItemDialog({ close, a, id }) {
   useDialogGuide('dialog-item');
@@ -344,8 +347,7 @@ export function ItemDialog({ close, a, id }) {
         ? html`
           <div class="split" style=${{ alignItems: 'flex-start' }}>
             <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
-              <${Reading.Provider}
-                value=${!canWrite}>
+              <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
               <${RecField} rec=${rec} name="name" label="Name" placeholder=${{
                 'precious-metals': 'American Gold Eagle, 1 oz',
                 collectables: 'Rolex Submariner 124060',
@@ -442,7 +444,7 @@ export function ItemDialog({ close, a, id }) {
                 `
                 : null}
               <${RecField} rec=${rec} name="notes" label="Notes" hint="Markdown." rows=${3} />
-            </${Reading.Provider}></div>
+            </${Reads}></div>
             ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
           </div>
         `

@@ -41,8 +41,14 @@
        3. **The edit footprint**: the read value sits in the control's own box, unframed, at
           its height and width, with a list's chevron space kept, so a form drawn read and
           drawn to edit don't move. It is reached by Tab, so the guide follows it (S12.7.3),
-          and named by its label.
+          and named by its label. A form that flips from read to edit fades its frames in
+          over 150 ms (none with reduced motion), its Edit focuses the first field, and Save
+          or Cancel takes the focus back to Edit.
        4. **One switch per form**: a dialog or a screen's form reads as a whole, and a control
           may read on its own. The form's own actions (add a part, remove a row, Save) are
-          shown off, saying why (S12.19.1).
+          shown off, saying why (S12.19.1), and it closes with Close.
+       5. **Only what the row doesn't say**: a dialog that reads leaves out a field with
+          nothing in it (a blank, a switch that is off) and, opened from a record's row, the
+          fields that row shows. Opened from elsewhere (a link, a tour), it keeps every field
+          that has a value.
     7. **The server checks every value again**, whatever the browser did (S13.8).

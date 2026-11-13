@@ -14,7 +14,7 @@ import { useDialogGuide } from '../components/help.js';
 import { NewRuleDialog } from '../components/rules.js';
 import {
   Field,
-  Reading,
+  Reads,
   Seg,
   Switch,
   SwitchRow,
@@ -22,8 +22,8 @@ import {
   useReadWhy,
 } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
-import { money, today } from '../app/format.js';
-import { CategoryField } from '../components/categories.js';
+import { date as fmtDate, money, today } from '../app/format.js';
+import { CategoryField, useCategories } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
 import { confirmAction } from '../components/confirm.js';
@@ -157,6 +157,73 @@ class Part extends Record {
   static ownedBy = ['transactionId'];
 }
 
+/** What a transaction's row shows (TxTable): read from it, the dialog leaves them out. */
+const ROW = [
+  'date',
+  'payee',
+  'categoryId',
+  'accountId',
+  'amount',
+  'symbol',
+  'quantity',
+  'price',
+  'tagIds',
+];
+
+/** A contribution's source, as the line says it. */
+const SOURCE_SAID = /** @type {{ [k: string]: string }} */ ({
+  employee: 'from its owner',
+  employer: 'from an employer',
+  rollover: 'a rollover',
+  conversion: 'a Roth conversion',
+});
+
+/** What a transaction is called in its row. @param {any} t */
+const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
+
+/**
+ * What a transaction holds beyond its row, as one line of the parts that have a value: its
+ * kind, memo, parts, what is paid back, a contribution's year and source, whether it is
+ * deductible, a trade's fees and basis (S12.19.5).
+ * @param {{ t: Txn, parts: Part[], type: any }} p
+ */
+function Beyond({ t, parts, type }) {
+  const cats = useCategories();
+  const kinds = type.investing ? TRADE_KINDS : BANK_KINDS;
+  const kind = kinds.find(([k]) => k === t.get('kind'))?.[1];
+  const said = [
+    kind,
+    t.get('memo'),
+    parts.length
+      ? 'split: ' +
+        parts.map((p) =>
+          `${cats.byId[p.get('categoryId')]?.path || 'uncategorised'} ${money(p.get('amount'))}`
+        ).join(', ')
+      : null,
+    t.get('reimbursable') != null
+      ? `${money(t.get('reimbursable'))} to be paid back${
+        t.get('owedBy') ? ' by ' + t.get('owedBy') : ''
+      }`
+      : null,
+    t.applies('contributionYear') && t.get('contributionYear')
+      ? `a contribution for ${t.get('contributionYear')}`
+      : null,
+    t.applies('contributionSource') && t.get('contributionSource')
+      ? SOURCE_SAID[t.get('contributionSource')]
+      : null,
+    t.applies('deductible') && t.get('deductible') != null
+      ? (t.get('deductible') ? 'deductible' : 'not deductible')
+      : null,
+    t.get('fees') != null && !Dec.of(t.get('fees')).isZero()
+      ? `fees ${money(t.get('fees'))}`
+      : null,
+    t.get('costBasis') != null ? `cost basis ${money(t.get('costBasis'))}` : null,
+  ].filter(Boolean);
+  return said.length
+    ? html`<p class="small dim" style=${{ marginTop: 0 }}>${said.join(' · ')}</p>`
+    : null;
+}
+
 /** How much of a lot a sale takes, picked (S2.3, specific identification): a record of the sale. */
 class Pick extends Record {
   /** @override */
@@ -171,14 +238,18 @@ class Pick extends Record {
 
 /**
  * `start` fills a new transaction, such as a trade a statement shows but doesn't read
- * (S1.3.3.8).
+ * (S1.3.3.8). Opened from its row (`fromRow`) by one who may only read it, the fields the row
+ * shows are left out (S12.18.6.5); `budgets`, it opens for what is theirs in it, its leaving
+ * out of their own budgets, under one line of what it holds beyond its row (S12.19.5).
  * @param {{ close: (v?: any) => void, txn?: any, start?: any, accounts: any[],
- *   accountId?: string }} p
+ *   accountId?: string, fromRow?: boolean, budgets?: boolean }} p
  */
-export function TransactionDialog({ close, txn, start, accounts, accountId }) {
+export function TransactionDialog({ close, txn, start, accounts, accountId, fromRow, budgets }) {
   useDialogGuide('dialog-transaction');
   const editing = !!txn;
   const readOnly = editing && !txn.access.writable;
+  // One who reads it and has budgets that count it: their leave-outs, nothing else (S12.19.5).
+  const own = readOnly && !!budgets;
   const writable = accounts.filter((a) => canAdd('Txn', a));
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
@@ -234,13 +305,23 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
   };
   return html`
     <${DraftDialog} f=${f} close=${close} what="This transaction"
-      title=${readOnly ? 'Transaction' : editing ? 'Edit transaction' : 'Add transaction'}
+      title=${own
+        ? `${payeeOf(txn)} · ${fmtDate(txn.date)} · ${money(txn.amount)}`
+        : readOnly
+        ? 'Transaction'
+        : editing
+        ? 'Edit transaction'
+        : 'Add transaction'}
       done=${deleting ? 'Deleted' : editing ? 'Saved' : 'Added'}
       label=${editing ? 'Save' : 'Add'}
       confirm=${deleting ? 'Delete it anyway' : 'Change it anyway'}
-      saveWhy=${readOnly && !draft?.changed ? READ_ONLY : null}
+      saveWhy=${!own && readOnly && !draft?.changed ? READ_ONLY : null}
+      disabled=${own && !draft?.changed}
       extra=${({ save }) =>
-        readOnly
+        own
+          ? html`<span class="spacer"></span><button type="button" class="btn" onClick=${() =>
+            close()}>Close</button>`
+          : readOnly
           ? html`<${Action} class="btn danger" why=${READ_ONLY}>Delete</${Action}><span
             class="spacer"></span><button type="button" class="btn" onClick=${() =>
             close()}>Close</button>`
@@ -288,9 +369,17 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
               : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
-      ${t
+      ${t && own
         ? html`
-          <${Reading.Provider} value=${readOnly}>
+          <${Beyond} t=${t} parts=${parts} type=${type} />
+          <${InBudgets} txn=${txn} rec=${t} />
+          ${txn.receipts && draft
+            ? html`<${TxnReceipts} txn=${txn} draft=${draft} canWrite=${false} />`
+            : null}
+        `
+        : t
+        ? html`
+          <${Reads} why=${readOnly} row=${fromRow ? ROW : []}>
             ${!editing
               ? html`
                 <${RecField} rec=${t} name="accountId" label="Account"
@@ -425,7 +514,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId }) {
                   : null}
               `
               : null}
-          </${Reading.Provider}>
+          </${Reads}>
           ${editing ? html`<${InBudgets} txn=${txn} rec=${t} />` : null}
           ${editing && draft
             ? html`<${TxnReceipts} txn=${txn} draft=${draft} canWrite=${!readOnly} />`

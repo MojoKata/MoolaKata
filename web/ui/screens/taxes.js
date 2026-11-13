@@ -316,9 +316,35 @@ const ageLine = (/** @type {any} */ d, /** @type {number} */ year) => {
   return `Age ${d.age} on Dec 31, ${year}${marks.length ? ': ' + marks.join(' and ') : ''}`;
 };
 
+/** What a dependent's line shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const DEPENDENT_ROW = ['personId', 'claimedAs', 'months', 'student'];
+/** What a filing's card shows. */
+const FILING_ROW = [
+  'jurisdiction',
+  'place',
+  'form',
+  'progress',
+  'dueDate',
+  'extendedDue',
+  'filedOn',
+  'sentBy',
+  'resultKind',
+  'resultAmount',
+];
+/** What a tax document's row shows. */
+const DOCUMENT_ROW = ['direction', 'form', 'issuer', 'receiptId'];
+
+/** A dependent claimed on another tax book of the year, said so beside them. @param {any} d */
+function elsewhere(d) {
+  if (!d.claimedElsewhere) return null;
+  const tip = 'Claimed on another tax book for this year';
+  return html`${' '}<span class="pill warn" title=${tip}>also claimed elsewhere</span>`;
+}
+
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Dependents({ b, done }) {
-  const open = (/** @type {any} */ d) => openDialog(DependentDialog, { b, d }).then(done);
+  const open = (/** @type {any} */ d) =>
+    openDialog(DependentDialog, { b, d, fromRow: !!d }).then(done);
   return html`
     <div
       class="card mt">
@@ -336,14 +362,12 @@ function Dependents({ b, done }) {
                 d.student && 'student',
               ].filter(Boolean).join(' · ')}${d.agesOut.length
                 ? html`<br />${d.agesOut.join('; ')}`
-                : null}</div></div><span class="small">${ageLine(d, b.year)}</span>${d
-                  .claimedElsewhere
-                ? html`
-                  ${' '}<span class="pill warn" title="Claimed on another tax book for this year"
-                  >also claimed elsewhere</span>
-                `
-                : null}<${RowTool} name=${d.name} read=${!b.access.writable}
-                  onClick=${() => open(d)} /></div>
+                : null}</div></div><span class="small">${ageLine(d, b.year)}</span>${elsewhere(
+                  d,
+                )}${b.access.writable || (d.accountIds || []).length
+                ? html`<${RowTool} name=${d.name} read=${!b.access
+                  .writable} onClick=${() => open(d)} />`
+                : null}</div>
           `
         )
         : html`<${Empty}>No dependents</${Empty}>`}
@@ -376,8 +400,10 @@ class DependentRec extends Rec {
   static defaults = { claimedAs: 'qualifying child', months: 12, student: false, accountIds: [] };
 }
 
-/** @param {{ close: (v?: any) => void, b: any, d: any }} p */
-function DependentDialog({ close, b, d }) {
+/** @param {{ close: (v?: any) => void, b: any, d: any, fromRow?: boolean }} p */
+function DependentDialog({ close, b, d, fromRow }) {
+  /** Read from its row, what the row shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && DEPENDENT_ROW.includes(n);
   useDialogGuide('dialog-dependent');
   const cands = useList(`/tax-books/${b.id}/dependent-candidates`);
   const list = /** @type {any[] | null} */ (cands.data);
@@ -404,9 +430,8 @@ function DependentDialog({ close, b, d }) {
   const toggle = (/** @type {string} */ id) => (/** @type {boolean} */ on) =>
     rec?.set('accountIds', on ? [...ids, id] : ids.filter((x) => x !== id));
   return html`
-    <${DraftDialog} f=${f} close=${close} what="This dependent" title=${d
-      ? d.name
-      : 'Add a dependent'}
+    <${DraftDialog} f=${f} close=${close} what="This dependent" row=${fromRow ? DEPENDENT_ROW : []}
+      title=${d ? d.name : 'Add a dependent'}
       label=${d ? 'Save' : 'Add'} done=${rec?.removed
         ? 'Dependent removed'
         : d
@@ -431,40 +456,44 @@ function DependentDialog({ close, b, d }) {
           : null}>
       ${rec
         ? html`
-          <div class="row">
-            <${Field} label="Person" id="person" error=${rec.error('personId')}
-              hint="From the household's people. Add someone new on the Gifts screen.">
-              <${Select} value=${rec.get('personId') || ''} onChange=${(
-                /** @type {string} */ x,
-              ) => {
-                rec.input('personId', x);
-                suggest(x, rec.get('student'));
-              }} options=${[
-                ['', list ? 'Choose…' : 'Loading…'],
-                ...choices.map((c) => [
-                  c.personId,
-                  c.name + (c.relation ? ` · ${c.relation}` : ''),
-                ]),
-              ]} />
-              </${Field}>
-              <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
-                hint="Suggested from the family tree. As you file it.">
-              <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
-                setPicked(true);
-                rec.input('claimedAs', x);
-              }} options=${[
-                ['qualifying child', 'Qualifying child'],
-                ['qualifying relative', 'Qualifying relative'],
-              ]} />
-            </${Field}>
-          </div>
+          ${onRow('personId') ? null : html`
+            <div class="row">
+              <${Field} label="Person" id="person" error=${rec.error('personId')}
+                hint="From the household's people. Add someone new on the Gifts screen.">
+                <${Select} value=${rec.get('personId') || ''} onChange=${(
+                  /** @type {string} */ x,
+                ) => {
+                  rec.input('personId', x);
+                  suggest(x, rec.get('student'));
+                }} options=${[
+                  ['', list ? 'Choose…' : 'Loading…'],
+                  ...choices.map((c) => [
+                    c.personId,
+                    c.name + (c.relation ? ` · ${c.relation}` : ''),
+                  ]),
+                ]} />
+                </${Field}>
+                <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
+                  hint="Suggested from the family tree. As you file it.">
+                  <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
+                    setPicked(true);
+                    rec.input('claimedAs', x);
+                  }} options=${[
+                    ['qualifying child', 'Qualifying child'],
+                    ['qualifying relative', 'Qualifying relative'],
+                  ]} />
+                  </${Field}>
+                  </div>
+          `}
           <div class="row">
             <${RecField} rec=${rec} name="months" label="Months lived with you" id="months" />
-            <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
-              on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
-                rec.set('student', on);
-                suggest(rec.get('personId'), on);
-              }} />
+            ${onRow('student') ? null : html`
+              <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
+                on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
+                  rec.set('student', on);
+                  suggest(rec.get('personId'), on);
+                }} />
+            `}
           </div>
           ${theirs.length
             ? html`<div class="field" data-help="accounts-in-their-name" id="x-accounts"><label
@@ -488,7 +517,8 @@ function DependentDialog({ close, b, d }) {
 
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Filings({ b, done }) {
-  const open = (/** @type {any} */ f) => openDialog(FilingDialog, { b, f }).then(done);
+  const open = (/** @type {any} */ f) =>
+    openDialog(FilingDialog, { b, f, fromRow: !!f }).then(done);
   return html`
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
       of its own.</span><span class="spacer"></span><${Action} class="btn sm"
@@ -545,7 +575,8 @@ function Filings({ b, done }) {
 function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
   // A document kept opens to change or remove it (CR3-36).
-  const open = (/** @type {any} */ doc) => openDialog(DocumentDialog, { b, doc }).then(done);
+  const open = (/** @type {any} */ doc) =>
+    openDialog(DocumentDialog, { b, doc, fromRow: true }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
     f.documents.map((/** @type {any} */ d) => ({ ...d, filing: f.label }))
   );
@@ -595,8 +626,13 @@ function Documents({ b, done }) {
                 `}</td>
               <td class="tool">${e.document
                 ? html`
-                  <${RowTool} name=${e.form} read=${!b.access.writable}
-                    onClick=${() => open(e.document)} />
+                  ${b.access.writable || e.document.notes || e.document.accountId ||
+                      e.document.filingId
+                    ? html`
+                      <${RowTool} name=${e.form} read=${!b.access.writable}
+                        onClick=${() => open(e.document)} />
+                    `
+                    : null}
                 `
                 : null}</td>
             </tr>
@@ -613,8 +649,12 @@ function Documents({ b, done }) {
                 ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
                 : null}</td>
               <td class="tool">
-                <${RowTool} name=${d.form} read=${!b.access.writable}
-                  onClick=${() => open(d)} />
+                ${b.access.writable || d.notes || d.accountId || d.filingId
+                  ? html`
+                    <${RowTool} name=${d.form} read=${!b.access.writable}
+                      onClick=${() => open(d)} />
+                  `
+                  : null}
               </td>
             </tr>
           `
@@ -644,8 +684,12 @@ function Documents({ b, done }) {
                 : ''}</div></div>${d
                   .fileName
                 ? html`<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
-                : null}<${RowTool} name=${d.form} read=${!b.access.writable}
-                  onClick=${() => open(d)} /></div>
+                : null}${b.access.writable || d.notes || d.accountId
+                ? html`
+                  <${RowTool} name=${d.form} read=${!b.access.writable}
+                    onClick=${() => open(d)} />
+                `
+                : null}</div>
           `
         )
       }</div>`
@@ -841,8 +885,10 @@ function BasisField({ rec, who, label }) {
   `;
 }
 
-/** @param {{ close: (v?: any) => void, b: any, f: any }} p */
-function FilingDialog({ close, b, f: filing }) {
+/** @param {{ close: (v?: any) => void, b: any, f: any, fromRow?: boolean }} p */
+function FilingDialog({ close, b, f: filing, fromRow }) {
+  /** Read from its card, what the card shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && FILING_ROW.includes(n);
   useDialogGuide('dialog-filing');
   const meta = useApi('/tax-forms');
   const txns = useApi('/transactions', { limit: 200 });
@@ -872,7 +918,7 @@ function FilingDialog({ close, b, f: filing }) {
   const where = rec?.get('jurisdiction');
   const carried = rec?.get('carried') || {};
   return html`
-    <${DraftDialog} f=${f} wide close=${close} what="This filing"
+    <${DraftDialog} f=${f} wide close=${close} what="This filing" row=${fromRow ? FILING_ROW : []}
       title=${filing ? `${filing.label} · ${b.year}` : 'Add a filing'}
       done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} saveWhy=${whyRead(b)}
       read=${!can}
@@ -921,13 +967,17 @@ function FilingDialog({ close, b, f: filing }) {
               ['paper', 'Paper'],
             ]} />
           </div>
-          <div class="field" data-help="progress" id="x-progress"><label>Progress</label>
+          ${onRow('progress')
+            ? null
+            : html`<div class="field" data-help="progress" id="x-progress"><label>Progress</label>
             <${Seg} label="Progress" value=${rec.get('progress')} onChange=${(
               /** @type {string} */ v,
             ) => rec.set('progress', v)} options=${PROGRESS} />
-            ${rec.error('progress')
-              ? html`<div class="err" role="alert">${rec.error('progress')}</div>`
-              : null}</div>
+            ${
+              rec.error('progress')
+                ? html`<div class="err" role="alert">${rec.error('progress')}</div>`
+                : null
+            }</div>`}
           <div class="row">
             <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
               hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
@@ -1048,9 +1098,11 @@ class DocumentRec extends Rec {
 /**
  * A tax document kept, or one to keep: `doc` opens a kept one to change its form, issuer,
  * account, notes or file, or to remove it (CR3-36); `start` fills a new one.
- * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any }} p
+ * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any, fromRow?: boolean }} p
  */
-function DocumentDialog({ close, b, start, doc }) {
+function DocumentDialog({ close, b, start, doc, fromRow }) {
+  /** Read from its row, what the row shows is left out (S12.18.6.5). @param {string} n */
+  const onRow = (n) => !b.access.writable && !!fromRow && DOCUMENT_ROW.includes(n);
   useDialogGuide('dialog-tax-document');
   const meta = useApi('/tax-forms');
   const forms = /** @type {any} */ (meta.data) || { received: [], filed: [] };
@@ -1075,7 +1127,7 @@ function DocumentDialog({ close, b, start, doc }) {
   );
   const filed = rec?.get('direction') === 'filed';
   return html`
-    <${DraftDialog} f=${f} close=${close} what="This document"
+    <${DraftDialog} f=${f} close=${close} what="This document" row=${fromRow ? DOCUMENT_ROW : []}
       title=${doc ? doc.form : filed ? 'Add a filed document' : 'Add a tax document'}
       label=${doc ? 'Save' : 'Add'}
       done=${rec?.removed ? 'Document removed' : doc ? 'Document saved' : 'Document kept'}
@@ -1099,13 +1151,15 @@ function DocumentDialog({ close, b, start, doc }) {
           : null}>
       ${rec
         ? html`
-          <div class="field" data-help="direction" id="x-direction"><label>Kind</label>
+          ${onRow('direction')
+            ? null
+            : html`<div class="field" data-help="direction" id="x-direction"><label>Kind</label>
             <${Seg} label="Kind" value=${rec.get('direction')} onChange=${(
               /** @type {string} */ x,
             ) => {
               rec.set('direction', x);
               rec.set('form', x === 'filed' ? 'Return as filed' : 'W-2', 'direction');
-            }} options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>
+            }} options=${[['received', 'Received'], ['filed', 'Filed']]} /></div>`}
           <div class="row">
             <${RecField} rec=${rec} name="form" label="Document" id="form"
               options=${filed ? forms.filed : forms.received} />
@@ -1138,6 +1192,8 @@ function DocumentDialog({ close, b, start, doc }) {
                   rec.set('receiptId', made.id);
                 }
               }} />`
+              : onRow('receiptId')
+              ? null
               : html`<${ReadValue} text=${doc?.fileName || '—'} />`}</${Field}>
           <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `

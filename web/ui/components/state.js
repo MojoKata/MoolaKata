@@ -63,11 +63,12 @@ export function Attention({ children, actions, tone = 'warn', icon }) {
  * eye for one they may only read, which opens it read (S12.18.6). Its name says which, and
  * whose: "Edit Whole Foods", "View Whole Foods". `why` shows it off, saying why: a row with
  * nothing to read yet that the person may not make (S12.19.1).
- * @param {{ name: string, read?: boolean, why?: string | null, onClick: () => void,
- *   [k: string]: any }} p
+ * `label` names a pencil that edits only part of it ("Leave Rent out of your budgets").
+ * @param {{ name: string, read?: boolean, why?: string | null, label?: string,
+ *   onClick: () => void, [k: string]: any }} p
  */
-export function RowTool({ name, read, why, onClick, ...rest }) {
-  const label = `${read ? 'View' : 'Edit'} ${name}`;
+export function RowTool({ name, read, why, label: own, onClick, ...rest }) {
+  const label = own || `${read ? 'View' : 'Edit'} ${name}`;
   return html`
     <${Action} class="icon-btn row-tool" aria-label=${label} data-tip=${label} why=${why}
       onClick=${onClick} ...${rest}>

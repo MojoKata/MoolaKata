@@ -27,10 +27,20 @@
        buttons (*Statement overdue · Import · Type today's balance*). A warning of what an
        action will do (*No backup is made first.*) is such a notice, beside the action.
     5. **Opening a record** from a list is a tool at the end of its row, an icon-only button,
-       never a click on the row: a **pencil** for a record the person may change, which opens
-       it to edit, and an **eye** for one they may only read, which opens it read. Its name
-       says which and whose (*Edit Whole Foods*, *View Whole Foods*), as its tooltip. A row
-       that shows more of itself (a holding's lots) does so from a button on its name.
+       never a click on the row. Its name says what it does and to what (*Edit Whole Foods*,
+       *View Whole Foods*), as its tooltip:
+       1. A **pencil** when the dialog it opens has anything the person may change. Where
+          that is only their own part of a record they read (a transaction they read,
+          counted in a budget of their own), the dialog holds just that part, under the
+          record named once and one line of what it holds beyond its row (S12.18.6.5), and
+          the pencil says so (*Leave Rent out of your budgets*).
+       2. An **eye** when it is only to be read, and only where the record holds more than its
+          row; a row that shows the whole of what one may only read has no tool.
+       3. A row's own control stays only for the one field the row is mostly there to set (a
+          transaction's category, a plan's amounts); anything else is changed in the dialog.
+       4. A row that shows more of itself (a holding's lots) does so from a button on its
+          name. A card or a chip that is one button (a receipt, a gift), and a link to a page,
+          open as they are.
     6. **One component each** draws them, the same on every screen. A test fails on an
        action left out because of a permission on its record, on one shown unavailable
        without a reason, and on a form switched off whole.

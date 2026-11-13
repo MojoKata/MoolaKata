@@ -3,7 +3,7 @@
 // DraftDialog and DraftForm ask before discarding changes, save, then save anyway or reload,
 // and show what a save came to above the buttons; RecField draws one field of a record by its
 // type.
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useContext, useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { useSubmit } from '../app/hooks.js';
@@ -15,7 +15,8 @@ import {
   Field,
   FormError,
   Input,
-  Reading,
+  OnRow,
+  Reads,
   ReadValue,
   Select,
   Switch,
@@ -186,11 +187,13 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
  * draft only when it saves. `extra` draws the footer's other buttons, given the save (a
  * Delete removes its record and saves); `saveWhy` shows the save's button off, saying why
  * (S12.19.1); `read` draws every field in it in its read persona (S12.18.6), its Save off
- * for that reason (*Shared with you to read*, or the words it is).
+ * for that reason (*Shared with you to read*, or the words it is), leaving out a field with
+ * nothing in it and those its row shows (`row`, opened from one).
  * @param {{ f: ReturnType<typeof useDraft>, title: string, close: (v?: any) => void,
  *   what: string, done?: Done, label?: string, confirm?: string, wide?: boolean, note?: any,
  *   before?: () => boolean | void, changed?: () => boolean, disabled?: boolean,
  *   saved?: (o: any) => void, saveWhy?: string | null, read?: boolean | string,
+ *   row?: string[],
  *   extra?: (s: { save: any, outcome: any }) => any, children: any }} p
  */
 /**
@@ -237,7 +240,9 @@ export function DraftDialog(p) {
       save=${saveWhy ? undefined : () => saveFromQuestion(save)}
       onSubmit=${() => saveWhy || save.run().catch(() => {})}
       footer=${html`
-        ${p.extra?.({ save, outcome }) || null}${saveWhy
+        ${p.extra?.({ save, outcome }) || null}${p.read
+          ? html`<button type="button" class="btn" onClick=${() => close()}>Close</button>`
+          : null}${saveWhy
           ? html`<${Action} class="btn primary" why=${saveWhy}>${p.label || 'Save'}</${Action}>`
           : html`
             <${SaveButton} outcome=${outcome} busy=${save.busy} ready=${!!draft}
@@ -252,7 +257,7 @@ export function DraftDialog(p) {
         ? html`<${Failed} error=${f.error} />`
         : !draft
         ? html`<${Loading} lines=${4} />`
-        : html`<${Reading.Provider} value=${p.read || false}>${p.children}</${Reading.Provider}>`}
+        : html`<${Reads} why=${p.read} row=${p.row}>${p.children}</${Reads}>`}
       <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
         again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
@@ -360,7 +365,7 @@ export function DraftForm(p) {
         ? html`<${Failed} error=${f.error} />`
         : !draft
         ? html`<${Loading} lines=${4} />`
-        : html`<${Reading.Provider} value=${p.read || false}>${p.children}</${Reading.Provider}>`}
+        : html`<${Reads} why=${p.read}>${p.children}</${Reads}>`}
       <${SaveOutcome} outcome=${outcome} draft=${draft} what=${p.what}
         again=${() => save.run().catch(() => {})} />
       <${FormError} error=${save.error} />
@@ -424,7 +429,10 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
 export function RecField(p) {
   const { rec, name } = p;
   const reading = useReading(p.readonly);
+  const onRow = useContext(OnRow);
   if (!rec.applies(name)) return null;
+  // Read, a field its row already shows is left out (S12.18.6.5).
+  if (reading && onRow.has(name)) return null;
   const spec = rec.spec(name);
   const error = rec.error(name);
   const edited = () => p.onEdit?.();

@@ -2,6 +2,7 @@
 // (requirements S12.2.3): select rows to categorise them together, change a category in place,
 // open a row to edit it.
 import { useState } from 'preact/hooks';
+import { useList } from '../app/hooks.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { addCategory, categoryOptions, NEW, useCategories } from './categories.js';
@@ -47,6 +48,28 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
     onChanged();
   };
   const options = categoryOptions(cats.list);
+  // The accounts the reader's own budgets count: a transaction they only read, on one of them,
+  // has their leave-outs to edit (S12.19.5).
+  const budgets = useList('/budgets');
+  const counted = new Set(
+    (/** @type {any[]} */ (budgets.data) || []).filter((b) => b.access.writable).flatMap((
+      b,
+    ) => b.accountIds),
+  );
+  /** A row's tool: a pencil to edit it, or the reader's own leave-outs; else an eye. @param {any} t */
+  const tool = (t) => {
+    const theirs = !t.access.writable && counted.has(t.accountId);
+    const open = () =>
+      openDialog(TransactionDialog, { txn: t, accounts, fromRow: true, budgets: theirs }).then((
+        v,
+      ) => v && onChanged());
+    return theirs
+      ? html`
+        <${RowTool} name=${payeeOf(t)} label=${`Leave ${payeeOf(t)} out of your budgets`}
+          onClick=${open} />
+      `
+      : html`<${RowTool} name=${payeeOf(t)} read=${!t.access.writable} onClick=${open} />`;
+  };
   return html`
     ${sel.size
       ? html`<div class="toolbar notice" role="region" aria-label="Selected transactions">
@@ -163,11 +186,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                 ? html`<div class="small dim"><${Icon} name="check" /> cleared</div>`
                 : null
             }</td>
-        <td class="tool"><${RowTool} name=${payeeOf(t)} read=${!t.access.writable}
-          onClick=${() =>
-              openDialog(TransactionDialog, { txn: t, accounts }).then((v) =>
-                v && onChanged()
-              )} /></td>
+        <td class="tool">${tool(t)}</td>
       </tr>`
           )}</tbody>
         </table>

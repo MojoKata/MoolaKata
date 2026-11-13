@@ -274,9 +274,13 @@ function Donations({ year, reload }) {
                       ? html`<span class="pill warn">missing · needed at $250+</span>`
                       : html`<span class="dim">—</span>`}</td>
                     <td class="tool">
-                      <${RowTool} name=${`${d.name}, ${date(d.date)}`}
-                        read=${!!d.id && !d.access.writable} why=${d.id ? null : whyRead(d)}
-                        onClick=${() => open(d)} />
+                      ${!d.id || d.access.writable || d.description || d.granted != null
+                        ? html`
+                          <${RowTool} name=${`${d.name}, ${date(d.date)}`}
+                            read=${!!d.id && !d.access.writable} why=${d.id ? null : whyRead(d)}
+                            onClick=${() => open(d)} />
+                        `
+                        : null}
                     </td>
                   </tr>
                 `
@@ -336,8 +340,12 @@ function Organisations() {
                       <${Amt} v=${o.given} cents=${false} />
                     </td>
                     <td class="tool">
-                      <${RowTool} name=${o.name} read=${!o.access.writable}
-                        onClick=${() => open(o)} />
+                      ${o.access.writable || o.notes
+                        ? html`
+                          <${RowTool} name=${o.name} read=${!o.access.writable}
+                            onClick=${() => open(o)} />
+                        `
+                        : null}
                     </td>
                   </tr>
                 `
@@ -652,6 +660,9 @@ function DonationDialog({ close, from }) {
  */
 function DonationView({ close, d }) {
   useDialogGuide('dialog-donation');
+  // Opened from its row by one who may only read it: what the row shows is left out
+  // (S12.18.6.5).
+  const onRow = !d.access.writable;
   const f = useDraft((draft) => {
     draft.load(DonationRec, { ...d, receiptIds: [] });
   }, [d.id]);
@@ -672,7 +683,7 @@ function DonationView({ close, d }) {
   };
   return html`
     <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
-      what="This donation" read=${whyRead(d) || false}
+      what="This donation" read=${whyRead(d) || false} row=${onRow ? DONATION_ROW : []}
       done=${rec?.removed ? 'Donation deleted' : 'Saved'}
       extra=${({ save }) =>
         rec
@@ -687,9 +698,11 @@ function DonationView({ close, d }) {
               }}>Delete</${Action}><span class="spacer"></span>
           `
           : null}>
-      <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
-      <div class="list-item"><span class="grow dim">Amount</span><${Amt} v=${d.amount} /></div>
-      ${d.symbol
+      ${onRow ? null : html`
+        <div class="list-item"><span class="grow dim">Date</span>${date(d.date)}</div>
+        <div class="list-item"><span class="grow dim">Amount</span><${Amt} v=${d.amount} /></div>
+      `}
+      ${d.symbol && !onRow
         ? html`
           <div
             class="list-item"><span class="grow dim">Shares</span>${quantity(d.quantity)} ${d
@@ -699,9 +712,12 @@ function DonationView({ close, d }) {
       ${d.description
         ? html`<div class="list-item"><span class="grow dim">Given</span>${d.description}</div>`
         : null}
-      <div class="list-item"><span class="grow dim">Deductible</span>${d.deductible
-        ? 'yes'
-        : 'no'}</div>
+      ${onRow ? null : html`<div class="list-item"><span class="grow dim">Deductible</span>${
+        d
+            .deductible
+          ? 'yes'
+          : 'no'
+      }</div>`}
       ${rec && d.kind === 'daf-grant'
         ? html`<${RecField} rec=${rec} name="granted" label="Paid by the fund" />`
         : null}
@@ -753,6 +769,11 @@ class OrganisationRec extends Rec {
   };
 }
 
+/** What an organisation's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
+const ORG_ROW = ['name', 'ein', 'deductible', 'causes', 'pledge', 'pledgeEvery'];
+/** What a donation's row shows. */
+const DONATION_ROW = ['acknowledged'];
+
 /** @param {{ close: (v?: any) => void, o: any }} p */
 function OrganisationDialog({ close, o }) {
   useDialogGuide('dialog-organisation');
@@ -764,6 +785,7 @@ function OrganisationDialog({ close, o }) {
   const canWrite = !o || o.access.writable;
   return html`
     <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
+      row=${o ? ORG_ROW : []}
       what="This organisation" done="Saved" read=${!canWrite}>
       ${rec
         ? html`
