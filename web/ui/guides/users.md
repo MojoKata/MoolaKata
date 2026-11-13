@@ -12,7 +12,8 @@ either way.
 
 ## Group {#request-group}
 
-The group an approved request joins. More can be added later with **Edit**.
+The group an approved request joins. More can be added later with the pencil at the end of the
+user's row.
 
 ## Asked to be made active again
 

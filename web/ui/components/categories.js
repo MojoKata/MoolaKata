@@ -27,7 +27,7 @@ import {
   NEW,
   usesWords,
 } from '../app/categories.js';
-import { Action } from './state.js';
+import { Action, RowTool } from './state.js';
 
 export { categoryOptions, defaultMapping, mergeTargets, NEW };
 
@@ -395,15 +395,14 @@ function CategoryRow({ c, child }) {
       <td>${KIND_NAMES[c.kind]}</td>
       <td>${c.taxTag ? html`<span class="pill">${TAG_NAMES[c.taxTag]}</span>` : null}</td>
       <td class="small dim">${by}</td>
-      <td class="num" style=${{ whiteSpace: 'nowrap' }}>
-        <button type="button" class="btn sm" aria-label=${`Edit ${c.path}`}
-          onClick=${() => openDialog(CategoryDialog, { cat: c })}>Edit</button>
+      <td class="num tool">
         ${c.allowed.merge
           ? html`
             <button type="button" class="btn sm" aria-label=${`Merge ${c.path}`}
               onClick=${() => openDialog(MergeDialog, { cat: c })}>Merge…</button>
           `
-          : null}
+          : null}<${RowTool} name=${c.path} onClick=${() =>
+          openDialog(CategoryDialog, { cat: c })} />
       </td>
     </tr>
   `;

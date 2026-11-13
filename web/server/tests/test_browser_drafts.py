@@ -169,15 +169,15 @@ FORMS = [
     Form(
         "a transaction split, a part paid back (CR3-29)",
         lambda h: f"/ui/accounts/{h.checking['id']}/transactions",
-        'button.linklike:has-text("Grand Hotel")',
-        'button.linklike:has-text("Grand Hotel")',
+        'tr:has-text("Grand Hotel") .row-tool',
+        'tr:has-text("Grand Hotel") .row-tool',
         paid_back,
     ),
     Form(
         "shares moved in, with their basis",
         lambda h: f"/ui/accounts/{h.extra['brokerage']['id']}/transactions",
-        'button.linklike:has-text("transfer-in VTI")',
-        'button.linklike:has-text("transfer-in VTI")',
+        'tr:has-text("transfer-in VTI") .row-tool',
+        'tr:has-text("transfer-in VTI") .row-tool',
         holding,
     ),
     Form(
@@ -215,50 +215,50 @@ FORMS = [
     Form(
         "a gift plan with a graduation and a gift for it (CR3-43)",
         lambda h: "/ui/gifts/people",
-        'tr:has-text("Emma Griffin")',
-        'tr:has-text("Emma Griffin")',
+        'tr:has-text("Emma Griffin") .row-tool',
+        'tr:has-text("Emma Griffin") .row-tool',
         gift_plan,
     ),
     Form(
         "a filed return with a matched payment and carried figures",
         lambda h: "/ui/taxes/filings",
-        'h3:has-text("Form 1040") button:has-text("Edit")',
-        'h3:has-text("Form 1040") button:has-text("Edit")',
+        'h3:has-text("Form 1040") .row-tool',
+        'h3:has-text("Form 1040") .row-tool',
         filings,
     ),
     Form(
         "a user invited into a group",
         lambda h: "/ui/users",
-        'tr:has-text("Bob Griffin") button:has-text("Edit")',
-        'tr:has-text("Bob Griffin") button:has-text("Edit")',
+        'tr:has-text("Bob Griffin") .row-tool',
+        'tr:has-text("Bob Griffin") .row-tool',
         users_of,
     ),
     Form(
         "a group with a member",
         lambda h: "/ui/users",
-        'tr.click:has-text("Household")',
-        'tr.click:has-text("Household")',
+        'tr:has-text("Household") .row-tool',
+        'tr:has-text("Household") .row-tool',
         users_of,
     ),
     Form(
         "a gift planned for an occasion, with its cost",
         lambda h: "/ui/gifts/gifts",
-        'tr.click:has-text("Watch")',
-        'tr.click:has-text("Watch")',
+        'tr:has-text("Watch") .row-tool',
+        'tr:has-text("Watch") .row-tool',
         giving_of,
     ),
     Form(
         "an organisation with causes and a monthly pledge",
         lambda h: "/ui/giving/organisations",
-        'tr.click:has-text("St. Mark")',
-        'tr.click:has-text("St. Mark")',
+        'tr:has-text("St. Mark") .row-tool',
+        'tr:has-text("St. Mark") .row-tool',
         giving_of,
     ),
     Form(
         "a donation recorded, with its notes",
         lambda h: "/ui/giving/donations",
-        'tr.click:has-text("St. Mark")',
-        'tr.click:has-text("St. Mark")',
+        'tr:has-text("St. Mark") .row-tool',
+        'tr:has-text("St. Mark") .row-tool',
         giving_of,
     ),
     Form(
@@ -271,15 +271,15 @@ FORMS = [
     Form(
         "a dependent with the months they lived with the filers",
         lambda h: "/ui/taxes/summary",
-        '.list-item.click:has-text("Emma Griffin")',
-        '.list-item.click:has-text("Emma Griffin")',
+        '.list-item:has-text("Emma Griffin") .row-tool',
+        '.list-item:has-text("Emma Griffin") .row-tool',
         book_of,
     ),
     Form(
         "a W-2 kept with its file and notes (CR3-36)",
         lambda h: "/ui/taxes/documents",
-        'tr.click:has-text("Acme Corp")',
-        'tr.click:has-text("Acme Corp")',
+        'tr:has-text("Acme Corp") .row-tool',
+        'tr:has-text("Acme Corp") .row-tool',
         book_of,
     ),
     Form(
@@ -309,8 +309,8 @@ FORMS = [
     Form(
         "a home with its valuation and improvement",
         lambda h: f"/ui/accounts/{h.extra['homes']['id']}/items",
-        'tr.click:has-text("1428 Elm St")',
-        'tr.click:has-text("1428 Elm St")',
+        'tr:has-text("1428 Elm St") .row-tool',
+        'tr:has-text("1428 Elm St") .row-tool',
         home,
     ),
     Form(
@@ -564,8 +564,8 @@ def test_an_edited_split_transaction_keeps_its_parts_and_their_payback(browser, 
     h = household
     before, _ = paid_back(h)
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
-    page.click('button.linklike:has-text("Grand Hotel")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Grand Hotel") .row-tool')
+    page.click('tr:has-text("Grand Hotel") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-memo", "two nights")
     page.click(".dialog footer button.primary")
@@ -587,8 +587,8 @@ def test_an_ira_contribution_is_marked_deductible_or_not_whole_or_part_by_part(b
     ira = new_account(h.c, name="Drafts IRA", type="ira")["id"]
     t = add(h.c, ira, "7000.00", months_back(1) + "-10", kind="deposit", payee="Backdoor")
     path = f"/ui/accounts/{ira}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Backdoor")')
-    page.click('button.linklike:has-text("Backdoor")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Backdoor") .row-tool')
+    page.click('tr:has-text("Backdoor") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     seg = '.dialog [role=radiogroup][aria-label="Deductible"]'
     assert page.get_attribute(f'{seg} button:has-text("Not decided")', "aria-checked") == "true"
@@ -596,7 +596,7 @@ def test_an_ira_contribution_is_marked_deductible_or_not_whole_or_part_by_part(b
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     assert h.c.get(f"/ui/api/transactions/{t['id']}").json()["deductible"] is False
-    page.click('button.linklike:has-text("Backdoor")')
+    page.click('tr:has-text("Backdoor") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog button:has-text("Split…")')
     page.fill("#x-split-0-amount", "3000.00")
@@ -679,7 +679,7 @@ def test_a_filing_changed_keeps_its_payments_match(browser, household):
     h = household
     (before,) = filings(h)
     page, problems = signed_in(browser, h, "/ui/taxes/filings", 'h3:has-text("Form 1040")')
-    page.click('h3:has-text("Form 1040") button:has-text("Edit")')
+    page.click('h3:has-text("Form 1040") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-confirmation", "IRS-456")
     page.fill("#x-carried-agi", "98,100")
@@ -790,8 +790,8 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
         costBasis="5000",
     ).json()
     path = f"/ui/accounts/{coll['id']}/items"
-    page, problems = signed_in(browser, h, path, 'tr.click:has-text("Speedmaster")')
-    page.click('tr.click:has-text("Speedmaster")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Speedmaster") .row-tool')
+    page.click('tr:has-text("Speedmaster") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#x-valuation-value", "6200")
     page.click('.dialog button:has-text("Add")')
@@ -843,8 +843,8 @@ def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household
     t = made(make(h.c, "Txn", accountId=h.checking["id"], date=f"{months_back(1)}-03",
                   amount="-18.00", payee="Corner Bakery"))  # fmt: skip
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Corner Bakery")')
-    page.click('button.linklike:has-text("Corner Bakery")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Corner Bakery") .row-tool')
+    page.click('tr:has-text("Corner Bakery") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.set_input_files("#f-add-receipt", files=[
         {"name": "bakery.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 bakery"}
@@ -901,8 +901,8 @@ def test_not_a_transfer_undoes_the_match_through_the_save(browser, household):
     pair = lambda: h.c.get(f"/ui/api/transactions/{into['id']}").json()["transferId"]  # noqa: E731
     assert pair() == out["id"], "matched when it was added"
     path = f"/ui/accounts/{savings['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("From checking")')
-    page.click('button.linklike:has-text("From checking")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("From checking") .row-tool')
+    page.click('tr:has-text("From checking") .row-tool')
     wait(page, '.dialog button:has-text("Not a transfer"):enabled', problems)
     page.click('.dialog button:has-text("Not a transfer")')
     wait(page, ".dialog", problems, state="detached")
@@ -920,8 +920,8 @@ def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, househo
     t = made(make(h.c, "Txn", accountId=h.checking["id"], date=day, amount="-12.34",
                   payee="Corner bakery"))  # fmt: skip
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Corner bakery")')
-    page.click('button.linklike:has-text("Corner bakery")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Corner bakery") .row-tool')
+    page.click('tr:has-text("Corner bakery") .row-tool')
     wait(page, '.dialog button:has-text("Delete"):enabled', problems)
     for key in ("Enter", "Escape"):
         page.click('.dialog button:has-text("Delete")')
@@ -947,15 +947,15 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     h = household
     b = h.extra["book"]["id"]
     make(h.c, "TxDoc", bookId=b, form="1098", issuer="Rocket")
-    page, problems = signed_in(browser, h, "/ui/taxes/documents", 'tr.click:has-text("Rocket")')
-    page.click('tr.click:has-text("Rocket")')
+    page, problems = signed_in(browser, h, "/ui/taxes/documents", 'tr:has-text("Rocket") .row-tool')
+    page.click('tr:has-text("Rocket") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-notes", "for the home in Utah")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     got = next(x for x in book_of(h)["received"] if x["issuer"] == "Rocket")
     assert got["notes"] == "for the home in Utah"
-    page.click('tr.click:has-text("Rocket")')
+    page.click('tr:has-text("Rocket") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog footer button:has-text("Remove")')
     page.click('[role=alertdialog] button:has-text("Yes, remove")')
@@ -971,8 +971,9 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
 def test_a_donations_acknowledgement_is_kept_with_save(browser, household):
     """Its file uploaded, the acknowledgement counts as received once the dialog saves."""
     h = household
-    page, problems = signed_in(browser, h, "/ui/giving/donations", 'tr.click:has-text("St. Mark")')
-    page.click('tr.click:has-text("St. Mark")')
+    opener = 'tr:has-text("St. Mark") .row-tool'
+    page, problems = signed_in(browser, h, "/ui/giving/donations", opener)
+    page.click(opener)
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.set_input_files("#f-ack-files", files=[
         {"name": "ack.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 thank you"}
@@ -990,8 +991,8 @@ def test_cancel_asks_before_discarding_too(browser, household):
     """S12.15.6: a dialog's Cancel asks as Escape does."""
     h = household
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
-    page.click('button.linklike:has-text("Grand Hotel")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Grand Hotel") .row-tool')
+    page.click('tr:has-text("Grand Hotel") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-memo", "not kept")
     page.click('.dialog footer button:has-text("Cancel")')
@@ -1149,8 +1150,8 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
 def test_tags_typed_are_made_with_the_save_and_a_rename_reaches_them(browser, household):
     h = household
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    page, problems = signed_in(browser, h, path, 'button.linklike:has-text("Grand Hotel")')
-    page.click('button.linklike:has-text("Grand Hotel")')
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Grand Hotel") .row-tool')
+    page.click('tr:has-text("Grand Hotel") .row-tool')
     wait(page, "#f-tags", problems)
     page.fill("#f-tags", "Travel, work trip")
     page.click(".dialog footer button.primary")
@@ -1363,7 +1364,7 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     saved(option_trade(h.c, acct["id"], f"{months_back(2)}-01", "sell-to-open", "KO", "put",
                        "60", expiry, "2", "1.10"))  # fmt: skip
     page, problems = signed_in(browser, h, "/ui/positions/open", "text=KO")
-    page.get_by_role("row", name=re.compile(r"KO .* 60 P")).click()
+    page.get_by_role("row", name=re.compile(r"KO .* 60 P")).locator("button.linklike").click()
     page.get_by_role("button", name="Expired, assigned or exercised…").click()
     wait(page, ".dialog .value-input input", problems)
     field = page.locator(".dialog .value-input input")

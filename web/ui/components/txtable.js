@@ -12,8 +12,12 @@ import { openDialog } from './dialog.js';
 import { toast } from './toast.js';
 import { TransactionDialog } from '../screens/transaction-dialog.js';
 import { whyRead } from '../app/draft.js';
+import { RowTool } from './state.js';
 
 export { useCategories };
+
+/** What a transaction is called in its row: its payee, else its kind and symbol. @param {any} t */
+const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
 
 /**
  * @param {{ rows: any[], showAccount?: boolean, onChanged: () => void, accounts?: any[] }} p
@@ -65,7 +69,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
           .length}
           onChange=${() => setSel(all ? new Set() : new Set(writable.map((t) => t.id)))} /></th>
         <th>Date</th><th>Payee</th><th>Category</th>${showAccount ? html`<th>Account</th>` : null}
-        <th class="num">Amount</th></tr>
+        <th class="num">Amount</th><th></th></tr>
           </thead>
           <tbody>${rows.map((t) =>
             html`<tr class=${sel.has(t.id) ? 'tr-sel' : ''}>
@@ -76,13 +80,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
             } disabled=${!t.access.writable} checked=${sel.has(t.id)} onChange=${() =>
               toggle(t.id)} /></span></td>
         <td class="dim" style=${{ whiteSpace: 'nowrap' }}>${date(t.date)}</td>
-        <td><button type="button" class="linklike" style=${{
-              color: 'var(--fg)',
-              textAlign: 'left',
-            }}
-            onClick=${() =>
-              openDialog(TransactionDialog, { txn: t, accounts }).then((v) => v && onChanged())}>
-            ${t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind)}${
+        <td><span>${payeeOf(t)}${
               t.receipts
                 ? html`
                   ${' '}<span class="dim" title=${`${t.receipts} receipt${
@@ -90,7 +88,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                   }`}><${Icon} name="clip" /></span>
                 `
                 : null
-            }</button>
+            }</span>
           ${
               t.symbol && t.quantity
                 ? html`<div class="small dim">${quantity(t.quantity)} ${t.symbol}${
@@ -169,6 +167,11 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                 ? html`<div class="small dim"><${Icon} name="check" /> cleared</div>`
                 : null
             }</td>
+        <td class="tool"><${RowTool} name=${payeeOf(t)} read=${!t.access.writable}
+          onClick=${() =>
+              openDialog(TransactionDialog, { txn: t, accounts }).then((v) =>
+                v && onChanged()
+              )} /></td>
       </tr>`
           )}</tbody>
         </table>

@@ -16,6 +16,7 @@ import { withReauth } from '../components/reauth.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from '../components/draft-form.js';
+import { RowTool } from '../components/state.js';
 
 export default function Users() {
   useTitle('Users and Groups');
@@ -91,6 +92,7 @@ export default function Users() {
             <th>Email</th>
             <th></th>
             <th class="num">Active</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>${list.map((x) =>
@@ -127,17 +129,17 @@ export default function Users() {
                     class="small dim">${x.lastSignInAt
                       ? 'signed in ' + ago(x.lastSignInAt)
                       : 'never signed in'}</span>
-                `}
-                      <button type="button" class="btn sm" onClick=${() =>
-                        openDialog(EditUser, { user: x, groups: g }).then((r) =>
-                          r && reload()
-                        )}>Edit</button></td>
+                `}</td>
               <td class="num">
                 <${Switch} on=${x.active} label=${'Active: ' +
                   x.displayName} disabled=${busy === x.id}
                   id=${'active-' + x.username} help="active" onChange=${(
                     /** @type {boolean} */ v,
                   ) => setActive(x, v)} />
+              </td>
+              <td class="tool">
+                <${RowTool} name=${x.displayName} onClick=${() =>
+                  openDialog(EditUser, { user: x, groups: g }).then((r) => r && reload())} />
               </td>
             </tr>
           `
@@ -160,12 +162,12 @@ export default function Users() {
             <th>Members</th>
             <th>Made</th>
             <th class="num">Active</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>${g.map((x) =>
           html`
-            <tr class="click" onClick=${() =>
-              openDialog(GroupDialog, { users: u, group: x }).then((r) => r && reload())}>
+            <tr>
               <td><b>${x.name}</b>${x.builtIn
                 ? html`${' '}<span class="pill">built in</span>`
                 : null}</td>
@@ -180,6 +182,10 @@ export default function Users() {
               })}</td>
               <td class="dim">${day(x.createdAt)}</td>
               <td class="num">${x.active ? 'yes' : 'no'}</td>
+              <td class="tool">
+                <${RowTool} name=${x.name} onClick=${() =>
+                  openDialog(GroupDialog, { users: u, group: x }).then((r) => r && reload())} />
+              </td>
             </tr>
           `
         )}</tbody>

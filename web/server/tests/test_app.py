@@ -420,7 +420,7 @@ def test_two_step_sign_in_through_the_app(page):
     visit(admin, "/ui/users")
     row = admin.locator("tr", has_text="bob@")
     assert row.locator(".pill.ok", has_text="two-step").count() == 1
-    row.get_by_role("button", name="Edit").click()
+    row.locator(".row-tool").click()
     admin.get_by_role("button", name="Reset two-step").click()
     admin.get_by_role("button", name="Turn it off").click()
     admin.wait_for_selector("text=Two-step sign-in is off for")

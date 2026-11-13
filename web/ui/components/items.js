@@ -19,7 +19,7 @@ import { Dec, dec, num } from '../app/dec.js';
 import { READ_ONLY, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
-import { Action } from './state.js';
+import { Action, RowTool } from './state.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],
@@ -123,12 +123,10 @@ export function Items({ a }) {
                 <tr><th>Item</th>${metals
                   ? html`<th class="num">Fine oz</th>`
                   : null}<th>Acquired</th><th class="num">Cost basis</th><th>Value</th>
-                      <th class="num">Gain</th></tr>
+                      <th class="num">Gain</th><th></th></tr>
               </thead>
               <tbody>${v.items.map((/** @type {any} */ i) =>
-                html`<tr class="click" tabindex="0" onClick=${() => open(i.id)} onKeyDown=${(
-                  /** @type {KeyboardEvent} */ e,
-                ) => e.key === 'Enter' && open(i.id)}>
+                html`<tr>
               <td>${i.name}<div class="small dim">${
                   [
                     i.metal ? METAL[i.metal] : null,
@@ -168,7 +166,9 @@ export function Items({ a }) {
                         : null
                     }`
                 }</td>
-              <td class="num"><${Amt} v=${i.gain} signed cents=${false} /></td></tr>`
+              <td class="num"><${Amt} v=${i.gain} signed cents=${false} /></td>
+              <td class="tool"><${RowTool} name=${i.name} read=${!a.access.writable}
+                onClick=${() => open(i.id)} /></td></tr>`
               )}</tbody>
               <tfoot>
                 <tr>
@@ -181,6 +181,7 @@ export function Items({ a }) {
                   <td class="num">
                     <${Amt} v=${v.gain} signed cents=${false} />
                   </td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>

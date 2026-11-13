@@ -19,7 +19,7 @@ import { useDialogGuide } from './help.js';
 import { Icon } from './icon.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
-import { Action } from './state.js';
+import { Action, RowTool } from './state.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -163,11 +163,11 @@ export function Strategies() {
                       <td class="num">${atRisk(x, 'capitalAtRiskAtOpen')}${x.returnPct != null
                         ? html`<div class="small">${x.returnPct}%</div>`
                         : null}</td>
-                      <td>
-                        <${Action} class="btn sm" why=${whyRead(x)} onClick=${() =>
-                          openDialog(StrategyDialog, { x }).then((ok) =>
-                            ok && res.reload()
-                          )}>Edit…</${Action}></td>
+                      <td class="tool">
+                        <${RowTool} name=${`${x.name} · ${x.underlying}`}
+                          read=${!x.access.writable} onClick=${() =>
+                            openDialog(StrategyDialog, { x }).then((ok) => ok && res.reload())} />
+                      </td>
                     </tr>
                   `
                 )}</tbody>
@@ -386,12 +386,12 @@ function StrategyDialog({ close, x }) {
   );
   return html`
     <${DraftDialog} f=${f} title=${`${x.name} · ${x.underlying}`} close=${close}
-      what="This strategy"
+      what="This strategy" read=${!x.access.writable}
       done=${(/** @type {any} */ d) =>
         d?.records[0]?.removed ? 'Ungrouped: the legs stand on their own' : 'Saved'}
       extra=${({ save }) =>
         html`
-          <button type="button" class="btn danger" disabled=${save.busy || !rec}
+          <${Action} class="btn danger" why=${whyRead(x)} disabled=${save.busy || !rec}
             onClick=${async () => {
               const draft = f.draft;
               if (!rec || !draft) return;
@@ -404,7 +404,7 @@ function StrategyDialog({ close, x }) {
               draft.remove(rec);
               const r = await save.run().catch(() => null);
               if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
-            }}>Ungroup</button><span class="spacer"></span>
+            }}>Ungroup</${Action}><span class="spacer"></span>
         `}>
       ${rec
         ? html`

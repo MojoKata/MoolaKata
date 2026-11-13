@@ -16,7 +16,7 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../app/dec.js';
 import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
-import { Action, Attention } from '../components/state.js';
+import { Action, Attention, RowTool } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
@@ -245,13 +245,12 @@ function Donations({ year, reload }) {
                   <th class="num">Amount</th>
                   <th>Deductible</th>
                   <th>Acknowledgement</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map((d) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(d)} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(d)}>
+                  <tr>
                     <td class="small dim" style=${{ whiteSpace: 'nowrap' }}>${date(d.date)}</td>
                     <td>${d.name}${d.id
                       ? null
@@ -274,6 +273,11 @@ function Donations({ year, reload }) {
                       : d.needsAck
                       ? html`<span class="pill warn">missing · needed at $250+</span>`
                       : html`<span class="dim">—</span>`}</td>
+                    <td class="tool">
+                      <${RowTool} name=${`${d.name}, ${date(d.date)}`}
+                        read=${!!d.id && !d.access.writable} why=${d.id ? null : whyRead(d)}
+                        onClick=${() => open(d)} />
+                    </td>
                   </tr>
                 `
               )}</tbody>
@@ -311,13 +315,12 @@ function Organisations() {
                   <th>Causes</th>
                   <th>Pledge</th>
                   <th class="num">Given this year</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map((o) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(o)} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(o)}>
+                  <tr>
                     <td>${o.name}</td>
                     <td class="small dim" style=${{ whiteSpace: 'nowrap' }}>${o.ein ||
                       '—'}</td>
@@ -331,6 +334,10 @@ function Organisations() {
                       : html`<span class="dim">—</span>`}</td>
                     <td class="num">
                       <${Amt} v=${o.given} cents=${false} />
+                    </td>
+                    <td class="tool">
+                      <${RowTool} name=${o.name} read=${!o.access.writable}
+                        onClick=${() => open(o)} />
                     </td>
                   </tr>
                 `
@@ -665,7 +672,7 @@ function DonationView({ close, d }) {
   };
   return html`
     <${DraftDialog} f=${f} title=${`${d.kindLabel} · ${d.name}`} close=${close}
-      what="This donation" saveWhy=${whyRead(d)}
+      what="This donation" read=${whyRead(d) || false}
       done=${rec?.removed ? 'Donation deleted' : 'Saved'}
       extra=${({ save }) =>
         rec
@@ -695,12 +702,21 @@ function DonationView({ close, d }) {
       <div class="list-item"><span class="grow dim">Deductible</span>${d.deductible
         ? 'yes'
         : 'no'}</div>
-      ${rec && d.kind === 'daf-grant' && d.access.writable
+      ${rec && d.kind === 'daf-grant'
         ? html`<${RecField} rec=${rec} name="granted" label="Paid by the fund" />`
+        : null}
+      ${rec
+        ? html`<${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />`
+        : null}
+      ${rec && !d.access.writable
+        ? html`
+          <div class="toolbar">
+            <${Action} class="btn sm" why=${whyRead(d)}><${Icon}
+                    name="clip" /> Attach the acknowledgement</${Action}></div>
+        `
         : null}
       ${rec && d.access.writable
         ? html`
-          <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received" />
           <div
             class="toolbar"><label class="btn sm" for="f-ack-files"><${Icon} name="clip" /> ${busy
               ? 'Uploading…'

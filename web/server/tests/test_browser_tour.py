@@ -60,7 +60,7 @@ def test_find_them_starts_a_tour_that_stays_while_its_links_move_around(browser,
     # Its links go to each use, and the tour stays as it was, the link to here marked.
     page.click(f"{TOUR} a:has-text('1 transaction filed under it')")
     page.wait_for_url(f"**/ui/transactions?category={cat['id']}")
-    wait(page, 'button.linklike:has-text("Browser toy shop")', problems)
+    wait(page, 'tr:has-text("Browser toy shop") .row-tool', problems)
     assert page.locator(f"{TOUR} a.here").inner_text() == "1 transaction filed under it"
     page.click(f"{TOUR} a:has-text('Browser toys budget')")
     page.wait_for_url(f"**/ui/budgets/{b['id']}/month?month={start[:7]}")

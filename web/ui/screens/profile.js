@@ -8,7 +8,15 @@ import { useApi, useSubmit } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { Avatar, Failed, Loading } from '../components/bits.js';
 import { Icon } from '../components/icon.js';
-import { errAt, Field, FormError, Input, Select, TypedInput } from '../components/fields.js';
+import {
+  errAt,
+  Field,
+  FormError,
+  Input,
+  Reading,
+  Select,
+  TypedInput,
+} from '../components/fields.js';
 import { toast } from '../components/toast.js';
 import { Dialog, openDialog } from '../components/dialog.js';
 import { ModelsChart } from '../charts/chart.js';
@@ -18,12 +26,12 @@ import { loadSession, session } from '../store/session.js';
 import { AccessTokens } from '../components/tokens.js';
 import { Connections } from '../components/connections.js';
 import { num } from '../app/dec.js';
-import { Record as Rec } from '../app/draft.js';
+import { Record as Rec, whyRead } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
 import { confirmAction } from '../components/confirm.js';
-import { StatePill } from '../components/state.js';
+import { Action, RowTool, StatePill } from '../components/state.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -189,10 +197,7 @@ function Relations({ p, reload }) {
       ${rows.length
         ? rows.map((/** @type {any} */ r) =>
           html`
-            <div class=${'list-item' + (r.access.writable ? ' click' : '')} onClick=${r.access
-                .writable
-              ? () => open(r)
-              : null}>
+            <div class="list-item">
               <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r) ||
                   r.confirmed !== null
                 ? html`<div class="small dim">${
@@ -208,6 +213,8 @@ function Relations({ p, reload }) {
                   confirm(r);
                 }}>Confirm</button>`
                 : null}
+              <${RowTool} name=${`${name(r)}, ${word(r)}`} read=${!r.access.writable}
+                onClick=${() => open(r)} />
             </div>
           `
         )
@@ -332,26 +339,30 @@ function RelationshipDialog({ close, me, r }) {
   const e = save.error || remove.error;
   const all = /** @type {any[]} */ ((/** @type {any} */ (persons.data))?.items || []);
   const list = all.filter((/** @type {any} */ x) => x.id !== f.who);
+  // One it is shared with to read sees it read (S12.18.6).
+  const why = r ? whyRead(r) : null;
   return html`
     <${Dialog} title=${r ? 'A relationship' : 'Add a relationship'} close=${close} onSubmit=${() =>
-      save.run().catch(
+      why || save.run().catch(
         () => {},
       )} changed=${() => JSON.stringify(f) !== was}
-      footer=${html`${
-        r
+      footer=${html`
+        ${r
           ? html`
-            <button type="button" class="btn danger" disabled=${remove.busy}
+            <${Action} class="btn danger" why=${why} disabled=${remove.busy}
               onClick=${async () => {
                 const sure = await confirmAction({
                   title: 'Remove this relationship?',
                   yes: 'Yes, remove',
                 });
                 if (sure) remove.run().catch(() => {});
-              }}>Remove</button><span class="spacer"
+              }}>Remove</${Action}><span class="spacer"
             ></span>
           `
-          : null
-      }<button class="btn primary" disabled=${save.busy}>${r ? 'Save' : 'Add'}</button>`}>
+          : null}<${Action} type="submit" class="btn primary" why=${why}
+          disabled=${save.busy}>${r ? 'Save' : 'Add'}</${Action}>
+      `}>
+      <${Reading.Provider} value=${why || false}>
       <p class="small dim" style=${{ marginTop: 0 }}>Mothers, grandparents, cousins and in-laws
         are worked out from these. A divorce is the marriage's end date.</p>
       ${admin
@@ -409,7 +420,7 @@ function RelationshipDialog({ close, me, r }) {
         'toDate',
         'label',
       ]} />
-    </${Dialog}>
+    </${Reading.Provider}></${Dialog}>
   `;
 }
 

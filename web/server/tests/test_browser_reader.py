@@ -100,7 +100,10 @@ def test_a_reader_opens_a_transaction_its_changes_off(browser, household, reader
     page, problems = signed_in_as_reader(
         browser, h, f"/ui/accounts/{h.checking['id']}/transactions", "table tbody tr"
     )
-    page.locator("table tbody tr td button.linklike").first.click()
+    # The eye at the row's end opens it read (S12.19.5).
+    tool = page.locator("table tbody tr .row-tool").first
+    assert tool.get_attribute("aria-label").startswith("View ")
+    tool.click()
     wait(page, ".dialog", problems)
     assert page.locator("#dialog-title").inner_text() == "Transaction"
     for name in ("Delete", "Save", "Add a receipt"):
@@ -164,7 +167,7 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
         browser, h, f"/ui/accounts/{h.extra['homes']['id']}/items", "text=1428 Elm St"
     )
     off(page, "Add an item")
-    page.locator("text=1428 Elm St").first.click()
+    page.click('button[aria-label="View 1428 Elm St"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
     for name in ("Save", "Add a valuation", "Add improvement", "Add", "Record the sale…"):
@@ -228,7 +231,7 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     off(page, "Edit")
     page.goto(h.base + "/ui/gifts/people")
     wait(page, "text=Emma Griffin", problems)
-    page.locator("text=Emma Griffin").first.click()
+    page.click('button[aria-label="View the gift plan for Emma Griffin"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
     off(dialog, "Save")

@@ -20,7 +20,7 @@ import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../components/confirm.js';
-import { Action, Attention } from '../components/state.js';
+import { Action, Attention, RowTool } from '../components/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -172,14 +172,12 @@ function People() {
                   <th class="num">Budget</th>
                   <th class="num">Spent this year</th>
                   <th>Last gift</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map(({ plan: p, person }) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() =>
-                    open({ plan: p, person })} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open({ plan: p, person })}>
+                  <tr>
                     <td style=${{ whiteSpace: 'nowrap' }}><b>${person.name}</b>${person.private
                       ? html`${' '}<span class="pill">private</span>`
                       : null}<div class="small dim">${[
@@ -198,6 +196,10 @@ function People() {
                       <${Amt} v=${p.spent} cents=${false} />
                     </td>
                     <td class="small dim">${p.lastGift || '—'}</td>
+                    <td class="tool">
+                      <${RowTool} name=${`the gift plan for ${person.name}`}
+                        read=${!p.access.writable} onClick=${() => open({ plan: p, person })} />
+                    </td>
                   </tr>
                 `
               )}</tbody>
@@ -237,13 +239,12 @@ function GiftList() {
                   <th>Gift</th>
                   <th>Status</th>
                   <th class="num">Cost</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows.map((g) =>
                 html`
-                  <tr class="click" tabindex="0" onClick=${() => open(g)} onKeyDown=${(
-                    /** @type {KeyboardEvent} */ e,
-                  ) => e.key === 'Enter' && open(g)}>
+                  <tr>
                     <td style=${{ whiteSpace: 'nowrap' }}>${g.status === 'received'
                       ? 'From '
                       : ''}${g
@@ -262,6 +263,10 @@ function GiftList() {
                       <span
                         class="dim">—</span>
                     `}</td>
+                    <td class="tool">
+                      <${RowTool} name=${g.description}
+                        read=${!g.access.writable} onClick=${() => open(g)} />
+                    </td>
                   </tr>
                 `
               )}</tbody>

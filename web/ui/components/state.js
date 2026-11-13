@@ -1,6 +1,7 @@
 // Actions and the page's state (requirements S12.19): an action not open now is shown off with
 // its reason, never hidden; what the page knows is shown briefly, its explanation in the guide.
 import { html } from '../app/html.js';
+import { Icon } from './icon.js';
 
 /**
  * A button (S12.19.1). Given `why`, it is shown but off: `aria-disabled`, so it still reaches
@@ -54,4 +55,23 @@ export function Attention({ children, actions, tone = 'warn', icon }) {
     class="grow">${children}</span>${
     actions ? html`<span class="attention-actions">${actions}</span>` : null
   }</div>`;
+}
+
+/**
+ * Opening a record from its row (S12.19.5): an icon-only button at the row's end, never a
+ * click on the row. A pencil for a record the person may change, which opens it to edit; an
+ * eye for one they may only read, which opens it read (S12.18.6). Its name says which, and
+ * whose: "Edit Whole Foods", "View Whole Foods". `why` shows it off, saying why: a row with
+ * nothing to read yet that the person may not make (S12.19.1).
+ * @param {{ name: string, read?: boolean, why?: string | null, onClick: () => void,
+ *   [k: string]: any }} p
+ */
+export function RowTool({ name, read, why, onClick, ...rest }) {
+  const label = `${read ? 'View' : 'Edit'} ${name}`;
+  return html`
+    <${Action} class="icon-btn row-tool" aria-label=${label} data-tip=${label} why=${why}
+      onClick=${onClick} ...${rest}>
+      <${Icon} name=${read ? 'eye' : 'pencil'} />
+      </${Action}>
+  `;
 }

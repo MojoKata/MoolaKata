@@ -704,11 +704,16 @@
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
   }
-  .t tr.click {
-    cursor: pointer;
+  /* Opening a record: its tool at the row's end (S12.19.5). */
+  .t td.tool {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
-  .t tr.click:hover td {
-    background: var(--bg-3);
+  .list-item .row-tool {
+    flex: none;
   }
   .t tfoot td {
     font-weight: 600;

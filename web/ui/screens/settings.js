@@ -33,7 +33,7 @@ import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
 import { confirmAction } from '../components/confirm.js';
-import { Attention } from '../components/state.js';
+import { Attention, RowTool } from '../components/state.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -1275,10 +1275,13 @@ function WrittenEmails() {
     items.map((/** @type {any} */ w) =>
       html`
         <div
-          class="list-item"><div class="grow">${w.subject}<div class="small dim">to ${w.to} · ${ago(
+          class="list-item">
+          <div class="grow">${w.subject}<div class="small dim">to ${w.to} · ${ago(
             w.writtenAt,
-          )}</div></div><button type="button" class="btn sm" onClick=${() =>
-            open(w).catch((e) => toast(e.message))}>Open</button></div>
+          )}</div></div>
+          <${RowTool} name=${w.subject} read onClick=${() =>
+            open(w).catch((e) => toast(e.message))} />
+        </div>
       `
     )
   }

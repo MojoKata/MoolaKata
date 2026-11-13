@@ -18,7 +18,7 @@ def invite(h: Household, username: str, email: str) -> dict:
 def edit(browser, h: Household, name: str, fields: dict[str, str]) -> str:
     """The toast once the user's row is edited and saved."""
     page, problems = signed_in(browser, h, "/ui/users", f'tr:has-text("{name}")')
-    page.click(f'tr:has-text("{name}") button:has-text("Edit")')
+    page.click(f'tr:has-text("{name}") .row-tool')
     dialog = page.locator(".dialog")
     wait(page, '.dialog :text("Email address")', problems)
     for label, value in fields.items():

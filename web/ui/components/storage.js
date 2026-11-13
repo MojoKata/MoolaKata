@@ -16,6 +16,7 @@ import { Record } from '../app/draft.js';
 import { DraftDialog, DraftForm, RecField, useDraft } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
 import { FIELDS } from '../api/fields.js';
+import { RowTool } from './state.js';
 
 const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 
@@ -213,7 +214,7 @@ function CategoryPeriods({ reload }) {
               const own = c.keepReceiptsYears;
               const from = own == null && c.parentId ? parent(c)?.keepReceiptsYears : null;
               return html`
-                <tr class="click" onClick=${() => open(c)}>
+                <tr>
                   <td>${c.path}</td>
                   <td
                     class="num">${own != null
@@ -221,6 +222,9 @@ function CategoryPeriods({ reload }) {
                       : from != null
                       ? html`<span class="dim">${from} years, its parent's</span>`
                       : html`<span class="dim">for ever</span>`}</td>
+                  <td class="tool">
+                    <${RowTool} name=${c.path} onClick=${() => open(c)} />
+                  </td>
                 </tr>
               `;
             })}</tbody>

@@ -182,7 +182,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     ids = account_ids(page)
     # Make a rule opens New rule over the transaction's dialog (S2.7.6).
     visit(page, "/ui/transactions")
-    page.locator("table button.linklike", has_text="Kroger").first.click()
+    page.locator("tr", has_text="Kroger").first.locator(".row-tool").click()
     wait_guide(page, "dialog-transaction")
     page.get_by_role("button", name="Make a rule").click()
     wait_guide(page, "dialog-rule")
@@ -241,7 +241,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
         ("vehicle", "Outback"),
     ):
         visit(page, f"/ui/accounts/{ids[t]}/items")
-        page.get_by_role("row", name=re.compile(name)).click()
+        page.get_by_role("row", name=re.compile(name)).locator(".row-tool").click()
         page.wait_for_selector(".dialog")
         wait_guide(page, "dialog-item")
         if page.get_by_role("button", name="Record the sale…").count():
@@ -252,12 +252,12 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # A person with their dates, and a gift with its purchase.
     visit(page, "/ui/gifts/people")
-    page.get_by_role("row", name=re.compile("Bob Griffin")).click()
+    page.get_by_role("row", name=re.compile("Bob Griffin")).locator(".row-tool").click()
     wait_guide(page, "dialog-person")
     check_guide(page, ".dialog", "a person with dates")
     close_dialog(page)
     visit(page, "/ui/gifts/gifts")
-    page.get_by_role("row", name=re.compile("Riding lessons")).click()
+    page.get_by_role("row", name=re.compile("Riding lessons")).locator(".row-tool").click()
     wait_guide(page, "dialog-gift")
     check_guide(page, ".dialog", "a planned gift")
     close_dialog(page)
@@ -274,18 +274,18 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     check_guide(page, ".dialog", "a donation of shares")
     close_dialog(page)
     visit(page, "/ui/giving/donations")
-    page.get_by_role("row", name=re.compile("American Red Cross")).click()
+    page.get_by_role("row", name=re.compile("American Red Cross")).locator(".row-tool").click()
     wait_guide(page, "dialog-donation")
     check_guide(page, ".dialog", "a recorded donation")
     close_dialog(page)
     visit(page, "/ui/giving/organisations")
-    page.get_by_role("row", name=re.compile("Goodwill")).click()
+    page.get_by_role("row", name=re.compile("Goodwill")).locator(".row-tool").click()
     wait_guide(page, "dialog-organisation")
     check_guide(page, ".dialog", "an organisation")
     close_dialog(page)
     # A filed return, with its payments and carried figures; a filed document.
     visit(page, "/ui/taxes/filings")
-    page.get_by_role("button", name="Edit").first.click()
+    page.locator("h3 .row-tool").first.click()
     wait_guide(page, "dialog-filing")
     page.get_by_role("button", name="Add a payment").click()
     check_guide(page, ".dialog", "a filing")
@@ -294,7 +294,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # An open option's end.
     visit(page, "/ui/positions/open")
-    page.get_by_role("row", name=re.compile("MSFT .* 480 P")).click()
+    page.get_by_role("row", name=re.compile("MSFT .* 480 P")).locator("button.linklike").click()
     page.get_by_role("button", name="Expired, assigned or exercised…").click()
     page.wait_for_selector(".dialog")
     wait_guide(page, "dialog-option-settle")

@@ -47,6 +47,6 @@ Sends one to your own address now, through the saved settings, and says what fai
 ## Written to the mail folder {#written-emails}
 
 The emails written while no host was set, newest first: who each is for, its subject and when.
-**Open** shows one, links and all, after your password: a link in it signs someone in or resets
+The eye at the end of its row shows one, links and all, after your password: a link in it signs someone in or resets
 a password. Each file is removed once its link has expired: a password reset's after an hour, an
 invitation's after a week, the others' after a day.

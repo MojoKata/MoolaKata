@@ -10,7 +10,7 @@ import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../components/amount.js';
 import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
 import { openDialog } from '../components/dialog.js';
-import { Field, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
+import { Field, ReadValue, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
 import { Icon } from '../components/icon.js';
 import { ShareDialog } from '../components/share.js';
 import { toast } from '../components/toast.js';
@@ -19,7 +19,7 @@ import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../app/dec.js';
 import { canAdd, Record as Rec, TYPES, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
-import { Action, Attention } from '../components/state.js';
+import { Action, Attention, RowTool } from '../components/state.js';
 import { FIELDS } from '../api/fields.js';
 import {
   DraftDialog,
@@ -328,9 +328,8 @@ function Dependents({ b, done }) {
       ${b.dependents.length
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
-              onClick=${b.access.writable ? () => open(d) : null}><div class="grow"><b>${d
-                .name}</b><div class="small dim">${[
+            <div
+              class="list-item"><div class="grow"><b>${d.name}</b><div class="small dim">${[
                 d.relation && d.relation[0].toUpperCase() + d.relation.slice(1),
                 d.claimedAs,
                 `${d.months} month${d.months === 1 ? '' : 's'}`,
@@ -343,7 +342,8 @@ function Dependents({ b, done }) {
                   ${' '}<span class="pill warn" title="Claimed on another tax book for this year"
                   >also claimed elsewhere</span>
                 `
-                : null}</div>
+                : null}<${RowTool} name=${d.name} read=${!b.access.writable}
+                  onClick=${() => open(d)} /></div>
           `
         )
         : html`<${Empty}>No dependents</${Empty}>`}
@@ -411,11 +411,11 @@ function DependentDialog({ close, b, d }) {
         ? 'Dependent removed'
         : d
         ? 'Dependent saved'
-        : 'Dependent added'} disabled=${!rec?.get('personId')}
+        : 'Dependent added'} disabled=${!rec?.get('personId')} read=${whyRead(b) || false}
       extra=${({ save }) =>
         d
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
@@ -426,7 +426,7 @@ function DependentDialog({ close, b, d }) {
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Remove</button><span class="spacer"></span>
+              }}>Remove</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec
@@ -501,8 +501,8 @@ function Filings({ b, done }) {
             class="card mt"><h3>${f.label}<span class=${'pill ' + (TONE[f.progress] ||
               '')}>${PROGRESS.find(([k]) => k === f.progress)?.[1]}</span>${f.overdue
               ? html`<span class="pill warn">past its due date</span>`
-              : null}<span class="spacer"></span><button class="btn sm" onClick=${() =>
-              open(f)}>${b.access.writable ? 'Edit' : 'Open'}</button></h3>
+              : null}<span class="spacer"></span><${RowTool} name=${f.label}
+              read=${!b.access.writable} onClick=${() => open(f)} /></h3>
                     <div class="grid g4">
                       <div><div class="small dim">Due</div>${f.extendedDue
                         ? html`${date(f.extendedDue)} <span class="small dim">extended</span>`
@@ -545,8 +545,7 @@ function Filings({ b, done }) {
 function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
   // A document kept opens to change or remove it (CR3-36).
-  const open = (/** @type {any} */ doc) =>
-    b.access.writable && openDialog(DocumentDialog, { b, doc }).then(done);
+  const open = (/** @type {any} */ doc) => openDialog(DocumentDialog, { b, doc }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
     f.documents.map((/** @type {any} */ d) => ({ ...d, filing: f.label }))
   );
@@ -565,13 +564,13 @@ function Documents({ b, done }) {
               <th>From</th>
               <th>Why expected</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
         ${b.expected.map((/** @type {any} */ e) =>
           html`
-            <tr class=${e.document && b.access.writable ? 'click' : ''} onClick=${() =>
-              e.document && open(e.document)}>
+            <tr>
               <td>${e.form}</td>
               <td class="dim">${e.issuer || '—'}</td>
               <td class="small dim">${e
@@ -594,12 +593,18 @@ function Documents({ b, done }) {
                       });
                     }}><${Icon} name="upload" /> Attach</${Action}>
                 `}</td>
+              <td class="tool">${e.document
+                ? html`
+                  <${RowTool} name=${e.form} read=${!b.access.writable}
+                    onClick=${() => open(e.document)} />
+                `
+                : null}</td>
             </tr>
           `
         )}
         ${b.received.map((/** @type {any} */ d) =>
           html`
-            <tr class=${b.access.writable ? 'click' : ''} onClick=${() => open(d)}>
+            <tr>
               <td>${d.form}</td>
               <td class="dim">${d.issuer || '—'}</td>
               <td
@@ -607,6 +612,10 @@ function Documents({ b, done }) {
               <td><span class="pill ok"><${Icon} name="check" /> received</span>${d.fileName
                 ? html`${' '}<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
                 : null}</td>
+              <td class="tool">
+                <${RowTool} name=${d.form} read=${!b.access.writable}
+                  onClick=${() => open(d)} />
+              </td>
             </tr>
           `
         )}
@@ -628,14 +637,15 @@ function Documents({ b, done }) {
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
           html`
-            <div class=${'list-item' + (b.access.writable ? ' click' : '')}
-              onClick=${() => open(d)}><div class="grow">${d.form}<div class="small dim">${d
+            <div
+              class="list-item"><div class="grow">${d.form}<div class="small dim">${d
                 .filing}${d.issuer ? ` · ${d.issuer}` : ''}${d.notes
                 ? ` · ${d.notes}`
                 : ''}</div></div>${d
                   .fileName
                 ? html`<span class="small dim"><${Icon} name="clip" /> ${d.fileName}</span>`
-                : null}</div>
+                : null}<${RowTool} name=${d.form} read=${!b.access.writable}
+                  onClick=${() => open(d)} /></div>
           `
         )
       }</div>`
@@ -1069,10 +1079,11 @@ function DocumentDialog({ close, b, start, doc }) {
       title=${doc ? doc.form : filed ? 'Add a filed document' : 'Add a tax document'}
       label=${doc ? 'Save' : 'Add'}
       done=${rec?.removed ? 'Document removed' : doc ? 'Document saved' : 'Document kept'}
+      read=${whyRead(b) || false}
       extra=${({ save }) =>
         doc
           ? html`
-            <button type="button" class="btn danger" disabled=${save.busy}
+            <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
@@ -1083,7 +1094,7 @@ function DocumentDialog({ close, b, start, doc }) {
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
-              }}>Remove</button><span class="spacer"></span>
+              }}>Remove</${Action}><span class="spacer"></span>
           `
           : null}>
       ${rec
@@ -1114,18 +1125,20 @@ function DocumentDialog({ close, b, start, doc }) {
             hint=${file
               ? `${file.name}, kept with your receipts.`
               : 'The PDF or a photo, kept with your receipts.'}>
-            <input class="in" type="file" accept=${ACCEPT} onChange=${async (
-              /** @type {any} */ ev,
-            ) => {
-              const picked = ev.currentTarget.files[0];
-              if (!picked) return;
-              // Uploaded at once, as a receipt of its own (S12.15.7); kept with it on Save.
-              const made = (await uploadAll([picked]))[0];
-              if (made) {
-                setFile({ name: made.fileName || picked.name });
-                rec.set('receiptId', made.id);
-              }
-            }} /></${Field}>
+            ${b.access.writable
+              ? html`<input class="in" type="file" accept=${ACCEPT} onChange=${async (
+                /** @type {any} */ ev,
+              ) => {
+                const picked = ev.currentTarget.files[0];
+                if (!picked) return;
+                // Uploaded at once, as a receipt of its own (S12.15.7); kept with it on Save.
+                const made = (await uploadAll([picked]))[0];
+                if (made) {
+                  setFile({ name: made.fileName || picked.name });
+                  rec.set('receiptId', made.id);
+                }
+              }} />`
+              : html`<${ReadValue} text=${doc?.fileName || '—'} />`}</${Field}>
           <${RecField} rec=${rec} name="notes" label="Notes" rows=${2} />
         `
         : null}

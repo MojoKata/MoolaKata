@@ -174,7 +174,7 @@ def test_make_a_rule_opens_new_rule_over_the_transaction(browser, household):
         )
     )
     path = f"/ui/accounts/{h.checking['id']}/transactions"
-    opener = 'button.linklike:has-text("Browser pretzels")'
+    opener = 'tr:has-text("Browser pretzels") .row-tool'
     page, problems = signed_in(browser, h, path, opener)
     page.click(opener)
     wait(page, ".dialog footer button.primary:enabled", problems)
