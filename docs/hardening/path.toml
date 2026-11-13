@@ -128,6 +128,10 @@ what = "Sweep: the requirement and document findings"
 areas = ["process and docs"]
 
 [[step]]
+kind = "tooling"
+what = "The generated mockup's build within the CI budget: its app-mockup job runs about 7.3 min (the crawl about 6, the open-it tests 1)"
+
+[[step]]
 kind = "sweep"
 what = "Sweep, after deciding on a mutation tool for the browser app"
 areas = ["browser/screens"]
