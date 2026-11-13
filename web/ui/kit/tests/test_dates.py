@@ -138,3 +138,22 @@ def test_read(page, kit):
     open_page(page, kit, "dates")
     expect(page.locator("[data-demo='date-read'] .in.read")).to_have_text("Oct 12, 2026")
     expect(page.locator("[data-demo='time-read'] .in.read")).to_have_text("7:00 AM")
+
+
+def test_the_month_buttons_move_the_calendar_and_a_click_outside_closes_it(page, kit):
+    open_page(page, kit, "dates")
+    page.click("[data-demo='date-filled'] button[aria-label='Open the calendar']")
+    cal = page.locator("[data-demo='date-filled'] .cal-pop")
+    page.click("[data-demo='date-filled'] button[aria-label='Next month']")
+    expect(cal.locator("b")).to_have_text("November 2026")
+    page.click("[data-demo='date-filled'] button[aria-label='Previous month']")
+    page.click("[data-demo='date-filled'] button[aria-label='Previous month']")
+    expect(cal.locator("b")).to_have_text("September 2026")
+    page.click(".kit-page h1")
+    expect(cal).to_have_count(0)
+    # The button closes what it opened.
+    b = page.locator("[data-demo='date'] button[aria-label='Open the calendar']")
+    b.click()
+    expect(page.locator("[data-demo='date'] .cal-pop")).to_be_visible()
+    b.click()
+    expect(page.locator("[data-demo='date'] .cal-pop")).to_have_count(0)

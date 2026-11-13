@@ -149,3 +149,17 @@ def test_off_and_read(page, kit):
     open_page(page, kit, "tags")
     expect(box(page, "tags-off")).to_be_disabled()
     expect(page.locator("[data-demo='tags-read'] .in.read")).to_have_text("work, medical")
+
+
+def test_a_click_picks_from_the_list_and_on_the_box_takes_the_focus(page, kit):
+    open_page(page, kit, "tags")
+    b = box(page, "tags")
+    page.locator("[data-demo='tags'] .tag-box").click(position={"x": 4, "y": 4})
+    expect(b).to_be_focused()
+    page.keyboard.type("me")
+    page.click("[data-demo='tags'] [role='option']:has-text('medical')")
+    assert chips(page, "tags") == ["medical"]
+    page.keyboard.type("hobby")
+    page.click("[data-demo='tags'] [role='option'].new")
+    assert chips(page, "tags") == ["medical", "hobby"]
+    expect(report(page, "tags")).to_have_text('["medical","hobby"]')
