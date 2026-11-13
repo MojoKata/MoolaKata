@@ -376,6 +376,12 @@ def test_one_shared_a_projection_sees_its_results_over_what_it_is_built_on(serve
     assert mine["builtOnLabel"] in ("Portfolio: Alice's nest egg", "Alice's savings")
     what = "a portfolio" if kind == "portfolio" else "an account"
     assert row["builtOnLabel"] == theirs["builtOnLabel"] == f"{what} not shared with you"
+    # Shared with them, it is named as its owner names it: the portfolio, though its one
+    # account isn't shared with them; the account.
+    item = ("portfolio", built["id"]) if kind == "portfolio" else ("account", own["id"])
+    assert share(alice, *item, users={bob.id: "read"}).status_code == 200
+    seen = bobs.get(f"/ui/api/projections/{pid}").json()
+    assert seen["builtOnLabel"] == mine["builtOnLabel"]
 
 
 def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server, alice):

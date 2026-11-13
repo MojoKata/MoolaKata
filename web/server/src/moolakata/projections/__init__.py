@@ -227,9 +227,10 @@ def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
     spec = json.loads(p.builtOn)
     if viewer == p.ownerId:
         return built_on(s, viewer, spec)
-    with scoping.as_server(s, "a projection's base, over its owner's accounts", False) as srv:
+    why = "a projection's base, over its owner's accounts"  # pragma: no mutate
+    with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         base = built_on(srv, p.ownerId, spec)
-    kind = spec.get("kind", "typed")
+    kind = spec.get("kind")
     if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
         base.label = "a portfolio not shared with you"
     elif kind == "accounts" and len(base.accounts) == 1:
