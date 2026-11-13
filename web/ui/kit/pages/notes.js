@@ -140,7 +140,7 @@ function Editing({ id, title, note, first, label = 'Note', extra = {} }) {
 export default function NotesPage() {
   const [opened, setOpened] = useState('');
   return html`
-    <${Page} title="Notes" about=${html`A note is formatted text: headings, lists, quotes,
+    <${Page} title="Notes" about=${html`A note is the person's formatted text, drawn in a look of its own that none of the app's styles reach: headings, lists, quotes,
       pre-formatted blocks, bold, italic, underline, strikethrough, highlight, monospace and
       links. It is kept as a document of those parts only, never as markup, and read without
       the editor, which loads the first time a note is edited. A link to this server
@@ -200,7 +200,7 @@ export default function NotesPage() {
       <${Editing} id="note-empty" title="Empty" first=${null}
         extra=${{ placeholder: 'No note' }} />
       <${Demo} id="note-read" title="Read"
-        note="As a linked household's window draws it: the Backups link names a screen it doesn't show. This card claims h4 to h6 for its headings (heading={ top: 4, count: 3 }), drawn as the page draws them.">
+        note="As a linked household's window draws it: the Backups link names a screen it doesn't show. This card claims h4 to h6 for its headings (heading={ top: 4, count: 3 }); they look as the note's own levels do, whatever their tags.">
         <${NoteView} doc=${SAMPLE} pages=${pages} open=${setOpened}
           heading=${{ top: 4, count: 3 }} />
         <div class="report small" data-report="note-read">Reported: ${opened

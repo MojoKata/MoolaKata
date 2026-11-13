@@ -93,15 +93,26 @@ LOADER = """
 """
 
 
+def inline_imports(path: Path) -> str:
+    """A stylesheet with each `@import url(...) layer(L);` replaced by the file's rules in that
+    layer, so the packed page needs no other file."""
+
+    def one(m: re.Match) -> str:
+        rules = (path.parent / m.group(1)).resolve().read_text()
+        return f"@layer {m.group(2)} {{\n{rules}\n}}"
+
+    return re.sub(r"@import url\('([^']+)'\) layer\(([\w.-]+)\);", one, path.read_text())
+
+
 def pack() -> str:
     page = (PAGES / "index.html").read_text()
     css = "\n".join(
-        (UI / p).read_text()
+        inline_imports(UI / p)
         for p in (
             "kit/theme/tokens.css",
             "kit/theme/base.css",
             "kit/theme/kit.css",
-            "vendor/prosemirror-view/style/prosemirror.css",
+            "kit/theme/note.css",
             "kit/pages/pages.css",
         )
     )

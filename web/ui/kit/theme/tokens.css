@@ -1,7 +1,7 @@
 /* Colours and sizes (requirements S17.3.6): dark first, then light. The system theme picks
    one of the two from prefers-color-scheme (app/main.js sets data-theme). The ui-kit's
    (S17.3.10); the app's styles draw from them. */
-@layer tokens, base, kit, components;
+@layer tokens, base, kit, components, note;
 
 @layer tokens {
   :root {
@@ -65,8 +65,17 @@
     /* Text on the update colour, and what a QR code is printed on, in both themes. */
     --on-update: #1a0d00;
     --qr-bg: #fff;
-    /* A note's highlight: a marker pen's colour behind the text. */
+    /* A note's own look (theme/note.css): the person's writing, set apart from the app's. */
+    --note-bg: #16181d;
+    --note-sunk: #1f232a;
+    --note-fg: #e4e1da;
+    --note-muted: #a39f97;
+    --note-rule: #34383f;
+    --note-link: #8fc1ff;
     --note-mark: #f2c14e40;
+    --note-select: #8fc1ff33;
+    --note-font: var(--sans);
+    --note-mono: var(--mono);
   }
 
   :root[data-theme='light'] {
@@ -89,7 +98,14 @@
     --ask: #8a5f00;
     --info: #2f5fd0;
     --update: #c25a00;
+    --note-bg: #fffdf8;
+    --note-sunk: #f3f0e8;
+    --note-fg: #22201c;
+    --note-muted: #6b665d;
+    --note-rule: #e2ddd2;
+    --note-link: #1f5fbf;
     --note-mark: #ffd84d80;
+    --note-select: #1f5fbf26;
     --ok-bg: #1f8a4c14;
     --deny-bg: #c4334514;
     --ask-bg: #9a6a0014;

@@ -150,8 +150,7 @@
            one Tab stop: ← → move along it, Alt+F10 reaches it from the text and Escape goes
            back. Each button's tooltip names its keys: Ctrl/Cmd+B, I, U, Ctrl/Cmd+Shift+X
            (strike), H (highlight), M (monospace), Ctrl/Cmd+Alt+0 (paragraph) and 1, 2, 3 (the
-           headings), Ctrl/Cmd+Z and Shift+Z. The editor draws the headings as h1 to h3, in its
-           own sizes. `- ` or `* ` at a paragraph's start makes a bulleted list and `1. ` a
+           headings), Ctrl/Cmd+Z and Shift+Z. The editor draws the headings as h1 to h3. `- ` or `* ` at a paragraph's start makes a bulleted list and `1. ` a
            numbered one, Backspace straight after putting the text back; nothing else typed
            turns into formatting. In a list Tab indents and Shift+Tab outdents, and Tab doesn't
            leave the note; elsewhere it goes on to the next field.
@@ -170,11 +169,15 @@
         4. **Read**, a note is drawn from its document without the editor, which loads the
            first time a note is edited. The screen says which heading levels it gives a note:
            from h2, three of them, unless it says otherwise (h4 to h6 in a card, say); a level
-           past those it gives is drawn as the last. They take the page's own heading styles,
-           and a heading copied from a note read keeps the note's level when pasted. An
+           past those it gives is drawn as the last; a heading copied from a note read keeps
+           the note's level when pasted. An
            address opens in a new tab, its address its tooltip; a page opens in place, its
            tooltip naming it (*Accounts › Everyday Checking*).
-        5. **Limits**: 20,000 characters (a count shows from 16,000), lists three deep, a link
+        5. **Its own look**: a note is the person's writing, not MoolaKata's, and is drawn in a
+           look of its own, set apart from the screen round it (read, a sheet of a paper-like
+           tone), by heading level the same written or read. None of the app's styles reach
+           inside it; it follows the theme's light and dark, and nothing else of the app's.
+        6. **Limits**: 20,000 characters (a count shows from 16,000), lists three deep, a link
            of 2,000 characters, and the document kept at 256 KB. Past them the note is marked
            when it is left and at Save, as any field is (R3.11). A note with no text is no
            note (null). Beside it the server keeps the note's plain text, for search, exports

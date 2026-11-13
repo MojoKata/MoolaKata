@@ -116,7 +116,10 @@
           (`Field`, `Input`, `TypedInput`, `NumberInput`, `ValueInput`, `CountInput`,
           `SpinInput` (a small whole number stepped by chevrons and ↑ ↓), `NoteInput` and
           `NoteView` (a note written and read, S12.18.15; its editor on ProseMirror, loaded on
-          demand),
+          demand; its text drawn in the theme's last cascade layer, `note`, which sets
+          everything inside back to the browser's defaults before the note's own look, so no
+          rule of the app's reaches it: every stylesheet writes in a layer, and only reduced
+          motion is `!important`),
           `Select`, `Switch`, `ReadValue`, `TagInput`, `DateInput`, `TimeInput`); the building
           blocks (tabs,
           chips, avatars, tiles, loading and failure, amounts and percents, and the

@@ -51,7 +51,7 @@ const NODE_DOM = {
   },
   heading: {
     defining: true,
-    toDOM: (/** @type {any} */ n) => [`h${n.attrs.level}`, 0],
+    toDOM: (/** @type {any} */ n) => [`h${n.attrs.level}`, { 'data-note-level': n.attrs.level }, 0],
     parseDOM: [
       {
         tag:

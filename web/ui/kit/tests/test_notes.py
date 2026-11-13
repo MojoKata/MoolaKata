@@ -425,3 +425,32 @@ def test_a_link_at_the_caret_is_followed_changed_and_made_from_the_toolbar(page,
     expect(ed.locator("a", has_text="https://example.com/new")).to_have_attribute(
         "href", "https://example.com/new"
     )
+
+
+def test_the_apps_styles_never_reach_inside_a_note(page, kit):
+    """A note is a realm of its own: rules in every layer the app writes in, aimed at its
+    elements, change nothing in it, written or read; only the theme's tokens reach it."""
+    open_page(page, kit, "notes")
+    editor(page, "note").wait_for()
+    probe = """() => [...document.querySelectorAll(
+        "[data-demo='note'] .note-text :is(h1, h2, h3, p, li, a, strong, mark, pre, blockquote)," +
+        "[data-demo='note-read'] .note-text :is(h4, h5, h6, p, li, a, pre)")]
+      .map(e => { const s = getComputedStyle(e); return [e.tagName, s.color, s.fontSize,
+        s.fontFamily, s.margin, s.letterSpacing, s.textTransform, s.backgroundColor]
+        .join('|'); })"""
+    before = page.evaluate(probe)
+    page.evaluate(
+        """() => {
+          const sheet = new CSSStyleSheet();
+          const rules = `.demo *, h1, h2, h3, h4, h5, h6, p, li, a, strong, mark, pre, blockquote,
+            .kit-page .demo .note-text p { color: red; font-size: 40px; font-family: serif;
+            margin: 50px; letter-spacing: 6px; text-transform: uppercase; background: lime; }`;
+          sheet.replaceSync(['tokens', 'base', 'kit', 'components']
+            .map((l) => `@layer ${l} { ${rules} }`).join('\\n'));
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        }"""
+    )
+    # The hostile rules took hold outside the note, so they would have inside.
+    spacing = "e => getComputedStyle(e).letterSpacing"
+    assert page.locator(".kit-page > .about").evaluate(spacing) == "6px"
+    assert page.evaluate(probe) == before

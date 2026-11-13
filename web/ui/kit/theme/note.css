@@ -1,0 +1,156 @@
+/* A note's realm (requirements S12.18.15): a note is the person's own writing, drawn in a look
+   of its own that the app's styles never reach, as a document viewer draws a page. It shares
+   only the theme's light and dark, through the --note-* tokens.
+
+   The `note` layer comes after every layer the app writes in (tokens.css names the order), so
+   within a note's text nothing from them applies:
+   - note.reset: everything inside the text back to the browser's own defaults, the text itself
+     to the initial values (nothing inherited from the page);
+   - note.look: the note's own look, its headings by the note's levels (data-note-level), not by
+     the h1 to h6 a screen gives them;
+   - note.engine: the editor's few rules of its own (ProseMirror's stylesheet), last. */
+@layer note.reset, note.look, note.engine;
+@import url('../../vendor/prosemirror-view/style/prosemirror.css') layer(note.engine);
+
+@layer note.reset {
+  .note-text {
+    all: initial;
+  }
+  .note-text :where(*) {
+    all: revert;
+  }
+}
+
+@layer note.look {
+  .note-text {
+    display: block;
+    color: var(--note-fg);
+    font-family: var(--note-font);
+    font-size: 15px;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+    text-align: start;
+    cursor: text;
+  }
+  .note-text:focus {
+    outline: none;
+  }
+  /* Written in, the text is as tall as five lines at least, to click into. */
+  .note-body > .note-text {
+    min-height: 7.5em;
+  }
+  /* Read, a note is a sheet set apart from the screen round it. */
+  .note-read {
+    background: var(--note-bg);
+    border: 1px solid var(--note-rule);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: auto;
+  }
+  .note-text > :first-child {
+    margin-top: 0;
+  }
+  .note-text > :last-child {
+    margin-bottom: 0;
+  }
+  .note-text p {
+    margin: 0 0 0.6em;
+  }
+  .note-text :is(h1, h2, h3, h4, h5, h6) {
+    font-weight: 650;
+    line-height: 1.25;
+    margin: 0.9em 0 0.35em;
+  }
+  .note-text [data-note-level='1'] {
+    font-size: 1.4em;
+  }
+  .note-text [data-note-level='2'] {
+    font-size: 1.2em;
+  }
+  .note-text [data-note-level='3'] {
+    font-size: 1.05em;
+  }
+  .note-text :is(ul, ol) {
+    margin: 0 0 0.6em;
+    padding-left: 1.6em;
+  }
+  .note-text ul {
+    list-style: disc;
+  }
+  .note-text ul ul {
+    list-style: circle;
+  }
+  .note-text ul ul ul {
+    list-style: square;
+  }
+  .note-text ol {
+    list-style: decimal;
+  }
+  .note-text ol ol {
+    list-style: lower-alpha;
+  }
+  .note-text ol ol ol {
+    list-style: lower-roman;
+  }
+  .note-text li > p {
+    margin: 0 0 0.15em;
+  }
+  .note-text blockquote {
+    margin: 0 0 0.6em;
+    padding: 0.1em 0 0.1em 0.9em;
+    border-left: 3px solid var(--note-rule);
+    color: var(--note-muted);
+  }
+  .note-text pre {
+    margin: 0 0 0.6em;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--note-sunk);
+    font-family: var(--note-mono);
+    font-size: 0.9em;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+  .note-text strong {
+    font-weight: 700;
+  }
+  .note-text em {
+    font-style: italic;
+  }
+  .note-text u {
+    text-decoration: underline;
+  }
+  .note-text s {
+    text-decoration: line-through;
+  }
+  .note-text .note-mono {
+    font-family: var(--note-mono);
+    font-size: 0.9em;
+  }
+  .note-text .note-mark {
+    background: var(--note-mark);
+    color: inherit;
+    border-radius: 2px;
+  }
+  .note-text a,
+  .note-text .note-link {
+    color: var(--note-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .note-text .note-link.off {
+    color: var(--note-muted);
+    text-decoration-style: dotted;
+    cursor: default;
+  }
+  .note-text .note-empty::before {
+    content: attr(data-placeholder);
+    color: var(--note-muted);
+    pointer-events: none;
+    float: left;
+    height: 0;
+  }
+  .note-text ::selection {
+    background: var(--note-select);
+  }
+}
