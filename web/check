@@ -90,6 +90,9 @@ if want app-mockup && [[ -f "$WEB/ui/mockup/build.py" ]]; then
   else
     # shellcheck disable=SC2086 # the records' paths, one word each
     step "generated mockup" py python "$WEB/ui/mockup/build.py" ${MK_MOCKUP_JOIN:+--join $MK_MOCKUP_JOIN}
+    # The app's screenshots from it (S12.7.5), the guides' where the page finds them; and every
+    # guide's screenshot is made, and no other.
+    step "screenshots" py python "$WEB/ui/mockup/screenshots.py" --check
     step "generated mockup opened" py python -m pytest -n 3 -m mockup tests/test_mockup_app.py
   fi
 fi

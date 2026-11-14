@@ -41,8 +41,16 @@ The hand-written mockup's source is
 [`docs/mockups/MoolaKata-mock.html`](docs/mockups/MoolaKata-mock.html); it opens in a browser
 from disk too. The one generated from the app isn't committed: CI builds it on every run, a
 pull request's is linked from its run's summary, and `web/dev.sh mockup` builds one into
-`docs/mockups/` to open from disk. The help guides' screenshots are made from it
-(`web/dev.sh help-shots`).
+`docs/mockups/` to open from disk.
+
+The app's screenshots aren't committed either: CI makes them from the generated mockup on every
+run (the help guides' 62, the README's dashboard and the TrueNAS catalog's four), keeps a pull
+request's as the run's `screenshots` artifact, and publishes main's on the Pages site, where the
+README and a release take them. Without them a guide shows no picture; `web/dev.sh
+download-screenshots` fetches main's for the help pane here, and `web/dev.sh make-screenshots`
+makes them from a local mockup. To show screenshots in a pull request's conversation, link the
+run's artifact, or for a change to be looked at, `web/dev.sh pr-screenshots PR FILE…` puts them
+inline (from the fork's never-merged `pr-shots` branch).
 
 Check the mockup after a change with
 

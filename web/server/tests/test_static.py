@@ -93,3 +93,17 @@ def test_demo_is_public_and_sandboxed(bare_client):
     assert csp.startswith("sandbox allow-scripts allow-popups;")
     assert "allow-same-origin" not in csp
     assert "connect-src 'none'" in csp
+
+
+def test_the_page_says_whether_the_guides_screenshots_are_here(tmp_path):
+    """S12.7.5: a release carries the help guides' screenshots; a checkout has them only once
+    made or downloaded, and without them the page asks for none."""
+    ui = tmp_path / "ui"
+    (ui / "guides").mkdir(parents=True)
+    (ui / "index.html").write_text('<meta name="mk-shots" content="{{shots}}">')
+    shown = lambda: Static("0.2.0", False, ui=ui).page().body.decode()  # noqa: E731
+    assert shown() == '<meta name="mk-shots" content="">'
+    (ui / "guides" / "shots").mkdir()
+    assert shown() == '<meta name="mk-shots" content="">', "an empty folder holds none"
+    (ui / "guides" / "shots" / "dashboard.png").write_bytes(b"\x89PNG")
+    assert shown() == '<meta name="mk-shots" content="1">'

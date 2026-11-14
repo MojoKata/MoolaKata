@@ -685,7 +685,7 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     version = (ROOT / "web" / "VERSION").read_text().strip()
     page = (UI / "index.html").read_text()
     prefix = f"/ui/v/{version}/"
-    page = page.replace("{{version}}", version).replace("{{dev}}", "0")
+    page = page.replace("{{version}}", version).replace("{{dev}}", "0").replace("{{shots}}", "1")
     page = page.replace(' nonce="{{nonce}}"', "")
 
     m = re.search(r'<script type="importmap">\s*(\{.*?\})\s*</script>', page, re.S)

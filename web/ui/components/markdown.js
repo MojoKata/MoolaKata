@@ -76,7 +76,7 @@ function mark(text, marking) {
 /**
  * Inline spans: `code`, **bold**, *italic* or _italic_, [links](url) and ![images](src).
  * @param {string} text
- * @param {(src: string) => string} resolve
+ * @param {(src: string) => string | null} resolve
  * @param {Marking | null} marking  the terms and forms to mark, none inside code or a link
  * @returns {any[]}
  */
@@ -96,7 +96,18 @@ function inline(text, resolve, marking) {
     if (t.startsWith('`')) out.push(h('code', null, t.slice(1, -1)));
     else if (t.startsWith('![')) {
       const [, alt, src] = /** @type {RegExpMatchArray} */ (t.match(/!\[([^\]]*)\]\(([^)]+)\)/));
-      out.push(h('img', { src: resolve(src), alt, loading: 'lazy' }));
+      // An image that isn't here is left out (a checkout without the guides' screenshots).
+      const at = resolve(src);
+      if (at) {
+        out.push(h('img', {
+          src: at,
+          alt,
+          loading: 'lazy',
+          onError: (/** @type {Event} */ e) => {
+            /** @type {HTMLImageElement} */ (e.currentTarget).hidden = true;
+          },
+        }));
+      }
     } else if (t.startsWith('[')) {
       const [, label, href] = /** @type {RegExpMatchArray} */ (t.match(/\[([^\]]+)\]\(([^)]+)\)/));
       const external = /^https?:/.test(href);
@@ -124,7 +135,8 @@ export function anchorOf(text) {
 
 /**
  * @param {string} md
- * @param {(src: string) => string} resolve  where an image's path points
+ * @param {(src: string) => string | null} resolve  where an image's path points, or null to
+ *   leave the image out
  * @param {Glossary} [terms]  the acronyms to explain on hover and focus (S12.7.7)
  * @param {Glossary} [forms]  the IRS forms, shown as the terms are (S12.7.8)
  */

@@ -1,5 +1,6 @@
+# Screenshots: CI makes the app's on every run (S12.7.5); web/dev.sh make-screenshots or
+# download-screenshots puts the guides' in web/ui/guides/shots/ here.
 shots/
-!web/ui/guides/shots/
 __pycache__/
 web/.tools/
 web/.dev/

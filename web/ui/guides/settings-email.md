@@ -9,6 +9,8 @@ which is encrypted. One that can't be sent stays queued and is tried again every
 until its link expires; one the server refuses outright is set aside, keeping only who it was for,
 its subject and the error. This section shows the queue and the last error.
 
+![Settings: Email](shots/settings-email.png)
+
 ## Host {#smtp-host}
 
 The mail server's name, such as your email provider's SMTP server or a relay on your network.

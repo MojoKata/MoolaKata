@@ -104,14 +104,15 @@ PY
   rm -rf "$dir/templates/rendered"
 }
 
-# The icons and screenshots the request links, for TrueNAS's CDN, relative to the repository.
+# The icons and screenshots the request links, for TrueNAS's CDN: files in the repository, and
+# the app's pictures, which CI makes from main on every run and publishes on the Pages site.
 MEDIA=(
   web/ui/assets/favicon.svg
   publish/truenas/media/moolakata-connector-icon.svg
-  publish/truenas/media/moolakata-1.png
-  publish/truenas/media/moolakata-2.png
-  publish/truenas/media/moolakata-3.png
-  publish/truenas/media/moolakata-4.png
+  https://mojokata.github.io/MoolaKata/screenshots/truenas/moolakata-1.png
+  https://mojokata.github.io/MoolaKata/screenshots/truenas/moolakata-2.png
+  https://mojokata.github.io/MoolaKata/screenshots/truenas/moolakata-3.png
+  https://mojokata.github.io/MoolaKata/screenshots/truenas/moolakata-4.png
   publish/truenas/media/moolakata-connector-1.png
   publish/truenas/media/moolakata-connector-2.png
 )
@@ -120,8 +121,12 @@ MEDIA=(
 media() {
   local sha="$1" path
   for path in "${MEDIA[@]}"; do
-    curl -sfI "https://raw.githubusercontent.com/$REPO/$sha/$path" >/dev/null ||
-      die "$path isn't on $REPO's main at ${sha:0:12} yet"
+    if [[ $path == https://* ]]; then
+      curl -sfI "$path" >/dev/null || die "$path isn't published yet"
+    else
+      curl -sfI "https://raw.githubusercontent.com/$REPO/$sha/$path" >/dev/null ||
+        die "$path isn't on $REPO's main at ${sha:0:12} yet"
+    fi
   done
 }
 
@@ -170,8 +175,8 @@ Please upload the following to the CDN:
 
 - MoolaKata, icon: $raw/${MEDIA[0]}
 - MoolaKata Connector, icon: $raw/${MEDIA[1]}
-- MoolaKata, screenshots: $raw/${MEDIA[2]}, $raw/${MEDIA[3]}, $raw/${MEDIA[4]},
-  $raw/${MEDIA[5]}
+- MoolaKata, screenshots: ${MEDIA[2]}, ${MEDIA[3]}, ${MEDIA[4]},
+  ${MEDIA[5]}
 - MoolaKata Connector, screenshots: $raw/${MEDIA[6]}, $raw/${MEDIA[7]}
 
 ## Special Notes

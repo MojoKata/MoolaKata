@@ -36,6 +36,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,6 +44,21 @@ jobs:
       - name: the tag names this version
         if: github.event_name == 'push'
         run: test "v$(cat web/VERSION)" = "$GITHUB_REF_NAME"
+      # The help guides' screenshots aren't committed: main's check run of this commit made them
+      # from the app (S12.7.5), and the image serves them. A tag on a commit main's check hasn't
+      # passed has none to take, and stops here.
+      - name: the help guides' screenshots, from main's check run of this commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run="$(gh run list -R "$GITHUB_REPOSITORY" --workflow check --branch main \
+            --commit "$GITHUB_SHA" --status success --limit 1 --json databaseId -q '.[0].databaseId')"
+          test -n "$run" || { echo "main's check hasn't passed on $GITHUB_SHA" >&2; exit 1; }
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n screenshots -D "$RUNNER_TEMP/screenshots"
+          mkdir -p web/ui/guides/shots
+          cp "$RUNNER_TEMP"/screenshots/guides/shots/*.png web/ui/guides/shots/
+          ls web/ui/guides/shots | wc -l
       - name: smoke run, the release gate (S17.8.1)
         run: web/install/smoke.sh
       - name: push the smoke-tested images, tagged by architecture

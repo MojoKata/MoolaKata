@@ -76,12 +76,18 @@ class Static:
         self.template = (ui / "index.html").read_text()
         self._cache: dict[Path, bytes] = {}
 
+    def shots(self) -> bool:
+        """Whether the help guides' screenshots are here: a release has them from CI, a checkout
+        only once made or downloaded (S12.7.5); without them a guide shows none."""
+        return any((self.ui / "guides" / "shots").glob("*.png"))
+
     def page(self) -> HTMLResponse:
         nonce = secrets.token_urlsafe(18)
         html = (
             self.template.replace("{{version}}", self.version)
             .replace("{{nonce}}", nonce)
             .replace("{{dev}}", "1" if self.dev else "")
+            .replace("{{shots}}", "1" if self.shots() else "")
         )
         return HTMLResponse(
             html,

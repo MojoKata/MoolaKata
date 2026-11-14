@@ -1,12 +1,15 @@
 # S17.6. `web/dev.sh`
 
 6. **`web/dev.sh`** is the developer's front door: alone it prints its commands (`setup`,
-   `run`, `test`, `check`, `mail`, `codegen`, `mockup`, `help-shots`, `deno`, `vendor`,
+   `run`, `test`, `check`, `mail`, `codegen`, `mockup`, `make-screenshots`,
+   `download-screenshots`, `pr-screenshots`, `deno`, `vendor`,
    `audit`, `base-update`, `mocks`, `mutate`). **`codegen`** writes the generated code only: the OpenAPI
    document, the browser's types and its drafts' fields (`web/ui/api/`), found from the routes
    and the kinds the save takes (S13.8.11), in a few seconds; `web/check`'s drift step fails
-   when any is out of date. The generated mockup (`mockup`) and the help guides' screenshots
-   (`help-shots`) are other generated content, with commands of their own. **`mutate`** is a mutation run
+   when any is out of date. The generated mockup (`mockup`) and the app's screenshots
+   (`make-screenshots`, S12.7.5) are other generated content, with commands of their own;
+   `download-screenshots` fetches main's guides' screenshots instead, and `pr-screenshots` shows
+   images in a pull request's conversation. **`mutate`** is a mutation run
    (S17.5.12) over the modules named: a scratch copy of the server in `web/.dev/mutate` with what
    it reads from beside itself linked, the lock's `mutation` group installed there, the fast
    tests that import the modules (never the generated worlds or the browser's), a test map
