@@ -16,6 +16,7 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../kit/dec.js';
 import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
+import { ackNeeded } from '../app/warnings.js';
 import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
@@ -497,14 +498,6 @@ function PlanDialog({ close, v }) {
         : null}
     </${DraftDialog}>
   `;
-}
-
-/**
- * Whether a single gift of this amount needs a written acknowledgement: $250 or more (S8.9).
- * @param {any} amount
- */
-function ackNeeded(amount) {
-  return amount != null && !dec(amount).lt(Dec.of(250));
 }
 
 /** A donation (S7.9.2): recorded whole, then changed after the fact. */

@@ -92,3 +92,49 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
         page.close()
     finally:
         stop(proc)
+
+
+def test_pairing_a_replacement_warns_only_while_a_connector_is_paired(tmp_path, browser):
+    """R3.12, S18.4: Pair… with nothing paired says nothing of a replacement; once a connector
+    is paired, Pair a Replacement… warns that its Connections stop."""
+    warning = "Pairing replaces the connector paired now: its Connections stop"
+    base, proc = unlocked(tmp_path)
+    try:
+        c = client(base)
+        made(
+            c.post(
+                "/ui/api/welcome/admin",
+                json={"password": PASSWORD, "email": "admin@home.lan", "displayName": "Admin",
+                      "sex": "female"},
+            )
+        )  # fmt: skip
+        made(save_settings(c, {"publicUrl": base}))
+        page, problems = open_page(browser, base + "/ui/")
+        r = page.request.post(
+            base + "/ui/api/session",
+            data={"login": "admin", "password": PASSWORD},
+            headers={"Origin": base},
+        )
+        assert r.ok, r.text()
+        page.goto(base + "/ui/settings/connector")
+        wait(page, 'button:text-is("Pair…")', problems)
+        page.click('button:text-is("Pair…")')
+        wait(page, ".dialog code.mono", problems)
+        assert warning not in page.inner_text(".dialog"), "nothing paired, nothing replaced"
+        page.click('.dialog button:has-text("Done")')
+        wait(page, ".dialog", problems, state="detached")
+
+        fake = connector_for(base)
+        code = made(c.post("/ui/api/settings/connector/pairings"))["code"]
+        raw = fake.sealing_private.public_key().public_bytes_raw()
+        assert fake.call("/connector/v1/pair", fake.pair_body(code, raw)).status_code == 200
+        made(c.post("/ui/api/settings/connector/confirm"))
+        page.reload()
+        wait(page, 'button:has-text("Pair a Replacement…")', problems)
+        page.click('button:has-text("Pair a Replacement…")')
+        wait(page, ".dialog code.mono", problems)
+        assert warning in " ".join(page.inner_text(".dialog .attention").split())
+        assert problems == []
+        page.close()
+    finally:
+        stop(proc)

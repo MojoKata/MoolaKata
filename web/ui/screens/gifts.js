@@ -18,6 +18,7 @@ import { toast } from '../kit/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { dec, num } from '../kit/dec.js';
 import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
+import { birthYearDiffers } from '../app/warnings.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
@@ -606,7 +607,7 @@ function PersonDialog({ close, row }) {
                   ]} />
                   <${Field} label="Birthday" error=${who.error('birthday') ||
                     who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
-                    hint=${clash && !using && who.get('differentPerson')
+                    hint=${birthYearDiffers(clash, using, who.get('differentPerson'))
                       ? 'A birth year that differs from theirs.'
                       : null}>
                   <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(

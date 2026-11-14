@@ -2,7 +2,8 @@
 Chromium: Budgets › Categories lists the tree and adds one; a category's dialog renames it and
 shows what is locked, with why; New category… at the end of a transaction's list makes one in
 the same save, and in a row's list in a dialog of its own; and an admin's merge maps each of the
-category's own categories, starting from the names they share."""
+category's own categories, starting from the names they share. Settings › Storage's dialog for
+a category warns while its receipts are kept under 7 years."""
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
@@ -187,5 +188,32 @@ def test_a_merge_maps_each_of_its_categories(browser, household):
     now = cats(h)
     assert "Browser pet" not in now and "Browser pets two › Cat" in now
     assert now["Browser pets two › dog"]["id"] == dogs["id"]
+    assert problems == []
+    page.close()
+
+
+def test_receipts_kept_under_seven_years_warn_only_while_under(browser, household):
+    """S14.10.1.1, R3.12: Keep receipts for warns at 6 years; the warning goes at 7, and again
+    once it is blank. Left unsaved, the category keeps its period."""
+    h = household
+    before = cats(h)["Entertainment"]["keepReceiptsYears"]
+    tool = 'button[aria-label="Edit Entertainment"]'
+    page, problems = signed_in(browser, h, "/ui/settings/storage", tool)
+    page.click(tool)
+    years = ".dialog #f-keep-receipts-years"
+    hint = ".dialog .field:has(#f-keep-receipts-years) .hint"
+    wait(page, years, problems)
+    assert page.locator(hint).count() == 0, "a blank keeps them for ever: no warning"
+    page.fill(years, "6")
+    wait(page, f'{hint}:text-is("Under 7 years: shorter than some IRS audit windows.")', problems)
+    page.fill(years, "7")
+    wait(page, hint, problems, state="detached")
+    page.fill(years, "6")
+    wait(page, hint, problems)
+    page.fill(years, "")
+    wait(page, hint, problems, state="detached")
+    page.keyboard.press("Escape")  # blank again, it is unchanged: it closes without asking
+    wait(page, ".dialog", problems, state="detached")
+    assert cats(h)["Entertainment"]["keepReceiptsYears"] == before
     assert problems == []
     page.close()

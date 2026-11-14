@@ -8,6 +8,7 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
 import { canAdd, READ_ONLY, Record, whyRead } from '../app/draft.js';
+import { transferLotsLine } from '../app/warnings.js';
 import { Dec } from '../kit/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
@@ -721,11 +722,7 @@ function TransferLots({ t }) {
           </div>
         `
       )}
-      <div class="toolbar"><span class="small dim">${!rows.length
-        ? 'None typed: one lot whose day bought is missing, its term unknown until you add it.'
-        : rows.some((r) => r.costBasis == null)
-        ? 'Marked basis missing until you add it.'
-        : ''}</span><span
+      <div class="toolbar"><span class="small dim">${transferLotsLine(rows)}</span><span
         class="spacer"></span><${Action} class="btn sm" why=${why} onClick=${() =>
           put([...rows, {
             acquiredOn: null,

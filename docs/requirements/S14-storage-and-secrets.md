@@ -104,8 +104,8 @@
        1. **A category** has **Keep receipts for** a number of years, counted from when the
           record a receipt is attached to ended (`schema.md` §6). Empty, the default, keeps
           them for ever. A subcategory without its own takes its parent's. Any whole number
-          of years from 1 is allowed; under 7 the field warns that 7 covers every IRS audit
-          window.
+          of years from 1 is allowed; while it is under 7 the field warns that it is shorter
+          than some IRS audit windows (7 covers them all).
           An admin sets it, in Settings › Storage, since it decides what file pruning may
           remove.
        2. **Statements** have one period, in Settings › Storage (S16.17), empty (for ever)

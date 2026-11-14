@@ -13,6 +13,7 @@ import { errAt, Field, FormError, Input, SpinInput, TypedInput } from '../kit/fi
 import { useDialogGuide } from './help.js';
 import { toast } from '../kit/toast.js';
 import { Record } from '../app/draft.js';
+import { keptUnderSeven } from '../app/warnings.js';
 import { DraftDialog, DraftForm, RecField, useDraft } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
 import { FIELDS } from '../api/fields.js';
@@ -256,7 +257,7 @@ function CategoryDialog({ close, c, cats }) {
             id="keep-receipts-years" placeholder=${from != null
               ? `its parent's (${from} years)`
               : 'for ever'} spin=${true} min=${1}
-            hint=${years != null && years < 7
+            hint=${keptUnderSeven(years)
               ? 'Under 7 years: shorter than some IRS audit windows.'
               : null} />
         `
