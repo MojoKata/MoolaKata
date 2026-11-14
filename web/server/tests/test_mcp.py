@@ -10,9 +10,9 @@ from moolakata import mcp
 
 
 @pytest.fixture
-def alice(server):
-    make_user(server, "alice")
-    return sign_in(server, "alice")
+def jane(server):
+    make_user(server, "jane")
+    return sign_in(server, "jane")
 
 
 def token(c, **body) -> str:
@@ -42,8 +42,8 @@ def agent(server):
         yield c
 
 
-def test_an_assistant_initialises_and_lists_read_only_tools(alice, agent):
-    secret = token(alice)
+def test_an_assistant_initialises_and_lists_read_only_tools(jane, agent):
+    secret = token(jane)
     r = rpc(agent, secret, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}})
     assert r.status_code == 200, r.text
     res = r.json()["result"]
@@ -60,13 +60,13 @@ def test_an_assistant_initialises_and_lists_read_only_tools(alice, agent):
     assert rpc(agent, secret, "resources/list").json()["error"]["code"] == -32601
 
 
-def test_tools_read_what_the_user_can_see_and_record_each_call(server, alice, agent):
-    a = new_account(alice, name="Everyday checking", type="checking")
-    add(alice, a["id"], amount="-42.50", payee="Blue Bottle Coffee")
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    hidden = new_account(bob, name="Bob's own", type="checking")
-    secret = token(alice)
+def test_tools_read_what_the_user_can_see_and_record_each_call(server, jane, agent):
+    a = new_account(jane, name="Everyday checking", type="checking")
+    add(jane, a["id"], amount="-42.50", payee="Blue Bottle Coffee")
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    hidden = new_account(john, name="John's own", type="checking")
+    secret = token(jane)
     out = call(agent, secret, "list_accounts")
     assert not out["isError"]
     names = [x["name"] for x in out["structuredContent"]["result"]]
@@ -80,18 +80,18 @@ def test_tools_read_what_the_user_can_see_and_record_each_call(server, alice, ag
         assert call(agent, secret, "list_transactions", **wrong)["isError"], wrong
     assert call(agent, secret, "list_positions", kind="bonds")["isError"]
     assert call(agent, secret, "get_budget_month", budget_id="x", month="Oct")["isError"]
-    feed = alice.get("/ui/api/activity").json()
+    feed = jane.get("/ui/api/activity").json()
     texts = [e["text"] for e in (feed["items"] if isinstance(feed, dict) else feed)]
     assert any("access token Claude read list accounts" in x for x in texts), texts[:5]
-    listed = alice.get("/ui/api/profile/tokens").json()["items"][0]
+    listed = jane.get("/ui/api/profile/tokens").json()["items"][0]
     assert listed["lastUsedAt"]
 
 
-def test_a_chosen_items_token_reads_only_its_items(server, alice, agent):
-    a = new_account(alice, name="Brokerage", type="brokerage")
-    b = new_account(alice, name="Checking", type="checking")
-    add(alice, b["id"], amount="-10.00", payee="Hidden payee")
-    secret = token(alice, scope="chosen", items=[{"kind": "account", "id": a["id"]}])
+def test_a_chosen_items_token_reads_only_its_items(server, jane, agent):
+    a = new_account(jane, name="Brokerage", type="brokerage")
+    b = new_account(jane, name="Checking", type="checking")
+    add(jane, b["id"], amount="-10.00", payee="Hidden payee")
+    secret = token(jane, scope="chosen", items=[{"kind": "account", "id": a["id"]}])
     names = [x["name"] for x in call(agent, secret, "list_accounts")["structuredContent"]["result"]]
     assert names == ["Brokerage"]
     assert call(agent, secret, "list_transactions")["structuredContent"]["result"] == []
@@ -100,29 +100,29 @@ def test_a_chosen_items_token_reads_only_its_items(server, alice, agent):
     assert whole["isError"] and "chosen" in whole["content"][0]["text"]
 
 
-def test_the_endpoint_refuses_without_a_live_token_or_from_a_web_page(server, alice, agent):
+def test_the_endpoint_refuses_without_a_live_token_or_from_a_web_page(server, jane, agent):
     assert rpc(agent, "mkt_nope.nope", "ping").status_code == 401
     r = agent.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "ping"})
     assert r.status_code == 401 and "Bearer" in r.headers["www-authenticate"]
-    secret = token(alice)
+    secret = token(jane)
     assert rpc(agent, secret, "ping").json()["result"] == {}
     assert rpc(agent, secret, "ping", Origin="https://evil.example").status_code == 403
     assert agent.get("/mcp", headers={"Authorization": f"Bearer {secret}"}).status_code == 405
     # A token is never a way into the app's own API.
     r = agent.get("/ui/api/accounts", headers={"Authorization": f"Bearer {secret}"})
     assert r.status_code == 401
-    saved(remove(alice, "Token", alice.get("/ui/api/profile/tokens").json()["items"][0]))
+    saved(remove(jane, "Token", jane.get("/ui/api/profile/tokens").json()["items"][0]))
     assert rpc(agent, secret, "ping").status_code == 401
 
 
-def test_calls_are_limited_to_60_a_minute_per_token(server, alice, agent, monkeypatch):
+def test_calls_are_limited_to_60_a_minute_per_token(server, jane, agent, monkeypatch):
     monkeypatch.setattr(mcp, "LIMIT", mcp.ratelimit.Window(60, 60))
-    secret = token(alice)
+    secret = token(jane)
     for _ in range(60):
         assert rpc(agent, secret, "ping").status_code == 200
     r = rpc(agent, secret, "ping")
     assert r.status_code == 429 and r.headers["retry-after"]
-    assert rpc(agent, token(alice, name="Another"), "ping").status_code == 200
+    assert rpc(agent, token(jane, name="Another"), "ping").status_code == 200
 
 
 def test_every_tool_is_in_the_api_reference():

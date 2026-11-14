@@ -9,12 +9,12 @@ from ..store.entities.users import Group
 
 
 def seed_sharing(s, people: dict) -> None:
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     acct = {a.name: a for a in s.scalars(select(Account))}
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
     now = clock.now()
 
-    def grant(kind, item, allow, user=None, group=None, by=alice):
+    def grant(kind, item, allow, user=None, group=None, by=jane):
         s.add(
             sharing.new_share(
                 kind,
@@ -27,9 +27,9 @@ def seed_sharing(s, people: dict) -> None:
         )
 
     grant("account", acct["Everyday checking"], "read", group=household)
-    grant("account", acct["Emergency savings"], "write", user=bob)
-    grant("account", acct["Rollover IRA"], "read", user=alice, by=bob)
-    s.add(CountedAccount(userId=alice.id, accountId=acct["Rollover IRA"].id, createdAt=now))
+    grant("account", acct["Emergency savings"], "write", user=john)
+    grant("account", acct["Rollover IRA"], "read", user=jane, by=john)
+    s.add(CountedAccount(userId=jane.id, accountId=acct["Rollover IRA"].id, createdAt=now))
 
     def portfolio(owner, name, names, benchmark="VT"):
         p = Portfolio(id=ids.new_id("Portf"), ownerId=owner.id, name=name, benchmark=benchmark)
@@ -40,10 +40,10 @@ def seed_sharing(s, people: dict) -> None:
         return p
 
     retirement = portfolio(
-        alice, "Retirement", ["Roth IRA", "Acme 401(k)", "Health savings"], "60-40"
+        jane, "Retirement", ["Roth IRA", "Acme 401(k)", "Health savings"], "60-40"
     )
-    portfolio(alice, "Family investing", ["Taxable brokerage", "Roth IRA", "Rollover IRA"], "SPY")
-    grant("portfolio", retirement, "read", user=bob)
+    portfolio(jane, "Family investing", ["Taxable brokerage", "Roth IRA", "Rollover IRA"], "SPY")
+    grant("portfolio", retirement, "read", user=john)
     s.flush()
     _history(s)
 

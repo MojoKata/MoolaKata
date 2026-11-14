@@ -1,4 +1,4 @@
-"""Dev mode's projections (requirements S17.7): Alice and Bob's retirement, active on their
+"""Dev mode's projections (requirements S17.7): Jane and John's retirement, active on their
 Retirement portfolio, two scenarios beside it, and a savings target over the emergency fund."""
 
 import json
@@ -13,18 +13,18 @@ from ..store.entities.sharing import Portfolio
 
 
 def seed_projections(s, people: dict) -> None:
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     retirement = s.scalars(select(Portfolio).where(Portfolio.name == "Retirement")).first()
     couple = [
         {"name": u.displayName, "birthYear": household.birth_year(s, u.id), "retireAge": 62}
-        for u in (alice, bob)
+        for u in (john, jane)
     ]
     base = {
         "contribution": {"amount": 30000, "growth": 3},
         "withdrawal": {"method": "fixed", "amount": 70000},
         "income": [
-            {"label": "Alice's Social Security", "person": 0, "fromAge": 67, "monthly": 2900},
-            {"label": "Bob's Social Security", "person": 1, "fromAge": 67, "monthly": 2400},
+            {"label": "Jane's Social Security", "person": 0, "fromAge": 67, "monthly": 2900},
+            {"label": "John's Social Security", "person": 1, "fromAge": 67, "monthly": 2400},
         ],
         "fees": 0.1,
     }
@@ -37,7 +37,7 @@ def seed_projections(s, people: dict) -> None:
     def make(name, goal, inputs, on=built, active=False):
         p = Projection(
             id=ids.new_id("Prjct"),
-            ownerId=alice.id,
+            ownerId=jane.id,
             name=name,
             goal=goal,
             builtOn=json.dumps(on),
@@ -47,7 +47,7 @@ def seed_projections(s, people: dict) -> None:
         s.flush()
         if active:
             p.active = True
-            p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, alice.id)))
+            p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
             p.baselineAt = clock.now()
         return p
 
@@ -71,13 +71,13 @@ def seed_projections(s, people: dict) -> None:
             on={"kind": "accounts", "ids": [fund.id]},
             active=True,
         )
-    # Bob follows the retirement plan with Alice.
+    # John follows the retirement plan with Jane.
     s.add(
         sharing.new_share(
             "projection",
             ret.id,
             "write",
-            user_id=bob.id,
-            by=alice.id,
+            user_id=john.id,
+            by=jane.id,
         )
     )

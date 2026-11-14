@@ -114,14 +114,14 @@ def test_windows_and_sign_in_lockout():
 
     g = SignInGuard(clock=lambda: clock[0])
     for _ in range(9):
-        assert not g.failed("alice", "10.0.0.5")
-    assert g.failed("Alice", "10.0.0.5")
+        assert not g.failed("jane", "10.0.0.5")
+    assert g.failed("Jane", "10.0.0.5")
     # The address is locked; the username is only slowed, from any address (S13.7.5.1).
     assert g.locked("10.0.0.5") == pytest.approx(15 * 60)
     assert g.locked("10.0.0.6") == 0
-    assert g.delay("alice", "10.0.0.6") == 4.0  # ten failures: half a second past the third
-    g.succeeded("alice")
-    assert g.delay("alice", "10.0.0.6") == 0
+    assert g.delay("jane", "10.0.0.6") == 4.0  # ten failures: half a second past the third
+    g.succeeded("jane")
+    assert g.delay("jane", "10.0.0.6") == 0
     clock[0] += 15 * 60
     assert g.locked("10.0.0.5") == 0
 
@@ -131,7 +131,7 @@ def test_the_lockout_counts_an_ipv6_address_by_its_64():
     clock = [0.0]
     g = SignInGuard(clock=lambda: clock[0])
     for i in range(10):
-        g.failed("alice", f"2001:db8:1:2::{i + 1:x}")
+        g.failed("jane", f"2001:db8:1:2::{i + 1:x}")
     assert g.locked("2001:db8:1:2::ffff") > 0
     assert g.locked("2001:db8:1:3::1") == 0
 

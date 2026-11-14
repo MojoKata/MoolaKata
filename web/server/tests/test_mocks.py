@@ -1,4 +1,4 @@
-"""The bitcoin backend mocks (requirements S17.9.7.8): each real source class in
+"""The bitcoin backend mocks (docs/test-plan.md): each real source class in
 bitcoin/sources.py against the fake Esplora, Electrum server and Bitcoin Core over real
 sockets, reading the same chain, and a wallet synced from each through the server."""
 
@@ -95,8 +95,8 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
     from moolakata.bitcoin import sync
     from moolakata.dev.seed_wallets import TEST_ZPUB
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "bitcoinSource", "esplora", None)
         settings.put(

@@ -28,10 +28,10 @@ T0 = dt.datetime(2026, 10, 13, 12, tzinfo=dt.UTC)
 
 
 @pytest.fixture
-def alice(server):
+def jane(server):
     clock.fix(T0)
-    make_user(server, "alice")
-    yield sign_in(server, "alice")
+    make_user(server, "jane")
+    yield sign_in(server, "jane")
     clock.fix(None)
 
 
@@ -42,14 +42,14 @@ def held(c):
     }
 
 
-def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(alice):
-    a = new_account(alice, type="brokerage")["id"]
+def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(jane):
+    a = new_account(jane, type="brokerage")["id"]
     assert (
-        opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
+        opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
     r = make(
-        alice,
+        jane,
         "Txn",
         accountId=a,
         date="2026-10-01",
@@ -59,22 +59,22 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(alice):
         splitRatio="2",
     )
     assert r.status_code == 200, r.text
-    after = held(alice)
+    after = held(jane)
     assert after == {"MSFT 20NOV26 240 P": (-4, -1280, "2026-09-01")}, "basis and days carry"
-    gains = alice.get("/ui/api/positions").json()["closed"]
+    gains = jane.get("/ui/api/positions").json()["closed"]
     assert gains == [], "nothing was sold"
     split = r.json()
-    saved(remove(alice, "Txn", split))
-    assert held(alice) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
+    saved(remove(jane, "Txn", split))
+    assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 
-def test_an_adjustment_from_the_memo_changes_root_and_deliverable(alice):
-    a = new_account(alice, type="brokerage")["id"]
-    opt(alice, a, "sell-to-open", "2026-09-01", "3.00", contracts="2", fees="0")
-    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+def test_an_adjustment_from_the_memo_changes_root_and_deliverable(jane):
+    a = new_account(jane, type="brokerage")["id"]
+    opt(jane, a, "sell-to-open", "2026-09-01", "3.00", contracts="2", fees="0")
+    [g] = jane.get("/ui/api/options/adjustable").json()["items"]
     [cn] = g["contracts"]
     assert (g["underlying"], cn["held"]) == ("MSFT", ["Short 2 in Checking"])
-    r = alice.post(
+    r = jane.post(
         "/ui/api/options/adjust",
         json={
             "date": "2026-10-05",
@@ -90,16 +90,16 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(alice):
     )
     assert r.status_code == 200, r.text
     assert r.json() == {"contracts": 1, "accounts": 1}
-    pos = held(alice)
+    pos = held(jane)
     assert pos == {"MSFT1 20NOV26 480 P": (-2, -600, "2026-09-01")}
     # Assigned: it buys its deliverable, 150 shares a contract, at the strike on 100.
-    row = next(r for r in alice.get("/ui/api/positions").json()["open"])
-    r = alice.post(
+    row = next(r for r in jane.get("/ui/api/positions").json()["open"])
+    r = jane.post(
         f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle",
         json={"how": "assign", "date": "2026-11-20", "contracts": "2"},
     )
     assert r.status_code in (200, 201), r.text
-    after = held(alice)
+    after = held(jane)
     qty, cost, _ = after["MSFT"]
     assert qty == 300 and D(str(cost)) == D("96000") - D("600")
 
@@ -144,39 +144,39 @@ def _short_adjusted_call(c, held: str, deliverable: list[dict]):
          None, []),
     ],
 )  # fmt: skip
-def test_an_adjusted_short_call_is_covered_by_what_it_delivers(alice, held, deliverable, risk,
+def test_an_adjusted_short_call_is_covered_by_what_it_delivers(jane, held, deliverable, risk,
                                                                proposed):  # fmt: skip
     """CR3-400, S3.10.2: the multiplier stays 100, so coverage counts the shares the contract
     delivers, all of them, and only of its underlying."""
-    assert _short_adjusted_call(alice, held, deliverable) == (risk, proposed)
+    assert _short_adjusted_call(jane, held, deliverable) == (risk, proposed)
 
 
-def test_a_strategys_leg_follows_its_contract_when_adjusted(alice):
+def test_a_strategys_leg_follows_its_contract_when_adjusted(jane):
     """CR3-401, S3.10: a whole split adjusts a grouped short put; the strategy holds the new
     contract, its contracts doubled, and deleting the split brings the leg back."""
     from edits import create
 
-    a = new_account(alice, type="brokerage")["id"]
+    a = new_account(jane, type="brokerage")["id"]
     assert (
-        opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
+        opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    [row] = alice.get("/ui/api/positions").json()["open"]
-    st = saved(create(alice, "Strat", accountId=a, legs=[{"instrumentId": row["instrumentId"]}]))
+    [row] = jane.get("/ui/api/positions").json()["open"]
+    st = saved(create(jane, "Strat", accountId=a, legs=[{"instrumentId": row["instrumentId"]}]))
 
     def legs():
-        [v] = [x for x in alice.get("/ui/api/positions/strategies").json()["strategies"]
+        [v] = [x for x in jane.get("/ui/api/positions/strategies").json()["strategies"]
                if x["id"] == st["id"]]  # fmt: skip
         return (v["shape"], [(x["symbol"], x["quantity"]) for x in v["legs"]],
                 v["capitalAtRiskNow"], v["capitalAtRiskAtOpen"])  # fmt: skip
 
     # At open, the leg is the contract it opened as.
     assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
-    r = make(alice, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
+    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
              amount="0", splitRatio="2")  # fmt: skip
     assert r.status_code == 200, r.text
     assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00", "94720.00")
-    saved(remove(alice, "Txn", r.json()))
+    saved(remove(jane, "Txn", r.json()))
     assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
 
 
@@ -200,21 +200,21 @@ def _settle(c, a, how, contracts=None):
     return c.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle", json=body)
 
 
-def test_a_deliverables_cash_comes_with_an_assignment(server, alice):
+def test_a_deliverables_cash_comes_with_an_assignment(server, jane):
     """S3.10.4: a short put on 100 shares and $50 a contract, two contracts assigned: the
     strike is paid for the shares, the $100 comes in as its own deposit, and comes off the
     shares' basis with the credit."""
     from moolakata.store.entities.accounts import Transaction
 
-    a, r = _adjusted_put(alice, cash="50")
+    a, r = _adjusted_put(jane, cash="50")
     assert r.status_code == 200, r.text
-    r = _settle(alice, a, "assign", "2")
+    r = _settle(jane, a, "assign", "2")
     assert r.status_code in (200, 201), r.text
     with server.db.read(unscoped="test") as s:
         cash = [(t.kind, t.amount, t.payee) for t in s.query(Transaction).filter_by(
             accountId=a, kind="deposit", deleted=False)]  # fmt: skip
     assert cash == [("deposit", D("100.00"), "Deliverable cash (assigned MSFT1 20NOV26 480 P)")]
-    assert held(alice) == {"MSFT": (200, 95300, "2026-11-20")}
+    assert held(jane) == {"MSFT": (200, 95300, "2026-11-20")}
 
 
 @pytest.mark.parametrize(
@@ -230,28 +230,28 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, alice):
         ("sell-to-open", "assign", None, "invalid-missing"),
     ],
 )
-def test_a_settlement_that_cant_be_is_refused(alice, side, how, contracts, code):
-    a = new_account(alice, type="brokerage")["id"]
-    assert opt(alice, a, side, "2026-09-01", "3.00", contracts="2", fees="0").status_code == 200
-    row = next(r for r in alice.get("/ui/api/positions").json()["open"])
+def test_a_settlement_that_cant_be_is_refused(jane, side, how, contracts, code):
+    a = new_account(jane, type="brokerage")["id"]
+    assert opt(jane, a, side, "2026-09-01", "3.00", contracts="2", fees="0").status_code == 200
+    row = next(r for r in jane.get("/ui/api/positions").json()["open"])
     body = {"how": how, "date": "2026-11-20"} | ({"contracts": contracts} if contracts else {})
-    r = alice.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle", json=body)
+    r = jane.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle", json=body)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == code, r.text
 
 
-def test_shares_are_not_an_option_to_settle(alice):
+def test_shares_are_not_an_option_to_settle(jane):
     from edits import create
 
-    a = new_account(alice, type="brokerage")["id"]
-    create(alice, "Txn", accountId=a, date="2026-08-01", kind="buy", symbol="MSFT",
+    a = new_account(jane, type="brokerage")["id"]
+    create(jane, "Txn", accountId=a, date="2026-08-01", kind="buy", symbol="MSFT",
            quantity="100", price="400", amount="-40000.00")  # fmt: skip
-    [row] = alice.get("/ui/api/positions").json()["open"]
-    r = alice.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle",
+    [row] = jane.get("/ui/api/positions").json()["open"]
+    r = jane.post(f"/ui/api/accounts/{a}/options/{row['instrumentId']}/settle",
                    json={"how": "assign", "date": "2026-11-20", "contracts": "1"})  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-an-option", r.text
 
 
-def test_deleting_either_half_of_an_adjustment_undoes_it(server, alice):
+def test_deleting_either_half_of_an_adjustment_undoes_it(server, jane):
     """S3.10: the pair goes together, whichever half is deleted, and the lot is back on the
     contract it was."""
     from edits import drop
@@ -259,32 +259,32 @@ def test_deleting_either_half_of_an_adjustment_undoes_it(server, alice):
     from moolakata.store.entities.accounts import Transaction
 
     for half in ("out", "into"):
-        a, r = _adjusted_put(alice)
+        a, r = _adjusted_put(jane)
         assert r.status_code == 200, r.text
         with server.db.read(unscoped="test") as s:
             rows = {("into" if t.splitRatio else "out"): t.id for t in s.query(Transaction)
                     .filter_by(accountId=a, kind="option-adjust", deleted=False)}  # fmt: skip
-        saved(drop(alice, "Txn", f"/ui/api/transactions/{rows[half]}"))
+        saved(drop(jane, "Txn", f"/ui/api/transactions/{rows[half]}"))
         with server.db.read(unscoped="test") as s:
             left = s.query(Transaction).filter_by(accountId=a, kind="option-adjust",
                                                   deleted=False).count()  # fmt: skip
         assert left == 0, half
-        mine = [r for r in alice.get("/ui/api/positions").json()["open"]
+        mine = [r for r in jane.get("/ui/api/positions").json()["open"]
                 if r["accountId"] == a]  # fmt: skip
         assert [(r["symbol"], r["quantity"]) for r in mine] == [("MSFT 20NOV26 480 P", -2)]
 
 
-def test_a_split_not_a_whole_number_waits_for_the_memo(alice):
+def test_a_split_not_a_whole_number_waits_for_the_memo(jane):
     """S3.10.1: a 3:2 split adjusts no option itself; the contract waits for its memo."""
-    a = new_account(alice, type="brokerage")["id"]
+    a = new_account(jane, type="brokerage")["id"]
     assert (
-        opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
+        opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    r = make(alice, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
+    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
              amount="0", splitRatio="1.5")  # fmt: skip
     assert r.status_code == 200, r.text
-    assert held(alice) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
+    assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 
 def test_an_adjustment_needs_a_deliverable_and_a_date_that_reads():
@@ -293,8 +293,8 @@ def test_an_adjustment_needs_a_deliverable_and_a_date_that_reads():
                                                   D("60"))  # fmt: skip
 
 
-def test_a_deliverable_of_no_shares_is_refused(alice):
-    _, r = _adjusted_put(alice, deliverable=[{"symbol": "MSFT", "shares": "0"}])
+def test_a_deliverable_of_no_shares_is_refused(jane):
+    _, r = _adjusted_put(jane, deliverable=[{"symbol": "MSFT", "shares": "0"}])
     assert r.status_code == 422, r.text
     assert r.json()["errors"][0]["code"] == "deliverable-invalid"
 
@@ -305,7 +305,7 @@ def test_a_splits_strike_rounds_half_up_to_the_thousandth():
     assert adjust.adjusted_strike(D("480"), D("3")) == D("160")
 
 
-def _uid(server, name="alice"):
+def _uid(server, name="jane"):
     with server.db.read(unscoped="test") as s:
         return s.scalars(select(User.id).where(User.username == name)).one()
 
@@ -348,12 +348,12 @@ def _book(c):
     return a
 
 
-def test_a_whole_split_adjusts_each_contract_on_the_stock_open_on_its_day(server, alice):
+def test_a_whole_split_adjusts_each_contract_on_the_stock_open_on_its_day(server, jane):
     """S3.10.1: each MSFT contract open on the split's day, the one expiring that day too, is
     carried to its contract at half the strike, its right, root, deliverable and multiplier as
     they were: a pair of rows by the one who recorded the split, naming it, moving no cash.
     The shares, the AAPL put and the contract expired before stay."""
-    a = _book(alice)
+    a = _book(jane)
     uid = _uid(server)
     with server.db.tx(unscoped="test") as s:
         split = _split(s, a, uid, D("2"))
@@ -391,11 +391,11 @@ def test_a_whole_split_adjusts_each_contract_on_the_stock_open_on_its_day(server
 
 
 @pytest.mark.parametrize("ratio", [None, D("1"), D("1.5"), D("2.5"), D("0.5")])
-def test_a_split_below_two_or_not_whole_adjusts_no_option(server, alice, ratio):
+def test_a_split_below_two_or_not_whole_adjusts_no_option(server, jane, ratio):
     """S3.10.1: only a whole split of 2 or more adjusts by itself; any other waits for the
     OCC's memo."""
-    a = new_account(alice, type="brokerage")["id"]
-    saved(opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    a = new_account(jane, type="brokerage")["id"]
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
     uid = _uid(server)
     with server.db.tx(unscoped="test") as s:
         split = _split(s, a, uid, ratio)
@@ -417,19 +417,19 @@ def test_a_split_below_two_or_not_whole_adjusts_no_option(server, alice, ratio):
     ],
 )  # fmt: skip
 def test_a_whole_split_adjusts_an_adjusted_contract_only_when_it_delivers_just_the_stock(
-    server, alice, deliverable, cash, after
+    server, jane, deliverable, cash, after
 ):
     """S3.10.1: a 2:1 split of MSFT with a contract adjusted from the memo before it, and a
     plain put opened after, which the split adjusts whatever the other does. The adjusted
     contract keeps its new root and deliverable through the split."""
-    a, r = _adjusted_put(alice, deliverable=deliverable, cash=cash)
+    a, r = _adjusted_put(jane, deliverable=deliverable, cash=cash)
     assert r.status_code == 200, r.text
-    saved(opt(alice, a, "sell-to-open", "2026-10-06", "1.00", strike="500", fees="0"))
-    r = make(alice, "Txn", accountId=a, date="2026-10-07", kind="split", symbol="MSFT",
+    saved(opt(jane, a, "sell-to-open", "2026-10-06", "1.00", strike="500", fees="0"))
+    r = make(jane, "Txn", accountId=a, date="2026-10-07", kind="split", symbol="MSFT",
              amount="0", splitRatio="2")  # fmt: skip
     assert r.status_code == 200, r.text
     sym = after[0]
-    assert held(alice) == {
+    assert held(jane) == {
         sym: (after[1], -600, "2026-09-01"),
         "MSFT 20NOV26 250 P": (-2, -100, "2026-10-06"),
     }
@@ -446,19 +446,19 @@ def test_a_whole_split_adjusts_an_adjusted_contract_only_when_it_delivers_just_t
     assert terms[sym][0] == "MSFT1"
 
 
-def test_a_deliverables_refusal_names_its_contract_and_its_part(alice):
+def test_a_deliverables_refusal_names_its_contract_and_its_part(jane):
     """R3.7: a part refused in the second contract's deliverable is shown at that part."""
-    a = new_account(alice, type="brokerage")["id"]
+    a = new_account(jane, type="brokerage")["id"]
     for strike in ("480", "500"):
-        saved(opt(alice, a, "sell-to-open", "2026-09-01", "3.00", strike=strike, fees="0"))
-    [g] = alice.get("/ui/api/options/adjustable").json()["items"]
+        saved(opt(jane, a, "sell-to-open", "2026-09-01", "3.00", strike=strike, fees="0"))
+    [g] = jane.get("/ui/api/options/adjustable").json()["items"]
     good = [{"symbol": "MSFT", "shares": "100"}]
     bad = [{"symbol": "MSFT", "shares": "100"}, {"symbol": "MSFT", "shares": "0"}]
     contracts = [
         {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": str(cn["strike"]),
          "deliverable": d} for cn, d in zip(g["contracts"], (good, bad), strict=True)
     ]  # fmt: skip
-    r = alice.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": contracts})
+    r = jane.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": contracts})
     assert r.status_code == 422, r.text
     errors = [(e["field"], e["code"]) for e in r.json()["errors"]]
     assert errors == [("contracts.1.deliverable.1", "deliverable-invalid")]
@@ -495,13 +495,13 @@ def test_a_deliverable_part_of_any_shares_above_zero_is_kept_under_its_symbol(se
 T1 = dt.datetime(2026, 10, 1, 9, tzinfo=dt.UTC)
 
 
-def test_deleting_a_split_undoes_only_the_adjustments_it_made(server, alice):
+def test_deleting_a_split_undoes_only_the_adjustments_it_made(server, jane):
     """S3.10: its pairs are deleted by whoever deleted it. A pair from the memo, a half
     deleted before (it keeps its time), and a row of another kind that names the split stay
     as they were."""
-    a, r = _adjusted_put(alice, deliverable=[{"symbol": "MSFT", "shares": "150"}])
+    a, r = _adjusted_put(jane, deliverable=[{"symbol": "MSFT", "shares": "150"}])
     assert r.status_code == 200, r.text
-    saved(opt(alice, a, "sell-to-open", "2026-09-01", "1.00", strike="500", fees="0"))
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "1.00", strike="500", fees="0"))
     uid = _uid(server)
     with server.db.tx(unscoped="test") as s:
         [memo] = _pairs(s, a)
@@ -522,10 +522,10 @@ def test_deleting_a_split_undoes_only_the_adjustments_it_made(server, alice):
     assert kept == (T1, None, [None, None])
 
 
-def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, alice):
+def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, jane):
     """S3.10: the other half, deleted already, keeps its time; a transfer's halves, which
     aren't an adjustment, are left to the transfer."""
-    a, r = _adjusted_put(alice)
+    a, r = _adjusted_put(jane)
     assert r.status_code == 200, r.text
     uid = _uid(server)
     with server.db.tx(unscoped="test") as s:
@@ -553,19 +553,19 @@ def _split_msft(c, a, day="2026-10-01"):
     assert r.status_code == 200, r.text
 
 
-def test_an_option_trade_runs_through_its_contracts_adjustment(alice):
+def test_an_option_trade_runs_through_its_contracts_adjustment(jane):
     """S3.9.1, S3.10.4, CR3-438: an adjustment sells nothing, so the trade goes on under the
     adjusted contract with its opening day and premium, its contracts times the ratio, noting
     the change; a short one requires the larger of its capital before and after."""
-    a = new_account(alice, type="brokerage")["id"]
-    saved(opt(alice, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
-    saved(opt(alice, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
-    _split_msft(alice, a)
-    saved(opt(alice, a, "sell-to-close", "2026-10-10", "2.00", contracts="2", right="call",
+    a = new_account(jane, type="brokerage")["id"]
+    saved(opt(jane, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    _split_msft(jane, a)
+    saved(opt(jane, a, "sell-to-close", "2026-10-10", "2.00", contracts="2", right="call",
               strike="240", fees="0"))  # fmt: skip
-    saved(opt(alice, a, "buy-to-close", "2026-10-12", "1.00", contracts="4", strike="240",
+    saved(opt(jane, a, "buy-to-close", "2026-10-12", "1.00", contracts="4", strike="240",
               fees="0"))  # fmt: skip
-    rows = alice.get("/ui/api/positions/option-trades").json()["items"]
+    rows = jane.get("/ui/api/positions/option-trades").json()["items"]
     keys = ("symbol", "side", "contracts", "opened", "closed", "how", "premiumIn", "premiumOut",
             "pl", "capitalRequired", "adjustedFrom", "adjustedOn")  # fmt: skip
     assert [tuple(r[k] for k in keys) for r in rows] == [
@@ -576,11 +576,11 @@ def test_an_option_trade_runs_through_its_contracts_adjustment(alice):
     ]  # fmt: skip
 
 
-def test_an_option_trade_open_through_its_adjustment_is_worth_its_adjusted_contract(alice):
-    a = new_account(alice, type="brokerage")["id"]
-    saved(opt(alice, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
-    _split_msft(alice, a)
-    (row,) = alice.get("/ui/api/positions/option-trades").json()["items"]
+def test_an_option_trade_open_through_its_adjustment_is_worth_its_adjusted_contract(jane):
+    a = new_account(jane, type="brokerage")["id"]
+    saved(opt(jane, a, "buy-to-open", "2026-09-01", "3.00", right="call", fees="0"))
+    _split_msft(jane, a)
+    (row,) = jane.get("/ui/api/positions/option-trades").json()["items"]
     assert (row["symbol"], row["contracts"], row["closed"], row["premiumOut"]) == (
         "MSFT 20NOV26 240 C", "2.0", None, "300.00")  # fmt: skip
     assert (row["adjustedFrom"], row["adjustedOn"]) == ("MSFT 20NOV26 480 C", "2026-10-01")

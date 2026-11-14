@@ -11,7 +11,7 @@ from devapp import (
     SETTINGS_SECTIONS,
     account_ids,
     api_items,
-    as_alice,
+    as_jane,
     check_guide,
     close_dialog,
     open_dialog,
@@ -28,8 +28,8 @@ DIALOG_PARTS = 3
 
 @pytest.fixture
 def fresh(dev_server):
-    """A page of its own, signed in as alice."""
-    with as_alice(dev_server) as pg:
+    """A page of its own, signed in as jane."""
+    with as_jane(dev_server) as pg:
         yield pg
 
 
@@ -252,7 +252,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # A person with their dates, and a gift with its purchase.
     visit(page, "/ui/gifts/people")
-    page.get_by_role("row", name=re.compile("Bob Griffin")).locator(".row-tool").click()
+    page.get_by_role("row", name=re.compile("John Doe")).locator(".row-tool").click()
     wait_guide(page, "dialog-person")
     check_guide(page, ".dialog", "a person with dates")
     close_dialog(page)
@@ -338,7 +338,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # Sharing with a linked server's people, and its Include receipts.
     open_dialog(page, "/ui/accounts", "Share Everyday checking", "dialog-share")
-    page.get_by_role("radiogroup", name="Access for Margaret Griffin").get_by_role(
+    page.get_by_role("radiogroup", name="Access for Candace Doe").get_by_role(
         "radio", name="Read"
     ).click()
     page.wait_for_selector(".dialog [data-help=include-receipts]")

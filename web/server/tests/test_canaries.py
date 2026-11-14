@@ -85,33 +85,33 @@ def scan(srv, data_dir: Path, folders: list[Path]):
 def test_no_canary_is_readable_on_the_disk_or_in_the_logs(admins, caplog):  # noqa: F811
     caplog.set_level(logging.DEBUG)
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
-    make_user(a, "alice")
+    make_user(b, "bart")
+    make_user(a, "jane")
     with a.db.tx(unscoped="test") as s:  # the owner's name, as the share carries it across
-        s.query(User).filter(User.username == "alice").update({User.displayName: CANARIES["owner"]})
-    alice = sign_in(a, "alice")
+        s.query(User).filter(User.username == "jane").update({User.displayName: CANARIES["owner"]})
+    jane = sign_in(a, "jane")
     a_id, b_id = linked(ca, cb)
-    acct = make(alice, "Acct", name=CANARIES["account"], type="checking").json()
-    t = add(alice, acct["id"], amount=f"-{AMOUNT}", payee=CANARIES["payee"], memo=CANARIES["memo"])
-    rid = alice.post(
+    acct = make(jane, "Acct", name=CANARIES["account"], type="checking").json()
+    t = add(jane, acct["id"], amount=f"-{AMOUNT}", payee=CANARIES["payee"], memo=CANARIES["memo"])
+    rid = jane.post(
         "/ui/api/receipts",
         files={"file": (CANARIES["receipt file"] + ".png", png(), "application/octet-stream")},
     ).json()["id"]
-    saved(attach(alice, rid, t["id"]))
+    saved(attach(jane, rid, t["id"]))
     # An OFX download and a CSV waiting for its mapping, each naming a canary payee.
     ofx = (FIX / "bank.ofx").read_bytes().replace(b"KROGER #123", CANARIES["ofx payee"].encode())
-    upload(alice, acct["id"], "bank.ofx", ofx)
+    upload(jane, acct["id"], "bank.ofx", ofx)
     held = upload(
-        alice,
+        jane,
         acct["id"],
         "export.csv",
         f"Date,Description,Amount\n2026-09-05,{CANARIES['csv payee']},-12.00\n".encode(),
     )
     assert held["result"]["needsMapping"], "held, waiting for its mapping"
-    # Shared with receipts across the link, pulled while Carol's copy is locked.
-    carol = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    # Shared with receipts across the link, pulled while Bart's copy is locked.
+    bart = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     cb.post(f"/ui/api/settings/links/{b_id}/copy-key")
-    share(alice, "account", acct["id"], users={carol["id"]: "read"}, receipts={a_id: True})
+    share(jane, "account", acct["id"], users={bart["id"]: "read"}, receipts={a_id: True})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     inbox = lcopy.folder(b.config.data_dir, b_id) / "inbox"
     assert any(inbox.iterdir()), "the change waits in the inbox, sealed"

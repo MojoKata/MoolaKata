@@ -208,7 +208,7 @@ preparer.
          the server restarts.
       4. While a copy is locked, its window asks for the words. Nothing from it appears
          anywhere else at any time (S12.10).
-      5. The window's header says who unlocked it and when it will lock: *unlocked by Alice
+      5. The window's header says who unlocked it and when it will lock: *unlocked by Jane
          at 14:05 · locks after an hour unused*. Every unlock, failure and release is
          recorded (S11.8).
    5. **Staying in sync while locked.** Pulls (S11.4) never wait for an unlock.

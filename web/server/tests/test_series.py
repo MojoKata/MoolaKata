@@ -16,9 +16,9 @@ d = dt.date
 
 
 @pytest.fixture
-def alice(server):
-    make_user(server, "alice")
-    return sign_in(server, "alice")
+def jane(server):
+    make_user(server, "jane")
+    return sign_in(server, "jane")
 
 
 def series(server, account_id, first, last, step=1):
@@ -30,12 +30,12 @@ def series(server, account_id, first, last, step=1):
         return valuation.series(s, led, True, first, last, step)
 
 
-def test_a_loan_counts_minus_what_it_owes_each_step_and_on_the_last_day(server, alice):
-    loan = new_account(alice, name="HELOC", type="mortgage")
-    saved(terms(alice, loan["id"], principal="100000", startDate="2026-01-01", termMonths=120,
+def test_a_loan_counts_minus_what_it_owes_each_step_and_on_the_last_day(server, jane):
+    loan = new_account(jane, name="HELOC", type="mortgage")
+    saved(terms(jane, loan["id"], principal="100000", startDate="2026-01-01", termMonths=120,
                 rate="0"))  # fmt: skip
-    add(alice, loan["id"], "10000.00", "2026-01-10", kind="deposit")  # paid down
-    add(alice, loan["id"], "-2500.00", "2026-01-20", kind="withdrawal")  # drawn again
+    add(jane, loan["id"], "10000.00", "2026-01-10", kind="deposit")  # paid down
+    add(jane, loan["id"], "-2500.00", "2026-01-20", kind="withdrawal")  # drawn again
     got = series(server, loan["id"], d(2026, 1, 1), d(2026, 1, 25), step=7)
     # At no interest what is owed is the principal less payments plus draws.
     assert got == [
@@ -50,18 +50,18 @@ def test_a_loan_counts_minus_what_it_owes_each_step_and_on_the_last_day(server, 
     ]  # fmt: skip
 
 
-def test_a_loan_without_terms_has_no_series(server, alice):
-    loan = new_account(alice, name="Car loan", type="auto-loan")
+def test_a_loan_without_terms_has_no_series(server, jane):
+    loan = new_account(jane, name="Car loan", type="auto-loan")
     assert series(server, loan["id"], d(2026, 1, 1), d(2026, 1, 31)) == []
 
 
-def test_an_item_counts_its_worth_while_held(server, alice):
-    coll = new_account(alice, name="Collectables", type="collectables")
-    coin = make(alice, "Item", accountId=coll["id"], name="Coin", acquiredOn="2026-02-01",
+def test_an_item_counts_its_worth_while_held(server, jane):
+    coll = new_account(jane, name="Collectables", type="collectables")
+    coin = make(jane, "Item", accountId=coll["id"], name="Coin", acquiredOn="2026-02-01",
                 costBasis="1000").json()  # fmt: skip
-    r = make(alice, "Valtn", itemId=coin["id"], date="2026-02-10", value="1200", source="guide")
+    r = make(jane, "Valtn", itemId=coin["id"], date="2026-02-10", value="1200", source="guide")
     assert r.status_code == 200, r.text
-    saved(sell(alice, coin["id"], "2026-02-20", "1300"))
+    saved(sell(jane, coin["id"], "2026-02-20", "1300"))
     got = dict(series(server, coll["id"], d(2026, 1, 31), d(2026, 2, 25), step=5))
     assert got[d(2026, 1, 31)] == 0
     assert got[d(2026, 2, 5)] == D(1000)

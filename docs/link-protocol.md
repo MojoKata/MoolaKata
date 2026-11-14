@@ -130,9 +130,9 @@ exchange after the link is approved:
 
 ```json
 {
-  "household": {"serverName": "griffin-parents", "name": "Margaret & Tom", "avatar": {...}},
-  "users": [{"id": "User_…", "username": "margaret", "displayName": "Margaret Griffin",
-             "email": "margaret@parents.home", "sex": "female"}]
+  "household": {"serverName": "doe-parents", "name": "Jeremy & Candace", "avatar": {...}},
+  "users": [{"id": "User_…", "username": "candace", "displayName": "Candace Doe",
+             "email": "candace@parents.home", "sex": "female"}]
 }
 ```
 

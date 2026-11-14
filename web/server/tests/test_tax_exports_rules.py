@@ -460,12 +460,12 @@ class Store:
         self.s.flush()
         return rec
 
-    def account(self, owner="alice", type="checking", name=None, institution=None, **kw):
+    def account(self, owner="jane", type="checking", name=None, institution=None, **kw):
         a = Account(id=ids.new_id("Acct"), ownerId=self.u[owner], name=name or type, type=type,
                     institution=institution)  # fmt: skip
         return self.put(a, **kw)
 
-    def book(self, year=2026, filers=None, owner="alice", **kw):
+    def book(self, year=2026, filers=None, owner="jane", **kw):
         """`filers`: each filer's name and whether they accepted; the owner alone by default."""
         deleted = kw.pop("deleted", False)
         b = self.put(TaxBook(id=ids.new_id("TaxBk"), ownerId=self.u[owner], year=year, **kw))
@@ -516,8 +516,8 @@ class Store:
 
 @pytest.fixture(scope="module")
 def household(tmp_path_factory):
-    """A bare store (no server), opened once for the module, with four users (Alice, Bob,
-    Carol and Dave) and the categories."""
+    """A bare store (no server), opened once for the module, with four users (Jane, John,
+    Bart and Dave) and the categories."""
     tmp = tmp_path_factory.mktemp("books")
     config = Config(name="test", mode="proxy", data_dir=tmp / "data",
                     backup_dir=tmp / "backups", socket_path=tmp / "run" / "sock")  # fmt: skip
@@ -525,7 +525,7 @@ def household(tmp_path_factory):
     master.create_keyring(config, key)
     store = open_store(config, key)
     db = store.db
-    names = ("alice", "bob", "carol", "dave")
+    names = ("jane", "john", "bart", "dave")
     users = {n: make_user(SimpleNamespace(db=db), n).id for n in names}
     with db.tx(unscoped="test") as s:
         ensure_categories(s)
@@ -543,24 +543,24 @@ def st(household):
 
 
 def test_a_books_filers_are_its_live_ones_in_the_order_named(st):
-    b = st.book(filers={"bob": False, "alice": True})
-    st.put(TaxBookFiler(bookId=b.id, userId=st.u["carol"]), deleted=True)
-    assert [f.userId for f in books.filers(st.s, b)] == [st.u["bob"], st.u["alice"]]
+    b = st.book(filers={"john": False, "jane": True})
+    st.put(TaxBookFiler(bookId=b.id, userId=st.u["bart"]), deleted=True)
+    assert [f.userId for f in books.filers(st.s, b)] == [st.u["john"], st.u["jane"]]
     dave = st.put(TaxBookFiler(bookId=b.id, userId=st.u["dave"]))
     dave.createdAt = T - dt.timedelta(days=1)  # named first, though stored last
     st.s.flush()
     got = [f.userId for f in books.filers(st.s, b)]
-    assert got == [st.u["dave"], st.u["bob"], st.u["alice"]]
+    assert got == [st.u["dave"], st.u["john"], st.u["jane"]]
     assert not books.accepted(st.s, b)
-    assert books.accepted(st.s, st.book(filers={"bob": True, "alice": True}, year=2027))
+    assert books.accepted(st.s, st.book(filers={"john": True, "jane": True}, year=2027))
 
 
 def test_the_accounts_counted_are_the_accepted_filers_own_less_those_left_out(st):
-    b = st.book(filers={"alice": True, "bob": False})
+    b = st.book(filers={"jane": True, "john": False})
     kept = st.account(name="A kept")
     left = st.account(name="B left out")
     st.account(name="C deleted", deleted=True)
-    st.account("bob", name="D not accepted")
+    st.account("john", name="D not accepted")
     st.counts(b, left, counted=False)
     st.counts(b, kept, counted=False, deleted=True)  # a left-out undone
     again = st.account(name="E counted again")
@@ -575,38 +575,38 @@ def test_the_accounts_counted_are_the_accepted_filers_own_less_those_left_out(st
     }
     other = st.book(2027)  # another book's choices are its own
     st.counts(other, kept, counted=False)
-    st.counts(other, st.account("carol", name="F added there"), by="alice")
+    st.counts(other, st.account("bart", name="F added there"), by="jane")
     assert books.counted(st.s, b).accounts == got.accounts
 
 
 def test_an_added_account_counts_while_its_adder_is_an_accepted_filer_who_sees_it(st):
-    b = st.book(filers={"alice": True, "bob": False})
-    seen = st.account("carol", name="Seen")
-    unseen = st.account("carol", name="Unseen")
-    gone = st.account("carol", name="Gone", deleted=True)
-    by_bob = st.account("carol", name="By Bob")
-    st.share(seen, "alice")
-    st.share(gone, "alice")
-    st.share(by_bob, "alice")
-    st.share(by_bob, "bob")
+    b = st.book(filers={"jane": True, "john": False})
+    seen = st.account("bart", name="Seen")
+    unseen = st.account("bart", name="Unseen")
+    gone = st.account("bart", name="Gone", deleted=True)
+    by_john = st.account("bart", name="By John")
+    st.share(seen, "jane")
+    st.share(gone, "jane")
+    st.share(by_john, "jane")
+    st.share(by_john, "john")
     for a in (seen, unseen, gone):
-        st.counts(b, a, by="alice")
-    st.counts(b, by_bob, by="bob")  # bob hasn't accepted the book
-    st.counts(b, st.account("carol", name="Undone"), by="alice", deleted=True)
-    st.counts(b, seen, by="bob", deleted=True)  # an earlier choice, undone: not who added it
-    st.counts(st.book(2027), seen, by="bob")  # another book's: not who added it here
+        st.counts(b, a, by="jane")
+    st.counts(b, by_john, by="john")  # john hasn't accepted the book
+    st.counts(b, st.account("bart", name="Undone"), by="jane", deleted=True)
+    st.counts(b, seen, by="john", deleted=True)  # an earlier choice, undone: not who added it
+    st.counts(st.book(2027), seen, by="john")  # another book's: not who added it here
     got = books.counted(st.s, b)
     assert [a.name for a in got.accounts] == ["Seen"] and got.added == [seen.id]
 
 
 def test_an_added_account_copied_without_its_adder_counts_while_an_accepted_filer_sees_it(st):
-    b = st.book(filers={"alice": True, "bob": False})
-    seen = st.account("carol", name="Seen by Alice")
-    bobs = st.account("carol", name="Seen by Bob")
-    st.share(seen, "alice")
-    st.share(bobs, "bob")
+    b = st.book(filers={"jane": True, "john": False})
+    seen = st.account("bart", name="Seen by Jane")
+    johns = st.account("bart", name="Seen by John")
+    st.share(seen, "jane")
+    st.share(johns, "john")
     st.counts(b, seen)
-    st.counts(b, bobs)
+    st.counts(b, johns)
     assert books.counted(st.s, b).added == [seen.id]
 
 
@@ -779,8 +779,8 @@ def test_a_form_last_year_from_another_account_or_issuer_is_expected_again(st):
     got = books.expected(st.s, st.book(2026, fromLastYear=True))
     assert [(e.issuer, e.accountId) for e in got] == [("Fidelity", brk.id)]
     st.document(last, "1099 (composite)", issuer="Vanguard")
-    got = books.expected(st.s, st.book(2026, fromLastYear=True, owner="bob",
-                                       filers={"alice": True}))  # fmt: skip
+    got = books.expected(st.s, st.book(2026, fromLastYear=True, owner="john",
+                                       filers={"jane": True}))  # fmt: skip
     assert [(e.issuer, e.why) for e in got] == [
         ("Fidelity", "From Taxable: a taxable brokerage account"),
         ("Vanguard", "Received in 2025"),
@@ -819,7 +819,7 @@ def test_childcare_paid_for_dependents_under_13_expects_the_providers_statement(
     assert [(e.form, e.issuer, e.accountId, e.why) for e in got] == [
         ("Childcare provider statement", None, None, "For Ann and Cat: childcare paid")
     ]
-    older = st.book(2027, owner="bob")
+    older = st.book(2027, owner="john")
     st.dependent(older, "Ben", 2013)
     assert books.expected(st.s, older) == []
 
@@ -869,47 +869,47 @@ def test_a_document_without_account_or_issuer_meets_none_with_one(st):
 
 def test_a_filer_has_one_accepted_book_a_year(st):
     mine = st.book(2025)
-    st.book(2025, owner="bob", filers={"bob": True, "alice": False})
-    st.book(2025, owner="carol", filers={"carol": True, "alice": True}, deleted=True)
+    st.book(2025, owner="john", filers={"john": True, "jane": False})
+    st.book(2025, owner="bart", filers={"bart": True, "jane": True}, deleted=True)
     st.book(2024)
-    st.put(TaxBookFiler(bookId=st.book(2025, owner="bob").id, userId=st.u["alice"],
+    st.put(TaxBookFiler(bookId=st.book(2025, owner="john").id, userId=st.u["jane"],
                         acceptedAt=T), deleted=True)  # fmt: skip
-    assert books.accepted_on(st.s, st.u["alice"], 2025).id == mine.id
-    assert books.accepted_on(st.s, st.u["alice"], 2025, but=mine.id) is None
-    assert books.accepted_on(st.s, st.u["alice"], 2023) is None
+    assert books.accepted_on(st.s, st.u["jane"], 2025).id == mine.id
+    assert books.accepted_on(st.s, st.u["jane"], 2025, but=mine.id) is None
+    assert books.accepted_on(st.s, st.u["jane"], 2023) is None
 
 
 def test_last_years_books_wait_for_every_filer_to_accept_this_one(st):
     last = st.book(2025)
-    b = st.book(2026, filers={"alice": True, "bob": False})
+    b = st.book(2026, filers={"jane": True, "john": False})
     assert books.last_years(st.s, b) == []
     st.s.scalars(select(TaxBookFiler).where(TaxBookFiler.bookId == b.id)).all()[1].acceptedAt = T
     st.s.flush()
     got = books.last_years(st.s, b)
-    assert [(ly.book.id, ly.filers, ly.joint) for ly in got] == [(last.id, [st.u["alice"]], False)]
+    assert [(ly.book.id, ly.filers, ly.joint) for ly in got] == [(last.id, [st.u["jane"]], False)]
 
 
 def test_last_years_books_are_one_a_filer_in_the_order_made(st):
-    bobs = st.book(2025, owner="bob")
-    alices = st.book(2025)
-    b = st.book(2026, filers={"alice": True, "bob": True, "carol": True})
+    johns = st.book(2025, owner="john")
+    janes = st.book(2025)
+    b = st.book(2026, filers={"jane": True, "john": True, "bart": True})
     got = books.last_years(st.s, b)
     assert [(ly.book.id, ly.filers, ly.joint) for ly in got] == [
-        (bobs.id, [st.u["bob"]], False),
-        (alices.id, [st.u["alice"]], False),
+        (johns.id, [st.u["john"]], False),
+        (janes.id, [st.u["jane"]], False),
     ]
 
 
 def test_a_joint_last_year_is_split_only_when_not_all_its_filers_are_on_this_book(st):
-    joint = st.book(2025, filers={"alice": True, "bob": True, "carol": False})
-    both = st.book(2026, filers={"alice": True, "bob": True})
+    joint = st.book(2025, filers={"jane": True, "john": True, "bart": False})
+    both = st.book(2026, filers={"jane": True, "john": True})
     assert [(ly.book.id, ly.filers, ly.joint) for ly in books.last_years(st.s, both)] == [
-        (joint.id, [st.u["alice"], st.u["bob"]], False)
+        (joint.id, [st.u["jane"], st.u["john"]], False)
     ]
-    alone = st.book(2026, owner="bob", filers={"bob": True})
+    alone = st.book(2026, owner="john", filers={"john": True})
     assert [(ly.book.id, ly.joint) for ly in books.last_years(st.s, alone)] == [(joint.id, True)]
-    one = st.book(2025, owner="carol", filers={"carol": True, "bob": False})
-    solo = st.book(2026, owner="carol", filers={"carol": True})
+    one = st.book(2025, owner="bart", filers={"bart": True, "john": False})
+    solo = st.book(2026, owner="bart", filers={"bart": True})
     assert [(ly.book.id, ly.joint) for ly in books.last_years(st.s, solo)] == [(one.id, False)]
 
 
@@ -926,7 +926,7 @@ def test_last_years_carried_figures_are_its_filings_that_carry_any(st):
         (every.id, {"agi": "1", "totalTax": "2"}),
     ]
     assert all(ly.book.id == last.id for _, _, ly in got)
-    assert books.carried_from_last_year(st.s, st.book(2026, owner="bob")) == []
+    assert books.carried_from_last_year(st.s, st.book(2026, owner="john")) == []
 
 
 def test_last_years_federal_figures_are_the_amended_returns_once_there_is_one(st):
@@ -939,21 +939,21 @@ def test_last_years_federal_figures_are_the_amended_returns_once_there_is_one(st
     st.filing(last, carried={"agi": "4"}, amends=original.id)
     st.filing(last, carried={"agi": "5"})
     assert [figures for figures, _ in books.federal_figures(st.s, b)] == [{"agi": "4"}]
-    assert books.federal_figures(st.s, st.book(2026, owner="bob")) == []
+    assert books.federal_figures(st.s, st.book(2026, owner="john")) == []
 
 
 def test_the_carryover_sums_last_years_federal_returns(st):
     st.filing(st.book(2025), carried={"capitalLossShort": "100.50", "capitalLossLong": "200"})
-    st.filing(st.book(2025, owner="bob"), carried={"capitalLossLong": "30", "agi": "1"})
-    b = st.book(2026, filers={"alice": True, "bob": True})
+    st.filing(st.book(2025, owner="john"), carried={"capitalLossLong": "30", "agi": "1"})
+    b = st.book(2026, filers={"jane": True, "john": True})
     assert books.carryover(st.s, b) == (D("100.50"), D("230"), False)
     b.carryoverShareShort = b.carryoverShareLong = D(9)  # no joint return to split: no share
     assert books.carryover(st.s, b) == (D("100.50"), D("230"), False)
-    assert books.carryover(st.s, st.book(2026, owner="carol")) == (0, 0, False)
+    assert books.carryover(st.s, st.book(2026, owner="bart")) == (0, 0, False)
 
 
 def test_a_joint_carryover_is_the_filers_share_once_typed(st):
-    st.filing(st.book(2025, filers={"alice": True, "bob": True}),
+    st.filing(st.book(2025, filers={"jane": True, "john": True}),
               carried={"capitalLossShort": "100", "capitalLossLong": "200"})  # fmt: skip
     b = st.book(2026)
     assert books.carryover(st.s, b) == (0, 0, True)
@@ -965,56 +965,56 @@ def test_a_joint_carryover_is_the_filers_share_once_typed(st):
 
 @pytest.mark.parametrize("carried", [{"capitalLossShort": "1"}, {"capitalLossLong": "1"}])
 def test_a_joint_carryover_of_either_term_asks_for_the_filers_share(st, carried):
-    st.filing(st.book(2025, filers={"alice": True, "bob": True}), carried=carried)
+    st.filing(st.book(2025, filers={"jane": True, "john": True}), carried=carried)
     assert books.carryover(st.s, st.book(2026)) == (0, 0, True)
 
 
 def test_a_joint_return_without_a_carryover_asks_for_no_share(st):
-    st.filing(st.book(2025, filers={"alice": True, "bob": True}),
+    st.filing(st.book(2025, filers={"jane": True, "john": True}),
               carried={"agi": "1", "capitalLossShort": "0.00"})  # fmt: skip
-    st.filing(st.book(2025, owner="carol"), carried={"capitalLossShort": "5"})
-    b = st.book(2026, filers={"alice": True, "carol": True})
+    st.filing(st.book(2025, owner="bart"), carried={"capitalLossShort": "5"})
+    b = st.book(2026, filers={"jane": True, "bart": True})
     assert books.carryover(st.s, b) == (D(5), 0, False)
 
 
 def test_names_are_the_users_display_names(st):
-    assert books.names(st.s, [st.u["alice"], st.u["bob"]]) == {
-        st.u["alice"]: "Alice",
-        st.u["bob"]: "Bob",
+    assert books.names(st.s, [st.u["jane"], st.u["john"]]) == {
+        st.u["jane"]: "Jane",
+        st.u["john"]: "John",
     }
 
 
 def test_a_book_is_got_by_who_holds_it_for_what_they_may_do(st):
     from moolakata.errors import Problem
 
-    b = st.book(filers={"alice": True, "bob": False})
+    b = st.book(filers={"jane": True, "john": False})
     read = st.s.scalar(select(AccessClass.id).where(AccessClass.name == "read"))
     share = SHARE_ENTITIES["tax-book"]
-    st.put(share(id=ids.new_id("TbShr"), targetId=b.id, accessClassId=read, userId=st.u["carol"]))
-    got, p = books.get(st.s, st.u["alice"], b.id, "deletable")
+    st.put(share(id=ids.new_id("TbShr"), targetId=b.id, accessClassId=read, userId=st.u["bart"]))
+    got, p = books.get(st.s, st.u["jane"], b.id, "deletable")
     assert got.id == b.id and p.mine
-    assert books.get(st.s, st.u["alice"], b.id, "write")[0].id == b.id
-    assert books.get(st.s, st.u["carol"], b.id)[0].id == b.id
+    assert books.get(st.s, st.u["jane"], b.id, "write")[0].id == b.id
+    assert books.get(st.s, st.u["bart"], b.id)[0].id == b.id
     for need in ("write", "configurable"):
         with pytest.raises(Problem) as e:
-            books.get(st.s, st.u["carol"], b.id, need)
+            books.get(st.s, st.u["bart"], b.id, need)
         assert (e.value.status, e.value.code) == (403, "read-only")
         assert e.value.detail == "This tax book is shared with you to read."
     with pytest.raises(Problem) as e:
-        books.get(st.s, st.u["bob"], b.id)  # named, not accepted: not shown
+        books.get(st.s, st.u["john"], b.id)  # named, not accepted: not shown
     assert (e.value.status, e.value.code, e.value.detail) == (404, "not-found", "Not found")
     with pytest.raises(Problem) as e:
-        books.get(st.s, st.u["alice"], "TaxBk_none")
+        books.get(st.s, st.u["jane"], "TaxBk_none")
     assert e.value.status == 404
 
 
 def test_the_books_a_user_holds_are_listed_newest_year_first_then_as_made(st):
     older = st.book(2025)
     second = st.book(2026)
-    first = st.book(2026, owner="bob", filers={"bob": True, "alice": True})
+    first = st.book(2026, owner="john", filers={"john": True, "jane": True})
     first.createdAt = second.createdAt - dt.timedelta(minutes=1)  # made first, stored later
-    st.book(2027, owner="bob", filers={"bob": True, "alice": False})
-    got = [b.id for b, _ in books.visible(st.s, st.u["alice"])]
+    st.book(2027, owner="john", filers={"john": True, "jane": False})
+    got = [b.id for b, _ in books.visible(st.s, st.u["jane"])]
     assert got == [first.id, second.id, older.id]
 
 
@@ -1039,23 +1039,23 @@ def test_a_joint_carryover_share_adds_to_a_separate_returns_carryover(st):
     """Joint after a separate return and a joint one: the separate return's carryover and the
     share typed of the joint one, added (made in that order, so the share comes last)."""
     st.filing(
-        st.book(2025, owner="carol"), carried={"capitalLossShort": "5", "capitalLossLong": "7"}
+        st.book(2025, owner="bart"), carried={"capitalLossShort": "5", "capitalLossLong": "7"}
     )
-    st.filing(st.book(2025, filers={"alice": True, "bob": True}),
+    st.filing(st.book(2025, filers={"jane": True, "john": True}),
               carried={"capitalLossShort": "100", "capitalLossLong": "200"})  # fmt: skip
-    b = st.book(2026, filers={"alice": True, "carol": True})
+    b = st.book(2026, filers={"jane": True, "bart": True})
     b.carryoverShareShort, b.carryoverShareLong = D(40), D(150)
     assert books.carryover(st.s, b) == (D(45), D(157), False)
 
 
 def test_a_share_typed_counts_once_though_both_filers_bring_a_joint_return_to_split(st):
-    """Alice filed jointly with Bob, and Carol with Dave; filing together now, the one share
+    """Jane filed jointly with John, and Bart with Dave; filing together now, the one share
     they type of last year's joint carryovers counts once."""
-    st.filing(st.book(2025, filers={"alice": True, "bob": True}),
+    st.filing(st.book(2025, filers={"jane": True, "john": True}),
               carried={"capitalLossShort": "100"})  # fmt: skip
-    st.filing(st.book(2025, owner="carol", filers={"carol": True, "dave": True}),
+    st.filing(st.book(2025, owner="bart", filers={"bart": True, "dave": True}),
               carried={"capitalLossLong": "60"})  # fmt: skip
-    b = st.book(2026, filers={"alice": True, "carol": True})
+    b = st.book(2026, filers={"jane": True, "bart": True})
     assert books.carryover(st.s, b) == (0, 0, True)
     b.carryoverShareShort, b.carryoverShareLong = D(40), D(30)
     assert books.carryover(st.s, b) == (D(40), D(30), False)

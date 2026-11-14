@@ -28,8 +28,8 @@ SMALL, LARGE = 150, 600
 
 def _household(server) -> tuple:
     clock.fix(T0)
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     me = c.get("/ui/api/session").json()["user"]["id"]
     names = ("Brokerage", "Second", "Third")
     accts = [make(c, "Acct", name=n, type="brokerage").json()["id"] for n in names]

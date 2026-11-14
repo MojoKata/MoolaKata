@@ -45,7 +45,7 @@ SHOWN_DIR = "/srv/moolakata"
 OWN_CERT = re.compile(r'("certificate":\s*")[0-9a-f]{64}(")')
 SHOWN_CERT = "5e1a77c20b9d3f48c07e9a1255b3e8f09d04e1b722fa6c034b8e5a19d7c20e66"
 PASSWORD = "moolakata-dev"  # noqa: S105 - dev mode's seed users
-USERS = ("alice", "bob", "admin")
+USERS = ("jane", "john", "admin")
 # The API allows a session 600 requests a minute (requirements S13.7.5); the crawl keeps under it.
 API_PER_MINUTE = 500
 # The crawl's jobs run side by side, each browser signed in as each user it crawls for. Most of a

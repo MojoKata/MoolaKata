@@ -51,8 +51,8 @@ def test_rfc_6238_test_vector():
 
 
 def test_turning_it_on_needs_a_code_from_the_seed(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     r = c.post("/ui/api/profile/two-step")
     seed = r.json()["secret"]
     assert c.get("/ui/api/profile").json()["twoStep"]["on"] is False
@@ -72,12 +72,12 @@ def test_turning_it_on_needs_a_code_from_the_seed(server, frozen):
 
 
 def test_sign_in_asks_for_the_code_and_takes_each_step_once(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     seed, _ = turn_on(c)
     later(30)
     with new_client(server) as b:
-        r = b.post("/ui/api/session", json={"login": "alice", "password": PW})
+        r = b.post("/ui/api/session", json={"login": "jane", "password": PW})
         assert r.status_code == 202 and "mk_session" not in b.cookies
         token = r.json()["twoStepToken"]
         assert b.get("/ui/api/session").status_code == 401
@@ -87,13 +87,13 @@ def test_sign_in_asks_for_the_code_and_takes_each_step_once(server, frozen):
         r = b.post(
             "/ui/api/session/two-step", json={"token": token, "code": good[:3] + " " + good[3:]}
         )
-        assert r.status_code == 200 and r.json()["user"]["username"] == "alice"
+        assert r.status_code == 200 and r.json()["user"]["username"] == "jane"
         assert b.get("/ui/api/session").status_code == 200
         # The token was used up with the sign-in.
         r = b.post("/ui/api/session/two-step", json={"token": token, "code": good})
         assert r.status_code == 401 and r.json()["code"] == "two-step-expired"
     with new_client(server) as b2:
-        token = b2.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+        token = b2.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
             "twoStepToken"
         ]
         r = b2.post("/ui/api/session/two-step", json={"token": token, "code": good})
@@ -103,10 +103,10 @@ def test_sign_in_asks_for_the_code_and_takes_each_step_once(server, frozen):
 
 
 def test_the_sign_in_token_lasts_five_minutes(server, frozen):
-    make_user(server, "alice")
-    seed, _ = turn_on(sign_in(server, "alice"))
+    make_user(server, "jane")
+    seed, _ = turn_on(sign_in(server, "jane"))
     with new_client(server) as b:
-        token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+        token = b.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
             "twoStepToken"
         ]
         later(5 * 60 + 1)
@@ -115,11 +115,11 @@ def test_the_sign_in_token_lasts_five_minutes(server, frozen):
 
 
 def test_a_recovery_code_works_once(server, frozen):
-    make_user(server, "alice")
-    _, codes = turn_on(sign_in(server, "alice"))
+    make_user(server, "jane")
+    _, codes = turn_on(sign_in(server, "jane"))
     for expected in (200, 401):
         with new_client(server) as b:
-            token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+            token = b.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
                 "twoStepToken"
             ]
             r = b.post("/ui/api/session/two-step", json={"token": token, "code": codes[0].upper()})
@@ -138,14 +138,14 @@ def test_five_wrong_codes_end_the_sign_in_and_ten_lock_the_address(server, froze
     from moolakata.ui import session
 
     monkeypatch.setattr(session.time, "sleep", lambda s: None)
-    make_user(server, "alice")
-    seed, _ = turn_on(sign_in(server, "alice"))
+    make_user(server, "jane")
+    seed, _ = turn_on(sign_in(server, "jane"))
     later(30)
     two_step = "/ui/api/session/two-step"
     with new_client(server) as b:
 
         def started() -> str:
-            r = b.post("/ui/api/session", json={"login": "alice", "password": PW})
+            r = b.post("/ui/api/session", json={"login": "jane", "password": PW})
             return r.json()["twoStepToken"]
 
         first = started()
@@ -159,19 +159,19 @@ def test_five_wrong_codes_end_the_sign_in_and_ten_lock_the_address(server, froze
         second = started()
         for _ in range(5):
             b.post(two_step, json={"token": second, "code": "000000"})
-        r = b.post("/ui/api/session", json={"login": "alice", "password": PW})
+        r = b.post("/ui/api/session", json={"login": "jane", "password": PW})
         assert r.status_code == 429
     assert "signin.locked" in kinds(server)
 
 
 def test_new_recovery_codes_replace_the_old(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     _, old = turn_on(c)
     new = c.post("/ui/api/profile/two-step/recovery-codes").json()["codes"]
     assert not set(old) & set(new)
     with new_client(server) as b:
-        token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+        token = b.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
             "twoStepToken"
         ]
         r = b.post("/ui/api/session/two-step", json={"token": token, "code": old[0]})
@@ -179,8 +179,8 @@ def test_new_recovery_codes_replace_the_old(server, frozen):
 
 
 def test_changing_two_step_needs_the_password_within_ten_minutes(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     turn_on(c)
     later(11 * 60)
     for method, path in (
@@ -198,40 +198,40 @@ def test_changing_two_step_needs_the_password_within_ten_minutes(server, frozen)
     }
     assert mails(server)[-1]["Subject"] == "Two-step sign-in was turned off"
     with new_client(server) as b:
-        assert b.post("/ui/api/session", json={"login": "alice", "password": PW}).status_code == 200
+        assert b.post("/ui/api/session", json={"login": "jane", "password": PW}).status_code == 200
 
 
 def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_client, frozen):
-    alice = make_user(server, "alice")
-    c = sign_in(server, "alice")
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
     turn_on(c)
     rows = {u["username"]: u for u in admin_client.get("/ui/api/users").json()["items"]}
-    assert rows["alice"]["twoStep"] is True
-    r = admin_client.post(f"/ui/api/users/{alice.id}/two-step/reset")
+    assert rows["jane"]["twoStep"] is True
+    r = admin_client.post(f"/ui/api/users/{jane.id}/two-step/reset")
     assert r.status_code == 200 and r.json()["twoStep"] is False
     assert c.get("/ui/api/session").status_code == 401
     with server.db.read(unscoped="test") as s:
-        assert s.scalars(select(Session).where(Session.userId == alice.id)).first() is None
-        assert s.scalars(select(Secret).where(Secret.recordId == alice.id)).first() is None
+        assert s.scalars(select(Session).where(Session.userId == jane.id)).first() is None
+        assert s.scalars(select(Secret).where(Secret.recordId == jane.id)).first() is None
     assert "user.two-step-reset" in kinds(server)
     assert "an admin, turned it off for you" in mails(server)[-1].get_content()
     # Not an admin: refused.
-    c2 = sign_in(server, "alice")
-    assert c2.post(f"/ui/api/users/{alice.id}/two-step/reset").status_code == 403
+    c2 = sign_in(server, "jane")
+    assert c2.post(f"/ui/api/users/{jane.id}/two-step/reset").status_code == 403
 
 
 def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):
     # N12: the second step notes the address as a password-only sign-in does (S10.1.9).
     from moolakata.store.entities.users import User
 
-    make_user(server, "alice")
-    seed, _ = turn_on(sign_in(server, "alice"))
+    make_user(server, "jane")
+    seed, _ = turn_on(sign_in(server, "jane"))
     with server.db.tx(unscoped="test") as s:
-        u = s.query(User).filter_by(username="alice").one()
+        u = s.query(User).filter_by(username="jane").one()
         u.recentAddresses = '{"192.0.2.1": "2026-10-01T00:00:00+00:00"}'
     later(30)
     with new_client(server) as b:
-        token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+        token = b.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
             "twoStepToken"
         ]
         r = b.post("/ui/api/session/two-step", json={"token": token, "code": code(seed)})
@@ -246,15 +246,15 @@ def test_a_new_address_leaves_a_sign_in_waiting_for_its_code(server, frozen):
     from test_users import last_link, set_public_url
 
     set_public_url(server)
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     seed, _ = turn_on(c)
     later(30)
     with new_client(server) as b:
-        token = b.post("/ui/api/session", json={"login": "alice", "password": PW}).json()[
+        token = b.post("/ui/api/session", json={"login": "jane", "password": PW}).json()[
             "twoStepToken"
         ]
-        assert c.post("/ui/api/profile/email", json={"email": "alice@new.lan"}).status_code == 204
+        assert c.post("/ui/api/profile/email", json={"email": "jane@new.lan"}).status_code == 204
         _, confirm = last_link(server)
         assert c.post("/ui/api/email-change/confirm", json={"token": confirm}).status_code == 204
         r = b.post("/ui/api/session/two-step", json={"token": token, "code": code(seed)})

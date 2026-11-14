@@ -1,5 +1,5 @@
 """Dev mode's MoolaKata Connector (requirements S17.7, S18): paired, unlocked, reporting, with
-Alice's Schwab and credit-union sign-ins and Bob's bank, so the screens and the
+Jane's Schwab and credit-union sign-ins and John's bank, so the screens and the
 generated mockup show the connector as a household uses it. Its keys are fixed so the sample
 data is the same on every run; it never answers, since nothing calls it (S18.2.2)."""
 
@@ -18,7 +18,7 @@ from ..store.entities.connector import Connection, Connector
 
 
 def seed_connector(s, people: dict) -> None:
-    alice, bob, admin = people["alice"], people["bob"], people["admin"]
+    jane, john, admin = people["jane"], people["john"], people["admin"]
     action, status = (
         Ed25519PrivateKey.from_private_bytes(
             hashlib.sha256(b"moolakata dev connector " + which).digest()
@@ -63,7 +63,7 @@ def seed_connector(s, people: dict) -> None:
         return c
 
     schwab = connection(
-        alice,
+        jane,
         "schwab",
         "Schwab login",
         "ok",
@@ -74,7 +74,7 @@ def seed_connector(s, people: dict) -> None:
         {"appKey": "dev-app-key"},
     )
     connection(
-        alice,
+        jane,
         "ofx-direct",
         "Credit union",
         "needs-sign-in",
@@ -91,7 +91,7 @@ def seed_connector(s, people: dict) -> None:
         },
     )
     bank = connection(
-        bob,
+        john,
         "ofx-direct",
         "UMB Bank",
         "ok",
@@ -108,18 +108,18 @@ def seed_connector(s, people: dict) -> None:
         },
     )
     s.flush()
-    # The accounts they keep current (S18.6.2): Alice's brokerage from Schwab, Bob's checking
+    # The accounts they keep current (S18.6.2): Jane's brokerage from Schwab, John's checking
     # from his bank's OFX server.
     brokerage = s.scalars(
         select(Account).where(
-            Account.ownerId == alice.id, Account.type == "brokerage", Account.deleted == false()
+            Account.ownerId == jane.id, Account.type == "brokerage", Account.deleted == false()
         )
     ).first()
     if brokerage is not None:
         brokerage.connectionId, brokerage.syncAccount = schwab.id, "Individual ••4417"
     checking = s.scalars(
         select(Account).where(
-            Account.ownerId == bob.id, Account.type == "checking", Account.deleted == false()
+            Account.ownerId == john.id, Account.type == "checking", Account.deleted == false()
         )
     ).first()
     if checking is not None:

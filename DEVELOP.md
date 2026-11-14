@@ -4,17 +4,21 @@ What the build has reached, the conventions it keeps, the stack, and setting up 
 work on it. [`README.md`](README.md) says what MoolaKata is; the requirements
 ([`docs/requirements/`](docs/requirements/README.md)) say what it does.
 
-**Status:** the nine milestones of the first release (requirements S17.9.1–S17.9.9) are built:
+**Status:** the nine milestones of the first release are built:
 the server in `web/`, the MoolaKata Connector in `connector/`. Milestones 8 and 9 built what the
 second review of the requirements against the code found the release still needed
-([`docs/reviews/initial-code-review-2.md`](docs/reviews/initial-code-review-2.md)); its
+([`docs/reviews/initial-code-review-2.md`](https://github.com/MojoKata/MoolaKata/blob/244af0ae/docs/reviews/initial-code-review-2.md)); its
 section 12 says where each finding went, which no review has checked yet, and the choices
 milestone 9 made. What the build couldn't try for real is in
 [`docs/test-plan.md`](docs/test-plan.md); the gaps and the open questions are listed in the
-requirements' README. Milestone 10 (S17.9.12), budgets as S7 describes them, is built.
-Milestone 11 (S17.9.13) is built: every form that changes records, dialogs and screen forms
+requirements' README. Milestone 10, budgets as S7 describes them, is built.
+Milestone 11 is built: every form that changes records, dialogs and screen forms
 alike, edits a draft (S12.15, `web/ui/app/draft.js`) and saves it in one request,
 `POST /ui/api/save` (S13.8.11).
+
+**Milestones.** The product is built in milestones, each ending with `web/check` passing, a
+Docker image that runs, and the generated mockup covering what was built. What each one held
+is in git's history.
 
 **Coverage:** [mojokata.github.io/MoolaKata](https://mojokata.github.io/MoolaKata/) shows
 what the tests reach on `main`, by area and by file, and how it has moved over the merges

@@ -51,8 +51,8 @@ def test_the_ofx_request_names_the_account_and_signs_in():
         "accountId": "00001204",
         "bankId": "101000695",
     }
-    body = request(settings, {"username": "alice", "password": "pw"}, dt.date(2026, 9, 1)).decode()
-    assert body.startswith("OFXHEADER:100") and "<USERID>alice<USERPASS>pw" in body
+    body = request(settings, {"username": "jane", "password": "pw"}, dt.date(2026, 9, 1)).decode()
+    assert body.startswith("OFXHEADER:100") and "<USERID>jane<USERPASS>pw" in body
     assert "<BANKID>101000695<ACCTID>00001204<ACCTTYPE>CHECKING" in body
     assert "<DTSTART>20260901" in body and "<ORG>CU<FID>1204" in body
     card = request({**settings, "accountType": "CREDITCARD"}, {}, dt.date(2026, 9, 1)).decode()
@@ -94,12 +94,12 @@ def test_ofx_direct_posts_the_statement_to_the_account_with_those_last_four():
         Account("Acct_1", "Everyday ••1204", ["ofx"]),
         Account("Acct_2", "Other ••9999", []),
     ]
-    r = d.run(settings, {"username": "alice", "password": "pw"}, accounts, good)
+    r = d.run(settings, {"username": "jane", "password": "pw"}, accounts, good)
     assert r.state == "ok" and [f.account_id for f in r.files] == ["Acct_1"]
     assert r.files[0].data == OFX_OK and r.files[0].fmt == "ofx"
     assert r.found == [{"name": "Checking", "last4": "1204"}]
     assert good.calls[0][2]["Content-Type"] == "application/x-ofx"
-    r = d.run(settings, {"username": "alice", "password": "wrong"}, accounts, good)
+    r = d.run(settings, {"username": "jane", "password": "wrong"}, accounts, good)
     assert r.state == "needs-sign-in" and r.files == []
     assert d.run({**settings, "url": "http://plain"}, {}, accounts, good).state == "failing"
     # Another host than the one named is refused by the allowlist.

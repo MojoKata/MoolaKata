@@ -17,7 +17,7 @@
       viewer that frames the file) is offered as a link. Each is an address that opens it when
       typed into the address bar, so one can be shared: a screen `#/budgets`, a
       section `#/settings/keys`, a dialog over its screen `#/settings?dialog=prune`, a user
-      `?as=bob`, states `?on=stale,privacy`. What only happens (a new alert arriving) is a
+      `?as=john`, states `?on=stale,privacy`. What only happens (a new alert arriving) is a
       button.
    2. **`MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the app and an
       in-page fake backend, for the screens built so far, the linked household window among

@@ -65,7 +65,7 @@ def show(page, path: str) -> None:
     assert not page.is_visible("text=was not recorded"), f"{path} asked for an unrecorded answer"
 
 
-@pytest.mark.parametrize("user", ["alice", "bob", "admin"])
+@pytest.mark.parametrize("user", ["jane", "john", "admin"])
 def test_every_screen_opens(browser, user):
     assert PAGE.exists(), "run web/dev.sh mockup"
     ctx, page = open_as(browser, user)
@@ -92,7 +92,7 @@ def test_every_screen_opens(browser, user):
 
 
 def test_the_mock_pill_opens_dialogs_and_switches_users(browser):
-    ctx, page = open_as(browser, "alice")
+    ctx, page = open_as(browser, "jane")
     for label in ("New Account", "Import", "Add a transaction", "New Portfolio", "New User"):
         page.click(".pill-mock")
         page.get_by_role("menuitem", name=label).click()
@@ -101,8 +101,8 @@ def test_the_mock_pill_opens_dialogs_and_switches_users(browser):
         page.keyboard.press("Escape")
         page.wait_for_selector(".dialog", state="detached")
     page.click(".pill-mock")
-    page.get_by_role("menuitem", name="Bob Griffin").click()
-    page.wait_for_selector(".user-text >> text=bob")
+    page.get_by_role("menuitem", name="John Doe").click()
+    page.wait_for_selector(".user-text >> text=john")
     page.click(".pill-mock")
     page.get_by_role("menuitem", name="Prices stale").click()
     page.wait_for_selector(".price-status .dot.stale")
@@ -114,6 +114,6 @@ def test_the_mock_pill_opens_dialogs_and_switches_users(browser):
     ctx = browser.new_context(viewport={"width": 1440, "height": 900})
     page = ctx.new_page()
     page.goto(url)
-    page.wait_for_selector(".user-text >> text=bob")
+    page.wait_for_selector(".user-text >> text=john")
     page.wait_for_selector(".price-status .dot.stale")
     ctx.close()

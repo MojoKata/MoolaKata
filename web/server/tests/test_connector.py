@@ -167,9 +167,9 @@ def test_an_unconfirmed_pairing_gets_no_credential_and_posts_no_file(server, adm
     assert fake.pair(pair_code(admin)).status_code == 200
     view = admin.get("/ui/api/settings/connector").json()
     assert view["state"] == "paired" and view["confirmedAt"] is None
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
-    aid = account(server, alice, cid)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid)
     out = fake.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     assert out["connections"][0]["sealed"] is None
     r = fake.call(
@@ -178,7 +178,7 @@ def test_an_unconfirmed_pairing_gets_no_credential_and_posts_no_file(server, adm
         headers={"Content-Type": "multipart/form-data; boundary=x"},
     )
     assert r.status_code == 403 and r.json()["code"] == "not-confirmed"
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     assert c.get("/ui/api/connector").json()["confirmed"] is False
     r = c.post(f"/ui/api/profile/connections/{cid}/credential", json={"sealed": "x" * 100})
     assert r.status_code == 409 and r.json()["code"] == "pairing-unconfirmed"
@@ -202,7 +202,7 @@ def test_a_report_names_its_page_and_the_answer_says_whether_confirmed(server, a
         assert r.status_code == 200, r.text
         return r.json()
 
-    page = "https://connector.griffin.home:37374"
+    page = "https://connector.doe.home:37374"
     assert report(page=page)["confirmed"] is False
     assert admin.get("/ui/api/settings/connector").json()["page"] == page
     for bad in (
@@ -270,11 +270,11 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
     """CR3-65, S18.4.2, S18.2.4.4: the status key, kept outside the vault, reports *locked*
     and is answered with nothing about a Connection; its report sets no page, state or
     sign-in address; every other call but `unpaired` is refused under it."""
-    alice = make_user(server, "alice")
+    jane = make_user(server, "jane")
     with server.db.tx(unscoped="test") as s:
         row = manage.paired(s)
-        c = Connection(id=ids.new_id("Conn"), ownerId=alice.id, connectorId=row.id,
-                       driver="schwab", label="Alice's Schwab", state="new",
+        c = Connection(id=ids.new_id("Conn"), ownerId=jane.id, connectorId=row.id,
+                       driver="schwab", label="Jane's Schwab", state="new",
                        settings='{"appKey": "k"}', sealedCredential="c2VhbGVk",
                        sealedAt=clock.now())  # fmt: skip
         s.add(c)
@@ -291,7 +291,7 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
     assert r.status_code == 200
     answer = r.json()
     assert answer["ok"] is True and "connections" not in answer and "removed" not in answer
-    assert "Alice" not in r.text and "appKey" not in r.text
+    assert "Jane" not in r.text and "appKey" not in r.text
     view = admin.get("/ui/api/settings/connector").json()
     assert view["locked"] is True and view["page"] == "https://c.lan:37374"
     with server.db.read(unscoped="test") as s:
@@ -397,7 +397,7 @@ def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monke
     assert paired.call("/connector/v1/report", {}).status_code == 200 and read
 
 
-def connection(server, owner_id: str, label="Alice's Schwab login", driver="schwab") -> str:
+def connection(server, owner_id: str, label="Jane's Schwab login", driver="schwab") -> str:
     with server.db.tx(unscoped="test") as s:
         row = manage.paired(s)
         c = Connection(
@@ -430,9 +430,9 @@ def account(server, owner_id: str, connection_id: str | None = None, **kw) -> st
 
 
 def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, paired, admin):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
-    aid = account(server, alice, cid)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid)
     r = paired.call(
         "/connector/v1/report",
         {
@@ -458,7 +458,7 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
     out = r.json()
     assert out["removed"] == []
     (c,) = out["connections"]
-    assert c["id"] == cid and c["ownerName"] == "Alice" and c["driver"] == "schwab"
+    assert c["id"] == cid and c["ownerName"] == "Jane" and c["driver"] == "schwab"
     assert c["accounts"] == [
         {"id": aid, "syncAccount": "Checking ••4417", "formats": ["ofx", "csv", "statement"]}
     ]
@@ -526,10 +526,10 @@ def _multipart(file: bytes, meta: dict, name="schwab.ofx") -> tuple[bytes, str]:
 
 
 def test_a_posted_file_goes_through_the_import_once(server, paired):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
-    aid = account(server, alice, cid)
-    other = account(server, alice, name="Savings")
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid)
+    other = account(server, jane, name="Savings")
     body, ctype = _multipart(OFX, {"connectionId": cid, "format": "ofx"})
     r = paired.call(
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
@@ -543,12 +543,12 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
     with server.db.read(unscoped="test") as s:
         assert s.query(Transaction).filter_by(accountId=aid).count() == 2
         imp = s.query(Import).filter_by(accountId=aid).first()
-        assert imp.userId == alice and imp.format == "ofx"
+        assert imp.userId == jane and imp.format == "ofx"
     # Activity names the connector and the Connection (S18.8), never an amount.
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     acts = c.get("/ui/api/activity").json()["items"]
     mine = [a for a in acts if a.get("via")]
-    assert mine and mine[0]["via"] == "MoolaKata Connector, Alice's Schwab login"
+    assert mine and mine[0]["via"] == "MoolaKata Connector, Jane's Schwab login"
     assert "42.37" not in json.dumps(acts)
     # An account whose sync doesn't name this Connection is refused.
     r = paired.call(
@@ -600,9 +600,9 @@ def test_a_fault_in_a_connector_route_is_answered_signed(server, paired, monkeyp
 
 
 def test_a_posted_statement_is_kept_without_reading_once(server, paired):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice, driver="ofx-direct")
-    aid = account(server, alice, cid)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane, driver="ofx-direct")
+    aid = account(server, jane, cid)
     pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
     body, ctype = _multipart(pdf, {"connectionId": cid}, name="umb-2026-09.pdf")
     r = paired.call(
@@ -617,17 +617,17 @@ def test_a_posted_statement_is_kept_without_reading_once(server, paired):
     with server.db.read(unscoped="test") as s:
         imps = s.query(Import).filter_by(accountId=aid).all()
         assert len(imps) == 1 and imps[0].format == "kept"
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     receipts = c.get("/ui/api/receipts").json()["items"]
     assert len(receipts) == 1 and receipts[0]["payee"].endswith("statement")
 
 
 def test_the_owners_upload_limit_counts_the_connectors_posts(server, paired):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
-    aid = account(server, alice, cid)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid)
     for _ in range(60):
-        server.upload_rate.hit(alice)
+        server.upload_rate.hit(jane)
     body, ctype = _multipart(OFX, {"connectionId": cid})
     r = paired.call(
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
@@ -636,9 +636,9 @@ def test_the_owners_upload_limit_counts_the_connectors_posts(server, paired):
 
 
 def test_unpair_stops_every_connection_and_turns_sync_off(server, paired, admin, client):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
-    aid = account(server, alice, cid)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid)
     r = admin.post("/ui/api/settings/connector/unpair")
     assert r.status_code == 200 and r.json()["state"] == "none"
     with server.db.read(unscoped="test") as s:
@@ -695,8 +695,8 @@ def test_the_connector_alerts_admins_when_locked_or_silent(server, paired, admin
 
 
 def test_a_connection_that_needs_a_sign_in_alerts_its_owner_and_admins(server, paired, admin):
-    alice = make_user(server, "alice").id
-    cid = connection(server, alice)
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
     paired.call(
         "/connector/v1/report",
         {
@@ -705,12 +705,12 @@ def test_a_connection_that_needs_a_sign_in_alerts_its_owner_and_admins(server, p
         },
     )
     alerts.evaluate(server)
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     mine = c.get("/ui/api/alerts").json()["open"]
-    assert [a["title"] for a in mine] == ["Alice's Schwab login needs a sign-in"]
+    assert [a["title"] for a in mine] == ["Jane's Schwab login needs a sign-in"]
     assert mine[0]["fix"] == "Sign In Again"
     theirs = admin.get("/ui/api/alerts").json()["open"]
-    assert any(a["title"] == "Alice's Schwab login needs a sign-in" for a in theirs)
+    assert any(a["title"] == "Jane's Schwab login needs a sign-in" for a in theirs)
 
 
 def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin):
@@ -729,7 +729,7 @@ def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin)
     opened = alerts.evaluate(server)
     mine = [a for a in admin.get("/ui/api/alerts").json()["open"] if "sign-in" in a["title"]]
     assert [(a["title"], a["fix"]) for a in mine] == [
-        ("Alice's Schwab login needs a sign-in", "Sign In Again")
+        ("Jane's Schwab login needs a sign-in", "Sign In Again")
     ]
     other = sign_in(server, "root2")
     theirs = [a for a in other.get("/ui/api/alerts").json()["open"] if "sign-in" in a["title"]]

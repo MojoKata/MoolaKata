@@ -35,7 +35,7 @@ def test_the_vault_opens_only_with_its_words_and_makes_no_one_wait(tmp_path):
     v = vault.Vault(tmp_path / "vault.json")
     phrase = " ".join(v.create())
     fp = v.fingerprint()
-    v.put("Conn_1", {"username": "alice", "password": "pw"})
+    v.put("Conn_1", {"username": "jane", "password": "pw"})
     v.lock()
     assert v.locked
     with pytest.raises(vault.VaultError, match="locked"):
@@ -46,7 +46,7 @@ def test_the_vault_opens_only_with_its_words_and_makes_no_one_wait(tmp_path):
     with pytest.raises(vault.VaultError, match="12 words"):
         v.unlock("just three words")
     v.unlock(phrase)
-    assert v.get("Conn_1") == {"username": "alice", "password": "pw"} and v.ids() == ["Conn_1"]
+    assert v.get("Conn_1") == {"username": "jane", "password": "pw"} and v.ids() == ["Conn_1"]
     v.delete("Conn_1")
     assert v.ids() == []
     assert fp == v.fingerprint() and len(fp) == 16
@@ -96,10 +96,10 @@ def test_keys_are_made_at_pairing_the_sealing_key_in_the_vault_and_forgotten(tmp
 def test_credentials_are_bound_to_the_host_they_were_filed_for(tmp_path):
     v = vault.Vault(tmp_path / "vault.json")
     v.create()
-    v.put("Conn_1", {"username": "alice", "password": "pw"}, "ofx.cu.example")
+    v.put("Conn_1", {"username": "jane", "password": "pw"}, "ofx.cu.example")
     v.put("Conn_2", {"appSecret": "s"})
     assert v.host("Conn_1") == "ofx.cu.example" and v.host("Conn_2") is None
-    assert v.get("Conn_1") == {"username": "alice", "password": "pw"} and v.host("Conn_9") is None
+    assert v.get("Conn_1") == {"username": "jane", "password": "pw"} and v.host("Conn_9") is None
 
 
 def test_signed_calls_and_checked_answers():
@@ -291,7 +291,7 @@ def test_a_changed_server_address_sends_nothing_and_asks_for_the_credentials_aga
     c = core.connections["Conn_1"] = ConnectionState(
         "Conn_1", "ofx-direct", "CU", {"url": "https://ofx.cu.example/ofx", "accountId": "1204"}, []
     )
-    core.vault.put("Conn_1", {"username": "alice", "password": "pw"}, "ofx.cu.example")
+    core.vault.put("Conn_1", {"username": "jane", "password": "pw"}, "ofx.cu.example")
     core._run(c)
     assert sent == ["https://ofx.cu.example/ofx"] and c.state == "ok"
     # MoolaKata's next answer names another server: the password never goes there.

@@ -24,8 +24,8 @@ installs it on a Proxmox VE VM or on TrueNAS.
 1. [`docs/requirements/`](docs/requirements/README.md): what MoolaKata is and does, in the
    present tense. Its README holds the decisions (R1), the terminology (R2) and the design
    principles (R3), and lists the sections S1–S18, the gaps not yet specified (G1, G2, …)
-   and the open questions (Q1, Q2, …). S17 has the stack, the layout and the milestones
-   (S17.9: the order to build in); S18 is the MoolaKata Connector, a second service.
+   and the open questions (Q1, Q2, …). S17 has the stack and the layout; S18 is the
+   MoolaKata Connector, a second service.
 2. [The clickable mockup](https://mojokata.github.io/MoolaKata/mockup/MoolaKata-mock.html), the design reference for
    every screen, as of the last merge to `main`; it sends nothing anywhere. The purple
    **MOCK** pill jumps to any screen, switches users, changes state and opens every dialog.

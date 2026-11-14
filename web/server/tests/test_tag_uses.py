@@ -12,30 +12,30 @@ def uses(c) -> dict[str, int]:
 
 
 def test_a_tag_counts_the_records_the_caller_sees_carrying_it(server):
-    u = {n: make_user(server, n) for n in ("alice", "bob")}
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    own = new_account(alice)
-    make(alice, "Txn", accountId=own["id"], date="2026-09-01", amount="-4.00", tags=["work"])
-    make(alice, "Txn", accountId=own["id"], date="2026-09-02", amount="-5.00",
+    u = {n: make_user(server, n) for n in ("jane", "john")}
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    own = new_account(jane)
+    make(jane, "Txn", accountId=own["id"], date="2026-09-01", amount="-4.00", tags=["work"])
+    make(jane, "Txn", accountId=own["id"], date="2026-09-02", amount="-5.00",
          tags=["work", "coffee"])  # fmt: skip
-    gone = make(alice, "Txn", accountId=own["id"], date="2026-09-03", amount="-6.00",
+    gone = make(jane, "Txn", accountId=own["id"], date="2026-09-03", amount="-6.00",
                 tags=["work"])  # fmt: skip
-    make(alice, "Rule", payeeMatch="blue bottle", tags=["coffee"])
-    assert uses(alice) == {"coffee": 2, "work": 3}
+    make(jane, "Rule", payeeMatch="blue bottle", tags=["coffee"])
+    assert uses(jane) == {"coffee": 2, "work": 3}
 
     # A deleted transaction no longer counts.
-    assert remove(alice, "Txn", gone.json()).status_code == 200
-    assert uses(alice) == {"coffee": 2, "work": 2}
+    assert remove(jane, "Txn", gone.json()).status_code == 200
+    assert uses(jane) == {"coffee": 2, "work": 2}
 
-    # Alice's tag on Bob's shared account counts while she sees it, and not once she doesn't.
-    theirs = new_account(bob, name="Joint")
-    assert share(bob, "account", theirs["id"], users={u["alice"].id: "write"}).status_code == 200
-    add(alice, theirs["id"], "-7.00", payee="Lunch")
-    t = next(x for x in alice.get("/ui/api/transactions").json()["items"] if x["payee"] == "Lunch")
-    r = change(alice, "Txn", t, tagIds={"add": [tag(alice, "work")], "remove": []})
+    # Jane's tag on John's shared account counts while she sees it, and not once she doesn't.
+    theirs = new_account(john, name="Joint")
+    assert share(john, "account", theirs["id"], users={u["jane"].id: "write"}).status_code == 200
+    add(jane, theirs["id"], "-7.00", payee="Lunch")
+    t = next(x for x in jane.get("/ui/api/transactions").json()["items"] if x["payee"] == "Lunch")
+    r = change(jane, "Txn", t, tagIds={"add": [tag(jane, "work")], "remove": []})
     assert r.status_code == 200, r.text
-    assert uses(alice)["work"] == 3
-    assert share(bob, "account", theirs["id"], users={u["alice"].id: "none"}).status_code == 200
-    assert uses(alice)["work"] == 2
-    # Bob's tags are his own: Alice's don't show for him at all.
-    assert uses(bob) == {}
+    assert uses(jane)["work"] == 3
+    assert share(john, "account", theirs["id"], users={u["jane"].id: "none"}).status_code == 200
+    assert uses(jane)["work"] == 2
+    # John's tags are his own: Jane's don't show for him at all.
+    assert uses(john) == {}

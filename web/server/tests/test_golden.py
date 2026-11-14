@@ -20,10 +20,10 @@ T0 = dt.datetime(2026, 12, 20, 12, tzinfo=dt.UTC)
 
 
 @pytest.fixture
-def alice(server):
+def jane(server):
     clock.fix(T0)
-    make_user(server, "alice", born=1970)
-    yield sign_in(server, "alice")
+    make_user(server, "jane", born=1970)
+    yield sign_in(server, "jane")
     clock.fix(None)
 
 
@@ -70,9 +70,9 @@ def portfolio(c) -> str:
     ("export", "golden"),
     [("8949.csv", "form-8949-2026.csv"), ("moolakata.txf", "moolakata-2026.txf")],
 )
-def test_the_exports_match_their_golden_files(alice, export, golden):
-    book = portfolio(alice)
-    r = alice.get(f"/ui/api/tax-books/{book}/exports/{export}")
+def test_the_exports_match_their_golden_files(jane, export, golden):
+    book = portfolio(jane)
+    r = jane.get(f"/ui/api/tax-books/{book}/exports/{export}")
     assert r.status_code == 200, r.text
     path = GOLDEN / golden
     if os.environ.get("MK_GOLDEN_WRITE") == "1":
@@ -87,7 +87,7 @@ def option(c, acct, day, action, premium, **kw):
 
 
 def review_cases(c) -> str:
-    """The figures the second review found wrong (section 4), each a case whose rows are
+    """The figures the second review found wrong, each a case whose rows are
     worked out by hand in the comments."""
     # B1: average cost re-bases every lot at each sale: 300 paid, 300 of basis sold. A fund:
     # average cost is for funds and coins (S2.3).
@@ -115,17 +115,17 @@ def review_cases(c) -> str:
     return r.json()["id"]
 
 
-def test_the_review_cases_match_their_golden_file(alice):
+def test_the_review_cases_match_their_golden_file(jane):
     # S17.5: a golden case for each figure the second review found wrong.
-    book = review_cases(alice)
-    r = alice.get(f"/ui/api/tax-books/{book}/exports/8949.csv")
+    book = review_cases(jane)
+    r = jane.get(f"/ui/api/tax-books/{book}/exports/8949.csv")
     assert r.status_code == 200, r.text
     path = GOLDEN / "form-8949-review-2026.csv"
     if os.environ.get("MK_GOLDEN_WRITE") == "1":
         path.write_bytes(r.content)
     assert r.content == path.read_bytes()
     # B2: the second replacement, still held, carries both losses' second: 720 + 350.
-    held = alice.get("/ui/api/positions").json()["open"]
+    held = jane.get("/ui/api/positions").json()["open"]
     nvda = next(x for x in held if x["symbol"] == "NVDA")
     assert nvda["cost"] == "1070.00"
 
@@ -251,9 +251,9 @@ def budget_figures(c, b) -> list[str]:
     return out
 
 
-def test_the_budgets_match_their_golden_file(alice):
-    b, env = budget_household(alice)
-    got = "\n".join(budget_figures(alice, b) + budget_figures(alice, env)) + "\n"
+def test_the_budgets_match_their_golden_file(jane):
+    b, env = budget_household(jane)
+    got = "\n".join(budget_figures(jane, b) + budget_figures(jane, env)) + "\n"
     path = GOLDEN / "budgets-2026.txt"
     if os.environ.get("MK_GOLDEN_WRITE") == "1":
         path.write_text(got)

@@ -64,8 +64,8 @@ def holding(h: Household) -> tuple:
 
 
 def gift_plan(h: Household) -> tuple:
-    """Emma's plan as read, and the gifts with their occasions (CR3-43)."""
-    plan = h.c.get(f"/ui/api/gift-plans/{h.extra['emma']['id']}").json()
+    """Lisa's plan as read, and the gifts with their occasions (CR3-43)."""
+    plan = h.c.get(f"/ui/api/gift-plans/{h.extra['lisa']['id']}").json()
     gifts = h.c.get("/ui/api/gifts").json()["items"]
     return plan, [(g["description"], g["occasion"], g["occasionLabel"]) for g in gifts]
 
@@ -208,7 +208,7 @@ FORMS = [
         },
     ),
     Form(
-        "a portfolio's shares, Bob at Read",
+        "a portfolio's shares, John at Read",
         lambda h: f"/ui/portfolios/{h.extra['portfolio']['id']}/holdings",
         'button:has-text("Share")',
         'button:has-text("Share")',
@@ -217,8 +217,8 @@ FORMS = [
     Form(
         "a gift plan with a graduation and a gift for it (CR3-43)",
         lambda h: "/ui/gifts/people",
-        'tr:has-text("Emma Griffin") .row-tool',
-        'tr:has-text("Emma Griffin") .row-tool',
+        'tr:has-text("Lisa Doe") .row-tool',
+        'tr:has-text("Lisa Doe") .row-tool',
         gift_plan,
     ),
     Form(
@@ -231,8 +231,8 @@ FORMS = [
     Form(
         "a user invited into a group",
         lambda h: "/ui/users",
-        'tr:has-text("Bob Griffin") .row-tool',
-        'tr:has-text("Bob Griffin") .row-tool',
+        'tr:has-text("John Doe") .row-tool',
+        'tr:has-text("John Doe") .row-tool',
         users_of,
     ),
     Form(
@@ -273,8 +273,8 @@ FORMS = [
     Form(
         "a dependent with the months they lived with the filers",
         lambda h: "/ui/taxes/summary",
-        '.list-item:has-text("Emma Griffin") .row-tool',
-        '.list-item:has-text("Emma Griffin") .row-tool',
+        '.list-item:has-text("Lisa Doe") .row-tool',
+        '.list-item:has-text("Lisa Doe") .row-tool',
         book_of,
     ),
     Form(
@@ -638,8 +638,8 @@ def test_a_gift_plan_changed_keeps_its_gifts_occasions(browser, household):
     watch planned for it keeps the graduation."""
     h = household
     before, gifts = gift_plan(h)
-    page, problems = signed_in(browser, h, "/ui/gifts/people", 'tr:has-text("Emma Griffin")')
-    page.click('tr:has-text("Emma Griffin") .row-tool')
+    page, problems = signed_in(browser, h, "/ui/gifts/people", 'tr:has-text("Lisa Doe")')
+    page.click('tr:has-text("Lisa Doe") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog button.chip:has-text("Thanksgiving")')
     page.fill("#f-notes", "likes paints and puzzles")
@@ -660,13 +660,13 @@ def test_a_new_gift_plan_for_a_new_person(browser, household):
     page, problems = signed_in(browser, h, "/ui/gifts/people", 'button:has-text("Add a Gift Plan")')
     page.click('button:has-text("Add a Gift Plan")')
     wait(page, ".dialog footer button.primary:enabled", problems)
-    page.fill("#f-name", "Leo Griffin")
+    page.fill("#f-name", "Leo Doe")
     page.select_option("#f-sex", "male")
     page.fill("#f-birthday", "2021-03-04")
     page.click('.dialog button.chip:has-text("Christmas")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
-    leo = next(p for p in h.c.get("/ui/api/persons").json()["items"] if p["name"] == "Leo Griffin")
+    leo = next(p for p in h.c.get("/ui/api/persons").json()["items"] if p["name"] == "Leo Doe")
     assert (leo["birthYear"], leo["birthMonth"], leo["birthDay"]) == (2021, 3, 4)
     plans = h.c.get("/ui/api/gift-plans").json()["items"]
     plan = next(p for p in plans if p["personId"] == leo["id"])
@@ -1023,7 +1023,7 @@ def test_a_new_access_token_shows_its_secret_once(browser, household):
 
 def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household):
     h = household
-    a = made(make(h.c, "Acct", name="Emma's 529", type="529"))
+    a = made(make(h.c, "Acct", name="Lisa's 529", type="529"))
     path = f"/ui/accounts/{a['id']}/contributions"
     page, problems = signed_in(browser, h, path, 'form:has-text("Record a Contribution")')
     page.fill("#f-amount", "2500")
@@ -1033,9 +1033,9 @@ def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household)
     (row,) = h.c.get(url).json()["rows"]
     assert (row["amount"], row["contributor"]) == (2500, "owner")
     wait(page, 'select[aria-label^="Who the"]', problems)
-    page.select_option('select[aria-label^="Who the"]', label="Emma Griffin")
+    page.select_option('select[aria-label^="Who the"]', label="Lisa Doe")
     wait(page, '.toast:has-text("Saved")', problems)
-    assert h.c.get(url).json()["rows"][0]["name"] == "Emma Griffin"
+    assert h.c.get(url).json()["rows"][0]["name"] == "Lisa Doe"
     page.goto(page.url.replace("/contributions", "/withdrawals"))
     wait(page, 'form:has-text("Add a Qualified Expense")', problems)
     page.fill("#f-amount", "800")
@@ -1132,19 +1132,19 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     page.click('button:has-text("Share")')
     wait(page, '[aria-label="Access for Household"]', problems)
     page.click('[aria-label="Access for Household"] button:has-text("Write")')
-    page.click('[aria-label="Access for Bob Griffin"] button:has-text("Read")')
+    page.click('[aria-label="Access for John Doe"] button:has-text("Read")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
     assert {g["name"]: g["allow"] for g in v["groups"]}["Household"] == "write"
-    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "read"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["John Doe"] == "read"
     page.click('button:has-text("Share")')
-    wait(page, '[aria-label="Access for Bob Griffin"]', problems)
-    page.click('[aria-label="Access for Bob Griffin"] button:has-text("None")')
+    wait(page, '[aria-label="Access for John Doe"]', problems)
+    page.click('[aria-label="Access for John Doe"] button:has-text("None")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     v = h.c.get(f"/ui/api/shares/budget/{b['id']}").json()
-    assert {u["displayName"]: u["allow"] for u in v["users"]}["Bob Griffin"] == "none"
+    assert {u["displayName"]: u["allow"] for u in v["users"]}["John Doe"] == "none"
     assert problems == []
     page.close()
 

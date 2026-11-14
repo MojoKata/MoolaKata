@@ -47,7 +47,7 @@ def store(s, server, owner_id: str, name: str, data: bytes):
 
 
 def seed_receipts(server, s, people: dict) -> None:
-    alice = people["alice"]
+    jane = people["jane"]
     card = s.scalars(select(Account).where(Account.name == "Travel Visa")).one()
     shop = s.scalars(
         select(Transaction)
@@ -71,7 +71,7 @@ def seed_receipts(server, s, people: dict) -> None:
             "VISA ****1123",
         ]
     )
-    r = store(s, server, alice.id, "IMG_2291.png", _bytes(kroger, "PNG")).receipt
+    r = store(s, server, jane.id, "IMG_2291.png", _bytes(kroger, "PNG")).receipt
     if shop is not None:
         r.date, r.amount, r.payee = shop.date, amount, "Kroger"
         s.add(
@@ -80,13 +80,13 @@ def seed_receipts(server, s, people: dict) -> None:
                 kind="transaction",
                 itemId=shop.id,
                 createdAt=r.createdAt,
-                linkedById=alice.id,
+                linkedById=jane.id,
             )
         )
     coffee = draw(
         ["BLUE BOTTLE COFFEE", "OCT 9, 2026", "", "LATTE              5.75", "TOTAL         $5.75"]
     )
-    store(s, server, alice.id, "IMG_2310.jpg", _bytes(coffee, "JPEG"))
+    store(s, server, jane.id, "IMG_2310.jpg", _bytes(coffee, "JPEG"))
     invoice = draw(
         [
             "INVOICE 2026-117",
@@ -99,7 +99,7 @@ def seed_receipts(server, s, people: dict) -> None:
         ],
         width=620,
     )
-    store(s, server, alice.id, "city-power-sept.pdf", _bytes(invoice, "PDF"))
+    store(s, server, jane.id, "city-power-sept.pdf", _bytes(invoice, "PDF"))
     s.flush()
     read_now(s, server)
 

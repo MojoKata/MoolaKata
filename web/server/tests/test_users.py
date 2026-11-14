@@ -108,8 +108,8 @@ def test_an_admin_from_before_the_welcome_only_reaches_setup(client, server):
 
 
 def test_sign_in_by_username_or_email_with_a_strict_cookie(client, server):
-    make_user(server, "alice")
-    for login in ("alice", "ALICE", "alice@home.lan", "Alice@Home.LAN"):
+    make_user(server, "jane")
+    for login in ("jane", "JANE", "jane@home.lan", "Jane@Home.LAN"):
         r = client.post("/ui/api/session", json={"login": login, "password": PW})
         assert r.status_code == 200, login
     cookie = r.headers["set-cookie"]
@@ -128,30 +128,30 @@ def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, ser
     from conftest import ORIGIN
     from fastapi.testclient import TestClient
 
-    make_user(server, "bob")
+    make_user(server, "john")
     for _ in range(9):
-        r = client.post("/ui/api/session", json={"login": "bob", "password": "wrong"})
+        r = client.post("/ui/api/session", json={"login": "john", "password": "wrong"})
         assert r.status_code == 401
         assert r.json()["code"] == "bad-credentials"
     r = client.post("/ui/api/session", json={"login": "nobody", "password": "wrong"})
     assert r.json()["code"] == "bad-credentials"  # the same answer as a wrong password
     # The tenth failure from this address locks the address: even the right password waits.
-    r = client.post("/ui/api/session", json={"login": "bob", "password": PW})
+    r = client.post("/ui/api/session", json={"login": "john", "password": PW})
     assert r.status_code == 429
     assert int(r.headers["retry-after"]) > 800
     assert "signin.locked" in kinds(server)
     assert kinds(server).count("signin.failed") == 9  # the tenth is recorded as the lockout
-    # From another address, bob still signs in: the username was slowed, not locked.
+    # From another address, john still signs in: the username was slowed, not locked.
     elsewhere = TestClient(client.app, base_url=ORIGIN, client=("192.168.1.9", 50000))
     r = elsewhere.post(
-        "/ui/api/session", json={"login": "bob", "password": PW}, headers={"Origin": ORIGIN}
+        "/ui/api/session", json={"login": "john", "password": PW}, headers={"Origin": ORIGIN}
     )
     assert r.status_code == 200, r.text
 
 
 def test_sign_out_ends_every_session_of_the_user(server):
-    make_user(server, "carol")
-    a, b = sign_in(server, "carol"), sign_in(server, "carol")
+    make_user(server, "bart")
+    a, b = sign_in(server, "bart"), sign_in(server, "bart")
     assert a.delete("/ui/api/session").status_code == 204
     assert b.get("/ui/api/session").status_code == 401
     assert a.get("/ui/api/session").status_code == 401
@@ -173,14 +173,14 @@ def test_sessions_expire_when_idle_and_absolutely(server):
 
 
 def test_a_change_of_privilege_gives_a_new_token(server, admin_client):
-    bob = make_user(server, "bob")
-    c = sign_in(server, "bob")
+    john = make_user(server, "john")
+    c = sign_in(server, "john")
     before = c.cookies.get("mk_session")
     with server.db.read(unscoped="test") as s:
         admins = accounts.admins_group(s)
     groups = admin_client.get("/ui/api/groups").json()["items"]
     g = next(g for g in groups if g["id"] == admins.id)
-    saved(change(admin_client, "Group", g, memberIds={"add": [bob.id], "remove": []}))
+    saved(change(admin_client, "Group", g, memberIds={"add": [john.id], "remove": []}))
     r = c.get("/ui/api/session")
     assert r.json()["user"]["admin"] is True
     assert c.cookies.get("mk_session") != before
@@ -431,8 +431,8 @@ def test_a_new_address_ends_the_links_mailed_to_the_old_one_and_only_those(serve
 
 
 def test_only_admins_manage_users(server):
-    make_user(server, "bob")
-    c = sign_in(server, "bob")
+    make_user(server, "john")
+    c = sign_in(server, "john")
     assert c.get("/ui/api/users").status_code == 403
     assert c.get("/ui/api/settings").status_code == 403
 
@@ -641,9 +641,9 @@ def test_settings_are_checked_together_and_recorded(admin_client, server):
     r = save_settings(admin_client, {"passwordMinLength": 4, "backupTime": "9pm"})
     assert {e["field"] for e in r.json()["errors"]} == {"passwordMinLength", "backupTime"}
     assert admin_client.get("/ui/api/settings").json()["values"]["passwordMinLength"] == 12
-    r = save_settings(admin_client, {"passwordMinLength": 14, "householdName": "The Griffins"})
+    r = save_settings(admin_client, {"passwordMinLength": 14, "householdName": "The Does"})
     assert r.status_code == 200
-    assert admin_client.get("/ui/api/session").json()["household"]["name"] == "The Griffins"
+    assert admin_client.get("/ui/api/session").json()["household"]["name"] == "The Does"
     assert "settings.changed" in kinds(server)
 
 

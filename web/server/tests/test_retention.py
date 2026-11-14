@@ -43,8 +43,8 @@ def kept(c, rid):
 
 
 def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     child, parent = cat(server, "Doctor")
     with server.db.tx(unscoped="test") as s:
@@ -65,8 +65,8 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
 
 
 def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c, type="brokerage")
     with server.db.tx(unscoped="test") as s:
         any_cat = s.scalars(select(Category)).first()
@@ -107,8 +107,8 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
 ):
     from moolakata.store.entities.users import Session
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     cid, _ = cat(server, "Groceries", 1)
     t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger", categoryId=cid)
@@ -144,14 +144,14 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     from moolakata import receipts
     from moolakata.store.entities.receipts import Receipt
 
-    alice = make_user(server, "alice")
-    c = sign_in(server, "alice")
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     rid = upload(c, png((90, 91, 92))).json()["id"]
     with server.db.tx(unscoped="test") as s:
         r = s.get(Receipt, rid)
         r.date = dt.date(2027, 9, 30)
-        receipts.attach_account(s, alice.id, r, acct["id"])
+        receipts.attach_account(s, jane.id, r, acct["id"])
     assert kept(c, rid)[0] == "forever", "statements are kept for ever by default"
     r = save_settings(admin_client, {"keepStatementsYears": 5})
     assert r.status_code == 200, r.text
@@ -168,8 +168,8 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
     from moolakata.receipts import retention
     from moolakata.store.entities.receipts import Receipt
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     first = upload(c, png((9, 8, 7))).json()["id"]
     second = upload(c, png((9, 8, 7))).json()["id"]
     with server.db.tx(unscoped="test") as s:
@@ -183,12 +183,12 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
 
 
 def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_client):
-    make_user(server, "alice")
-    alice = sign_in(server, "alice")
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
     food = next(
         x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
     )
-    r = change(alice, "Cat", food, keepReceiptsYears=7)
+    r = change(jane, "Cat", food, keepReceiptsYears=7)
     assert r.status_code == 403 and r.json()["errors"][0]["field"] == "keepReceiptsYears"
     r = change(admin_client, "Cat", food, keepReceiptsYears=0)
     assert r.json()["errors"][0]["code"] == "years-invalid"
@@ -197,7 +197,7 @@ def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_clien
         x for x in admin_client.get("/ui/api/categories").json()["items"] if x["name"] == "Food"
     )
     # Its name is anyone's to change (S7.2.3), and leaves how long its receipts are kept be.
-    renamed = saved(change(alice, "Cat", food, name="Eating"))
+    renamed = saved(change(jane, "Cat", food, name="Eating"))
     assert renamed["name"] == "Eating" and renamed["keepReceiptsYears"] == 7
 
 
@@ -205,8 +205,8 @@ def test_an_admins_household_wide_file_work_counts_every_users_files(server, adm
     """Storage's counts, its pruning and *Remove orphans* are the household's: a file is an
     orphan only when no one's record names it, never when the admin can't read that record
     (schema.md §7.6)."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
     rid = receipt_on(c, t["id"], png((10, 20, 30)))
@@ -221,8 +221,8 @@ def test_an_admins_household_wide_file_work_counts_every_users_files(server, adm
 def test_an_admins_reading_queue_and_wallets_are_the_households(server, admin_client):
     """Settings › Receipts counts and reads again every user's receipts, and Settings ›
     Bitcoin counts every wallet, not only what the admin reads (schema.md §7.6)."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     t = add(c, acct["id"], "-42.18", "2026-10-02", payee="Kroger")
     assert save_settings(admin_client, {"readReceipts": False}).status_code == 200

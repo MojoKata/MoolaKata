@@ -9,7 +9,10 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from ..store.entities.education import Person, Relationship
-from . import holds_on
+from . import holds_on, order
+
+# The relations that are a person's children, listed oldest first.
+CHILDREN = ("child", "grandchild", "step-child")
 
 WORDS = {
     # key: (female, male)
@@ -198,6 +201,18 @@ class Graph:
         # Anyone else joined through the tree is a relative.
         for x in self._joined(ego):
             put(x, 10, "relative")
+
+        def in_order(r: Relation) -> tuple:
+            # Nearest first; a person's children oldest first, anyone else by name (S10.10.7).
+            rank, key, _ = found.get(r.personId, (99, "", 0))
+            p = self.people[r.personId]
+            near = (
+                order.oldest_first_key(p)
+                if key in CHILDREN
+                else (False, 0, 0, 0, p.name.casefold())
+            )
+            return (rank, key, near)
+
         out = [
             Relation(pid, key, word(key, self.people[pid].sex, depth), False)
             for pid, (_, key, depth) in found.items()
@@ -220,9 +235,7 @@ class Graph:
                 or (rel.personId, ego) in stored_pairs
             ):
                 rel.stored = True
-        return sorted(
-            out, key=lambda r: (found.get(r.personId, (99,))[0], self.people[r.personId].name)
-        )
+        return sorted(out, key=in_order)
 
     def _joined(self, ego: str) -> set[str]:
         """Everyone reached through parents, children and marriages."""
@@ -250,5 +263,5 @@ def relations(s: Session, person_id: str, day: dt.date | None = None) -> list[Re
 
 
 def relation_to(s: Session, viewer_person: str, day: dt.date | None = None) -> dict[str, Relation]:
-    """Each person's relation to the viewer: *Emma, your granddaughter*."""
+    """Each person's relation to the viewer: *Lisa, your granddaughter*."""
     return {r.personId: r for r in relations(s, viewer_person, day)}

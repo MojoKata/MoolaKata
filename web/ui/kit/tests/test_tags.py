@@ -111,12 +111,12 @@ def test_people_are_picked_only_and_a_name_matching_none_is_refused(page, kit):
     page.keyboard.press("Enter")
     expect(b).to_have_attribute("aria-invalid", "true")
     expect(b).to_have_attribute("data-tip", "No match.")
-    assert chips(page, "people") == ["Emma Griffin"]
+    assert chips(page, "people") == ["Lisa Doe"]
     b.fill("")
     page.keyboard.type("noah")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
-    assert chips(page, "people") == ["Emma Griffin", "Noah Griffin"]
+    assert chips(page, "people") == ["Lisa Doe", "Noah Doe"]
 
 
 def test_many_chips_grow_to_three_rows_and_then_scroll(page, kit):

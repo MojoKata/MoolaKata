@@ -325,7 +325,7 @@ def test_sign_up_rejected(admin_client, server, smtp):
 
 def test_sign_up_never_says_an_email_has_an_account(admin_client, server, smtp):
     open_signup(admin_client, server)
-    make_user(server, "bob", email="bob@home.lan")
+    make_user(server, "john", email="john@home.lan")
     waiting = len(server.services.mailer.waiting())
     hashed = []
     from moolakata.auth import passwords
@@ -333,7 +333,7 @@ def test_sign_up_never_says_an_email_has_an_account(admin_client, server, smtp):
     real = passwords.hash_password
     passwords.hash_password = lambda pw: hashed.append(pw) or real(pw)
     try:
-        r = sign_up(server, email="Bob@home.lan", username="bobby")
+        r = sign_up(server, email="John@home.lan", username="johnny")
     finally:
         passwords.hash_password = real
     assert r.status_code == 204
@@ -343,10 +343,10 @@ def test_sign_up_never_says_an_email_has_an_account(admin_client, server, smtp):
 
 def test_sign_up_checks_its_fields_and_domains(admin_client, server, smtp):
     open_signup(admin_client, server, domains=["shaw.family"])
-    make_user(server, "bob")
+    make_user(server, "john")
     r = sign_up(server, email="erin@elsewhere.lan")
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "email-domain"
-    r = sign_up(server, username="bob")
+    r = sign_up(server, username="john")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "username"
     with new_client(server) as c:
         r = c.post(
@@ -378,7 +378,7 @@ def test_written_emails_are_listed_for_admins_and_expire(admin_client, server, t
 
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", ORIGIN, None)
-    make_user(server, "carol")
+    make_user(server, "bart")
     r = make(
         admin_client,
         "User",

@@ -221,7 +221,7 @@ gh attestation verify oci://ghcr.io/mojokata/moolakata:0.2.0 -R MojoKata/MoolaKa
   Add the base image's move from §3 step 3, naming the Debian packages it picked up.
 - **Compatibility**: comes from the protocol changes found in §3 step 5.
 - **Tried by hand**: the manual test plan requires every release to say which of T1–T13
-  were run, by whom and on what, and which were not (S17.9.7.8). That includes T7, the arm64
+  were run, by whom and on what, and which were not ([`test-plan.md`](test-plan.md)). That includes T7, the arm64
   image on household hardware, which no runner replaces.
 - Link to the documents at the tag (`https://github.com/MojoKata/MoolaKata/blob/v0.2.0/docs/DEPLOY.md`),
   so a later change on `main` doesn't move the instructions under an old release.

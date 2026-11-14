@@ -75,8 +75,8 @@ def _trades(server, accts: list[str], count: int) -> None:
 
 def _household(server, accounts: int):
     clock.fix(T0)
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     accts = _brokerages(server, c, accounts)
     loan = make(c, "Acct", name="Mortgage", type="mortgage").json()["id"]
     saved(terms(c, loan, principal="300000", startDate="2026-01-01", termMonths=360, rate="6"))

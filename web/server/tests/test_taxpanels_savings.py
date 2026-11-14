@@ -273,7 +273,7 @@ def test_a_limit_is_held_against_a_persons_accounts_of_its_group(db):
     """IRAs, traditional and Roth, share one limit; 401(k) and 403(b) deferrals share one; a
     457(b) and an HSA each have their own; and each person has their own (S8.6)."""
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
+        ann, john = _user(s, "Ann", YEAR - 40), _user(s, "John", YEAR - 40)
         for owner, name, type_, amount in (
             (ann, "Ann IRA", "ira", "1000"),
             (ann, "Ann Roth", "roth-ira", "2000"),
@@ -281,10 +281,10 @@ def test_a_limit_is_held_against_a_persons_accounts_of_its_group(db):
             (ann, "Ann 403b", "403b", "400"),
             (ann, "Ann 457b", "457b", "500"),
             (ann, "Ann HSA", "hsa", "600"),
-            (bob, "Bob IRA", "ira", "4000"),
+            (john, "John IRA", "ira", "4000"),
         ):
             _txn(s, _acct(s, owner, name, type_), d(2026, 3, 1), "deposit", amount)
-        b = _book(s, ann, bob)
+        b = _book(s, ann, john)
     c = {x.account: (x.personTotal, x.group) for x in _retirement(db, b).contributions}
     assert c == {
         "Ann IRA": (D("3000"), "ira"),
@@ -293,7 +293,7 @@ def test_a_limit_is_held_against_a_persons_accounts_of_its_group(db):
         "Ann 403b": (D("700"), "deferral"),
         "Ann 457b": (D("500"), "457b"),
         "Ann HSA": (D("600"), "hsa"),
-        "Bob IRA": (D("4000"), "ira"),
+        "John IRA": (D("4000"), "ira"),
     }
 
 
@@ -433,13 +433,13 @@ def test_each_filers_8606_basis_is_their_own(db, monkeypatch):
     """S8.17: a joint return carries each filer's basis apart, and separate returns each
     theirs: none is summed into another's, and a filer with none typed has none."""
     with db.tx(unscoped="test") as s:
-        ann, bob, cy = (_user(s, n, YEAR - 40) for n in ("Ann", "Bob", "Cy"))
-        for u in (ann, bob, cy):
+        ann, john, cy = (_user(s, n, YEAR - 40) for n in ("Ann", "John", "Cy"))
+        for u in (ann, john, cy):
             _acct(s, u, "IRA", "ira")
-        b = _book(s, ann, bob, cy)
-    _carried(monkeypatch, {"basis8606": {ann: "6500", bob: "100"}}, {"capitalLossShort": "10"})
+        b = _book(s, ann, john, cy)
+    _carried(monkeypatch, {"basis8606": {ann: "6500", john: "100"}}, {"capitalLossShort": "10"})
     got = {x.owner: (x.carried, x.nondeductible, x.undecided) for x in _retirement(db, b).bases}
-    assert got == {"Ann": (D("6500"), 0, 0), "Bob": (D("100"), 0, 0), "Cy": (None, 0, 0)}
+    assert got == {"Ann": (D("6500"), 0, 0), "John": (D("100"), 0, 0), "Cy": (None, 0, 0)}
 
 
 def test_a_conversion_is_taxed_but_for_its_share_of_the_basis(db, monkeypatch):
@@ -519,20 +519,20 @@ def test_iras_worth_nothing_in_all_give_the_basis_no_share(db, monkeypatch, depo
 
 def test_a_joint_books_conversion_takes_its_owners_iras_and_basis_alone(db, monkeypatch):
     """Form 8606 is a person's own (S8.6): Ann's conversion is taxed by her basis over her
-    IRAs, not over Bob's too; Bob's by his. Each IRA is named "IRA": they are told apart by
+    IRAs, not over John's too; John's by his. Each IRA is named "IRA": they are told apart by
     account, never by name."""
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
-        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, bob, "IRA", "ira")
-        roth_a, roth_b = _acct(s, ann, "Roth", "roth-ira"), _acct(s, bob, "Roth", "roth-ira")
+        ann, john = _user(s, "Ann", YEAR - 40), _user(s, "John", YEAR - 40)
+        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, john, "IRA", "ira")
+        roth_a, roth_b = _acct(s, ann, "Roth", "roth-ira"), _acct(s, john, "Roth", "roth-ira")
         _txn(s, hers, d(2025, 1, 2), "deposit", "50000")
         _txn(s, his, d(2025, 1, 2), "deposit", "450000")
         _transfer(s, hers, roth_a, d(2026, 3, 2), "50000")
         _transfer(s, his, roth_b, d(2026, 3, 2), "45000")
-        b = _book(s, ann, bob)
-    _carried(monkeypatch, {"basis8606": {ann: "6500", bob: "9000"}})
+        b = _book(s, ann, john)
+    _carried(monkeypatch, {"basis8606": {ann: "6500", john: "9000"}})
     by_to = {m.toAccount + m.fromId: m.taxable for m in _retirement(db, b).conversions}
-    # Ann: 50,000 − 6,500 (all of hers converted); Bob: 45,000 − 9,000 × 45,000 / 450,000.
+    # Ann: 50,000 − 6,500 (all of hers converted); John: 45,000 − 9,000 × 45,000 / 450,000.
     assert by_to == {"Roth" + hers: D("43500.00"), "Roth" + his: D("44100.00")}
 
 
@@ -565,16 +565,16 @@ def test_a_conversion_waits_while_a_contribution_is_undecided(db, monkeypatch):
     """R3.11: a contribution not yet marked is never read as deductible: its owner's
     conversion waits, saying for what; another owner's goes on."""
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
-        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, bob, "IRA", "ira")
+        ann, john = _user(s, "Ann", YEAR - 40), _user(s, "John", YEAR - 40)
+        hers, his = _acct(s, ann, "IRA", "ira"), _acct(s, john, "IRA", "ira")
         roth = _acct(s, ann, "Roth", "roth-ira")
-        roth_b = _acct(s, bob, "Roth", "roth-ira")
+        roth_b = _acct(s, john, "Roth", "roth-ira")
         _txn(s, hers, d(2026, 1, 10), "deposit", "7000")
         _txn(s, his, d(2025, 1, 10), "deposit", "1000")
         _transfer(s, hers, roth, d(2026, 2, 1), "7000")
         _transfer(s, his, roth_b, d(2026, 2, 1), "1000")
-        b = _book(s, ann, bob)
-    _carried(monkeypatch, {"basis8606": {ann: "0", bob: "0"}})
+        b = _book(s, ann, john)
+    _carried(monkeypatch, {"basis8606": {ann: "0", john: "0"}})
     got = {m.fromId: (m.taxable, m.waiting) for m in _retirement(db, b).conversions}
     assert got == {
         hers: (None, "mark whether each of Ann's IRA contributions was deductible"),
@@ -883,8 +883,8 @@ def test_giving_is_the_accepted_filers_donations_in_the_books_year(db, monkeypat
     asked = []
     monkeypatch.setattr(panels.giving, "donations", lambda s, who, y: asked.append((who, y)))
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", 1980), _user(s, "Bob", 1980)
-        b = _book(s, bob, ann, pending={bob})
+        ann, john = _user(s, "Ann", 1980), _user(s, "John", 1980)
+        b = _book(s, john, ann, pending={john})
         panels.giving_panel(s, b)
     assert asked == [([ann], YEAR)]
 
@@ -1073,15 +1073,15 @@ def test_gifts_over_the_exclusion_and_the_five_year_elections_still_running(db, 
             _row("Ann", d(2026, 3, 1), "500"),
         ]},
         "Gone 529": {"rows": [_row("Ann", d(2026, 3, 1), "50000", five_year=True)]},
-        "Bob 529": {"rows": [_row("Bob", d(2026, 3, 1), "50000", five_year=True)]},
+        "John 529": {"rows": [_row("John", d(2026, 3, 1), "50000", five_year=True)]},
     })  # fmt: skip
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", 1980), _user(s, "Bob", 1980)
+        ann, john = _user(s, "Ann", 1980), _user(s, "John", 1980)
         _acct(s, ann, "Ann 529", "529")
         _acct(s, ann, "Gone 529", "529", deletedAt=ACCEPTED)
         _acct(s, ann, "Brokerage", "brokerage")
-        _acct(s, bob, "Bob 529", "529")
-        b = _book(s, bob, ann, pending={bob})
+        _acct(s, john, "John 529", "529")
+        b = _book(s, john, ann, pending={john})
         flagged, elections = panels.gifts_panel(s, b)
     assert [(g.giver, g.person, g.given, g.exclusion) for g in flagged] == [
         ("Ann", f"Kid of {ann[-4:]}", D("20000"), D("19000"))
@@ -1185,8 +1185,8 @@ def test_a_spouse_at_any_time_in_the_year_brings_their_accounts(db):
 
 def test_a_spouse_filing_on_the_same_book_brings_nothing_more(db):
     with db.tx(unscoped="test") as s:
-        ann, bob = _user(s, "Ann", 1980), _user(s, "Bob", 1980)
-        _marry(s, ann, bob, d(2010, 1, 1))
-        _acct(s, bob, "Bob brokerage", "brokerage")
-        b = _book(s, ann, bob)
+        ann, john = _user(s, "Ann", 1980), _user(s, "John", 1980)
+        _marry(s, ann, john, d(2010, 1, 1))
+        _acct(s, john, "John brokerage", "brokerage")
+        b = _book(s, ann, john)
         assert panels.spouse_accounts(s, b) == []

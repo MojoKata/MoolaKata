@@ -104,16 +104,16 @@ def bitcoin_saved(request):
 
 
 @pytest.fixture
-def alice(server):
-    make_user(server, "alice")
-    return sign_in(server, "alice")
+def jane(server):
+    make_user(server, "jane")
+    return sign_in(server, "jane")
 
 
-def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(alice):
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    r = wallet(alice, w["id"], ZPUB)
+def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(jane):
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    r = wallet(jane, w["id"], ZPUB)
     assert r.status_code == 200, r.text
-    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["keys"][0]["script"] == "p2wpkh" and v["keys"][0]["gapLimit"] == 20
     assert v["watched"] == 40, "20 receive and 20 change"
     first = v["addresses"][0]
@@ -124,36 +124,36 @@ def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(alice):
     )
     assert len(v["addresses"]) == 20, "the first 10 a chain are shown"
     # An address added, the gap limit narrowed: the key keeps its addresses.
-    saved(wallet(alice, w["id"], ZPUB + "\n3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy", 5))
-    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    saved(wallet(jane, w["id"], ZPUB + "\n3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy", 5))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert [k["kind"] for k in v["keys"]] == ["xpub", "address"]
     assert v["keys"][0]["gapLimit"] == 5 and v["watched"] == 41
     # The key taken out: its addresses go with it.
-    saved(wallet(alice, w["id"], "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"))
-    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    saved(wallet(jane, w["id"], "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["watched"] == 1 and v["addresses"][0]["chain"] is None
-    assert alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 1
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 1
 
 
-def test_a_seed_phrase_or_private_key_is_refused_and_never_repeated(alice, caplog):
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+def test_a_seed_phrase_or_private_key_is_refused_and_never_repeated(jane, caplog):
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
     caplog.set_level(logging.DEBUG)
     for text in (SEED, WIF, HEX, XPRV):
-        r = wallet(alice, w["id"], text)
+        r = wallet(jane, w["id"], text)
         assert r.status_code == 422
         assert r.json()["errors"][0]["code"] == "secret-refused"
         assert r.json()["errors"][0]["field"] == "walletKeys"
         assert text.split()[0] not in r.text
     assert not any(SEED.split()[1] in m or WIF in m or HEX in m for m in caplog.messages)
-    assert alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 0
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 0
 
 
-def test_only_a_wallet_holds_keys(alice):
-    b = new_account(alice, name="Brokerage", type="brokerage")
-    r = wallet(alice, b["id"], ZPUB)
+def test_only_a_wallet_holds_keys(jane):
+    b = new_account(jane, name="Brokerage", type="brokerage")
+    r = wallet(jane, b["id"], ZPUB)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-a-wallet"
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    r = wallet(alice, w["id"], ZPUB[:-1] + "a")
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    r = wallet(jane, w["id"], ZPUB[:-1] + "a")
     assert r.json()["errors"][0]["code"] == "key-invalid"
 
 
@@ -200,20 +200,20 @@ class Fake:
         return out
 
 
-def test_a_sync_records_each_transaction_once_and_extends_the_gap(server, alice, monkeypatch):
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+def test_a_sync_records_each_transaction_once_and_extends_the_gap(server, jane, monkeypatch):
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     far = keys.extended(ZPUB).address(0, 19)
     fake = Fake(far)
     monkeypatch.setattr(sync, "source", lambda srv, s: fake)
-    r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    r = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 200, r.text
     out = r.json()
     assert out["recorded"] == 3, "two received, one sent; the unconfirmed one waits"
     v = out["wallet"]
     assert v["used"] == 3
     assert v["watched"] == 40 + 20 + 1, "receive 19 used: 20 more past it; change 0: one more"
-    items = alice.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
+    items = jane.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
     got = sorted((t["kind"], t["quantity"], t["date"]) for t in items)
     assert got == [
         ("fee", None, "2026-06-09"),
@@ -222,20 +222,20 @@ def test_a_sync_records_each_transaction_once_and_extends_the_gap(server, alice,
         ("transfer-in", "0.5", "2026-03-02"),
         ("transfer-out", "0.2", "2026-06-09"),
     ], "the fee's sats are sold, beside a fee of their value (S8.19)"
-    assert alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync").json()["recorded"] == 0
+    assert jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync").json()["recorded"] == 0
     held = next(
-        p for p in alice.get("/ui/api/positions").json()["open"] if p["accountId"] == w["id"]
+        p for p in jane.get("/ui/api/positions").json()["open"] if p["accountId"] == w["id"]
     )
     assert held["symbol"] == "BTC" and held["quantity"] == "0.39999"
     assert held["cost"] is None, "coins received carry no basis until it is entered"
 
 
-def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, alice):
+def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, jane):
     # B13: others' inputs paid most of the 12,000-sat fee; the wallet put in 1,500 net, so its
     # share is 1,500, and nothing else left it.
     from moolakata.store.entities.accounts import Transaction
 
-    w = new_account(alice, name="Mixer", type="crypto-wallet")
+    w = new_account(jane, name="Mixer", type="crypto-wallet")
     with server.db.tx(unscoped="test") as s:
         sync.record(s, w["id"], [sources.Tx("f" * 64, T2, -1_500, 12_000, {FIRST})])
     with server.db.read(unscoped="test") as s:
@@ -245,35 +245,35 @@ def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, alice):
     assert "this wallet's share" in rows["transfer-out"].memo
 
 
-def test_a_failing_source_says_what_to_fix_without_naming_an_address(server, alice, monkeypatch):
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+def test_a_failing_source_says_what_to_fix_without_naming_an_address(server, jane, monkeypatch):
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
 
     class Down:
         def history(self, addresses):
             raise sources.SourceError("https://mempool.space/api didn't answer (ConnectTimeout).")
 
     monkeypatch.setattr(sync, "source", lambda srv, s: Down())
-    r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    r = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 502 and r.json()["code"] == "source-failed"
     assert FIRST not in r.text
     with pytest.raises(sources.SourceError):
         sync.sync_all(server)
 
 
-def test_the_stub_source_gives_dev_wallets_a_history(server, alice, admin_client):
+def test_the_stub_source_gives_dev_wallets_a_history(server, jane, admin_client):
     from moolakata import settings
 
     server.config = dataclasses.replace(server.config, stubs=True)
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     # The stub too waits for Settings › Bitcoin (S16.7, S17.7), and is a source saved there.
     with server.db.tx(unscoped="test") as s:
         s.delete(settings.row_of(s, "bitcoinSource"))
     assert sync.sync_all(server) is None and sync_count(server, w["id"]) == 0
     assert save_settings(admin_client, {"bitcoinSource": "stub"}).status_code == 200
     sync.sync_all(server)
-    v = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     assert v["used"] > 0 and v["checkedAt"]
     first = sync_count(server, w["id"])
     sync.sync_all(server)
@@ -416,13 +416,13 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
 # ---------- the rest (S1.6.2.4, S1.6.2.7, S1.7.1)
 
 
-def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, alice, monkeypatch):
+def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, jane, monkeypatch):
     from moolakata import ids
     from moolakata.store.entities.accounts import Lot, Transaction
     from moolakata.store.repos import ledger as repo
 
-    one = new_account(alice, name="Hot wallet", type="crypto-wallet")
-    two = new_account(alice, name="Cold storage", type="crypto-wallet")
+    one = new_account(jane, name="Hot wallet", type="crypto-wallet")
+    two = new_account(jane, name="Cold storage", type="crypto-wallet")
     with server.db.tx(unscoped="test") as s:
         btc = repo.instrument(s, "BTC", "Bitcoin", "crypto")
         buy = Transaction(
@@ -462,15 +462,15 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, alice, m
             )
         from moolakata.bitcoin import transfers
 
-        users = alice.get("/ui/api/session").json()["user"]["id"]
+        users = jane.get("/ui/api/session").json()["user"]["id"]
         assert transfers.propose(s, users) == 1
-    [pair] = alice.get("/ui/api/transfers/bitcoin").json()["items"]
+    [pair] = jane.get("/ui/api/transfers/bitcoin").json()["items"]
     assert (pair["fromAccount"], pair["toAccount"], pair["sats"]) == (
         "Hot wallet",
         "Cold storage",
         10_000_000,
     )
-    r = alice.post(
+    r = jane.post(
         f"/ui/api/transfers/bitcoin/{pair['id']}",
         json={"confirm": True},
         headers={"If-Match": f'"{pair["version"]}"'},
@@ -478,7 +478,7 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, alice, m
     assert r.status_code == 200 and r.json() == []
     held = {
         p["accountName"]: p
-        for p in alice.get("/ui/api/positions").json()["open"]
+        for p in jane.get("/ui/api/positions").json()["open"]
         if p["symbol"] == "BTC"
     }
     cold = held["Cold storage"]
@@ -488,13 +488,13 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, alice, m
 
 
 def test_a_transaction_that_leaves_the_chain_is_marked_and_kept_or_deleted(
-    server, alice, monkeypatch
+    server, jane, monkeypatch
 ):
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     fake = Fake(keys.extended(ZPUB).address(0, 19))
     monkeypatch.setattr(sync, "source", lambda srv, s: fake)
-    alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
 
     class Reorged(Fake):
         def history(self, addresses):
@@ -503,8 +503,8 @@ def test_a_transaction_that_leaves_the_chain_is_marked_and_kept_or_deleted(
     monkeypatch.setattr(sync, "source", lambda srv, s: Reorged(fake.far))
 
     def gone():
-        alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
-        items = alice.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
+        jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+        items = jane.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
         return [t for t in items if t["offChainAt"]]
 
     assert gone() == [], "one read that misses it isn't enough"
@@ -512,30 +512,28 @@ def test_a_transaction_that_leaves_the_chain_is_marked_and_kept_or_deleted(
     from moolakata import alerts
 
     alerts.evaluate(server)
-    titles = [a["title"] for a in alice.get("/ui/api/alerts").json()["open"]]
+    titles = [a["title"] for a in jane.get("/ui/api/alerts").json()["open"]]
     assert "Cold storage: a bitcoin transaction is no longer on the chain" in titles
-    t = alice.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
+    t = jane.get("/ui/api/transactions", params={"account": w["id"]}).json()["items"]
     t = next(x for x in t if x["offChainAt"])
-    r = alice.post(
-        f"/ui/api/transactions/{t['id']}/keep", headers={"If-Match": f'"{t["version"]}"'}
-    )
+    r = jane.post(f"/ui/api/transactions/{t['id']}/keep", headers={"If-Match": f'"{t["version"]}"'})
     assert r.status_code == 200 and r.json()["offChainAt"] is None
     assert gone() == [] and gone() == [], "a transaction kept stays kept"
 
 
-def test_an_address_two_keys_derive_is_watched_once(server, alice):
+def test_an_address_two_keys_derive_is_watched_once(server, jane):
     # The same zpub typed with one of its own addresses: neither is refused, nor stops a sync.
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
     first = keys.extended(ZPUB).address(0, 0)
-    saved(wallet(alice, w["id"], f"{first}\n{ZPUB}"))
-    view = alice.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    saved(wallet(jane, w["id"], f"{first}\n{ZPUB}"))
+    view = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     watched = [a["address"] for a in view["addresses"]]
     assert watched.count(first) == 1
 
 
-def test_one_wallet_failing_leaves_the_others_read(server, alice, monkeypatch):
-    one = new_account(alice, name="One", type="crypto-wallet")
-    two = new_account(alice, name="Two", type="crypto-wallet")
+def test_one_wallet_failing_leaves_the_others_read(server, jane, monkeypatch):
+    one = new_account(jane, name="One", type="crypto-wallet")
+    two = new_account(jane, name="Two", type="crypto-wallet")
     read = []
 
     def sync_one(srv, account_id):
@@ -566,16 +564,16 @@ def test_a_node_certificate_is_trusted_once_confirmed(server, admin_client):
     assert "The bitcoin node's certificate changed" not in titles
 
 
-def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, alice):
+def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, jane):
     # S16.7, R3.5: nothing asked of a public explorer before an admin chooses it.
     from moolakata import settings
     from moolakata.bitcoin import sync
 
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     with server.db.tx(unscoped="test") as s:
         s.delete(settings.row_of(s, "bitcoinSource"))
-    r = alice.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    r = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
     assert r.status_code == 409 and r.json()["code"] == "bitcoin-not-set"
     assert sync.sync_all(server) is None
     with server.db.tx(unscoped="test") as s:
@@ -599,17 +597,17 @@ def test_saving_the_suggested_source_turns_reading_on(server, admin_client):
         assert sync.chosen(server, s)
 
 
-def test_a_wallets_keys_are_bounded(alice):
+def test_a_wallets_keys_are_bounded(jane):
     # B37: the text and the number of keys and addresses are capped, so no wallet stalls the
     # server (S1.6.1).
-    w = new_account(alice, name="Huge", type="crypto-wallet")
-    r = wallet(alice, w["id"], "x" * 200_001)
+    w = new_account(jane, name="Huge", type="crypto-wallet")
+    r = wallet(jane, w["id"], "x" * 200_001)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-long"
     from moolakata.ui import wallets
 
     z = keys.extended(ZPUB)
     lines = "\n".join(z.address(0, i) for i in range(wallets.MAX_ENTRIES + 1))
-    r = wallet(alice, w["id"], lines)
+    r = wallet(jane, w["id"], lines)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text
 
 
@@ -636,16 +634,16 @@ def _off_chain(server, account_id) -> dict[str, tuple[bool, bool]]:
         }
 
 
-def test_taking_a_key_out_never_marks_its_transactions_off_the_chain(server, alice, monkeypatch):
+def test_taking_a_key_out_never_marks_its_transactions_off_the_chain(server, jane, monkeypatch):
     """The review's case: a zpub's three transactions recorded, the zpub replaced by another
     key, two reads: none is marked, so no alert invites deleting coins still there. Typed in
     again, it is read again, and a transaction the chain dropped meanwhile is marked."""
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     fake = Fake(keys.extended(ZPUB).address(0, 19))
     monkeypatch.setattr(sync, "source", lambda srv, s: fake)
     assert sync.sync_account(server, w["id"]) == 3
-    saved(wallet(alice, w["id"], YPUB))
+    saved(wallet(jane, w["id"], YPUB))
     sync.sync_account(server, w["id"])
     sync.sync_account(server, w["id"])
     assert _off_chain(server, w["id"]) == dict.fromkeys(
@@ -658,7 +656,7 @@ def test_taking_a_key_out_never_marks_its_transactions_off_the_chain(server, ali
 
     monkeypatch.setattr(sync, "source", lambda srv, s: Reorged(fake.far))
     sync.sync_account(server, w["id"])  # a miss while unread is no miss
-    saved(wallet(alice, w["id"], ZPUB))
+    saved(wallet(jane, w["id"], ZPUB))
     sync.sync_account(server, w["id"])
     assert not _off_chain(server, w["id"])["a" * 64][0], "one read that misses it isn't enough"
     sync.sync_account(server, w["id"])
@@ -684,7 +682,7 @@ class Chain:
 
 @pytest.mark.parametrize("seed", range(6))
 def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and_go(
-    server, alice, monkeypatch, seed
+    server, jane, monkeypatch, seed
 ):
     """CR3-20's category, generated: keys taken out and typed in again, transactions leaving
     the chain and coming back, reads between. A model says what each read must leave marked:
@@ -704,9 +702,9 @@ def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and
         sources.Tx("4" * 64, T2, 4_000, 0, {r0, TYPED}),
     ])  # fmt: skip
     monkeypatch.setattr(sync, "source", lambda srv, s: chain)
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
     live = [ZPUB, TYPED]
-    saved(wallet(alice, w["id"], "\n".join(live)))
+    saved(wallet(jane, w["id"], "\n".join(live)))
     read_by: dict[str, set[str]] = {}  # txid: the keys that have read it
     missed: dict[str, int] = {}
     marked: set[str] = set()
@@ -714,7 +712,7 @@ def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and
         op = rnd.choice(["keys", "drop", "back", "read", "read"])
         if op == "keys":
             live = rnd.choice([[ZPUB], [TYPED], [ZPUB, TYPED]])
-            saved(wallet(alice, w["id"], "\n".join(live)))
+            saved(wallet(jane, w["id"], "\n".join(live)))
         elif op == "drop" and chain.on:
             chain.on.discard(rnd.choice(sorted(chain.on)))
         elif op == "back":
@@ -761,16 +759,16 @@ def _links(server, account_id) -> set[str]:
         )
 
 
-def test_a_transfer_between_two_wallets_is_linked_to_each_ones_own_keys(server, alice, monkeypatch):
+def test_a_transfer_between_two_wallets_is_linked_to_each_ones_own_keys(server, jane, monkeypatch):
     """One transaction, recorded in both wallets it moved coins between: each record is linked
     to its own wallet's keys only, so taking a key out of one never judges the other's."""
     r0 = keys.extended(ZPUB).address(0, 0)
     chain = Chain([sources.Tx("5" * 64, T1, 1_000, 0, {r0, TYPED})])
     monkeypatch.setattr(sync, "source", lambda srv, s: chain)
-    hot = new_account(alice, name="Hot wallet", type="crypto-wallet")
-    cold = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, hot["id"], ZPUB))
-    saved(wallet(alice, cold["id"], TYPED))
+    hot = new_account(jane, name="Hot wallet", type="crypto-wallet")
+    cold = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, hot["id"], ZPUB))
+    saved(wallet(jane, cold["id"], TYPED))
     sync.sync_account(server, hot["id"])
     sync.sync_account(server, cold["id"])
     sync.sync_account(server, hot["id"])
@@ -778,7 +776,7 @@ def test_a_transfer_between_two_wallets_is_linked_to_each_ones_own_keys(server, 
     assert _links(server, cold["id"]) == {cold["id"]}
 
 
-def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
+def test_a_deleted_link_brings_a_transaction_no_key(server, jane, monkeypatch):
     """A link marked deleted counts as none: the transaction is judged again, as one no key
     brought is (CR3-20), and marked once two reads miss it."""
     from sqlalchemy import update
@@ -789,10 +787,10 @@ def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
     r0 = keys.extended(ZPUB).address(0, 0)
     chain = Chain([sources.Tx("6" * 64, T1, 1_000, 0, {r0})])
     monkeypatch.setattr(sync, "source", lambda srv, s: chain)
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     sync.sync_account(server, w["id"])
-    saved(wallet(alice, w["id"], TYPED))  # the key that read it taken out
+    saved(wallet(jane, w["id"], TYPED))  # the key that read it taken out
     with server.db.tx(unscoped="test") as s:
         s.execute(update(TransactionWalletKey).values(deletedAt=clock.now()))
     chain.on.clear()
@@ -801,7 +799,7 @@ def test_a_deleted_link_brings_a_transaction_no_key(server, alice, monkeypatch):
     assert _off_chain(server, w["id"])["6" * 64][0], "judged, and marked"
 
 
-def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, monkeypatch):
+def test_a_read_judges_only_its_own_wallets_live_transactions(server, jane, monkeypatch):
     """Another wallet's transactions are not in this one's read, nor is a deleted one: neither
     is ever counted as missed by it, even one with no key link, which a read judges."""
     from sqlalchemy import select, update
@@ -813,10 +811,10 @@ def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, mon
     chain = Chain([sources.Tx("7" * 64, T1, 1_000, 0, {TYPED}),
                    sources.Tx("8" * 64, T1, 2_000, 0, {r0})])  # fmt: skip
     monkeypatch.setattr(sync, "source", lambda srv, s: chain)
-    hot = new_account(alice, name="Hot wallet", type="crypto-wallet")
-    cold = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, hot["id"], ZPUB))
-    saved(wallet(alice, cold["id"], TYPED))
+    hot = new_account(jane, name="Hot wallet", type="crypto-wallet")
+    cold = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, hot["id"], ZPUB))
+    saved(wallet(jane, cold["id"], TYPED))
     sync.sync_account(server, hot["id"])
     sync.sync_account(server, cold["id"])
     with server.db.tx(unscoped="test") as s:
@@ -836,7 +834,7 @@ def test_a_read_judges_only_its_own_wallets_live_transactions(server, alice, mon
     assert got == {"7": (None, None), "8": (None, None)}
 
 
-def test_a_kept_transaction_leaves_the_others_judged(server, alice, monkeypatch):
+def test_a_kept_transaction_leaves_the_others_judged(server, jane, monkeypatch):
     """One the owner kept stays kept, and the read goes on to judge those after it."""
     from sqlalchemy import update
 
@@ -847,8 +845,8 @@ def test_a_kept_transaction_leaves_the_others_judged(server, alice, monkeypatch)
     chain = Chain([sources.Tx("1" * 64, T1, 1_000, 0, {r0}),
                    sources.Tx("2" * 64, T2, 2_000, 0, {r0})])  # fmt: skip
     monkeypatch.setattr(sync, "source", lambda srv, s: chain)
-    w = new_account(alice, name="Cold storage", type="crypto-wallet")
-    saved(wallet(alice, w["id"], ZPUB))
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
     sync.sync_account(server, w["id"])
     with server.db.tx(unscoped="test") as s:
         s.execute(

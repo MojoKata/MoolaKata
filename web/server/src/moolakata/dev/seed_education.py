@@ -1,6 +1,6 @@
-"""Dev mode's 529 (requirements S17.7): for Alice's daughter Emma, with her grandmother Margaret
-among its contributors: Emma's 529 with Alice's monthly contributions, Margaret's five-year
-election and one from Bob, invested in a fund, and Emma's education projection, active."""
+"""Dev mode's 529 (requirements S17.7): for Jane's daughter Lisa, with her grandmother Candace
+among its contributors: Lisa's 529 with Jane's monthly contributions, Candace's five-year
+election and one from John, invested in a fund, and Lisa's education projection, active."""
 
 import datetime as dt
 import json
@@ -18,15 +18,15 @@ from .seed_accounts import Book
 
 
 def seed_education(s, people: dict) -> None:
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     today = clock.today()
     b = Book(s, today)
-    emma = s.scalars(select(Person).where(Person.name == "Emma Griffin")).one()
-    margaret = s.scalars(select(Person).where(Person.name == "Margaret Griffin")).one()
+    lisa = s.scalars(select(Person).where(Person.name == "Lisa Doe")).one()
+    candace = s.scalars(select(Person).where(Person.name == "Candace Doe")).one()
     acct = Account(
         id=ids.new_id("Acct"),
-        ownerId=alice.id,
-        name="Emma's 529",
+        ownerId=jane.id,
+        name="Lisa's 529",
         type="529",
         institution="my529",
         mask="2018",
@@ -40,7 +40,7 @@ def seed_education(s, people: dict) -> None:
             accountId=acct.id,
             planState="Utah",
             planName="my529",
-            beneficiaryId=emma.id,
+            beneficiaryId=lisa.id,
             openedOn=dt.date(2018, 11, 2),
             stateDeduction=D(2410),
         )
@@ -61,8 +61,8 @@ def seed_education(s, people: dict) -> None:
         return t
 
     give(dt.date(2018, 11, 2), "12000")
-    give(dt.date(2024, 3, 1), "30000", margaret.id, five=True)
-    give(dt.date(today.year - 1, 12, 20), "2500", bob.personId)
+    give(dt.date(2024, 3, 1), "30000", candace.id, five=True)
+    give(dt.date(today.year - 1, 12, 20), "2500", john.personId)
     for month in b.months(11):
         if (day := b.day(month, 5)) is not None:
             give(day, "250")
@@ -75,13 +75,13 @@ def seed_education(s, people: dict) -> None:
     s.flush()
     p = Projection(
         id=ids.new_id("Prjct"),
-        ownerId=alice.id,
-        name="Emma's college",
+        ownerId=jane.id,
+        name="Lisa's college",
         goal="education",
         builtOn=json.dumps({"kind": "accounts", "ids": [acct.id]}),
         inputs=json.dumps(
             {
-                "beneficiary": {"kind": "person", "id": emma.id},
+                "beneficiary": {"kind": "person", "id": lisa.id},
                 "startAge": 18,
                 "schoolYears": 4,
                 "costBasis": "public",
@@ -93,6 +93,6 @@ def seed_education(s, people: dict) -> None:
     s.add(p)
     s.flush()
     p.active = True
-    p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, alice.id)))
+    p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
     p.baselineAt = clock.now()
     acct.updatedAt = clock.now()

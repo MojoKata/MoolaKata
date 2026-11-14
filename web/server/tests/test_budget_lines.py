@@ -25,8 +25,8 @@ def frozen():
 
 
 def _envelopes(server, accounts=("checking",)):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     chk = new_account(c, openingBalance="0.00", openingDate="2026-09-30")
     made = {"checking": chk}
     if "card" in accounts:

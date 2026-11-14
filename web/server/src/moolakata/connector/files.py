@@ -176,7 +176,7 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
 
 
 def _record(s, c: Connection, a: Account, what: str, detail: dict) -> None:
-    """Activity: *by MoolaKata Connector, Alice's Schwab login* (S18.8)."""
+    """Activity: *by MoolaKata Connector, Jane's Schwab login* (S18.8)."""
     activity.record(
         s,
         f"import.{what}",

@@ -32,7 +32,7 @@
   globalThis.Date = /** @type {any} */ (MockDate);
 
   // The state the MOCK pill switches with a reload. The browser remembers it, and the address
-  // carries it across the reload too ('?user=bob&stale=1'), since Chromium can reload a page
+  // carries it across the reload too ('?user=john&stale=1'), since Chromium can reload a page
   // opened from disk with its storage empty. The address wins.
   const address = new URLSearchParams(location.search);
   const recall = (/** @type {string} */ name) => {
@@ -76,7 +76,7 @@
     words: 'harbor velvet pencil orbit lucky tribe canyon modify gallery reward almost shiver'
       .split(' '),
     fingerprint: 'mk-b7ef…5f6d',
-    serverName: 'griffin-home',
+    serverName: 'doe-home',
     made: '2026-10-12',
     check: [3, 7, 11],
   };

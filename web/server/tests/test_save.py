@@ -312,11 +312,19 @@ def test_another_users_record_isnt_found(admin_client, server):
 
     org = new("Orgzn")
     assert post(admin_client, [create("Orgzn", org, name="Mine")]).is_success
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
+    make_user(server, "john")
+    john = sign_in(server, "john")
     r = post(
-        bob,
-        [{"op": "update", "entity": "Orgzn", "id": org, "version": 1, "fields": {"name": "Bob's"}}],
+        john,
+        [
+            {
+                "op": "update",
+                "entity": "Orgzn",
+                "id": org,
+                "version": 1,
+                "fields": {"name": "John's"},
+            }
+        ],
     )
     assert r.status_code == 404
     assert r.json()["errors"][0]["id"] == org

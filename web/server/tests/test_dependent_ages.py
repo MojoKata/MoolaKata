@@ -39,18 +39,18 @@ def test_a_dependents_age_against_the_lines(age, student, descendant, claimed_as
 
 def test_a_child_both_separate_books_claimed_is_copied_once_into_the_joint_book(couple):  # noqa: F811
     w = couple
-    alice = w.c["alice"]
+    jane = w.c["jane"]
     from edits import make
 
-    kid = make(alice, "Persn", name="Emma Griffin", sex="female", birthYear=2015).json()["id"]
-    a = w.book(2025, "alice", ())
-    b = w.book(2025, "bob", ())
-    for owner, book in (("alice", a), ("bob", b)):
+    kid = make(jane, "Persn", name="Lisa Doe", sex="female", birthYear=2015).json()["id"]
+    a = w.book(2025, "jane", ())
+    b = w.book(2025, "john", ())
+    for owner, book in (("jane", a), ("john", b)):
         r = make(w.c[owner], "TxDep", bookId=book["id"], personId=kid,
                  claimedAs="qualifying child", months=12)  # fmt: skip
         assert r.status_code == 200, r.text
-    joint = w.book(2026, "alice", ("bob",), switch=True)
-    d = alice.get(f"/ui/api/tax-books/{joint['id']}").json()
+    joint = w.book(2026, "jane", ("john",), switch=True)
+    d = jane.get(f"/ui/api/tax-books/{joint['id']}").json()
     assert [x["personId"] for x in d["dependents"]] == [kid]
 
 
@@ -58,15 +58,15 @@ def test_the_joint_book_copies_from_each_filers_book_whoever_accepts_last(couple
     # S8.14.4: the copy is from both of last year's books, though the filer who accepts last
     # never could see the other's.
     w = couple
-    alice = w.c["alice"]
+    jane = w.c["jane"]
     from edits import make
 
-    kid = make(alice, "Persn", name="Emma Griffin", sex="female", birthYear=2015).json()["id"]
-    a = w.book(2025, "alice", ())
-    w.book(2025, "bob", ())
-    r = make(alice, "TxDep", bookId=a["id"], personId=kid, claimedAs="qualifying child",
+    kid = make(jane, "Persn", name="Lisa Doe", sex="female", birthYear=2015).json()["id"]
+    a = w.book(2025, "jane", ())
+    w.book(2025, "john", ())
+    r = make(jane, "TxDep", bookId=a["id"], personId=kid, claimedAs="qualifying child",
              months=12)  # fmt: skip
     assert r.status_code == 200, r.text
-    joint = w.book(2026, "alice", ("bob",), switch=True)
-    d = alice.get(f"/ui/api/tax-books/{joint['id']}").json()
+    joint = w.book(2026, "jane", ("john",), switch=True)
+    d = jane.get(f"/ui/api/tax-books/{joint['id']}").json()
     assert [x["personId"] for x in d["dependents"]] == [kid]

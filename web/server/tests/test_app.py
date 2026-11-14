@@ -230,12 +230,12 @@ def test_a_dialog_masks_the_content_not_the_guide(page):
 
 
 def test_a_linked_households_window_opens_with_its_words(page):
-    """griffin-parents' window (S12.10): locked, then opened with the dev copy's words, then
+    """doe-parents' window (S12.10): locked, then opened with the dev copy's words, then
     each of its screens with its guide."""
     from moolakata.dev.seed_links import words
 
     homes = api_items(page, "/ui/api/linked")
-    assert [h["name"] for h in homes] == ["Margaret & Tom"]
+    assert [h["name"] for h in homes] == ["Jeremy & Candace"]
     link = homes[0]["linkId"]
     visit(page, f"/ui/linked/{link}/")
     page.wait_for_selector(".locked-card")
@@ -385,30 +385,30 @@ def test_two_step_sign_in_through_the_app(page):
     """Turn it on in Profile, sign in with a recovery code, and an admin resets it (S10.1.6)."""
     from moolakata.auth import twostep
 
-    bob = signed_in_page(page, "bob")
-    bob.wait_for_selector(".side")
-    visit(bob, "/ui/profile")
-    bob.locator("#two-step").get_by_role("button", name="Turn On").click()
-    bob.wait_for_selector(".dialog .qr img")
-    wait_guide(bob, "dialog-two-step")
-    check_guide(bob, ".dialog", "Turn On Two-Step Sign-In")
-    seed = bob.inner_text(".dialog code.key").replace(" ", "")
-    bob.fill("#f-two-step-code", "000000")
-    bob.locator(".dialog").get_by_role("button", name="Turn On").click()
-    bob.wait_for_selector(".dialog .err")
-    bob.fill("#f-two-step-code", twostep.code_at(seed, int(time.time()) // 30))
-    bob.locator(".dialog").get_by_role("button", name="Turn On").click()
-    bob.wait_for_selector(".dialog ul.codes")
-    wait_guide(bob, "dialog-recovery-codes")
-    codes = bob.locator(".dialog ul.codes code").all_inner_texts()
+    john = signed_in_page(page, "john")
+    john.wait_for_selector(".side")
+    visit(john, "/ui/profile")
+    john.locator("#two-step").get_by_role("button", name="Turn On").click()
+    john.wait_for_selector(".dialog .qr img")
+    wait_guide(john, "dialog-two-step")
+    check_guide(john, ".dialog", "Turn On Two-Step Sign-In")
+    seed = john.inner_text(".dialog code.key").replace(" ", "")
+    john.fill("#f-two-step-code", "000000")
+    john.locator(".dialog").get_by_role("button", name="Turn On").click()
+    john.wait_for_selector(".dialog .err")
+    john.fill("#f-two-step-code", twostep.code_at(seed, int(time.time()) // 30))
+    john.locator(".dialog").get_by_role("button", name="Turn On").click()
+    john.wait_for_selector(".dialog ul.codes")
+    wait_guide(john, "dialog-recovery-codes")
+    codes = john.locator(".dialog ul.codes code").all_inner_texts()
     assert len(codes) == 10
-    bob.get_by_role("button", name="I've saved them").click()
-    bob.wait_for_selector("#two-step .pill.ok")
-    assert "10 recovery codes left" in bob.inner_text("#two-step")
-    assert bob.problems == []
-    bob.context.close()
+    john.get_by_role("button", name="I've saved them").click()
+    john.wait_for_selector("#two-step .pill.ok")
+    assert "10 recovery codes left" in john.inner_text("#two-step")
+    assert john.problems == []
+    john.context.close()
 
-    again = signed_in_page(page, "bob")
+    again = signed_in_page(page, "john")
     again.wait_for_selector("text=Two-step sign-in")
     again.get_by_role("button", name="Use a recovery code").click()
     again.fill("#f-recovery-code", codes[3])
@@ -420,7 +420,7 @@ def test_two_step_sign_in_through_the_app(page):
     admin = signed_in_page(page, "admin")
     admin.wait_for_selector(".side")
     visit(admin, "/ui/users")
-    row = admin.locator("tr", has_text="bob@")
+    row = admin.locator("tr", has_text="john@")
     assert row.locator(".pill.ok", has_text="two-step").count() == 1
     row.locator(".row-tool").click()
     admin.get_by_role("button", name="Reset Two-Step").click()

@@ -71,8 +71,9 @@ Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or
 | **G30** | [A renewed certificate without a restart](gaps.md#g30-a-renewed-certificate-without-a-restart--low) | Low |
 | **G31** | [A 529's contributions in one table](gaps.md#g31-a-529s-contributions-in-one-table--low) | Low |
 | **G32** | [Which records carry a note](gaps.md#g32-which-records-carry-a-note--medium) | Medium |
+| **G33** | [People with the same initials](gaps.md#g33-people-with-the-same-initials--medium) | Medium |
 
-A new gap takes the next id after G32.
+A new gap takes the next id after G33.
 
 ## Open questions
 
@@ -86,7 +87,7 @@ A new question takes the next id after Q30.
 
 ## Later work
 
-Work planned for after the first release ([later.md](later.md), S17.9.11).
+Work planned for after the first release ([later.md](later.md)).
 
 | Id | Item | What it is |
 |---|---|---|
@@ -322,7 +323,7 @@ The rulings the rest of the requirements apply.
    request, so a change (a share revoked, a rule edited) applies to the very next one. A record
    is validated as a whole when saved, every change is saved explicitly, and a refusal names
    the field and the reason, which the UI shows at that field.
-8. **Audit names fields, never values.** Activity says "Alice changed the
+8. **Audit names fields, never values.** Activity says "Jane changed the
    category of 3 transactions", and amounts stay out of the log.
 9. **The contract is generated.** OpenAPI comes from the routes, the UI's JSDoc types come
    from it, and a check fails on drift (S17.5).

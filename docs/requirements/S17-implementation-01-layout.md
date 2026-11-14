@@ -10,7 +10,7 @@
                          link-protocol.md, connector-protocol.md, operations.md,
                          DEPLOY.md (a test server on Proxmox or TrueNAS, its screenshots
                          in deploy/), dependencies.md (the register, S17.2.1),
-                         test-plan.md (the manual tests, S17.9.7.8),
+                         test-plan.md (the manual tests),
                          mockups/MoolaKata-mock.html
    web/
      VERSION  dev.sh  release.sh  check  pins

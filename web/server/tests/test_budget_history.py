@@ -115,21 +115,21 @@ def test_two_records_of_one_account_never_share_a_month(server, frozen):
 
 
 def test_a_receiver_counts_a_transfer_to_an_account_they_cant_see(server, frozen):
-    """Bob reads Checking but not Alice's Ally: the $300 left the budget all the same (S7.1.1),
+    """John reads Checking but not Jane's Ally: the $300 left the budget all the same (S7.1.1),
     and the account is named to him only as not shared."""
     c, acct, cat, b = setup_budget(server)
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
     ally = new_account(c, name="Ally", type="savings", mask="2222")
     add(c, acct["id"], "-300.00", "2026-10-05", payee="To Ally",
         categoryId=cat["Savings › Emergency fund"])  # fmt: skip
     add(c, ally["id"], "300.00", "2026-10-05", payee="From checking", kind="deposit")
     add(c, acct["id"], "-50.00", "2026-10-06", payee="To Ally")
     add(c, ally["id"], "50.00", "2026-10-06", payee="From checking", kind="deposit")
-    share(c, "budget", b["id"], users={bob_id: "read"})
-    share(c, "account", acct["id"], users={bob_id: "read"})
-    mine, theirs = month(c, b, "2026-10"), month(bob, b, "2026-10")
+    share(c, "budget", b["id"], users={john_id: "read"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+    mine, theirs = month(c, b, "2026-10"), month(john, b, "2026-10")
     assert mine["saved"] == theirs["saved"] == "300.00"
     assert [(x["amount"], x["otherAccountName"]) for x in theirs["moved"]] == [
         ("-50.00", "an account not shared")
@@ -140,17 +140,17 @@ def test_a_receiver_counts_a_payment_to_a_loan_they_cant_see_whole(server, froze
     """The split would show the loan's interest and principal, so a receiver who can't read
     the loan sees the payment whole (S7.1.1, S1.9.7)."""
     c, acct, _, b = setup_budget(server)
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
     assert terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
                  rate="6", escrowTax="300", escrowInsurance="100").status_code == 200  # fmt: skip
     r = loan_payment(c, loan["id"], "2026-10-01", "2198.65", from_account=acct["id"])
     assert r.status_code == 200, r.text
-    share(c, "budget", b["id"], users={bob_id: "read"})
-    share(c, "account", acct["id"], users={bob_id: "read"})
-    mine, theirs = month(c, b, "2026-10"), month(bob, b, "2026-10")
+    share(c, "budget", b["id"], users={john_id: "read"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+    mine, theirs = month(c, b, "2026-10"), month(john, b, "2026-10")
     assert (mine["spent"], mine["saved"]) == ("1900.00", "298.65")
     assert (theirs["spent"], theirs["saved"]) == ("2198.65", "0.00")
 

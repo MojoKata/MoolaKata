@@ -1,6 +1,6 @@
 # The manual test plan
 
-What the build can't try by itself (requirements S17.9.7.8): each test names the environment
+What the build can't try by itself: each test names the environment
 it needs, its steps and what passing looks like. The build proves the same code against mocks
 (`web/dev.sh mocks`, the connector's fakes, the arm64 image under emulation); these runs prove
 it against the real thing. A release says which of them were run, by whom and on what, and

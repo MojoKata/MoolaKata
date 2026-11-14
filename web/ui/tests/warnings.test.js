@@ -45,19 +45,19 @@ Deno.test('the lots moved in say what is missing: none typed, or a cost (S2.2)',
 });
 
 Deno.test('the birth year differs only for A Different Person beside one here (S10.10.3)', () => {
-  const emma = { id: 'Prsn_1', name: 'Emma Griffin' };
+  const lisa = { id: 'Prsn_1', name: 'Lisa Doe' };
   /** @type {[unknown, boolean, boolean | null | undefined, boolean][]} */
   const cases = [
     [null, false, false, false],
     [null, false, true, false],
     [null, true, false, false],
     [null, true, true, false],
-    [emma, false, false, false],
-    [emma, false, true, true],
-    [emma, true, false, false],
-    [emma, true, true, false],
-    [emma, false, null, false],
-    [emma, false, undefined, false],
+    [lisa, false, false, false],
+    [lisa, false, true, true],
+    [lisa, true, false, false],
+    [lisa, true, true, false],
+    [lisa, false, null, false],
+    [lisa, false, undefined, false],
   ];
   for (const [clash, using, different, shown] of cases) {
     equal(

@@ -18,9 +18,9 @@ def cats(c) -> dict[str, str]:
 
 
 @pytest.fixture
-def alice(server):
-    make_user(server, "alice")
-    return sign_in(server, "alice")
+def jane(server):
+    make_user(server, "jane")
+    return sign_in(server, "jane")
 
 
 # ---- matching ----
@@ -146,42 +146,42 @@ def test_no_pattern_holds_the_server(pattern):
 # ---- through the API ----
 
 
-def test_rules_are_kept_in_order_and_first_match_wins(alice):
-    c = cats(alice)
-    r = make(alice, "Rule", payeeMatch="re:(?=a)", categoryId=c["Food › Groceries"])
+def test_rules_are_kept_in_order_and_first_match_wins(jane):
+    c = cats(jane)
+    r = make(jane, "Rule", payeeMatch="re:(?=a)", categoryId=c["Food › Groceries"])
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "payeeMatch"
     assert r.json()["errors"][0]["message"] == "RE2 has no look-arounds or back-references."
-    r = make(alice, "Rule", payeeMatch="kroger")
+    r = make(jane, "Rule", payeeMatch="kroger")
     assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
-    make(alice, "Rule", payeeMatch="kroger", categoryId=c["Food › Groceries"])
+    make(jane, "Rule", payeeMatch="kroger", categoryId=c["Food › Groceries"])
     r = make(
-        alice, "Rule", payeeMatch="re:^KROGER #1", categoryId=c["Food › Dining out"], payee="Kroger"
+        jane, "Rule", payeeMatch="re:^KROGER #1", categoryId=c["Food › Dining out"], payee="Kroger"
     )
     assert r.status_code == 200, r.text
-    first, second = alice.get("/ui/api/rules").json()["items"]
+    first, second = jane.get("/ui/api/rules").json()["items"]
     assert (first["position"], second["position"]) == (0, 1)
     # Moved up, through the save: the other closes up behind it.
-    assert saved(change(alice, "Rule", second, position=0))["position"] == 0
-    assert [x["id"] for x in alice.get("/ui/api/rules").json()["items"]] == [
+    assert saved(change(jane, "Rule", second, position=0))["position"] == 0
+    assert [x["id"] for x in jane.get("/ui/api/rules").json()["items"]] == [
         second["id"],
         first["id"],
     ]
-    a = new_account(alice)
-    job = upload(alice, a["id"], "bank.ofx", (FIX / "bank.ofx").read_bytes())
+    a = new_account(jane)
+    job = upload(jane, a["id"], "bank.ofx", (FIX / "bank.ofx").read_bytes())
     assert job["result"]["categorised"] == 1, job
-    items = alice.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    items = jane.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
     kroger = next(t for t in items if t["payeeRaw"] == "KROGER #123")
     assert kroger["categoryId"] == c["Food › Dining out"] and kroger["payee"] == "Kroger"
-    feed = alice.get("/ui/api/activity").json()["items"]
+    feed = jane.get("/ui/api/activity").json()["items"]
     assert any("reordered their categorisation rules" in x["text"] for x in feed)
 
 
-def test_applied_on_demand_to_the_uncategorised_only(alice):
-    c = cats(alice)
-    a = new_account(alice)
-    add(alice, a["id"], "-42.00", "2026-10-01", payee="WHOLE FOODS #77")
+def test_applied_on_demand_to_the_uncategorised_only(jane):
+    c = cats(jane)
+    a = new_account(jane)
+    add(jane, a["id"], "-42.00", "2026-10-01", payee="WHOLE FOODS #77")
     add(
-        alice,
+        jane,
         a["id"],
         "-18.00",
         "2026-10-02",
@@ -189,59 +189,59 @@ def test_applied_on_demand_to_the_uncategorised_only(alice):
         categoryId=c["Food › Dining out"],
     )
     r = make(
-        alice, "Rule", payeeMatch="whole foods", categoryId=c["Food › Groceries"], tags=["Food"]
+        jane, "Rule", payeeMatch="whole foods", categoryId=c["Food › Groceries"], tags=["Food"]
     )
     assert r.status_code == 200, r.text
-    assert alice.get("/ui/api/rules").json()["uncategorised"] == 1
-    assert alice.post("/ui/api/rules/apply").json()["changed"] == 1
-    items = alice.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
+    assert jane.post("/ui/api/rules/apply").json()["changed"] == 1
+    items = jane.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
     got = sorted((t["amount"], t["categoryId"], t["tags"]) for t in items)
     assert got == [
         ("-42.00", c["Food › Groceries"], ["food"]),
         ("-18.00", c["Food › Dining out"], []),
     ]
-    assert alice.post("/ui/api/rules/apply").json()["changed"] == 0
-    feed = alice.get("/ui/api/activity").json()["items"]
+    assert jane.post("/ui/api/rules/apply").json()["changed"] == 0
+    feed = jane.get("/ui/api/activity").json()["items"]
     assert any("rules set 1 transaction" in x["text"] for x in feed)
 
 
-def test_a_rule_is_its_owners_alone_and_can_be_deleted(server, alice):
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    c = cats(alice)
-    r = make(alice, "Rule", payeeMatch="acme", categoryId=c["Income › Salary"]).json()
-    assert bob.get("/ui/api/rules").json()["items"] == []
-    assert remove(bob, "Rule", r).status_code == 404
-    assert remove(alice, "Rule", r).status_code == 200
-    assert alice.get("/ui/api/rules").json()["items"] == []
+def test_a_rule_is_its_owners_alone_and_can_be_deleted(server, jane):
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    c = cats(jane)
+    r = make(jane, "Rule", payeeMatch="acme", categoryId=c["Income › Salary"]).json()
+    assert john.get("/ui/api/rules").json()["items"] == []
+    assert remove(john, "Rule", r).status_code == 404
+    assert remove(jane, "Rule", r).status_code == 200
+    assert jane.get("/ui/api/rules").json()["items"] == []
 
 
-def test_a_rule_changed_keeps_its_place_and_sets_what_it_says(server, alice):
-    c = cats(alice)
+def test_a_rule_changed_keeps_its_place_and_sets_what_it_says(server, jane):
+    c = cats(jane)
     for payee in ("acme", "shop"):
-        make(alice, "Rule", payeeMatch=payee, categoryId=c["Income › Salary"])
-    first, second = alice.get("/ui/api/rules").json()["items"]
-    work = tag(alice, "Work")
-    r = change(alice, "Rule", first, payee="Acme Corp", tagIds={"add": [work], "remove": []})
+        make(jane, "Rule", payeeMatch=payee, categoryId=c["Income › Salary"])
+    first, second = jane.get("/ui/api/rules").json()["items"]
+    work = tag(jane, "Work")
+    r = change(jane, "Rule", first, payee="Acme Corp", tagIds={"add": [work], "remove": []})
     assert r.status_code == 200, r.text
-    items = alice.get("/ui/api/rules").json()["items"]
+    items = jane.get("/ui/api/rules").json()["items"]
     assert [x["id"] for x in items] == [first["id"], second["id"]]
     assert (items[0]["payee"], items[0]["tags"]) == ("Acme Corp", ["work"])
-    r = change(alice, "Rule", items[1], categoryId=None)
+    r = change(jane, "Rule", items[1], categoryId=None)
     assert r.json()["errors"][0]["code"] == "rule-sets-nothing"
 
 
-def test_a_receipts_merchant_is_renamed_by_the_rules(server, alice):
+def test_a_receipts_merchant_is_renamed_by_the_rules(server, jane):
     from moolakata.receipts.reading import save_reading
     from moolakata.store.entities.receipts import Receipt
 
-    make(alice, "Rule", payeeMatch="re:blue ?bottle", payee="Blue Bottle")
+    make(jane, "Rule", payeeMatch="re:blue ?bottle", payee="Blue Bottle")
     buf = io.BytesIO()
     Image.new("RGB", (40, 40), "white").save(buf, "PNG")
-    rid = upload_receipt(alice, buf.getvalue()).json()["id"]
+    rid = upload_receipt(jane, buf.getvalue()).json()["id"]
     with server.db.tx(unscoped="test") as s:
         save_reading(s, s.get(Receipt, rid), ["BLUEBOTTLE CAFE", "TOTAL 5.75"], "text", "test")
-    assert alice.get(f"/ui/api/receipts/{rid}").json()["payee"] == "Blue Bottle"
+    assert jane.get(f"/ui/api/receipts/{rid}").json()["payee"] == "Blue Bottle"
 
 
 def test_user_text_reaches_a_regular_expression_only_through_a_rule():

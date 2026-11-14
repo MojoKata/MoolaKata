@@ -53,8 +53,8 @@ def test_pmi_ends_at_78_percent_of_the_original_value():
 
 def test_a_payment_typed_in_the_loans_account_is_split_by_the_schedule(server, frozen):
     # B21: not wholly principal; and its interest counts as the loan's interest on Taxes.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
     saved(
         terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
@@ -124,8 +124,8 @@ def test_a_heloc_pays_interest_only_while_drawing():
 
 
 def test_payments_through_the_api(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     bank = new_account(c, name="Checking")
     add(c, bank["id"], "10000.00", "2026-09-01")
     loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
@@ -163,8 +163,8 @@ def test_payments_through_the_api(server, frozen):
 
 
 def test_the_servicers_balance_against_the_computed_one(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Car", type="auto-loan")
     saved(terms(c, loan["id"], principal="20000", startDate="2026-01-01", termMonths=60, rate="5",
                 paymentsMode="recorded"))  # fmt: skip
@@ -176,8 +176,8 @@ def test_the_servicers_balance_against_the_computed_one(server, frozen):
 
 
 def test_terms_are_checked(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Car", type="auto-loan")
     r = terms(c, loan["id"], principal="-1", startDate="2026-01-01", termMonths=0, rate="99")
     assert {e["field"] for e in r.json()["errors"]} == {"principal", "termMonths", "rate"}
@@ -185,8 +185,8 @@ def test_terms_are_checked(server, frozen):
 
 def test_a_rate_as_the_note_states_it(server, frozen):
     # B6: three places for the rate (6.875%), four for an ARM's reset; more are refused.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
     home = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360}
     reset = [{"date": "2031-01-01", "rate": "7.3125"}]
@@ -251,8 +251,8 @@ def test_rounding_up_each_payment():
 def test_a_lump_sum_needs_its_date_and_amount_or_is_refused_at_them(server, frozen, lump, refused):
     """S6.10.1: a lump sum missing either is refused at its own row and field, in the preview
     and the saved plan alike, never left out unsaid."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
     saved(
         terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
@@ -273,8 +273,8 @@ def test_a_lump_sum_needs_its_date_and_amount_or_is_refused_at_them(server, froz
 
 
 def test_the_planner_and_plans_through_the_api(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
     saved(
         terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
@@ -298,7 +298,7 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
     )
     assert r.json()["following"] and r.json()["followingSince"] == "2026-10-13"
     clock.fix(dt.datetime(2026, 12, 20, 12, tzinfo=dt.UTC))
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     saved(loan_payment(c, loan["id"], "2026-11-01", "1898.65"))
     f = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["following"]
     assert f["name"] == "Extra $300" and f["expected"] == "600.00"
@@ -336,8 +336,8 @@ def test_rounding_up_counts_pmi_only_while_it_is_due():
 def test_a_loan_borrowed_something_but_a_heloc_may_open_at_zero(server, kind, principal):
     """S1.9.1, R3.11: a principal of 0 is refused, but a HELOC's, a line opened with nothing
     drawn; a negative never."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Loan", type=kind)
     r = terms(c, a["id"], principal=principal, startDate="2026-01-01", termMonths=240, rate="8")
     taken = principal == "0.01" or (principal == "0" and kind == "heloc")
@@ -353,8 +353,8 @@ def test_a_loan_borrowed_something_but_a_heloc_may_open_at_zero(server, kind, pr
 def test_a_helocs_payment_while_drawing_is_the_interest_due(server, frozen):
     """CR3-21: in the draw period the payment is the schedule's next row, interest alone, so
     the screen, the dialog and the bank transactions offered read $200, not $0."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     bank = new_account(c, name="Checking")
     add(c, bank["id"], "10000.00", "2026-09-01")
     line = new_account(c, name="Line", type="heloc")
@@ -398,8 +398,8 @@ def test_the_payment_is_the_schedules_next_row_for_every_shape():
 
 
 def _a_loan_and_checking(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     bank = new_account(c, name="Checking")
     add(c, bank["id"], "10000.00", "2026-09-01")
     loan = new_account(c, name="Home", type="mortgage")
@@ -656,8 +656,8 @@ def test_automatic_reads_as_recorded_once_a_payment_or_a_connection_says_so():
 
 
 def test_the_payments_setting_through_the_api(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
     home = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"}
     v = saved(terms(c, loan["id"], **home, escrowTax="300"))
