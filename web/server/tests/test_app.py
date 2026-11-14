@@ -301,11 +301,11 @@ def test_a_moment_shows_its_day_in_the_viewers_zone(page):
     got = page.evaluate("""async () => {
         const main = document.querySelector('script[src$="/app/main.js"]').src;
         const f = await import(new URL('../kit/format.js?zone-test', main).href);
-        f.setZone('America/Los_Angeles');
+        f.setTimezone('America/Los_Angeles');
         const days = [f.day('2026-10-19T00:26:00Z'), f.date('2026-10-19'), f.day(null)];
-        f.setZone('Pacific/Kiritimati');
+        f.setTimezone('Pacific/Kiritimati');
         const ahead = [f.today(), f.thisYear()];
-        f.setZone('Etc/GMT+12');
+        f.setTimezone('Etc/GMT+12');
         return { days, ahead, behind: f.today() };
     }""")
     assert got["days"] == ["Oct 18, 2026", "Oct 19, 2026", "—"]
