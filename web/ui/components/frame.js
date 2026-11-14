@@ -35,7 +35,8 @@ export function useTitle(text, crumbs) {
   }, [text, JSON.stringify(crumbs || [])]);
 }
 
-/** The navigation, in its order (S12.2); only the screens this release has. */
+/** The navigation, in its order (S12.2); only the screens this release has: the household's
+ * money first, then at the foot what keeps it running (FOOT_NAV, and ADMIN_NAV for admins). */
 export const NAV = [
   { href: '/ui/', label: 'Dashboard', icon: 'dashboard', match: /^\/ui\/?$/ },
   { href: '/ui/accounts', label: 'Accounts', icon: 'bank', match: /^\/ui\/accounts/ },
@@ -48,6 +49,8 @@ export const NAV = [
   { href: '/ui/giving', label: 'Giving', icon: 'heart', match: /^\/ui\/giving/ },
   { href: '/ui/taxes', label: 'Taxes', icon: 'tax', match: /^\/ui\/taxes/ },
   { href: '/ui/receipts', label: 'Receipts', icon: 'receipt', match: /^\/ui\/receipts/ },
+];
+export const FOOT_NAV = [
   { href: '/ui/activity', label: 'Activity', icon: 'pulse', match: /^\/ui\/activity/ },
   { href: '/ui/alerts', label: 'Alerts', icon: 'bell', match: /^\/ui\/alerts/ },
 ];
@@ -109,7 +112,8 @@ export function Frame({ children, onSignOut }) {
   const { path, route } = useLocation();
   const s = session.value;
   const me = s.user;
-  const nav = me.admin ? [...NAV, ...ADMIN_NAV] : NAV;
+  const foot = me.admin ? [...FOOT_NAV, ...ADMIN_NAV] : FOOT_NAV;
+  const nav = [...NAV, ...foot];
   const t = title.value;
   const themeNow = THEMES[theme.value] || THEMES.dark;
   // The households that share something with you (S12.10.1): none, and the avatar opens nothing.
@@ -126,6 +130,19 @@ export function Frame({ children, onSignOut }) {
       { label: 'Sign Out', onSelect: onSignOut },
     ]);
 
+  /** One entry of the navigation, with its count. @param {(typeof NAV)[number]} n */
+  const navItem = (n) => {
+    const active = n.match.test(path);
+    const count = badges.value[n.label.toLowerCase()];
+    return html`
+      <a class=${'nav-item' + (active ? ' active' : '')} href=${n.href}
+        aria-current=${active ? 'page' : undefined} data-tip=${collapsed.value
+          ? n.label
+          : undefined}>
+        <${Icon} name=${n.icon} /><span class="nav-label">${n.label}</span>${' '}
+        ${count ? html`<span class="nav-badge">${count}</span>` : null}</a>
+    `;
+  };
   return html`<div class=${
     'app' + (collapsed.value ? ' collapsed' : '') +
     (helpOpen.value ? ' help-open' : '') + (tour.value ? ' touring' : '')
@@ -176,20 +193,7 @@ export function Frame({ children, onSignOut }) {
     collapsed.value ? 'Open the sidebar' : 'Collapse the sidebar'
   } aria-expanded=${collapsed.value ? 'false' : 'true'}
         onClick=${() => (collapsed.value = !collapsed.value)}><${Icon} name="chev" /></button>
-      <nav>${
-    nav.map((n) => {
-      const active = n.match.test(path);
-      const count = badges.value[n.label.toLowerCase()];
-      return html`
-        <a class=${'nav-item' + (active ? ' active' : '')} href=${n.href}
-          aria-current=${active ? 'page' : undefined} data-tip=${collapsed.value
-            ? n.label
-            : undefined}>
-                  <${Icon} name=${n.icon} /><span class="nav-label">${n.label}</span>${' '}
-                  ${count ? html`<span class="nav-badge">${count}</span>` : null}</a>
-      `;
-    })
-  }</nav>
+      <nav>${NAV.map(navItem)}<div class="nav-gap"></div>${foot.map(navItem)}</nav>
       <div class="user-tile">
         <${Avatar} name=${me.displayName} image=${me.avatar} id=${me.id} />
         <button type="button" class="user-text linklike" style=${{
