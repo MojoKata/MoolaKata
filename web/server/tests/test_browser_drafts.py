@@ -442,7 +442,7 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     assert page.evaluate("document.activeElement.textContent.trim()") == "Keep editing"
     page.keyboard.press("Escape")
     assert page.locator(".dialog-ask").count() == 0
-    assert amount_of(page).input_value() == "12.", "what was typed stays as typed"
+    assert amount_of(page).input_value() == "12.00", "what was typed stays, at its places"
     page.mouse.click(5, 5)
     assert page.locator(".dialog").count() == 1, "a click outside doesn't close it"
     page.click(".dialog-x")
@@ -932,7 +932,7 @@ def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, househo
         assert page.is_visible(".dialog"), f"{key} answers No and leaves the dialog open"
     assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 200
     page.click('.dialog button:has-text("Delete")')
-    page.click('[role=alertdialog] button:has-text("Yes, delete")')
+    page.click('[role=alertdialog] button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     assert h.c.get(f"/ui/api/transactions/{t['id']}").status_code == 404
     assert problems == []
@@ -958,7 +958,7 @@ def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household)
     page.click('tr:has-text("Rocket") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog footer button:has-text("Remove")')
-    page.click('[role=alertdialog] button:has-text("Yes, remove")')
+    page.click('[role=alertdialog] button:text-is("Yes")')
     wait(page, ".dialog", problems, state="detached")
     assert "Rocket" not in {x["issuer"] for x in book_of(h)["received"]}
     assert problems == []
@@ -1367,6 +1367,9 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
     page.get_by_role("row", name=re.compile(r"KO .* 60 P")).locator("button.linklike").click()
     page.get_by_role("button", name="Expired, assigned or exercised…").click()
     wait(page, ".dialog .value-input input", problems)
+    # The dialog puts the focus in its first field once drawn; typed before that, the field
+    # would be left, and checked, when it does.
+    wait(page, ".dialog :focus", problems)
     field = page.locator(".dialog .value-input input")
     assert field.input_value() == ""
     field.fill("0")

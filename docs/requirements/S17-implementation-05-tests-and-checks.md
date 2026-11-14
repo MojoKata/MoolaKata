@@ -31,7 +31,7 @@
    total and merchant, with an accuracy floor that a change must not drop below.
 
    **Kinds of test** that each change in their area adds to:
-   1. **Browser modules** without a page (`app/draft.js`, `app/dec.js`, `app/duration.js`)
+   1. **Browser modules** without a page (`app/draft.js`, `kit/dec.js`, `kit/duration.js`)
       are unit-tested by `deno test`, with the draft's id maker passed in so ids repeat.
    2. **Saved unchanged changes nothing**: every form that edits through a draft is opened in
       Chromium and saved untouched, and the records read back are what they were: one
@@ -241,6 +241,17 @@
       modules are packed by area into jobs of about a thousand code lines, and each job's
       outcomes and survivors are kept for the area's sweep, which runs again only the modules
       changed since. How to run it: `docs/mutation-testing.md`.
+   13. **The ui-kit's pages** (S17.3.10.4): each component's page is driven in headless
+      Chromium by Playwright for Python, through the keyboard and the pointer as a person
+      would: the order Tab takes, the keys of S12.18 and of each component, where the focus
+      lands after a chip is removed, a list closes or a value is refused, what each control's
+      roles and names say (a combobox and its listbox, the option the arrows reach), what a
+      paste becomes, and what the page's report line says it gave its caller. A page or
+      console error fails the page, and each state is kept as a screenshot in the run's
+      artifact. What a control decides without a page (reading a typed date or time, where
+      the caret goes after a change, which names a paste adds) is tested by `deno test` with
+      the kit's own tests, every case written out. A check holds the kit to S17.3.10.3: a
+      module in `kit/` that imports from outside it fails.
 
    Browser tests that need a page drive it with Playwright, setting the page's clock to the
    server's frozen one where a test freezes it. Whenever a test waits for the page, and before

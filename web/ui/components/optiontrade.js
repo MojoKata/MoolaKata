@@ -7,12 +7,12 @@ import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { money, today } from '../app/format.js';
-import { Dialog } from './dialog.js';
+import { money, today } from '../kit/format.js';
+import { Dialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { CountInput, errAt, Field, FormError, Seg, TypedInput } from './fields.js';
-import { toast } from './toast.js';
-import { dec } from '../app/dec.js';
+import { CountInput, errAt, Field, FormError, Seg, TypedInput } from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
+import { dec } from '../kit/dec.js';
 
 export const ACTIONS = /** @type {[string, string][]} */ ([
   ['buy-to-open', 'Buy to open'],

@@ -6,13 +6,13 @@ import { html } from '../app/html.js';
 import { canAdd } from '../app/draft.js';
 import { api } from '../api/client.js';
 import { changes } from '../app/stream.js';
-import { cents, date, fromCents, money } from '../app/format.js';
-import { Dialog, openDialog } from '../components/dialog.js';
+import { cents, date, fromCents, money } from '../kit/format.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { useDialogGuide } from '../components/help.js';
-import { errAt, Field, FormError, Input, Select, TypedInput } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
-import { toast } from '../components/toast.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 
 /**
  * Wait for a job to finish: the live stream says when, and a slow poll covers a lost event.

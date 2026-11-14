@@ -11,7 +11,7 @@ The account it belongs to.
 
 ## Date
 
-As the institution wrote it.
+As the institution wrote it. Type it as `10/12/2026`, `10/12` (this year), `oct 12`, `today`, `yesterday` or `tomorrow`, or press ↓ for the calendar.
 
 ## Kind
 
@@ -33,7 +33,7 @@ Per share or unit.
 
 ## Amount
 
-The cash effect on the account: − for money out (a buy), + for money in (a sale), after fees.
+The cash effect on the account: − for money out (a buy), + for money in (a sale), after fees. Typed from the cents, as a cash register takes it: `4250` is $42.50, and `-` makes it money out.
 
 ## Fees
 
@@ -106,7 +106,7 @@ A note.
 
 ## Tags
 
-Your own, separated by commas; others who share the account don't see them.
+Your own; others who share the account don't see them. Type one and press Enter or a comma; your tags are listed as you type, the most used first. A name you haven't used makes a new tag when you save. Backspace in the empty box takes off the last; ← from the box, or a click on a tag, moves along the tags, and Backspace or Delete takes the one there off.
 
 ## Reimbursable
 

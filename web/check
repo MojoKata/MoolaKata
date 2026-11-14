@@ -3,7 +3,7 @@
 # Playwright for Python. Run `web/dev.sh setup` once first.
 #
 #   web/check                    every part, in turn
-#   web/check <part> [<part>…]   those parts only: static, app-mockup, hand-mockup, server,
+#   web/check <part> [<part>…]   those parts only: static, kit, app-mockup, hand-mockup, server,
 #                                browser, connector, coverage (mockups: both mockups). CI runs
 #                                them as jobs side by side (S17.10.1); the coverage part reads
 #                                what the test parts measured.
@@ -29,7 +29,7 @@ step() {
   fi
 }
 
-PARTS=(static app-mockup hand-mockup server browser connector coverage)
+PARTS=(static kit app-mockup hand-mockup server browser connector coverage)
 parts=()
 for p in "$@"; do
   if [[ $p == mockups ]]; then parts+=(app-mockup hand-mockup); else parts+=("$p"); fi
@@ -56,11 +56,11 @@ step "every dependency has amd64 and arm64 wheels" py python -m moolakata.dev.wh
 step "the dependency register is audited (S17.2.1)" py python -m moolakata.dev.audit check
 step "the base image's age (a warning only)" py python -m moolakata.dev.base check
 step "vendored browser libraries" python3 "$WEB/ui/vendor/vendor.py" extract
-step "ruff" py ruff check src tests ../ui/mockup ../../docs/mockups ../../docs/reviews ../../connector
-step "ruff format" py ruff format --check --quiet src tests ../ui/mockup ../../docs/mockups ../../docs/reviews ../../connector
+step "ruff" py ruff check src tests ../ui/mockup ../ui/kit ../../docs/mockups ../../docs/reviews ../../connector
+step "ruff format" py ruff format --check --quiet src tests ../ui/mockup ../ui/kit ../../docs/mockups ../../docs/reviews ../../connector
 step "the requirements' ids, tables and sizes" python3 "$ROOT/docs/reviews/check_docs.py" --quiet
 js_dirs=()
-for d in app api store screens components charts account-types mockup tests; do
+for d in kit app api store screens components charts account-types mockup tests; do
   [[ -d "$WEB/ui/$d" ]] && js_dirs+=("$WEB/ui/$d/")
 done
 step "deno check" deno check --quiet --config "$WEB/ui/deno.json" "${js_dirs[@]}"
@@ -70,6 +70,15 @@ step "deno fmt" deno fmt --check --quiet --config "$WEB/ui/deno.json"
 # libraries' declarations, so the run itself loads their code through the tests' import map.
 step "deno test" deno test --quiet --no-check --config "$WEB/ui/deno.json" \
   --import-map "$WEB/ui/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/tests/"
+fi
+# The ui-kit (S17.3.10): its own unit tests, its import boundary among them, and its pages driven
+# in Chromium (S17.5.13); CI runs it only when the kit changes, and on every push to main.
+if want kit; then
+step "deno test (the ui-kit)" deno test --quiet --no-check --allow-read --config "$WEB/ui/deno.json" \
+  --import-map "$WEB/ui/kit/tests/import_map.json" --coverage="$COVERAGE/js" "$WEB/ui/kit/tests/"
+step "pytest (the ui-kit's pages)" py python -m pytest -n 2 "$WEB/ui/kit/tests/"
+fi
+if want static; then
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 fi
 # The mockup generated from the app (S12.9): built, then opened screen by screen; CI keeps it as

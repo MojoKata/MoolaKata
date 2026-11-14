@@ -151,7 +151,7 @@ def test_add_rule_is_in_the_list_until_saved_or_discarded(browser, household):
     page.wait_for_url(f"**{RULES}/{added['id']}")
     until(page, "!document.querySelector('.rule-row .pill.new')")
     page.click(f"{PANE} .toolbar button:has-text('Delete')")
-    page.click('button:has-text("Yes, delete")')
+    page.click('button:text-is("Yes")')
     page.wait_for_url(f"**{RULES}")
     assert rule(h, added["id"]) is None
     assert problems == []

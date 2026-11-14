@@ -5,23 +5,24 @@ import { html } from '../app/html.js';
 import { dev } from '../app/config.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, date, day, moment } from '../app/format.js';
+import { ago, date, day, moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { Dialog, openDialog } from '../components/dialog.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import {
   errAt,
   Field,
   FormError,
   Input,
   Select,
+  SpinInput,
   Switch,
   SwitchRow,
   TypedInput,
-} from '../components/fields.js';
-import { toast } from '../components/toast.js';
+} from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
 import { awaitRestart, loadSession } from '../store/session.js';
 import { disconnect } from '../app/stream.js';
 import { LinksSection } from '../components/links.js';
@@ -32,8 +33,8 @@ import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-f
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
-import { confirmAction } from '../components/confirm.js';
-import { Attention, RowTool } from '../components/state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Attention, RowTool } from '../kit/state.js';
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
@@ -192,10 +193,8 @@ function Plain({ section }) {
         <div class="row">
           <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}
             hint="Signed out after this long without using MoolaKata.">
-            <${TypedInput} kind="count" value=${f.sessionIdleHours} onInput=${set(
-              'sessionIdleHours',
-              true,
-            )} />
+            <${SpinInput} min=${1} max=${168} step=${4} value=${f.sessionIdleHours}
+              onInput=${set('sessionIdleHours', true)} />
             </${Field}>
             <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}
               hint="Signed out after this long, used or not.">
@@ -210,7 +209,7 @@ function Plain({ section }) {
                   e,
                   'lockoutFailures',
                 )}>
-                  <${TypedInput} kind="count"
+                  <${SpinInput} min=${3} max=${100}
                     value=${f.lockoutFailures} onInput=${set(
                       'lockoutFailures',
                       true,
@@ -306,7 +305,7 @@ function Plain({ section }) {
           <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
             HEIC <span class="small dim">· checked from the content</span></div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
-            <${TypedInput} kind="count" value=${f.receiptMaxMb} onInput=${set(
+            <${SpinInput} min=${1} max=${100} value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
               true,
             )} />
@@ -364,7 +363,7 @@ function Plain({ section }) {
         <h3>Passwords</h3>
         <${Field} label="Minimum length" error=${errAt(e, 'passwordMinLength')}
           hint="At least 8. The only rule: no character classes, no expiry; the most common passwords are refused.">
-          <${TypedInput} kind="count"
+          <${SpinInput} min=${8} max=${128}
             value=${f.passwordMinLength} onInput=${set(
               'passwordMinLength',
               true,
@@ -386,7 +385,7 @@ function Plain({ section }) {
       <div
         class="list-item"><span class="grow dim">File types</span>OFX, QFX, CSV; statements as PDF, JPEG, PNG, WebP, HEIC <span class="small dim">· checked from the content</span></div>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
-        <${TypedInput} kind="count" value=${f.importMaxMb}
+        <${SpinInput} min=${1} max=${200} step=${5} value=${f.importMaxMb}
           onInput=${set('importMaxMb', true)} />
         </${Field}>
         <${SwitchRow} label="Read statements" on=${f.readStatements}
@@ -417,7 +416,7 @@ function Prices() {
     }
   };
   const remove = async (/** @type {any} */ src) => {
-    const sure = await confirmAction({ title: `Remove ${src.label}?`, yes: 'Yes, remove' });
+    const sure = await confirmAction({ title: `Remove ${src.label}?` });
     if (!sure) return;
     try {
       await saveNow((d) => d.remove(d.load(SrcRec, src)));
@@ -594,7 +593,7 @@ function RemoveCopy({ close, c }) {
       <p class="small" style=${{ marginTop: 0 }}>It can't be put back. The server's recovery phrase
         says it is you, as well as your password.</p>
       <${Field} label="Recovery phrase" error=${errAt(remove.error, 'phrase')}>
-        <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+        <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
         <${FormError} error=${remove.error} shown=${['phrase']} />
@@ -618,7 +617,7 @@ function VerifyKey({ close }) {
         check.</p>
       <${Field} label="Recovery phrase" error=${errAt(check.error, 'phrase')}
         hint="Four letters of each word are enough.">
-        <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+        <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
         <${FormError} error=${check.error} shown=${['phrase']} />
@@ -639,7 +638,7 @@ function SetKey({ close, src }) {
         ? html`
           <${Field} label="API key" error=${rec.error('apiKey')}
             hint="Stored encrypted and never shown again; Settings shows only that it is set, when and by whom.">
-            <${Input} type="password" value=${rec.get('apiKey') || ''} autocomplete="off"
+            <${Input} type="secret" value=${rec.get('apiKey') || ''} autocomplete="off"
               onInput=${(/** @type {string} */ x) => {
                 // A key turns the source on with it.
                 if (x) {
@@ -1154,7 +1153,7 @@ function CopiesKept({ close, v }) {
       footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
       <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
         hint="Every backup of each of these most recent days is kept: 3 to 365.">
-        <${TypedInput} kind="count" value=${n} onInput=${setN} required />
+        <${SpinInput} min=${3} max=${365} value=${n} onInput=${setN} required />
         </${Field}>
       ${fewer
         ? html`
@@ -1162,7 +1161,7 @@ function CopiesKept({ close, v }) {
             deletes some, which can't be undone. The server's recovery phrase says it is you, as
             well as your password.</p>
           <${Field} label="Recovery phrase" error=${errAt(save.error, 'phrase')}>
-            <${Input} type="password" value=${words} onInput=${setWords} autocomplete="off"
+            <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
               autocorrect="off" autocapitalize="off" spellcheck=${false} required />
             </${Field}>
         `
@@ -1399,7 +1398,7 @@ function RotateKey({ close, copies }) {
           : html`
             <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}
               hint="Four letters of each word are enough.">
-              <${Input} type="password" value=${current} onInput=${setCurrent} autocomplete="off"
+              <${Input} type="secret" value=${current} onInput=${setCurrent} autocomplete="off"
                 autocorrect="off" autocapitalize="off" spellcheck=${false} required />
               </${Field}>
           `}
@@ -1530,7 +1529,6 @@ function Keys() {
     const sure = await confirmAction({
       title: `Forget ${fp}?`,
       detail: 'A copy that needs it can no longer be opened here.',
-      yes: 'Yes, forget it',
     });
     if (!sure) return;
     await withReauth(() => api.del(`/settings/keys/previous/${encodeURIComponent(fp)}`));

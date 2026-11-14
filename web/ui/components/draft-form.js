@@ -9,24 +9,24 @@ import { html } from '../app/html.js';
 import { useSubmit } from '../app/hooks.js';
 import { api } from '../api/client.js';
 import { Draft, READ_ONLY } from '../app/draft.js';
-import { Dialog, openDialog } from './dialog.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { guardForm } from '../app/guard.js';
 import {
   Field,
   FormError,
   Input,
-  OnRow,
-  Reads,
   ReadValue,
   Select,
+  SpinInput,
   Switch,
   TypedInput,
   useReading,
-} from './fields.js';
-import { Action } from './state.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+} from '../kit/fields.js';
+import { OnRow, Reads } from './reads.js';
+import { Action } from '../kit/state.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 
 /**
  * A form's draft: `load(draft)` reads its records into a new draft, on the first draw, when
@@ -414,7 +414,10 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  * `id` names the control where its label alone wouldn't (`f-` and the id, S12.7.3).
  * `reset` gives a field with a default its ↺, which puts the default back; `min`, `max`
  * (with `noun` for a count), `clear` and `fill` give its other controls (R3.11); `above`, `atMost`
- * and `negative` bound it without one.
+ * and `negative` bound it without one. A number is typed as its kind is (S12.18.8: dollars from
+ * the cents, the rest as written; `entry` says otherwise), its unit in the field (S12.18.9: an
+ * amount's `$`, a percent's `%`, `unit` for a quantity's own). `spin` steps a small whole number
+ * between `min` and `max` with chevrons and ↑ ↓.
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
@@ -423,8 +426,9 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  *   min?: number | string, max?: number | string, above?: number | string,
  *   atMost?: number | string,
  *   negative?: boolean, noun?: string,
- *   format?: (n: any) => string, clear?: boolean, fill?: import('./fields.js').Fill[],
- *   mark?: string | null, readonly?: boolean }} p
+ *   format?: (n: any) => string, clear?: boolean, fill?: import('../kit/fields.js').Fill[],
+ *   mark?: string | null, readonly?: boolean, unit?: string, prefix?: string | null,
+ *   entry?: 'natural' | 'register' | 'none', spin?: boolean }} p
  */
 export function RecField(p) {
   const { rec, name } = p;
@@ -489,24 +493,37 @@ export function RecField(p) {
     `;
   } else {
     const kind = p.kind || (p.type === 'date' ? 'date' : KIND[spec.type] || 'text');
-    // A percent is shown with its "%", and the record reads the number (S12.18.5).
+    // A percent shows its "%" as its unit, and the record reads the number (S12.18.5, S12.18.9);
+    // a quantity's unit is the field's own (`unit`: shares, days).
     const pct = kind === 'percent';
     const typed = rec.typed(name);
-    const shown = typed ?? (pct && rec.get(name) != null ? rec.shown(name) + '%' : rec.shown(name));
-    control = html`
-      <${TypedInput} kind=${kind} value=${shown} bad=${!!error} reset=${p.reset}
-        min=${p.min} max=${p.max} above=${p.above} atMost=${p.atMost} negative=${p.negative}
-        noun=${p.noun}
-        format=${p.format}
-        clear=${p.clear} fill=${p.fill} mark=${p.mark} type=${p.type === 'date'
-          ? undefined
-          : p.type} placeholder=${p.placeholder}
-        disabled=${p.disabled} style=${p.style} readonly=${reading}
-        ...${named} onInput=${(/** @type {string} */ v) => {
-          rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
-          edited();
-        }} />
-    `;
+    const shown = typed ?? rec.shown(name);
+    // A small whole number, stepped between its bounds (`spin`).
+    if (p.spin) {
+      control = html`
+        <${SpinInput} value=${shown} min=${p.min} max=${p.max} bad=${!!error}
+          placeholder=${p.placeholder} disabled=${p.disabled} readonly=${reading} ...${named}
+          onInput=${(/** @type {string} */ v) => {
+            rec.input(name, v);
+            edited();
+          }} />
+      `;
+    } else {
+      control = html`
+        <${TypedInput} kind=${kind} value=${shown} bad=${!!error} reset=${p.reset}
+          min=${p.min} max=${p.max} above=${p.above} atMost=${p.atMost} negative=${p.negative}
+          noun=${p.noun}
+          format=${p.format} suffix=${pct ? '%' : p.unit} prefix=${p.prefix} entry=${p.entry}
+          clear=${p.clear} fill=${p.fill} mark=${p.mark} type=${p.type === 'date'
+            ? undefined
+            : p.type} placeholder=${p.placeholder}
+          disabled=${p.disabled} style=${p.style} readonly=${reading}
+          ...${named} onInput=${(/** @type {string} */ v) => {
+            rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
+            edited();
+          }} />
+      `;
+    }
   }
   if (p.bare) return control;
   return html`

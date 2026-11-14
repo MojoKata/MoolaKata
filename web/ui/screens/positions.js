@@ -3,16 +3,16 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { bitcoin, date, quantity, thisYear } from '../app/format.js';
+import { bitcoin, date, quantity, thisYear } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Chips, Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { openDialog } from '../components/dialog.js';
-import { Icon } from '../components/icon.js';
+import { Amt } from '../kit/amount.js';
+import { Chips, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
+import { Icon } from '../kit/icon.js';
 import { Mark, OptionTrade, Settle } from '../components/optiontrade.js';
 import { CorporateAction } from '../components/corporate.js';
-import { Dec, dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../kit/dec.js';
 import { GroupButton, Strategies } from '../components/strategies.js';
 
 const TABS = /** @type {[string, string][]} */ ([

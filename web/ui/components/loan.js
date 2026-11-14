@@ -8,17 +8,17 @@ import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { openDialog } from './dialog.js';
+import { date, money, today } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { errAt, Field, FormError, Select, TypedInput } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { CategoryField } from './categories.js';
-import { dec, num } from '../app/dec.js';
-import { Action } from './state.js';
+import { dec, num } from '../kit/dec.js';
+import { Action } from '../kit/state.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -100,7 +100,8 @@ export function TermsFields({ rec, type }) {
       <${RecField} rec=${rec} name="startDate" label="Start date" type="date" />
     </div>
     <div class="row">
-      <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months" />
+      <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months"
+        spin=${true} min=${1} max=${600} />
       <${RecField} rec=${rec} name="rate" label="Interest rate" kind="percent" atMost=${40}
         negative=${false} format=${(/** @type {any} */ n) => n + '%'} placeholder="ex: 5.875%" />
     </div>
@@ -127,6 +128,7 @@ export function TermsFields({ rec, type }) {
     ${type === 'heloc'
       ? html`
         <${RecField} rec=${rec} name="drawMonths" label="Draw period (months)" id="draw-months"
+          spin=${true} min=${0} max=${Math.max(0, Number(rec.get('termMonths') || 600) - 1)}
           hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
       `
       : null}

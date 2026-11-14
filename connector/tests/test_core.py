@@ -395,11 +395,19 @@ def test_a_waiting_sign_in_is_reported_every_15_seconds_for_10_minutes(tmp_path)
     assert core.next_wait() == 300
 
 
-def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatch, capsys):
-    # The words go to the terminal, never standard output, so no log keeps them (S18.3.1).
+@pytest.mark.parametrize("first", [None, "unlock"])
+def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatch, capsys, first):
+    # The words go to the terminal, never standard output, so no log keeps them (S18.3.1). Run
+    # too with a key whose first word is one the line naming the vault says itself ("unlock").
     import re
 
-    from moolakata_connector import main
+    from moolakata_connector import main, words
+
+    if first:
+        at = words.wordlist().index(first)
+        key = ((at << 117) | 0x1234_5678_9ABC_DEF0_1234_5678_9ABC).to_bytes(16, "big")
+        assert words.to_words(key)[0] == first
+        monkeypatch.setattr(main.secrets, "token_bytes", lambda n: key)
 
     shown = []
 
@@ -432,7 +440,13 @@ def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatc
     out = capsys.readouterr().out
     phrase = list(typed_back().values())
     assert len(phrase) == 12 and "Made " in out
-    assert not any(w in out.split() for w in phrase), "stdout names the vault, never a word"
+    # The fixed line's own words may be phrase words too ("unlock" is one of the 2,048): none
+    # but those, and none of the phrase's anywhere else.
+    rest = re.sub(
+        r"Made [0-9a-f ]+\. Start the connector, then unlock it with the words\.", "", out
+    )
+    assert rest != out, "the line naming the vault"
+    assert not any(w in rest.split() for w in phrase), "stdout names the vault, never a word"
 
 
 ON_A_TERMINAL = """

@@ -1,7 +1,7 @@
 // Who is signed in, and the household, from GET /ui/api/session.
 import { signal } from '@preact/signals';
 import { api } from '../api/client.js';
-import { setBitcoinUnit, setZone } from '../app/format.js';
+import { setBitcoinUnit, setTimezone } from '../kit/format.js';
 import { Draft, Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 
@@ -31,7 +31,7 @@ export async function loadSession() {
   try {
     const info = await api.get('/session');
     session.value = info;
-    setZone(info.user.zone);
+    setTimezone(info.user.zone);
     setBitcoinUnit(info.user.bitcoinUnit);
     ended.value = '';
     return info;
@@ -59,7 +59,7 @@ async function needsAdmin() {
 export function setSession(info) {
   session.value = info;
   if (info) {
-    setZone(info.user.zone);
+    setTimezone(info.user.zone);
     setBitcoinUnit(info.user.bitcoinUnit);
   }
 }

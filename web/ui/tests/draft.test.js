@@ -13,8 +13,8 @@ import {
   whyNotAdd,
   whyRead,
 } from '../app/draft.js';
-import { Dec } from '../app/dec.js';
-import { equal, truthy } from './assert.js';
+import { Dec } from '../kit/dec.js';
+import { equal, truthy } from '../kit/tests/assert.js';
 
 const NOW = Date.UTC(2026, 9, 28, 14, 5);
 

@@ -126,7 +126,7 @@ preparer.
       far and the sizes what has arrived of what the source said it would send.
    2. **Pause** stops pulling, and answering the peer's pulls, for a **duration** the admin
       types (S12.13), after which the link resumes on its own. The field starts empty, and
-      its ↺ fills in the default, `1d` (R3.11); a blank is refused. *Resume now*
+      its **default** fills in `1d` (R3.11); a blank is refused. *Resume now*
       ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
    3. **The linked copy**: the changes waiting to be applied, when its access key was made
       and by whom, and whether it is unlocked (by whom, and when it will lock), with *Create

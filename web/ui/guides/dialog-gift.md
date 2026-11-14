@@ -8,7 +8,7 @@ A gift for one or more people and an occasion, from idea to given; or one you re
 
 ## For {#people}
 
-Who it's for: one or more people. For a received gift, who it was from.
+Who it's for: one or more of your people. For a received gift, who it was from. Type a name to list them and press Enter to add one; people are added on their own gift plans.
 
 ## Occasion
 

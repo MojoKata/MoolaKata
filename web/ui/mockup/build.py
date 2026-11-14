@@ -52,7 +52,7 @@ API_PER_MINUTE = 500
 # job is waiting for a page to settle, so more of them than there are CPUs still gain.
 WORKERS = int(os.environ.get("MK_CRAWL_WORKERS", 0)) or max(4, os.process_cpu_count() or 1)
 # The app's source, as the browser loads it; mockup/ adds the router and the MOCK pill's menu.
-SOURCE_DIRS = ("app", "api", "store", "components", "screens", "charts", "account-types")
+SOURCE_DIRS = ("kit", "app", "api", "store", "components", "screens", "charts", "account-types")
 SETTINGS = (
     "general",
     "email",
@@ -584,7 +584,13 @@ def modules(bare: dict[str, Path]) -> dict[str, str]:
     """Every module the app can load, under a name of its own, with its relative imports
     rewritten to those names: a module loaded from a data: address has nothing to be
     relative to."""
-    todo = [p for d in SOURCE_DIRS for p in sorted((UI / d).rglob("*.js"))]
+    todo = [
+        p
+        for d in SOURCE_DIRS
+        for p in sorted((UI / d).rglob("*.js"))
+        # The ui-kit's tests and pages aren't part of the app.
+        if not p.relative_to(UI).as_posix().startswith(("kit/tests/", "kit/pages/"))
+    ]
     todo += [UI / "mockup" / "iso.js", UI / "mockup" / "menu.js", *bare.values()]
     out: dict[str, str] = {}
     while todo:
@@ -665,9 +671,13 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     )
 
     css = "\n".join(
-        (UI / "styles" / f"{n}.css").read_text() for n in ("tokens", "base", "components")
+        p.read_text()
+        for p in (
+            *(UI / "kit" / "theme" / f"{n}.css" for n in ("tokens", "base", "kit")),
+            UI / "styles" / "components.css",
+        )
     )
-    sprite = (UI / "assets" / "icons.svg").read_text()
+    sprite = (UI / "kit" / "theme" / "icons.svg").read_text()
     sprite = re.sub(r"<\?xml.*?\?>\s*", "", sprite)
     sprite = sprite.replace(
         "<svg ",

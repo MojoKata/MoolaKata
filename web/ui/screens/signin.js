@@ -8,7 +8,7 @@ import { api } from '../api/client.js';
 import { useSubmit } from '../app/hooks.js';
 import { ended, lostChanges, setSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { errAt, Field, FormError, Input, Select } from '../components/fields.js';
+import { errAt, Field, FormError, Input, Select } from '../kit/fields.js';
 
 export default function SignIn() {
   const { path, route } = useLocation();

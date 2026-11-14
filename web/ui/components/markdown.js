@@ -2,7 +2,7 @@
 // (shown as notes), images, links, bold and italic. Everything is built as elements from text,
 // so raw HTML in a guide is shown as text, never parsed.
 import { h } from 'preact';
-import { slug } from '../app/format.js';
+import { slug } from '../kit/format.js';
 import { Term } from './term.js';
 
 /** @typedef {Map<string, import('./term.js').Entry>} Glossary */

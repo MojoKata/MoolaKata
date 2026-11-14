@@ -46,7 +46,11 @@ def test_repository_url_is_the_one_a_provenance_certificate_names(repository):
 
 def test_every_pin_has_its_source_recorded():
     for name, pkg in vendor.load()["packages"].items():
-        assert pkg["repository"].startswith("https://github.com/"), name
+        # Any forge for a package without provenance (ProseMirror's own); a provenance
+        # certificate names the GitHub repository it was built from.
+        assert pkg["repository"].startswith("https://"), name
+        if pkg["provenance"]:
+            assert pkg["repository"].startswith("https://github.com/"), name
         assert isinstance(pkg["provenance"], bool), name
         assert not vendor.verify({"packages": {name: pkg}}), name
 

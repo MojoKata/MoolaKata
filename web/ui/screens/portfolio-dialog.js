@@ -6,7 +6,7 @@ import { useDialogGuide } from '../components/help.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { toast } from '../components/toast.js';
+import { toast } from '../kit/toast.js';
 
 export const BENCHMARKS = /** @type {[string, string][]} */ ([
   ['VT', 'VT (world stocks)'],

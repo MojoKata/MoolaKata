@@ -1,0 +1,162 @@
+/* The ui-kit's pages (requirements S17.3.10.4): the list of them beside the one shown, and each
+   control's states as cards. Drawn from the theme's tokens, as the controls are. */
+@layer components {
+  body {
+    background: var(--bg);
+  }
+  .kit {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+  .kit-nav {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 16px 12px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .kit-brand {
+    font-weight: 700;
+    padding: 4px 10px 12px;
+  }
+  .kit-link {
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: var(--fg-dim);
+    text-decoration: none;
+  }
+  .kit-link:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+  }
+  .kit-link.on {
+    background: var(--accent-dim);
+    color: var(--fg);
+  }
+  .kit-theme {
+    margin-top: auto;
+    align-self: flex-start;
+  }
+  .kit-main {
+    padding: 24px 32px 64px;
+    max-width: 1180px;
+  }
+  .kit-page h1 {
+    margin: 0 0 6px;
+    font-size: 22px;
+  }
+  .kit-page h2 {
+    margin: 28px 0 8px;
+    font-size: 16px;
+  }
+  .kit-page .about {
+    color: var(--fg-dim);
+    max-width: 72ch;
+    margin: 0 0 18px;
+  }
+  .demos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  /* A note's editor wants its toolbar on one line: two columns where there are three. */
+  @media (min-width: 1100px) {
+    .demo:has(.note) {
+      grid-column: span 2;
+    }
+  }
+  .demo {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .demo > h3 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--fg-dim);
+    font-weight: 600;
+  }
+  .demo .small {
+    margin: 0 0 8px;
+  }
+  .demo .report {
+    margin-top: 8px;
+    color: var(--fg-muted);
+    overflow-wrap: anywhere;
+  }
+  .kit-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .kit-table th,
+  .kit-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 6px 10px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .kit-table th {
+    color: var(--fg-muted);
+    font-weight: 600;
+    font-size: 12px;
+  }
+  kbd {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 1px 5px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--bg-3);
+    white-space: nowrap;
+  }
+  .tokens {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px 14px;
+  }
+  .token {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .token .small {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .swatch {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+  }
+  .swatch.none {
+    border-style: dashed;
+  }
+  .glyphs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+  .glyph {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--fg-dim);
+  }
+  .glyph code {
+    font-size: 12px;
+  }
+}

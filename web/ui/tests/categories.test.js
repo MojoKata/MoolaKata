@@ -10,7 +10,7 @@ import {
   useSteps,
   usesWords,
 } from '../app/categories.js';
-import { equal } from './assert.js';
+import { equal } from '../kit/tests/assert.js';
 
 /** @param {string} id @param {string} name @param {string} [kind] @param {string | null} [parentId] @param {string} [path] */
 const c = (id, name, kind = 'expense', parentId = null, path = name) => ({

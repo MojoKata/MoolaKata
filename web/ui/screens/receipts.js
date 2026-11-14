@@ -5,9 +5,9 @@ import { html } from '../app/html.js';
 import { useList } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Chips, Empty, Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { openDialog } from '../components/dialog.js';
+import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
 import { ACCEPT, ReceiptCard, ReceiptDialog, uploadAll } from '../components/receipt.js';
 
 export default function Receipts() {

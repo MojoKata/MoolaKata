@@ -5,11 +5,11 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList } from '../app/hooks.js';
 import { changes } from '../app/stream.js';
-import { moment } from '../app/format.js';
+import { moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Avatar, Empty, Failed, Loading } from '../components/bits.js';
-import { offsetOf, Pager } from '../components/pager.js';
+import { Avatar, Empty, Failed, Loading } from '../kit/bits.js';
+import { offsetOf, Pager } from '../kit/pager.js';
 import { pageSize } from '../store/prefs.js';
 
 export default function Activity() {
@@ -22,7 +22,7 @@ export default function Activity() {
   const res = useApi('/activity', {
     account: account || undefined,
     limit: pageSize.value,
-    offset: offsetOf(page, newer),
+    offset: offsetOf(page, pageSize.value, newer),
   });
   const d = /** @type {any} */ (res.data);
   const first = d?.items?.[0]?.id;
@@ -80,7 +80,8 @@ export default function Activity() {
       : html`<${Empty}>Nothing yet</${Empty}>`}
     ${d
       ? html`
-        <${Pager} label="activity" shown=${d.items.length} page=${page} total=${d.total}
+        <${Pager} label="activity" size=${pageSize} shown=${d.items.length} page=${page} total=${d
+          .total}
           newer=${newer}
           onNewer=${() => {
             setNewer(0);

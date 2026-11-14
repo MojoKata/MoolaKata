@@ -8,7 +8,7 @@ import { html } from '../app/html.js';
 import { guides } from '../app/config.js';
 import { helpOpen, helpWidth } from '../store/prefs.js';
 import { assemble, glossary, render } from './markdown.js';
-import { Icon } from './icon.js';
+import { Icon } from '../kit/icon.js';
 
 /** The guide of the screen in view: its key, and values its parts need (the account type). */
 export const screenGuide = signal(

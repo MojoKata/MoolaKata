@@ -5,21 +5,30 @@ import { useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, thisYear } from '../app/format.js';
+import { date, money, thisYear } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Chips, Empty, Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { errAt, Field, FormError, Input, Seg, Select, TypedInput } from '../components/fields.js';
-import { toast } from '../components/toast.js';
+import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import {
+  errAt,
+  Field,
+  FormError,
+  Input,
+  Seg,
+  Select,
+  SpinInput,
+  TypedInput,
+} from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
-import { num } from '../app/dec.js';
+import { num } from '../kit/dec.js';
 import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Action } from '../components/state.js';
+import { Action } from '../kit/state.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -392,7 +401,7 @@ function Inputs({ x, reload }) {
                   id=${i ? 'partner-retirement-age' : 'retirement-age'}
                   hint=${`${p.name || 'Born'} ${p.birthYear}`}
                   error=${errAt(e, `inputs.people.${i}.retireAge`)}>
-                  <${TypedInput} kind="count" value=${p.retireAge} onInput=${(
+                  <${SpinInput} min=${30} max=${90} value=${p.retireAge} onInput=${(
                     /** @type {string} */ v,
                   ) => {
                     const next = structuredClone(f);
@@ -519,13 +528,13 @@ function EducationInputs({ f, set, setF, e }) {
       </${Field}>
       <div class="row">
         <${Field} label="Age school starts" id="start-age" error=${errAt(e, 'inputs.startAge')}>
-          <${TypedInput} kind="count" value=${f.startAge ?? 18} onInput=${set('startAge')} />
+          <${SpinInput} min=${3} max=${40} value=${f.startAge ?? 18} onInput=${set('startAge')} />
           </${Field}>
           <${Field} label="Years of school" id="school-years" error=${errAt(
             e,
             'inputs.schoolYears',
           )}>
-            <${TypedInput} kind="count" value=${f.schoolYears ?? 4} onInput=${set(
+            <${SpinInput} min=${1} max=${12} value=${f.schoolYears ?? 4} onInput=${set(
               'schoolYears',
             )} />
             </${Field}>

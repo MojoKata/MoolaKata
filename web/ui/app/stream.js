@@ -3,8 +3,8 @@
 import { signal } from '@preact/signals';
 import { version } from './config.js';
 import { api } from '../api/client.js';
-import { toast } from '../components/toast.js';
-import { parseJson } from './dec.js';
+import { toast } from '../kit/toast.js';
+import { parseJson } from '../kit/dec.js';
 
 /** A counter per kind of change; screens subscribe by reading it. */
 export const changes = signal(/** @type {Record<string, number>} */ ({}));

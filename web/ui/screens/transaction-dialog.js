@@ -8,27 +8,20 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { FIELDS } from '../api/fields.js';
 import { canAdd, READ_ONLY, Record, whyRead } from '../app/draft.js';
-import { Dec } from '../app/dec.js';
+import { Dec } from '../kit/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { NewRuleDialog } from '../components/rules.js';
-import {
-  Field,
-  Reads,
-  Seg,
-  Switch,
-  SwitchRow,
-  TypedInput,
-  useReadWhy,
-} from '../components/fields.js';
-import { Icon } from '../components/icon.js';
-import { date as fmtDate, money, today } from '../app/format.js';
+import { Field, Seg, Switch, SwitchRow, TypedInput } from '../kit/fields.js';
+import { Reads, useReadWhy } from '../components/reads.js';
+import { Icon } from '../kit/icon.js';
+import { date as fmtDate, money, today } from '../kit/format.js';
 import { CategoryField, useCategories } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
-import { confirmAction } from '../components/confirm.js';
-import { openDialog } from '../components/dialog.js';
-import { Action } from '../components/state.js';
+import { confirmAction } from '../kit/confirm.js';
+import { openDialog } from '../kit/dialog.js';
+import { Action } from '../kit/state.js';
 
 const BANK_KINDS = /** @type {[string, string][]} */ ([
   ['withdrawal', 'Money out'],
@@ -490,9 +483,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`<${Deductible} rec=${t} label="Deductible" id="deductible" />`
               : null}
             <${RecField} rec=${t} name="memo" label="Memo" />
-            ${draft
-              ? html`<${TagsField} rec=${t} draft=${draft} hint="Yours only, separated by commas." />`
-              : null}
+            ${draft ? html`<${TagsField} rec=${t} draft=${draft} hint="Yours only." />` : null}
             ${!type.investing && !parts.length
               ? html`
                 <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."

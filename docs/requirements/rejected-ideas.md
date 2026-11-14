@@ -96,3 +96,18 @@ reason.
     it reads: every route had to remember, and one that read a related record without asking
     (a receipt's other links, CR3-47) leaked it. Every read and write goes through the
     tables' access views instead ([`schema.md`](schema.md) §7).
+26. **A component library taken whole** for the controls: Web Awesome (Lit web components), Tom
+    Select, or preact-components as its package. Web Awesome is 17 MB unpacked with thirteen
+    dependencies and no provenance, styles through a shadow DOM beside the theme's tokens, and
+    has no free-entry tag box. Tom Select takes over the DOM of the `<select>` it is given, out
+    of Preact's hands, and covers one control. preact-components' package is TSX on JSR with no
+    provenance, renders Tailwind classes that need a CSS build beside the app's own, and its
+    major version moves every few days. The ui-kit (S17.3.10) holds the controls instead, with
+    what it adapts from such a project copied in with its licence (S17.3.10.5), so each control
+    fits the drafts, the read persona and the refusals, and nothing new runs in the browser that
+    the repository doesn't hold.
+27. **The browser's own date and time inputs** (`type="date"`, `type="time"`): typing steps
+    through month, day and year segments one at a time, the calendar's look can't follow the
+    theme, and each browser lays the segments out its own way. `DateInput` and `TimeInput`
+    take a date or a time typed as people write them, with the kit's calendar (S12.18.10,
+    S12.18.11).

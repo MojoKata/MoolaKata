@@ -7,7 +7,7 @@
 // Record with what only the browser needs (defaults, declared rules, values for display).
 
 import { signal } from '@preact/signals-core';
-import { Dec } from './dec.js';
+import { Dec } from '../kit/dec.js';
 import { api } from '../api/client.js';
 import { CREATES } from '../api/fields.js';
 

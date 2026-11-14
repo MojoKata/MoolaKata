@@ -239,9 +239,10 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     assert "Paid:" not in page.locator(".dialog").inner_text()
     page.fill("#f-premium", "1.25")
     wait(page, '.dialog :text("Paid: $250.65.")', problems)
-    # Fees cleared are refused, never read as none; ↺ puts the $0.65 back (R3.11, CR3-437).
+    # Fees cleared are refused, never read as none; default puts the $0.65 back (R3.11,
+    # CR3-437), greyed while the field holds it.
     reset = page.get_by_role("button", name="Use the default: $0.65")
-    assert reset.count() == 0
+    assert reset.is_disabled()
     page.fill("#f-fees", "")
     page.click(".dialog footer button.primary")
     wait(page, '.dialog :text("Zero or more.")', problems)
@@ -549,7 +550,7 @@ def test_a_strategy_ungrouped_leaves_its_legs(browser, household):
     page.get_by_role("button", name="No", exact=True).click()
     assert page.locator(".dialog").count() == 1 and len(strategies_of(h, acct)) == 1
     page.get_by_role("button", name="Ungroup").click()
-    page.get_by_role("button", name="Yes, ungroup").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Yes", exact=True).click()
     wait(page, ".dialog", problems, state="detached")
     toast(page, "Ungrouped: the legs stand on their own", problems)  # CR3-407
     wait(page, 'main tbody tr:has-text("Ungrouped desk")', problems, state="detached")

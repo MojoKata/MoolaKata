@@ -20,7 +20,19 @@
     "@preact/signals": "./vendor/signals/dist/signals.d.ts",
     "preact-iso": "./vendor/preact-iso/src/index.d.ts",
     "@mk/preact-iso": "./vendor/preact-iso/src/index.d.ts",
-    "echarts": "./charts/echarts.d.ts"
+    "echarts": "./charts/echarts.d.ts",
+    "prosemirror-model": "./vendor/prosemirror-model/dist/index.d.ts",
+    "prosemirror-state": "./vendor/prosemirror-state/dist/index.d.ts",
+    "prosemirror-view": "./vendor/prosemirror-view/dist/index.d.ts",
+    "prosemirror-transform": "./vendor/prosemirror-transform/dist/index.d.ts",
+    "prosemirror-commands": "./vendor/prosemirror-commands/dist/index.d.ts",
+    "prosemirror-keymap": "./vendor/prosemirror-keymap/dist/index.d.ts",
+    "prosemirror-history": "./vendor/prosemirror-history/dist/index.d.ts",
+    "prosemirror-inputrules": "./vendor/prosemirror-inputrules/dist/index.d.ts",
+    "prosemirror-schema-list": "./vendor/prosemirror-schema-list/dist/index.d.ts",
+    "orderedmap": "./vendor/orderedmap/dist/index.d.ts",
+    "rope-sequence": "./vendor/rope-sequence/dist/index.d.ts",
+    "w3c-keyname": "./vendor/w3c-keyname/index.d.ts"
   },
   "fmt": {
     "lineWidth": 100,
@@ -34,6 +46,7 @@
       "components/",
       "charts/",
       "account-types/",
+      "kit/",
       "mockup/",
       "tests/"
     ],
@@ -51,6 +64,7 @@
       "components/",
       "charts/",
       "account-types/",
+      "kit/",
       "mockup/",
       "tests/"
     ],

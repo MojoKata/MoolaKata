@@ -4,19 +4,19 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { ago, day } from '../app/format.js';
+import { ago, day } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Avatar, Chips, Failed, Loading } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { Dialog, openDialog } from '../components/dialog.js';
-import { Field, FormError, Input, Switch } from '../components/fields.js';
-import { toast } from '../components/toast.js';
+import { Avatar, Chips, Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import { Field, FormError, Input, Switch } from '../kit/fields.js';
+import { toast } from '../kit/toast.js';
 import { withReauth } from '../components/reauth.js';
 import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from '../components/draft-form.js';
-import { RowTool } from '../components/state.js';
+import { RowTool } from '../kit/state.js';
 
 export default function Users() {
   useTitle('Users and Groups');

@@ -4,21 +4,36 @@ import { options, render } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { lazy, LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { html } from './html.js';
-import { Dec } from './dec.js';
+import { Dec } from '../kit/dec.js';
 import { api, readLinked, whenClosedYear, whenSignedOut } from '../api/client.js';
 import { applyTheme, helpOpen, theme } from '../store/prefs.js';
 import { ended, loadSession, lostChanges, session } from '../store/session.js';
 import { connect, disconnect } from './stream.js';
 import { PUBLIC_PATHS, PublicScreens, Screens, SetupScreen } from './router.js';
 import { Frame } from '../components/frame.js';
-import { confirmAction, ConfirmHost } from '../components/confirm.js';
-import { dialogHasChanges, DialogHost } from '../components/dialog.js';
-import { MenuHost } from '../components/menu.js';
-import { Toasts } from '../components/toast.js';
-import { installTooltips, TooltipHost } from '../components/tooltip.js';
-import { checkOnSubmit } from '../components/fields.js';
-import { installGuard } from './guard.js';
+import { confirmAction, ConfirmHost } from '../kit/confirm.js';
+import { dialogHasChanges, DialogHost, placeDialogs } from '../kit/dialog.js';
+import { MenuHost } from '../kit/menu.js';
+import { Toasts } from '../kit/toast.js';
+import { installTooltips, TooltipHost } from '../kit/tooltip.js';
+import { checkOnSubmit, linkRecords } from '../kit/fields.js';
+import { Formats } from '../kit/formats.js';
+import { homeEndInText } from '../kit/keys.js';
+import { formChanges, installGuard } from './guard.js';
 import { endTour } from '../store/tour.js';
+import { paneWidth } from '../components/help.js';
+import { pageOf } from './pages.js';
+
+// What the ui-kit is told of the app (S17.3.10.1): a record's page, for a list's read link; and
+// where dialogs sit: beside the guide, which stays in reach, over the rest of the frame, and
+// what else may hold changes not saved (a screen's form).
+linkRecords(pageOf);
+placeDialogs({
+  beside: () => document.querySelector('.app > .help'),
+  width: () => paneWidth.value,
+  masked: () => /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.app > :not(.help)')]),
+  changes: formChanges,
+});
 
 // An exact number placed straight in a page shows its digits as they are (S12.12): Preact
 // renders text and elements, so a Dec child becomes its text.
@@ -91,15 +106,23 @@ function App() {
 }
 
 function Root() {
+  // The kit's controls draw by the person's time zone and bitcoin unit (S17.3.10.2).
+  const user = session.value?.user;
+  const formats = {
+    timezone: user?.zone || undefined,
+    bitcoinUnit: user?.bitcoinUnit || undefined,
+  };
   return html`
-    <${LocationProvider}>
-      <${App} />
-      <${DialogHost} />
-      <${ConfirmHost} />
-      <${MenuHost} />
-      <${TooltipHost} />
-      <${Toasts} />
-      </${LocationProvider}>
+    <${Formats.Provider} value=${formats}>
+      <${LocationProvider}>
+        <${App} />
+        <${DialogHost} />
+        <${ConfirmHost} />
+        <${MenuHost} />
+        <${TooltipHost} />
+        <${Toasts} />
+        </${LocationProvider}>
+        </${Formats.Provider}>
   `;
 }
 
@@ -116,6 +139,8 @@ document.addEventListener('keydown', (e) => {
 installTooltips();
 // Before any form's own submit, so a typed input marked stops it (S12.18.3).
 checkOnSubmit();
+// Home and End to the line's ends in anything typed into, a Mac too (S12.18.13).
+homeEndInText();
 // Before the router, so a screen's form hears Back first (S12.15.6).
 installGuard();
 whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' : 'expired'));
@@ -124,7 +149,6 @@ whenClosedYear((problem) =>
   confirmAction({
     title: 'Change a filed year?',
     detail: problem?.detail || '',
-    yes: problem?.confirm || 'Change it anyway',
   })
 );
 

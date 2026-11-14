@@ -21,6 +21,7 @@ from .errors import Problem
 # tarballs stay on the server.
 SERVED_DIRS = frozenset(
     {
+        "kit",
         "app",
         "api",
         "store",
@@ -34,6 +35,8 @@ SERVED_DIRS = frozenset(
         "vendor",
     }
 )
+# The ui-kit's own tests and pages (S17.3.10.4) are for its checks and the Pages site, not the app.
+KIT_NOT_SERVED = frozenset({"tests", "pages"})
 TYPES = {
     ".js": "text/javascript; charset=utf-8",
     ".mjs": "text/javascript; charset=utf-8",
@@ -102,6 +105,8 @@ class Static:
             raise Problem(404, "not-found", "Not found")
         if parts[0] == "vendor" and len(parts) < 3:
             # Only what vendor.py unpacked: not the tarballs, the manifest or the script.
+            raise Problem(404, "not-found", "Not found")
+        if parts[0] == "kit" and len(parts) > 2 and parts[1] in KIT_NOT_SERVED:
             raise Problem(404, "not-found", "Not found")
         target = (self.ui / rel).resolve()
         if not target.is_relative_to(self.ui) or not target.is_file():

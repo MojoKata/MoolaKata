@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The app's policy (requirements S17.3.3): scripts and styles from here alone, the import
+         map by its hash (changed with the map: the page tests fail on the refusal otherwise),
+         nothing from elsewhere. -->
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-dGw2Z13cpSkROWFZMjjGikX4y8aSNrPEBHk9CF37AJg='; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>ui-kit</title>
+    <link rel="stylesheet" href="../theme/tokens.css">
+    <link rel="stylesheet" href="../theme/base.css">
+    <link rel="stylesheet" href="../theme/kit.css">
+    <link rel="stylesheet" href="../theme/note.css">
+    <link rel="stylesheet" href="pages.css">
+    <script type="importmap">
+    {
+      "imports": {
+        "preact": "../../vendor/preact/dist/preact.mjs",
+        "preact/hooks": "../../vendor/preact/hooks/dist/hooks.mjs",
+        "htm": "../../vendor/htm/dist/htm.mjs",
+        "@preact/signals-core": "../../vendor/signals-core/dist/signals-core.mjs",
+        "@preact/signals": "../../vendor/signals/dist/signals.mjs",
+        "prosemirror-model": "../../vendor/prosemirror-model/dist/index.js",
+        "prosemirror-state": "../../vendor/prosemirror-state/dist/index.js",
+        "prosemirror-view": "../../vendor/prosemirror-view/dist/index.js",
+        "prosemirror-transform": "../../vendor/prosemirror-transform/dist/index.js",
+        "prosemirror-commands": "../../vendor/prosemirror-commands/dist/index.js",
+        "prosemirror-keymap": "../../vendor/prosemirror-keymap/dist/index.js",
+        "prosemirror-history": "../../vendor/prosemirror-history/dist/index.js",
+        "prosemirror-inputrules": "../../vendor/prosemirror-inputrules/dist/index.js",
+        "prosemirror-schema-list": "../../vendor/prosemirror-schema-list/dist/index.js",
+        "orderedmap": "../../vendor/orderedmap/dist/index.js",
+        "rope-sequence": "../../vendor/rope-sequence/dist/index.js",
+        "w3c-keyname": "../../vendor/w3c-keyname/index.js"
+      }
+    }
+    </script>
+    <script type="module" src="catalog.js"></script>
+  </head>
+  <body>
+    <div id="kit"></div>
+    <noscript>The ui-kit's pages need JavaScript.</noscript>
+  </body>
+</html>

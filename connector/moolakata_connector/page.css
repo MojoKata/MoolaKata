@@ -1,5 +1,5 @@
 /* The connector's page (requirements S18.11.5): MoolaKata's colour and type tokens, dark first
-   and light as the browser prefers, held equal to web/ui/styles/tokens.css by a test. */
+   and light as the browser prefers, held equal to web/ui/kit/theme/tokens.css by a test. */
 :root {
   color-scheme: dark;
   --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Inter, sans-serif;

@@ -1,0 +1,1461 @@
+/* The ui-kit's controls (requirements S17.3.10): drawn only from the tokens. */
+@layer kit {
+  /* Where the focus is, drawn the same everywhere: a ring outside, or inside a control that
+     sits flush in a row. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .btn:focus-visible,
+  .chip:focus-visible,
+  .tab:focus-visible {
+    outline-offset: -2px;
+  }
+  /* The form between a dialog's frame and its parts passes the frame's height on, so a tall
+     body scrolls between the header and the buttons rather than running past the frame. */
+  .dialog-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* The layout the kit's own controls use: a gap above, a row of buttons, a row of a list. */
+  .mt {
+    margin-top: 16px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .toolbar .spacer {
+    flex: 1;
+  }
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .list-item:last-child {
+    border-bottom: 0;
+  }
+  .list-item .grow {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex: none;
+    color: var(--on-hue);
+  }
+  .avatar.sm {
+    width: 22px;
+    height: 22px;
+    font-size: 9px;
+  }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--fg-dim);
+  }
+  .icon-btn:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+  }
+  .btn {
+    height: var(--control);
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-3);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--bg-4);
+  }
+  .btn.primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn.primary:hover {
+    filter: brightness(1.08);
+  }
+  .btn.danger {
+    color: var(--deny);
+  }
+  .btn.sm {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  .chips {
+    max-width: 100%;
+    overflow-x: auto;
+    display: inline-flex;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .chip {
+    border: 0;
+    background: transparent;
+    padding: 5px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--fg-dim);
+    font-size: 13px;
+    white-space: nowrap;
+    /* The choice cross-fades from one chip to the next. */
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .chip.on {
+    background: var(--bg-2);
+    color: var(--fg);
+    box-shadow: 0 0 0 1px var(--border-strong);
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 99px;
+    padding: 1px 8px;
+    font-size: 11.5px;
+    border: 1px solid var(--border-strong);
+    color: var(--fg-dim);
+    white-space: nowrap;
+  }
+  .pill.ok {
+    background: var(--ok-bg);
+    color: var(--ok);
+    border-color: transparent;
+  }
+  .pill.warn {
+    background: var(--ask-bg);
+    color: var(--ask);
+    border-color: transparent;
+  }
+  .pill.bad {
+    background: var(--deny-bg);
+    color: var(--deny);
+    border-color: transparent;
+  }
+  .pill.info {
+    background: var(--info-bg);
+    color: var(--info);
+    border-color: transparent;
+  }
+  .pill.new {
+    background: var(--update);
+    color: var(--on-update);
+    border-color: transparent;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pager {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .jump {
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .jump {
+    align-items: center;
+  }
+  .jump button {
+    min-width: 30px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-3);
+    cursor: pointer;
+    font-size: 12px;
+    /* The page chosen cross-fades from one button to the next. */
+    transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  }
+  .jump button:hover:not(:disabled):not(.on) {
+    background: var(--bg-4);
+  }
+  /* Pages left out between two offered. */
+  .jump .sep {
+    color: var(--fg-muted);
+    padding: 0 2px;
+  }
+  .jump button.on {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .pill svg.i {
+    width: 12px;
+    height: 12px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+    /* Sideways when they don't fit, with no scrollbar of its own; the chosen tab's line sits on
+       the border, which mustn't make the row scroll up and down. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .tab {
+    padding: 9px 14px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: var(--fg-dim);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    font: inherit;
+    text-decoration: none;
+    border-radius: 6px 6px 0 0;
+    /* The choice cross-fades from one tab to the next; a tab pointed at lights as a button. */
+    transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  }
+  .tab:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .tab.on {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+  .field label {
+    font-size: 12.5px;
+    color: var(--fg-dim);
+    font-weight: 500;
+  }
+  .field .hint {
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+  .field .err {
+    font-size: 12px;
+    color: var(--deny);
+  }
+  input.in,
+  select.in,
+  textarea.in {
+    height: var(--control);
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--inset);
+    padding: 0 10px;
+    width: 100%;
+  }
+  textarea.in {
+    height: auto;
+    padding: 8px 10px;
+    min-height: 64px;
+  }
+  .pw {
+    position: relative;
+    display: block;
+  }
+  /* A field with its special values as controls (ValueInput, R3.11): × and ↺ inside it at
+     its end, All, Max and Min outside it, a little apart. */
+  /* A field and, under it at its right, the words that fill it in (min · default · max): small,
+     read as links, a small gap above them. */
+  .value-input {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .value-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .value-bar .sep {
+    color: var(--fg-muted);
+  }
+  .link-btn {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .link-btn:hover {
+    text-decoration: none;
+    filter: brightness(1.15);
+  }
+  .link-btn:disabled {
+    color: var(--fg-muted);
+    cursor: default;
+    filter: none;
+  }
+  .link-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-radius: 3px;
+  }
+  .value-in {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  .value-in.ends-1 input.in {
+    padding-right: 34px;
+  }
+  /* A unit sits left of the controls inside the field, never under them. */
+  .value-in.ends-1 .unit.post {
+    right: 38px;
+  }
+  .value-in.ends-1 .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 38px);
+  }
+  /* × beside another tool in the field: left of a secret's eye, a list's chevron, a spinner's
+     chevrons; a unit sits left of them all. */
+  .value-in.ends-1:has(.pw) .value-ends {
+    right: 34px;
+  }
+  .value-in.ends-1 .pw input.in {
+    padding-right: 66px;
+  }
+  .value-in.sel.ends-1 .value-ends {
+    right: 28px;
+  }
+  .value-in.sel.ends-1 select.in {
+    padding-right: 62px;
+  }
+  .spin-in .value-in.ends-1 .value-ends {
+    right: 30px;
+  }
+  .spin-in .value-in.ends-1 input.in {
+    padding-right: 62px;
+  }
+  .spin-in .value-in.ends-1 .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 62px);
+  }
+  .spin-in .value-in.ends-1 .unit.post {
+    right: 62px;
+  }
+  .value-ends {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+  }
+  /* A secret drawn blurred until its eye shows it: plain text, so no password manager fills it. */
+  input.in.veiled {
+    /* Discs where the browser draws them (Chrome, Edge, Safari): nothing of it shows. */
+    -webkit-text-security: disc;
+  }
+  @supports not (-webkit-text-security: disc) {
+    /* Elsewhere, blurred past reading. */
+    input.in.veiled {
+      color: transparent;
+      text-shadow: 0 0 12px var(--fg), 0 0 12px var(--fg), 0 0 12px var(--fg);
+      caret-color: var(--fg);
+    }
+    input.in.veiled::selection {
+      color: transparent;
+    }
+  }
+  .pw input.in {
+    padding-right: 38px;
+  }
+  .pw .icon-btn {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+  }
+  input.in:focus,
+  select.in:focus,
+  textarea.in:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  input.in.bad {
+    border-color: var(--deny);
+  }
+  /* The read persona (S12.18.6): the control's box, unframed, its text where the control's
+     text sits, so a form reads without moving. */
+  .in.read {
+    display: flex;
+    align-items: center;
+    height: var(--control);
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 0 10px;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .in.read.select {
+    padding-right: 30px;
+  }
+  .in.read.multi {
+    display: block;
+    height: auto;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .in.read.blank {
+    color: var(--fg-muted);
+  }
+  .in.read:focus-visible,
+  .in.read a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .switch.read {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    background: transparent;
+    color: var(--fg-dim);
+  }
+  .switch.read::after {
+    content: none;
+  }
+  .switch.read.on {
+    background: transparent;
+    border-color: var(--border-strong);
+    color: var(--accent);
+  }
+  .switch.read svg.i {
+    width: 14px;
+    height: 14px;
+  }
+  .switch {
+    width: 36px;
+    height: 20px;
+    border-radius: 99px;
+    background: var(--bg-4);
+    position: relative;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    flex: none;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--fg-muted);
+    transition: .15s;
+  }
+  .switch.on {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .switch.on::after {
+    left: 18px;
+    background: var(--on-accent);
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg button {
+    border: 0;
+    background: transparent;
+    padding: 4px 10px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--fg-dim);
+    /* The choice cross-fades from one button to the next. */
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+  .seg button + button {
+    border-left: 1px solid var(--border-strong);
+  }
+  .seg button.on {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .seg button:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+  }
+  .notice {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--info-bg);
+    color: var(--fg-dim);
+    font-size: 13px;
+  }
+  .notice.warn {
+    background: var(--ask-bg);
+  }
+  .notice.bad {
+    background: var(--deny-bg);
+  }
+  .notice svg.i {
+    margin-top: 1px;
+  }
+  /* A button off until a save: its wrapper hears the pointer, so the tip shows. */
+  .tip-wrap {
+    display: inline-block;
+  }
+  /* An action not open now (S12.19.1): off, still reached by Tab, its tooltip saying why. */
+  [aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn[aria-disabled='true']:hover {
+    background: var(--bg-3);
+  }
+  .btn.primary[aria-disabled='true']:hover {
+    background: var(--accent);
+    filter: none;
+  }
+  /* Empty (S12.19.2): a line and the action that makes the first one. */
+  .empty {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  /* Something needing attention (S12.19.4): one line, its actions after it. */
+  .notice.attention {
+    align-items: center;
+  }
+  .attention-actions {
+    display: inline-flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tip-wrap > button:disabled {
+    pointer-events: none;
+  }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--bg-4);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    box-shadow: var(--shadow);
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
+  }
+  .tip b {
+    display: block;
+    margin-bottom: 2px;
+  }
+  .empty {
+    color: var(--fg-muted);
+    text-align: center;
+    padding: 24px;
+  }
+
+  /* dialogs, menus, toasts */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    z-index: 50;
+    padding: 16px;
+  }
+  .dialog {
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    width: 560px;
+    max-width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+  }
+  .dialog.wide {
+    width: 760px;
+  }
+  /* "Discard your changes?" over a dialog that holds them (S12.15.6). */
+  .dialog {
+    position: relative;
+  }
+  /* The question before a delete (S12.16), over the page or a dialog. */
+  /* A question over a dialog or the page (S12.15.6, S12.16): its box, its buttons at the right,
+     a gap between them. */
+  .dialog-ask {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    border-radius: 14px;
+    z-index: 1;
+  }
+  .dialog-ask-box {
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 18px 22px;
+    width: min(400px, 90%);
+    box-shadow: var(--shadow);
+  }
+  .dialog-ask-box h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .dialog-ask-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  /* One mask, the top one's: a dialog under another, and any dialog under the question, lets
+     the mask above it do the darkening, so stacked masks never darken more. */
+  .dialog-layer:has(~ .dialog-layer) .scrim,
+  body:has(.confirm-scrim) .scrim {
+    background: transparent;
+  }
+  .confirm-scrim {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    z-index: 60;
+    padding: 16px;
+  }
+  .dialog header {
+    padding: 18px 22px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .dialog header h2 {
+    margin: 0;
+    font-size: 17px;
+    flex: 1;
+  }
+  .dialog .body {
+    padding: 8px 22px 16px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .dialog footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    align-items: center;
+  }
+  .dialog footer .note {
+    margin-right: auto;
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+  .menu {
+    position: fixed;
+    z-index: 60;
+    background: var(--bg-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 6px;
+    min-width: 230px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .menu .mh {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--fg-muted);
+    padding: 8px 10px 4px;
+  }
+  .menu button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .menu button:hover {
+    background: var(--bg-4);
+  }
+  .menu button.on::after {
+    content: '✓';
+    margin-left: auto;
+    color: var(--accent);
+  }
+  .toasts {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 70;
+  }
+  /* A toast slides up from the bottom, and back down when it goes, so it is seen. */
+  .toast {
+    animation: toast-in 0.24s ease-out;
+    background: var(--bg-4);
+    border: 1px solid var(--border-strong);
+    padding: 10px 16px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 13px;
+  }
+  .toast.leaving {
+    animation: toast-out 0.24s ease-in forwards;
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast,
+    .toast.leaving {
+      animation: none;
+    }
+    .seg button,
+    .chip,
+    .tab,
+    .jump button,
+    select.in::picker(select) {
+      transition: none;
+    }
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .tooltip {
+    position: fixed;
+    z-index: 80;
+    pointer-events: none;
+    background: var(--bg-4);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-size: 12px;
+    box-shadow: var(--shadow);
+    max-width: 320px;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg-3), var(--bg-4), var(--bg-3));
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 8px;
+    min-height: 18px;
+  }
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  .avatar.sm {
+    display: inline-grid;
+    vertical-align: middle;
+  }
+
+  /* A unit in the field (S12.18.9): inert, neither typed nor stored. */
+  .unit-in {
+    position: relative;
+    display: block;
+  }
+  .unit-in .unit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    color: var(--fg-muted);
+    pointer-events: none;
+  }
+  .unit-in .unit.pre {
+    left: 10px;
+  }
+  .unit-in .unit.post {
+    right: 10px;
+  }
+  .unit-in.pre input.in {
+    padding-left: 22px;
+  }
+  .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 10px);
+  }
+  /* A number's digits sit at the right and grow to the left (S12.18.8). */
+  input.in.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A single list drawn by the theme where the browser can (S17.3.10): its chevron, its
+     options in a panel of the theme's own. A list of several keeps the browser's. */
+  @supports (appearance: base-select) {
+    select.in:not([multiple]),
+    select.in:not([multiple])::picker(select) {
+      appearance: base-select;
+    }
+    select.in:not([multiple]) {
+      display: flex;
+      align-items: center;
+    }
+    select.in:not([multiple])::picker-icon {
+      color: var(--fg-muted);
+      transition: rotate 0.15s;
+    }
+    select.in:not([multiple]):open::picker-icon {
+      rotate: 180deg;
+    }
+    /* With ×: the chevron stays at the end, room kept before it for the ×. */
+    .value-in.sel.ends-1 select.in {
+      padding-right: 10px;
+    }
+    .value-in.sel.ends-1 select.in::picker-icon {
+      padding-inline-start: 30px;
+    }
+    /* The list fades and slides open, and back. */
+    select.in:not([multiple])::picker(select) {
+      opacity: 0;
+      translate: 0 -4px;
+      transition: opacity 0.15s ease, translate 0.15s ease, display 0.15s allow-discrete,
+        overlay 0.15s allow-discrete;
+    }
+    select.in:not([multiple]):open::picker(select) {
+      opacity: 1;
+      translate: 0 0;
+    }
+    @starting-style {
+      select.in:not([multiple]):open::picker(select) {
+        opacity: 0;
+        translate: 0 -4px;
+      }
+    }
+    select.in:not([multiple])::picker(select) {
+      background: var(--bg-3);
+      color: var(--fg);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 4px;
+      margin-top: 4px;
+      max-height: min(360px, 50vh);
+    }
+    select.in:not([multiple]) option {
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+    select.in:not([multiple]) option:hover,
+    select.in:not([multiple]) option:focus-visible {
+      background: var(--bg-4);
+      outline: none;
+    }
+    select.in:not([multiple]) option:checked {
+      color: var(--accent);
+    }
+    select.in:not([multiple]) option::checkmark {
+      color: var(--accent);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    select.in::picker-icon {
+      transition: none;
+    }
+  }
+
+  /* A small whole number stepped up and down: two chevrons stacked at the field's right end. */
+  .spin-in {
+    position: relative;
+    display: block;
+  }
+  .spin-in input.in {
+    padding-right: 30px;
+  }
+  /* A unit sits left of the chevrons, with × or without. */
+  .spin-in .unit-in .unit.post {
+    right: 30px;
+  }
+  .spin-in .unit-in.post input.in {
+    padding-right: calc(var(--unit-w, 4ch) + 30px);
+  }
+  .spin-btns {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    bottom: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .spin-btns button {
+    flex: 1;
+    width: 24px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--fg-dim);
+    cursor: pointer;
+    padding: 0;
+  }
+  .spin-btns button:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+  }
+  .spin-btns button:disabled {
+    color: var(--fg-muted);
+    opacity: 0.4;
+    cursor: default;
+    background: transparent;
+  }
+  .spin-btns svg.i {
+    width: 12px;
+    height: 12px;
+  }
+  .spin-btns .up svg.i {
+    transform: rotate(90deg);
+  }
+  .spin-btns .down svg.i {
+    transform: rotate(-90deg);
+  }
+  /* A date (S12.18.10): typed, the calendar's button at its right end, a month below it. */
+  .date-in {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+  .date-in input.in {
+    padding-right: 38px;
+  }
+  .date-in > .icon-btn {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .cal-pop {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 272px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 8px 10px 10px;
+  }
+  .cal-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .cal-head b {
+    flex: 1;
+    text-align: center;
+  }
+  .cal-head .next svg {
+    transform: rotate(180deg);
+  }
+  .cal-grid {
+    display: grid;
+    gap: 2px;
+  }
+  .cal-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .cal-row .wd {
+    font-size: 11px;
+    color: var(--fg-muted);
+    text-align: center;
+    padding: 4px 0;
+  }
+  .cal-row button,
+  .cal-row .out {
+    height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-row button {
+    cursor: pointer;
+  }
+  .cal-row button:hover {
+    background: var(--bg-4);
+  }
+  .cal-row button.today {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .cal-row button.on {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .cal-row button[aria-disabled='true'] {
+    color: var(--fg-muted);
+    opacity: 0.45;
+    cursor: default;
+  }
+  .cal-row button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  /* Several of a list (S12.18.12): chips that fit the control's height, then the box to type
+     in; --tag-rows rows of chips, then it scrolls. One line (a filter) scrolls sideways behind
+     a count of the chips out of sight. */
+  .tag-wrap {
+    position: relative;
+  }
+  .tag-box {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    min-height: var(--control);
+    max-height: calc(var(--tag-rows, 3) * 30px + 6px);
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--inset);
+    padding: 4px 6px;
+    cursor: text;
+  }
+  .tag-box:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .tag-box.bad {
+    border-color: var(--deny);
+  }
+  .tag-box.off {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .tag-box .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 26px;
+    max-width: 100%;
+    padding: 0 2px 0 8px;
+    border-radius: 6px;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .tag-box .tag-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tag-box .tag .icon-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    flex: none;
+  }
+  .tag-box .tag .icon-btn svg.i {
+    width: 12px;
+    height: 12px;
+  }
+  .tag-box input {
+    flex: 1;
+    min-width: 90px;
+    height: 26px;
+    border: 0;
+    background: transparent;
+    color: var(--fg);
+    outline: none;
+    padding: 0 4px;
+    font: inherit;
+  }
+  .tag-box.one-line {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: var(--control);
+    scrollbar-width: none;
+  }
+  .tag-box.one-line .tag {
+    flex: none;
+  }
+  /* The count of chips out of sight, over the line's left edge: drawn over it, never in it,
+     so showing it moves nothing. */
+  .tag-wrap > .before {
+    position: absolute;
+    z-index: 2;
+    top: 1px;
+    left: 1px;
+    height: calc(var(--control) - 2px);
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 0 14px 0 6px;
+    border: 0;
+    border-radius: 8px 0 0 8px;
+    color: var(--fg-muted);
+    background: linear-gradient(to right, var(--inset) 65%, transparent);
+    cursor: pointer;
+    font: inherit;
+  }
+  .tag-wrap > .before svg.i {
+    width: 12px;
+    height: 12px;
+  }
+  .tag-box .tag:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .tag-list {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    list-style: none;
+    background: var(--bg-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 4px;
+  }
+  .tag-list [role='option'] {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .tag-list [role='option'][aria-selected='true'],
+  .tag-list [role='option']:hover {
+    background: var(--bg-4);
+  }
+  /* The times of day by the quarter hour (S12.18.11): a row an hour under AM and PM, its :00
+     and :30 bold, the times lined up on their colons; chevrons at the corners show more. */
+  .time-pop {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    background: var(--bg-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    /* A gutter at the left for the chevrons, at its corners beside the rows, kept when they
+       are hidden; the scrollbar has the right. */
+    padding: 6px 8px 8px 34px;
+  }
+  /* As tall as 7 AM to 6 PM (two headings and twelve rows); more hours scroll. */
+  .time-scroll {
+    max-height: calc(2 * 28px + 12 * 26px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .time-half {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 26px;
+    padding: 2px 0 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+  .time-row {
+    display: grid;
+    grid-template-columns: 3.4em auto 2.4em auto 2.4em auto 2.4em;
+    align-items: center;
+    column-gap: 2px;
+  }
+  .time-row .sep {
+    color: var(--fg-muted);
+    text-align: center;
+  }
+  .time-q {
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-dim);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    text-align: left;
+    padding: 0 3px;
+  }
+  .time-q.hour {
+    text-align: right;
+  }
+  .time-q.bold {
+    font-weight: 650;
+    color: var(--fg);
+  }
+  .time-q:hover {
+    background: var(--bg-4);
+  }
+  .time-q.on {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  /* A time between quarters marks the quarter before it, outlined. */
+  .time-q.near {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .time-q:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .time-more {
+    width: 24px;
+    height: 24px;
+  }
+  .time-more.up,
+  .time-more.down {
+    position: absolute;
+    left: 4px;
+  }
+  .time-more.up {
+    top: 6px;
+  }
+  .time-more.down {
+    bottom: 9px;
+  }
+  .tag-list .new {
+    color: var(--accent);
+  }
+  .tag-list .none {
+    padding: 6px 10px;
+    color: var(--fg-muted);
+  }
+  .tag-list .uses {
+    margin-left: auto;
+    color: var(--fg-muted);
+    font-size: 12px;
+  }
+
+  /* A note (S12.18.15): its toolbar above, its text, the count near its limit, its popovers. */
+  .note {
+    position: relative;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--inset);
+  }
+  .note:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .note.bad {
+    border-color: var(--deny);
+  }
+  .note-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-bottom: 1px solid var(--border);
+    min-height: 37px;
+  }
+  .note-tool {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-dim);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 13px;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+  .note-tool:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+  }
+  .note-tool.on {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+  .note-tool[aria-disabled='true'] {
+    opacity: 0.4;
+    cursor: default;
+    background: transparent;
+  }
+  .note-tool svg.i {
+    width: 16px;
+    height: 16px;
+  }
+  .note-block {
+    min-width: 116px;
+    justify-content: space-between;
+    color: var(--fg);
+  }
+  .note-chev {
+    transform: rotate(-90deg);
+  }
+  .note-gap {
+    width: 1px;
+    height: 18px;
+    margin: 0 4px;
+    background: var(--border-strong);
+  }
+  /* The toolbar's faces for highlight and monospace, drawn as they look in a note. */
+  .note-tool .note-mark {
+    background: var(--note-mark);
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+  .note-tool .note-mono {
+    font-family: var(--mono);
+  }
+  /* The text's frame; the text itself is the note's own realm (theme/note.css). */
+  .note-body {
+    background: var(--note-bg);
+    border-radius: 0 0 8px 8px;
+    padding: 8px 12px;
+    max-height: 28rem;
+    overflow-y: auto;
+  }
+  .note.loading .note-body {
+    min-height: 7.5em;
+  }
+  .note-count {
+    text-align: right;
+    padding: 0 8px 4px;
+    color: var(--fg-muted);
+  }
+  .note-count.over {
+    color: var(--deny);
+  }
+  .note-pop {
+    position: absolute;
+    z-index: 40;
+    background: var(--bg-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 6px 10px;
+  }
+  .note-pop.caret {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    max-width: 420px;
+  }
+  .note-pop-addr {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--fg-dim);
+    max-width: 260px;
+  }
+  .note-pop.edit {
+    width: 340px;
+    padding: 10px 12px;
+  }
+  .note-pop-acts {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .note-tool {
+      transition: none;
+    }
+  }
+}

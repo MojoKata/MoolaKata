@@ -5,21 +5,22 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi } from '../app/hooks.js';
-import { date, quantity, today } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { openDialog } from './dialog.js';
+import { date, quantity, today } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Field, Input, Reads, Select, TypedInput } from './fields.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { Field, Input, Select, TypedInput } from '../kit/fields.js';
+import { Reads } from './reads.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { ACCEPT, uploadAll } from './receipt.js';
 import { BY_TYPE } from '../account-types/index.js';
-import { Dec, dec, num } from '../app/dec.js';
+import { Dec, dec, num } from '../kit/dec.js';
 import { READ_ONLY, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
-import { Action, RowTool } from './state.js';
+import { Action, RowTool } from '../kit/state.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],

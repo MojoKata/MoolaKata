@@ -4,22 +4,22 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, thisYear } from '../app/format.js';
+import { date, money, thisYear } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { openDialog } from '../components/dialog.js';
-import { Field, ReadValue, Seg, Select, SwitchRow, TypedInput } from '../components/fields.js';
-import { Icon } from '../components/icon.js';
+import { Amt } from '../kit/amount.js';
+import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { openDialog } from '../kit/dialog.js';
+import { Field, ReadValue, Seg, Select, SwitchRow, TypedInput } from '../kit/fields.js';
+import { Icon } from '../kit/icon.js';
 import { ShareDialog } from '../components/share.js';
-import { toast } from '../components/toast.js';
+import { toast } from '../kit/toast.js';
 import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
-import { Dec } from '../app/dec.js';
+import { Dec } from '../kit/dec.js';
 import { canAdd, Record as Rec, TYPES, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
-import { Action, Attention, RowTool } from '../components/state.js';
+import { Action, Attention, RowTool } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import {
   DraftDialog,
@@ -29,7 +29,7 @@ import {
   saveOne,
   useDraft,
 } from '../components/draft-form.js';
-import { confirmAction } from '../components/confirm.js';
+import { confirmAction } from '../kit/confirm.js';
 
 export const TABS = /** @type {[string, string][]} */ ([
   ['summary', 'Summary'],
@@ -107,7 +107,6 @@ export default function Taxes({ tab }) {
           title: `Decline the ${r.label} tax book?`,
           detail: 'You are taken off it; its owner is told. Your own book for the year is ' +
             'yours to make.',
-          yes: 'Decline',
         });
         if (!sure) return;
         await api.post(`/tax-books/${r.id}/decline`);
@@ -445,7 +444,6 @@ function DependentDialog({ close, b, d, fromRow }) {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
                   title: 'Remove this dependent?',
-                  yes: 'Yes, remove',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);
@@ -486,7 +484,8 @@ function DependentDialog({ close, b, d, fromRow }) {
                   </div>
           `}
           <div class="row">
-            <${RecField} rec=${rec} name="months" label="Months lived with you" id="months" />
+            <${RecField} rec=${rec} name="months" label="Months lived with you" id="months"
+              spin=${true} min=${0} max=${12} />
             ${onRow('student') ? null : html`
               <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
                 on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
@@ -1140,7 +1139,6 @@ function DocumentDialog({ close, b, start, doc, fromRow }) {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
                   title: 'Remove this document?',
-                  yes: 'Yes, remove',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);

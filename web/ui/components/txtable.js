@@ -6,14 +6,14 @@ import { useList } from '../app/hooks.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { addCategory, categoryOptions, NEW, useCategories } from './categories.js';
-import { date, price, quantity } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Icon } from './icon.js';
-import { openDialog } from './dialog.js';
-import { toast } from './toast.js';
+import { date, price, quantity } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
+import { toast } from '../kit/toast.js';
 import { TransactionDialog } from '../screens/transaction-dialog.js';
 import { whyRead } from '../app/draft.js';
-import { RowTool } from './state.js';
+import { RowTool } from '../kit/state.js';
 
 export { useCategories };
 

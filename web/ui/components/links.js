@@ -5,16 +5,16 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, day, moment } from '../app/format.js';
-import { parseDuration } from '../app/duration.js';
+import { ago, day, moment } from '../kit/format.js';
+import { parseDuration } from '../kit/duration.js';
 import { withReauth } from './reauth.js';
-import { confirmAction } from './confirm.js';
-import { Dialog, openDialog } from './dialog.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select, TypedInput } from './fields.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { DraftForm } from './draft-form.js';
 import { saveSetting, useSettingsDraft } from './settings-draft.js';
 
@@ -223,7 +223,6 @@ export function LinksSection() {
                               if (
                                 !(await confirmAction({
                                   title: invited ? 'Withdraw this invitation?' : 'End this link?',
-                                  yes: invited ? 'Yes, withdraw' : 'Yes, end it',
                                 }))
                               ) return;
                               act.run(l.id, 'end').catch(() => {});
@@ -442,7 +441,7 @@ function copies(live, values, reload, act, release) {
                           : null
                       }<button class="btn sm danger" onClick=${async () => {
                         if (
-                          !(await confirmAction({ title: 'Reset this copy?', yes: 'Yes, reset' }))
+                          !(await confirmAction({ title: 'Reset this copy?' }))
                         ) return;
                         act.run(l.id, 'reset-copy').catch(() => {});
                       }}>Reset copy</button>`}</td>

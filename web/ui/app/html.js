@@ -1,6 +1,2 @@
-// JSX-like templates with HTM, bound to Preact's h(); no build step and no eval.
-import htm from 'htm';
-import { h } from 'preact';
-
-/** @type {(strings: TemplateStringsArray, ...values: any[]) => any} */
-export const html = htm.bind(h);
+// JSX-like templates with HTM, bound to Preact's h(): the ui-kit's binding (S17.3.10.1).
+export { html } from '../kit/html.js';

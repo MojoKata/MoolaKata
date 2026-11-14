@@ -5,10 +5,11 @@ import { html } from '../app/html.js';
 import { useList } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Amt } from '../components/amount.js';
-import { Avatar, Failed, Loading, Tile } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { openDialog } from '../components/dialog.js';
+import { Amt } from '../kit/amount.js';
+import { Avatar, Failed, Loading } from '../kit/bits.js';
+import { Tile } from '../components/groups.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
 import { PortfolioDialog } from './portfolio-dialog.js';
 
 export default function Portfolios() {

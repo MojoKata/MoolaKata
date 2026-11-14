@@ -11,9 +11,9 @@ import { tourWidth } from '../store/prefs.js';
 import { endTour, tour } from '../store/tour.js';
 import { useCounts, useSteps, usesWords } from '../app/categories.js';
 import { CategoryDialog, useCategories } from './categories.js';
-import { openDialog } from './dialog.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
+import { openDialog } from '../kit/dialog.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
 import { render } from './markdown.js';
 
 /** The tour open in this tab, if any. */

@@ -6,20 +6,20 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { date, quantity, today } from '../app/format.js';
-import { Amt } from './amount.js';
-import { Dec, dec } from '../app/dec.js';
-import { Empty, Failed, Loading } from './bits.js';
-import { Dialog, openDialog } from './dialog.js';
-import { errAt, Field, FormError, Select, TypedInput } from './fields.js';
+import { date, quantity, today } from '../kit/format.js';
+import { Amt } from '../kit/amount.js';
+import { Dec, dec } from '../kit/dec.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
+import { Dialog, openDialog } from '../kit/dialog.js';
+import { errAt, Field, FormError, Select, TypedInput } from '../kit/fields.js';
 import { Record as Rec, whyRead } from '../app/draft.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { useDialogGuide } from './help.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
-import { confirmAction } from './confirm.js';
-import { Action, RowTool } from './state.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
+import { confirmAction } from '../kit/confirm.js';
+import { Action, RowTool } from '../kit/state.js';
 
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
@@ -398,7 +398,6 @@ function StrategyDialog({ close, x }) {
               const sure = await confirmAction({
                 title: 'Ungroup this strategy?',
                 detail: 'Its legs stay, each on its own.',
-                yes: 'Yes, ungroup',
               });
               if (!sure) return;
               draft.remove(rec);

@@ -8,16 +8,16 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { money } from '../app/format.js';
-import { confirmAction } from './confirm.js';
+import { money } from '../kit/format.js';
+import { confirmAction } from '../kit/confirm.js';
 import { useDialogGuide, useGuide } from './help.js';
-import { FormError } from './fields.js';
+import { FormError } from '../kit/fields.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, DraftForm, RecField, saveNow, saveOne, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Failed, Loading } from './bits.js';
-import { Icon } from './icon.js';
-import { toast } from './toast.js';
+import { Failed, Loading } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { toast } from '../kit/toast.js';
 import { TagsField } from './tags.js';
 import { CategoryField } from './categories.js';
 
@@ -87,7 +87,7 @@ function RuleFields({ rec, draft }) {
     <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
       hint="The payee shown; the bank's text is kept beside it." />
     <${TagsField} rec=${rec} draft=${draft} placeholder="ex: coffee, work"
-      hint="Your own, separated by commas." />
+      hint="Your own." />
   `;
 }
 

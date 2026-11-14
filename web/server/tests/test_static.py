@@ -63,9 +63,16 @@ def test_only_the_served_directories_are_reachable(bare_client):
         "mockup/build.py",
         "app/../deno.json",
         "app/%2e%2e/deno.json",
+        # The ui-kit's own tests and pages (S17.3.10.4): its checks' and the Pages site's.
+        "kit/tests/assert.js",
+        "kit/pages/index.html",
+        "kit/pages/catalog.js",
     ):
         r = bare_client.get(f"/ui/v/{version}/{rel}")
         assert r.status_code == 404, rel
+    # The kit itself is the app's: its modules and its theme.
+    for rel in ("kit/fields.js", "kit/theme/tokens.css", "kit/theme/icons.svg"):
+        assert bare_client.get(f"/ui/v/{version}/{rel}").status_code == 200, rel
 
 
 def test_unknown_api_paths_are_problems_not_the_page(bare_client):

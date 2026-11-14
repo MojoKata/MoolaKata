@@ -1,7 +1,7 @@
 // The generated mockup's MOCK pill (requirements S12.9): it jumps to any screen, opens the
 // dialogs, switches between the sample users, and changes state (stale prices, a locked or new
 // server, privacy mode).
-import { openMenu } from '../components/menu.js';
+import { openMenu } from '../kit/menu.js';
 import { privacy } from '../store/prefs.js';
 
 /** (label, screen, the button that opens it): reached as a person would, through the screen. */

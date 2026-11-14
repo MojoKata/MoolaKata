@@ -22,7 +22,7 @@ The browser app's API. It changes with the app and carries no version of its own
 - **Numbers are exact** (S13.8.2). Money, quantities, prices and ratios are JSON numbers
   written with their own digits and always a decimal point: `1234.50`, `10.0`, `0.0345`. Read
   them without a float: in Python, `json.loads(text, parse_float=Decimal)`; in the browser, the
-  app's `parseJson` (`web/ui/app/dec.js`), which gives each one as a `Dec`. A whole number
+  app's `parseJson` (`web/ui/kit/dec.js`), which gives each one as a `Dec`. A whole number
   with no decimal point (a count, a year, a version) is an integer. Requests send amounts the
   same way; a decimal string, as a form field gives it, is accepted too. A float that has lost
   digits can't be told from one that hasn't, so send the text the person typed.

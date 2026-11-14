@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-11-11",
+  "auditedAt": "2026-11-13",
   "base": {
     "digest": "sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83",
     "image": "python:3.14-slim-bookworm",
@@ -35,14 +35,6 @@
         "www.freedesktop.org"
       ],
       "inImage": true,
-      "words": []
-    },
-    "click": {
-      "hosts": [
-        "click.palletsprojects.com",
-        "fishshell.com"
-      ],
-      "inImage": false,
       "words": []
     },
     "coverage": {
@@ -191,23 +183,6 @@
       "inImage": false,
       "words": []
     },
-    "libcst": {
-      "hosts": [
-        "docs.scipy.org",
-        "lwn.net",
-        "pyre-check.org",
-        "redbaron.pycqa.org"
-      ],
-      "inImage": false,
-      "words": []
-    },
-    "linkify-it-py": {
-      "hosts": [],
-      "inImage": false,
-      "words": [
-        "tlds.py"
-      ]
-    },
     "markdown-it-py": {
       "hosts": [
         "jgm.github.io",
@@ -217,26 +192,84 @@
       "inImage": false,
       "words": []
     },
-    "mdit-py-plugins": {
-      "hosts": [
-        "anorien.csc.warwick.ac.uk",
-        "ctan.org",
-        "docutils.sourceforge.io",
-        "htmlpreview.github.io",
-        "image.com",
-        "johnmacfarlane.net",
-        "pandoc.org",
-        "python-markdown.github.io",
-        "squidfunk.github.io"
-      ],
-      "inImage": false,
-      "words": []
-    },
     "mdurl": {
       "hosts": [
         "foo.com"
       ],
       "inImage": false,
+      "words": []
+    },
+    "npm:prosemirror-commands": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-history": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-inputrules": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-keymap": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-model": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-schema-list": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-state": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-transform": {
+      "hosts": [
+        "prosemirror.net"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:prosemirror-view": {
+      "hosts": [
+        "code.haverbeke.berlin",
+        "prosemirror.net",
+        "w3c.github.io",
+        "www.stum.de"
+      ],
+      "inImage": true,
+      "words": []
+    },
+    "npm:w3c-keyname": {
+      "hosts": [
+        "developer.microsoft.com"
+      ],
+      "inImage": true,
       "words": []
     },
     "numpy": {
@@ -1170,24 +1203,6 @@
         "opentelemetry.py"
       ]
     },
-    "textual": {
-      "hosts": [
-        "docs.microsoft.com",
-        "easings.net",
-        "facelessuser.github.io",
-        "harlequin.sh",
-        "msdn.microsoft.com",
-        "posting.sh",
-        "sw.kovidgoyal.net",
-        "textual.textualize.io",
-        "www.easyrgb.com",
-        "www.ibb.net"
-      ],
-      "inImage": false,
-      "words": [
-        "_project_data.py"
-      ]
-    },
     "tqdm": {
       "hosts": [
         "api.slack.com",
@@ -1223,7 +1238,7 @@
     }
   },
   "hashes": {
-    "manifest.json": "sha256:a2bd3a96d9d4ac5ef7e053ffe5e28181aab94cecbb45914053ccf9b72113ac89",
+    "manifest.json": "sha256:884dffdd9ccd4ccfe6fd3354a65add2509201ac79c01bbad6be4812b169d9b81",
     "uv.lock": "sha256:c66d376fc2438192516a14c695de97858487fbbc5737bfccf7a5d891be0af9ab"
   }
 }

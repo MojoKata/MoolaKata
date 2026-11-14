@@ -144,3 +144,26 @@ inside the page.
 | @preact/signals | 2.11.3 | 2026-09-30 | verified | state (R1.1) | Preact's own | none known | — |
 | preact-iso | 2.12.2 | 2026-08-11 | verified | routes and lazy screens (R1.1) | Preact's own router | none known | — |
 | echarts | 6.1.0 | 2026-05-19 | none | every chart (S17.4) | the only candidate covering donut, treemap, Sankey and the fan without code of our own | large surface (~330 KB gzip, loaded only by chart screens); publishes no provenance, so a release is trusted on the integrity hash and the diff alone | if a smaller library gains treemap and Sankey, or if ECharts starts publishing provenance |
+| prosemirror-model | 1.25.12 | 2026-09-21 | none | the document and its schema | the Note editor's core (S12.18.15): a schema of our own drops what it doesn't allow, pasted or typed | loaded only when a Note is edited (~140 KB gzip for the set); publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-transform | 1.12.4 | 2026-10-22 | none | the edits a document takes | pulled by the others | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-state | 1.4.4 | 2025-10-23 | none | the editor's state and selection | pulled by the others | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-view | 1.42.8 | 2026-10-24 | none | the editable view; paste and copy | pulled by the others; its pasted HTML is parsed in a detached, inert document and kept only as the schema allows | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-commands | 1.7.2 | 2026-08-05 | none | the toolbar's and keys' commands | pulled by the editor | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-keymap | 1.2.3 | 2025-05-04 | none | the editor's shortcuts | pulled by the editor | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-history | 1.5.1 | 2026-09-29 | none | undo and redo | pulled by the editor | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-inputrules | 1.5.1 | 2025-10-15 | none | the list shortcuts (`- `, `* `, `1. `) and Backspace undoing one | Backspace-undo built in, rather than our own editing code | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| prosemirror-schema-list | 1.6.0 | 2026-10-30 | none | lists: a new item on Enter, indent and outdent, a paragraph made a list | pulled by the editor; its list commands rather than our own | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| orderedmap | 2.1.1 | 2023-05-17 | none | the schema's ordered maps | pulled by prosemirror-model | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| rope-sequence | 1.3.4 | 2023-05-17 | none | the undo history's list | pulled by prosemirror-history | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+| w3c-keyname | 2.2.8 | 2023-06-07 | none | key names across browsers | pulled by prosemirror-keymap | publishes no provenance, so a release is trusted on the integrity hash and the diff alone; one maintainer for the whole set | if ProseMirror starts publishing provenance |
+
+## Copied code
+
+Code adapted into MoolaKata from an open-source project, rather than loaded as a library: it is
+the repository's own from then on, tested with it, and never updated by itself; a later fix
+there is copied as a change of its own (S17.3.10.5). Its licence and what was taken where are
+in the notice beside it.
+
+| Source | Commit | Licence | Into | What | Notice | Revisit |
+|---|---|---|---|---|---|---|
+| preact-components (the fork MojoKata/preact-components, of spy4x/preact-components) | `5be54c4` (14.6.0) | MIT | `web/ui/kit/listbox.js`, `web/ui/kit/tags.js` | the list's key table; the tag box's rules (names split at commas, case aside, the keys) | `web/ui/kit/NOTICE.md` | when a fix to those rules lands there |

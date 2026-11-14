@@ -9,7 +9,8 @@ file, never its name.
 
 ## Largest file {#largest-file}
 
-The biggest file that can be imported, in MB.
+The biggest file that can be imported: 1 to 200 MB. The chevrons, and ↑ ↓, step by 5 MB, to a
+multiple of 5; Page Up and Page Down by 50.
 
 ## Read statements
 

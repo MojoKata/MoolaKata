@@ -10,19 +10,19 @@ import { useApi, useList } from '../app/hooks.js';
 import { changes } from '../app/stream.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Empty, Failed, Loading, Tabs } from '../components/bits.js';
-import { Icon } from '../components/icon.js';
-import { openDialog } from '../components/dialog.js';
-import { offsetOf, Pager } from '../components/pager.js';
+import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { Icon } from '../kit/icon.js';
+import { openDialog } from '../kit/dialog.js';
+import { offsetOf, Pager } from '../kit/pager.js';
 import { TxTable, useCategories } from '../components/txtable.js';
 import { pageSize } from '../store/prefs.js';
 import { ImportDialog } from './import.js';
 import { RulesTab } from '../components/rules.js';
 import { TransactionDialog } from './transaction-dialog.js';
-import { Field, TypedInput } from '../components/fields.js';
-import { check, KINDS } from '../app/kinds.js';
-import { Dec } from '../app/dec.js';
-import { Action, StatePill } from '../components/state.js';
+import { Field, TypedInput } from '../kit/fields.js';
+import { check, KINDS } from '../kit/kinds.js';
+import { Dec } from '../kit/dec.js';
+import { Action, StatePill } from '../kit/state.js';
 
 const EMPTY = { account: '', category: '', from: '', to: '', min: '', max: '', payee: '', tag: '' };
 
@@ -61,7 +61,7 @@ function TransactionList() {
     payee: f.payee || undefined,
     tag: f.tag || undefined,
     limit: pageSize.value,
-    offset: offsetOf(page, newer),
+    offset: offsetOf(page, pageSize.value, newer),
   };
   const res = useApi('/transactions', params, []);
   const d = /** @type {any} */ (res.data);
@@ -189,7 +189,8 @@ function TransactionList() {
       : html`<${Empty}>${all.length ? 'No transactions match' : 'No accounts yet'}</${Empty}>`}
     ${d
       ? html`
-        <${Pager} label="tx" shown=${d.items.length} page=${page} total=${d.total} newer=${newer}
+        <${Pager} label="tx" size=${pageSize} shown=${d.items.length} page=${page} total=${d.total}
+          newer=${newer}
           onNewer=${fresh} onPage=${setPage} />
       `
       : null}

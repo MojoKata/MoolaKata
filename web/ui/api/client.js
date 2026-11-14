@@ -1,7 +1,7 @@
 // The browser's side of /ui/api (requirements S13.8): JSON in and out, problem+json errors with
 // each refusal at its field, If-Match versions, and Idempotency-Key on creates.
 
-import { parseJson } from '../app/dec.js';
+import { parseJson } from '../kit/dec.js';
 
 /** A refusal from the server, with the field each part of it belongs to. */
 export class ApiError extends Error {
