@@ -25,7 +25,7 @@ def frozen():
 @pytest.fixture
 def couple(server, frozen):
     make_user(server, "jane")
-    make_user(server, "john")
+    make_user(server, "john", sex="male")
     jane, john = sign_in(server, "jane"), sign_in(server, "john")
     a_id = jane.get("/ui/api/session").json()["user"]["id"]
     b_id = john.get("/ui/api/session").json()["user"]["id"]
@@ -49,7 +49,9 @@ def test_a_joint_book_counts_a_filer_once_they_accept(server, couple):
     new_account(jane, name="Jane's brokerage", type="brokerage")
     new_account(john, name="John's checking")
     b = book(jane, 2026, [a_id, b_id])
-    assert b["label"] == "2026 · Jane & John (joint)" and not b["filers"][1]["accepted"]
+    # Made by Jane, it names John first: by (sex, name), men first (S10.10.7).
+    assert b["label"] == "2026 · John & Jane (joint)"
+    assert [(f["name"], f["accepted"]) for f in b["filers"]] == [("John", False), ("Jane", True)]
     d = jane.get(f"/ui/api/tax-books/{b['id']}").json()
     assert [a["name"] for a in d["accounts"]] == ["Jane's brokerage"]
     listed = john.get("/ui/api/tax-books").json()
@@ -192,6 +194,22 @@ def dependent(c, book_id, person_id, **kw):
     return make(c, "TxDep", **{"bookId": book_id, "personId": person_id, **kw})
 
 
+def test_a_couple_is_named_by_sex_then_name_whoever_made_the_book(server, frozen):
+    # S10.10.7: by (sex, name), men first; with the sex the same, the name decides.
+    for a, b, sex in (("zoe", "ann", "female"), ("max", "ben", "male")):
+        make_user(server, a, sex=sex)
+        make_user(server, b, sex=sex)
+        first, second = sign_in(server, a), sign_in(server, b)
+        pa = first.get("/ui/api/profile").json()["personId"]
+        pb = second.get("/ui/api/profile").json()["personId"]
+        r = make(first, "Rltn", person1Id=pa, person2Id=pb, relation="spouse")
+        assert r.status_code == 200, r.text
+        assert second.post(f"/ui/api/relationships/{r.json()['id']}/confirm").status_code == 200
+        b_id = second.get("/ui/api/session").json()["user"]["id"]
+        made = book(first, 2026, [first.get("/ui/api/session").json()["user"]["id"], b_id])
+        assert made["label"] == f"2026 · {b.title()} & {a.title()} (joint)", made["label"]
+
+
 def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server, couple):
     jane, _, a_id, _ = couple
     pa = jane.get("/ui/api/profile").json()["personId"]
@@ -202,10 +220,10 @@ def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server
     for kid in (bart, lisa, sam):
         child_of(jane, pa, kid)
     b = book(jane, 2026, [a_id])
-    cands = {
-        x["name"]: x
-        for x in jane.get(f"/ui/api/tax-books/{b['id']}/dependent-candidates").json()["items"]
-    }
+    items = jane.get(f"/ui/api/tax-books/{b['id']}/dependent-candidates").json()["items"]
+    cands = {x["name"]: x for x in items}
+    # The children first, oldest first (S10.10.7).
+    assert [x["name"] for x in items[:3]] == ["Sam Doe", "Bart Doe", "Lisa Doe"]
     assert "Jane" not in cands  # a filer isn't their own dependent
     assert cands["Bart Doe"]["relation"] == "son"
     assert cands["Bart Doe"]["age"] == 14
@@ -217,9 +235,10 @@ def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server
     )
     assert cands["Candace Doe"]["suggest"] == "qualifying relative"
 
-    r = dependent(jane, b["id"], bart, student=True)
-    assert r.status_code == 200, r.text
+    # Added youngest first, they are listed oldest first.
     r = dependent(jane, b["id"], lisa)
+    assert r.status_code == 200, r.text
+    r = dependent(jane, b["id"], bart, student=True)
     d = {x["name"]: x for x in r.parent()["dependents"]}
     assert d["Bart Doe"]["age"] == 14 and d["Bart Doe"]["under17"]
     assert not d["Bart Doe"]["under13"]
@@ -233,11 +252,8 @@ def test_dependents_are_suggested_from_the_family_tree_and_aged_on_dec_31(server
     detail = jane.get(f"/ui/api/tax-books/{b['id']}").json()
     assert any(e["form"] == "1098-T" and "Bart" in e["why"] for e in detail["expected"])
     p = jane.get(f"/ui/api/tax-books/{b['id']}/panels").json()
-    assert sorted(x["name"] for x in p["dependents"]) == [
-        "Bart Doe",
-        "Candace Doe",
-        "Lisa Doe",
-    ]
+    # The children oldest first, then anyone else by name (S10.10.7).
+    assert [x["name"] for x in p["dependents"]] == ["Bart Doe", "Lisa Doe", "Candace Doe"]
     assert p["students"] == [{"name": "Bart Doe", "received1098T": False, "withdrawals529": 0}]
 
     # Changing and removing one.

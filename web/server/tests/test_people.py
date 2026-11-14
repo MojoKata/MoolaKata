@@ -59,6 +59,23 @@ def test_every_user_is_a_person_with_their_sex_and_birthday(two):
     assert (row["name"], row["birthYear"], row["relation"]) == ("Jane Doe", 1979, "you")
 
 
+def test_profile_lists_the_children_oldest_first(server, two):
+    # S10.10.7: whenever they were added, a person's children are listed oldest first, one
+    # whose birth year isn't known last.
+    jane, _ = two
+    a = me(jane)
+    for name, year in (("Young", 2019), ("Unknown", None), ("Old", 2010), ("Mid", 2015)):
+        kid = add(jane, name, birthYear=year) if year else add(jane, name)
+        relate(jane, a, kid["id"], "child")
+    words = [(x["name"], x["word"]) for x in jane.get("/ui/api/profile").json()["relations"]]
+    assert words == [
+        ("Old", "daughter"),
+        ("Mid", "daughter"),
+        ("Young", "daughter"),
+        ("Unknown", "daughter"),
+    ]
+
+
 def test_one_person_once_and_asking_to_share_a_private_one(server, two):
     jane, john = two
     jsmith = add(jane, "John Smith", private=True, birthYear=1985)

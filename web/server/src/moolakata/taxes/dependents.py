@@ -11,7 +11,7 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import ids, people
-from ..people import tree
+from ..people import order, tree
 from ..projections import taxtables
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.education import Person
@@ -147,8 +147,15 @@ def candidates(s: Session, user_id: str, book: TaxBook) -> list[Candidate]:
                 age_on_dec_31(p, book.year),
             )
         )
-    out.sort(key=lambda c: (c.relation is None, not c.descendant, c.person.name.lower()))
+    out.sort(
+        key=lambda c: (c.relation is None, not c.descendant, _in_order(c.person, c.descendant))
+    )
     return out
+
+
+def _in_order(p: Person, descendant: bool) -> tuple:
+    """Children and grandchildren oldest first, anyone else by name (S10.10.7)."""
+    return order.oldest_first_key(p) if descendant else (False, 0, 0, 0, p.name.casefold())
 
 
 def is_descendant(s: Session, book: TaxBook, person_id: str) -> bool:
@@ -241,6 +248,13 @@ def listed(s: Session, book: TaxBook) -> list[Dependent]:
                 accountIds=account_ids(s, d),
             )
         )
+
+    def descendant(d: Dependent) -> bool:
+        r = rel.get(d.person.id)
+        return r is not None and r.key in DESCENDANTS
+
+    # The children first, oldest first; then the rest by name (S10.10.7).
+    out.sort(key=lambda d: (not descendant(d), _in_order(d.person, descendant(d))))
     return out
 
 

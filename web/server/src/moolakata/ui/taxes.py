@@ -12,6 +12,7 @@ from sqlalchemy import false, select
 from .. import access, activity, clock, exactjson, people, receipts
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse
+from ..people import order
 from ..store import scoping
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.taxes import (
@@ -82,8 +83,11 @@ class BookRow(Model):
 
 
 def _filers(s, b: TaxBook) -> list[Filer]:
+    """The book's filers as they are named (S10.10.7): by (sex, name), men first."""
     fs = books.filers(s, b)
     nm = books.names(s, [f.userId for f in fs])
+    sex = {f.userId: getattr(people.of_user(s, f.userId), "sex", "") for f in fs}
+    fs = sorted(fs, key=lambda f: order.couple_key(sex[f.userId], nm.get(f.userId, "?")))
     return [
         Filer(id=f.userId, name=nm.get(f.userId, "?"), accepted=f.acceptedAt is not None)
         for f in fs

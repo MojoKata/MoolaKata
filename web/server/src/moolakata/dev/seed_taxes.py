@@ -33,10 +33,8 @@ def seed_taxes(s, people: dict) -> None:
         b = TaxBook(id=ids.new_id("TaxBk"), ownerId=jane.id, year=y)
         s.add(b)
         s.flush()
-        # John first, so the book reads "John & Jane": its filers are named in the order added.
-        for i, u in enumerate((john, jane)):
-            at = now + dt.timedelta(seconds=i)
-            s.add(TaxBookFiler(bookId=b.id, userId=u.id, createdAt=at, acceptedAt=at))
+        for u in (jane, john):
+            s.add(TaxBookFiler(bookId=b.id, userId=u.id, createdAt=now, acceptedAt=now))
         return b
 
     last, this = book(year - 1), book(year)

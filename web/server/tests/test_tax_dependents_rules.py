@@ -570,9 +570,9 @@ def test_candidates_are_the_people_seen_but_the_filers_relatives_and_descendants
         if c.person.name != "Ada Admin"
     ]
     assert got == [
-        ("bea", "daughter", True, 16),
-        ("Cal", "granddaughter", True, 1),
+        ("bea", "daughter", True, 16),  # descendants oldest first (S10.10.7)
         ("dan", "son", True, 14),
+        ("Cal", "granddaughter", True, 1),
         ("Fay", "Godmother", False, 65),
         ("Lou", "father", False, 77),
         ("Mum", "mother", False, 75),
@@ -651,18 +651,20 @@ def test_a_books_dependents_are_listed_with_relation_age_and_the_lines_they_cros
     h.dep(h.book(2025, h.john), p["Fay"], "qualifying relative")
     h.s.flush()
     got = dependents.listed(h.s, book)
-    assert [d.row.id for d in got] == [made[k].id for k, *_ in rows]
+    # The filers' children first, oldest first; then anyone else by name (S10.10.7).
+    want = ["bea", "Abe", "Fay", "k12", "k13", "k17", "n19", "nob", "r24", "s19"]
+    assert [d.row.id for d in got] == [made[k].id for k in want]
     assert [(d.person.name, d.relation, d.age, d.under17, d.under13) for d in got] == [
         ("bea", "daughter", 16, True, False),
-        ("k17", None, 17, False, False),
-        ("k13", None, 13, True, False),
-        ("k12", None, 12, True, True),
-        ("s19", None, 19, False, False),
-        ("n19", None, 19, False, False),
-        ("r24", None, 24, False, False),
-        ("Fay", "Godmother", 65, False, False),
         ("Abe", None, 15, True, False),
+        ("Fay", "Godmother", 65, False, False),
+        ("k12", None, 12, True, True),
+        ("k13", None, 13, True, False),
+        ("k17", None, 17, False, False),
+        ("n19", None, 19, False, False),
         ("nob", None, None, False, False),
+        ("r24", None, 24, False, False),
+        ("s19", None, 19, False, False),
     ]
     assert {d.person.name: d.agesOut for d in got if d.agesOut} == {
         "k17": ["turns 17: no longer under 17 for the child tax credit"],

@@ -237,3 +237,10 @@
        and on the Gifts screen as the person's relation to the user (*Lisa, your
        granddaughter*). Profile lists the user's own with their dates, adds them, and changes
        or removes them; an admin's dialog also names whose relationship it is (S12.2).
+    7. **The order people are named in.** A name the app makes of a couple, as a joint tax
+       book's (*2026 · John & Jane (joint)*, S8.14.1), names them by **(sex, name)**, men first.
+       A person's children (sons, daughters, grandchildren and stepchildren) are listed
+       **oldest first**: one whose birth year isn't known after those whose is, and twins by
+       name. So are a tax book's dependents and the people it suggests as dependents (S8.14.5),
+       children first, then anyone else by name; and Profile's relationships, nearest first. A
+       list of everyone, such as the Gifts screen's people, keeps its own order.
