@@ -48,6 +48,6 @@ via YAML** is how they go on a NAS.
 
 GPL-3.0, see [`LICENSE`](LICENSE).
 
-Useful links: [dev](DEVELOP.md) · [coverage](https://mojokata.github.io/MoolaKata/) · [hardening](https://mojokata.github.io/MoolaKata/hardening.html) ·
-[ui-kit](https://mojokata.github.io/MoolaKata/kit/) · mock [html](https://mojokata.github.io/MoolaKata/mockup/MoolaKata-mock.html) /
-[app](https://mojokata.github.io/MoolaKata/mockup/MoolaKata-app.html)
+Useful links: [dev](DEVELOP.md) · [coverage](https://mojokata.github.io/MoolaKata/) ·
+[hardening](https://mojokata.github.io/MoolaKata/hardening.html) ·
+[ui-kit](https://mojokata.github.io/MoolaKata/kit/)
