@@ -28,7 +28,8 @@ import { Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 import { useFormats } from '../kit/formats.js';
-import { textOf, ungroup, valueOf } from '../kit/numbers.js';
+import { textOf } from '../kit/numbers.js';
+import { inputSats } from '../app/sats.js';
 
 /**
  * A form's draft: `load(draft)` reads its records into a new draft, on the first draw, when
@@ -540,19 +541,6 @@ export function RecField(p) {
     <${Field} label=${p.label} id=${p.id} hint=${p.hint} error=${error}
       help=${p.help}>${control}</${Field}>
   `;
-}
-
-/**
- * Sats typed into a field that holds BTC: the record keeps the text as typed, and reads the BTC
- * it is; a fraction of a sat is refused at Save, as text that doesn't read is.
- * @param {import('../app/draft.js').Record} rec @param {string} name @param {string} v
- * @param {import('../kit/numbers.js').Held} held
- */
-function inputSats(rec, name, v, held) {
-  const btc = valueOf(ungroup(v), held);
-  if (btc === undefined && /^-?[\d,]+\.\d*$/.test(v.trim())) {
-    rec.inputAs(name, v, () => ({ error: 'Whole sats only.' }));
-  } else rec.input(name, v, btc === undefined ? v : String(btc ?? ''));
 }
 
 /**

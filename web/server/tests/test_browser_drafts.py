@@ -1388,6 +1388,35 @@ def test_bitcoin_is_typed_in_sats_when_the_person_counts_in_sats(browser, househ
         (sale,) = [x for x in items if x["kind"] == "sell"]
         assert Decimal(str(sale["quantity"])) == Decimal("0.6")
         assert [Decimal(str(p["quantity"])) for p in sale["picks"]] == [Decimal("0.4")]
+        # A transfer in: its quantity and its lot as bought, in sats too.
+        bought = f"{months_back(9)}-15"
+        page.click('main button:has-text("Add")')
+        wait(page, ".dialog footer button.primary:enabled", problems)
+        page.select_option("#f-kind", "transfer-in")
+        page.fill("#f-symbol", "BTC")
+        wait(page, '.dialog .field:has(#f-quantity) :text-is("sats")', problems)
+        page.fill("#f-quantity", "25,000,000")
+        page.fill("#f-amount", "0")
+        page.get_by_role("button", name="Add a Lot").click()
+        page.get_by_label("Lot 1: bought on").fill(bought)
+        lot = page.get_by_label("Lot 1: quantity")
+        wait(page, '.dialog #f-transfer-lots :text-is("sats")', problems)
+        lot.fill("25000000")
+        page.get_by_label("Lot 1: cost basis").fill("15000")
+        page.click(".dialog footer button.primary")
+        wait(page, ".dialog", problems, state="detached")
+        [btc] = h.c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
+        lots = {x["acquiredOn"]: Decimal(str(x["quantity"])) for x in btc["lots"]}
+        assert lots[bought] == Decimal("0.25"), lots
+        # Counted in BTC, the same field takes BTC, to the satoshi.
+        saved(change(h.c, "User", h.c.get("/ui/api/profile").json(), bitcoinUnit="btc"))
+        page.reload()
+        wait(page, 'main button:has-text("Add")', problems)
+        page.click('main button:has-text("Add")')
+        wait(page, ".dialog footer button.primary:enabled", problems)
+        page.select_option("#f-kind", "buy")
+        page.fill("#f-symbol", "BTC")
+        wait(page, '.dialog .field:has(#f-quantity) :text-is("BTC")', problems)
         assert problems == []
         page.close()
     finally:
