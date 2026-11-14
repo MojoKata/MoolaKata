@@ -578,7 +578,7 @@ def record(part: tuple[int, int] | None = None) -> tuple[dict, dict, list]:
                         for f in running:
                             f.result()
                     answers[username] = book.answers if part else book.kept()
-                    me = answers[username]["GET /ui/api/session"]["body"]["user"]
+                    me = book.kept()["GET /ui/api/session"]["body"]["user"]
                     users.append({"username": username, "name": me["displayName"]})
                     hellos[username] = first.hello()
                     first.close()
