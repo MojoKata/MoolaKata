@@ -7,7 +7,9 @@
        `install/build-requirements.txt` by its hashes, into a venv of its own), and with the `coworker` submodule
        checked out and its `status` run unattended (`COWORKER_UNATTENDED=1`), so a need
        missing from `.coworker/deps.json` shows on a runner as it would on a developer's
-       machine. It runs `web/check`'s parts as jobs
+       machine. It runs with `--no-network`: a runner's egress is open, so the hosts the
+       project downloads from (the installer ISOs among them) aren't probed, and one that is
+       slow or down fails only a step that uses it. It runs `web/check`'s parts as jobs
        side by side (the server's tests in seven parts (`MK_TEST_PART`), the first with the
        static checks and the last with the connector's tests; the browser tests in four parts
        the same way; the parts split by measured time, each test weighing what it took in a
