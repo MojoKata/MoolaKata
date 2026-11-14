@@ -3,6 +3,11 @@
 // were recorded, and a stream that never sends. Nothing leaves the page. It then loads the app
 // from the modules the page carries.
 (() => {
+  // A long data: URL (an avatar) is kept once in the page, and each answer names it: put back
+  // as the answers load, so the app gets what the server sent.
+  const blobs = /** @type {string[]} */ (
+    JSON.parse(document.getElementById('mk-blobs')?.textContent || '[]')
+  );
   // A number with a decimal point stays as its literal (S13.8.2), so each answer is served with
   // the exact digits the server wrote.
   const data = JSON.parse(
@@ -12,6 +17,8 @@
       (_k, v, ctx) =>
         typeof v === 'number' && ctx?.source && /[.eE]/.test(ctx.source)
           ? /** @type {any} */ (JSON).rawJSON(ctx.source)
+          : typeof v === 'string' && v.startsWith('mk-blob:')
+          ? blobs[Number(v.slice(8))]
           : v
     ),
   );

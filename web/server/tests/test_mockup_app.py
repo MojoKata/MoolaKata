@@ -3,6 +3,8 @@ screen, tab and Settings section for each sample user, and the MOCK pill's dialo
 no page or console error, and nothing is requested from anywhere but the page and the files
 beside it."""
 
+import base64
+
 import pytest
 from devapp import api_items
 
@@ -117,3 +119,16 @@ def test_the_mock_pill_opens_dialogs_and_switches_users(browser):
     page.wait_for_selector(".user-text >> text=john")
     page.wait_for_selector(".price-status .dot.stale")
     ctx.close()
+
+
+def test_an_avatar_kept_once_is_drawn_whole(browser):
+    # The page keeps each long data: URL once and puts it back as the answers load: Jane's
+    # avatar is the seed's picture, byte for byte, wherever the app draws her.
+    png = (paths.ROOT / "web/server/src/moolakata/dev/avatars/jane.png").read_bytes()
+    want = "data:image/png;base64," + base64.b64encode(png).decode()
+    ctx, page = open_as(browser, "jane")
+    srcs = page.eval_on_selector_all(".avatar img", "(is) => is.map((i) => i.getAttribute('src'))")
+    ctx.close()
+    assert srcs and set(srcs) == {want}
+    assert page.problems == []
+    assert PAGE.read_text().count(want) == 1, "the picture is in the page once"

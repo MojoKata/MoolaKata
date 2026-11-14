@@ -1,8 +1,10 @@
 """Dev mode's seed data (requirements S17.7): the users admin, jane and john, a Household
 group, and a year of their accounts; each part of the app adds its own."""
 
+import base64
 import datetime as dt
 import logging
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -30,6 +32,7 @@ from .seed_wallets import seed_wallets
 
 log = logging.getLogger("moolakata.dev")
 PASSWORD = "moolakata-dev"  # noqa: S105 - dev mode's seed users only
+AVATARS = Path(__file__).parent / "avatars"
 
 
 def seed(server) -> None:
@@ -104,6 +107,10 @@ def seed_users(s) -> dict[str, User]:
     s.flush()
     # An admin starts on an email for each alert (S12.11.5).
     people["jane"].alertEmails = "each"
+    # Their avatars, as Profile keeps an image (S10.1): faces from a public-domain painting.
+    for username in ("jane", "john"):
+        png = (AVATARS / f"{username}.png").read_bytes()
+        people[username].avatar = "data:image/png;base64," + base64.b64encode(png).decode()
     seed_family(s, people)
     s.add(
         UserGroup(

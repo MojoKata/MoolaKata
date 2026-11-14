@@ -15,3 +15,4 @@ docs/reviews/*/withheld.md
 # The mockup generated from the app (requirements S12.9): built by CI and published, never
 # committed (web/dev.sh mockup builds it here to open from disk).
 docs/mockups/MoolaKata-app.html
+docs/mockups/MoolaKata-app.part*.json
