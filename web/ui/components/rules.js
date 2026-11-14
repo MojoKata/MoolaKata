@@ -158,7 +158,7 @@ export function RulesTab({ id }) {
     <div class="rules-layout">
       <div class="card">
         <div class="toolbar">
-          <a class="btn" href=${RULES + '/new'}><${Icon} name="plus" /> Add rule</a>
+          <a class="btn" href=${RULES + '/new'}><${Icon} name="plus" /> Add Rule</a>
           ${v?.uncategorised
             ? html`<${SavedFirst}><button type="button" class="btn"
               disabled=${changed || apply.busy} onClick=${() => apply.run().catch(() => {})}>

@@ -279,7 +279,7 @@ export function ImportDialog({ close, accounts, accountId }) {
             ) => {
               e.preventDefault();
               setKeeping(true);
-            }}>Keep a statement without reading it</a></p>
+            }}>Keep a Statement without Reading It</a></p>
         `}
       </${Dialog}>
   `;
@@ -401,7 +401,7 @@ function LineState({ r, set, fresh }) {
       onClick=${(/** @type {Event} */ e) => {
       e.preventDefault();
       set({ stop: true, include: true });
-    }}>Stop ignoring</a></span>`;
+    }}>Stop Ignoring</a></span>`;
   }
   if (r.include) return fresh;
   if (r.remember) {

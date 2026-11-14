@@ -91,5 +91,5 @@ proposed again once the settings are saved.
 ## Withdrawals allowed a month {#withdrawals-a-month}
 
 A savings or money-market account's limit on transfers out, the bank's; empty for none. A budget's
-**Where the money is** sums the moves back to checking into one transfer a month and warns before it
+**Where the Money Is** sums the moves back to checking into one transfer a month and warns before it
 would go past the limit.

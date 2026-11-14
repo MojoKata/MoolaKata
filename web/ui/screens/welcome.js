@@ -22,7 +22,7 @@ export default function Welcome() {
   if (bad) {
     return html`
       <${AuthCard} title="This Link Has Expired" guide="welcome"
-        sub="An invitation works once, for 7 days. Ask an admin to send a new one."><a href="/ui/">Sign in</a></${AuthCard}>
+        sub="An invitation works once, for 7 days. Ask an admin to send a new one."><a href="/ui/">Sign In</a></${AuthCard}>
     `;
   }
   if (!who) return null;

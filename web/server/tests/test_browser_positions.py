@@ -141,7 +141,7 @@ def test_an_options_mark_typed_is_its_value_until_a_close(browser, household):
     option(h, acct, OPENED, "buy-to-open", "ZMK", "call", "75", premium="2.00")
     page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZMK")
     row(page, "ZMK").locator("button.linklike").first.click()
-    page.get_by_role("button", name="Type a mark…").click()
+    page.get_by_role("button", name="Type a Mark…").click()
     wait(page, "#f-mark-price", problems)
     assert page.locator(".dialog").inner_text().startswith("Mark ZMK")
     page.fill("#f-mark-price", "3.25")
@@ -168,7 +168,7 @@ def test_a_mark_typed_today_opens_to_be_changed(browser, household):
     page.reload()
     wait(page, 'main tbody tr:has-text("ZMA"):has-text("typed mark")', problems)
     row(page, "ZMA").locator("button.linklike").first.click()
-    page.get_by_role("button", name="Type a mark…").click()
+    page.get_by_role("button", name="Type a Mark…").click()
     wait(page, "#f-mark-price", problems)
     assert Decimal(page.input_value("#f-mark-price")) == Decimal("3.25")
     page.fill("#f-mark-price", "4")
@@ -223,9 +223,9 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     h = household
     acct = brokerage(h, "Desk")
     page, problems = signed_in(
-        browser, h, "/ui/positions/open", 'button:has-text("Record an option trade")'
+        browser, h, "/ui/positions/open", 'button:has-text("Record an Option Trade")'
     )
-    page.click('button:has-text("Record an option trade")')
+    page.click('button:has-text("Record an Option Trade")')
     wait(page, "#f-underlying", problems)
     page.select_option("#f-account", label="Desk")
     page.get_by_role("radio", name="Buy to open").click()
@@ -283,7 +283,7 @@ def test_an_options_end_is_recorded_as_it_happened(
            contracts="2")  # fmt: skip
     page, problems = signed_in(browser, h, "/ui/positions/open", f"text={sym}")
     row(page, re.compile(rf"{sym} \S+ {strike} [PC]")).locator("button.linklike").first.click()
-    page.get_by_role("button", name="Expired, assigned or exercised…").click()
+    page.get_by_role("button", name="Expired, Assigned or Exercised…").click()
     wait(page, ".dialog .value-input input", problems)
     checked = page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text()
     assert checked == {"expired": "Expired worthless", "assigned": "Assigned",
@@ -470,7 +470,7 @@ def test_a_roll_is_proposed_and_kept_or_left_on_its_own(browser, household, keep
     [shown] = strategies_of(h, acct)
     assert f"the day a leg of {shown['name']} on {sym} closed: a roll?" in notice.inner_text()
     assert notice.locator("b").inner_text() == shown["name"] != ""
-    notice.get_by_role("button", name="Keep it in the strategy" if keep else "Not a roll").click()
+    notice.get_by_role("button", name="Keep It in the Strategy" if keep else "Not a Roll").click()
     toast(page, "Rolled into the strategy" if keep else "Left on its own", problems)
     wait(page, f'.notice:has-text("in Rolled {sym}")', problems, state="detached")
     (st,) = strategies_of(h, acct)
@@ -495,7 +495,7 @@ def test_a_short_call_against_shares_is_offered_as_a_covered_call(browser, house
     text = notice.inner_text()
     assert "2 legs on ZCC in Covered look like a covered call" in text, text
     assert "100 ZCC" in text
-    notice.get_by_role("button", name="Group them").click()
+    notice.get_by_role("button", name="Group Them").click()
     toast(page, "Grouped as a covered call", problems)
     (st,) = strategies_of(h, acct)
     assert st["shape"] == "Covered call"
@@ -561,9 +561,9 @@ def test_an_adjusted_underlying_gives_its_contracts_a_new_root(browser, househol
     h = household
     acct = short_put_strategy(h, "Adjusted desk", "ZAJ")
     page, problems = signed_in(
-        browser, h, "/ui/positions/strategies", 'button:has-text("An underlying was adjusted")'
+        browser, h, "/ui/positions/strategies", 'button:has-text("An Underlying Was Adjusted")'
     )
-    page.click('button:has-text("An underlying was adjusted")')
+    page.click('button:has-text("An Underlying Was Adjusted")')
     wait(page, "#f-adjust-underlying", problems)
     page.select_option("#f-adjust-underlying", label="ZAJ")
     wait(page, '.dialog:has-text("Options on ZAJ after a corporate action")', problems)
@@ -607,7 +607,7 @@ def test_a_portfolios_performance_shows_its_returns(browser, household):
     )
     wait(page, "main svg", problems)
     kpis = page.locator("main .kpi").all_inner_texts()
-    assert "1 account" in kpis[0] and "Time-weighted return (1Y)" in kpis[1]
+    assert "1 account" in kpis[0] and "Time-Weighted Return (1Y)" in kpis[1]
     assert "growth" in kpis[3]
     assert page.locator('main :text("Benchmark: ")').count() >= 1
     page.locator('.chips[aria-label="Range"]').get_by_role("button", name="3M").click()
@@ -703,7 +703,7 @@ def test_the_portfolios_list_and_a_new_portfolio(browser, household):
     retirement = page.locator("main a.card", has_text="Retirement")
     assert "1 account" in retirement.inner_text()
     assert retirement.locator('[data-tip="Shared by me"]').count() == 1
-    page.get_by_role("button", name="New portfolio").click()
+    page.get_by_role("button", name="New Portfolio").click()
     wait(page, "#f-name", problems)
     page.fill("#f-name", "Made here")
     page.locator(".dialog label.list-item", has_text="Listed one").locator("input").check()

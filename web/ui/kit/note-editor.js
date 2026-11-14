@@ -688,7 +688,7 @@ export function NoteEditor(
         <span class="note-gap" aria-hidden="true"></span>
         ${tool({
           key: 'bullets',
-          label: 'Bulleted List',
+          label: 'Bulleted list',
           keys: 'type - or *',
           face: html`<${Icon} name="list" />`,
           on: lists.at(-1)?.node.type.name === 'bullets',
@@ -697,7 +697,7 @@ export function NoteEditor(
         })}
         ${tool({
           key: 'numbers',
-          label: 'Numbered List',
+          label: 'Numbered list',
           keys: 'type 1.',
           face: html`<${Icon} name="list-num" />`,
           on: lists.at(-1)?.node.type.name === 'numbers',

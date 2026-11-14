@@ -588,7 +588,7 @@ export function Goal({ a }) {
         ? ' · active'
         : ' · a scenario'}</span>${x.status && x.status !== 'untracked'
         ? html`<span class="pill">${x.status}</span>`
-        : null}<span class="spacer"></span><a class="small" href=${`/ui/projections/${x.id}`}>Change it in Projections</a></div>
+        : null}<span class="spacer"></span><a class="small" href=${`/ui/projections/${x.id}`}>Change It in Projections</a></div>
     <div class="grid g-main">
       <div class="card">
         <h3>${ans.name}'s College Fund<span class="spacer"></span><span

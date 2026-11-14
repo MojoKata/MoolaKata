@@ -47,7 +47,7 @@ for **wash sales** (a loss sale with a purchase of the same thing within 30 days
 your spouse on the last day of a year for a joint tax book, once you have both confirmed the
 marriage: one your spouse entered shows **Confirm** here. A marriage is marked **confirmed by
 both** once it counts for those, or **waiting for** whoever is still to confirm it, when it counts
-for gifts only. Under **Worked out from these** are the relatives found through them. The pencil
+for gifts only. Under **Worked Out from These** are the relatives found through them. The pencil
 at a row's end changes its dates, such as a divorce's, or removes it.
 
 ## New email address

@@ -57,9 +57,9 @@ def test_a_plans_statement_values_show_on_its_reconcile_tab(browser, household):
     r = h.c.post(f"/ui/api/imports/{review['uploadId']}/brokerage", json=body)
     assert r.status_code == 200, r.text
     page, problems = signed_in(
-        browser, h, f"/ui/accounts/{acct}/reconcile", "h3:has-text('Statement values')"
+        browser, h, f"/ui/accounts/{acct}/reconcile", "h3:has-text('Statement Values')"
     )
-    card = page.locator(".card", has=page.locator("h3:has-text('Statement values')"))
+    card = page.locator(".card", has=page.locator("h3:has-text('Statement Values')"))
     assert "93,710.55" in card.inner_text()
     assert problems == []
     page.close()

@@ -101,7 +101,7 @@ def test_leaving_a_changed_rule_asks_first(browser, household):
     page.fill(f"{PANE} #f-rename-to", "Cheese shop")
     page.click(f'a.rule-link[href$="{second["id"]}"]')
     wait(page, "text=Save your changes?", problems)
-    page.click('.dialog footer button:has-text("Keep editing")')
+    page.click('.dialog footer button:has-text("Keep Editing")')
     wait(page, ".dialog", problems, state="detached")
     assert page.url.endswith(first["id"])
     assert page.input_value(f"{PANE} #f-rename-to") == "Cheese shop"
@@ -130,9 +130,9 @@ def test_add_rule_is_in_the_list_until_saved_or_discarded(browser, household):
     Discard takes it out; saved, it takes its own address; Delete asks, then removes it."""
     h = household
     before = len(rules(h))
-    page, problems = signed_in(browser, h, RULES, "a.btn:has-text('Add rule')")
+    page, problems = signed_in(browser, h, RULES, "a.btn:has-text('Add Rule')")
     assert "Choose a rule" in page.inner_text(".rules-layout")
-    page.click("a.btn:has-text('Add rule')")
+    page.click("a.btn:has-text('Add Rule')")
     page.wait_for_url(f"**{RULES}/new")
     wait(page, ".rule-row:has-text('not saved')", problems)
     assert page.locator(".rule-row").count() == before + 1
@@ -141,7 +141,7 @@ def test_add_rule_is_in_the_list_until_saved_or_discarded(browser, household):
     page.wait_for_url(f"**{RULES}")
     until(page, "!document.querySelector('.rule-row.sel')")
     assert page.locator(".rule-row").count() == before
-    page.click("a.btn:has-text('Add rule')")
+    page.click("a.btn:has-text('Add Rule')")
     wait(page, f"{PANE} #f-payee-contains", problems)
     page.fill(f"{PANE} #f-payee-contains", "browser florist")
     page.select_option(f"{PANE} #f-category", h.cats["Food › Groceries"])
@@ -179,7 +179,7 @@ def test_make_a_rule_opens_new_rule_over_the_transaction(browser, household):
     page.click(opener)
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill(".dialog #f-memo", "kept while the rule is made")
-    page.click('.dialog button:has-text("Make a rule")')
+    page.click('.dialog button:has-text("Make a Rule")')
     wait(page, f"{TOP} #d1-f-payee-contains", problems)
     assert page.locator(f"{TOP} h2").inner_text() == "New Rule"
     assert page.input_value(f"{TOP} #d1-f-payee-contains") == "Browser pretzels"

@@ -447,8 +447,8 @@ function ThisMonth({ b, month, reloadList }) {
       `
       : null}
     ${v.uncategorised
-      ? html`<p class="small"><a href="/ui/transactions?category=none">${v.uncategorised} uncategorised
-        transaction${v.uncategorised === 1 ? '' : 's'} to sort →</a></p>`
+      ? html`<p class="small"><a href="/ui/transactions?category=none">${v.uncategorised} Uncategorised
+        Transaction${v.uncategorised === 1 ? '' : 's'} to Sort →</a></p>`
       : null}
   `;
 }
@@ -554,7 +554,7 @@ function Review({ b }) {
           <div
             class="list-item"><${Icon} name="alert" /><div class="grow">${o.label} was ${money(
               o.over,
-            )} over</div><a href=${`/ui/budgets/${b.id}/month`}>See the month</a></div>
+            )} over</div><a href=${`/ui/budgets/${b.id}/month`}>See the Month</a></div>
         `
       )}
       ${v.toMove.map((/** @type {any} */ x) =>
@@ -567,7 +567,7 @@ function Review({ b }) {
               : dec(x.toMove).gt(0)
               ? 'to'
               : 'back from'} ${x.accountName}</div><a
-                    href=${`/ui/budgets/${b.id}/where`}>Where the money is</a></div>
+                    href=${`/ui/budgets/${b.id}/where`}>Where the Money Is</a></div>
         `
       )}
       ${v.uncategorised

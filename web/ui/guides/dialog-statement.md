@@ -28,7 +28,7 @@ account** is ticked and can't be unticked: it counts towards the closing balance
 
 A line you untick offers **Remember…**: it asks to ignore future lines starting like it (its first
 three words, which you can change), from this institution's next statements on. They still show,
-left out, saying so, with **Stop ignoring**. Profile lists what you ignore, to remove it.
+left out, saying so, with **Stop Ignoring**. Profile lists what you ignore, to remove it.
 
 ## Description
 

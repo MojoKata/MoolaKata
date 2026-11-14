@@ -140,8 +140,8 @@ COMPONENTS = {"Action", "SaveButton"}  # drawn as a button; their text is their 
 TITLED = re.compile(r"^\$\{(\w*Dialog|DraftForm|AuthCard|Confirm\w*)\}$")
 INLINE = {"b", "i", "em", "strong", "code", "abbr", "kbd", "sup", "sub", "u"}
 # Buttons that read as links: the small lowercase ones under a field (R3.10) and links inside a
-# sentence, which take its case.
-LINKLIKE = re.compile(r'class="[^"]*\b(?:link-btn|linklike)\b')
+# sentence, which take its case; and buttons that are a list's choices (a chip, a segment).
+LINKLIKE = re.compile(r'class="[^"]*\b(?:link-btn|linklike)\b|aria-pressed=|role="radio"')
 # A stat's label: the header of its card.
 CARD_LABEL = re.compile(r'class="label"')
 DECORATION = re.compile(r"\bIcon\b|\bSpinner\b|html`|^' '$|^''$")
@@ -317,6 +317,8 @@ def headed_texts(src: str):
                         stack.append((name, stack[-1][1], name))  # its words are its parent's
                     elif (name in ELEMENTS or comp in COMPONENTS) and not LINKLIKE.search(attrs):
                         stack.append((name, [], comp))
+                    elif name == "a" and not re.search(r'class="[^"]*\bpill\b', attrs):
+                        stack.append((name, [], "link"))
                     elif CARD_LABEL.search(attrs):
                         stack.append((name, [], "card label"))
                     else:
@@ -331,7 +333,12 @@ def headed_texts(src: str):
                         continue
                     if frags is not None and tag not in INLINE:
                         for each in expand(frags):
-                            if cleaned := _clean(each):
+                            cleaned = _clean(each)
+                            # A link whose words start in lower case sits inside a sentence.
+                            inside = (
+                                what == "link" and cleaned and str(cleaned[0]).strip()[:1].islower()
+                            )
+                            if cleaned and not inside:
                                 yield src.count("\n", 0, a) + 1, what, cleaned
                 if kind in ("open", "self"):
                     line = src.count("\n", 0, a) + 1
@@ -395,7 +402,8 @@ def listed_texts(src: str):
         for p in LABEL.finditer(src, m.start(1), m.end(1)):
             yield at(p.start()), "nav", [Lit(p.group(1), p.start(1))]
     for m in re.finditer(r"\bopenMenu\(", src):
-        for p in LABEL.finditer(src, m.end(), src.find(");", m.end())):
+        end = _expression(src.replace("(", "{").replace(")", "}"), m.end())  # its own parens
+        for p in LABEL.finditer(src, m.end(), end):
             yield at(p.start()), "menu item", [Lit(p.group(1), p.start(1))]
     for m in CONFIRM.finditer(src):
         frags = _string(src, m.start(1), m.end(1))

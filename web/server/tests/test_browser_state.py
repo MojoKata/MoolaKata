@@ -22,7 +22,7 @@ def test_a_scenario_says_so_in_one_line_with_its_actions(browser, household):
         notice = page.locator(".notice.attention").first
         assert notice.locator(".grow").inner_text() == "Scenario · tracking"
         names = notice.locator(".attention-actions > *").all_inner_texts()
-        assert [n.strip() for n in names] == ["Make active", "Compare"]
+        assert [n.strip() for n in names] == ["Make Active", "Compare"]
         assert problems == []
         page.close()
     finally:

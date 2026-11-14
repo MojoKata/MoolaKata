@@ -14,7 +14,7 @@ Rules set a category only where there is none, and never touch a split, a transf
 accounts or a trade. They run on every file, statement and connector fetch you import, and on the
 receipts you add: a rule that renames a payee renames the merchant a receipt names.
 
-## Add rule
+## Add Rule
 
 Adds a rule at the end of the list, the first one while there are none, and shows it on the right; **Discard** takes it away again. A
 transaction's own dialog offers **Make a Rule**, which opens **New Rule** over it with its payee
@@ -22,7 +22,7 @@ and category filled in.
 
 ## Apply to the uncategorised
 
-Beside **Add rule** while any are uncategorised: runs your saved rules now over the uncategorised
+Beside **Add Rule** while any are uncategorised: runs your saved rules now over the uncategorised
 transactions in the accounts you can change. Activity records how many it set, never an amount.
 
 ## Save and Discard

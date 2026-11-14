@@ -8,7 +8,7 @@ from browser import PASSWORD, client, made, open_page, save, stop, unlocked, wai
 
 pytestmark = pytest.mark.browser
 
-FORM = 'form.card:has-text("Test asks")'
+FORM = 'form.card:has(h3:text-is("Bitcoin"))'
 UNSAVED = "text=Not saved yet"
 
 

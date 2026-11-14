@@ -47,7 +47,7 @@ export default function Alerts() {
         ${a.resolvedAt
           ? html`<span class="pill ok">resolved</span>`
           : html`${
-            a.link ? html`<a class="btn sm" href=${a.link}>${a.fix || 'See it'}</a>` : null
+            a.link ? html`<a class="btn sm" href=${a.link}>${a.fix || 'See It'}</a>` : null
           }<button type="button" class="btn sm" onClick=${() => dismiss(a)}>Dismiss</button>`}
       </div>
     `;

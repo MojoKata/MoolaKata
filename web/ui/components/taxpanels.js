@@ -656,7 +656,7 @@ function Issues({ p, b, reload }) {
             class="list-item"><${Icon} name="alert" /><span class="grow">${i.text}</span>${i
                 .kind === 'changed-after-filing'
               ? html`
-                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><${Action}
+                ${''}<a class="btn sm" href="/ui/taxes/filings">Add an Amended Return</a><${Action}
                   class="btn sm" why=${whyRead(b)} onClick=${waive}>No Amendment Needed</${Action}>
               `
               : i.link

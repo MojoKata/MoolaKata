@@ -25,7 +25,7 @@ def test_the_tab_lists_the_tree_and_adds_a_category(browser, household):
     h = household
     page, problems = signed_in(browser, h, TAB, 'table.categories td:has-text("Groceries")')
     assert page.locator("[role=tab][aria-selected=true]").inner_text().strip() == "Categories"
-    page.click('main button:has-text("Add a category")')
+    page.click('main button:has-text("Add a Category")')
     wait(page, ".dialog #f-name", problems)
     page.fill(".dialog #f-name", "Browser pets")
     page.select_option(".dialog #f-tax-tag", "medical")

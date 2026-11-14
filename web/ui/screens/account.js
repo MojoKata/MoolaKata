@@ -570,7 +570,7 @@ function Mismatch({ a, check, all, again }) {
                 .length} identical rows on one day.</div>
               <${Action} class="btn sm" why=${whyRead(a)} onClick=${() =>
                 both.run(ids[0])}>Both Are Real</${Action}>
-                  <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove one</a></div>
+                  <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove One</a></div>
           `
         )}
         ${s.changed.length

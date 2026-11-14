@@ -6,14 +6,14 @@ import { privacy } from '../store/prefs.js';
 
 /** (label, screen, the button that opens it): reached as a person would, through the screen. */
 const DIALOGS = [
-  ['New account', '/ui/accounts', 'New account'],
+  ['New account', '/ui/accounts', 'New Account'],
   ['Import', '/ui/accounts', 'Import'],
   ['Add a transaction', '/ui/transactions', 'Add'],
-  ['New portfolio', '/ui/portfolios', 'New portfolio'],
-  ['New user', '/ui/users', 'New user', true],
-  ['New group', '/ui/users', 'New group', true],
-  ['Add a price source', '/ui/settings/prices', 'Add a source', true],
-  ['Verify key', '/ui/settings/keys', 'Verify key', true],
+  ['New portfolio', '/ui/portfolios', 'New Portfolio'],
+  ['New user', '/ui/users', 'New User', true],
+  ['New group', '/ui/users', 'New Group', true],
+  ['Add a price source', '/ui/settings/prices', 'Add a Source', true],
+  ['Verify key', '/ui/settings/keys', 'Verify Key', true],
 ];
 
 /**

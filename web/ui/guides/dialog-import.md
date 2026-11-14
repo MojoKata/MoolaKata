@@ -19,7 +19,7 @@ The account the file belongs to.
 
 The file you downloaded from your bank or broker, or a statement's PDF or photo.
 
-## Keep a statement without reading it {#keep-without-reading}
+## Keep a Statement without Reading It {#keep-without-reading}
 
 Keeps a statement on its account as it is, for the record: one from an account kept current from
 OFX, a brokerage statement, or one whose lines can't be read. Only its period is asked for.

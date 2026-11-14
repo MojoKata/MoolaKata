@@ -62,7 +62,7 @@ def test_the_filters_amount_bounds_are_taken_when_left(browser, household):
     assert page.locator(f'{LIST}:has-text("Bound test")').count() == 1
     # Clearing the filters empties the bounds, their marks gone with what they held.
     with page.expect_response(lambda r: "/transactions?" in r.url and "max=" not in r.url):
-        page.get_by_role("button", name="Clear the filters").click()
+        page.get_by_role("button", name="Clear the Filters").click()
     assert [least.input_value(), most.input_value()] == ["", ""]
     assert least.get_attribute("data-tip") is None
     assert problems == []
@@ -76,9 +76,9 @@ def test_a_mergers_cash_is_asked_and_min_fills_in_none(browser, household):
     saved(create(h.c, "Txn", accountId=acct["id"], date=f"{months_back(2)}-03", kind="buy",
                  symbol="TARGCO", quantity="10", price="10", amount="-100.00"))  # fmt: skip
     page, problems = signed_in(
-        browser, h, "/ui/positions/open", 'button:has-text("Corporate action")'
+        browser, h, "/ui/positions/open", 'button:has-text("Corporate Action")'
     )
-    page.click('button:has-text("Corporate action")')
+    page.click('button:has-text("Corporate Action")')
     wait(page, "#f-holding", problems)
     page.select_option("#f-holding", label="TARGCO in Merged")
     page.select_option("#f-action", "merger")
@@ -107,8 +107,8 @@ def test_a_gifts_link_is_marked_when_left_and_refused_at_save(browser, household
     # S7.8.1: a web address; one with a space can't be typed, one without a scheme is marked
     # when the field is left, and refused at Save under the field.
     h = household
-    page, problems = signed_in(browser, h, "/ui/gifts/list", 'button:has-text("Add a gift")')
-    page.click('button:has-text("Add a gift")')
+    page, problems = signed_in(browser, h, "/ui/gifts/list", 'button:has-text("Add a Gift")')
+    page.click('button:has-text("Add a Gift")')
     wait(page, ".dialog #f-link", problems)
     link = page.locator("#f-link")
     assert link.get_attribute("placeholder") == "ex: https://example.com/item"
@@ -160,8 +160,8 @@ def test_each_kind_draws_its_own_control(browser, household):
     seen = page.evaluate(DRAWN)
     page.keyboard.press("Escape")
     page.goto(page.url.replace("/ui/transactions", "/ui/accounts"))
-    wait(page, 'button:has-text("New account")', problems)
-    page.click('button:has-text("New account")')
+    wait(page, 'button:has-text("New Account")', problems)
+    page.click('button:has-text("New Account")')
     page.click('button.type-card:has-text("HELOC")')
     wait(page, "#f-term-months", problems)
     seen += page.evaluate(DRAWN)

@@ -163,6 +163,10 @@ GUIDE_CHECK = r"""(scope) => {
     .map((h) => ({ id: h.dataset.anchor, text: norm(h.textContent).replace(/^▶\s*/, '') }));
   const cased = [];
   const labels = new Set();
+  // A switch is named by its label too (SwitchRow).
+  for (const el of root.querySelectorAll('[role=switch][aria-label]')) {
+    labels.add(norm(el.getAttribute('aria-label')).toLowerCase());
+  }
   for (const el of root.querySelectorAll('label[for]')) {
     const m = /^(?:d\d+-)?f-(.*)$/.exec(el.htmlFor);
     const text = norm(el.textContent);

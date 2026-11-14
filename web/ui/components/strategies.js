@@ -264,7 +264,7 @@ function AdjustDialog({ close }) {
           <a href=${`https://infomemo.theocc.com/infomemo/search?symbol=${
             encodeURIComponent(g.underlying)
           }`}
-            target="_blank" rel="noopener">Find the OCC's memo for ${g.underlying}</a>
+            target="_blank" rel="noopener">Find the OCC's Memo for ${g.underlying}</a>
         `
         : null}
       footer=${g

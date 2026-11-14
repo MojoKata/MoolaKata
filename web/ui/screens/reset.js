@@ -17,7 +17,7 @@ export default function Reset() {
   if (done) {
     return html`
       <${AuthCard} title="Password Changed" guide="reset"
-        sub="Every session was signed out. Sign in with the new password."><a class="btn primary" href="/ui/">Sign in</a></${AuthCard}>
+        sub="Every session was signed out. Sign in with the new password."><a class="btn primary" href="/ui/">Sign In</a></${AuthCard}>
     `;
   }
   return html`

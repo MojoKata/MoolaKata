@@ -39,12 +39,12 @@ def test_the_welcome_makes_the_key_and_the_first_admin(tmp_path, browser):
     base, proc, _ = start(tmp_path, keyed=False)
     try:
         page, problems = open_page(browser, base + "/ui/")
-        page.get_by_role("button", name="Show my recovery phrase").click()
+        page.get_by_role("button", name="Show My Recovery Phrase").click()
         page.locator("ol.phrase").wait_for()
         words = page.locator("ol.phrase li").all_inner_texts()
         assert len(words) == 12 and phrase.from_words(words)
         page.get_by_role("button", name="I've written them down").click()
-        page.get_by_role("button", name="Make the key").wait_for()
+        page.get_by_role("button", name="Make the Key").wait_for()
         asked = [
             int(re.search(r"\d+", label).group())
             for label in page.locator("label").all_inner_texts()
@@ -52,14 +52,14 @@ def test_the_welcome_makes_the_key_and_the_first_admin(tmp_path, browser):
         ]
         for n in asked:
             page.locator(f"#x-word-{n}").fill(words[n - 1][:4])
-        page.get_by_role("button", name="Make the key").click()
-        page.get_by_text("Set up the admin account").wait_for(timeout=60000)
+        page.get_by_role("button", name="Make the Key").click()
+        page.get_by_text("Set Up the Admin Account").wait_for(timeout=60000)
         assert httpx.get(base + "/healthz").status_code == 200
         page.locator("#f-your-name").fill("Pat Tester")
         page.locator("select").select_option("female")
         page.locator("#f-email-address").fill("pat@home.lan")
         page.locator("#f-password").fill("a long admin passphrase")
-        page.get_by_role("button", name="Save and continue").click()
+        page.get_by_role("button", name="Save and Continue").click()
         page.get_by_role("heading", name="Dashboard").first.wait_for(timeout=30000)
         assert problems == []
         page.close()
@@ -93,12 +93,12 @@ def test_rotate_restarts_the_server_and_it_opens_with_the_new_phrase(tmp_path, b
         page.goto(base + "/ui/settings/keys")
         page.get_by_role("button", name="Rotate", exact=True).click()
         page.get_by_label("Current recovery phrase").fill(old)
-        page.get_by_role("button", name="Show the new phrase").click()
+        page.get_by_role("button", name="Show the New Phrase").click()
         page.locator(".dialog ol.phrase").wait_for()
         words = page.locator(".dialog ol.phrase li").all_inner_texts()
         assert len(words) == 12
         page.get_by_role("button", name="I've written them down").click()
-        page.get_by_role("button", name="Rotate and restart").wait_for()
+        page.get_by_role("button", name="Rotate and Restart").wait_for()
         asked = [
             int(re.search(r"\d+", label).group())
             for label in page.locator(".dialog label").all_inner_texts()
@@ -106,8 +106,8 @@ def test_rotate_restarts_the_server_and_it_opens_with_the_new_phrase(tmp_path, b
         ]
         for n in asked:
             page.get_by_label(f"Word {n}", exact=True).fill(words[n - 1][:4])
-        page.get_by_role("button", name="Rotate and restart").click()
-        page.get_by_text("MoolaKata is locked").wait_for(timeout=60000)
+        page.get_by_role("button", name="Rotate and Restart").click()
+        page.get_by_text("MoolaKata Is Locked").wait_for(timeout=60000)
         assert proc.poll() is None, "the same process, started again"
         page.locator("#f-recovery-phrase").fill(old)
         page.get_by_role("button", name="Unlock").click()

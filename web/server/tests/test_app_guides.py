@@ -116,54 +116,54 @@ def dialogs(page) -> list[tuple[str, str, str]]:
     """Every dialog a screen's button opens: the screen, the button, the dialog's guide."""
     ids = account_ids(page)
     return [
-        ("/ui/accounts", "New account", "dialog-new-account"),
+        ("/ui/accounts", "New Account", "dialog-new-account"),
         ("/ui/accounts", "Import", "dialog-import"),
         ("/ui/accounts", "Share Everyday checking", "dialog-share"),
         ("/ui/transactions", "Add", "dialog-transaction"),
         (
             f"/ui/accounts/{ids['checking']}/reconcile",
-            "Type today's balance",
+            "Type Today's Balance",
             "dialog-type-balance",
         ),
         (
             f"/ui/accounts/{ids['checking']}/reconcile",
-            "Tick off against a statement",
+            "Tick Off against a Statement",
             "dialog-tick-off",
         ),
-        (f"/ui/accounts/{ids['mortgage']}", "Record a payment", "dialog-loan-payment"),
-        (f"/ui/accounts/{ids['mortgage']}", "Type it", "dialog-servicer-balance"),
-        ("/ui/portfolios", "New portfolio", "dialog-portfolio"),
-        ("/ui/budgets", "New budget", "dialog-budget"),
-        ("/ui/budgets", "Edit plan", "dialog-plan"),
+        (f"/ui/accounts/{ids['mortgage']}", "Record a Payment", "dialog-loan-payment"),
+        (f"/ui/accounts/{ids['mortgage']}", "Type It", "dialog-servicer-balance"),
+        ("/ui/portfolios", "New Portfolio", "dialog-portfolio"),
+        ("/ui/budgets", "New Budget", "dialog-budget"),
+        ("/ui/budgets", "Edit Plan", "dialog-plan"),
         ("/ui/budgets", "Settings", "dialog-budget-settings"),
-        ("/ui/budgets", "Estimate from history…", "dialog-estimate"),
-        ("/ui/budgets/x/reimbursements", "Pair a payback", "dialog-pair"),
+        ("/ui/budgets", "Estimate from History…", "dialog-estimate"),
+        ("/ui/budgets/x/reimbursements", "Pair a Payback", "dialog-pair"),
         ("/ui/budgets/x/where", "Assign", "dialog-assign"),
         ("/ui/budgets", "Move", "dialog-move"),
-        ("/ui/budgets/x/list", "Copy as scenario", "dialog-copy"),
-        ("/ui/budgets/x/list", "Make active", "dialog-make-active"),
-        ("/ui/budgets/x/categories", "Add a category", "dialog-edit-category"),
+        ("/ui/budgets/x/list", "Copy as Scenario", "dialog-copy"),
+        ("/ui/budgets/x/list", "Make Active", "dialog-make-active"),
+        ("/ui/budgets/x/categories", "Add a Category", "dialog-edit-category"),
         ("/ui/budgets/x/categories", "Edit Food › Groceries", "dialog-edit-category"),
         ("/ui/budgets/x/categories", "Merge Entertainment", "dialog-merge-category"),
         ("/ui/receipts", "Receipt Blue Bottle Coffee", "dialog-receipt"),
-        ("/ui/projections", "New projection", "dialog-new-projection"),
-        ("/ui/gifts/people", "Add a gift plan", "dialog-person"),
-        ("/ui/gifts/gifts", "Add a gift", "dialog-gift"),
-        ("/ui/giving/donations", "Record a donation", "dialog-donation"),
-        ("/ui/positions/open", "Record an option trade", "dialog-option-trade"),
-        ("/ui/positions/open", "Corporate action…", "dialog-corporate-action"),
-        ("/ui/giving/organisations", "Add an organisation", "dialog-organisation"),
-        ("/ui/taxes/summary", "New tax book", "dialog-tax-book"),
-        ("/ui/taxes/filings", "Add a filing", "dialog-filing"),
-        ("/ui/taxes/documents", "Add a document", "dialog-tax-document"),
+        ("/ui/projections", "New Projection", "dialog-new-projection"),
+        ("/ui/gifts/people", "Add a Gift Plan", "dialog-person"),
+        ("/ui/gifts/gifts", "Add a Gift", "dialog-gift"),
+        ("/ui/giving/donations", "Record a Donation", "dialog-donation"),
+        ("/ui/positions/open", "Record an Option Trade", "dialog-option-trade"),
+        ("/ui/positions/open", "Corporate Action…", "dialog-corporate-action"),
+        ("/ui/giving/organisations", "Add an Organisation", "dialog-organisation"),
+        ("/ui/taxes/summary", "New Tax Book", "dialog-tax-book"),
+        ("/ui/taxes/filings", "Add a Filing", "dialog-filing"),
+        ("/ui/taxes/documents", "Add a Document", "dialog-tax-document"),
         ("/ui/profile", "Compare models", "dialog-bitcoin-models"),
-        ("/ui/profile", "New token", "dialog-new-token"),
-        ("/ui/profile", "New connection", "dialog-connection"),
-        ("/ui/users", "New user", "dialog-new-user"),
-        ("/ui/users", "New group", "dialog-group"),
-        ("/ui/settings/prices", "Add a source", "dialog-add-source"),
-        ("/ui/settings/links", "Enter a link code", "dialog-link-join"),
-        ("/ui/settings/connector", "Pair a replacement…", "dialog-connector-pair"),
+        ("/ui/profile", "New Token", "dialog-new-token"),
+        ("/ui/profile", "New Connection", "dialog-connection"),
+        ("/ui/users", "New User", "dialog-new-user"),
+        ("/ui/users", "New Group", "dialog-group"),
+        ("/ui/settings/prices", "Add a Source", "dialog-add-source"),
+        ("/ui/settings/links", "Enter a Link Code", "dialog-link-join"),
+        ("/ui/settings/connector", "Pair a Replacement…", "dialog-connector-pair"),
     ]
 
 
@@ -184,7 +184,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     visit(page, "/ui/transactions")
     page.locator("tr", has_text="Kroger").first.locator(".row-tool").click()
     wait_guide(page, "dialog-transaction")
-    page.get_by_role("button", name="Make a rule").click()
+    page.get_by_role("button", name="Make a Rule").click()
     wait_guide(page, "dialog-rule")
     check_guide(page, ".dialog-layer:not([inert]) .dialog", "a new rule")
     page.keyboard.press("Escape")
@@ -206,20 +206,20 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     check_guide(page, ".dialog", "a merge with categories of its own")
     close_dialog(page)
     # The type picker leads to the form.
-    open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")
+    open_dialog(page, "/ui/accounts", "New Account", "dialog-new-account")
     page.get_by_role("button", name=re.compile("^Brokerage")).click()
     wait_guide(page, "dialog-account-form")
     check_guide(page, ".dialog", "the account form")
     close_dialog(page)
     for loan in ("Mortgage", "HELOC"):
-        open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")
+        open_dialog(page, "/ui/accounts", "New Account", "dialog-new-account")
         page.get_by_role("button", name=re.compile(f"^{loan}")).click()
         wait_guide(page, "dialog-account-form")
         check_guide(page, ".dialog", f"the {loan} form")
         close_dialog(page)
     # A payment's split names its heading; an ARM's resets add rows that do too.
-    open_dialog(page, f"/ui/accounts/{ids['mortgage']}", "Record a payment", "dialog-loan-payment")
-    page.get_by_role("button", name="Show the split").click()
+    open_dialog(page, f"/ui/accounts/{ids['mortgage']}", "Record a Payment", "dialog-loan-payment")
+    page.get_by_role("button", name="Show the Split").click()
     page.wait_for_selector(".dialog #x-part-principal")
     check_guide(page, ".dialog", "a payment's split")
     close_dialog(page)
@@ -229,7 +229,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     check_guide(page, ".content", "a loan's resets and recasts")
     # The planner's lump sums add rows, and a recast its fee.
     visit(page, f"/ui/accounts/{ids['mortgage']}/payoff")
-    page.get_by_role("button", name="Add a lump sum").click()
+    page.get_by_role("button", name="Add a Lump Sum").click()
     page.get_by_role("switch", name="Recast after the lump sums").click()
     page.wait_for_selector("#f-recast-fee")
     check_guide(page, ".content", "a payoff plan with a lump sum and a recast")
@@ -244,11 +244,11 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
         page.get_by_role("row", name=re.compile(name)).locator(".row-tool").click()
         page.wait_for_selector(".dialog")
         wait_guide(page, "dialog-item")
-        if page.get_by_role("button", name="Record the sale…").count():
-            page.get_by_role("button", name="Record the sale…").click()
+        if page.get_by_role("button", name="Record the Sale…").count():
+            page.get_by_role("button", name="Record the Sale…").click()
         check_guide(page, ".dialog", f"a {t} item")
         close_dialog(page)
-    open_dialog(page, f"/ui/accounts/{ids['collectables']}/items", "Add an item", "dialog-item")
+    open_dialog(page, f"/ui/accounts/{ids['collectables']}/items", "Add an Item", "dialog-item")
     close_dialog(page)
     # A person with their dates, and a gift with its purchase.
     visit(page, "/ui/gifts/people")
@@ -267,7 +267,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     wait_guide(page, "dialog-giving-plan")
     check_guide(page, ".dialog", "the giving plan")
     close_dialog(page)
-    open_dialog(page, "/ui/giving/donations", "Record a donation", "dialog-donation")
+    open_dialog(page, "/ui/giving/donations", "Record a Donation", "dialog-donation")
     page.select_option(".dialog #f-kind", "securities")
     page.select_option(".dialog #f-from-account", label="Taxable brokerage")
     page.wait_for_selector(".dialog #f-lot")
@@ -287,26 +287,26 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     visit(page, "/ui/taxes/filings")
     page.locator("h3 .row-tool").first.click()
     wait_guide(page, "dialog-filing")
-    page.get_by_role("button", name="Add a payment").click()
+    page.get_by_role("button", name="Add a Payment").click()
     check_guide(page, ".dialog", "a filing")
     close_dialog(page)
-    open_dialog(page, "/ui/taxes/documents", "Add a filed document", "dialog-tax-document")
+    open_dialog(page, "/ui/taxes/documents", "Add a Filed Document", "dialog-tax-document")
     close_dialog(page)
     # An open option's end.
     visit(page, "/ui/positions/open")
     page.get_by_role("row", name=re.compile("MSFT .* 480 P")).locator("button.linklike").click()
-    page.get_by_role("button", name="Expired, assigned or exercised…").click()
+    page.get_by_role("button", name="Expired, Assigned or Exercised…").click()
     page.wait_for_selector(".dialog")
     wait_guide(page, "dialog-option-settle")
     check_guide(page, ".dialog", "an option's end")
     close_dialog(page)
-    page.get_by_role("button", name="Type a mark…").click()
+    page.get_by_role("button", name="Type a Mark…").click()
     page.wait_for_selector(".dialog")
     wait_guide(page, "dialog-option-mark")
     check_guide(page, ".dialog", "an option's mark")
     close_dialog(page)
     # A 529's form, with a person added in it.
-    open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")
+    open_dialog(page, "/ui/accounts", "New Account", "dialog-new-account")
     page.get_by_role("button", name=re.compile("^529 plan")).click()
     wait_guide(page, "dialog-account-form")
     check_guide(page, ".dialog", "the 529 form")
@@ -317,7 +317,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     wait_guide(page, "dialog-account-form")
     close_dialog(page)
     # A token's chosen items, then the token shown once.
-    open_dialog(page, "/ui/profile", "New token", "dialog-new-token")
+    open_dialog(page, "/ui/profile", "New Token", "dialog-new-token")
     page.select_option(".dialog #f-can-read", "chosen")
     check_guide(page, ".dialog", "a token's chosen items")
     page.fill(".dialog #f-token-name", "A test token")
@@ -329,10 +329,10 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # A linked copy's access key, shown once (after a reset: the seeded copy has its key).
     visit(page, "/ui/settings/links")
-    page.get_by_role("button", name="Reset copy").click()
+    page.get_by_role("button", name="Reset Copy").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Yes", exact=True).click()
     page.wait_for_selector("text=Copy reset")
-    open_dialog(page, "/ui/settings/links", "Create the access key", "dialog-copy-key")
+    open_dialog(page, "/ui/settings/links", "Create the Access Key", "dialog-copy-key")
     page.wait_for_selector(".dialog .words")
     check_guide(page, ".dialog", "a linked copy's access key")
     close_dialog(page)
@@ -349,7 +349,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     page.fill(".content #f-link-address", page.url.split("/ui/")[0])
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_selector("text=Saved")
-    open_dialog(page, "/ui/settings/links", "Invite a server", "dialog-link-invite")
+    open_dialog(page, "/ui/settings/links", "Invite a Server", "dialog-link-invite")
     page.wait_for_selector(".dialog code")
     check_guide(page, ".dialog", "an invitation's code")
     assert "mkl1." in page.inner_text(".dialog")
@@ -360,7 +360,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
         page.select_option(".content #f-explorer-or-node", node)
         check_guide(page, ".content", f"Settings › Bitcoin ({node})")
     # A wallet's form, which clears a seed phrase at once.
-    open_dialog(page, "/ui/accounts", "New account", "dialog-new-account")
+    open_dialog(page, "/ui/accounts", "New Account", "dialog-new-account")
     page.get_by_role("button", name=re.compile("^Self-custody wallet")).click()
     wait_guide(page, "dialog-account-form")
     check_guide(page, ".dialog", "the wallet form")
@@ -374,7 +374,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
         assert "never accepts one" in page.inner_text(".dialog #f-wallet-keys-err"), secret
     close_dialog(page)
     # An education projection's inputs.
-    open_dialog(page, "/ui/projections", "New projection", "dialog-new-projection")
+    open_dialog(page, "/ui/projections", "New Projection", "dialog-new-projection")
     page.get_by_role("radio", name="Education").click()
     check_guide(page, ".dialog", "a new education projection")
     close_dialog(page)

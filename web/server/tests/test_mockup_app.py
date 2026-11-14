@@ -92,7 +92,7 @@ def test_every_screen_opens(browser, user):
 
 def test_the_mock_pill_opens_dialogs_and_switches_users(browser):
     ctx, page = open_as(browser, "alice")
-    for label in ("New account", "Import", "Add a transaction", "New portfolio", "New user"):
+    for label in ("New Account", "Import", "Add a transaction", "New Portfolio", "New User"):
         page.click(".pill-mock")
         page.get_by_role("menuitem", name=label).click()
         # Focus in the dialog: it listens for Escape from then on.

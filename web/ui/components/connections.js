@@ -335,7 +335,7 @@ export function ConnectionDialog({ close, connection }) {
                 <div class="notice">
                   <${Icon} name="info" />
                   <div><a href=${existing.signInAddress} target="_blank" rel="noopener">Open
-                    Schwab's sign-in at ${existing.signInHost}</a></div>
+                    Schwab's Sign-In at ${existing.signInHost}</a></div>
                 </div>
               `
               : null}

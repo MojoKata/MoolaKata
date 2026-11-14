@@ -88,8 +88,8 @@ def test_a_loans_screen_pairs_and_its_dialog_finds_the_bank_half(browser, househ
         if now.get("transferId"):
             made(change(h.c, "Txn", now, transferWithId=None))
         page, problems = signed_in(browser, h, f"/ui/accounts/{loan['id']}", "main .card")
-        wait(page, '.card:has(h3:text("Looks like a payment"))', problems)
-        card = page.locator('.card:has(h3:text("Looks like a payment"))')
+        wait(page, '.card:has(h3:text("Looks like a Payment"))', problems)
+        card = page.locator('.card:has(h3:text("Looks like a Payment"))')
         assert "pair with the payment of" in card.inner_text()
         card.locator('button:text("Pair")').click()
         wait(page, '.toast:has-text("Paired")', problems)
@@ -100,7 +100,7 @@ def test_a_loans_screen_pairs_and_its_dialog_finds_the_bank_half(browser, househ
         later = today - dt.timedelta(days=2)
         second = made(make(h.c, "Txn", accountId=bank["id"], date=later.isoformat(),
                            amount="-1199.10", payee="ROCKET MORTGAGE"))  # fmt: skip
-        page.get_by_role("button", name="Record a payment").click()
+        page.get_by_role("button", name="Record a Payment").click()
         dialog = page.locator(".dialog")
         dialog.locator("#f-paid-on").fill(later.isoformat())
         dialog.locator("#f-amount").fill("1199.10")
@@ -132,7 +132,7 @@ def test_an_uncovered_call_on_its_own_risks_without_limit(browser, household):
         line = page.locator('.list-item:has([data-help="capital-at-risk"])').inner_text()
         assert "unlimited" in line
         page.goto(h.base + "/ui/positions/trades")
-        wait(page, 'th:text("Capital required")', problems)
+        wait(page, 'th:text("Capital Required")', problems)
         assert problems == []
         page.close()
     finally:

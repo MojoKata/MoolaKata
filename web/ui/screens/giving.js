@@ -157,7 +157,7 @@ function Overview({ v, reload }) {
       ? html`
         <div class="mt">
           <${Attention} icon=${html`<${Icon} name="alert" />`}
-            actions=${html`<a class="btn sm" href="/ui/giving/donations">See them</a>`}>${v
+            actions=${html`<a class="btn sm" href="/ui/giving/donations">See Them</a>`}>${v
               .missingAcks} donation${v.missingAcks === 1 ? '' : 's'} of $250 or more without a
           written acknowledgement</${Attention}>
         </div>
@@ -406,7 +406,7 @@ function Fund({ v, year }) {
           <div class="card kpi">
             <div class="label">Account</div>
             <div class="value small"><a
-                  href=${`/ui/accounts/${f.accountId}`}>Holdings and transactions</a></div>
+                  href=${`/ui/accounts/${f.accountId}`}>Holdings and Transactions</a></div>
           </div>
         </div>
       `

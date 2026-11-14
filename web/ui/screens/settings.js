@@ -517,7 +517,7 @@ function AddSource({ close, sources }) {
                 chosen.keyUrl
                   ? html`
                     ${' '}<a href=${chosen
-                      .keyUrl} target="_blank" rel="noopener noreferrer">Get a free key</a>
+                      .keyUrl} target="_blank" rel="noopener noreferrer">Get a Free Key</a>
                   `
                   : null
               }</p>`
@@ -602,7 +602,7 @@ function SetKey({ close, src }) {
           ${src.keyUrl
             ? html`
               <p class="small"><a href=${src.keyUrl} target="_blank" rel="noopener noreferrer"
-                >Get a free key</a></p>
+                >Get a Free Key</a></p>
             `
             : null}
         `

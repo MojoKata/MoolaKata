@@ -76,7 +76,7 @@ def test_a_dialog_asks_before_its_changes_go_and_gives_the_focus_back(page, kit)
     page.keyboard.type("x")
     page.keyboard.press("Escape")
     expect(page.locator("text=Save your changes?")).to_be_visible()
-    page.click(".dialog-ask-buttons button:has-text('Keep editing')")
+    page.click(".dialog-ask-buttons button:has-text('Keep Editing')")
     expect(note).to_have_value("x")
     # One opened over it: the one beneath waits, and is back as it was.
     page.click(".dialog button:has-text('Open one over it')")
