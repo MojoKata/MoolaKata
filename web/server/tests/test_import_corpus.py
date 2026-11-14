@@ -250,8 +250,8 @@ def _step_file(name: str, changes: dict | None = None) -> tuple[corpus.Entry, by
     ],
 )
 def test_sequences(server, seq):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     accounts: dict[str, str] = {}
     last: dict = {}
     for step in seq.steps:

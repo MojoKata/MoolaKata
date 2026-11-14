@@ -128,13 +128,13 @@
     align-items: center;
     gap: 10px;
   }
-  .av-alice {
+  .av-jane {
     background: var(--av-1);
   }
-  .av-bob {
+  .av-john {
     background: var(--av-2);
   }
-  .av-carol {
+  .av-bart {
     background: var(--av-3);
   }
   .av-dave {

@@ -38,11 +38,11 @@ BOOKS = [
 
 
 @pytest.fixture
-def alice(server):
+def jane(server):
     clock.fix(T0)
     try:
-        make_user(server, "alice")
-        yield sign_in(server, "alice")
+        make_user(server, "jane")
+        yield sign_in(server, "jane")
     finally:
         clock.fix(None)
 
@@ -65,36 +65,36 @@ def _refused(r, code: str) -> None:
 
 
 @pytest.mark.parametrize(("fields", "code"), FILINGS, ids=[c for _, c in FILINGS])
-def test_a_filing_refuses_each_wrong_field(alice, fields, code):
-    b = _book(alice)
-    _refused(make(alice, "Filng", bookId=b["id"], **{**FEDERAL, **fields}), code)
-    assert alice.get(f"/ui/api/tax-books/{b['id']}").json()["filings"] == []
+def test_a_filing_refuses_each_wrong_field(jane, fields, code):
+    b = _book(jane)
+    _refused(make(jane, "Filng", bookId=b["id"], **{**FEDERAL, **fields}), code)
+    assert jane.get(f"/ui/api/tax-books/{b['id']}").json()["filings"] == []
 
 
 @pytest.mark.parametrize(("fields", "code"), BOOKS, ids=[c for _, c in BOOKS])
-def test_a_book_refuses_each_wrong_field(alice, fields, code):
+def test_a_book_refuses_each_wrong_field(jane, fields, code):
     if fields.get("filers") == "nobody":
         other = new_id("User")
         fields = {"filers": [other]}
-    _refused(make(alice, "TaxBk", **{"year": 2025, "filers": [_me(alice)], **fields}), code)
+    _refused(make(jane, "TaxBk", **{"year": 2025, "filers": [_me(jane)], **fields}), code)
 
 
-def test_a_book_keeps_its_year_and_a_carryover_share_is_never_negative(alice):
-    b = _book(alice)
-    got = alice.get(f"/ui/api/tax-books/{b['id']}").json()
+def test_a_book_keeps_its_year_and_a_carryover_share_is_never_negative(jane):
+    b = _book(jane)
+    got = jane.get(f"/ui/api/tax-books/{b['id']}").json()
     record = {"id": b["id"], "version": got["version"]}
-    _refused(change(alice, "TaxBk", record, year=2024), "book-fixed")
-    _refused(change(alice, "TaxBk", record, carryoverShareShort="-5.00"), "amount-invalid")
+    _refused(change(jane, "TaxBk", record, year=2024), "book-fixed")
+    _refused(change(jane, "TaxBk", record, carryoverShareShort="-5.00"), "amount-invalid")
 
 
-def test_a_filing_stays_in_its_book_and_never_amends_itself(alice):
-    b = _book(alice)
-    r = make(alice, "Filng", bookId=b["id"], **FEDERAL)
+def test_a_filing_stays_in_its_book_and_never_amends_itself(jane):
+    b = _book(jane)
+    r = make(jane, "Filng", bookId=b["id"], **FEDERAL)
     f = next(x for x in r.parent()["filings"])
     record = {"id": f["id"], "version": f["version"]}
-    _refused(change(alice, "Filng", record, amendsId=f["id"]), "amends-itself")
-    other = make(alice, "TaxBk", year=2026, filers=[_me(alice)]).json()
-    _refused(change(alice, "Filng", record, bookId=other["id"]), "filing-fixed")
+    _refused(change(jane, "Filng", record, amendsId=f["id"]), "amends-itself")
+    other = make(jane, "TaxBk", year=2026, filers=[_me(jane)]).json()
+    _refused(change(jane, "Filng", record, bookId=other["id"]), "filing-fixed")
 
 
 @pytest.mark.parametrize(
@@ -106,16 +106,16 @@ def test_a_filing_stays_in_its_book_and_never_amends_itself(alice):
     ],
     ids=["quarter", "amount", "transaction"],
 )
-def test_an_estimated_payment_refuses_each_wrong_field(alice, fields, code):
-    b = _book(alice)
-    r = make(alice, "Filng", bookId=b["id"], **FEDERAL)
+def test_an_estimated_payment_refuses_each_wrong_field(jane, fields, code):
+    b = _book(jane)
+    r = make(jane, "Filng", bookId=b["id"], **FEDERAL)
     f = next(x for x in r.parent()["filings"])
     body = {"filingId": f["id"], "quarter": 1, "amount": "100", **fields}
-    _refused(make(alice, "EstPy", **body), code)
+    _refused(make(jane, "EstPy", **body), code)
 
 
-def test_a_dependent_is_claimed_as_a_child_or_a_relative(alice):
-    b = _book(alice)
-    kid = make(alice, "Persn", name="Emma", sex="female", birthYear=2015).json()["id"]
-    _refused(make(alice, "TxDep", bookId=b["id"], personId=kid, claimedAs="cousin", months=12),
+def test_a_dependent_is_claimed_as_a_child_or_a_relative(jane):
+    b = _book(jane)
+    kid = make(jane, "Persn", name="Lisa", sex="female", birthYear=2015).json()["id"]
+    _refused(make(jane, "TxDep", bookId=b["id"], personId=kid, claimedAs="cousin", months=12),
              "claimed-as-invalid")  # fmt: skip

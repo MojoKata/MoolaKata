@@ -57,7 +57,7 @@ def listed(c) -> dict:
 def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client, frozen):
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "sessionIdleHours", 168, None)
-    alice = make_user(server, "alice")
+    jane = make_user(server, "jane")
     failing_source(server, ok_hours_ago=10)
     assert alerts.evaluate(server) == []
     assert listed(admin_client)["open"] == [], "not before 48 hours"
@@ -67,7 +67,7 @@ def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client
     rows = listed(admin_client)["open"]
     assert rows[0]["forAdmins"] and rows[0]["link"] == "/ui/settings/prices"
     assert admin_client.get("/ui/api/badges").json() == {"alerts": 1}
-    assert listed(sign_in(server, "alice"))["open"] == [], f"not for {alice.username}"
+    assert listed(sign_in(server, "jane"))["open"] == [], f"not for {jane.username}"
     # It stays one alert, however often the source fails again.
     at(hours=60)
     assert alerts.evaluate(server) == []
@@ -98,11 +98,11 @@ def test_a_failed_backup_alerts_at_once_and_resolves(server, admin_client, froze
 
 
 def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, frozen):
-    alice = make_user(server, "alice")
+    jane = make_user(server, "jane")
     with server.db.tx(unscoped="test") as s:
         a = Account(
             id=ids.new_id("Acct"),
-            ownerId=alice.id,
+            ownerId=jane.id,
             name="Joint Household",
             type="checking",
             keptBy='["file"]',
@@ -113,7 +113,7 @@ def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, fr
             Import(
                 id=ids.new_id("Imprt"),
                 accountId=a.id,
-                userId=alice.id,
+                userId=jane.id,
                 format="ofx",
                 fileName="aug.ofx",
                 fileHash="x",
@@ -123,7 +123,7 @@ def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, fr
         )
     # Due Sep 25, overdue from Oct 10 after 15 days' grace; today is Oct 13.
     alerts.evaluate(server)
-    c = sign_in(server, "alice")
+    c = sign_in(server, "jane")
     rows = listed(c)["open"]
     assert [r["title"] for r in rows] == ["Joint Household: the September statement is overdue"]
     assert rows[0]["about"] == "monthly statements · the last ended Aug 25 · overdue from Oct 10"
@@ -135,7 +135,7 @@ def test_an_overdue_statement_alerts_the_accounts_owner(server, admin_client, fr
             Import(
                 id=ids.new_id("Imprt"),
                 accountId=a.id,
-                userId=alice.id,
+                userId=jane.id,
                 format="kept",
                 fileName="sep.pdf",
                 fileHash="y",
@@ -199,8 +199,8 @@ def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
     from test_accounts import new_account
     from test_options import opt
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     brk = new_account(c, name="Brokerage", type="brokerage")
     opt(c, brk["id"], "sell-to-open", "2026-10-01", "1.00", expiry="2026-10-16", fees="0")
     org = make(c, "Orgzn", name="Food Bank", deductible=True, pledge="50.00", pledgeEvery="month")
@@ -237,12 +237,12 @@ def test_each_alert_is_emailed_once_when_smtp_is_set(server, admin_client, froze
 
 
 def test_the_daily_summary_goes_once_a_day_after_its_time(server, frozen):
-    alice = make_user(server, "alice")
+    jane = make_user(server, "jane")
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "smtpHost", "smtp.home.lan", None)
         a = Account(
             id=ids.new_id("Acct"),
-            ownerId=alice.id,
+            ownerId=jane.id,
             name="Savings",
             type="savings",
             keptBy='["file"]',
@@ -253,7 +253,7 @@ def test_the_daily_summary_goes_once_a_day_after_its_time(server, frozen):
             Import(
                 id=ids.new_id("Imprt"),
                 accountId=a.id,
-                userId=alice.id,
+                userId=jane.id,
                 format="csv",
                 fileName="a.csv",
                 fileHash="y",
@@ -265,7 +265,7 @@ def test_the_daily_summary_goes_once_a_day_after_its_time(server, frozen):
     with server.db.tx(unscoped="test") as s:
         from moolakata.store.entities.users import User
 
-        s.get(User, alice.id).timeZone = "America/New_York"
+        s.get(User, jane.id).timeZone = "America/New_York"
     assert alerts.daily_summaries(server) == 1
     assert alerts.daily_summaries(server) == 0, "once a day"
     assert _outbox_subjects(server)[-1] == "MoolaKata: 1 new alert"
@@ -326,8 +326,8 @@ def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen
 
     from moolakata.store.entities.accounts import Holding, Instrument
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c, name="Old plan", type="brokerage")
     with server.db.tx(unscoped="test") as s:
         s.get(Account, acct["id"]).statementInterval = "monthly"
@@ -340,7 +340,7 @@ def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen
     at(days=2)  # Oct 15: Aug 31's next statement is due, and Jul 31's was a month ago
     alerts.evaluate(server)
     (a,) = [
-        a for a in listed(sign_in(server, "alice"))["open"] if a["kind"] == "statement-value-old"
+        a for a in listed(sign_in(server, "jane"))["open"] if a["kind"] == "statement-value-old"
     ]
     assert a["about"].startswith("the statement of Jul 31, 2026")
 
@@ -355,8 +355,8 @@ def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen
 
     from moolakata.store.entities.accounts import Holding, Instrument
 
-    alice = make_user(server, "alice")
-    c = sign_in(server, "alice")
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
     plan = new_account(c, name="Plan", type="401k")
     kept = new_account(c, name="Kept", type="brokerage")
 
@@ -366,20 +366,20 @@ def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen
             fund = Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass="mutual-fund")
             s.add(fund)
             s.flush()
-            s.add(Import(id=ids.new_id("Imprt"), accountId=acct["id"], userId=alice.id,
+            s.add(Import(id=ids.new_id("Imprt"), accountId=acct["id"], userId=jane.id,
                          format="statement", fileName=name, fileHash=name,
                          coveredFrom=ended.replace(day=1), coveredTo=ended))  # fmt: skip
             s.add(Holding(id=ids.new_id("Hold"), accountId=acct["id"], instrumentId=fund.id,
                           asOf=ended, quantity=10, marketValue=1000))  # fmt: skip
 
     def stale(acct) -> list[bool]:
-        c = sign_in(server, "alice")  # a fresh session on the day the clock is at
+        c = sign_in(server, "jane")  # a fresh session on the day the clock is at
         got = c.get(f"/ui/api/accounts/{acct['id']}/holdings").json()["holdings"]
         return [h["stale"] for h in got]
 
     def raised() -> dict[str, dict]:
         alerts.evaluate(server)
-        open_ = listed(sign_in(server, "alice"))["open"]
+        open_ = listed(sign_in(server, "jane"))["open"]
         return {a["kind"] + " " + a["title"].split(":")[0]: a for a in open_}
 
     # Both stale from Oct 30: Jun 30, a quarter and 30 days on; Aug 31, 2025, a year and 60.
@@ -400,7 +400,7 @@ def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen
     # The plan's July–September download arrives without its positions: the holding's value
     # is still June's, stale, and now the value's own alert says so.
     with server.db.tx(unscoped="test") as s:
-        s.add(Import(id=ids.new_id("Imprt"), accountId=plan["id"], userId=alice.id,
+        s.add(Import(id=ids.new_id("Imprt"), accountId=plan["id"], userId=jane.id,
                      format="ofx", fileName="q3.ofx", fileHash="q3",
                      coveredFrom=dt.date(2026, 7, 1), coveredTo=dt.date(2026, 9, 30)))  # fmt: skip
     assert set(raised()) == {"statement-value-old Plan", "statement-value-old Kept"}

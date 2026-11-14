@@ -204,8 +204,8 @@ def test_a_worker_past_its_time_is_stopped():
 
 
 def test_reading_fills_empty_fields_never_typed_ones(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     img = draw(["BLUE BOTTLE COFFEE", "OCT 9, 2026", "LATTE 5.75", "TOTAL 5.75"])
     rid = upload(c, _png(img)).json()["id"]
     v = c.get(f"/ui/api/receipts/{rid}").json()
@@ -235,8 +235,8 @@ def test_reading_fills_empty_fields_never_typed_ones(server):
 
 def test_reading_off_leaves_receipts_unread(server, admin_client):
     assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     rid = upload(c, _png(draw(["TOTAL 1.00"]))).json()["id"]
     assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "off"
     q = admin_client.get("/ui/api/settings/receipts").json()

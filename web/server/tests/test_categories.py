@@ -36,21 +36,21 @@ def error(r) -> tuple[int, str | None, str]:
 
 @pytest.fixture
 def people(server, admin_client):
-    a, b = make_user(server, "alice"), make_user(server, "bob")
+    a, b = make_user(server, "jane"), make_user(server, "john")
     return {
         "admin": admin_client,
-        "alice": sign_in(server, "alice"),
-        "bob": sign_in(server, "bob"),
-        "ids": {"alice": a.id, "bob": b.id},
+        "jane": sign_in(server, "jane"),
+        "john": sign_in(server, "john"),
+        "ids": {"jane": a.id, "john": b.id},
     }
 
 
 def test_anyone_adds_a_category_at_either_level_with_any_tax_tag(people):
-    alice, bob = people["alice"], people["bob"]
-    pets = new(alice, "Pets")
-    vet = new(alice, "Vet", parentId=pets["id"], taxTag="medical")
-    church = new(bob, "Church", parentId=rows(bob)["Giving"]["id"], taxTag="charitable")
-    seen = rows(bob)
+    jane, john = people["jane"], people["john"]
+    pets = new(jane, "Pets")
+    vet = new(jane, "Vet", parentId=pets["id"], taxTag="medical")
+    church = new(john, "Church", parentId=rows(john)["Giving"]["id"], taxTag="charitable")
+    seen = rows(john)
     assert seen["Pets › Vet"]["taxTag"] == "medical" and seen["Pets"]["createdById"]
     assert not seen["Pets"]["shipped"] and seen["Giving › Church"]["id"] == church["id"]
     # The maker may still change its parent, kind and tax tag; others may only rename it.
@@ -60,7 +60,7 @@ def test_anyone_adds_a_category_at_either_level_with_any_tax_tag(people):
         "delete": False,
         "merge": False,
     }
-    assert row(alice, vet["id"])["allowed"] == {
+    assert row(jane, vet["id"])["allowed"] == {
         "rename": True,
         "change": True,
         "delete": True,
@@ -80,26 +80,26 @@ NAMES = [
 
 @pytest.mark.parametrize("name,code", NAMES)
 def test_a_name_is_refused(people, name, code):
-    r = make(people["alice"], "Cat", name=name, kind="expense")
+    r = make(people["jane"], "Cat", name=name, kind="expense")
     assert error(r) == (422, "name", code)
 
 
 def test_a_name_is_trimmed_and_may_repeat_under_another_parent(people):
-    alice = people["alice"]
-    one = new(alice, "x" * 60)
-    assert one["name"] == "x" * 60 and new(alice, " Pets ")["name"] == "Pets"
+    jane = people["jane"]
+    one = new(jane, "x" * 60)
+    assert one["name"] == "x" * 60 and new(jane, " Pets ")["name"] == "Pets"
     # Insurance ships under Housing; another parent may have one too.
-    health = rows(alice)["Health"]["id"]
-    assert new(alice, "Insurance ", parentId=health)["path"] == "Health › Insurance"
-    r = make(alice, "Cat", name="INSURANCE", kind="expense", parentId=health)
+    health = rows(jane)["Health"]["id"]
+    assert new(jane, "Insurance ", parentId=health)["path"] == "Health › Insurance"
+    r = make(jane, "Cat", name="INSURANCE", kind="expense", parentId=health)
     assert error(r) == (422, "name", "name-taken")
 
 
 def test_a_kind_parent_and_tax_tag_are_checked(people, server):
-    alice = people["alice"]
-    have = rows(alice)
-    gone = new(alice, "Gone")
-    saved(remove(alice, "Cat", gone))
+    jane = people["jane"]
+    have = rows(jane)
+    gone = new(jane, "Gone")
+    saved(remove(jane, "Cat", gone))
     cases = [
         ({"kind": "spending"}, ("kind", "kind-invalid")),
         ({"parentId": have["Food › Groceries"]["id"]}, ("parentId", "parent-invalid")),
@@ -109,9 +109,9 @@ def test_a_kind_parent_and_tax_tag_are_checked(people, server):
     ]
     for fields, (field, code) in cases:
         body = {"name": "Odd", "kind": "expense", **fields}
-        assert error(make(alice, "Cat", **body))[1:] == (field, code), fields
+        assert error(make(jane, "Cat", **body))[1:] == (field, code), fields
     for kind in ("expense", "income", "savings", "transfer"):
-        assert new(alice, f"A {kind}", kind=kind)["kind"] == kind
+        assert new(jane, f"A {kind}", kind=kind)["kind"] == kind
     for tag in (
         "medical",
         "charitable",
@@ -122,26 +122,26 @@ def test_a_kind_parent_and_tax_tag_are_checked(people, server):
         "property-tax",
         "retirement",
     ):
-        assert new(alice, f"Tagged {tag}", taxTag=tag)["taxTag"] == tag
+        assert new(jane, f"Tagged {tag}", taxTag=tag)["taxTag"] == tag
 
 
 def _origin(people, origin: str) -> dict:
-    alice = people["alice"]
+    jane = people["jane"]
     if origin == "shipped":
-        return rows(alice)["Entertainment"]
-    return new(alice, "Hobbies")
+        return rows(jane)["Entertainment"]
+    return new(jane, "Hobbies")
 
 
 def _use(people, cat_id: str) -> None:
-    alice = people["alice"]
-    acct = new_account(alice)
-    add(alice, acct["id"], "-12.00", payee="Toy shop", categoryId=cat_id)
+    jane = people["jane"]
+    acct = new_account(jane)
+    add(jane, acct["id"], "-12.00", payee="Toy shop", categoryId=cat_id)
 
 
 def _value(people, field: str, cat: dict):
     return {
         "name": "Fun and games",
-        "parentId": rows(people["alice"])["Personal"]["id"],
+        "parentId": rows(people["jane"])["Personal"]["id"],
         "kind": "income",
         "taxTag": "business",
         "keepReceiptsYears": 3,
@@ -155,13 +155,13 @@ def _allowed(caller: str, origin: str, used: bool, field: str) -> bool:
         return True
     if field == "keepReceiptsYears":
         return caller == "admin"
-    return caller == "admin" or (caller == "alice" and origin == "alice's" and not used)
+    return caller == "admin" or (caller == "jane" and origin == "jane's" and not used)
 
 
 @pytest.mark.parametrize("field", FIELDS)
 @pytest.mark.parametrize("used", [False, True], ids=["unused", "in use"])
-@pytest.mark.parametrize("origin", ["shipped", "alice's"])
-@pytest.mark.parametrize("caller", ["admin", "alice", "bob"])
+@pytest.mark.parametrize("origin", ["shipped", "jane's"])
+@pytest.mark.parametrize("caller", ["admin", "jane", "john"])
 def test_who_changes_what(people, caller, origin, used, field):
     cat = _origin(people, origin)
     if used:
@@ -244,16 +244,16 @@ def _put_to_use(c, cat_id: str, how: str) -> None:
 
 @pytest.mark.parametrize("how", USES)
 def test_each_use_makes_a_category_in_use(people, how):
-    alice = people["alice"]
-    mine = new(alice, "Hobbies")
-    assert not row(alice, mine["id"])["inUse"]
-    _put_to_use(alice, mine["id"], how)
-    now = row(alice, mine["id"])
+    jane = people["jane"]
+    mine = new(jane, "Hobbies")
+    assert not row(jane, mine["id"])["inUse"]
+    _put_to_use(jane, mine["id"], how)
+    now = row(jane, mine["id"])
     assert now["inUse"] and not now["allowed"]["change"] and not now["allowed"]["delete"]
     # A use the maker can't see counts too: the admin's view says the same.
-    assert row(people["bob"], mine["id"])["inUse"]
-    assert error(change(alice, "Cat", now, kind="income")) == (403, "kind", "admins-only")
-    assert error(remove(alice, "Cat", now))[2] == "category-in-use"
+    assert row(people["john"], mine["id"])["inUse"]
+    assert error(change(jane, "Cat", now, kind="income")) == (403, "kind", "admins-only")
+    assert error(remove(jane, "Cat", now))[2] == "category-in-use"
     assert error(remove(people["admin"], "Cat", now))[2] == "category-in-use"
 
 
@@ -323,10 +323,10 @@ def test_every_key_the_server_names_is_kept(server):
 DELETES = [
     # (caller, origin, allowed)
     ("admin", "shipped", True),
-    ("alice", "shipped", False),
-    ("admin", "alice's", True),
-    ("alice", "alice's", True),
-    ("bob", "alice's", False),
+    ("jane", "shipped", False),
+    ("admin", "jane's", True),
+    ("jane", "jane's", True),
+    ("john", "jane's", False),
 ]
 
 
@@ -349,27 +349,27 @@ def _texts(c) -> list[str]:
 
 
 def test_every_change_goes_to_activity_for_every_user(people, server):
-    admin, alice, bob = people["admin"], people["alice"], people["bob"]
-    pets = new(alice, "Pets")
-    vet = new(alice, "Vet")
-    vet = saved(change(alice, "Cat", vet, parentId=pets["id"]))
-    vet = saved(change(alice, "Cat", vet, name="Vets"))
-    vet = saved(change(alice, "Cat", vet, taxTag="medical"))
-    vet = saved(change(alice, "Cat", vet, kind="income"))
+    admin, jane, john = people["admin"], people["jane"], people["john"]
+    pets = new(jane, "Pets")
+    vet = new(jane, "Vet")
+    vet = saved(change(jane, "Cat", vet, parentId=pets["id"]))
+    vet = saved(change(jane, "Cat", vet, name="Vets"))
+    vet = saved(change(jane, "Cat", vet, taxTag="medical"))
+    vet = saved(change(jane, "Cat", vet, kind="income"))
     vet = saved(change(admin, "Cat", vet, keepReceiptsYears=7))
-    saved(remove(alice, "Cat", row(alice, vet["id"])))
+    saved(remove(jane, "Cat", row(jane, vet["id"])))
     want = [
-        "Alice deleted the category Pets › Vets",
+        "Jane deleted the category Pets › Vets",
         "Ada Admin set how long Pets › Vets's receipts are kept to 7 years"
         " (it was its parent's, or for ever)",
-        "Alice made Pets › Vets a income category (it was expense)",
-        "Alice changed Pets › Vets's tax tag from none to medical",
-        "Alice renamed the category Pets › Vet to Pets › Vets",
-        "Alice moved the category Vet from the top level to Pets",
-        "Alice added the category Vet",
-        "Alice added the category Pets",
+        "Jane made Pets › Vets a income category (it was expense)",
+        "Jane changed Pets › Vets's tax tag from none to medical",
+        "Jane renamed the category Pets › Vet to Pets › Vets",
+        "Jane moved the category Vet from the top level to Pets",
+        "Jane added the category Vet",
+        "Jane added the category Pets",
     ]
-    for c in (admin, alice, bob):
+    for c in (admin, jane, john):
         got = [t for t in _texts(c) if "categor" in t or "Vet" in t]
         assert got == want, got
     # Never to a linked server's user, who reads only what is shared with them (S10.3.3).
@@ -384,9 +384,13 @@ def test_every_change_goes_to_activity_for_every_user(people, server):
         apply_directory(
             s,
             link,
-            {"users": [{"id": "r-tom", "username": "tom", "displayName": "Tom", "sex": "male"}]},
+            {
+                "users": [
+                    {"id": "r-jeremy", "username": "jeremy", "displayName": "Jeremy", "sex": "male"}
+                ]
+            },
         )
-        tom = s.scalars(select(User).where(User.linkId == link.id)).one()
+        jeremy = s.scalars(select(User).where(User.linkId == link.id)).one()
         s.flush()
         seen = s.execute(
             text(
@@ -394,25 +398,25 @@ def test_every_change_goes_to_activity_for_every_user(people, server):
                 'JOIN "Activity" AS e ON e.id = v."targetId" '
                 'WHERE v."userId" = :u AND e."subjectKind" = \'category\''
             ),
-            {"u": tom.id},
+            {"u": jeremy.id},
         ).scalar()
         assert seen == 0
-        bobs = s.execute(
+        johns = s.execute(
             text(
                 'SELECT COUNT(*) FROM "ActivityAccess" AS v '
                 'JOIN "Activity" AS e ON e.id = v."targetId" '
                 'JOIN "User" AS u ON u.id = v."userId" '
-                "WHERE u.username = 'bob' AND e.\"subjectKind\" = 'category'"
+                "WHERE u.username = 'john' AND e.\"subjectKind\" = 'category'"
             ),
         ).scalar()
-        assert bobs == len(want)
+        assert johns == len(want)
 
 
 def test_a_category_changed_by_another_page_is_stale(people):
-    alice = people["alice"]
-    pets = new(alice, "Pets")
-    saved(change(alice, "Cat", pets, name="Pet"))
-    assert change(alice, "Cat", pets, name="Animals").status_code == 412
+    jane = people["jane"]
+    pets = new(jane, "Pets")
+    saved(change(jane, "Cat", pets, name="Pet"))
+    assert change(jane, "Cat", pets, name="Animals").status_code == 412
 
 
 def test_a_shipped_categorys_key_stays_when_renamed(people, server):
@@ -430,8 +434,8 @@ def test_a_category_made_in_a_dialogs_draft_is_made_before_what_names_it(people)
     refusal of either saves neither."""
     from edits import new_id
 
-    alice = people["alice"]
-    acct = new_account(alice)
+    jane = people["jane"]
+    acct = new_account(jane)
     txn, cat = new_id("Txn"), new_id("Cat")
 
     def ops(name):
@@ -463,13 +467,13 @@ def test_a_category_made_in_a_dialogs_draft_is_made_before_what_names_it(people)
             },
         ]
 
-    r = alice.post("/ui/api/save", json={"ops": ops("")})
+    r = jane.post("/ui/api/save", json={"ops": ops("")})
     assert r.status_code == 422 and cat in {e["id"] for e in r.json()["errors"]}
-    assert "Vet bills" not in rows(alice)
-    r = alice.post("/ui/api/save", json={"ops": ops("Vet bills")})
+    assert "Vet bills" not in rows(jane)
+    r = jane.post("/ui/api/save", json={"ops": ops("Vet bills")})
     assert r.status_code == 200, r.text
-    got = alice.get(f"/ui/api/transactions/{txn}").json()
-    assert got["categoryId"] == cat == rows(alice)["Vet bills"]["id"]
+    got = jane.get(f"/ui/api/transactions/{txn}").json()
+    assert got["categoryId"] == cat == rows(jane)["Vet bills"]["id"]
 
 
 # ---------- each refusal's whole answer: what the dialog shows ----------
@@ -487,39 +491,39 @@ YEARS = "A whole number of years from 1."
 
 
 def test_what_a_new_category_is_refused_says(people):
-    admin, alice = people["admin"], people["alice"]
-    food = rows(alice)["Food"]["id"]
+    admin, jane = people["admin"], people["jane"]
+    food = rows(jane)["Food"]["id"]
 
     def made(c, **fields):
         return answer(make(c, "Cat", **{"name": "Odd", "kind": "expense", **fields}))
 
-    assert made(alice, name=" ") == (422, "name", "name-invalid", NAME_WORDS)
-    assert made(alice, name="FOOD") == (422, "name", "name-taken", TOP_TAKEN)
-    assert made(alice, name="groceries", parentId=food) == (
+    assert made(jane, name=" ") == (422, "name", "name-invalid", NAME_WORDS)
+    assert made(jane, name="FOOD") == (422, "name", "name-taken", TOP_TAKEN)
+    assert made(jane, name="groceries", parentId=food) == (
         422,
         "name",
         "name-taken",
         "There is a category with this name beside it already.",
     )
-    assert made(alice, kind="spending") == (
+    assert made(jane, kind="spending") == (
         422,
         "kind",
         "kind-invalid",
         "Expense, income, savings or transfer.",
     )
-    assert made(alice, parentId=rows(alice)["Food › Groceries"]["id"]) == (
+    assert made(jane, parentId=rows(jane)["Food › Groceries"]["id"]) == (
         422,
         "parentId",
         "parent-invalid",
         TWO_LEVELS,
     )
-    assert made(alice, taxTag="hobby") == (
+    assert made(jane, taxTag="hobby") == (
         422,
         "taxTag",
         "tax-tag-invalid",
         "Choose one of the tax tags, or none.",
     )
-    assert made(alice, keepReceiptsYears=5) == (
+    assert made(jane, keepReceiptsYears=5) == (
         403,
         "keepReceiptsYears",
         "admins-only",
@@ -548,13 +552,13 @@ def test_how_long_receipts_are_kept_is_from_1_to_100_years(people, years, ok):
 
 
 def test_what_a_change_refused_says(people):
-    admin, alice, bob = people["admin"], people["alice"], people["bob"]
+    admin, jane, john = people["admin"], people["jane"], people["john"]
     have = rows(admin)
-    mine = new(alice, "Mine")
+    mine = new(jane, "Mine")
     _use(people, mine["id"])
     cases = [
         (
-            bob,
+            john,
             have["Entertainment"],
             {"kind": "income"},
             (
@@ -565,8 +569,8 @@ def test_what_a_change_refused_says(people):
             ),
         ),
         (
-            bob,
-            row(bob, mine["id"]),
+            john,
+            row(john, mine["id"]),
             {"taxTag": "medical"},
             (
                 403,
@@ -576,8 +580,8 @@ def test_what_a_change_refused_says(people):
             ),
         ),
         (
-            alice,
-            row(alice, mine["id"]),
+            jane,
+            row(jane, mine["id"]),
             {"parentId": have["Food"]["id"]},
             (
                 403,
@@ -628,11 +632,11 @@ def test_what_a_change_refused_says(people):
 
 
 def test_what_a_delete_refused_says(people):
-    admin, alice, bob = people["admin"], people["alice"], people["bob"]
+    admin, jane, john = people["admin"], people["jane"], people["john"]
     have = rows(admin)
-    used = new(alice, "Used")
+    used = new(jane, "Used")
     _use(people, used["id"])
-    mine = new(alice, "Spare")
+    mine = new(jane, "Spare")
     cases = [
         (
             admin,
@@ -655,13 +659,13 @@ def test_what_a_delete_refused_says(people):
             ),
         ),
         (
-            alice,
+            jane,
             have["Travel"],
             (403, None, "admins-only", "Only admins delete a shipped category."),
         ),
         (
-            bob,
-            row(bob, mine["id"]),
+            john,
+            row(john, mine["id"]),
             (403, None, "admins-only", "Only admins delete another user's category."),
         ),
     ]
@@ -670,53 +674,53 @@ def test_what_a_delete_refused_says(people):
 
 
 def test_a_deleted_category_is_not_found_and_its_name_is_free_again(people, server):
-    alice = people["alice"]
-    gone = new(alice, "Gone soon")
-    saved(remove(alice, "Cat", gone))
+    jane = people["jane"]
+    gone = new(jane, "Gone soon")
+    saved(remove(jane, "Cat", gone))
     with server.db.read(unscoped="test") as s:
         got = s.get(Category, gone["id"])
-        assert got.deleted and got.deletedById == got.createdById  # Alice, who deleted it
-    for r in (change(alice, "Cat", gone, name="Back"), remove(alice, "Cat", gone)):
+        assert got.deleted and got.deletedById == got.createdById  # Jane, who deleted it
+    for r in (change(jane, "Cat", gone, name="Back"), remove(jane, "Cat", gone)):
         assert answer(r) == (404, None, "not-found", "Not found")
-    assert new(alice, "Gone soon")["id"] != gone["id"]
+    assert new(jane, "Gone soon")["id"] != gone["id"]
 
 
 def test_a_row_names_its_maker_and_the_save_answers_with_the_row(people):
-    admin, alice = people["admin"], people["alice"]
-    mine = new(alice, "Named")
-    assert row(admin, mine["id"])["createdByName"] == "Alice"
+    admin, jane = people["admin"], people["jane"]
+    mine = new(jane, "Named")
+    assert row(admin, mine["id"])["createdByName"] == "Jane"
     assert rows(admin)["Food"]["createdByName"] is None and rows(admin)["Food"]["shipped"]
     _use(people, mine["id"])
     renamed = saved(change(admin, "Cat", row(admin, mine["id"]), name="Named again"))
-    assert renamed["inUse"] is True and renamed["createdByName"] == "Alice"
+    assert renamed["inUse"] is True and renamed["createdByName"] == "Jane"
     assert saved(change(admin, "Cat", rows(admin)["Travel"], name="Trips"))["inUse"] is False
 
 
 def test_each_change_names_its_category_and_tells_every_page(people, server, monkeypatch):
-    admin, alice = people["admin"], people["alice"]
+    admin, jane = people["admin"], people["jane"]
     told = []
     monkeypatch.setattr(server.events, "publish", lambda kind, data=None, **kw: told.append(kind))
-    pets = new(alice, "Pets")
-    vet = new(alice, "Vet", parentId=pets["id"])
-    vet = saved(change(alice, "Cat", vet, parentId=rows(alice)["Health"]["id"]))
+    pets = new(jane, "Pets")
+    vet = new(jane, "Vet", parentId=pets["id"])
+    vet = saved(change(jane, "Cat", vet, parentId=rows(jane)["Health"]["id"]))
     vet = saved(change(admin, "Cat", vet, keepReceiptsYears=7))
     saved(change(admin, "Cat", row(admin, vet["id"]), keepReceiptsYears=3))
     saved(change(admin, "Cat", row(admin, vet["id"]), keepReceiptsYears=1))
-    saved(change(alice, "Cat", row(alice, pets["id"]), taxTag="medical"))
-    saved(change(alice, "Cat", row(alice, pets["id"]), taxTag=None))
+    saved(change(jane, "Cat", row(jane, pets["id"]), taxTag="medical"))
+    saved(change(jane, "Cat", row(jane, pets["id"]), taxTag=None))
     assert told.count("category") == 8
     items = admin.get("/ui/api/activity").json()["items"]
     cats = [a for a in items if a["kind"].startswith("category.")]
     assert {a["subjectKind"] for a in cats} == {"category"}
     assert {a["subjectId"] for a in cats} == {pets["id"], vet["id"]}
     texts = [a["text"] for a in cats]
-    assert "Alice moved the category Vet from Pets to Health" in texts
+    assert "Jane moved the category Vet from Pets to Health" in texts
     assert (
         "Ada Admin set how long Health › Vet's receipts are kept to 1 year (it was 3 years)"
         in texts
     )
-    assert "Alice changed Pets's tax tag from medical to none" in texts
-    assert "Alice changed Pets's tax tag from none to medical" in texts
+    assert "Jane changed Pets's tax tag from medical to none" in texts
+    assert "Jane changed Pets's tax tag from none to medical" in texts
     assert (
         "Ada Admin set how long Health › Vet's receipts are kept to 3 years (it was 7 years)"
         in texts
@@ -732,7 +736,7 @@ def test_two_new_categories_naming_each_other_are_refused_not_lost(people):
     first, and are refused as any parent that isn't there yet is."""
     from edits import new_id
 
-    alice = people["alice"]
+    jane = people["jane"]
     a, b = new_id("Cat"), new_id("Cat")
     ops = [
         {
@@ -760,7 +764,7 @@ def test_two_new_categories_naming_each_other_are_refused_not_lost(people):
             },
         },
     ]
-    r = alice.post("/ui/api/save", json={"ops": ops})
+    r = jane.post("/ui/api/save", json={"ops": ops})
     assert r.status_code == 422, r.text
     assert {e["code"] for e in r.json()["errors"]} == {"parent-invalid"}
 
@@ -768,11 +772,11 @@ def test_two_new_categories_naming_each_other_are_refused_not_lost(people):
 def test_a_save_that_changes_nothing_records_nothing(people, server):
     from moolakata.categories import used
 
-    alice = people["alice"]
-    pets = new(alice, "Pets")
-    before = len(alice.get("/ui/api/activity").json()["items"])
-    assert saved(change(alice, "Cat", pets, name="Pets"))["version"] == pets["version"]
-    assert len(alice.get("/ui/api/activity").json()["items"]) == before
+    jane = people["jane"]
+    pets = new(jane, "Pets")
+    before = len(jane.get("/ui/api/activity").json()["items"])
+    assert saved(change(jane, "Cat", pets, name="Pets"))["version"] == pets["version"]
+    assert len(jane.get("/ui/api/activity").json()["items"]) == before
     with server.db.read(unscoped="test") as s:
         assert used(s, []) == set()
 
@@ -807,9 +811,9 @@ def _listed(u: dict, kind: str) -> int:
 
 @pytest.mark.parametrize("how", USES)
 def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
-    alice, bob = people["alice"], people["bob"]
-    mine = new(alice, "Hobbies")
-    empty = uses(alice, mine["id"])
+    jane, john = people["jane"], people["john"]
+    mine = new(jane, "Hobbies")
+    empty = uses(jane, mine["id"])
     assert empty == {
         "gone": False,
         "seen": 0,
@@ -821,11 +825,11 @@ def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
         "loans": [],
         "categories": [],
     }
-    _put_to_use(alice, mine["id"], how)
-    u = uses(alice, mine["id"])
+    _put_to_use(jane, mine["id"], how)
+    u = uses(jane, mine["id"])
     assert (u["seen"], u["unseen"], _listed(u, how)) == (1, 0, 1)
     assert all(_listed(u, k) == 0 for k in USES if KIND[k] != KIND[how])
-    other = uses(bob, mine["id"])
+    other = uses(john, mine["id"])
     if how in EVERYONE_SEES:
         assert (other["seen"], other["unseen"], _listed(other, how)) == (1, 0, 1)
     else:
@@ -833,11 +837,11 @@ def test_each_use_is_listed_for_its_maker_and_counted_for_others(people, how):
 
 
 def test_what_each_use_says(people):
-    alice = people["alice"]
-    pets = new(alice, "Pets")
+    jane = people["jane"]
+    pets = new(jane, "Pets")
     for how in USES:
-        _put_to_use(alice, pets["id"], how)
-    u = uses(alice, pets["id"])
+        _put_to_use(jane, pets["id"], how)
+    u = uses(jane, pets["id"])
     assert (u["seen"], u["unseen"], u["transactions"]) == (7, 0, 2)
     assert u["rules"] == [{"id": u["rules"][0]["id"], "payeeMatch": "toys", "position": 0}]
     assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
@@ -846,67 +850,67 @@ def test_what_each_use_says(people):
     assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [("B move", "2026-10-01")]
     assert [x["name"] for x in u["loans"]] == ["Car loan"]
     assert [x["name"] for x in u["categories"]] == ["Inside"]
-    budgets = {b["name"]: b["id"] for b in alice.get("/ui/api/budgets").json()["items"]}
+    budgets = {b["name"]: b["id"] for b in jane.get("/ui/api/budgets").json()["items"]}
     assert u["planLines"][0]["budgetId"] == budgets["B plan line"]
     assert u["moves"][0]["budgetId"] == budgets["B move"]
 
 
 def test_a_transaction_counts_once_whatever_its_parts(people):
-    alice = people["alice"]
-    pets = new(alice, "Pets")
-    acct = new_account(alice)
+    jane = people["jane"]
+    pets = new(jane, "Pets")
+    acct = new_account(jane)
     split = [
         {"categoryId": pets["id"], "amount": "-2.00"},
         {"categoryId": pets["id"], "amount": "-3.00"},
     ]
-    add(alice, acct["id"], "-5.00", splits=split)
-    add(alice, acct["id"], "-4.00", categoryId=pets["id"])
-    u = uses(alice, pets["id"])
+    add(jane, acct["id"], "-5.00", splits=split)
+    add(jane, acct["id"], "-4.00", categoryId=pets["id"])
+    u = uses(jane, pets["id"])
     assert (u["transactions"], u["seen"]) == (2, 2)
     # As the Transactions page filtered to it counts them.
-    listed = alice.get("/ui/api/transactions", params={"category": pets["id"]}).json()
+    listed = jane.get("/ui/api/transactions", params={"category": pets["id"]}).json()
     assert listed["total"] == 2
 
 
 def test_a_shared_account_shows_its_uses(people):
     from edits import share
 
-    alice, bob = people["alice"], people["bob"]
-    pets = new(alice, "Pets")
-    acct = new_account(alice)
+    jane, john = people["jane"], people["john"]
+    pets = new(jane, "Pets")
+    acct = new_account(jane)
     for amount in ("-1.00", "-2.00", "-3.00"):
-        add(alice, acct["id"], amount, categoryId=pets["id"])
-    hidden = new_account(alice, name="Mine alone", mask="4242")
-    add(alice, hidden["id"], "-9.00", categoryId=pets["id"])
-    assert (uses(bob, pets["id"])["seen"], uses(bob, pets["id"])["unseen"]) == (0, 4)
-    share(alice, "account", acct["id"], users={people["ids"]["bob"]: "read"})
-    u = uses(bob, pets["id"])
+        add(jane, acct["id"], amount, categoryId=pets["id"])
+    hidden = new_account(jane, name="Mine alone", mask="4242")
+    add(jane, hidden["id"], "-9.00", categoryId=pets["id"])
+    assert (uses(john, pets["id"])["seen"], uses(john, pets["id"])["unseen"]) == (0, 4)
+    share(jane, "account", acct["id"], users={people["ids"]["john"]: "read"})
+    u = uses(john, pets["id"])
     assert (u["seen"], u["unseen"], u["transactions"]) == (3, 1, 3)
 
 
 def test_deleted_uses_count_for_nothing(people):
-    alice = people["alice"]
-    pets = new(alice, "Pets")
-    acct = new_account(alice)
-    whole = add(alice, acct["id"], "-4.00", categoryId=pets["id"])
+    jane = people["jane"]
+    pets = new(jane, "Pets")
+    acct = new_account(jane)
+    whole = add(jane, acct["id"], "-4.00", categoryId=pets["id"])
     parts = [{"categoryId": pets["id"], "amount": "-2.00"}, {"categoryId": None, "amount": "-3.00"}]
-    split = add(alice, acct["id"], "-5.00", splits=parts)
-    assert uses(alice, pets["id"])["seen"] == 2
+    split = add(jane, acct["id"], "-5.00", splits=parts)
+    assert uses(jane, pets["id"])["seen"] == 2
     for t in (whole, split):
-        saved(remove(alice, "Txn", t))
+        saved(remove(jane, "Txn", t))
     # A deleted transaction's parts name nothing either: the category may go.
-    u = uses(alice, pets["id"])
+    u = uses(jane, pets["id"])
     assert (u["seen"], u["unseen"], u["transactions"]) == (0, 0, 0)
-    assert not row(alice, pets["id"])["inUse"]
+    assert not row(jane, pets["id"])["inUse"]
 
 
 def test_the_uses_of_no_category(people):
-    alice = people["alice"]
-    assert alice.get("/ui/api/categories/Cat_nothing/uses").status_code == 404
-    gone = new(alice, "Gone")
-    assert remove(alice, "Cat", row(alice, gone["id"])).status_code == 200
+    jane = people["jane"]
+    assert jane.get("/ui/api/categories/Cat_nothing/uses").status_code == 404
+    gone = new(jane, "Gone")
+    assert remove(jane, "Cat", row(jane, gone["id"])).status_code == 200
     # One deleted says so, for a tour open on it.
-    assert uses(alice, gone["id"]) == {
+    assert uses(jane, gone["id"]) == {
         "gone": True,
         "seen": 0,
         "unseen": 0,
@@ -937,16 +941,16 @@ def test_how_uses_are_counted_in_words(seen, unseen, words):
 
 
 def test_a_refused_delete_counts_both(people):
-    alice, bob = people["alice"], people["bob"]
-    pets = new(alice, "Pets")
-    _put_to_use(alice, pets["id"], "transaction")
-    new(bob, "Inside", parentId=pets["id"])
+    jane, john = people["jane"], people["john"]
+    pets = new(jane, "Pets")
+    _put_to_use(jane, pets["id"], "transaction")
+    new(john, "Inside", parentId=pets["id"])
     r = remove(people["admin"], "Cat", row(people["admin"], pets["id"]))
     assert r.json()["errors"][0]["message"] == (
         "It's in use: 1 use you can see, and 1 you can't."
         " An admin can merge it into another category."
     )
-    r = remove(bob, "Cat", row(bob, pets["id"]))
+    r = remove(john, "Cat", row(john, pets["id"]))
     assert r.json()["errors"][0]["message"].startswith("It's in use: 1 use you can see, and 1")
 
 
@@ -954,36 +958,36 @@ def test_a_save_tells_the_savers_own_pages(people, server, monkeypatch):
     """S12.6: a save, a bulk categorise and rules applied each tell the pages of the user who
     made them, so a tour's counts follow (S12.17.4); nothing at all, or nothing changed, tells
     no one."""
-    alice = people["alice"]
+    jane = people["jane"]
     told = []
     monkeypatch.setattr(
         server.events,
         "publish",
         lambda kind, data=None, users=None, **kw: told.append((kind, data, users)),
     )
-    me = [people["ids"]["alice"]]
-    acct = new_account(alice)
-    t = add(alice, acct["id"], "-3.00", payee="Toy shop")
+    me = [people["ids"]["jane"]]
+    acct = new_account(jane)
+    t = add(jane, acct["id"], "-3.00", payee="Toy shop")
     assert ("saved", None, me) in told
     told.clear()
-    pets = new(alice, "Pets")
+    pets = new(jane, "Pets")
     told.clear()
-    r = alice.post(
+    r = jane.post(
         "/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]}
     )
     assert r.json() == {"changed": 1} and told == [("saved", None, me)]
     told.clear()
-    alice.post("/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]})
+    jane.post("/ui/api/transactions/categorise", json={"ids": [t["id"]], "categoryId": pets["id"]})
     assert told == [], "nothing changed"
-    make(alice, "Rule", payeeMatch="toy", categoryId=pets["id"])
-    add(alice, acct["id"], "-4.00", payee="Toy barn")
+    make(jane, "Rule", payeeMatch="toy", categoryId=pets["id"])
+    add(jane, acct["id"], "-4.00", payee="Toy barn")
     told.clear()
-    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 1}
+    assert jane.post("/ui/api/rules/apply", json={}).json() == {"changed": 1}
     assert told == [("saved", None, me)]
     told.clear()
-    assert alice.post("/ui/api/rules/apply", json={}).json() == {"changed": 0}
+    assert jane.post("/ui/api/rules/apply", json={}).json() == {"changed": 0}
     assert told == []
-    r = alice.post("/ui/api/save", json={"ops": [], "confirm": []})
+    r = jane.post("/ui/api/save", json={"ops": [], "confirm": []})
     assert r.status_code == 200 and told == []
 
 
@@ -994,19 +998,19 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
     from edits import terms
     from test_budgets import save_plan
 
-    alice = people["alice"]
-    mine, other = new(alice, "Mine"), new(alice, "Other")
-    acct = new_account(alice)
+    jane = people["jane"]
+    mine, other = new(jane, "Mine"), new(jane, "Other")
+    acct = new_account(jane)
     # Transactions: its own, one through a part, and another category's of each sort.
-    add(alice, acct["id"], "-1.00", categoryId=mine["id"])
-    add(alice, acct["id"], "-2.00", categoryId=other["id"])
+    add(jane, acct["id"], "-1.00", categoryId=mine["id"])
+    add(jane, acct["id"], "-2.00", categoryId=other["id"])
     parts = [
         {"categoryId": other["id"], "amount": "-1.00"},
         {"categoryId": None, "amount": "-1.00"},
     ]
-    add(alice, acct["id"], "-2.00", splits=parts)
+    add(jane, acct["id"], "-2.00", splits=parts)
     gone_part = add(
-        alice,
+        jane,
         acct["id"],
         "-3.00",
         splits=[
@@ -1014,12 +1018,12 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
             {"categoryId": None, "amount": "-2.00"},
         ],
     )
-    live = alice.get(f"/ui/api/transactions/{gone_part['id']}").json()
+    live = jane.get(f"/ui/api/transactions/{gone_part['id']}").json()
     part = next(x for x in live["splits"] if x["categoryId"] == mine["id"])
-    saved(change(alice, "Split", part, categoryId=other["id"]))
+    saved(change(jane, "Split", part, categoryId=other["id"]))
     # A part deleted from a live transaction, the rest made to add up in the same save.
     three = add(
-        alice,
+        jane,
         acct["id"],
         "-3.00",
         splits=[
@@ -1028,10 +1032,10 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
             {"categoryId": None, "amount": "-1.00"},
         ],
     )
-    have_parts = alice.get(f"/ui/api/transactions/{three['id']}").json()["splits"]
+    have_parts = jane.get(f"/ui/api/transactions/{three['id']}").json()["splits"]
     cut = next(x for x in have_parts if x["categoryId"] == mine["id"])
     grow = next(x for x in have_parts if x["categoryId"] is None)
-    r = alice.post(
+    r = jane.post(
         "/ui/api/save",
         json={
             "ops": [
@@ -1049,41 +1053,41 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
     assert r.status_code == 200, r.text
     # Rules: two of its own, out of the order they were made in once moved; one deleted; one
     # of another category.
-    first = make(alice, "Rule", payeeMatch="zzz", categoryId=mine["id"]).json()
-    second = make(alice, "Rule", payeeMatch="aaa", categoryId=mine["id"]).json()
-    make(alice, "Rule", payeeMatch="other", categoryId=other["id"]).json()
-    dropped = make(alice, "Rule", payeeMatch="dropped", categoryId=mine["id"]).json()
-    saved(remove(alice, "Rule", dropped))
-    have = {r["id"]: r for r in alice.get("/ui/api/rules").json()["items"]}
-    saved(change(alice, "Rule", have[second["id"]], position=0))
+    first = make(jane, "Rule", payeeMatch="zzz", categoryId=mine["id"]).json()
+    second = make(jane, "Rule", payeeMatch="aaa", categoryId=mine["id"]).json()
+    make(jane, "Rule", payeeMatch="other", categoryId=other["id"]).json()
+    dropped = make(jane, "Rule", payeeMatch="dropped", categoryId=mine["id"]).json()
+    saved(remove(jane, "Rule", dropped))
+    have = {r["id"]: r for r in jane.get("/ui/api/rules").json()["items"]}
+    saved(change(jane, "Rule", have[second["id"]], position=0))
     # Plan lines and moves in two budgets, the later budget's earlier, each month made late.
-    b1 = make(alice, "Bdgt", name="B one", accountIds=[acct["id"]], method="envelope").json()
-    b2 = make(alice, "Bdgt", name="B two", accountIds=[acct["id"]], method="envelope").json()
+    b1 = make(jane, "Bdgt", name="B one", accountIds=[acct["id"]], method="envelope").json()
+    b2 = make(jane, "Bdgt", name="B two", accountIds=[acct["id"]], method="envelope").json()
     line = lambda c: {"categoryId": c, "amount": "5.00"}  # noqa: E731
     for b, months in ((b1, ("2026-09-01", "2026-07-01")), (b2, ("2026-05-01",))):
         for m in months:
-            assert save_plan(alice, b, m, [line(mine["id"]), line(other["id"])]).status_code == 200
-    assert save_plan(alice, b2, "2026-06-01", [line(other["id"])]).status_code == 200
+            assert save_plan(jane, b, m, [line(mine["id"]), line(other["id"])]).status_code == 200
+    assert save_plan(jane, b2, "2026-06-01", [line(other["id"])]).status_code == 200
     # Taken out from April, then planned again from April: the line taking it out is deleted.
-    b3 = make(alice, "Bdgt", name="B three", accountIds=[acct["id"]], method="envelope").json()
+    b3 = make(jane, "Bdgt", name="B three", accountIds=[acct["id"]], method="envelope").json()
     for month, cat in (("2026-03-01", mine), ("2026-04-01", other), ("2026-04-01", mine)):
-        r = save_plan(alice, b3, month, [line(cat["id"])])
+        r = save_plan(jane, b3, month, [line(cat["id"])])
         assert r.status_code == 200, r.text
-    food = rows(alice)["Food"]["id"]
+    food = rows(jane)["Food"]["id"]
     move = lambda b, m, a, z: make(  # noqa: E731
-        alice, "BdgMv", budgetId=b["id"], month=m, fromCategoryId=a, toCategoryId=z, amount="1.00"
+        jane, "BdgMv", budgetId=b["id"], month=m, fromCategoryId=a, toCategoryId=z, amount="1.00"
     ).json()
     move(b1, "2026-09-01", food, mine["id"])
     move(b1, "2026-07-01", mine["id"], food)
     move(b2, "2026-05-01", food, other["id"])
     move(b2, "2026-03-01", mine["id"], food)  # the later budget's, an earlier month
     gone = move(b2, "2026-04-01", food, mine["id"])
-    saved(remove(alice, "BdgMv", gone))
+    saved(remove(jane, "BdgMv", gone))
     # Loans: one counting in it, one in another, one whose terms went.
     for name, cat in (("Loan mine", mine), ("Loan other", other), ("Loan gone", mine)):
-        loan = new_account(alice, name=name, type="auto-loan", mask="7777")
+        loan = new_account(jane, name=name, type="auto-loan", mask="7777")
         made_terms = terms(
-            alice,
+            jane,
             loan["id"],
             principal="9000.00",
             rate="5",
@@ -1094,13 +1098,13 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
         )
         assert made_terms.status_code == 200, made_terms.text
         if name == "Loan gone":  # its terms go with its account
-            saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{loan['id']}").json()))
+            saved(remove(jane, "Acct", jane.get(f"/ui/api/accounts/{loan['id']}").json()))
     # Categories under it, named in either case.
     for name in ("beta", "Alpha", "a_b", "aZ"):
-        new(alice, name, parentId=mine["id"])
-    new(alice, "Elsewhere", parentId=other["id"])
+        new(jane, name, parentId=mine["id"])
+    new(jane, "Elsewhere", parentId=other["id"])
 
-    u = uses(alice, mine["id"])
+    u = uses(jane, mine["id"])
     assert u["transactions"] == 1
     assert [r["payeeMatch"] for r in u["rules"]] == ["aaa", "zzz"]
     assert [r["position"] for r in u["rules"]] == sorted(r["position"] for r in u["rules"])
@@ -1126,14 +1130,14 @@ def test_a_categorys_uses_are_its_own_live_ones_in_order(people):
 
 def test_a_deleted_move_leaves_its_category_unused(people):
     """`used` reads moves as the count does: a deleted one names nothing."""
-    alice = people["alice"]
-    spare = new(alice, "Spare")
-    acct = new_account(alice)
-    b = make(alice, "Bdgt", name="B", accountIds=[acct["id"]], method="envelope").json()
-    food = rows(alice)["Food"]["id"]
+    jane = people["jane"]
+    spare = new(jane, "Spare")
+    acct = new_account(jane)
+    b = make(jane, "Bdgt", name="B", accountIds=[acct["id"]], method="envelope").json()
+    food = rows(jane)["Food"]["id"]
     for a, z in ((spare["id"], food), (food, spare["id"])):
         m = make(
-            alice,
+            jane,
             "BdgMv",
             budgetId=b["id"],
             month="2026-10-01",
@@ -1141,9 +1145,9 @@ def test_a_deleted_move_leaves_its_category_unused(people):
             toCategoryId=z,
             amount="1.00",
         ).json()
-        assert row(alice, spare["id"])["inUse"]
-        saved(remove(alice, "BdgMv", m))
-        assert not row(alice, spare["id"])["inUse"]
+        assert row(jane, spare["id"])["inUse"]
+        saved(remove(jane, "BdgMv", m))
+        assert not row(jane, spare["id"])["inUse"]
 
 
 def test_what_a_deleted_account_or_budget_held_names_nothing(people):
@@ -1152,29 +1156,27 @@ def test_what_a_deleted_account_or_budget_held_names_nothing(people):
     deleted with what they belong to (schema.md §4.2)."""
     from test_budgets import save_plan
 
-    alice = people["alice"]
-    pets = new(alice, "Pets")
-    acct = new_account(alice, name="Closed for good", mask="1212")
-    add(alice, acct["id"], "-1.00", categoryId=pets["id"])
+    jane = people["jane"]
+    pets = new(jane, "Pets")
+    acct = new_account(jane, name="Closed for good", mask="1212")
+    add(jane, acct["id"], "-1.00", categoryId=pets["id"])
     parts = [{"categoryId": pets["id"], "amount": "-1.00"}, {"categoryId": None, "amount": "-1.00"}]
-    add(alice, acct["id"], "-2.00", splits=parts)
-    keep = new_account(alice, name="Kept", mask="3434")
-    b = make(alice, "Bdgt", name="Gone budget", accountIds=[keep["id"]], method="envelope").json()
+    add(jane, acct["id"], "-2.00", splits=parts)
+    keep = new_account(jane, name="Kept", mask="3434")
+    b = make(jane, "Bdgt", name="Gone budget", accountIds=[keep["id"]], method="envelope").json()
     assert (
-        save_plan(
-            alice, b, "2026-10-01", [{"categoryId": pets["id"], "amount": "5.00"}]
-        ).status_code
+        save_plan(jane, b, "2026-10-01", [{"categoryId": pets["id"], "amount": "5.00"}]).status_code
         == 200
     )
-    food = rows(alice)["Food"]["id"]
-    make(alice, "BdgMv", budgetId=b["id"], month="2026-10-01", fromCategoryId=food,
+    food = rows(jane)["Food"]["id"]
+    make(jane, "BdgMv", budgetId=b["id"], month="2026-10-01", fromCategoryId=food,
          toCategoryId=pets["id"], amount="1.00")  # fmt: skip
-    u = uses(alice, pets["id"])
+    u = uses(jane, pets["id"])
     assert (u["seen"], u["transactions"], len(u["planLines"]), len(u["moves"])) == (4, 2, 1, 1)
-    saved(remove(alice, "Acct", alice.get(f"/ui/api/accounts/{acct['id']}").json()))
-    saved(remove(alice, "Bdgt", alice.get(f"/ui/api/budgets/{b['id']}").json()))
-    for who in ("alice", "bob"):
+    saved(remove(jane, "Acct", jane.get(f"/ui/api/accounts/{acct['id']}").json()))
+    saved(remove(jane, "Bdgt", jane.get(f"/ui/api/budgets/{b['id']}").json()))
+    for who in ("jane", "john"):
         u = uses(people[who], pets["id"])
         assert (u["seen"], u["unseen"]) == (0, 0), who
-    assert not row(alice, pets["id"])["inUse"]
-    assert remove(alice, "Cat", row(alice, pets["id"])).status_code == 200
+    assert not row(jane, pets["id"])["inUse"]
+    assert remove(jane, "Cat", row(jane, pets["id"])).status_code == 200

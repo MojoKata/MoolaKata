@@ -1,6 +1,6 @@
-"""Dev mode's physical assets (requirements S17.7): Alice's metals and collectables (one
-valued over a year ago, one sold), her car securing her car loan, and Bob's home with its
-improvements securing his mortgage, shared with Alice."""
+"""Dev mode's physical assets (requirements S17.7): Jane's metals and collectables (one
+valued over a year ago, one sold), her car securing her car loan, and John's home with its
+improvements securing his mortgage, shared with Jane."""
 
 import datetime as dt
 from decimal import Decimal as D
@@ -13,7 +13,7 @@ from ..store.entities.assets import Improvement, Item, ItemValuation
 
 
 def seed_assets(s, people: dict) -> None:
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     today = clock.today()
 
     def account(owner, name, type_, institution=None):
@@ -54,13 +54,13 @@ def seed_assets(s, people: dict) -> None:
             )
         )
 
-    metals = account(alice, "Precious metals", "precious-metals", "Home safe")
+    metals = account(jane, "Precious metals", "precious-metals", "Home safe")
     for metal in ("gold", "silver"):
         assets.metal_instrument(s, metal)
     spot = {"valuation": "spot", "weightUnit": "ozt"}
     item(
         metals,
-        alice,
+        jane,
         "American Gold Eagle, 1 oz",
         700,
         "10650",
@@ -74,7 +74,7 @@ def seed_assets(s, people: dict) -> None:
     )
     item(
         metals,
-        alice,
+        jane,
         "Gold bar, 1 oz (PAMP)",
         420,
         "2310",
@@ -87,7 +87,7 @@ def seed_assets(s, people: dict) -> None:
     )
     item(
         metals,
-        alice,
+        jane,
         "Silver bar, 100 oz",
         900,
         "2450",
@@ -98,10 +98,10 @@ def seed_assets(s, people: dict) -> None:
         location="Home safe",
         **spot,
     )
-    coll = account(alice, "Collectables", "collectables")
+    coll = account(jane, "Collectables", "collectables")
     watch = item(
         coll,
-        alice,
+        jane,
         "Rolex Submariner 124060",
         1100,
         "9100",
@@ -114,16 +114,16 @@ def seed_assets(s, people: dict) -> None:
     )
     valued(watch, 480, "12500", "appraisal")
     cards = item(
-        coll, alice, "1986 Fleer Jordan rookie, PSA 8", 1500, "3200", category="Trading cards"
+        coll, jane, "1986 Fleer Jordan rookie, PSA 8", 1500, "3200", category="Trading cards"
     )
     valued(cards, 40, "4100", "sale")
-    coin = item(coll, alice, "1909-S VDB cent, MS-63", 2000, "1450", category="Coin (numismatic)")
+    coin = item(coll, jane, "1909-S VDB cent, MS-63", 2000, "1450", category="Coin (numismatic)")
     coin.soldOn, coin.proceeds, coin.saleFees = today - dt.timedelta(days=60), D(1980), D(95)
 
-    cars = account(alice, "Vehicles", "vehicle")
+    cars = account(jane, "Vehicles", "vehicle")
     car = item(
         cars,
-        alice,
+        jane,
         "2026 Subaru Outback",
         20,
         "31800",
@@ -132,14 +132,14 @@ def seed_assets(s, people: dict) -> None:
         serial="4S4BTGND7R3",
         personalUse=True,
     )
-    home_acct = account(bob, "Home", "real-estate")
+    home_acct = account(john, "Home", "real-estate")
     mortgage = s.scalars(select(Account).where(Account.name == "Mortgage")).first()
     start = today - dt.timedelta(days=400)
     if mortgage is not None:
         start = s.scalars(select(Loan).where(Loan.accountId == mortgage.id)).one().startDate
     home = item(
         home_acct,
-        bob,
+        john,
         "1428 Elm St",
         (today - start).days,
         "350000",
@@ -167,7 +167,7 @@ def seed_assets(s, people: dict) -> None:
             "account",
             home_acct.id,
             "read",
-            user_id=alice.id,
-            by=bob.id,
+            user_id=jane.id,
+            by=john.id,
         )
     )

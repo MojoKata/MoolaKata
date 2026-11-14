@@ -52,23 +52,23 @@ def upload(c, account_id, name, data):
 
 
 def test_accounts_are_checked_and_their_owners_own(server):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    r = make(alice, "Acct", name="", type="yacht", mask="12", openingBalance="10.00")
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    r = make(jane, "Acct", name="", type="yacht", mask="12", openingBalance="10.00")
     fields = {e["field"] for e in r.json()["errors"]}
     assert fields == {"name", "type", "mask", "openingDate"}
-    a = new_account(alice, openingBalance="1000.00", openingDate="2026-08-31")
+    a = new_account(jane, openingBalance="1000.00", openingDate="2026-08-31")
     assert a["group"] == "banking" and a["access"]["mine"] and a["balance"] == "1000.00"
     assert a["reconcilable"] and not a["investing"]
-    assert bob.get(f"/ui/api/accounts/{a['id']}").status_code == 404
-    assert bob.get("/ui/api/accounts").json()["items"] == []
-    assert saved(change(alice, "Acct", a, name="Joint checking"))["name"] == "Joint checking"
-    r = change(alice, "Acct", a, name="Stale")
+    assert john.get(f"/ui/api/accounts/{a['id']}").status_code == 404
+    assert john.get("/ui/api/accounts").json()["items"] == []
+    assert saved(change(jane, "Acct", a, name="Joint checking"))["name"] == "Joint checking"
+    r = change(jane, "Acct", a, name="Stale")
     assert r.status_code == 412
     v = r.json()["current"][0]["version"]
-    assert remove(alice, "Acct", {"id": a["id"], "version": v}).status_code == 200
-    assert alice.get("/ui/api/accounts").json()["items"] == []
+    assert remove(jane, "Acct", {"id": a["id"], "version": v}).status_code == 200
+    assert jane.get("/ui/api/accounts").json()["items"] == []
 
 
 # ---------- transactions ----------
@@ -92,8 +92,8 @@ def test_accounts_are_checked_and_their_owners_own(server):
     ],
 )
 def test_a_filters_amount_bounds_are_sizes_any_while_blank(server, least, most, got, refused):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
     for amount, kind in (("-3.00", None), ("-7.00", None), ("50.00", "deposit")):
         add(c, a["id"], amount, "2026-09-01", **({"kind": kind} if kind else {}))
@@ -107,8 +107,8 @@ def test_a_filters_amount_bounds_are_sizes_any_while_blank(server, least, most, 
 
 
 def test_transactions_filter_page_and_balance(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, openingBalance="100.00", openingDate="2026-08-31")
     for i in range(1, 8):
         add(c, a["id"], f"-{i}.00", f"2026-09-0{i}", payee=f"Shop {i}")
@@ -134,8 +134,8 @@ def test_transactions_filter_page_and_balance(server):
 
 
 def test_splits_tags_and_bulk_categorise(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c)
     cats = {x["path"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
     groceries, dining = cats["Food › Groceries"], cats["Food › Dining out"]
@@ -181,8 +181,8 @@ def test_splits_tags_and_bulk_categorise(server):
 
 
 def test_transfers_are_matched_and_can_be_undone(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     checking = new_account(c)
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
     out = add(c, checking["id"], "-500.00", "2026-09-15", payee="Card payment")
@@ -200,8 +200,8 @@ def test_transfers_are_matched_and_can_be_undone(server):
 
 
 def test_idempotency_key_returns_the_first_answer(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c)
     fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-1.00"}
     ops = [{"op": "create", "entity": "Txn", "id": new_id("Txn"), "fields": fields}]
@@ -216,8 +216,8 @@ def test_idempotency_key_returns_the_first_answer(server):
 def test_a_trades_fees_are_typed_a_blank_or_less_than_none_refused(server, kind):
     """R3.11, CR3-437: a trade's fees are zero or more, typed; a blank is refused, never read as
     none, made or changed. Money that isn't a trade has no fees to type."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage")["id"]
     add(c, a, "1000.00", "2025-01-02", kind="deposit")
     add(c, a, "-100.00", "2025-01-03", kind="buy", symbol="VTI", quantity="2", price="50")
@@ -238,8 +238,8 @@ def test_a_trades_fees_are_typed_a_blank_or_less_than_none_refused(server, kind)
 
 
 def test_trades_make_lots_holdings_and_gains(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", lotMethod="fifo")
     add(c, a["id"], "10000.00", "2025-01-02", kind="deposit")
     add(c, a["id"], "-1000.00", "2025-01-05", kind="buy", symbol="VTI", quantity="10", price="100")
@@ -267,8 +267,8 @@ def test_trades_make_lots_holdings_and_gains(server):
 
 
 def test_reconciled_periods_ask_before_an_edit(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
     t = add(c, a["id"], "-40.00", "2026-09-02")
     t2 = add(c, a["id"], "100.00", "2026-09-03", kind="deposit")
@@ -293,8 +293,8 @@ def test_reconciled_periods_ask_before_an_edit(server):
 
 
 def test_ofx_import_is_idempotent_and_reconciles(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c)
     data = (FIX / "bank.ofx").read_bytes()
     job = upload(c, a["id"], "statement.qfx", data)
@@ -309,14 +309,14 @@ def test_ofx_import_is_idempotent_and_reconciles(server):
     assert view["periods"][0]["start"] == "2026-09-01"
     assert view["checks"][-1]["ok"] is True  # the stand-in opening fits the reported balance
     imports = c.get(f"/ui/api/accounts/{a['id']}/imports").json()["items"]
-    assert len(imports) == 3 and imports[0]["userName"] == "Alice"
+    assert len(imports) == 3 and imports[0]["userName"] == "Jane"
 
 
 def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
     # B19: a file's sub-cent digits change nothing; a row with a FITID matches one typed by
     # hand; a FITID the file repeats is two rows, flagged as duplicate suspects.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c)
     add(c, a["id"], "-142.18", "2026-09-03", payee="KROGER #123")
     data = (FIX / "bank.ofx").read_bytes()
@@ -341,8 +341,8 @@ def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
 
 
 def test_typed_balance_mismatch_and_adjustment(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
@@ -362,8 +362,8 @@ def test_typed_balance_mismatch_and_adjustment(server):
 
 
 def test_brokerage_ofx_makes_holdings(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     job = upload(c, a["id"], "brokerage.ofx", (FIX / "brokerage.ofx").read_bytes())
     assert job["state"] == "done", job["error"]
@@ -380,8 +380,8 @@ def test_option_trades_and_an_assignment_from_a_brokers_file(server):
     from moolakata.store.entities.accounts import Account, Instrument, Transaction
     from moolakata.store.repos import ledger as repo
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     data = (FIX / "options.ofx").read_bytes()
     job = upload(c, a["id"], "options.ofx", data)
@@ -411,8 +411,8 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
     # the sales after it, never rewriting the ones before.
     from moolakata.store.entities.accounts import Transaction
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     upload(c, a["id"], "brokerage.ofx", (FIX / "brokerage.ofx").read_bytes())
     with server.db.read(unscoped="test") as s:
@@ -432,8 +432,8 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
 
 def test_a_files_positions_are_a_check_on_reconcile(server):
     # B9: positions the trades don't explain show as a difference; the lots stay as they are.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     data = (FIX / "brokerage.ofx").read_bytes().replace(b"<UNITS>15<", b"<UNITS>20<")
     upload(c, a["id"], "brokerage.ofx", data)
@@ -447,8 +447,8 @@ def test_a_files_positions_are_a_check_on_reconcile(server):
 
 def test_a_split_in_a_brokers_file_is_imported(server):
     # The split's options step took a path that didn't exist, failing the whole import.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
     split = (
         b"<SPLIT><INVTRAN><FITID>SP1<DTTRADE>20260901</INVTRAN><SECID><UNIQUEID>922908769"
@@ -461,8 +461,8 @@ def test_a_split_in_a_brokers_file_is_imported(server):
 
 
 def test_csv_import_asks_for_a_mapping_once(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, institution="Credit Union")
     data = (
         b"Date,Description,Amount,Balance\n2026-09-01,Pay,100.00,100.00\n"
@@ -489,8 +489,8 @@ def test_held_uploads_count_against_the_users_uploads_in_flight(server, monkeypa
     let go, and a dialog closed lets its own go at once."""
     from moolakata import middleware
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, institution="Credit Union")
     rows = b"".join(b"2026-09-%02d,Coffee at the corner,-4.50\n" % d for d in range(1, 29))
     data = b"Date,Description,Amount\n" + rows
@@ -508,8 +508,8 @@ def test_held_uploads_count_against_the_users_uploads_in_flight(server, monkeypa
 
 
 def test_uploads_are_checked_from_their_content(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c)
     r = c.post(
         f"/ui/api/accounts/{a['id']}/imports",
@@ -520,8 +520,8 @@ def test_uploads_are_checked_from_their_content(server):
 
 def test_an_edited_transfer_in_moves_its_holding(server):
     # Shares moved in from another broker, then corrected (B37).
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage")
     t = add(c, a["id"], "0", "2026-03-02", kind="transfer-in", symbol="VTI", quantity="10")
     saved(change(c, "Txn", t, quantity="12", costBasis="2400.00"))
@@ -537,8 +537,8 @@ def test_an_account_closes_on_a_day_and_opens_again(server):
 
     clock.fix(dt.datetime(2026, 10, 20, 15, 0, tzinfo=dt.UTC))
     try:
-        make_user(server, "alice")
-        c = sign_in(server, "alice")
+        make_user(server, "jane")
+        c = sign_in(server, "jane")
         a = new_account(c)
         path = f"/ui/api/accounts/{a['id']}"
         r = edit(c, "Acct", path, closedOn="2026-10-21")
@@ -558,8 +558,8 @@ def test_an_account_closes_on_a_day_and_opens_again(server):
 def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
     """CR3-73: shares moved in by a broker's file say nothing of when they were bought: the lot
     is marked so, its term unknown, until the day is typed."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Schwab", type="brokerage", institution="Charles Schwab")
     data = (FIX / "imports" / "schwab-transfer-in.ofx").read_bytes()
     assert upload(c, a["id"], "transfer.ofx", data)["state"] == "done"

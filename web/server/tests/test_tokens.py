@@ -12,13 +12,13 @@ from moolakata import clock, tokens
 
 
 @pytest.fixture
-def alice(server):
-    make_user(server, "alice")
-    return sign_in(server, "alice")
+def jane(server):
+    make_user(server, "jane")
+    return sign_in(server, "jane")
 
 
-def test_a_token_is_shown_once_and_kept_as_a_hash(server, alice):
-    r = make(alice, "Token", name="Claude on my laptop")
+def test_a_token_is_shown_once_and_kept_as_a_hash(server, jane):
+    r = make(jane, "Token", name="Claude on my laptop")
     assert r.status_code == 200, r.text
     made = r.json()
     secret = made["secret"]
@@ -26,21 +26,21 @@ def test_a_token_is_shown_once_and_kept_as_a_hash(server, alice):
     assert made["scope"] == "all"
     left = dt.datetime.fromisoformat(made["expiresAt"]) - clock.now()
     assert dt.timedelta(days=89) < left <= dt.timedelta(days=90), "90 days by default"
-    listed = alice.get("/ui/api/profile/tokens").json()["items"]
+    listed = jane.get("/ui/api/profile/tokens").json()["items"]
     assert [t["name"] for t in listed] == ["Claude on my laptop"]
     assert secret.split(".")[1] not in str(listed)
     with server.db.read(unscoped="test") as s:
         found = tokens.find(s, secret)
-        assert found is not None and found[1].username == "alice"
+        assert found is not None and found[1].username == "jane"
         assert found[0].secretHash != secret.split(".")[1]
         assert tokens.find(s, secret[:-1] + ("A" if secret[-1] != "A" else "B")) is None
         assert tokens.find(s, "mkt_nonsense") is None
 
 
-def test_a_token_can_be_limited_to_chosen_items(server, alice):
-    a = new_account(alice, name="Brokerage", type="brokerage")
+def test_a_token_can_be_limited_to_chosen_items(server, jane):
+    a = new_account(jane, name="Brokerage", type="brokerage")
     r = make(
-        alice,
+        jane,
         "Token",
         name="Retirement check-ins",
         scope="chosen",
@@ -58,17 +58,17 @@ def test_a_token_can_be_limited_to_chosen_items(server, alice):
             "items",
         ),
     ):
-        r = make(alice, "Token", **body)
+        r = make(jane, "Token", **body)
         assert r.status_code == 422 and r.json()["errors"][0]["field"] == field, body
 
 
-def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice):
+def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, jane):
     def new_token():
-        return make(alice, "Token", name="t", days=30).json()
+        return make(jane, "Token", name="t", days=30).json()
 
     one = new_token()
-    assert remove(alice, "Token", one).status_code == 200
-    assert alice.get("/ui/api/profile/tokens").json()["items"] == []
+    assert remove(jane, "Token", one).status_code == 200
+    assert jane.get("/ui/api/profile/tokens").json()["items"] == []
     two = new_token()
     with server.db.read(unscoped="test") as s:
         assert tokens.find(s, one["secret"]) is None
@@ -79,7 +79,7 @@ def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice
         s.get(AccessToken, two["id"]).expiresAt = clock.now() - dt.timedelta(seconds=1)
     with server.db.read(unscoped="test") as s:
         assert tokens.find(s, two["secret"]) is None
-    assert alice.get("/ui/api/profile/tokens").json()["items"][0]["expired"] is True
+    assert jane.get("/ui/api/profile/tokens").json()["items"][0]["expired"] is True
     three = new_token()
     from moolakata.store.entities.users import User
 
@@ -89,15 +89,15 @@ def test_a_token_dies_when_revoked_expired_or_its_user_is_inactive(server, alice
         assert tokens.find(s, three["secret"]) is None
 
 
-def test_someone_elses_token_cant_be_revoked(server, alice):
-    t = make(alice, "Token", name="mine").json()
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    assert remove(bob, "Token", t).status_code == 404
-    assert bob.get("/ui/api/profile/tokens").json()["items"] == []
+def test_someone_elses_token_cant_be_revoked(server, jane):
+    t = make(jane, "Token", name="mine").json()
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    assert remove(john, "Token", t).status_code == 404
+    assert john.get("/ui/api/profile/tokens").json()["items"] == []
 
 
-def test_making_a_token_needs_the_password_again_and_is_emailed(server, alice):
+def test_making_a_token_needs_the_password_again_and_is_emailed(server, jane):
     """S13.7.2 and S10.1.9: someone with a minute at an unlocked browser can't make one."""
     from sqlalchemy import select
     from test_users import PW, mails
@@ -106,26 +106,26 @@ def test_making_a_token_needs_the_password_again_and_is_emailed(server, alice):
 
     with server.db.tx(unscoped="test") as s:
         s.scalars(select(Session)).one().authAt -= dt.timedelta(minutes=11)
-    r = make(alice, "Token", name="Stale")
+    r = make(jane, "Token", name="Stale")
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
-    assert alice.post("/ui/api/session/reauth", json={"password": PW}).status_code == 204
-    assert make(alice, "Token", name="Fresh").status_code == 200
+    assert jane.post("/ui/api/session/reauth", json={"password": PW}).status_code == 204
+    assert make(jane, "Token", name="Fresh").status_code == 200
     told = mails(server)[-1]
-    assert told["To"] == "alice@home.lan" and told["Subject"] == "An access token was made"
+    assert told["To"] == "jane@home.lan" and told["Subject"] == "An access token was made"
     assert '"Fresh"' in told.get_content()
 
 
-def test_a_password_change_or_reset_stops_every_token(server, alice):
+def test_a_password_change_or_reset_stops_every_token(server, jane):
     """S10.9.4: a token outlives neither."""
     from test_users import PW, mails
 
-    secret = make(alice, "Token", name="Laptop").json()["secret"]
-    r = alice.post(
+    secret = make(jane, "Token", name="Laptop").json()["secret"]
+    r = jane.post(
         "/ui/api/profile/password",
         json={"currentPassword": PW, "newPassword": "another long passphrase"},
     )
     assert r.status_code in (200, 204), r.text
     with server.db.read(unscoped="test") as s:
         assert tokens.find(s, secret) is None
-    assert alice.get("/ui/api/profile/tokens").json()["items"] == []
+    assert jane.get("/ui/api/profile/tokens").json()["items"] == []
     assert "access token revoked" in mails(server)[-1].get_content()

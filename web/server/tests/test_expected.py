@@ -130,8 +130,8 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
     from moolakata import ids
     from moolakata.store.entities.accounts import Import
 
-    alice = make_user(server, "alice")
-    c = sign_in(server, "alice")
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, keptBy=["file"])
     assert (a["statementInterval"], a["statementIntervalDefault"]) == (None, "monthly")
     with server.db.tx(unscoped="test") as s:
@@ -140,7 +140,7 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
                 Import(
                     id=ids.new_id("Imprt"),
                     accountId=a["id"],
-                    userId=alice.id,
+                    userId=jane.id,
                     format="statement",
                     fileName=f"{end}.pdf",
                     fileHash=str(end),

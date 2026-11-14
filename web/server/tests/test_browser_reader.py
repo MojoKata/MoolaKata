@@ -38,14 +38,14 @@ def reader(household):
     rita = {user["id"]: "read"}
     plan = h.c.get("/ui/api/giving", params={"year": int(months_back(0)[:4])}).json()["plan"]
     given = [("account", h.checking["id"]), ("account", h.extra["homes"]["id"]),
-             ("budget", h.budget["id"]), ("gift-plan", h.extra["emma"]["id"]),
+             ("budget", h.budget["id"]), ("gift-plan", h.extra["lisa"]["id"]),
              ("giving-plan", plan["id"]), ("projection", h.extra["retire"]["id"]),
              ("tax-book", h.extra["book"]["id"]),
              ("account", h.extra["brokerage"]["id"])]  # fmt: skip
     # And a 529 of its own, for its contributions and expenses.
     a529 = made(make(h.c, "Acct", name="Reader's 529", type="529", institution="my529"))
-    emma = h.c.get(f"/ui/api/persons/{h.extra['emma']['personId']}").json()
-    saved(plan529(h.c, a529["id"], planState="Utah", planName="my529", beneficiaryId=emma["id"],
+    lisa = h.c.get(f"/ui/api/persons/{h.extra['lisa']['personId']}").json()
+    saved(plan529(h.c, a529["id"], planState="Utah", planName="my529", beneficiaryId=lisa["id"],
                   openedOn="2018-05-02", stateDeduction="2410"))  # fmt: skip
     made(make(h.c, "Txn", accountId=a529["id"], date=f"{months_back(1)}-05", kind="deposit",
               amount="2500"))  # fmt: skip
@@ -279,8 +279,8 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     page, problems = signed_in_as_reader(browser, h, "/ui/giving", "text=shared by")
     off(page, "Edit")
     page.goto(h.base + "/ui/gifts/people")
-    wait(page, "text=Emma Griffin", problems)
-    page.click('button[aria-label="View the gift plan for Emma Griffin"]')
+    wait(page, "text=Lisa Doe", problems)
+    page.click('button[aria-label="View the gift plan for Lisa Doe"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
     off(dialog, "Save")
@@ -335,8 +335,8 @@ def test_a_readers_tax_book_opens_what_holds_more_than_its_row(browser, househol
     """S12.19.5: a dependent whose line shows all of them has no tool; a tax document with
     notes, and a filing, open read through the eye, leaving out what their row or card shows."""
     h = household
-    page, problems = signed_in_as_reader(browser, h, "/ui/taxes/summary", "text=Emma Griffin")
-    assert page.locator('button[aria-label="View Emma Griffin"]').count() == 0
+    page, problems = signed_in_as_reader(browser, h, "/ui/taxes/summary", "text=Lisa Doe")
+    assert page.locator('button[aria-label="View Lisa Doe"]').count() == 0
     page.goto(h.base + "/ui/taxes/documents")
     wait(page, 'button[aria-label="View W-2"]', problems)
     page.click('button[aria-label="View W-2"]')

@@ -99,7 +99,7 @@ produces worksheets and exports. It never files, and says so (R1.16).
        shows anything from their year before, or **declines**, which takes them off it and
        tells its owner in Activity. A filer is on one tax book a year: naming one already a
        filer on a book of the year, or accepting a second, is refused, naming the other
-       (*You're a filer on 2025's tax book with Bob*); an invitation not yet accepted blocks
+       (*You're a filer on 2025's tax book with John*); an invitation not yet accepted blocks
        nothing.
     2. **Accounts counted**: the filers' own accounts, each counted once even when the filers
        share it with each other. A filer can add an account they can see (a custodial account

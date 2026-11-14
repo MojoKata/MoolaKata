@@ -7,7 +7,7 @@ of the money; the underlying is priced while the option is open, held or not.
 
 An **option** record's axes: call or put, long or short, whether the account holds the shares
 (100 a contract), grouped as a strategy or not, and the expiry case: out of the money, in it,
-at the strike, no close that day, only Alice's own typed price that day, or only another
+at the strike, no close that day, only Jane's own typed price that day, or only another
 user's trade that day; whether a price source answers; and whether the contract was adjusted
 from the OCC's memo before expiry (S3.10.2: a new root, the same strike, 125 shares a
 contract, so at the money at $80).

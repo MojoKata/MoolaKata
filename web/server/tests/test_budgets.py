@@ -27,8 +27,8 @@ def cats(c) -> dict[str, str]:
 
 
 def setup_budget(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     cat = cats(c)
     r = make(c, "Bdgt", name="Household", accountIds=[acct["id"]])
@@ -232,9 +232,9 @@ def test_plan_checks_its_lines(server, frozen):
 
 def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client):
     c, _, cat, b = setup_budget(server)
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    assert bob.get(f"/ui/api/budgets/{b['id']}/month").status_code == 404
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    assert john.get(f"/ui/api/budgets/{b['id']}/month").status_code == 404
     groups = make(
         admin_client,
         "Group",
@@ -242,17 +242,17 @@ def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client)
         memberIds=[
             u["id"]
             for u in admin_client.get("/ui/api/users").json()["items"]
-            if u["username"] in ("alice", "bob")
+            if u["username"] in ("jane", "john")
         ],
     ).json()
     r = share(c, "budget", b["id"], users={}, groups={groups["id"]: "write"})
     assert r.status_code == 200, r.text
-    assert [x["name"] for x in bob.get("/ui/api/budgets").json()["items"]] == ["Household"]
+    assert [x["name"] for x in john.get("/ui/api/budgets").json()["items"]] == ["Household"]
     # Write: the plan, not the accounts or the budget itself.
-    plan(bob, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "400.00"}])
+    plan(john, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "400.00"}])
     (counted,) = c.get(f"/ui/api/budgets/{b['id']}/accounts").json()["items"]
-    assert remove(bob, "BdgAc", counted).status_code == 403
-    assert drop(bob, "Bdgt", f"/ui/api/budgets/{b['id']}").status_code == 403
+    assert remove(john, "BdgAc", counted).status_code == 403
+    assert drop(john, "Bdgt", f"/ui/api/budgets/{b['id']}").status_code == 403
 
 
 def test_cash_flow_and_trends(server, frozen):
@@ -325,18 +325,18 @@ def test_a_shared_budget_names_only_the_accounts_shared_with_its_viewer(server, 
     c, acct, _, b = setup_budget(server)
     for m in (7, 8, 9, 10):
         add(c, acct["id"], "-15.49", f"2026-{m:02d}-05", payee="Netflix")
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    share(c, "budget", b["id"], users={bob_id: "read"})
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    share(c, "budget", b["id"], users={john_id: "read"})
     (mine,) = [
         r for r in c.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"] if r["payee"]
     ]
-    (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
+    (theirs,) = john.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert mine["accountId"] == acct["id"] and mine["accountName"] == acct["name"]
     assert theirs["accountId"] is None and theirs["accountName"] == "an account not shared"
-    share(c, "account", acct["id"], users={bob_id: "read"})
-    (theirs,) = bob.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
+    share(c, "account", acct["id"], users={john_id: "read"})
+    (theirs,) = john.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"]
     assert theirs["accountName"] == acct["name"]
 
 

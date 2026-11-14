@@ -1,6 +1,6 @@
-"""Dev mode's loans (requirements S17.7): Bob's mortgage, paid each month from his checking
+"""Dev mode's loans (requirements S17.7): John's mortgage, paid each month from his checking
 and split by its schedule, with one overpayment and the servicer's last balance typed in,
-two payoff plans (one followed), shared with Alice; and Alice's new car loan, its first
+two payoff plans (one followed), shared with Jane; and Jane's new car loan, its first
 payment still to come."""
 
 import datetime as dt
@@ -23,13 +23,13 @@ from ..store.entities.sharing import CountedAccount
 
 
 def seed_loans(s, people: dict) -> None:
-    bob = people["bob"]
-    checking = s.scalars(select(Account).where(Account.name == "Bob's checking")).one()
+    john = people["john"]
+    checking = s.scalars(select(Account).where(Account.name == "John's checking")).one()
     today = clock.today()
     start = loans.add_months(dt.date(today.year, today.month, 1), -13)
     home = Account(
         id=ids.new_id("Acct"),
-        ownerId=bob.id,
+        ownerId=john.id,
         name="Mortgage",
         type="mortgage",
         institution="Example Home Loans",
@@ -129,7 +129,7 @@ def seed_loans(s, people: dict) -> None:
                 inputs=json.dumps(inputs),
                 following=since is not None,
                 followingSince=since,
-                createdById=bob.id,
+                createdById=john.id,
             )
         )
     s.add(
@@ -137,14 +137,14 @@ def seed_loans(s, people: dict) -> None:
             "account",
             home.id,
             "write",
-            user_id=people["alice"].id,
-            by=bob.id,
+            user_id=people["jane"].id,
+            by=john.id,
         )
     )
-    s.add(CountedAccount(userId=people["alice"].id, accountId=home.id, createdAt=clock.now()))
+    s.add(CountedAccount(userId=people["jane"].id, accountId=home.id, createdAt=clock.now()))
     car = Account(
         id=ids.new_id("Acct"),
-        ownerId=people["alice"].id,
+        ownerId=people["jane"].id,
         name="Car loan",
         type="auto-loan",
         institution="Example Auto Finance",

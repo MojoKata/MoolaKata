@@ -1,4 +1,4 @@
-"""A seeded dev server and alice's pages on it, for the browser tests that drive the whole app
+"""A seeded dev server and jane's pages on it, for the browser tests that drive the whole app
 (test_app.py, test_app_guides.py): opening a screen as a person would, and checking a
 screen's or a dialog's guide (S12.7.6)."""
 
@@ -100,8 +100,8 @@ def dev_server(tmp_path_factory):
 
 
 @contextlib.contextmanager
-def as_alice(base: str):
-    """A page in a Chromium of its own, signed in as alice, with what went wrong on it in
+def as_jane(base: str):
+    """A page in a Chromium of its own, signed in as jane, with what went wrong on it in
     `problems`: a session of its own, so its own share of the API's limit."""
     from playwright.sync_api import sync_playwright
 
@@ -131,7 +131,7 @@ def as_alice(base: str):
             ),
         )
         pg.goto(base + "/ui/")
-        pg.fill("#f-username-or-email", "alice")
+        pg.fill("#f-username-or-email", "jane")
         pg.fill("#f-password", "moolakata-dev")
         pg.click("button.btn.primary")
         pg.wait_for_selector(".side")
@@ -143,7 +143,7 @@ def as_alice(base: str):
 @pytest.fixture(scope="module")
 def page(dev_server):
     """One page for a module's tests, which run one after another."""
-    with as_alice(dev_server) as pg:
+    with as_jane(dev_server) as pg:
         yield pg
 
 

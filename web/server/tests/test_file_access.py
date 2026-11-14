@@ -28,68 +28,68 @@ def expected(kind: str, reader: str) -> bool:
 
 
 def _made(srv, admin_client) -> dict:
-    names = ("alice", "bob", "dave", "erin", "gina", "mallory")
+    names = ("jane", "john", "dave", "erin", "gina", "mallory")
     for n in names:
         make_user(srv, n)
     c = {n: sign_in(srv, n) for n in names}
     uid = {n: c[n].get("/ui/api/session").json()["user"]["id"] for n in names}
-    alice = c["alice"]
-    pa = alice.get("/ui/api/profile").json()["personId"]
-    pb = c["bob"].get("/ui/api/profile").json()["personId"]
-    r = make(alice, "Rltn", person1Id=pa, person2Id=pb, relation="spouse", fromDate="2009-06-14")
-    assert c["bob"].post(f"/ui/api/relationships/{r.json()['id']}/confirm").status_code == 200
+    jane = c["jane"]
+    pa = jane.get("/ui/api/profile").json()["personId"]
+    pb = c["john"].get("/ui/api/profile").json()["personId"]
+    r = make(jane, "Rltn", person1Id=pa, person2Id=pb, relation="spouse", fromDate="2009-06-14")
+    assert c["john"].post(f"/ui/api/relationships/{r.json()['id']}/confirm").status_code == 200
     group = make(admin_client, "Group", name="Helpers", memberIds=[uid["gina"]]).json()
     receipts: dict[str, str] = {}
 
     def upload(name: str) -> str:
         # Each file its own bytes: the same file uploaded twice is one receipt (S9.4).
         image = png(color=(len(receipts) * 20, 30, 30))
-        r = alice.post("/ui/api/receipts", files={"file": (f"{name}.png", image, "image/png")})
+        r = jane.post("/ui/api/receipts", files={"file": (f"{name}.png", image, "image/png")})
         assert r.status_code in (200, 201), r.text
         return r.json()["id"]
 
-    checking = new_account(alice, name="Checking", mask="1111")
-    t = add(alice, checking["id"], "-42.00", "2026-03-02", payee="Hardware store")
+    checking = new_account(jane, name="Checking", mask="1111")
+    t = add(jane, checking["id"], "-42.00", "2026-03-02", payee="Hardware store")
     receipts["transaction"] = upload("txn")
-    saved(attach(alice, receipts["transaction"], t["id"]))
+    saved(attach(jane, receipts["transaction"], t["id"]))
     receipts["statement"] = upload("statement")
-    saved(attach(alice, receipts["statement"], checking["id"], kind="account"))
-    homes = new_account(alice, name="Home", type="real-estate")
-    house = make(alice, "Item", accountId=homes["id"], name="27 Oak Ln", acquiredOn="2020-01-10",
+    saved(attach(jane, receipts["statement"], checking["id"], kind="account"))
+    homes = new_account(jane, name="Home", type="real-estate")
+    house = make(jane, "Item", accountId=homes["id"], name="27 Oak Ln", acquiredOn="2020-01-10",
                  costBasis="400000", valuation="valuations").json()  # fmt: skip
     receipts["item"] = upload("item")
-    saved(attach(alice, receipts["item"], house["id"], kind="item"))
-    loan = new_account(alice, name="Mortgage", type="mortgage", mask="2222")
+    saved(attach(jane, receipts["item"], house["id"], kind="item"))
+    loan = new_account(jane, name="Mortgage", type="mortgage", mask="2222")
     receipts["loan"] = upload("loan")
-    saved(attach(alice, receipts["loan"], loan["id"], kind="account"))
-    college = new_account(alice, name="529", type="529", mask="3333")
-    ex = make(alice, "QExpn", accountId=college["id"], date="2026-08-15", kind="tuition",
+    saved(attach(jane, receipts["loan"], loan["id"], kind="account"))
+    college = new_account(jane, name="529", type="529", mask="3333")
+    ex = make(jane, "QExpn", accountId=college["id"], date="2026-08-15", kind="tuition",
               amount="5000").json()  # fmt: skip
     receipts["expense"] = upload("expense")
-    saved(attach(alice, receipts["expense"], ex["id"], kind="expense"))
-    plan = make(alice, "GfPln", name="Emma Griffin", sex="female").json()
-    g = make(alice, "Gift", description="Paints", people=[plan["personId"]]).json()
+    saved(attach(jane, receipts["expense"], ex["id"], kind="expense"))
+    plan = make(jane, "GfPln", name="Lisa Doe", sex="female").json()
+    g = make(jane, "Gift", description="Paints", people=[plan["personId"]]).json()
     receipts["gift"] = upload("gift")
-    saved(change(alice, "Gift", g, receiptIds={"add": [receipts["gift"]], "remove": []}))
-    saved(giving_plan(alice, 2026, percent="10", incomeBasis="gross", income="100000"))
-    church = make(alice, "Orgzn", name="St. Mark's Parish").json()
-    d = make(alice, "Dnatn", date="2026-02-01", kind="cash", organisationId=church["id"],
+    saved(change(jane, "Gift", g, receiptIds={"add": [receipts["gift"]], "remove": []}))
+    saved(giving_plan(jane, 2026, percent="10", incomeBasis="gross", income="100000"))
+    church = make(jane, "Orgzn", name="St. Mark's Parish").json()
+    d = make(jane, "Dnatn", date="2026-02-01", kind="cash", organisationId=church["id"],
              amount="200").json()  # fmt: skip
     receipts["donation"] = upload("donation")
-    saved(change(alice, "Dnatn", d, receiptIds={"add": [receipts["donation"]], "remove": []}))
-    book = make(alice, "TaxBk", year=2026, filers=[uid["alice"], uid["bob"]]).json()
-    assert c["bob"].post(f"/ui/api/tax-books/{book['id']}/accept").status_code == 200
+    saved(change(jane, "Dnatn", d, receiptIds={"add": [receipts["donation"]], "remove": []}))
+    book = make(jane, "TaxBk", year=2026, filers=[uid["jane"], uid["john"]]).json()
+    assert c["john"].post(f"/ui/api/tax-books/{book['id']}/accept").status_code == 200
     receipts["tax-document"] = upload("w2")
-    r = make(alice, "TxDoc", bookId=book["id"], form="W-2", issuer="Acme Corp",
+    r = make(jane, "TxDoc", bookId=book["id"], form="W-2", issuer="Acme Corp",
              receiptId=receipts["tax-document"])  # fmt: skip
     assert r.status_code == 200, r.text
     receipts["unattached"] = upload("loose")
-    giving = alice.get("/ui/api/giving", params={"year": 2026}).json()["plan"]
+    giving = jane.get("/ui/api/giving", params={"year": 2026}).json()["plan"]
     shared = [("account", checking["id"]), ("account", homes["id"]), ("account", loan["id"]),
               ("account", college["id"]), ("gift-plan", plan["id"]),
               ("giving-plan", giving["id"]), ("tax-book", book["id"])]  # fmt: skip
     for kind, item_id in shared:
-        r = share(alice, kind, item_id, users={uid["dave"]: "write", uid["erin"]: "read"},
+        r = share(jane, kind, item_id, users={uid["dave"]: "write", uid["erin"]: "read"},
                   groups={group["id"]: "read"})  # fmt: skip
         assert r.status_code == 200, (kind, r.text)
     return {"c": c, "receipts": receipts, "transaction": t, "book": book}
@@ -97,7 +97,7 @@ def _made(srv, admin_client) -> dict:
 
 def test_a_file_opens_for_whoever_reads_what_it_is_kept_with(server, admin_client):
     world = _made(server, admin_client)
-    who = {"owner": "alice", "co-filer": "bob", "writer": "dave", "reader": "erin",
+    who = {"owner": "jane", "co-filer": "john", "writer": "dave", "reader": "erin",
            "member": "gina", "stranger": "mallory"}  # fmt: skip
     wrong = []
     for kind in KINDS:
@@ -111,7 +111,7 @@ def test_a_file_opens_for_whoever_reads_what_it_is_kept_with(server, admin_clien
 
 
 def _attaching_needs_write(world):
-    """S9.6: the writer attaches a receipt of their own to Alice's transaction; the reader
+    """S9.6: the writer attaches a receipt of their own to Jane's transaction; the reader
     can't."""
     c, t = world["c"], world["transaction"]
     for who, ok in (("dave", True), ("erin", False)):

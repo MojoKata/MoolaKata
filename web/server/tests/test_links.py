@@ -159,8 +159,8 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     from moolakata.store.entities.education import Person
 
     a, b, ca, cb, _ = admins
-    make_user(a, "alice")
-    make_user(b, "carol")
+    make_user(a, "jane")
+    make_user(b, "bart")
     inv = ca.post("/ui/api/settings/links/invitations")
     assert inv.status_code == 201, inv.text
     code = inv.json()["code"]
@@ -174,18 +174,18 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     # Nothing of either household crosses before the approval (S10.10.1, P5).
     assert req["users"] == [] and links_of(cb)["links"][0]["users"] == []
     with a.db.read(unscoped="test") as s:
-        assert s.query(Person).filter(Person.name == "Carol").count() == 0
+        assert s.query(Person).filter(Person.name == "Bart").count() == 0
     again = cb.post("/ui/api/settings/links/join", json={"code": code})
     assert again.status_code == 422 and again.json()["code"] in ("code-used", "already-linked")
     r = ca.post(f"/ui/api/settings/links/{req['id']}/approve")
     assert r.status_code == 200 and r.json()["state"] == "active"
     b_side = links_of(cb)["links"][0]
     assert b_side["state"] == "active", "told at once by the approval's exchange"
-    assert {u["username"] for u in b_side["users"]} == {"admin", "alice"}
-    assert {u["username"] for u in links_of(ca)["links"][0]["users"]} == {"admin", "carol"}
+    assert {u["username"] for u in b_side["users"]} == {"admin", "jane"}
+    assert {u["username"] for u in links_of(ca)["links"][0]["users"]} == {"admin", "bart"}
     assert b_side["householdName"]
     # Remote users never sign in, and stay out of Users and Groups.
-    assert all(u["username"] != "carol" for u in ca.get("/ui/api/users").json()["items"])
+    assert all(u["username"] != "bart" for u in ca.get("/ui/api/users").json()["items"])
 
 
 def test_the_directory_follows_the_peers_users(admins):
@@ -261,26 +261,26 @@ from conftest import sign_in  # noqa: E402
 
 def test_an_item_is_shared_read_only_with_a_linked_servers_people(admins):
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     a_id, _ = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Brokerage", type="brokerage").json()
-    v = alice.get(f"/ui/api/shares/account/{acct['id']}").json()
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Brokerage", type="brokerage").json()
+    v = jane.get(f"/ui/api/shares/account/{acct['id']}").json()
     peers = v["links"]
     assert len(peers) == 1 and peers[0]["linkId"] == a_id
-    carol = next(u for u in peers[0]["users"] if u["displayName"] != "Admin B")
-    assert all(u["id"] != carol["id"] for u in v["users"]), "remote people only under their server"
-    r = share(alice, "account", acct["id"], users={carol["id"]: "write"})
+    bart = next(u for u in peers[0]["users"] if u["displayName"] != "Admin B")
+    assert all(u["id"] != bart["id"] for u in v["users"]), "remote people only under their server"
+    r = share(jane, "account", acct["id"], users={bart["id"]: "write"})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "read-only"
-    r = share(alice, "account", acct["id"], users={carol["id"]: "read"}, receipts={a_id: True})
+    r = share(jane, "account", acct["id"], users={bart["id"]: "read"}, receipts={a_id: True})
     assert r.status_code == 200, r.text
-    after = alice.get(f"/ui/api/shares/account/{acct['id']}").json()["links"][0]
+    after = jane.get(f"/ui/api/shares/account/{acct['id']}").json()["links"][0]
     assert after["includeReceipts"] is True
-    assert next(u for u in after["users"] if u["id"] == carol["id"])["allow"] == "read"
+    assert next(u for u in after["users"] if u["id"] == bart["id"])["allow"] == "read"
     # Ending the link removes the share.
     ca.post(f"/ui/api/settings/links/{a_id}/end")
-    v = alice.get(f"/ui/api/shares/account/{acct['id']}").json()
+    v = jane.get(f"/ui/api/shares/account/{acct['id']}").json()
     assert v["links"] == []
     from moolakata import sharing
 
@@ -312,57 +312,57 @@ import json  # noqa: E402
 
 def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(admins):
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     make_user(b, "dave")
     a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Mom's checking", type="checking").json()
-    add(alice, acct["id"], amount="1200.00", payee="Pension")
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Mom's checking", type="checking").json()
+    add(jane, acct["id"], amount="1200.00", payee="Pension")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     # Before B has an access key, it learns only who the item names, not what it is.
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    carol = sign_in(b, "carol")
+    bart = sign_in(b, "bart")
     dave = sign_in(b, "dave")
-    homes = carol.get("/ui/api/linked").json()["items"]
+    homes = bart.get("/ui/api/linked").json()["items"]
     assert len(homes) == 1 and homes[0]["items"] == 1 and homes[0]["name"]
     assert dave.get("/ui/api/linked").json()["items"] == [], "dave is named by nothing"
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     cb.post(f"/ui/api/settings/links/{b_id}/pull")  # the new copy asks for everything
-    st = carol.get(f"/ui/api/linked/{b_id}").json()
+    st = bart.get(f"/ui/api/linked/{b_id}").json()
     assert st["waiting"] == 1 and st["household"]["locked"]
-    r = carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    r = bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200, r.text
     items, docs = docs_in(b, b_id)
-    carol_id = carol.get("/ui/api/session").json()["user"]["id"]
+    bart_id = bart.get("/ui/api/session").json()["user"]["id"]
     assert items[acct["id"]].name == "Mom's checking"
-    assert json.loads(items[acct["id"]].viewers) == [carol_id]
-    detail = docs[(acct["id"], f"/accounts/{acct['id']}", carol_id)]
+    assert json.loads(items[acct["id"]].viewers) == [bart_id]
+    detail = docs[(acct["id"], f"/accounts/{acct['id']}", bart_id)]
     assert detail["balance"] == "1200.00"
-    txns = docs[(acct["id"], f"/transactions?account={acct['id']}", carol_id)]
+    txns = docs[(acct["id"], f"/transactions?account={acct['id']}", bart_id)]
     assert [t["payee"] for t in txns["items"]] == ["Pension"]
-    assert (acct["id"], "", carol_id) in docs, "its row in the accounts list"
+    assert (acct["id"], "", bart_id) in docs, "its row in the accounts list"
     # The window reads them through the API, only for the people they name.
-    rows = carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    rows = bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]
     assert [(r["kind"], r["name"]) for r in rows] == [("account", "Mom's checking")]
     assert rows[0]["row"]["balance"] == "1200.00"
-    got = carol.get(f"/ui/api/linked/{b_id}/doc", params={"path": f"/accounts/{acct['id']}"})
+    got = bart.get(f"/ui/api/linked/{b_id}/doc", params={"path": f"/accounts/{acct['id']}"})
     assert got.status_code == 200 and got.json()["balance"] == "1200.00"
-    assert carol.get(f"/ui/api/linked/{b_id}/doc", params={"path": "/accounts"}).status_code == 404
+    assert bart.get(f"/ui/api/linked/{b_id}/doc", params={"path": "/accounts"}).status_code == 404
     assert dave.get(f"/ui/api/linked/{b_id}/items").status_code == 404
-    homes = carol.get("/ui/api/linked").json()["items"]
+    homes = bart.get("/ui/api/linked").json()["items"]
     assert homes[0]["colour"] == "teal" and not homes[0]["locked"]
-    r = create(carol, "LkCol", linkId=b_id, colour="amber")
+    r = create(bart, "LkCol", linkId=b_id, colour="amber")
     assert saved(r)["household"]["colour"] == "amber"
-    carol.post(f"/ui/api/linked/{b_id}/lock")
-    assert carol.get(f"/ui/api/linked/{b_id}/items").status_code == 423
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    bart.post(f"/ui/api/linked/{b_id}/lock")
+    assert bart.get(f"/ui/api/linked/{b_id}/items").status_code == 423
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     # Only what changed travels.
-    add(alice, acct["id"], amount="-40.00", payee="Pharmacy")
+    add(jane, acct["id"], amount="-40.00", payee="Pharmacy")
     ca.post(f"/ui/api/settings/links/{a_id}/pull")  # either side can make the exchange
     items, docs = docs_in(b, b_id)
-    assert docs[(acct["id"], f"/accounts/{acct['id']}", carol_id)]["balance"] == "1160.00"
+    assert docs[(acct["id"], f"/accounts/{acct['id']}", bart_id)]["balance"] == "1160.00"
     nothing = a  # the next exchange with nothing new sends no change
     from moolakata.store.entities.links import Link
 
@@ -372,11 +372,11 @@ def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(adm
     with a.db.read(unscoped="test") as s:
         assert s.get(Link, a_id).sentSeq == seq
     # A share removed: the item goes.
-    share(alice, "account", acct["id"], users={carol_here["id"]: "none"})
+    share(jane, "account", acct["id"], users={bart_here["id"]: "none"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     items, docs = docs_in(b, b_id)
     assert items == {} and docs == {}
-    assert carol.get("/ui/api/linked").json()["items"] == []
+    assert bart.get("/ui/api/linked").json()["items"] == []
     # The link ended: the copy goes.
     ca.post(f"/ui/api/settings/links/{a_id}/end")
     assert not lcopy.folder(b.config.data_dir, b_id).exists()
@@ -384,21 +384,21 @@ def test_a_shared_account_reaches_the_people_it_names_as_its_screens_show_it(adm
 
 def test_a_reset_copy_is_pulled_again_in_full(admins):
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="IRA", type="ira").json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="IRA", type="ira").json()
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/copy-key")
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     wait_job(cb, cb.post(f"/ui/api/settings/links/{b_id}/reset-copy").json())
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    carol = sign_in(b, "carol")
+    bart = sign_in(b, "bart")
     assert (
-        carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).status_code
+        bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).status_code
         == 200
     )
     items, _ = docs_in(b, b_id)
@@ -409,32 +409,32 @@ def test_receipts_cross_only_when_included_and_open_through_decryption(admins):
     from test_receipts import png
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Checking", type="checking").json()
-    t = add(alice, acct["id"], amount="-12.50", payee="Blue Bottle")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Checking", type="checking").json()
+    t = add(jane, acct["id"], amount="-12.50", payee="Blue Bottle")
     image = png()
-    rid = alice.post(
+    rid = jane.post(
         "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
     ).json()["id"]
-    saved(attach(alice, rid, t["id"]))
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    saved(attach(jane, rid, t["id"]))
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    carol = sign_in(b, "carol")
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
-    assert carol.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "not included: not sent"
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"}, receipts={a_id: True})
+    bart = sign_in(b, "bart")
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    assert bart.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "not included: not sent"
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"}, receipts={a_id: True})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    files = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    files = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
     assert len(files) == 1 and files[0]["meta"]["transactionId"] == t["id"]
     sealed_dir = lcopy.folder(b.config.data_dir, b_id) / "receipts"
     on_disk = list(sealed_dir.glob("*.mkr"))
     assert len(on_disk) == 1 and image[:64] not in on_disk[0].read_bytes()
-    got = carol.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
+    got = bart.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
     assert got.status_code == 200 and got.content == image
     # Served as a local receipt is (S11.9.6.5, S13.7.7): its type from its bytes, in a sandbox.
     assert got.headers["content-type"] == "image/png"
@@ -445,12 +445,12 @@ def test_receipts_cross_only_when_included_and_open_through_decryption(admins):
     # A type the bytes don't bear out is never served, whatever the copy's row says.
     with b.copies.get(b_id).engine.begin() as conn:
         conn.execute(copydb.File.update().values(contentType="text/html"))
-    got = carol.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
+    got = bart.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
     assert got.status_code == 415 and got.json()["code"] == "receipt-type"
     # Not included any more: the receipt and its sealed file go.
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"}, receipts={a_id: False})
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"}, receipts={a_id: False})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    assert carol.get(f"/ui/api/linked/{b_id}/files").json()["items"] == []
+    assert bart.get(f"/ui/api/linked/{b_id}/files").json()["items"] == []
     assert list(sealed_dir.glob("*.mkr")) == []
 
 
@@ -459,23 +459,23 @@ def test_sharing_with_a_linked_server_needs_the_password_again(admins):
     from conftest import stale
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     a_id, _b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="IRA", type="ira").json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="IRA", type="ira").json()
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     stale(a)
-    to_carol = {carol_here["id"]: "read"}
-    r = share(alice, "account", acct["id"], users=to_carol)
+    to_bart = {bart_here["id"]: "read"}
+    r = share(jane, "account", acct["id"], users=to_bart)
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
     pw = "a long user passphrase"
-    assert alice.post("/ui/api/session/reauth", json={"password": pw}).status_code == 204
-    assert share(alice, "account", acct["id"], users=to_carol).status_code == 200
+    assert jane.post("/ui/api/session/reauth", json={"password": pw}).status_code == 204
+    assert share(jane, "account", acct["id"], users=to_bart).status_code == 200
     stale(a)
     # The same share saved again asks nothing; its receipts turned on do.
-    assert share(alice, "account", acct["id"], users=to_carol).status_code == 200
-    r = share(alice, "account", acct["id"], users=to_carol, receipts={a_id: True})
+    assert share(jane, "account", acct["id"], users=to_bart).status_code == 200
+    r = share(jane, "account", acct["id"], users=to_bart, receipts={a_id: True})
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "reauth-required"
 
 
@@ -509,13 +509,13 @@ def test_a_share_waiting_for_its_access_key_alerts_the_admins(admins):
     from moolakata import alerts
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Checking", type="checking").json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Checking", type="checking").json()
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     kinds = {x.kind for x in alerts.evaluate(b)}
     assert "link-key-waiting" in kinds
@@ -556,19 +556,19 @@ def test_a_large_change_arrives_in_parts_oldest_first(admins, monkeypatch):
     from moolakata.links import serve
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     ids_ = []
     for year in (2020, 2023, 2026):
-        acct = make(alice, "Acct", name=f"Account {year}", type="checking").json()
-        add(alice, acct["id"], amount="10.00", day=f"{year}-03-02", payee="Opening")
+        acct = make(jane, "Acct", name=f"Account {year}", type="checking").json()
+        add(jane, acct["id"], amount="10.00", day=f"{year}-03-02", payee="Opening")
         if year == 2026:  # a long history: its transactions travel in pieces by date
             for month in range(4, 10):
-                add(alice, acct["id"], amount="-1.00", day=f"2026-{month:02}-01", payee="Shop")
-        share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+                add(jane, acct["id"], amount="-1.00", day=f"2026-{month:02}-01", payee="Shop")
+        share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
         ids_.append(acct["id"])
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     seen: list[dict] = []
@@ -588,8 +588,8 @@ def test_a_large_change_arrives_in_parts_oldest_first(admins, monkeypatch):
     assert seen[-1]["progress"]["bytes"] == seen[-1]["progress"]["total"]
     side = links_of(cb)["links"][0]
     assert side["syncTotal"] is None, "all of it arrived"
-    carol = sign_in(b, "carol")
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    bart = sign_in(b, "bart")
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     items, docs = docs_in(b, b_id)
     assert set(ids_) <= set(items), "every part applied, in order"
     pieces = [
@@ -611,26 +611,26 @@ def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins)
     from moolakata.store.entities.users import User
 
     a, b, ca, cb, _ = admins
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    plan = {"id": make(alice, "GfPln", name="Carol", sex="female", private=True).json()["personId"]}
-    make_user(b, "carol")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    plan = {"id": make(jane, "GfPln", name="Bart", sex="male", private=True).json()["personId"]}
+    make_user(b, "bart")
     linked(ca, cb)
     with a.db.read(unscoped="test") as s:
-        carol = s.query(User).filter(User.username == "carol", User.linkId.is_not(None)).one()
-        assert carol.personId != plan["id"], "not joined by name"
+        bart = s.query(User).filter(User.username == "bart", User.linkId.is_not(None)).one()
+        assert bart.personId != plan["id"], "not joined by name"
         assert s.get(Person, plan["id"]).private
-    row = alice.get(f"/ui/api/persons/{plan['id']}").json()
-    assert [r["id"] for r in row["sameAs"]] == [carol.id]
-    r = alice.post(f"/ui/api/persons/{plan['id']}/join", json={"userId": carol.id})
+    row = jane.get(f"/ui/api/persons/{plan['id']}").json()
+    assert [r["id"] for r in row["sameAs"]] == [bart.id]
+    r = jane.post(f"/ui/api/persons/{plan['id']}/join", json={"userId": bart.id})
     assert r.status_code == 200, r.text
     with a.db.read(unscoped="test") as s:
-        assert s.get(User, carol.id).personId == plan["id"]
+        assert s.get(User, bart.id).personId == plan["id"]
         assert s.get(Person, plan["id"]).private, "joining never changes whether it is private"
     # Exchanges keep the joined person's name as it is here.
     ca.post(f"/ui/api/settings/links/{links_of(ca)['links'][0]['id']}/pull")
     with a.db.read(unscoped="test") as s:
-        assert s.get(Person, plan["id"]).name == "Carol"
+        assert s.get(Person, plan["id"]).name == "Bart"
 
 
 def test_an_answer_names_its_caller_and_its_call():
@@ -677,16 +677,16 @@ def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins):
     from test_accounts import add
 
     a, b, ca, cb, wire = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Secret Brokerage", type="brokerage")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Secret Brokerage", type="brokerage")
     acct = acct.json()
-    add(alice, acct["id"], amount="-1234.56", payee="A very private payee")
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    add(jane, acct["id"], amount="-1234.56", payee="A very private payee")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     seen: list[bytes] = []
     wire.watch = lambda request, body: seen.extend([request.content, body])
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
@@ -694,8 +694,8 @@ def test_what_crosses_a_link_is_sealed_to_the_receiving_copy(admins):
     wire_bytes = b"".join(seen)
     assert b"Secret Brokerage" not in wire_bytes and b"A very private payee" not in wire_bytes
     assert b'"sealed"' in wire_bytes, "the change crossed, sealed"
-    carol = sign_in(b, "carol")
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    bart = sign_in(b, "bart")
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     items, _ = docs_in(b, b_id)
     assert [i.name for i in items.values()] == ["Secret Brokerage"], "the copy opens it"
 
@@ -707,23 +707,23 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
     from moolakata.store.entities.links import Link
 
     a, b, ca, cb, _wire = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Brokerage", type="brokerage").json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Brokerage", type="brokerage").json()
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     assert changes.waiting(b.config.data_dir, b_id)
     texts = [e["text"] for e in cb.get("/ui/api/activity").json()["items"]]
     assert any(t.endswith("asked a linked server for its changes now") for t in texts)
-    assert any("changed items: Alice" in t and "account for Carol" in t for t in texts), texts[:4]
+    assert any("changed items: Jane" in t and "account for Bart" in t for t in texts), texts[:4]
     real = changes.open_part
     monkeypatch.setattr(changes, "open_part", lambda *x: {**real(*x), "items": [{"id": 5}]})
-    carol = sign_in(b, "carol")
-    r = carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    bart = sign_in(b, "bart")
+    r = bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200, r.text
     assert changes.waiting(b.config.data_dir, b_id) == []
     with b.db.read(unscoped="test") as s:
@@ -790,29 +790,29 @@ def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_l
     # S10.3: a person is one of the eight shareable kinds, and goes, read only, to named
     # people on a linked server; S11.8: a pull's Activity names the household it came from.
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
     rose = make(
-        alice, "Persn", name="Grandma Rose", sex="female", birthMonth=5, birthDay=3, private=True
+        jane, "Persn", name="Grandma Rose", sex="female", birthMonth=5, birthDay=3, private=True
     ).json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
-    r = share(alice, "person", rose["id"], users={carol_here["id"]: "read"})
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    r = share(jane, "person", rose["id"], users={bart_here["id"]: "read"})
     assert r.status_code == 200, r.text
     # S11.7: what flows each way, this side's by kind, owner and the people there it names.
     (out,) = links_of(ca)["links"][0]["outgoing"]
-    assert (out["kind"], out["names"]) == ("person", [carol_here["displayName"]])
+    assert (out["kind"], out["names"]) == ("person", [bart_here["displayName"]])
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     assert [x["kind"] for x in links_of(cb)["links"][0]["incoming"]] == ["person"]
-    carol = sign_in(b, "carol")
-    r = carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    bart = sign_in(b, "bart")
+    r = bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200, r.text
-    rows = carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    rows = bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]
     assert [(r["kind"], r["name"]) for r in rows] == [("person", "Grandma Rose")]
     assert (rows[0]["row"]["birthMonth"], rows[0]["row"]["birthDay"]) == (5, 3)
-    got = carol.get(
+    got = bart.get(
         f"/ui/api/linked/{b_id}/doc", params={"path": f"/persons/{rose['id']}/relations"}
     )
     assert got.status_code == 200 and got.json()["items"] == []
@@ -829,25 +829,25 @@ def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admi
     import shutil as sh
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     _, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    acct = make(alice, "Acct", name="Old", type="checking").json()
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"})
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Old", type="checking").json()
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"})
     words = " ".join(cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"])
     cb.post(f"/ui/api/settings/links/{b_id}/pull")  # waits in the inbox: the copy is locked
     inbox = lcopy.folder(b.config.data_dir, b_id) / "inbox"
     kept = b.config.data_dir / "kept"
     sh.copytree(inbox, kept)
-    carol = sign_in(b, "carol")
-    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words}).status_code == 200
-    assert [r["name"] for r in carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]]
-    carol.post(f"/ui/api/linked/{b_id}/lock")
+    bart = sign_in(b, "bart")
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words}).status_code == 200
+    assert [r["name"] for r in bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]]
+    bart.post(f"/ui/api/linked/{b_id}/lock")
     for f in kept.iterdir():
         sh.copy(f, inbox / f.name)
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words})
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": words})
     with b.db.read(unscoped="test") as s:
         link = s.get(Link, b_id)
         assert link.needsFull and "doesn't follow the last one applied" in (link.lastError or "")
@@ -886,24 +886,24 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
 
 
 def _shared_receipt(a, ca, cb):
-    """Alice on A shares an account with Carol on B, its receipts included; Carol's copy has
-    its access key. Returns Alice, Carol, B's link id and the receipt's bytes."""
+    """Jane on A shares an account with Bart on B, its receipts included; Bart's copy has
+    its access key. Returns Jane, Bart, B's link id and the receipt's bytes."""
     from test_receipts import png
 
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
     a_id, b_id = linked(ca, cb)
-    acct = make(alice, "Acct", name="Checking", type="checking").json()
-    t = add(alice, acct["id"], amount="-12.50", payee="Blue Bottle")
+    acct = make(jane, "Acct", name="Checking", type="checking").json()
+    t = add(jane, acct["id"], amount="-12.50", payee="Blue Bottle")
     image = png()
-    rid = alice.post(
+    rid = jane.post(
         "/ui/api/receipts", files={"file": ("r.png", image, "application/octet-stream")}
     ).json()["id"]
-    saved(attach(alice, rid, t["id"]))
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    saved(attach(jane, rid, t["id"]))
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
-    share(alice, "account", acct["id"], users={carol_here["id"]: "read"}, receipts={a_id: True})
-    return alice, words, b_id, image
+    share(jane, "account", acct["id"], users={bart_here["id"]: "read"}, receipts={a_id: True})
+    return jane, words, b_id, image
 
 
 def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admins):
@@ -912,18 +912,18 @@ def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admin
     from moolakata.store.entities.links import LinkFile
 
     a, b, ca, cb, wire = admins
-    make_user(b, "carol")
-    _alice, words, b_id, image = _shared_receipt(a, ca, cb)
+    make_user(b, "bart")
+    _jane, words, b_id, image = _shared_receipt(a, ca, cb)
     # Every receipt file the source sends is cut off, as one past a ceiling would be.
     wire.fail = lambda m, url, kw: httpx.ReadError("cut off") if url.endswith("/file") else None
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    carol = sign_in(b, "carol")
-    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    bart = sign_in(b, "bart")
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
     # The change arrived without it: the account is there, the receipt marked not arrived.
-    assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
-    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    (f,) = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
     assert f["arrived"] is False
-    got = carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
+    got = bart.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
     assert got.status_code == 404 and got.json()["code"] == "not-arrived"
     link = next(x for x in links_of(cb)["links"] if x["id"] == b_id)
     assert link["lastError"] is None and link["failingSince"] is None, "the link is fine"
@@ -933,9 +933,9 @@ def test_a_receipt_that_cant_be_fetched_holds_nothing_back_and_comes_later(admin
     # The next exchange asks for it again, and it reaches the open copy.
     wire.fail = None
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    (f,) = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
     assert f["arrived"] is True
-    got = carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
+    got = bart.get(f"/ui/api/linked/{b_id}/files/{f['id']}")
     assert got.status_code == 200 and got.content == image
     with b.db.read(unscoped="test") as s:
         assert s.query(LinkFile).count() == 0
@@ -945,30 +945,30 @@ def test_a_receipt_fetched_while_the_copy_is_locked_reaches_it_at_the_unlock(adm
     import httpx
 
     a, b, ca, cb, wire = admins
-    make_user(b, "carol")
-    _alice, words, b_id, image = _shared_receipt(a, ca, cb)
+    make_user(b, "bart")
+    _jane, words, b_id, image = _shared_receipt(a, ca, cb)
     wire.fail = lambda m, url, kw: httpx.ReadError("cut off") if url.endswith("/file") else None
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     wire.fail = None
     cb.post(f"/ui/api/settings/links/{b_id}/pull")  # fetched now, the copy still locked
-    carol = sign_in(b, "carol")
-    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
-    (f,) = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    bart = sign_in(b, "bart")
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    (f,) = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
     assert f["arrived"] is True
-    assert carol.get(f"/ui/api/linked/{b_id}/files/{f['id']}").content == image
+    assert bart.get(f"/ui/api/linked/{b_id}/files/{f['id']}").content == image
 
 
 def test_a_failure_after_the_exchange_call_is_recorded_on_the_link(admins):
     import httpx
 
     a, b, ca, cb, wire = admins
-    make_user(a, "alice")
+    make_user(a, "jane")
     _a_id, b_id = linked(ca, cb)
-    make_user(b, "bob")
-    bob = sign_in(b, "bob")
-    acct = make(bob, "Acct", name="Savings", type="savings").json()
-    alice_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "alice")
-    assert share(bob, "account", acct["id"], users={alice_there["id"]: "read"}).status_code == 200
+    make_user(b, "john")
+    john = sign_in(b, "john")
+    acct = make(john, "Acct", name="Savings", type="savings").json()
+    jane_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "jane")
+    assert share(john, "account", acct["id"], users={jane_there["id"]: "read"}).status_code == 200
     # This side's change can't be delivered after the exchange call went through.
     wire.fail = lambda m, url, kw: (
         httpx.ConnectError("dropped") if url.endswith("/link/v1/deliver") else None
@@ -1028,23 +1028,23 @@ def test_a_locked_copys_inbox_names_no_one(admins):
     from moolakata.store.entities.users import User
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
-    alice, words, b_id, _image = _shared_receipt(a, ca, cb)
+    make_user(b, "bart")
+    jane, words, b_id, _image = _shared_receipt(a, ca, cb)
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     inbox = lcopy.folder(b.config.data_dir, b_id) / "inbox"
     files = list(inbox.iterdir())
     assert files and {f.suffix for f in files} == {".mks", ".mke"}
-    acct = alice.get("/ui/api/accounts").json()["items"][0]["id"]
+    acct = jane.get("/ui/api/accounts").json()["items"][0]["id"]
     with b.db.read(unscoped="test") as s:
-        carol_id = s.query(User).filter(User.username == "carol").one().id
+        bart_id = s.query(User).filter(User.username == "bart").one().id
     for f in files:
         body = f.read_bytes()
         assert body.startswith(b"MKR1"), f.name
-        for plain in (b"Alice", acct.encode(), carol_id.encode()):
+        for plain in (b"Jane", acct.encode(), bart_id.encode()):
             assert plain not in body, (f.name, plain)
-    carol = sign_in(b, "carol")
-    assert carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
-    assert carol.get(f"/ui/api/linked/{b_id}/items").json()["items"]
+    bart = sign_in(b, "bart")
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    assert bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]
     assert not any(inbox.iterdir()), "applied"
 
 
@@ -1054,28 +1054,28 @@ def test_a_tax_books_document_files_cross_when_included(admins):
     from test_receipts import png
 
     a, b, ca, cb, _ = admins
-    make_user(b, "carol")
+    make_user(b, "bart")
     a_id, b_id = linked(ca, cb)
-    make_user(a, "alice")
-    alice = sign_in(a, "alice")
-    me = alice.get("/ui/api/session").json()["user"]["id"]
-    book = make(alice, "TaxBk", year=2026, filers=[me]).json()
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    book = make(jane, "TaxBk", year=2026, filers=[me]).json()
     image = png()
-    rid = alice.post(
+    rid = jane.post(
         "/ui/api/receipts", files={"file": ("w2.png", image, "application/octet-stream")}
     ).json()["id"]
-    r = make(alice, "TxDoc", bookId=book["id"], form="W-2", issuer="Acme Corp", receiptId=rid)
+    r = make(jane, "TxDoc", bookId=book["id"], form="W-2", issuer="Acme Corp", receiptId=rid)
     assert r.status_code == 200, r.text
-    carol_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "carol")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
     words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
-    share(alice, "tax-book", book["id"], users={carol_here["id"]: "read"})
+    share(jane, "tax-book", book["id"], users={bart_here["id"]: "read"})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    carol = sign_in(b, "carol")
-    carol.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
-    assert carol.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "not included"
-    share(alice, "tax-book", book["id"], users={carol_here["id"]: "read"}, receipts={a_id: True})
+    bart = sign_in(b, "bart")
+    bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)})
+    assert bart.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "not included"
+    share(jane, "tax-book", book["id"], users={bart_here["id"]: "read"}, receipts={a_id: True})
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
-    files = carol.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    files = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
     assert [f["meta"]["payee"] for f in files] == ["W-2 · Acme Corp"]
-    got = carol.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
+    got = bart.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
     assert got.status_code == 200 and got.content == image

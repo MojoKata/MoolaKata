@@ -141,3 +141,17 @@ it (another save, a reload of the record), which the kit's page never does. **Pr
 about (an account, a budget, a projection, a gift plan), drawn as a section of the record's
 page, with the server checking it as S12.18.15 says; the mockup drawn first. **Waits on:** a
 look at the editor on the kit's page.
+
+## G33: People with the same initials — Medium
+
+**What is named:** an avatar shows a person's initials, the first letters of their first and
+last names, on a colour taken from their id (S12, S16.1); a household's own avatar takes the
+initials it is given.
+
+**What is not:** how two people with the same initials are told apart: a couple who share a
+surname and a first letter (the sample's Jane and John Doe are both *JD*) read the same wherever
+an avatar stands alone, such as a share mark or a filer, and their colours can match too.
+**Proposed:** where two of the server's users share initials, each avatar takes the first two
+letters of the first name (*Ja*, *Jo*), and a user's colour is chosen to differ from those of
+the users who share their initials. **Waits on:** its own pull request, the mockup first.
+

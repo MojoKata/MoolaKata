@@ -1,7 +1,7 @@
 """Last year's books (requirements S8.14, S8.17; the filed tax years walk, decision 2): every
 pair of a couple's arrangements over two years, through the API.
 
-Alice and Bob, married since 2009. In 2025 they filed one of the arrangements of `LAST`; each
+Jane and John, married since 2009. In 2025 they filed one of the arrangements of `LAST`; each
 2025 book's federal return carries figures of its own (AGI, total tax, capital-loss carryovers,
 8606 basis) and has a document received from an issuer of its own. In 2026 they file one of
 `THIS`, made with *Start from last year* on or off. For each 2026 book:
@@ -29,15 +29,15 @@ T0 = dt.datetime(2026, 3, 2, 15, 0, tzinfo=dt.UTC)
 # 2025: who filed which book. "pending": named, never accepted.
 LAST = {
     "none": [],
-    "alice-alone": [("alice", ())],
-    "separate": [("alice", ()), ("bob", ())],
-    "joint": [("alice", ("bob",))],
-    "joint-pending": [("alice", ("bob:pending",))],
-    "invited-filed-alone": [("bob", ("alice:pending",)), ("alice", ())],
-    "deleted": [("alice", (), "deleted")],
+    "jane-alone": [("jane", ())],
+    "separate": [("jane", ()), ("john", ())],
+    "joint": [("jane", ("john",))],
+    "joint-pending": [("jane", ("john:pending",))],
+    "invited-filed-alone": [("john", ("jane:pending",)), ("jane", ())],
+    "deleted": [("jane", (), "deleted")],
 }
-THIS = {"alice-alone": [("alice", ())], "separate": [("alice", ()), ("bob", ())],
-        "joint": [("alice", ("bob",))]}  # fmt: skip
+THIS = {"jane-alone": [("jane", ())], "separate": [("jane", ()), ("john", ())],
+        "joint": [("jane", ("john",))]}  # fmt: skip
 
 CASES = [
     pytest.param(last, this, switch, id=f"{last}-then-{this}-{'from' if switch else 'fresh'}")
@@ -52,14 +52,14 @@ def _ok(r):
 
 class Couple:
     def __init__(self, server):
-        make_user(server, "alice")
-        make_user(server, "bob")
-        self.c = {"alice": sign_in(server, "alice"), "bob": sign_in(server, "bob")}
+        make_user(server, "jane")
+        make_user(server, "john")
+        self.c = {"jane": sign_in(server, "jane"), "john": sign_in(server, "john")}
         self.uid = {n: c.get("/ui/api/session").json()["user"]["id"] for n, c in self.c.items()}
-        pa, pb = (self.c[n].get("/ui/api/profile").json()["personId"] for n in ("alice", "bob"))
-        r = _ok(make(self.c["alice"], "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
+        pa, pb = (self.c[n].get("/ui/api/profile").json()["personId"] for n in ("jane", "john"))
+        r = _ok(make(self.c["jane"], "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
                      fromDate="2009-06-14"))  # fmt: skip
-        _ok(self.c["bob"].post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
+        _ok(self.c["john"].post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
         self.made: list[dict] = []  # each 2025 book: id, accepted filers, figures, issuer
 
     def book(self, year: int, owner: str, others: tuple, switch: bool = True) -> dict:
@@ -155,8 +155,8 @@ def test_a_joint_returns_carryover_counts_once_the_filer_types_their_share(coupl
     # S8.18: splitting a joint carryover is the filers' call; once typed, the Summary has it.
     w = couple
     w.last_year("joint")
-    b = w.book(2026, "alice", ())
-    c = w.c["alice"]
+    b = w.book(2026, "jane", ())
+    c = w.c["jane"]
     got = c.get(f"/ui/api/tax-books/{b['id']}").json()
     _ok(change(c, "TaxBk", got, carryoverShareShort="40.00", carryoverShareLong="150.00"))
     p = _ok(c.get(f"/ui/api/tax-books/{b['id']}/panels")).json()
@@ -171,17 +171,17 @@ def test_one_book_a_year_for_each_filer_and_a_waiting_book_declined(couple):
     # S8.14.1: a filer is on one book a year; a pending invitation blocks nothing, and is
     # declined, its owner told.
     w = couple
-    mine = w.book(2025, "alice", ())
-    r = make(w.c["alice"], "TaxBk", year=2025, filers=[w.uid["alice"]])
+    mine = w.book(2025, "jane", ())
+    r = make(w.c["jane"], "TaxBk", year=2025, filers=[w.uid["jane"]])
     assert r.status_code == 422 and "a filer on 2025's tax book" in r.text, r.text
-    invite = w.book(2025, "bob", ("alice:pending",))
-    r = w.c["alice"].post(f"/ui/api/tax-books/{invite['id']}/accept")
+    invite = w.book(2025, "john", ("jane:pending",))
+    r = w.c["jane"].post(f"/ui/api/tax-books/{invite['id']}/accept")
     assert r.status_code == 422 and "a filer on 2025's tax book" in r.text, r.text
-    assert w.c["alice"].post(f"/ui/api/tax-books/{invite['id']}/decline").status_code == 204
-    assert w.c["alice"].get("/ui/api/tax-books").json()["waiting"] == []
-    d = w.c["bob"].get(f"/ui/api/tax-books/{invite['id']}").json()
-    assert [f["id"] for f in d["filers"]] == [w.uid["bob"]]
-    told = w.c["bob"].get("/ui/api/activity").json()["items"]
+    assert w.c["jane"].post(f"/ui/api/tax-books/{invite['id']}/decline").status_code == 204
+    assert w.c["jane"].get("/ui/api/tax-books").json()["waiting"] == []
+    d = w.c["john"].get(f"/ui/api/tax-books/{invite['id']}").json()
+    assert [f["id"] for f in d["filers"]] == [w.uid["john"]]
+    told = w.c["john"].get("/ui/api/activity").json()["items"]
     assert any(a["kind"] == "tax-book.declined" for a in told), told
     assert mine
 
@@ -190,19 +190,19 @@ def test_a_joint_return_carries_each_filers_8606_basis_and_no_one_elses(server, 
     """S8.17: Form 8606 is a person's own, so a joint return carries a basis for each filer,
     shown under From last year with their names; a basis for someone not filing is refused."""
     w = couple
-    b = w.book(2025, "alice", ("bob",))
-    c = w.c["alice"]
-    a_id, b_id = w.uid["alice"], w.uid["bob"]
+    b = w.book(2025, "jane", ("john",))
+    c = w.c["jane"]
+    a_id, b_id = w.uid["jane"], w.uid["john"]
     _ok(make(c, "Filng", bookId=b["id"], jurisdiction="federal", form="1040", progress="filed",
              filedOn="2026-04-10", carried={"basis8606": {a_id: "6500", b_id: "0"}}))  # fmt: skip
-    make_user(server, "carol")
-    carol = sign_in(server, "carol").get("/ui/api/session").json()["user"]["id"]
+    make_user(server, "bart")
+    bart = sign_in(server, "bart").get("/ui/api/session").json()["user"]["id"]
     r = make(c, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40",
-             carried={"basis8606": {carol: "10"}})  # fmt: skip
+             carried={"basis8606": {bart: "10"}})  # fmt: skip
     assert r.status_code == 422, r.text
     assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
         "carried.basis8606", "filer-unknown")  # fmt: skip
-    now = w.book(2026, "alice", ("bob",))
+    now = w.book(2026, "jane", ("john",))
     [last] = c.get(f"/ui/api/tax-books/{now['id']}").json()["lastYear"]
     assert last["figures"]["basis8606"] == {a_id: "6500.00", b_id: "0.00"}
-    assert last["names"] == {a_id: "Alice", b_id: "Bob"}
+    assert last["names"] == {a_id: "Jane", b_id: "John"}

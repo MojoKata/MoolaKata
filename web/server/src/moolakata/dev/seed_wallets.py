@@ -1,4 +1,4 @@
-"""Dev mode's bitcoin wallet (requirements S17.7): Alice's cold storage, read from the public
+"""Dev mode's bitcoin wallet (requirements S17.7): Jane's cold storage, read from the public
 BIP84 test key (the wallet of "abandon … about", which nobody can keep money in)."""
 
 from .. import ids
@@ -12,10 +12,10 @@ TEST_ZPUB = (
 
 
 def seed_wallets(s, people: dict) -> None:
-    alice = people["alice"]
+    jane = people["jane"]
     a = Account(
         id=ids.new_id("Acct"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         name="Cold storage",
         type="crypto-wallet",
         institution="Hardware wallet",
@@ -23,4 +23,4 @@ def seed_wallets(s, people: dict) -> None:
     )
     s.add(a)
     s.flush()
-    wallet.replace(s, a.id, keys.parse(TEST_ZPUB), 20, alice.id)
+    wallet.replace(s, a.id, keys.parse(TEST_ZPUB), 20, jane.id)

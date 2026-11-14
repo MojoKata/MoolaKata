@@ -20,8 +20,8 @@
           fixed palette that reads well in dark and light themes. A new household gets the
           next unused colour. The name, avatar and a header strip always show as well, so
           colour is never the only sign;
-       3. a **header strip**: *griffin-parents · read only · synced 41 min ago · unlocked by
-          Alice at 14:05 · Lock now*;
+       3. a **header strip**: *doe-parents · read only · synced 41 min ago · unlocked by
+          Jane at 14:05 · Lock now*;
        4. the screens for the kinds shared with you, **every screen and tab of each**, as its
           owner sees them but read only: Dashboard (only what is shared with you), Accounts,
           Portfolios, Positions (an account's holdings), Transactions, Projections (with their
@@ -32,7 +32,7 @@
           physical-asset account's items come later ([later work](later.md), L6). The
           navigation lists only the kinds you have something from. There is no Settings,
           Profile, Watchlist, import, sharing or editing;
-       5. the user tile shows you, the local user, *viewing griffin-parents*.
+       5. the user tile shows you, the local user, *viewing doe-parents*.
     4. **Locked**: the window shows only the household's name and avatar and the request for
        the access key (S11.9.3). If the copy locks while the window is open, the window
        returns to that request.

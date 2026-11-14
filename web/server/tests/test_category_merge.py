@@ -155,9 +155,9 @@ def frozen():
 
 @pytest.fixture
 def people(server, admin_client, frozen):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    return {"admin": admin_client, "alice": sign_in(server, "alice"), "bob": sign_in(server, "bob")}
+    make_user(server, "jane")
+    make_user(server, "john")
+    return {"admin": admin_client, "jane": sign_in(server, "jane"), "john": sign_in(server, "john")}
 
 
 def merge(c, source: dict, into: str, children: dict | None = None, version=None):
@@ -187,13 +187,13 @@ def answer(r):
 
 
 def test_a_merge_moves_everything_that_named_the_category(people, server):
-    admin, alice = people["admin"], people["alice"]
-    pet = new(alice, "Pet")
-    pets = new(alice, "Pets")
-    acct = new_account(alice)
-    t = add(alice, acct["id"], "-20.00", "2026-10-02", payee="Vet", categoryId=pet["id"])
+    admin, jane = people["admin"], people["jane"]
+    pet = new(jane, "Pet")
+    pets = new(jane, "Pets")
+    acct = new_account(jane)
+    t = add(jane, acct["id"], "-20.00", "2026-10-02", payee="Vet", categoryId=pet["id"])
     split = add(
-        alice,
+        jane,
         acct["id"],
         "-9.00",
         "2026-10-03",
@@ -203,11 +203,11 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
             {"categoryId": None, "amount": "-5.00"},
         ],
     )
-    rule = make(alice, "Rule", payeeMatch="petco", categoryId=pet["id"]).json()
-    b = make(alice, "Bdgt", name="Home", accountIds=[acct["id"]], method="envelope").json()
+    rule = make(jane, "Rule", payeeMatch="petco", categoryId=pet["id"]).json()
+    b = make(jane, "Bdgt", name="Home", accountIds=[acct["id"]], method="envelope").json()
     assert (
         save_plan(
-            alice,
+            jane,
             b,
             "2026-09-01",
             [
@@ -217,9 +217,9 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
         ).status_code
         == 200
     )
-    food = rows(alice)["Food"]["id"]
+    food = rows(jane)["Food"]["id"]
     across = make(
-        alice,
+        jane,
         "BdgMv",
         budgetId=b["id"],
         month="2026-10-01",
@@ -228,7 +228,7 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
         amount="5.00",
     ).json()
     between = make(
-        alice,
+        jane,
         "BdgMv",
         budgetId=b["id"],
         month="2026-10-01",
@@ -236,12 +236,12 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
         toCategoryId=pet["id"],
         amount="3.00",
     ).json()
-    loan_acct = new_account(alice, name="Loan", type="auto-loan", mask="3333")
+    loan_acct = new_account(jane, name="Loan", type="auto-loan", mask="3333")
     from edits import terms
 
     assert (
         terms(
-            alice,
+            jane,
             loan_acct["id"],
             principal="9000.00",
             rate="5",
@@ -256,7 +256,7 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
         x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
     )
     assert preview(admin, source, pets["id"]).json() == {"budgets": []}  # not shared with the admin
-    assert preview(alice, source, pets["id"]).status_code == 403
+    assert preview(jane, source, pets["id"]).status_code == 403
     r = merge(admin, source, pets["id"])
     assert r.status_code == 200, r.text
     assert r.json()["into"]["id"] == pets["id"]
@@ -275,15 +275,15 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
             select(BudgetLine).where(BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
         ).all()
         assert [(x.categoryId, x.amount) for x in lines] == [(pets["id"], D("100.00"))]
-    texts = [a["text"] for a in people["bob"].get("/ui/api/activity").json()["items"]]
+    texts = [a["text"] for a in people["john"].get("/ui/api/activity").json()["items"]]
     assert [x for x in texts if "merged" in x] == ["Ada Admin merged the category Pet into Pets"]
-    assert pet["id"] not in {x["id"] for x in alice.get("/ui/api/categories").json()["items"]}
+    assert pet["id"] not in {x["id"] for x in jane.get("/ui/api/categories").json()["items"]}
 
 
 def test_the_preview_names_the_budgets_the_reader_sees(people):
-    admin, alice = people["admin"], people["alice"]
+    admin, jane = people["admin"], people["jane"]
     pet, pets = new(admin, "Pet"), new(admin, "Pets")
-    for c, name in ((admin, "Admin's"), (alice, "Alice's")):
+    for c, name in ((admin, "Admin's"), (jane, "Jane's")):
         acct = new_account(c, name=f"{name} checking")
         b = make(c, "Bdgt", name=name, accountIds=[acct["id"]]).json()
         assert (
@@ -478,13 +478,11 @@ def test_a_child_the_server_counts_in_moves_but_is_never_merged_away(people):
 
 
 def test_only_an_admin_merges_and_a_stale_one_is_refused(people):
-    admin, alice = people["admin"], people["alice"]
-    pet, pets = new(alice, "Pet"), new(alice, "Pets")
-    source = next(
-        x for x in alice.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"]
-    )
+    admin, jane = people["admin"], people["jane"]
+    pet, pets = new(jane, "Pet"), new(jane, "Pets")
+    source = next(x for x in jane.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"])
     assert not source["allowed"]["merge"]
-    assert answer(merge(alice, source, pets["id"])) == (
+    assert answer(merge(jane, source, pets["id"])) == (
         403,
         None,
         "admins-only",
@@ -493,7 +491,7 @@ def test_only_an_admin_merges_and_a_stale_one_is_refused(people):
     assert next(x for x in admin.get("/ui/api/categories").json()["items"] if x["id"] == pet["id"])[
         "allowed"
     ]["merge"]
-    saved(change(alice, "Cat", source, name="Pet!"))
+    saved(change(jane, "Cat", source, name="Pet!"))
     assert merge(admin, source, pets["id"]).status_code == 412
     r = merge(admin, {"id": ids.new_id("Cat"), "version": 1}, pets["id"])
     assert (r.status_code, r.json()["code"], r.json()["detail"]) == (404, "not-found", "Not found")
@@ -559,17 +557,17 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
     as it was; other categories' records, lines and moves are left as they are."""
     from edits import remove, terms
 
-    admin, alice = people["admin"], people["alice"]
-    pet, pets = new(alice, "Pet"), new(alice, "Pets")
-    food = rows(alice)["Food"]["id"]
-    fun = rows(alice)["Entertainment"]["id"]
-    acct = new_account(alice)
-    t = add(alice, acct["id"], "-20.00", "2026-10-02", payee="Vet", categoryId=pet["id"])
-    gone = add(alice, acct["id"], "-5.00", "2026-10-03", payee="Old", categoryId=pet["id"])
-    saved(remove(alice, "Txn", gone))
-    other = add(alice, acct["id"], "-7.00", "2026-10-04", payee="Shop", categoryId=food)
+    admin, jane = people["admin"], people["jane"]
+    pet, pets = new(jane, "Pet"), new(jane, "Pets")
+    food = rows(jane)["Food"]["id"]
+    fun = rows(jane)["Entertainment"]["id"]
+    acct = new_account(jane)
+    t = add(jane, acct["id"], "-20.00", "2026-10-02", payee="Vet", categoryId=pet["id"])
+    gone = add(jane, acct["id"], "-5.00", "2026-10-03", payee="Old", categoryId=pet["id"])
+    saved(remove(jane, "Txn", gone))
+    other = add(jane, acct["id"], "-7.00", "2026-10-04", payee="Shop", categoryId=food)
     split = add(
-        alice,
+        jane,
         acct["id"],
         "-9.00",
         "2026-10-05",
@@ -579,11 +577,11 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
             {"categoryId": food, "amount": "-5.00"},
         ],
     )
-    rule = make(alice, "Rule", payeeMatch="petco", categoryId=pet["id"]).json()
-    b = make(alice, "Bdgt", name="Home", accountIds=[acct["id"]], method="envelope").json()
+    rule = make(jane, "Rule", payeeMatch="petco", categoryId=pet["id"]).json()
+    b = make(jane, "Bdgt", name="Home", accountIds=[acct["id"]], method="envelope").json()
     assert (
         save_plan(
-            alice,
+            jane,
             b,
             "2026-09-01",
             [
@@ -596,7 +594,7 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
 
     def mv(f, to):
         return make(
-            alice,
+            jane,
             "BdgMv",
             budgetId=b["id"],
             month="2026-10-01",
@@ -608,11 +606,11 @@ def test_a_merge_marks_each_record_it_moves_and_leaves_the_rest(people, server):
     across, untouched = mv(food, pet["id"]), mv(food, fun)
     live_between, from_target = mv(pets["id"], pet["id"]), mv(pets["id"], food)
     old_between = mv(pets["id"], pet["id"])
-    saved(remove(alice, "BdgMv", old_between))
-    loan_acct = new_account(alice, name="Loan", type="auto-loan", mask="3333")
+    saved(remove(jane, "BdgMv", old_between))
+    loan_acct = new_account(jane, name="Loan", type="auto-loan", mask="3333")
     assert (
         terms(
-            alice,
+            jane,
             loan_acct["id"],
             principal="9000.00",
             rate="5",

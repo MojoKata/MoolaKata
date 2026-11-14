@@ -50,18 +50,18 @@ class Made:
     def __init__(self, server, w: aw.World):
         self.server, self.w = server, w
         clock.fix(T0)
-        for u in ("alice", "bob", "mallory"):
+        for u in ("jane", "john", "mallory"):
             make_user(server, u)
-        self.c = {u: sign_in(server, u) for u in ("alice", "bob", "mallory")}
+        self.c = {u: sign_in(server, u) for u in ("jane", "john", "mallory")}
         self.uid = {u: c.get("/ui/api/session").json()["user"]["id"] for u, c in self.c.items()}
-        alice = self.c["alice"]
+        jane = self.c["jane"]
         self.ids: dict[str, str] = {}
         for i, a in enumerate(w.accounts):
-            acct = new_account(alice, name=a.name, type=a.type, institution="Example",
+            acct = new_account(jane, name=a.name, type=a.type, institution="Example",
                                mask=f"{3000 + i}")  # fmt: skip
             self.ids[a.name] = acct["id"]
             if a.loan:
-                saved(terms(alice, acct["id"], principal=str(a.loan.principal),
+                saved(terms(jane, acct["id"], principal=str(a.loan.principal),
                             startDate=a.loan.start.isoformat(), termMonths=a.loan.months,
                             rate=str(a.loan.rate),
                             method="daily" if a.loan.method == "daily" else "amortized",
@@ -71,22 +71,22 @@ class Made:
                             recasts=[{"date": d.isoformat(), "fee": str(f)}
                                      for d, f in a.loan.recasts]))  # fmt: skip
             for t in a.txns:
-                self._txn(alice, acct["id"], t)
+                self._txn(jane, acct["id"], t)
             for it in a.items:
-                self._item(alice, acct["id"], it)
+                self._item(jane, acct["id"], it)
         self._closes()
         self._decoy()
-        self.portfolio = _ok(make(alice, "Portf", name="World",
+        self.portfolio = _ok(make(jane, "Portf", name="World",
                                   accountIds=list(self.ids.values()))).json()["id"]  # fmt: skip
         if w.viewer == "viewer":
-            bob = self.uid["bob"]
-            _ok(share(alice, "portfolio", self.portfolio, users={bob: "read"}))
+            john = self.uid["john"]
+            _ok(share(jane, "portfolio", self.portfolio, users={john: "read"}))
             for a in w.seen():
-                _ok(share(alice, "account", self.ids[a.name], users={bob: "read"}))
+                _ok(share(jane, "account", self.ids[a.name], users={john: "read"}))
 
     @property
     def viewer(self):
-        return self.c["alice" if self.w.viewer == "owner" else "bob"]
+        return self.c["jane" if self.w.viewer == "owner" else "john"]
 
     def _txn(self, c, account_id: str, t: aw.Txn) -> None:
         day = t.day.isoformat()
@@ -133,7 +133,7 @@ class Made:
                             fetchedAt=clock.now()))  # fmt: skip
 
     def _instruments(self, s) -> dict[str, Instrument]:
-        """The instruments Alice's trades are in, by symbol."""
+        """The instruments Jane's trades are in, by symbol."""
         from moolakata.store.entities.accounts import Transaction
 
         rows = s.query(Instrument).join(Transaction, Transaction.instrumentId == Instrument.id)
@@ -141,7 +141,7 @@ class Made:
 
     def _decoy(self) -> None:
         """Mallory, a stranger: the world's symbols held at other prices on the same days, a
-        statement value for each and a typed price, none of which may value Alice's."""
+        statement value for each and a typed price, none of which may value Jane's."""
         m = self.c["mallory"]
         held = sorted({t.symbol for a in self.w.accounts for t in a.txns
                        if t.symbol and not t.option})  # fmt: skip
@@ -225,15 +225,15 @@ def check(made) -> None:
 
 
 def _each_account_is_the_references(made):
-    alice, w = made.c["alice"], made.w
+    jane, w = made.c["jane"], made.w
     wrong = []
     for a in w.accounts:
-        got = _d(alice.get(f"/ui/api/accounts/{made.ids[a.name]}").json()["balance"])
+        got = _d(jane.get(f"/ui/api/accounts/{made.ids[a.name]}").json()["balance"])
         want = aw.value(w, a)
         if got != want:
             wrong.append(f"{a.name} {a.axes}: got {got}, want {want}")
             if a.kind in aw.INVESTING:
-                h = alice.get(f"/ui/api/accounts/{made.ids[a.name]}/holdings").json()
+                h = jane.get(f"/ui/api/accounts/{made.ids[a.name]}/holdings").json()
                 app = [(x["symbol"], x["quantity"], x["price"], x["priceSource"], x["value"])
                        for x in h["holdings"]]  # fmt: skip
                 wrong.append(f"  app: cash {h['cash']} {app}")
@@ -267,11 +267,11 @@ def _contributions_are_the_money_moved(made):
 
 
 def _a_projection_leaves_out_what_it_doesnt_grow(made):
-    alice, w = made.c["alice"], made.w
-    r = _ok(make(alice, "Prjct", name="Grow", goal="savings",
+    jane, w = made.c["jane"], made.w
+    r = _ok(make(jane, "Prjct", name="Grow", goal="savings",
                  builtOn={"kind": "portfolio", "id": made.portfolio},
                  inputs={"target": 50000, "targetDate": "2030-01-01"}))  # fmt: skip
-    res = alice.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
+    res = jane.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
     got = sorted((x["name"], _d(x["value"])) for x in res["leftOut"])
     assert got == aw.left_out(w, w.accounts)
     total = sum((aw.value(w, a) for a in w.accounts), Decimal(0))
@@ -279,11 +279,11 @@ def _a_projection_leaves_out_what_it_doesnt_grow(made):
 
 
 def _a_loans_payment_is_its_schedules_next_row(made):
-    alice = made.c["alice"]
+    jane = made.c["jane"]
     for a in made.w.accounts:
         if a.loan is None:
             continue
-        v = alice.get(f"/ui/api/accounts/{made.ids[a.name]}/loan").json()
+        v = jane.get(f"/ui/api/accounts/{made.ids[a.name]}/loan").json()
         nxt = next((r for r in v["rows"] if not r["past"]), None)
         if nxt is None:
             assert _d(v["payment"]) == 0 == _d(v["total"]), (a.name, v["payment"])

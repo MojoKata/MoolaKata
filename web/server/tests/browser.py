@@ -335,24 +335,24 @@ def seed(base: str) -> Household:
     h.extra.update(tax_book(h))
     h.extra.update(accounts(h))
     h.extra.update(people(h))
-    # The portfolio shared with Bob at Read, as its Share dialog shares it.
-    made(share(h.c, "portfolio", h.extra["portfolio"]["id"], users={h.extra["bob"]["id"]: "read"}))
+    # The portfolio shared with John at Read, as its Share dialog shares it.
+    made(share(h.c, "portfolio", h.extra["portfolio"]["id"], users={h.extra["john"]["id"]: "read"}))
     return h
 
 
 def people(h: Household) -> dict:
-    """Bob, invited into a Household group, and an access token of the admin's."""
+    """John, invited into a Household group, and an access token of the admin's."""
     # Invitations carry links built from the server's public URL (S16.1).
     r = save_settings(h.c, {"publicUrl": h.base})
     made(r)
-    bob = made(
+    john = made(
         make(
-            h.c, "User", displayName="Bob Griffin", username="bob", email="bob@home.lan", sex="male"
+            h.c, "User", displayName="John Doe", username="john", email="john@home.lan", sex="male"
         )
     )
-    group = made(make(h.c, "Group", name="Household", memberIds=[bob["id"]]))
+    group = made(make(h.c, "Group", name="Household", memberIds=[john["id"]]))
     made(make(h.c, "Token", name="Claude on my laptop", days=30))
-    return {"bob": bob, "group": group}
+    return {"john": john, "group": group}
 
 
 def accounts(h: Household) -> dict:
@@ -449,8 +449,8 @@ def tax_book(h: Household) -> dict:
             carried={"agi": "98000", "capitalLossLong": "1200"},
         )
     )
-    emma = h.extra["emma"]["personId"]
-    made(make(h.c, "TxDep", bookId=b["id"], personId=emma, claimedAs="qualifying child", months=12))
+    lisa = h.extra["lisa"]["personId"]
+    made(make(h.c, "TxDep", bookId=b["id"], personId=lisa, claimedAs="qualifying child", months=12))
     w2 = made(
         h.c.post(
             "/ui/api/receipts",
@@ -472,13 +472,13 @@ def tax_book(h: Household) -> dict:
 
 
 def gift_plans(h: Household) -> dict:
-    """Emma's gift plan: her birthday, Christmas, a graduation with a budget, a watch planned
+    """Lisa's gift plan: her birthday, Christmas, a graduation with a budget, a watch planned
     for the graduation."""
-    emma = made(
+    lisa = made(
         make(
             h.c,
             "GfPln",
-            name="Emma Griffin",
+            name="Lisa Doe",
             sex="female",
             birthMonth=10,
             birthDay=20,
@@ -491,13 +491,13 @@ def gift_plans(h: Household) -> dict:
             ],
         )
     )
-    grad = next(o for o in emma["occasions"] if o["kind"] == "custom")
+    grad = next(o for o in lisa["occasions"] if o["kind"] == "custom")
     made(
         make(
             h.c,
             "Gift",
             description="Watch",
-            people=[emma["personId"]],
+            people=[lisa["personId"]],
             status="planned",
             occasion=f"occasion:{grad['id']}",
             occasionYear=2027,
@@ -529,7 +529,7 @@ def gift_plans(h: Household) -> dict:
 
     saved(giving_plan(h.c, int(months_back(0)[:4]), percent="10", incomeBasis="gross",
                       income="185000", dafCounted="granted"))  # fmt: skip
-    return {"emma": emma, "church": church}
+    return {"lisa": lisa, "church": church}
 
 
 def transactions(h: Household) -> dict:
@@ -610,7 +610,7 @@ def transactions(h: Household) -> dict:
     coffee = {"add": [tag(c, "coffee")], "remove": []}
     receipt = saved(
         edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",
-             amount="6.40", payee="Blue Bottle", notes="with Emma", tagIds=coffee, keep=True)
+             amount="6.40", payee="Blue Bottle", notes="with Lisa", tagIds=coffee, keep=True)
     )  # fmt: skip
     retire = made(
         make(

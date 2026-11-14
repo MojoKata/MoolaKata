@@ -250,5 +250,5 @@ def relations(s: Session, person_id: str, day: dt.date | None = None) -> list[Re
 
 
 def relation_to(s: Session, viewer_person: str, day: dt.date | None = None) -> dict[str, Relation]:
-    """Each person's relation to the viewer: *Emma, your granddaughter*."""
+    """Each person's relation to the viewer: *Lisa, your granddaughter*."""
     return {r.personId: r for r in relations(s, viewer_person, day)}

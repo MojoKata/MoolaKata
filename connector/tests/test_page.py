@@ -220,7 +220,7 @@ def test_the_status_names_no_institution_connection_or_account(running, monkeypa
     core, _, _ = running
     make_vault(running)
     core.connections = {
-        "Conn_1": ConnectionState("Conn_1", "schwab", "Alice’s Schwab login", {}, [], state="ok"),
+        "Conn_1": ConnectionState("Conn_1", "schwab", "Jane’s Schwab login", {}, [], state="ok"),
         "Conn_2": ConnectionState(
             "Conn_2",
             "ofx-direct",
@@ -239,7 +239,7 @@ def test_the_status_names_no_institution_connection_or_account(running, monkeypa
         lambda: {
             **real(),
             "paired": True,
-            "server": "https://money.griffin.home",
+            "server": "https://money.doe.home",
             "fingerprint": "c2f1 08aa",
             "confirmed": True,
             "lastReport": None,
@@ -247,7 +247,7 @@ def test_the_status_names_no_institution_connection_or_account(running, monkeypa
         },
     )
     _, _, text = call(running, "GET", "/")
-    assert "https://money.griffin.home" in text and "confirmed" in text
+    assert "https://money.doe.home" in text and "confirmed" in text
     assert "1 working, 1 needs attention, 1 starting" in text
     for private in ("Schwab", "Credit union", "Joint", "refused the password", "schwab", "ofx"):
         assert private not in text

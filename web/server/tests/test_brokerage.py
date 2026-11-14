@@ -11,7 +11,7 @@ from moolakata.importers import brokerage
 TODAY = dt.date(2026, 10, 13)
 
 SCHWAB = """Charles Schwab & Co., Inc.
-Schwab One Account of ALICE GRIFFIN  Account Number 8812-4417
+Schwab One Account of JANE DOE  Account Number 8812-4417
 Statement Period: September 1-30, 2026
 Change in Account Value This Period Year to Date
 Starting Value $241,380.12 $230,004.11
@@ -159,8 +159,8 @@ def test_a_brokerage_statement_is_checked_and_saved(server):
     from test_reading import text_pdf
     from test_statements import _import
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Individual Brokerage", type="brokerage", institution="Schwab")
     # What MoolaKata holds: SCHD short by the reinvestment, the dividend and deposit present.
     for sym, qty, price, day in (
@@ -234,8 +234,8 @@ def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
     from test_reading import text_pdf
     from test_statements import _import
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Acme 401(k)", type="401k", institution="Empower")
     review = _import(c, a["id"], text_pdf(EMPOWER.splitlines()))["result"]
     assert review["kind"] == "brokerage" and review["snapshot"]

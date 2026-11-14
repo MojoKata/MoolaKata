@@ -1,4 +1,4 @@
-"""Dev mode's tax books (requirements S17.7): Alice and Bob's joint book for last year, its
+"""Dev mode's tax books (requirements S17.7): Jane and John's joint book for last year, its
 federal and state returns accepted with their documents and the figures they carry forward,
 and this year's book started from it; and a loss sale this year bought back in the Roth IRA
 within 30 days, a wash sale for the Capital gains panel. Their daughters are the books'
@@ -24,23 +24,25 @@ from .seed_accounts import Book
 
 
 def seed_taxes(s, people: dict) -> None:
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     year = clock.today().year
     now = clock.now()
     accts = {a.name: a for a in s.scalars(select(Account))}
 
     def book(y):
-        b = TaxBook(id=ids.new_id("TaxBk"), ownerId=alice.id, year=y)
+        b = TaxBook(id=ids.new_id("TaxBk"), ownerId=jane.id, year=y)
         s.add(b)
         s.flush()
-        for u in (alice, bob):
-            s.add(TaxBookFiler(bookId=b.id, userId=u.id, createdAt=now, acceptedAt=now))
+        # John first, so the book reads "John & Jane": its filers are named in the order added.
+        for i, u in enumerate((john, jane)):
+            at = now + dt.timedelta(seconds=i)
+            s.add(TaxBookFiler(bookId=b.id, userId=u.id, createdAt=at, acceptedAt=at))
         return b
 
     last, this = book(year - 1), book(year)
-    # Their daughters as dependents in both books (S8.14.5), Carol a student.
+    # Their children as dependents in both books (S8.14.5), Bart a student.
     for b in (last, this):
-        for name, student in (("Carol Griffin", True), ("Emma Griffin", False)):
+        for name, student in (("Bart Doe", True), ("Lisa Doe", False)):
             kid = s.scalars(select(Person).where(Person.name == name)).one()
             s.add(
                 TaxBookDependent(
@@ -57,7 +59,7 @@ def seed_taxes(s, people: dict) -> None:
         jurisdiction="federal",
         form="Form 1040",
         filingStatus="Married filing jointly",
-        preparedBy="Alice, with tax software",
+        preparedBy="Jane, with tax software",
         sentBy="e-file",
         progress="accepted",
         dueDate=dt.date(year, 4, 15),
@@ -71,8 +73,8 @@ def seed_taxes(s, people: dict) -> None:
                 "totalTax": "31920",
                 "overpaymentApplied": "0",
                 "capitalLossLong": "2100",
-                # Bob's: his rollover IRA's nondeductible contributions (S8.17).
-                "basis8606": {bob.id: "6500"},
+                # John's: his rollover IRA's nondeductible contributions (S8.17).
+                "basis8606": {john.id: "6500"},
             }
         ),
     )

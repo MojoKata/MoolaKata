@@ -47,7 +47,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
         fromCategoryId=fun,
         toCategoryId=food,
         amount="40.00",
-        note="Emma's dinner",
+        note="Lisa's dinner",
     )
     assert r.status_code == 200, r.text
     made = r.json()
@@ -56,7 +56,7 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
     assert (f["planned"], f["moved"], f["state"]) == ("340.00", "40.00", "near")
     assert (e["planned"], e["moved"]) == ("160.00", "-40.00")
     assert [(m["fromLabel"], m["toLabel"], m["note"]) for m in v["moves"]] == [
-        ("Entertainment", "Food", "Emma's dinner")
+        ("Entertainment", "Food", "Lisa's dinner")
     ]
     # A move in September carries on where the line rolls over.
     assert (

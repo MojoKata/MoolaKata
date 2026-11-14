@@ -1,4 +1,4 @@
-"""Dev mode's options (requirements S17.7): in Alice's taxable brokerage, a covered call
+"""Dev mode's options (requirements S17.7): in Jane's taxable brokerage, a covered call
 written and bought back, a cash-secured put still open, a call bought and sold, and an iron
 condor on SPY grouped as a strategy (S3.5)."""
 
@@ -22,7 +22,7 @@ def seed_options(s, people: dict) -> None:
     if brk is None:
         return
     today = clock.today()
-    alice = people["alice"]
+    jane = people["jane"]
 
     def trade(days_ago, action, under, right, strike, expiry, contracts, premium, fees="0.65"):
         inst, c = options.contract(s, under, right, D(strike), expiry)
@@ -40,7 +40,7 @@ def seed_options(s, people: dict) -> None:
                 quantity=D(contracts),
                 price=D(premium),
                 fees=D(fees),
-                createdById=alice.id,
+                createdById=jane.id,
             )
         )
 

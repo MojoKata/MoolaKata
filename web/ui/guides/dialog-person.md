@@ -79,5 +79,5 @@ Deletes your gift plan for them; they stay among the household's people.
 ## Delete Person
 
 Deletes them for everyone, asking first. Gifts bought, given or received stay in the history as
-_Emma (deleted)_; ideas and planned gifts for them alone go with them. A user's own person isn't
+_Lisa (deleted)_; ideas and planned gifts for them alone go with them. A user's own person isn't
 deleted here.

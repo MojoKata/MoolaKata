@@ -38,5 +38,5 @@ def test_tls_mode_says_whose_certificate(server, admin_client, given, certificat
 
 
 def test_only_an_admin_sees_it(server):
-    make_user(server, "alice")
-    assert sign_in(server, "alice").get("/ui/api/settings/listener").status_code == 403
+    make_user(server, "jane")
+    assert sign_in(server, "jane").get("/ui/api/settings/listener").status_code == 403

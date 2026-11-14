@@ -63,7 +63,7 @@ Connection = record(
     Column("ownerId", Text, ForeignKey("User.id", ondelete="CASCADE"), nullable=False),
     Column("connectorId", Text, ForeignKey("Connector.id"), nullable=False),
     Column("driver", Text, nullable=False),  # folder, ofx-direct, schwab
-    Column("label", Text, nullable=False),  # "Alice's Schwab login"
+    Column("label", Text, nullable=False),  # "Jane's Schwab login"
     Column("state", Text, nullable=False),  # new, ok, needs-sign-in, failing, removed
     Column("message", Text),  # the connector's words for the state
     Column("lastRunAt", UtcTimestamp),

@@ -101,8 +101,8 @@ def test_uploads_in_flight_are_capped_per_caller(server, monkeypatch):
 
     from moolakata import middleware
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
     r = c.post("/ui/api/receipts", files={"file": ("big.png", b"x" * 5000)})
     assert r.status_code == 429 and r.json()["code"] == "uploads-in-flight", r.text

@@ -202,8 +202,8 @@ def test_a_statement_is_checked_then_saved_once(server):
     from test_accounts import new_account
     from test_reading import text_pdf
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c, institution="UMB Bank")
     pdf = text_pdf(UMB.splitlines())
     job = _import(c, acct["id"], pdf)
@@ -265,8 +265,8 @@ def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(ser
     from test_accounts import new_account
     from test_reading import text_pdf
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c, institution="UMB Bank")
     sep = CARDS.format(start="09/01/26", end="09/30/26", m="09", first="AMAZN MKTP")
     review = _import(c, acct["id"], text_pdf(sep.splitlines()))["result"]
@@ -310,8 +310,8 @@ def test_statement_reading_can_be_off(server, admin_client):
     from test_reading import text_pdf
 
     assert save_settings(admin_client, {"readStatements": False}).status_code == 200
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c)
     r = c.post(
         f"/ui/api/accounts/{acct['id']}/imports",
@@ -364,8 +364,8 @@ def test_a_combined_statement_is_saved_once_each_part_is_saved_or_left_out(serve
     from test_accounts import new_account
     from test_reading import text_pdf
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     checking = new_account(c, name="Free Checking", institution="UMB Bank", mask="4821")
     savings = new_account(c, name="Savings", type="savings", institution="UMB Bank", mask="1111")
     review = _import(c, checking["id"], text_pdf(COMBINED.splitlines()))["result"]
@@ -398,8 +398,8 @@ def test_a_statement_kept_without_reading_counts_as_arrived(server):
     from test_accounts import new_account
     from test_reading import text_pdf
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     acct = new_account(c, institution="UMB Bank", keptBy=["file"])
     pdf = text_pdf(UMB.splitlines())
     job = _import(c, acct["id"], pdf, keep=True)

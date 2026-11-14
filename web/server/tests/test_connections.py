@@ -47,9 +47,9 @@ def account(server, owner_id: str, name="Everyday Checking") -> str:
 def test_a_sealed_box_opens_only_with_the_sealing_key_and_the_connection():
     key = X25519PrivateKey.generate()
     public = key.public_key().public_bytes_raw()
-    box = sealed.seal(b'{"username": "alice", "password": "pw"}', public, "Conn_1")
+    box = sealed.seal(b'{"username": "jane", "password": "pw"}', public, "Conn_1")
     assert sealed.looks_sealed(box)
-    assert sealed.open_box(box, key, "Conn_1") == b'{"username": "alice", "password": "pw"}'
+    assert sealed.open_box(box, key, "Conn_1") == b'{"username": "jane", "password": "pw"}'
     with pytest.raises(Exception):  # noqa: B017 - any failure to open
         sealed.open_box(box, key, "Conn_2")
     with pytest.raises(Exception):  # noqa: B017
@@ -58,18 +58,18 @@ def test_a_sealed_box_opens_only_with_the_sealing_key_and_the_connection():
 
 
 def test_anyone_can_see_whether_a_connector_is_paired(server, client, paired):
-    alice = make_user(server, "alice")
-    c = sign_in(server, "alice")
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
     info = c.get("/ui/api/connector").json()
     assert info["paired"] is True and info["sealingKey"] and info["fingerprint"]
-    assert alice
+    assert jane
 
 
 def test_a_user_makes_a_connection_seals_credentials_and_the_connector_collects_them(
     server, paired
 ):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     r = make(c, "Conn", driver="schwab", label="My Schwab login", settings={"appKey": "k1"})
     assert r.status_code == 200, r.text
     made = r.json()
@@ -119,11 +119,11 @@ def test_a_user_makes_a_connection_seals_credentials_and_the_connector_collects_
 
 
 def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(server, paired):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
     cid = make(
-        alice,
+        jane,
         "Conn",
         driver="ofx-direct",
         label="Credit union",
@@ -135,8 +135,8 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
             "accountId": "4417",
         },
     ).json()["id"]
-    bobs = make(
-        bob,
+    johns = make(
+        john,
         "Conn",
         driver="ofx-direct",
         label="Credit union",
@@ -148,33 +148,33 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
             "accountId": "4417",
         },
     ).json()["id"]
-    aid = account(server, alice.get("/ui/api/session").json()["user"]["id"])
-    a = alice.get(f"/ui/api/accounts/{aid}").json()
+    aid = account(server, jane.get("/ui/api/session").json()["user"]["id"])
+    a = jane.get(f"/ui/api/accounts/{aid}").json()
     assert a["connectionId"] is None
-    # Bob's connection can't be named, nor one without the institution account.
-    r = change(alice, "Acct", a, connectionId=bobs, syncAccount="x")
+    # John's connection can't be named, nor one without the institution account.
+    r = change(jane, "Acct", a, connectionId=johns, syncAccount="x")
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "connectionId"
-    r = change(alice, "Acct", a, connectionId=cid)
+    r = change(jane, "Acct", a, connectionId=cid)
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "syncAccount"
-    out = saved(change(alice, "Acct", a, connectionId=cid, syncAccount="Checking ••4417"))
+    out = saved(change(jane, "Acct", a, connectionId=cid, syncAccount="Checking ••4417"))
     assert out["connectionId"] == cid and out["syncAccount"] == "Checking ••4417"
     # The connector's report answer names the account.
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     mine = next(x for x in out["connections"] if x["id"] == cid)
     assert mine["accounts"][0]["id"] == aid
     # A write share doesn't see or change it (S18.6.2).
-    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-    r = share(alice, "account", aid, users={bob_id: "write"})
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    r = share(jane, "account", aid, users={john_id: "write"})
     assert r.status_code == 200, r.text
-    shown = bob.get(f"/ui/api/accounts/{aid}").json()
+    shown = john.get(f"/ui/api/accounts/{aid}").json()
     assert shown["connectionId"] is None and shown["syncAccount"] is None
-    r = change(bob, "Acct", shown, connectionId=None, syncAccount="y")
+    r = change(john, "Acct", shown, connectionId=None, syncAccount="y")
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only"
     # Remove turns the sync off and the connector is told.
-    r = remove(alice, "Conn", alice.get("/ui/api/profile/connections").json()["items"][0])
+    r = remove(jane, "Conn", jane.get("/ui/api/profile/connections").json()["items"][0])
     assert r.status_code == 200, r.text
-    assert alice.get(f"/ui/api/accounts/{aid}").json()["connectionId"] is None
-    assert alice.get("/ui/api/profile/connections").json()["items"] == []
+    assert jane.get(f"/ui/api/accounts/{aid}").json()["connectionId"] is None
+    assert jane.get("/ui/api/profile/connections").json()["items"] == []
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     assert cid in out["removed"] and all(x["id"] != cid for x in out["connections"])
 
@@ -182,15 +182,15 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
 def test_a_watched_folder_is_no_driver(server, paired):
     """S18.9: what nothing can fetch is downloaded and uploaded by its owner, never watched in
     a folder on the server."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     r = make(c, "Conn", driver="folder", label="Downloads", settings={"path": "in"})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "driver-invalid"
 
 
 def test_a_connection_needs_a_paired_connector(server, admin_client):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     assert c.get("/ui/api/connector").json()["paired"] is False
     r = make(
         c,
@@ -210,8 +210,8 @@ def test_a_connection_needs_a_paired_connector(server, admin_client):
 
 def test_an_ofx_connection_may_name_how_many_days_back_each_run_asks_for(server, paired):
     """CR3-140: `days` is one of OFX Direct Connect's settings (protocol §6, S18.9.1)."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     base = {
         "url": "https://ofx.cu.example/ofx",
         "org": "CU",

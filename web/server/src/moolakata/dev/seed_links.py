@@ -1,5 +1,5 @@
-"""Dev mode's linked server (requirements S17.7): griffin-parents, linked and active, with its
-two users so linked people can be shared with, and what it shares with Alice and Bob waiting in
+"""Dev mode's linked server (requirements S17.7): doe-parents, linked and active, with its
+two users so linked people can be shared with, and what it shares with Jane and John waiting in
 its copy. The copy's access key is fixed in dev mode only, so its words are known:
 `python -m moolakata.dev.seed_links` prints them. Its address is never reached: dev mode with
 stubs makes no outside calls."""
@@ -47,14 +47,14 @@ def seed_links(server, s, people: dict) -> None:
         keys.b64(own.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())),
         None,
     )
-    peer = _fixed(b"moolakata dev griffin-parents link key")
+    peer = _fixed(b"moolakata dev doe-parents link key")
     link = Link(
         id=ids.new_id("Link"),
         state="active",
         role="inviter",
-        peerName="griffin-parents",
-        householdName="Margaret & Tom",
-        householdAvatar=json.dumps({"kind": "initials", "initials": "MT", "color": "#7a4b9c"}),
+        peerName="doe-parents",
+        householdName="Jeremy & Candace",
+        householdAvatar=json.dumps({"kind": "initials", "initials": "JC", "color": "#7a4b9c"}),
         address="https://money.parents.ts.net",
         peerKey=keys.b64(keys.raw_public(peer.public_key())),
         approvedAt=clock.now(),
@@ -71,27 +71,27 @@ def seed_links(server, s, people: dict) -> None:
         s,
         link,
         {
-            "household": {"serverName": "griffin-parents", "name": "Margaret & Tom"},
+            "household": {"serverName": "doe-parents", "name": "Jeremy & Candace"},
             "users": [
                 {
-                    "id": "User_01m4parentsmargaret00000a",
-                    "username": "margaret",
-                    "displayName": "Margaret Griffin",
-                    "email": "margaret@parents.home",
+                    "id": "User_01m4parentscandace000000a",
+                    "username": "candace",
+                    "displayName": "Candace Doe",
+                    "email": "candace@parents.home",
                     "sex": "female",
                 },
                 {
-                    "id": "User_01m4parentstom0000000000b",
-                    "username": "tom",
-                    "displayName": "Tom Griffin",
-                    "email": "tom@parents.home",
+                    "id": "User_01m4parentsjeremy0000000b",
+                    "username": "jeremy",
+                    "displayName": "Jeremy Doe",
+                    "email": "jeremy@parents.home",
                     "sex": "male",
                 },
             ],
         },
     )
-    alice, bob = people["alice"].id, people["bob"].id
-    change = _change(alice, bob)
+    jane, john = people["jane"].id, people["john"].id
+    change = _change(jane, john)
     now = clock.now()
     for it in change["items"]:
         s.add(
@@ -134,7 +134,7 @@ def _months(n: int, end: float, start: float) -> list[dict]:
     return out
 
 
-def _change(alice: str, bob: str) -> dict:
+def _change(jane: str, john: str) -> dict:
     today = clock.today()
     shared = (clock.now() - dt.timedelta(days=30)).isoformat()
     ira, chk, pf, bud = (
@@ -149,7 +149,7 @@ def _change(alice: str, bob: str) -> dict:
             "id": i,
             "kind": kind,
             "name": name,
-            "ownerName": "Margaret Griffin",
+            "ownerName": "Candace Doe",
             "sharedAt": shared,
             "viewers": viewers,
             "includeReceipts": False,
@@ -164,11 +164,11 @@ def _change(alice: str, bob: str) -> dict:
             "type": typ,
             "typeLabel": label,
             "institution": inst,
-            "ownerName": "Margaret Griffin",
+            "ownerName": "Candace Doe",
         }
 
     docs = []
-    for v in (alice, bob):
+    for v in (jane, john):
         docs += [
             {
                 "itemId": chk,
@@ -237,7 +237,7 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": ira,
             "path": "",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "id": ira,
                 **row(
@@ -248,7 +248,7 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": ira,
             "path": f"/accounts/{ira}",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "id": ira,
                 **row(
@@ -260,13 +260,13 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": ira,
             "path": f"/accounts/{ira}/series?range=All",
-            "viewer": alice,
+            "viewer": jane,
             "body": {"points": _months(36, 412880, 351200), "asOf": today.isoformat()},
         },
         {
             "itemId": ira,
             "path": f"/accounts/{ira}/holdings",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "cash": "2480.00",
                 "total": "412880.00",
@@ -298,7 +298,7 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": ira,
             "path": f"/transactions?account={ira}",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "items": [
                     {
@@ -322,29 +322,29 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": pf,
             "path": "",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "id": pf,
                 "name": "Retirement",
                 "value": "412880.00",
-                "ownerName": "Margaret Griffin",
+                "ownerName": "Candace Doe",
             },
         },
         {
             "itemId": pf,
             "path": f"/portfolios/{pf}",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "id": pf,
                 "name": "Retirement",
                 "value": "412880.00",
-                "ownerName": "Margaret Griffin",
+                "ownerName": "Candace Doe",
             },
         },
         {
             "itemId": pf,
             "path": f"/portfolios/{pf}/holdings",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "cash": "2480.00",
                 "total": "412880.00",
@@ -373,7 +373,7 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": pf,
             "path": f"/portfolios/{pf}/series?range=All",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "points": _months(36, 412880, 351200),
                 "benchmark": "VT",
@@ -388,7 +388,7 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": pf,
             "path": f"/portfolios/{pf}/returns",
-            "viewer": alice,
+            "viewer": jane,
             "body": [
                 {
                     "id": pf,
@@ -400,13 +400,13 @@ def _change(alice: str, bob: str) -> dict:
         {
             "itemId": bud,
             "path": "",
-            "viewer": alice,
-            "body": {"id": bud, "name": "Household", "ownerName": "Margaret Griffin"},
+            "viewer": jane,
+            "body": {"id": bud, "name": "Household", "ownerName": "Candace Doe"},
         },
         {
             "itemId": bud,
             "path": f"/budgets/{bud}/month",
-            "viewer": alice,
+            "viewer": jane,
             "body": {
                 "month": today.replace(day=1).isoformat(),
                 "rows": [
@@ -437,10 +437,10 @@ def _change(alice: str, bob: str) -> dict:
         "asOf": clock.now().isoformat(),
         "full": True,
         "items": [
-            item(ira, "account", "Mom's Retirement", [alice]),
-            item(chk, "account", "Joint checking", [alice, bob]),
-            item(pf, "portfolio", "Retirement", [alice]),
-            item(bud, "budget", "Household", [alice]),
+            item(ira, "account", "Mom's Retirement", [jane]),
+            item(chk, "account", "Joint checking", [jane, john]),
+            item(pf, "portfolio", "Retirement", [jane]),
+            item(bud, "budget", "Household", [jane]),
         ],
         "removed": [],
         "docs": docs,

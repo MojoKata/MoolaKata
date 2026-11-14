@@ -72,15 +72,13 @@ def test_a_month_worked_out_during_a_write_is_kept_under_the_older_version(serve
     t = add(
         c, acct["id"], "-50.00", "2026-10-03", payee="Kroger", categoryId=cat["Food › Groceries"]
     )
-    alice = c.get("/ui/api/session").json()["user"]["id"]
+    jane = c.get("/ui/api/session").json()["user"]["id"]
     cache.clear()
     with server.db.tx(unscoped="test") as w:
         w.execute(update(Transaction).where(Transaction.id == t["id"]).values(amount=-80))
         w.flush()
-        with server.db.read(user=alice) as s:
-            m = budgets.month_view(
-                s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), alice
-            )
+        with server.db.read(user=jane) as s:
+            m = budgets.month_view(s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), jane)
             assert [r.actual for r in m.rows if r.label == "Food"] == [50]
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "80.00"
 
@@ -102,23 +100,23 @@ def test_writes_outside_the_orm_are_seen_and_refresh_works_again(server, frozen)
 
 def test_only_a_reads_months_are_kept(server, frozen):
     c, _, _, b = setup_budget(server)
-    alice = c.get("/ui/api/session").json()["user"]["id"]
+    jane = c.get("/ui/api/session").json()["user"]["id"]
     cache.clear()
-    with server.db.tx(user=alice) as w:
-        budgets.month_view(w, w.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), alice)
+    with server.db.tx(user=jane) as w:
+        budgets.month_view(w, w.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), jane)
     assert len(cache._months) == 0
-    with server.db.read(user=alice) as s:
-        budgets.month_view(s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), alice)
+    with server.db.read(user=jane) as s:
+        budgets.month_view(s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), jane)
     assert len(cache._months) == 1
 
 
 def test_a_kept_month_that_differs_from_its_data_is_caught(server, frozen):
     """CHECK, on in every test, works a kept month out again and fails on a difference."""
     c, _, _, b = setup_budget(server)
-    alice = c.get("/ui/api/session").json()["user"]["id"]
+    jane = c.get("/ui/api/session").json()["user"]["id"]
     cache.clear()
     month(c, b, "2026-10")
     ((key, kept),) = list(cache._months.items())
     cache._months[key] = type(kept)(**{**kept.__dict__, "spent": kept.spent + 1})
-    with server.db.read(user=alice) as s, pytest.raises(cache.Stale):
-        budgets.month_view(s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), alice)
+    with server.db.read(user=jane) as s, pytest.raises(cache.Stale):
+        budgets.month_view(s, s.get(Budget, b["id"]), dt.date(2026, 10, 1), T0.date(), jane)

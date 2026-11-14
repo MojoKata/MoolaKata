@@ -210,7 +210,7 @@ action key's:
 {
   "locked": false,
   "unlockedAt": "2026-10-15T06:02:00Z",
-  "page": "https://connector.griffin.home:37374",
+  "page": "https://connector.doe.home:37374",
   "connections": [
     {
       "id": "Conn_01k7…",
@@ -236,8 +236,8 @@ action key's:
    ```json
    {
      "connections": [
-       {"id": "Conn_01k7…", "ownerName": "Alice", "driver": "schwab",
-        "label": "Alice's Schwab login", "settings": {…},
+       {"id": "Conn_01k7…", "ownerName": "Jane", "driver": "schwab",
+        "label": "Jane's Schwab login", "settings": {…},
         "accounts": [{"id": "Acct_01k7…", "syncAccount": "Individual ••4417",
                       "formats": ["ofx"]}],
         "sealed": {"ciphertext": "…", "sealedAt": "2026-10-15T05:30:00Z"}}
@@ -317,7 +317,7 @@ action key's:
    checked from its content, imports are idempotent, a PDF is kept without reading or waits in
    the account's inbox, and a CSV uses the account's saved mapping (without one, the post is
    refused with `mapping-missing` and the Connection told so). Activity records it as *by
-   MoolaKata Connector, Alice's Schwab login* under the owner.
+   MoolaKata Connector, Jane's Schwab login* under the owner.
 3. The answer is `{imported: {added, matched, changed}, kept: bool}` as the import dialog would
    show it. `429` with `Retry-After` means the owner's upload limit; the connector keeps the
    file and posts it on a later run.

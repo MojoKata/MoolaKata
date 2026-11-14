@@ -16,10 +16,10 @@ const TAGS = [
   { key: 'Tag_gifts', label: 'gifts', uses: 5 },
 ];
 const PEOPLE = [
-  { key: 'Persn_emma', label: 'Emma Griffin' },
-  { key: 'Persn_noah', label: 'Noah Griffin' },
-  { key: 'Persn_margaret', label: 'Margaret Griffin' },
-  { key: 'Persn_tom', label: 'Tom Griffin' },
+  { key: 'Persn_lisa', label: 'Lisa Doe' },
+  { key: 'Persn_noah', label: 'Noah Doe' },
+  { key: 'Persn_candace', label: 'Candace Doe' },
+  { key: 'Persn_jeremy', label: 'Jeremy Doe' },
   { key: 'Persn_sam', label: 'Sam Okafor' },
 ];
 const MANY = Array.from({ length: 20 }, (_, i) => ({
@@ -114,7 +114,7 @@ export default function TagsPage() {
       <${Tags} id="tags-filled" title="Tags, filled" allowNew=${true}
         first=${['Tag_work', 'Tag_coffee']} />
       <${Tags} id="people" title="People: picked only" items=${PEOPLE}
-        noun=${['person', 'people']} first=${['Persn_emma']} />
+        noun=${['person', 'people']} first=${['Persn_lisa']} />
       <${Tags} id="many" title="Many: three rows, then it scrolls" allowNew=${true}
         items=${MANY} first=${MANY.map((i) => i.key)} />
       <${Tags} id="one-line" title="One line, with a count" allowNew=${true} items=${MANY}

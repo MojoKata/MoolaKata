@@ -22,8 +22,8 @@ def frozen():
 
 
 def test_to_budget_card_lines_and_owed_not_backed(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     chk = new_account(c)
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
     cat = cats(c)
@@ -94,8 +94,8 @@ def test_to_budget_card_lines_and_owed_not_backed(server, frozen):
 
 
 def test_an_overspent_envelope_carried_or_taken_from_next_month(server, frozen):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     chk = new_account(c)
     cat = cats(c)
     b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()

@@ -10,7 +10,7 @@ by a date.
 
 ## Name
 
-Such as _Retire at 63_, _Emma's college_ or _House deposit_.
+Such as _Retire at 63_, _Lisa's college_ or _House deposit_.
 
 ## Built on
 
