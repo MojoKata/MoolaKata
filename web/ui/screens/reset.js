@@ -16,24 +16,23 @@ export default function Reset() {
   });
   if (done) {
     return html`
-      <${AuthCard} title="Password changed" guide="reset"
-        sub="Every session was signed out. Sign in with the new password."><a class="btn primary" href="/ui/">Sign in</a></${AuthCard}>
+      <${AuthCard} title="Password Changed" guide="reset"
+        sub="Every session was signed out. Sign in with the new password."><a class="btn primary" href="/ui/">Sign In</a></${AuthCard}>
     `;
   }
   return html`
-    <${AuthCard} title="Choose a new password" guide="reset">
+    <${AuthCard} title="Choose a New Password" guide="reset">
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         save.run().catch(() => {});
       }}>
-        <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}
-          hint="At least 12 characters; not a common password.">
+        <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}>
           <${Input} type="password"
             value=${password} onInput=${setPassword} autocomplete="new-password" required />
           </${Field}>
           <${FormError} error=${save.error} shown=${['password']} />
           <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-            disabled=${save.busy}>Change the password</button>
+            disabled=${save.busy}>Change the Password</button>
           </form>
           </${AuthCard}>
   `;

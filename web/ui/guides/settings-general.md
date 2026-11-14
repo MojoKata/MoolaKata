@@ -14,7 +14,7 @@ Read from the host. A user whose time zone is **Auto** sees times in it.
 
 ## Household name
 
-At the top of the sidebar.
+At the top of the sidebar, and sent to linked servers with the avatar.
 
 ## Household initials
 

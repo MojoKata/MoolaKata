@@ -207,6 +207,10 @@ def open_page(browser, url):
     return page, problems
 
 
+# A toast that answers what the test did: a live alert's ("New alert: …") may arrive beside it.
+SAVED_TOAST = '.toast:not(:has-text("New alert"))'
+
+
 def wait(page, selector: str, problems: list, **kw) -> None:
     """Wait for a selector, then for the page to settle (jscoverage.SETTLED), so the test moves
     on from the same state every run (S17.5.8); a timeout names what the page reported on the

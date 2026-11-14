@@ -13,11 +13,12 @@ The planner needs the loan's terms, set in its Settings.
 The balance owed on the schedule (dashed), with your plan, and recast after the lump sums when you
 ask for it.
 
-## Paid off
+## Paid Off
 
 The payoff date with the plan, against the scheduled one. **Months saved**, **interest saved** and
 **interest still to pay** follow from it; **total paid** counts everything paid from now on, escrow
-and fees included.
+and fees included. Until the plan has an overpayment there is nothing saved to show, and while a
+field is marked nothing shows until it is corrected.
 
 ## Shorten or recast
 
@@ -30,6 +31,11 @@ loan sooner, and saves more interest. The recast fee is taken off its interest s
 The same money invested on the days it would have been paid, at your expected return for the asset
 class you choose, and its value at the plan's payoff date. A comparison, not advice: the return is
 an assumption, the interest saved is certain.
+
+## Assumed rates {#assumed-rates}
+
+An adjustable rate's resets after today, as typed in the loan's terms: they are your assumption, not
+known yet, and the payoff after the first is worked out from them.
 
 ## Extra each month
 
@@ -54,7 +60,7 @@ The month of the yearly extra.
 ## Lump sums
 
 One-time payments toward principal, each with the first payment due on or after its date. One
-missing its date or amount is left out while you fill it in; **Save plan** refuses it until it has
+missing its date or amount is left out while you fill it in; **Save Plan** refuses it until it has
 both, or is removed.
 
 ## Biweekly payments
@@ -69,7 +75,8 @@ principal: 100 makes $2,154 into $2,200. Blank: none.
 
 ## Recast after the lump sums
 
-Also works out the loan recast after each lump sum, beside it shortened.
+Also works out the loan recast after each lump sum, beside it shortened: the term kept and the
+payment lowered, instead of paying off sooner.
 
 ## Recast fee
 
@@ -79,7 +86,7 @@ What the servicer charges for each recast, often $250 to $500. Blank: none.
 
 The asset class for the comparison; its expected return is yours, from Profile › Assumptions.
 
-## Saved plans
+## Saved Plans
 
 Plans kept for this loan. **Show** puts one back in the form. **Follow** makes it the plan you're
 following: from that day, the loan's Overview shows whether what you've overpaid is ahead of it or

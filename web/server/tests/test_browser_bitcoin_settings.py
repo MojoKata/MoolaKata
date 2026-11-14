@@ -4,11 +4,21 @@ default, and until then the section says it isn't saved. A server of its own, wi
 so nothing is ever read from an explorer."""
 
 import pytest
-from browser import PASSWORD, client, made, open_page, save, stop, unlocked, wait
+from browser import (
+    PASSWORD,
+    SAVED_TOAST,
+    client,
+    made,
+    open_page,
+    save,
+    stop,
+    unlocked,
+    wait,
+)
 
 pytestmark = pytest.mark.browser
 
-FORM = 'form.card:has-text("Test asks")'
+FORM = 'form.card:has(h3:text-is("Bitcoin"))'
 UNSAVED = "text=Not saved yet"
 
 
@@ -36,8 +46,8 @@ def test_the_first_save_writes_the_source_and_a_saved_section_saves_nothing(tmp_
 
         def save_untouched() -> None:
             page.click(f"{FORM} button.primary:enabled")
-            wait(page, ".toast", problems)
-            page.locator(".toast").first.wait_for(state="detached", timeout=30_000)
+            wait(page, SAVED_TOAST, problems)
+            page.locator(SAVED_TOAST).first.wait_for(state="detached", timeout=30_000)
 
         # Untouched, at the suggested mempool.space: the source alone is written.
         before = settings()
@@ -115,8 +125,8 @@ def test_the_first_save_of_an_own_node_writes_its_source_and_address(tmp_path, b
             page.get_by_label("Explorer or node").select_option(node)
             page.locator(f"{FORM} {field}").fill(value)
             page.click(f"{FORM} button.primary:enabled")
-            wait(page, ".toast", problems)
-            page.locator(".toast").first.wait_for(state="detached", timeout=30_000)
+            wait(page, SAVED_TOAST, problems)
+            page.locator(SAVED_TOAST).first.wait_for(state="detached", timeout=30_000)
             values = c.get("/ui/api/settings").json()["values"]
             assert {k: values[k] for k in want} == want, node
             assert page.locator(UNSAVED).count() == 0, node
@@ -162,8 +172,8 @@ def test_an_own_esplora_left_blank_is_refused_not_read_as_the_public_one(tmp_pat
         choice.select_option("blockstream")
         assert page.locator(f'{FORM} :text("Your Esplora’s address.")').count() == 0
         page.click(f"{FORM} button.primary:enabled")
-        wait(page, ".toast", problems)
-        page.locator(".toast").first.wait_for(state="detached", timeout=30_000)
+        wait(page, SAVED_TOAST, problems)
+        page.locator(SAVED_TOAST).first.wait_for(state="detached", timeout=30_000)
         values = c.get("/ui/api/settings").json()["values"]
         assert values["bitcoinEsploraUrl"] == "https://blockstream.info/api"
         assert problems == []

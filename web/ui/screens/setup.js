@@ -31,19 +31,18 @@ export default function Setup() {
     );
   });
   return html`
-    <${AuthCard} title="Set up the admin account" guide="setup"
+    <${AuthCard} title="Set Up the Admin Account" guide="setup"
       sub=${first
         ? html`
           The key is made and MoolaKata is open. Now your account: you'll sign in as <b
           >admin</b>.
         `
-        : "This server is new. Choose the admin's password and email before anything else."}>
+        : null}>
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         save.run().catch(() => {});
       }}>
-        <${Field} label="Your name" hint="Shown to the people you share with."
-          error=${errAt(save.error, 'displayName')}>
+        <${Field} label="Your name" error=${errAt(save.error, 'displayName')}>
           <${Input}
             value=${displayName} onInput=${setName} autocomplete="name" required=${first} />
           </${Field}>
@@ -59,14 +58,13 @@ export default function Setup() {
               <${Input} type="email"
                 value=${email} onInput=${setEmail} autocomplete="email" required />
               </${Field}>
-              <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}
-                hint="At least 12 characters, and not a common password.">
+              <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}>
                 <${Input} type="password" value=${password} onInput=${setPassword}
                   autocomplete="new-password" required />
                 </${Field}>
                 <${FormError} error=${save.error} shown=${['email', 'password']} />
                 <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-                  disabled=${save.busy}>Save and continue</button>
+                  disabled=${save.busy}>Save and Continue</button>
                 </form>
                 </${AuthCard}>
   `;

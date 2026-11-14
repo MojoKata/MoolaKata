@@ -15,7 +15,7 @@ either way.
 The group an approved request joins. More can be added later with the pencil at the end of the
 user's row.
 
-## Asked to be made active again
+## Asked to Be Made Active Again
 
 People whose account is inactive and who asked, from the sign-in screen, to be made active.
 
@@ -23,19 +23,19 @@ People whose account is inactive and who asked, from the sign-in screen, to be m
 
 **Active** users, or **all** of them with the inactive ones.
 
-## New user
+## New User
 
 A name, username and email: they get an invitation and choose their own password. Admins never set
 passwords.
 
-## Resend invitation
+## Resend Invitation
 
 A new invitation link, for someone who hasn't joined yet.
 
 ## Edit
 
 A user's name and groups, and their email before they join. **two-step** beside a user means they
-sign in with a code from an app; **Reset two-step** in Edit turns it off when they've lost the app
+sign in with a code from an app; **Reset Two-Step** in Edit turns it off when they've lost the app
 and their recovery codes.
 
 ## Active {#active}
@@ -43,7 +43,7 @@ and their recovery codes.
 Off ends the user's sessions at once and stops them signing in; shares they hold give them nothing
 while they're inactive. Users are made inactive, never deleted. The last active admin can't be.
 
-## New group
+## New Group
 
 A named set of users that accounts and portfolios can be shared with. **Admins** is built in: its
 members manage users, groups and Settings, and see others' money only when it's shared with them.

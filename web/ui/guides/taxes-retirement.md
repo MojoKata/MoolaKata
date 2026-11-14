@@ -9,7 +9,7 @@ Contributions against the year's limits, distributions, and the required minimum
 The book shown, for one tax year. Its panels count the book's accounts only, and say which were left
 out.
 
-## Contributions against the limits
+## Contributions against the Limits
 
 What went into each retirement account for the year, against its limit from the tax tables, with the
 catch-up by age. A rollover or a conversion is no contribution: money moved from another retirement
@@ -27,12 +27,12 @@ Each filer's own: the basis their return carried from last year, plus this year'
 their traditional IRAs marked **Not deductible** in the transaction form. A contribution still
 **Not decided** is counted, and named, until it is marked.
 
-## Required minimum distributions {#rmds}
+## Required Minimum Distributions {#rmds}
 
 For an owner at the RMD age: the account's value at the end of last year divided by the Uniform
-Lifetime Table's factor for their age.
+Lifetime Table's factor for their age. None is due until an owner reaches the RMD age.
 
-## Roth conversions {#conversions}
+## Roth Conversions {#conversions}
 
 Money moved from a traditional IRA or a 401(k) to a Roth IRA. A conversion from a traditional IRA
 shows its taxed part: the conversion less its share of its owner's Form 8606 basis, over the

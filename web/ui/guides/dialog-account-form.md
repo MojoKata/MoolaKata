@@ -1,8 +1,12 @@
-# New account: details
+# New Account: Details
+
+The new account's details, which its type decides. A physical asset's items (real estate, a
+vehicle, collectables, precious metals) are added after making the account, each with its
+purchase date, cost basis, notes and documents.
 
 ## Name
 
-What it's called in your lists.
+What it's called in your lists, such as *Individual brokerage* or *Everyday checking*.
 
 ## Institution
 
@@ -22,7 +26,7 @@ my529, Bright Start, and so on.
 
 ## Beneficiary
 
-Who a 529 is for: one of the household's people, or **Add a person…**, which opens **Add a person** over this dialog: the one it adds is chosen here.
+Who a 529 is for: one of the household's people, or **Add a Person…**, which opens **Add a Person** over this dialog: the one it adds is chosen here.
 
 ## Opened {#opened-on}
 
@@ -34,9 +38,10 @@ What you expect to deduct on your state return each year, typed.
 
 ## Extended public keys or addresses {#wallet-keys}
 
-A self-custody wallet's public data: an **xpub**, **ypub** or **zpub** (exported from the wallet
-as its account's extended public key), or bitcoin addresses, one a line. From a key, MoolaKata
-derives the wallet's receive and change addresses itself.
+Bitcoin only; other coins come later. A self-custody wallet's public data only: an **xpub**,
+**ypub** or **zpub** (exported from the wallet as its account's extended public key), an
+**output descriptor** (`wpkh`, `tr`, a `wsh` multisig…), or bitcoin addresses, one a line. From
+a key, MoolaKata derives the wallet's receive and change addresses itself.
 
 > Never enter a seed phrase or a private key. The form clears anything that looks like one (12
 > or 24 words, a WIF or 64-hex private key, an xprv) at once, and MoolaKata never stores or
@@ -55,7 +60,9 @@ trades, not by this.
 
 ## Lot method
 
-Which lots a sale takes; FIFO, the oldest first, unless you choose otherwise.
+Which lots a sale takes; FIFO, the oldest first, unless you choose otherwise. **Average cost** is
+for funds and coins; a share in the account is sold oldest first. The method in force at a sale is
+recorded with it.
 
 ## Opening balance
 
@@ -115,7 +122,8 @@ PMI can be dropped on request once the balance is 80% of it, and ends by itself 
 
 ## Draw period (months) {#draw-months}
 
-A HELOC's months of interest-only drawing before repayment.
+A HELOC's months of drawing. While drawing, payments are interest only; after it, the balance is
+repaid over the rest of the term.
 
 ## In budgets {#in-budgets}
 
@@ -130,5 +138,5 @@ The category the whole payment counts in: _Loan payments_ unless you choose anot
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.

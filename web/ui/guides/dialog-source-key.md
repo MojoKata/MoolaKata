@@ -1,7 +1,8 @@
-# A price source's key
+# A Price Source's Key
 
 ## API key
 
-From the source's site. Stored encrypted and never shown again.
+From the source's site. Stored encrypted and never shown again: Settings shows only that it is
+set, when and by whom.
 
 Setting the key asks for your password again when it was given over 10 minutes ago.

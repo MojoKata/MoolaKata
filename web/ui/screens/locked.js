@@ -11,6 +11,7 @@ import { loadSession, lostChanges, restarting } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { Field, FormError, Input } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
+import { Attention } from '../kit/state.js';
 import NewServer from './new-server.js';
 
 const STAGES = /** @type {Record<string, string>} */ ({
@@ -80,18 +81,11 @@ export default function Locked() {
   });
   if (restarting.value) {
     return html`
-      <${AuthCard} title="MoolaKata is restarting" guide="locked"
-        sub="It starts again locked, so the re-encryption runs at the unlock, with the phrase entered there, before the server serves.">
+      <${AuthCard} title="MoolaKata Is Restarting" guide="locked">
         ${late
-          ? html`
-            <div class="notice small bad" role="status">
-              <${Icon} name="alert" />
-              <div>It
-                          hasn't come back. Start it on the host (<code>docker compose up -d</code>), then
-                          unlock it here.</div>
-            </div>
-          `
-          : html`<p class="small dim">This page shows the locked screen as soon as it answers.</p>`}
+          ? html`<${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>It hasn't come
+            back</${Attention}>`
+          : null}
         </${AuthCard}>
     `;
   }
@@ -100,8 +94,7 @@ export default function Locked() {
     const r = lock.reencrypting;
     const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
     return html`
-      <${AuthCard} title="MoolaKata is re-encrypting" guide="locked"
-        sub="The phrase opened the keyring. The data is being rewritten under a new data key before the server serves; this takes a few minutes.">
+      <${AuthCard} title="MoolaKata Is Re-encrypting" guide="locked">
         <div class="list-item"><span class="grow">${STAGES[r.stage] || r.stage}</span>${r.total
           ? `${r.done.toLocaleString()} of ${r.total.toLocaleString()}`
           : ''}</div>
@@ -115,21 +108,17 @@ export default function Locked() {
           }}>
           <div style=${{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}></div>
         </div>
-        <p class="small dim" style=${{ marginTop: '12px' }}>Sign-in opens when it is done; <code
-          >/healthz</code> answers <code>re-encrypting</code> meanwhile.</p>
         </${AuthCard}>
     `;
   }
   return html`
-    <${AuthCard} title="MoolaKata is locked" guide="locked"
-      sub=${(lostChanges.value ? "Changes you hadn't saved were lost. " : '') +
-        'The server started and holds no key. An admin enters the recovery phrase to open it; everyone signs in after that.'}>
+    <${AuthCard} title="MoolaKata Is Locked" guide="locked"
+      sub=${lostChanges.value ? "Changes you hadn't saved were lost." : null}>
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         unlock.run().catch(() => {});
       }}>
-        <${Field} label="Recovery phrase" id="recovery-phrase"
-          hint="The 12 words from the recovery sheet, in order. Four letters of each are enough.">
+        <${Field} label="Recovery phrase" id="recovery-phrase">
           <${Input} type="secret" value=${words} onInput=${setWords} required
             autocorrect="off" />
           </${Field}>
@@ -140,9 +129,6 @@ export default function Locked() {
           <${FormError} error=${unlock.error} />
           <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
             disabled=${unlock.busy}>${unlock.busy ? 'Opening…' : 'Unlock'}</button>
-          <p class="small dim" style=${{ marginTop: '12px' }}>Or on the host: <code
-            >docker compose exec moolakata moolakata keys unlock</code>. The server locks
-            again at every restart; nothing of the phrase is kept.</p>
           </form>
           </${AuthCard}>
   `;

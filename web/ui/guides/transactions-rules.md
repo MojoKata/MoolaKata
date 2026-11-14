@@ -14,21 +14,21 @@ Rules set a category only where there is none, and never touch a split, a transf
 accounts or a trade. They run on every file, statement and connector fetch you import, and on the
 receipts you add: a rule that renames a payee renames the merchant a receipt names.
 
-## Add rule
+## Add Rule
 
-Adds a rule at the end of the list and shows it on the right; **Discard** takes it away again. A
-transaction's own dialog offers **Make a rule**, which opens **New rule** over it with its payee
+Adds a rule at the end of the list, the first one while there are none, and shows it on the right; **Discard** takes it away again. A
+transaction's own dialog offers **Make a Rule**, which opens **New Rule** over it with its payee
 and category filled in.
 
 ## Apply to the uncategorised
 
-Beside **Add rule** while any are uncategorised: runs your saved rules now over the uncategorised
+Beside **Add Rule** while any are uncategorised: runs your saved rules now over the uncategorised
 transactions in the accounts you can change. Activity records how many it set, never an amount.
 
 ## Save and Discard
 
 Show while the rule has changes, and go when you put it back as it was. Choosing another rule, or
-going elsewhere, with changes asks first: **Keep editing**, **Discard** or **Save**.
+going elsewhere, with changes asks first: **Keep Editing**, **Discard** or **Save**.
 
 ## Payee contains
 
@@ -62,7 +62,7 @@ for a rule that only renames or tags.
 
 ## New category…
 
-At the end of the list: opens **New category** over this page. The category it makes is chosen
+At the end of the list: opens **New Category** over this page. The category it makes is chosen
 here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Rename to
@@ -72,7 +72,7 @@ it, and the rules match on the bank's text.
 
 ## Tags
 
-Your own tags, added to each match. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
+Your own tags, added to each match: _coffee_, _work_. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
 
 ## Delete
 

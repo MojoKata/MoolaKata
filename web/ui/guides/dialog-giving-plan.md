@@ -1,4 +1,4 @@
-# Giving plan
+# Giving Plan
 
 The year's giving target.
 

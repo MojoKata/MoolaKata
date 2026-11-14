@@ -38,9 +38,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    included; until then it says *Not saved yet* in place of when the wallets were last read.
    Changing the node's host clears its stored password, which is entered again for the new
    host.
-8. **Imports** (S1.3): the file types and size accepted for statement import (25 MB by
-   default, 1 to 200), and whether statements are read on the server (in the receipt
-   reader's worker, S9.8).
+8. **Imports** (S1.3): the size accepted for statement import (25 MB by default, 1 to 200;
+   the file types accepted are in its guide), and whether statements are read on the server
+   (in the receipt reader's worker, S9.8).
 9. **Linked servers** (S11.7): this server's **link address** (its public URL when not set,
    S11.2), the links, and each linked copy's state: changes waiting, its access key (*Create
    the access key*, made when and by whom), locked or unlocked (by whom, and when it will
@@ -61,14 +61,14 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     physical assets).
 12. **Backups**: the time of day (02:30 by default) and the **copies kept**: the days of
     backups kept, every backup of each of the most recent days that have one (14 by default,
-    3 to 365, so one bad copy is never the only one); a second backup the same day, **Back up
-    now**, never pushes out an earlier day's. Fewer days than the backups there are deletes
+    3 to 365, so one bad copy is never the only one); a second backup the same day, **Backup
+    Now**, never pushes out an earlier day's. Fewer days than the backups there are deletes
     some at the next backup, so it asks for the password again and the recovery phrase, as
     **Remove** does (S16.13): an admin's session alone deletes no backup. Each backup is
-    listed with its size and the key it opens with, with **Back up now**; the backup
+    listed with its size and the key it opens with, with **Backup Now**; the backup
     directory is set on the host. The section says what a backup is: the
-    database with its keyring, never the receipt files, which the host backs up with the
-    data directory (S14.6).
+    database with its keyring, never the receipt files, which the host's own backup of the
+    data directory holds (S14.6).
 13. **Key storage** (S15): the master key's fingerprint and age, when
     the phrase last opened the keyring and how (an unlock, **Verify key**, or `keys verify` on
     the host), the previous keys, each with how many copies on this host still need its phrase

@@ -38,7 +38,7 @@ export function PortfolioDialog({ close, portfolio }) {
   const owner = !portfolio || portfolio.access.configurable;
   const ids = new Set(/** @type {string[]} */ (rec?.get('accountIds') || []));
   return html`
-    <${DraftDialog} f=${f} title=${portfolio ? 'Portfolio' : 'New portfolio'} close=${close}
+    <${DraftDialog} f=${f} title=${portfolio ? 'Portfolio' : 'New Portfolio'} close=${close}
       what="This portfolio" saved=${(/** @type {any} */ o) => {
         toast('Saved');
         close(o.saved[0]?.record || true);
@@ -68,8 +68,7 @@ export function PortfolioDialog({ close, portfolio }) {
               </fieldset>
             `
             : null}
-          <${RecField} rec=${rec} name="benchmark" label="Benchmark" options=${BENCHMARKS}
-            hint="What Performance compares it with, given the same money at the same times." />
+          <${RecField} rec=${rec} name="benchmark" label="Benchmark" options=${BENCHMARKS} />
         `
         : null}
     </${DraftDialog}>

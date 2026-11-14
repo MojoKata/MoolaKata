@@ -5,7 +5,7 @@ ones you count in your totals.
 
 ![Portfolios](shots/portfolios.png)
 
-## New portfolio
+## New Portfolio
 
 A name, the accounts in it and the benchmark it's compared with.
 

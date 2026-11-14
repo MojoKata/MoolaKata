@@ -50,7 +50,7 @@
          checked, with their layout learned per institution.
       8. **Projections and assumptions** (S6.1–S6.9): Profile › Assumptions, the models,
          scenarios, active projections with tracking, the Dashboard's Plans card, and
-         Settings › Tax tables with the contribution limits and the bitcoin models' figures.
+         Settings › Tax Tables with the contribution limits and the bitcoin models' figures.
          Retirement and savings-target goals; the education goal comes with 529s.
       9. **The mockup** generated from the app for these screens, and the Docker image.
    3. **Milestone 3**, in nine parts:
@@ -101,7 +101,7 @@
          signed calls with their timestamp and nonce checks, the `/link` listener, the
          `Link` record, and `docs/link-protocol.md` with how versions differ.
       2. **Invitations** (S11.1, S11.6, S11.7): the link code, the request and its
-         approval, Settings › Linked servers with Pause and End link, and each side's
+         approval, Settings › Linked Servers with Pause and End link, and each side's
          active users and household name and avatar sent at every exchange, kept as remote
          `User` records.
       3. **Sharing with linked people** (S10.3.3, S10.4): the Share dialog's people on each
@@ -252,7 +252,7 @@
          (S13.7.5.4); a copy's key gone with its release; a change applied once and in order
          (S11.9.5.3); a pull recorded with its link (S11.8); a shared budget naming only the
          accounts shared (S11.3.1); a person shared to a linked server (S10.3); what flows each
-         way in Settings › Linked servers (S11.7); and the link protocol's answers and
+         way in Settings › Linked Servers (S11.7); and the link protocol's answers and
          refusals stated once (`docs/link-protocol.md` §1.3, §7).
       5. **The host and the reader**: a PDF page rendered within the pixel cap (S9.8.4.3);
          uploads held in memory (S13.7.6); Remove copy asking for the phrase too (S16.13);

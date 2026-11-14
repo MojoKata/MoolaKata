@@ -1,4 +1,4 @@
-# Budget settings
+# Budget Settings
 
 A budget's name, its options and its accounts, and where its money comes from. It keeps its method.
 
@@ -39,6 +39,6 @@ mixed.
 
 ## Moved from {#moved-from}
 
-Where money for the reserves held in a savings account moves from, which **Where the money is**
+Where money for the reserves held in a savings account moves from, which **Where the Money Is**
 suggests. It's proposed from the account that sends this one the most, and is only a suggestion: a
 transfer from any of the budget's accounts counts the same.

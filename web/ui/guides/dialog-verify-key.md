@@ -1,4 +1,4 @@
-# Verify key
+# Verify Key
 
 Checks one copy of the recovery phrase against this server's key, and changes nothing. A check
 here, the unlock and `moolakata keys verify` on the host each count as a confirmation; the yearly

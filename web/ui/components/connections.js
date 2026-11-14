@@ -18,7 +18,7 @@ import { connectionState, DRIVERS } from './connector.js';
 import { Record } from '../app/draft.js';
 import { saveNow } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Attention } from '../kit/state.js';
+import { Attention, Empty, StatePill } from '../kit/state.js';
 
 const DRIVER_OPTIONS = /** @type {[string, string][]} */ ([
   ['schwab', 'Schwab'],
@@ -61,39 +61,41 @@ export function Connections() {
     <div class="card" id="connections">
       <h3 data-help="connections">Connections<span class="spacer"></span>${paired
         ? html`<button class="btn sm" onClick=${make}><${Icon} name="plus" /> New
-            connection</button>`
+            Connection</button>`
         : null}</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Your sign-ins at institutions, kept by
-        the MoolaKata Connector, never by MoolaKata.</p>
       ${res.error
         ? html`<${Failed} error=${res.error} />`
         : !rows || !info.data
         ? html`<${Loading} lines=${2} />`
         : !paired
-        ? html`<p class="small dim">No connector is paired with this server. An admin pairs one
-            under Settings › Connector.</p>`
+        ? html`<${Empty}>No connector paired</${Empty}>`
         : !rows.length
-        ? html`<p class="small dim">None yet.</p>`
+        ? html`<${Empty}>No connections yet</${Empty}>`
         : rows.map((c) =>
           html`
             <div
-              class="list-item wraps"><div class="grow"><b>${c
-                .label}</b><div class="small dim">${DRIVERS[c.driver] ||
+              class="list-item wraps"><div class="grow"><span class="row-name">${c
+                .label}</span><div class="row-more">${DRIVERS[c.driver] ||
                 c.driver} driver${c.institutionAccounts.length
                 ? ` · ${accountsOf(c).join(', ')}`
                 : ''}${c.accounts.length
                 ? ` · keeps ${c.accounts.map((/** @type {any} */ a) => a.name).join(', ')}`
                 : ''}</div>${c.credentialWaiting
-                ? html`<div class="small dim">credentials sealed, waiting for the connector</div>`
+                ? html`
+                  <div>
+                    <${StatePill} tone="info"
+                      why="Its credentials are sealed: MoolaKata holds them until the connector collects them at its next report."
+                    >sealed</${StatePill}></div>
+                `
                 : null}</div>${connectionState(c)}
               <button class="btn sm" onClick=${() =>
                 credentials(c)}>${c.state === 'needs-sign-in' || c.signInAddress
-                ? 'Sign in again'
-                : 'Change credentials'}</button>
+                ? 'Sign In Again'
+                : 'Change Credentials'}</button>
               <button class="btn sm danger" disabled=${remove.busy}
                 onClick=${async () => {
                   if (
-                    !(await confirmAction({ title: 'Remove this connection?' }))
+                    !(await confirmAction({ title: 'Remove This Connection?' }))
                   ) return;
                   remove.run(c).catch(() => {});
                 }}>Remove</button></div>
@@ -214,11 +216,9 @@ export function ConnectionDialog({ close, connection }) {
   const sealedOk = sealable !== false;
   if (made && f.how === 'host') {
     return html`
-      <${Dialog} title=${existing ? 'Change credentials' : 'New connection'} close=${close}
+      <${Dialog} title=${existing ? 'Change Credentials' : 'New Connection'} close=${close}
         onSubmit=${() => close(made.connection)}
         footer=${html`<button class="btn primary">Done</button>`}>
-        <p class="small dim" style=${{ marginTop: 0 }}>An admin runs this on the connector's
-          host and types the credentials there. MoolaKata never handles them.</p>
         <div class="field"
           data-help="connect-command"><code class="mono" style=${{
             display: 'block',
@@ -231,16 +231,13 @@ export function ConnectionDialog({ close, connection }) {
     `;
   }
   return html`
-    <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New connection'}
+    <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New Connection'}
       close=${() => close(made?.connection)} onSubmit=${() => save.run().catch(() => {})}
       changed=${() => JSON.stringify(f) !== start}
       note=${v.fingerprint ? `Sealed with the connector's key ${v.fingerprint}.` : ''}
       footer=${html`<button class="btn primary" disabled=${save.busy}>${
-        f.how === 'host' ? 'Show the command' : 'Seal and send'
+        f.how === 'host' ? 'Show the Command' : 'Seal and Send'
       }</button>`}>
-      <p class="small dim" style=${{ marginTop: 0 }}>A sign-in at one institution, kept by the
-        MoolaKata Connector. What you type here is encrypted in your browser for the connector
-        before it is sent: MoolaKata can't read it.</p>
       ${v.paired && !v.confirmed
         ? html`
           <${Attention} icon=${html`<${Icon} name="alert" />`}>Connector not confirmed by an admin
@@ -253,14 +250,12 @@ export function ConnectionDialog({ close, connection }) {
             <${Select} value=${f.driver} onChange=${set('driver')} options=${DRIVER_OPTIONS} />
             </${Field}>
             <${Field} label="Connection name" id="label" error=${errAt(e, 'label')}>
-              <${Input} value=${f.label} onInput=${set('label')} placeholder="ex: Schwab login"
-                required />
+              <${Input} value=${f.label} onInput=${set('label')} required />
               </${Field}>
               </div>
         ${f.driver === 'ofx-direct'
           ? html`
-            <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}
-              hint="From the institution, or ofxhome.com. The sign-in is bound to this address: changing it later asks for the sign-in again.">
+            <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}>
               <${Input} value=${f.url} onInput=${set(
                 'url',
               )} placeholder="ex: https://ofx.example.com/"
@@ -277,8 +272,7 @@ export function ConnectionDialog({ close, connection }) {
                     <${Field} label="Routing number" id="ofx-bank-id" error=${errAt(
                       e,
                       'settings.bankId',
-                    )}
-                      hint="For a bank account; a card or an investment account has none.">
+                    )}>
                       <${Input} value=${f.bankId} onInput=${set('bankId')} />
                       </${Field}>
                       <div class="row">
@@ -301,16 +295,14 @@ export function ConnectionDialog({ close, connection }) {
                             </div>
           `
           : html`
-            <${Field} label="App key" id="schwab-app-key" error=${errAt(e, 'settings.appKey')}
-              hint="From your Schwab developer account's app. Not a secret: the sign-in is.">
+            <${Field} label="App key" id="schwab-app-key" error=${errAt(e, 'settings.appKey')}>
               <${Input} value=${f.appKey} onInput=${set('appKey')} required />
               </${Field}>
           `}
       `}
       ${existing && f.driver === 'ofx-direct'
         ? html`
-          <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}
-            hint="Change it when the institution moves its server: the sign-in below is then sealed for the new one, with your password again.">
+          <${Field} label="OFX server address" id="ofx-url" error=${errAt(e, 'settings.url')}>
             <${Input} value=${f.url} onInput=${set(
               'url',
             )} placeholder="ex: https://ofx.example.com/"
@@ -318,11 +310,12 @@ export function ConnectionDialog({ close, connection }) {
             </${Field}>
         `
         : null}
-      <p class="small" data-help="sealed-for" style=${{ margin: '0 0 12px' }}>${goesTo
-        ? html`Sealed for <b class="mono">${goesTo}</b> only: the connector sends this sign-in
-            nowhere else.`
-        : html`<span class="dim">Sealed for the OFX server's host, once its address is
-            given.</span>`}</p>
+      ${goesTo
+        ? html`<p class="small" data-help="sealed-for" style=${{
+          margin: '0 0 12px',
+        }}>Sealed for: <b
+            class="mono">${goesTo}</b></p>`
+        : null}
       ${html`
         <${Field} label="How you sign in" id="how-you-sign-in">
           <${Select} value=${f.how} onChange=${set('how')} options=${[
@@ -339,17 +332,16 @@ export function ConnectionDialog({ close, connection }) {
           `
           : f.driver === 'schwab'
           ? html`
-            <div class="notice">
-              <${Icon} name="info" />
-              <div>Schwab signs you in on its own page.${' '}
-              ${existing?.signInAddress
-                ? html`<a href=${existing.signInAddress} target="_blank" rel="noopener">Open
-                    Schwab's sign-in at ${existing.signInHost}</a>, sign in, then paste the address you land on below.`
-                : 'Once the connector has the app key it reports the sign-in address here; open it, sign in, then paste the address you land on below.'} It lasts seven
-              days; you'll be asked again each week.</div>
-            </div>
-            <${Field} label="App secret" id="schwab-app-secret"
-              hint="Your Schwab app's secret, sealed for the connector with the sign-in.">
+            ${existing?.signInAddress
+              ? html`
+                <div class="notice">
+                  <${Icon} name="info" />
+                  <div><a href=${existing.signInAddress} target="_blank" rel="noopener">Open
+                    Schwab's Sign-In at ${existing.signInHost}</a></div>
+                </div>
+              `
+              : null}
+            <${Field} label="App secret" id="schwab-app-secret">
               <${Input} type="secret" value=${f.appSecret} onInput=${set('appSecret')}
                 autocomplete="off" />
               </${Field}>
@@ -426,9 +418,7 @@ export function SyncCard({ rec }) {
   return html`
     <div style=${{ marginTop: '12px' }}>
       <${SwitchRow} label="Sync using MoolaKata Connector" on=${on} onChange=${turn}
-        hint=${chosen
-          ? `${chosen.label}${which ? ` · ${which}` : ''}`
-          : 'Fetched from the institution by the connector; you keep the sign-in.'} />
+        hint=${chosen ? `${chosen.label}${which ? ` · ${which}` : ''}` : null} />
       ${on
         ? html`
           <div class="row">
@@ -436,8 +426,7 @@ export function SyncCard({ rec }) {
               <${Select} value=${cid} onChange=${pick} options=${options} />
               </${Field}>
               <${Field} label="Institution account" id="institution-account"
-                error=${rec.error('syncAccount')}
-                hint=${found.length ? '' : 'What the driver found on its first run, or type it.'}>
+                error=${rec.error('syncAccount')}>
               ${found.length
                 ? html`
                   <${Select} value=${which} onChange=${(/** @type {string} */ v) =>

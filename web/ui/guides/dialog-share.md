@@ -29,7 +29,7 @@ plan's, a giving plan's, or a tax book's document files) cross to that server wi
 from them; off, they see only how many receipts a transaction has. Shown only for what has files
 to send.
 
-## Share these accounts too
+## Share These Accounts Too
 
 A portfolio's viewers see only the accounts in it that are shared with them. This shares the missing
 ones you own, at Read.

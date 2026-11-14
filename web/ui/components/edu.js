@@ -20,7 +20,7 @@ import { FIELDS } from '../api/fields.js';
 import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
 import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {
@@ -68,8 +68,8 @@ function PersonDialog({ close }) {
   });
   const rec = /** @type {Beneficiary | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Add a person" close=${close} what="This person"
-      label="Add the person" done="Person added">
+    <${DraftDialog} f=${f} title="Add a Person" close=${close} what="This person"
+      label="Add the Person" done="Person added">
       ${rec
         ? html`
           <${RecField} rec=${rec} name="name" label="Their name" />
@@ -79,8 +79,7 @@ function PersonDialog({ close }) {
               ['female', 'Female'],
               ['male', 'Male'],
             ]} />
-            <${RecField} rec=${rec} name="birthYear" label="Year of birth"
-              hint="When school starts, for the Goal tab." />
+            <${RecField} rec=${rec} name="birthYear" label="Year of birth" />
           </div>
         `
         : null}
@@ -110,13 +109,10 @@ export function PlanFields({ rec }) {
   };
   return html`
     <div class="row">
-      <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state"
-        placeholder="ex: Utah" />
-      <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name"
-        placeholder="ex: my529" />
+      <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state" />
+      <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name" />
     </div>
-    <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}
-      hint="One of the household's people. The 529 counts in your net worth, not theirs.">
+    <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}>
       <${Select} value=${making ? 'new' : rec.get('beneficiaryId') || ''} onChange=${pick}
         options=${[
           ['', 'Choose…'],
@@ -125,10 +121,9 @@ export function PlanFields({ rec }) {
         ]} />
       </${Field}>
       <div class="row">
-        <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date"
-          hint="A Roth IRA rollover is possible 15 years on." />
+        <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date" />
         <${RecField} rec=${rec} name="stateDeduction" label="State tax deduction a year"
-          id="state-deduction" hint="What you expect, typed." />
+          id="state-deduction" />
       </div>
   `;
 }
@@ -150,7 +145,7 @@ export async function loadPlan(draft, accountId) {
 export function PlanCard({ rec }) {
   return html`
     <div class="card">
-      <h3>The plan</h3>
+      <h3>The Plan</h3>
       <${PlanFields} rec=${rec} />
     </div>
   `;
@@ -172,7 +167,7 @@ export function PlanFacts({ a }) {
   const r = v.rollover;
   return html`
     <div class="card facts">
-      <h3>The plan</h3>
+      <h3>The Plan</h3>
       <div class="list-item"><span class="grow dim">Beneficiary</span>${b
         ? html`${b.name}${
           b.birthYear ? html`<span class="small dim"> · born ${b.birthYear}</span>` : null
@@ -213,10 +208,10 @@ export function Contributions({ a }) {
     ${contributes ? html`<${AddContribution} a=${a} done=${again} />` : html`
       <div class="toolbar">
         <${Action} class="btn sm" why=${whyNotAdd('Txn', a)}><${Icon}
-              name="plus" /> Record a contribution</${Action}></div>
+              name="plus" /> Record a Contribution</${Action}></div>
     `}
     <div class="card mt" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Against the annual gift exclusion</h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Against the Annual Gift Exclusion</h3>
       ${v.years.length
         ? html`
           <div class="table-wrap">
@@ -245,7 +240,9 @@ export function Contributions({ a }) {
                     <td class="num">
                       <${Amt} v=${y.exclusion} cents=${false} />
                     </td>
-                    <td>${y.over ? html`<span class="pill warn">over: Form 709</span>` : null}</td>
+                    <td>${y.over
+                      ? html`<${StatePill} tone="warn" why="Over the exclusion, so it is reported on Form 709.">over</${StatePill}>`
+                      : null}</td>
                   </tr>
                 `
               )}</tbody>
@@ -293,9 +290,7 @@ export function Contributions({ a }) {
     </div>
     <div class="grid g2 mt">
       <div class="card facts">
-        <h3>State tax deduction</h3>
-        <p class="small dim" style=${{ marginTop: 0 }}>Typed by the owner: MoolaKata doesn't
-          model state rules.</p>
+        <h3>State Tax Deduction</h3>
         <div class="list-item"><span class="grow dim">Expected a year</span>${pl.stateDeduction
           ? html`<${Amt} v=${pl.stateDeduction} cents=${false} />`
           : '—'}</div>
@@ -310,8 +305,6 @@ export function Contributions({ a }) {
             cents=${false} /></span></span></div>
         <div class="list-item"><span class="grow dim">Could still roll over</span><${Amt}
           v=${r.available} cents=${false} /></div>
-        <p class="small dim">Contributions of the last five years, and their earnings, can't
-          roll over; each year's rollover is also held to the IRA limit.</p>
       </div>
     </div>
   `;
@@ -345,7 +338,7 @@ function AddContribution({ a, done }) {
         f.reload();
         done();
       }}>
-      <h3>Record a contribution</h3>
+      <h3>Record a Contribution</h3>
       ${rec
         ? html`
           <div class="row">
@@ -361,8 +354,7 @@ function AddContribution({ a, done }) {
             <${RecField} rec=${rec} name="fromAccountId" label="Paid from" id="from-account"
               options=${[['', 'Not recorded here'], ...banks.map((b) => [b.id, b.name])]} />
           </div>
-          <${RecField} rec=${rec} name="fiveYear" label="Five-year election"
-            hint="Superfunding: counted as a fifth in each of five years against the gift exclusion." />
+          <${RecField} rec=${rec} name="fiveYear" label="Five-year election" />
         `
         : null}
     </${DraftForm}>
@@ -417,7 +409,7 @@ export function Withdrawals({ a }) {
   if (!v) return html`<${Loading} />`;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Each year</h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Each Year</h3>
       ${v.years.length
         ? html`
           <div class="table-wrap">
@@ -427,8 +419,8 @@ export function Withdrawals({ a }) {
                 <tr>
                   <th>Year</th>
                   <th class="num">Distributions</th>
-                  <th class="num">Qualified expenses</th>
-                  <th class="num">Not covered</th>
+                  <th class="num">Qualified Expenses</th>
+                  <th class="num">Not Covered</th>
                 </tr>
               </thead>
               <tbody>${v.years.map((/** @type {any} */ y) =>
@@ -451,9 +443,6 @@ export function Withdrawals({ a }) {
               )}</tbody>
             </table>
           </div>
-          <p class="small dim" style=${{ padding: '0 8px' }}>Distributions are what was taken
-                      out (Form 1099-Q). The earnings in what isn't covered by qualified expenses may be
-                      taxable, with a 10% additional tax; your preparer applies the rules.</p>
         `
         : html`<${Empty}>No withdrawals yet</${Empty}>`}
     </div>
@@ -462,10 +451,10 @@ export function Withdrawals({ a }) {
       : html`
         <div class="toolbar mt">
           <${Action} class="btn sm" why=${whyNotAdd('QExpn', a)}><${Icon}
-                name="plus" /> Add a qualified expense</${Action}></div>
+                name="plus" /> Add a Qualified Expense</${Action}></div>
       `}
     ${v.expenses.length
-      ? html`<div class="card mt"><h3>Qualified expenses</h3>${
+      ? html`<div class="card mt"><h3>Qualified Expenses</h3>${
         v.expenses.map((
           /** @type {any} */ x,
         ) => html`<${Expense} x=${x} canWrite=${a.access.writable} done=${res.reload} />`)
@@ -497,7 +486,7 @@ function AddExpense({ a, kinds, done }) {
         f.reload();
         done();
       }}>
-      <h3>Add a qualified expense</h3>
+      <h3>Add a Qualified Expense</h3>
       ${rec
         ? html`
           <div class="row">
@@ -505,8 +494,7 @@ function AddExpense({ a, kinds, done }) {
             <${RecField} rec=${rec} name="kind" label="Kind" options=${kinds} />
             <${RecField} rec=${rec} name="amount" label="Amount" />
           </div>
-          <${RecField} rec=${rec} name="description" label="Description"
-            placeholder="ex: Fall tuition, State University" />
+          <${RecField} rec=${rec} name="description" label="Description" />
         `
         : null}
     </${DraftForm}>
@@ -591,7 +579,7 @@ export function Goal({ a }) {
       <button type="button" class="btn primary" disabled=${start.busy}
         onClick=${() => start.run().catch(() => {})}><${Icon} name="plus" /> Project ${v.beneficiary
           .name}'s
-              education</button>
+              Education</button>
     `}>No education projection yet</${Empty}>`;
   }
   const r = x.result;
@@ -602,10 +590,10 @@ export function Goal({ a }) {
         ? ' · active'
         : ' · a scenario'}</span>${x.status && x.status !== 'untracked'
         ? html`<span class="pill">${x.status}</span>`
-        : null}<span class="spacer"></span><a class="small" href=${`/ui/projections/${x.id}`}>Change it in Projections</a></div>
+        : null}<span class="spacer"></span><a class="small" href=${`/ui/projections/${x.id}`}>Change It in Projections</a></div>
     <div class="grid g-main">
       <div class="card">
-        <h3>${ans.name}'s college fund<span class="spacer"></span><span
+        <h3>${ans.name}'s College Fund<span class="spacer"></span><span
         class=${'pill ' + (num(ans.funded) >= 100 ? 'ok' : 'warn')}>${Math.round(
           num(
             ans
@@ -615,15 +603,16 @@ export function Goal({ a }) {
         <${FanChart} label=${`${x.name}: projected balance by year`} years=${r.years}
           p=${r.percentiles} marks=${[[ans.firstYear, 'school starts']]} />
         <p
-          class="small dim">A model, not a forecast: ${ans.years} years from ${ans
-            .firstYear}, each costing ${ans.costBasis === 'typed'
-            ? 'the typed amount'
-            : `the shipped ${ans.costBasis} average`} of ${money0(ans.costToday)} in today's
-          dollars, rising ${r.assumptions.educationInflation}% a year.</p>
+          class="small dim"><span>Years of school: ${ans.years}, from ${ans
+            .firstYear}</span> · <span>Cost per year: ${money0(ans.costToday)} today, ${ans
+              .costBasis === 'typed'
+            ? 'typed'
+            : `the shipped ${ans.costBasis} average`}</span> · <span>Education inflation: ${r
+            .assumptions.educationInflation}% a year</span></p>
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${EducationAnswer} a=${ans} />
-        <div class="card facts"><h3>Its years</h3>${ans.costs.map((
+        <div class="card facts"><h3>Its Years</h3>${ans.costs.map((
           /** @type {number} */ c,
           /** @type {number} */ i,
         ) =>

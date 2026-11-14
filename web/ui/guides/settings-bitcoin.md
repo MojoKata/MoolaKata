@@ -5,7 +5,8 @@ household's own node. Admins only.
 
 ![Bitcoin settings](shots/settings-bitcoin.png)
 
-Wallets are checked every hour; none is read until this section is saved.
+Wallets are checked every hour; none is read until this section is saved. Other coins and chains
+come later.
 
 ## Explorer or node
 
@@ -31,14 +32,18 @@ password, so it is never sent to the new host.
 
 ## TLS
 
+*For an Electrum server:* usually on, on port 50002; off on port 50001. *For Bitcoin Core:* on when
+Core is behind a TLS proxy.
+
 An Electrum server's TLS, usually on. Its certificate is usually one it made itself, so it is
 trusted on first use: **Test** shows its SHA-256 fingerprint, and once you confirm it, any other
 certificate is refused, and admins alerted, until you confirm the new one.
 
 ## Certificate
 
-The Electrum server's certificate trusted, by its SHA-256 fingerprint. Confirm a new one only if
-you know why it changed, such as the node being set up again.
+The Electrum server's certificate trusted, by its SHA-256 fingerprint. Until one is trusted,
+**Test** shows the server's, to confirm. Confirm a new one only if you know why it changed, such as
+the node being set up again.
 
 ## RPC user {#rpc-user}
 
@@ -46,12 +51,13 @@ Bitcoin Core's `rpcuser`, or the user of an `rpcauth` line.
 
 ## Node password {#node-password}
 
-Its password. Stored encrypted, never shown again: type a new one to replace it.
+Its password. Stored encrypted, never shown again: the field says when it was set and by whom, and
+a new one typed replaces it.
 
 ## Last checked {#checked}
 
 How many wallets there are and when they were last read. Wallets are read every hour, and each
-wallet's **Check now** reads it at once. A failure lasting longer than Settings › Alerts allows
+wallet's **Check Now** reads it at once. A failure lasting longer than Settings › Alerts allows
 alerts admins and each wallet's owner.
 
 ## Test

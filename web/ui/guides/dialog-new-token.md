@@ -1,4 +1,4 @@
-# New access token
+# New Access Token
 
 A token for an AI assistant or another tool that speaks MCP. It reads, never changes, and only what
 you choose here. Making one asks for your password again if you gave it over 10 minutes ago, and
@@ -6,7 +6,7 @@ emails you; changing or resetting your password revokes every token.
 
 ## Token name
 
-So you can tell your tokens apart, and see each one's calls in Activity.
+So you can tell your tokens apart (*Claude on my laptop*), and see each one's calls in Activity.
 
 ## Can read
 

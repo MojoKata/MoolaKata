@@ -178,7 +178,7 @@ class Tasks:
         return out
 
     def run_now(self, name: str, ended: Callable[[TaskRun], None] | None = None) -> bool:
-        """Ask for a run (Refresh prices, Back up now): at once once the tasks have started,
+        """Ask for a run (Refresh prices, Backup Now): at once once the tasks have started,
         else at the first tick. A task already running runs again when it finishes. `ended`
         is called with the run this asks for, when it ends (its job, S13.8.7)."""
         task = self._tasks.get(name)

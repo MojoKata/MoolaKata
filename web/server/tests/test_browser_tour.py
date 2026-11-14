@@ -45,7 +45,7 @@ def test_find_them_starts_a_tour_that_stays_while_its_links_move_around(browser,
     wait(page, ".dialog .in-use", problems)
     until(page, "document.querySelector('.dialog .in-use').textContent.includes('3 uses')")
     assert "In use: 3 uses you can see." in " ".join(page.inner_text(".dialog .in-use").split())
-    page.click('.dialog button:has-text("Find them")')
+    page.click('.dialog button:has-text("Find Them")')
     wait(page, ".dialog", problems, state="detached")
     wait(page, f"{TOUR} .tour-step", problems)
     assert page.inner_text(f"{TOUR} h2") == "Find uses of Browser toys"
@@ -106,8 +106,8 @@ def test_a_tour_says_when_nothing_is_left(browser, household):
                   amount="-4.00", payee="Browser kite shop", categoryId=cat["id"]))  # fmt: skip
     page, problems = signed_in(browser, h, TAB, 'button[aria-label="Edit Browser kites"]')
     page.click('button[aria-label="Edit Browser kites"]')
-    wait(page, '.dialog button:has-text("Find them")', problems)
-    page.click('.dialog button:has-text("Find them")')
+    wait(page, '.dialog button:has-text("Find Them")', problems)
+    page.click('.dialog button:has-text("Find Them")')
     wait(page, f"{TOUR} .tour-step", problems)
     saved(change(h.c, "Txn", h.c.get(f"/ui/api/transactions/{t['id']}").json(), categoryId=None))
     wait(page, f"{TOUR} .tour-step.done", problems)

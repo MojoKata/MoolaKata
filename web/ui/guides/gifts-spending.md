@@ -17,7 +17,7 @@ counts a share for each.
 
 Birthdays, each holiday, and anniversaries and other dates.
 
-## By year
+## By Year
 
 Gift spending each year, to see how it grows.
 

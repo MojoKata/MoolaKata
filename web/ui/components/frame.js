@@ -123,7 +123,7 @@ export function Frame({ children, onSignOut }) {
   const userMenu = (/** @type {MouseEvent} */ e) =>
     openMenu(e, [
       { label: 'Profile', onSelect: () => route('/ui/profile') },
-      { label: 'Sign out', onSelect: onSignOut },
+      { label: 'Sign Out', onSelect: onSignOut },
     ]);
 
   return html`<div class=${
@@ -169,7 +169,7 @@ export function Frame({ children, onSignOut }) {
       ${
     updated.value
       ? html`<button type="button" class="pill-update" onClick=${() =>
-        location.reload()}>MoolaKata was updated: reload</button>`
+        location.reload()}>MoolaKata Was Updated: Reload</button>`
       : null
   }
       <button type="button" class="collapse-btn" aria-label=${

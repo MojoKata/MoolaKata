@@ -143,7 +143,7 @@ def reencrypt_offline(
 
 def break_glass(config: Config, say: Say = _say) -> int:
     """`moolakata keys break-glass` (S15.5.2): a code from the running, unlocked server, over
-    its socket, to type into Settings › Key storage › Rotate in place of a lost phrase. The
+    its socket, to type into Settings › Key Storage › Rotate in place of a lost phrase. The
     rotation's new phrase is then shown in the browser, never here."""
     from .. import host
 
@@ -158,7 +158,7 @@ def break_glass(config: Config, say: Say = _say) -> int:
         return 1
     out = r.json()
     say(
-        f"{out['code']}\n\nType it into Settings › Key storage › Rotate, in place of the "
+        f"{out['code']}\n\nType it into Settings › Key Storage › Rotate, in place of the "
         f"current phrase, before {out['expiresAt'][11:16]} UTC. It works once, for 15 "
         "minutes; every admin is told it was asked for."
     )
@@ -231,7 +231,7 @@ def register(sub) -> None:
     )
     ks.add_parser(
         "break-glass",
-        help="a code to rotate a lost phrase in Settings › Key storage (the running server)",
+        help="a code to rotate a lost phrase in Settings › Key Storage (the running server)",
     ).set_defaults(func=_break_glass_cmd)
 
 

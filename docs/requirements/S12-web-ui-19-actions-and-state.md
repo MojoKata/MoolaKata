@@ -19,10 +19,14 @@
           inputs. A list of tasks only a record's writer can do (the bank transactions offered
           to link to a loan, the transfers to pair) is the writer's alone.
     2. **Empty**: a short line where the content would be (*No saved plans*), beside the
-       action that makes the first one when there is one.
+       action that makes the first one when there is one, unless the card's header or toolbar
+       already holds that action. It stands in for a result with nothing in it: something goes
+       here, and there is none (or, for a list loaded on asking, *Press Load to see them*),
+       never an explanation, which is the guide's.
     3. **A count or a status**: a pill on the card's header or the row (*3 uncategorised*,
-       *Code out until 5:40 PM*), its one sentence of explanation its tooltip, reached by the
-       keyboard.
+       *overdue*), its one sentence of explanation its tooltip, reached by the keyboard. Its
+       name is one word wherever its row or card makes the meaning clear, two at most, beside
+       any value it counts; the rest goes into the tooltip.
     4. **Something needing attention**: a notice of one line naming it, with its actions as
        buttons (*Statement overdue · Import · Type today's balance*). A warning of what an
        action will do (*No backup is made first.*) is such a notice, beside the action.

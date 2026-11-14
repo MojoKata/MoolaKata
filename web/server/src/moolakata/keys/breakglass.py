@@ -1,7 +1,7 @@
 """The break-glass code (requirements S15.5.2): the way to rotate when the recovery phrase is
 lost while the server runs. `moolakata keys break-glass`, run inside the server's container,
 asks the running, unlocked server over its Unix socket for a code; an admin types it into
-Settings › Key storage › Rotate in place of the current phrase. The code lasts 15 minutes and
+Settings › Key Storage › Rotate in place of the current phrase. The code lasts 15 minutes and
 is used once; only its hash is held, in memory, so a restart voids it. Whoever reaches the
 socket of an unlocked server can already read its data key from memory, so the code gives
 them nothing new (S15.7.1); it keeps the new phrase off the host's terminal and its logs."""

@@ -1,4 +1,4 @@
-# Merge a category
+# Merge a Category
 
 Moves everything filed under a category into another, then deletes it: transactions, their
 parts, rules, budget plan lines and moves, and a loan's whole-payment category, for every user. An
@@ -6,10 +6,10 @@ admin's, and it can't be undone, though Activity records what went where.
 
 ## Into {#merge-into}
 
-Another category of the same kind. A category with categories of its own merges into another
-top-level one.
+Another category of the same kind, which the line under it names. A category with categories of
+its own merges into another top-level one.
 
-## Its categories {#merge-children}
+## Its Categories {#merge-children}
 
 Where each of its own categories goes: across, as it is, under the category it merges into; or into
 one of that category's own. One with the same name is chosen to start with. One that moves across

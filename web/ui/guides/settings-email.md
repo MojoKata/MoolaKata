@@ -21,8 +21,8 @@ the stored SMTP password, so it is never sent to the new host: type it again for
 
 ## Security {#smtp-security}
 
-**STARTTLS** and **TLS** encrypt the connection and check the server's certificate. **None** sends
-in the clear: only for a relay on your own network.
+**STARTTLS** (on port 587) and **TLS** (on 465) encrypt the connection and check the server's
+certificate. **None** sends in the clear: only for a relay on your own network.
 
 ## Username {#smtp-username}
 
@@ -31,8 +31,9 @@ that needs none.
 
 ## Password {#smtp-password}
 
-Kept encrypted as a secret, used only when sending, and never shown again. Many providers want an
-app password rather than your own. Your password is asked again when it was given over 10 minutes
+Kept encrypted as a secret, used only when sending, and never shown again: the field says when it
+was set and by whom, and a new one typed replaces it. Many providers want an app password rather
+than your own. Your password is asked again when it was given over 10 minutes
 ago.
 
 ## From address {#smtp-from}
@@ -40,7 +41,7 @@ ago.
 The sender emails show, such as `MoolaKata <money@example.com>`. Your provider may insist it matches
 the username.
 
-## Send a test email
+## Send a Test Email
 
 Sends one to your own address now, through the saved settings, and says what failed if it couldn't.
 

@@ -258,7 +258,7 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
         maintenance.check_backup(b, key)
         # The database and its keyring only: the host backs up the files (S14.6).
         assert sorted(p.name for p in b.iterdir()) == ["keyring", "manifest.json", "moolakata.db"]
-    # Kept by day, never fewer than three (CR3-63): a second backup the same day, Back up now,
+    # Kept by day, never fewer than three (CR3-63): a second backup the same day, Backup Now,
     # pushes out no earlier day's.
     again = maintenance.backup(keyed_config, store, t0 + dt.timedelta(days=4, hours=6))
     assert maintenance.prune(keyed_config, 1) == made[:2]

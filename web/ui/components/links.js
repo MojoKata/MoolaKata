@@ -1,4 +1,4 @@
-// Settings › Linked servers (requirements S11.1, S11.7): invite a server or enter its code,
+// Settings › Linked Servers (requirements S11.1, S11.7): invite a server or enter its code,
 // approve a request after comparing fingerprints, pause, resume, pull now or end a link, and
 // each linked server's users.
 import { useEffect, useState } from 'preact/hooks';
@@ -17,6 +17,7 @@ import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 import { DraftForm } from './draft-form.js';
 import { saveSetting, useSettingsDraft } from './settings-draft.js';
+import { Empty, StatePill } from '../kit/state.js';
 
 const KIND = /** @type {Record<string, string>} */ ({
   account: 'An account',
@@ -31,14 +32,32 @@ const KIND = /** @type {Record<string, string>} */ ({
 /** A certificate key's fingerprint in groups of four, for two admins to read out. */
 const grouped = (/** @type {string} */ fp) => (fp.match(/.{1,4}/g) || []).join(' ');
 
-const STATE = /** @type {Record<string, [string, string]>} */ ({
+// A link's state: its pill's word and tone, and what a word needing it means.
+const STATE = /** @type {Record<string, [string, string, string?]>} */ ({
   invited: ['invitation', ''],
-  requested: ['wants to link', 'info'],
-  pending: ['waiting for approval', ''],
+  requested: ['request', 'info', 'The other server asks to link with this one.'],
+  pending: ['waiting', '', 'Waiting for the other server to approve the link.'],
   active: ['active', 'ok'],
   paused: ['paused', 'warn'],
   ended: ['ended', ''],
 });
+
+/** A link's state as a pill: broken, unreachable, paused or its state. @param {any} l */
+function linkState(l) {
+  const [word, tone, said] = STATE[l.state];
+  const why = l.brokenAt
+    ? null
+    : l.failingSince
+    ? `Unreachable since ${day(l.failingSince)}.`
+    : l.state === 'paused' && l.pausedUntil
+    ? `Paused until ${moment(l.pausedUntil)}.`
+    : said;
+  const shown = l.brokenAt ? 'broken' : l.failingSince ? 'unreachable' : word;
+  const hue = l.brokenAt ? 'bad' : l.failingSince ? 'warn' : tone;
+  return why
+    ? html`<${StatePill} tone=${hue} why=${why}>${shown}</${StatePill}>`
+    : html`<span class=${'pill ' + hue}>${shown}</span>`;
+}
 
 export function LinksSection() {
   const res = useApi('/settings/links', {}, ['task']);
@@ -82,33 +101,30 @@ export function LinksSection() {
   const people = live.filter((/** @type {any} */ l) => l.users.length);
   return html`
     <div class="card">
-      <h3 style=${{ flexWrap: 'wrap' }}>Linked servers<span class="spacer"></span><button
+      <h3 style=${{ flexWrap: 'wrap' }}>Linked Servers<span class="spacer"></span><button
         class="btn" onClick=${() =>
-          openDialog(JoinLink, {}).then((x) => x && res.reload())}>Enter a link code</button>
+          openDialog(JoinLink, {}).then((x) => x && res.reload())}>Enter a Link Code</button>
         <button class="btn primary" onClick=${() =>
           openDialog(InviteLink, {}).then(() => res.reload())}><${Icon} name="plus" /> Invite a
-          server</button></h3>
+          Server</button></h3>
       <div class="notice" style=${{ marginBottom: '12px' }}>
         <${Icon} name="info" />
-        <div>A link
-        carries <b>read-only</b> shares between two MoolaKata servers. This server's key
-        fingerprint: <code>${v.fingerprint}</code>${v.certificate
+        <div>This server's key fingerprint: <code>${v.fingerprint}</code>${v.certificate
           ? html`. Its own certificate's key: <code>${grouped(v.certificate)}</code>`
           : ''}</div>
       </div>
-      <${DraftForm} f=${fd} class="draft-form mb" where="Settings › Linked servers"
+      <${DraftForm} f=${fd} class="draft-form mb" where="Settings › Linked Servers"
         what="This server's link address" saved=${() => {
           toast('Saved');
           res.reload();
           s.reload();
         }}>
         <${Field} label="This server's link address" id="link-address"
-          error=${rec.error('linkAddress')}
-          hint=${`Where other servers reach this one's /link. Empty: the public URL${
-            values.publicUrl ? ` (${values.publicUrl})` : ', which is not set'
-          }.`}>
+          error=${rec.error('linkAddress')}>
           <${Input} value=${rec.get('linkAddress') || ''} onInput=${(/** @type {string} */ x) =>
-            rec.set('linkAddress', x || null)} placeholder="the public URL" />
+            rec.set('linkAddress', x || null)} placeholder=${values.publicUrl
+            ? `the public URL (${values.publicUrl})`
+            : 'the public URL, which is not set'} />
         </${Field}>
       </${DraftForm}>
       ${live.length
@@ -120,7 +136,7 @@ export function LinksSection() {
                 <tr>
                   <th>Server</th>
                   <th>State</th>
-                  <th>Last exchange</th>
+                  <th>Last Exchange</th>
                   <th></th>
                 </tr>
               </thead>
@@ -148,15 +164,7 @@ export function LinksSection() {
                           : ''}</div></div>
                       </div>
                     </td>
-                    <td><span class=${'pill ' +
-                      (l.brokenAt ? 'bad' : l.failingSince ? 'warn' : STATE[l.state][1])}>${l
-                        .brokenAt
-                      ? 'broken'
-                      : l.failingSince
-                      ? `unreachable since ${day(l.failingSince)}`
-                      : l.state === 'paused' && l.pausedUntil
-                      ? `paused until ${moment(l.pausedUntil)}`
-                      : STATE[l.state][0]}</span>${l.syncTotal
+                    <td>${linkState(l)}${l.syncTotal
                       ? html`
                         <div class="small"
                           data-help="progress">Syncing: up to ${l.syncThrough
@@ -201,12 +209,12 @@ export function LinksSection() {
                           ${l.certificateOffered
                             ? html`
                               <button class="btn sm primary" disabled=${act.busy} onClick=${() =>
-                                act.run(l.id, 'accept-certificate')}>Accept it</button>
+                                act.run(l.id, 'accept-certificate')}>Accept It</button>
                             `
                             : null}${['active', 'pending'].includes(l.state)
                             ? html`
                               <button class="btn sm" disabled=${act.busy} onClick=${() =>
-                                act.run(l.id, 'pull')}>Pull now</button>
+                                act.run(l.id, 'pull')}>Pull Now</button>
                             `
                             : null}${l.state === 'active'
                             ? html`
@@ -215,7 +223,7 @@ export function LinksSection() {
                             : l.state === 'paused'
                             ? html`
                               <button class="btn sm" onClick=${() =>
-                                act.run(l.id, 'resume')}>Resume now</button>
+                                act.run(l.id, 'resume')}>Resume Now</button>
                             `
                             : null}<button class="btn sm danger"
                             onClick=${async () => {
@@ -226,7 +234,7 @@ export function LinksSection() {
                                 }))
                               ) return;
                               act.run(l.id, 'end').catch(() => {});
-                            }}>${l.state === 'invited' ? 'Withdraw' : 'End link'}</button>
+                            }}>${l.state === 'invited' ? 'Withdraw' : 'End Link'}</button>
                         `}</div>
                     </td>
                   </tr>
@@ -235,7 +243,7 @@ export function LinksSection() {
             </table>
           </div>
         `
-        : html`<p class="small dim">No links yet.</p>`}
+        : html`<${Empty}>No links yet</${Empty}>`}
       ${ended.length
         ? html`<p class="small dim">Ended: ${
           ended.map((/** @type {any} */ l) =>
@@ -247,13 +255,13 @@ export function LinksSection() {
     </div>
     ${copies(live, values, res.reload, copyAct, release)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
-      html`<div class="card mt"><h3 data-help="outgoing">Shared from here with ${l.peerName}</h3>
-        <p class="small dim" style=${{ marginTop: '-6px' }}>What this server sends at each pull,
-          each to the people there it names, read only. Only the kinds and their owners show here.</p>
+      html`<div class="card mt"><h3 data-help="outgoing">Shared from Here with ${l.peerName}</h3>
         ${
         l.outgoing.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
-            class="small dim">of ${x.ownerName} since ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><span class="row-name">${
+            KIND[x.kind] || 'An item'
+          }</span> <span
+            class="row-more">of ${x.ownerName} since ${day(x.sharedAt)}${
             x.includeReceipts ? ', with its receipts' : ''
           }</span></div><span class="small">to ${x.names.join(', ')}</span></div>`
         )
@@ -261,12 +269,12 @@ export function LinksSection() {
     )}
     ${live.filter((/** @type {any} */ l) => l.incoming.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="incoming">Shared from ${l.peerName}</h3>
-        <p class="small dim" style=${{ marginTop: '-6px' }}>The owner there chooses who here sees
-          each share. Names and amounts stay inside the encrypted copy.</p>
         ${
         l.incoming.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
-            class="small dim">shared by ${x.ownerName} on ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><span class="row-name">${
+            KIND[x.kind] || 'An item'
+          }</span> <span
+            class="row-more">shared by ${x.ownerName} on ${day(x.sharedAt)}${
             x
                 .includeReceipts
               ? ', with its receipts'
@@ -279,10 +287,7 @@ export function LinksSection() {
       }</div>`
     )}
     <div class="card mt">
-      <h3 data-help="linked-users">Users on linked servers</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Each linked server's active users,
-        kept up to date at every exchange. People here can share with them, read only; they
-        never sign in here.</p>
+      <h3 data-help="linked-users">Users on Linked Servers</h3>
       ${people.length
         ? people.map((/** @type {any} */ l) =>
           html`<div class="small dim" style=${{ margin: '10px 0 2px' }}><${Icon}
@@ -290,16 +295,17 @@ export function LinksSection() {
             l.users.map((/** @type {any} */ u) =>
               html`
                 <div
-                  class="list-item"><div class="grow">${u.displayName}<div class="small dim">${u
-                    .username}${u.email
-                    ? ` · ${u.email}`
-                    : ''}</div></div><span class="pill">remote ·
-                                read only</span></div>
+                  class="list-item">
+                  <div class="grow">${u.displayName}<div class="small dim">${u
+                    .username}${u.email ? ` · ${u.email}` : ''}</div></div>
+                  <${StatePill}
+                    why="A user on a linked server: people here can share with them, read only."
+                  >remote</${StatePill}></div>
               `
             )
           }`
         )
-        : html`<p class="small dim">None yet.</p>`}
+        : html`<${Empty}>No users on linked servers yet</${Empty}>`}
     </div>
   `;
 }
@@ -315,15 +321,13 @@ function InviteLink({ close }) {
     make.run().catch(() => {});
   }, []);
   return html`
-    <${Dialog} title="Invite a server to link" close=${close} onSubmit=${() => close(true)}
+    <${Dialog} title="Invite a Server to Link" close=${close} onSubmit=${() => close(true)}
       note="It works once, for 24 hours."
       footer=${html`
         <button type="button" class="btn" disabled=${!made} onClick=${() =>
           navigator.clipboard?.writeText(made.code).then(() => toast('Copied'))}>Copy</button>
         <button class="btn primary">Done</button>
       `}>
-      <p class="small dim" style=${{ marginTop: 0 }}>Give this code to the other server's
-        admin. It holds this server's link address and key fingerprint.</p>
       ${make.error ? html`<${FormError} error=${make.error} />` : made
         ? html`
           <div class="field"
@@ -335,9 +339,6 @@ function InviteLink({ close }) {
             }}>${made.code}</code></div>
         `
         : html`<${Loading} lines=${2} />`}
-      <div class="notice mt"><${Icon} name="info" /><div>When they enter it, their server shows
-        here as <b>wants to link</b>, with its fingerprint. Compare fingerprints with them (by
-        phone, in person) before approving.</div></div>
     </${Dialog}>
   `;
 }
@@ -352,7 +353,7 @@ function JoinLink({ close }) {
     close(out);
   });
   return html`
-    <${Dialog} title="Enter a link code" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="Enter a Link Code" close=${close} onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy || !code}>Connect</button>`}>
       <${Field} label="Link code" error=${errAt(save.error, 'code')}>
         <textarea class="in mono" rows="3" value=${code} onInput=${(/** @type {any} */ e) =>
@@ -360,9 +361,6 @@ function JoinLink({ close }) {
           placeholder="ex: mkl1.…"
           spellcheck="false"></textarea>
         </${Field}>
-        <p class="small dim">MoolaKata connects to the address in the code, checks that server's
-        key against the fingerprint in it, and sends this server's address and key. Their admin
-        approves it.</p>
         <${FormError} error=${save.error} shown=${['code']} />
         </${Dialog}>
   `;
@@ -382,12 +380,7 @@ function copies(live, values, reload, act, release) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
-      <h3 data-help="linked-copies">Linked copies</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Each link's copy is encrypted under its
-        own <b>access key</b>: 12 words made here once and kept in the household's password
-        manager. The first person its shares name who opens it enters the words; it then stays
-        unlocked for everyone it shares with until it goes unused. This server's master key
-        can't open it.</p>
+      <h3 data-help="linked-copies">Linked Copies</h3>
       ${rows.length
         ? html`
           <div class="table-wrap">
@@ -398,7 +391,7 @@ function copies(live, values, reload, act, release) {
                   <th>Link</th>
                   <th>Copy</th>
                   <th>Waiting</th>
-                  <th>Access key</th>
+                  <th>Access Key</th>
                   <th>State</th>
                   <th></th>
                 </tr>
@@ -431,29 +424,28 @@ function copies(live, values, reload, act, release) {
                       ? html`<button class="btn sm primary" onClick=${() =>
                         openDialog(CopyKey, { link: l }).then(
                           reload,
-                        )}>Create the access key</button>`
+                        )}>Create the Access Key</button>`
                       : html`${
                         c.unlocked
                           ? html`
                             <button class="btn sm" onClick=${() =>
-                              act.run(l.id, 'lock').catch(() => {})}>Lock now</button>
+                              act.run(l.id, 'lock').catch(() => {})}>Lock Now</button>
                           `
                           : null
                       }<button class="btn sm danger" onClick=${async () => {
                         if (
-                          !(await confirmAction({ title: 'Reset this copy?' }))
+                          !(await confirmAction({ title: 'Reset This Copy?' }))
                         ) return;
                         act.run(l.id, 'reset-copy').catch(() => {});
-                      }}>Reset copy</button>`}</td>
+                      }}>Reset Copy</button>`}</td>
                   </tr>
                 `;
               })}</tbody>
             </table>
           </div>
         `
-        : html`<p class="small dim">None yet: a copy is kept once a link is active.</p>`}
-      <${Field} label="Release linked keys after" id="link-release"
-        hint="An unlocked copy's key is dropped from memory after this long without anyone viewing it.">
+        : html`<${Empty}>No linked copies yet</${Empty}>`}
+      <${Field} label="Release linked keys after" id="link-release">
         <${Select} value=${String(values.linkReleaseMinutes)} onChange=${(
           /** @type {string} */ v,
         ) => release.run(v).catch(() => {})} options=${[
@@ -482,18 +474,15 @@ function CopyKey({ close, link }) {
     make.run().catch(() => {});
   }, []);
   return html`
-    <${Dialog} title=${`Access key for ${link.peerName}`} close=${close}
+    <${Dialog} title=${`Access Key for ${link.peerName}`} close=${close}
       onSubmit=${() => saved && close(true)} note="They are shown once."
       footer=${html`
         <button type="button" class="btn" disabled=${!words} onClick=${() =>
           navigator.clipboard?.writeText((words || []).join(' ')).then(() =>
             toast('Copied')
           )}>Copy</button>
-        <button class="btn primary" disabled=${!saved}>Done, words saved</button>
+        <button class="btn primary" disabled=${!saved}>Done, Words Saved</button>
       `}>
-      <div class="notice" style=${{ marginBottom: '12px' }}><${Icon} name="link" /><div>
-        <b>${link.peerName}</b>'s copy is kept encrypted under these 12 words. <b>They are
-          shown once.</b></div></div>
       ${make.error
         ? html`<${FormError} error=${make.error} />`
         : words
@@ -501,9 +490,6 @@ function CopyKey({ close, link }) {
           words.map((w, i) => html`<div class="word"><span>${i + 1}</span><b>${w}</b></div>`)
         }</div>`
         : html`<${Loading} lines=${3} />`}
-      <p class="small dim">Save them in the household's password manager, where the people its
-        shares name can reach them. Whoever opens it first enters them. The words open only what
-        is shared with each person. If they are lost, <b>Reset copy</b> makes new ones.</p>
       <label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
         id="f-words-saved" checked=${saved} onChange=${(/** @type {any} */ e) =>
           setSaved(e.currentTarget.checked)} /> <span class="grow">I have saved the 12
@@ -537,7 +523,7 @@ function PauseDialog({ close, link }) {
   const parsed = parseDuration(span);
   const minutes = 'minutes' in parsed ? parsed.minutes : 0;
   return html`
-    <${Dialog} title=${`Pause the link with ${link.peerName || 'the other server'}`} close=${close}
+    <${Dialog} title=${`Pause the Link with ${link.peerName || 'the other server'}`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${go.busy}>Pause</button>`}>
       <${Field} label="Pause for" id="pause-for" error=${errAt(go.error, 'for')}
@@ -547,8 +533,6 @@ function PauseDialog({ close, link }) {
         <${TypedInput} kind="duration" value=${span} onInput=${setSpan}
           reset=${{ value: '1d', label: '1 day' }} placeholder="ex: 1d 4h" />
         </${Field}>
-        <p class="small dim">Nothing is pulled or answered while it is paused, and the other
-        server isn't alerted that this one is unreachable.</p>
         <${FormError} error=${go.error} shown=${['for']} />
         </${Dialog}>
   `;

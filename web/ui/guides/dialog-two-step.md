@@ -1,6 +1,10 @@
-# Turn on two-step sign-in
+# Turn On Two-Step Sign-In
 
 Any authenticator app that reads TOTP codes works: the ones built into password managers too.
+
+1. Open your authenticator app and add an account.
+2. Scan the QR code, or type the key below it.
+3. Type the six-digit code the app shows.
 
 ## Code from the app {#two-step-code}
 

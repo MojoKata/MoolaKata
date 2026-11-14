@@ -36591,7 +36591,7 @@
     },
     "/ui/api/settings/backups/run": {
       "post": {
-        "description": "Back up now: the daily task, at once, followed as a job (S13.8.7).",
+        "description": "Backup Now: the daily task, at once, followed as a job (S13.8.7).",
         "operationId": "backup_now_ui_api_settings_backups_run_post",
         "responses": {
           "202": {

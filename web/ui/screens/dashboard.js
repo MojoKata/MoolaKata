@@ -7,7 +7,7 @@ import { ago } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
-import { Chips, Failed, Loading } from '../kit/bits.js';
+import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { GROUP_LABELS, Tile } from '../components/groups.js';
 import { Icon } from '../kit/icon.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
@@ -40,7 +40,7 @@ export default function Dashboard() {
   return html`
     <div class="grid g4">
       <div class="card kpi" data-help="net-worth">
-        <div class="label">Net worth</div>
+        <div class="label">Net Worth</div>
         <div class="value">
           <${Amt} v=${d.netWorth} cents=${false} />
         </div>
@@ -94,13 +94,13 @@ export default function Dashboard() {
         `
         : html`
           <div class="card kpi">
-            <div class="label">Needs attention</div>
+            <div class="label">Needs Attention</div>
             <div class="value">${d.attention.length}</div>
             <div class="delta dim">${d.attention.length ? 'see below' : 'nothing right now'}</div>
           </div>
         `}
     </div>
-    <div class="card mt"><h3>Net worth<span class="spacer"></span><${Chips} label="Range"
+    <div class="card mt"><h3>Net Worth<span class="spacer"></span><${Chips} label="Range"
       value=${range} onChange=${setRange} options=${RANGES} /></h3>
       ${s
         ? html`<${TimeChart} label="Net worth over time, by account group" series=${
@@ -118,19 +118,27 @@ export default function Dashboard() {
     </div>
     <div class="grid g-main mt">
       <div class="card"><h3>Accounts<span class="spacer"></span><button type="button" class="btn sm"
-        onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New account</button></h3>
+        onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New Account</button></h3>
         ${d.groups.length
           ? d.groups.map((/** @type {any} */ g) =>
             html`<a class="list-item" href="/ui/accounts" style=${{ color: 'inherit' }}>
-              <${Tile} group=${g.group} /><div class="grow"><b>${labels[g.group] || g.group}</b>
-              <div class="small dim">${g.accounts.join(' · ')}</div></div>
+              <${Tile} group=${g.group} /><div class="grow"><span class="row-name">${
+              labels[g.group] || g.group
+            }</span>
+              <div class="row-more">${g.accounts.join(' · ')}</div></div>
               <div class="num"><b><${Amt} v=${g.total} /></b></div></a>`
           )
-          : html`<p class="small dim">No accounts yet. Make one, then import its files.</p>`}
+          : html`
+            <${Empty} action=${html`
+              <button type="button" class="btn primary"
+                onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New Account</button>
+            `}
+            >No accounts yet</${Empty}>
+          `}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${Plans} />
-        <div class="card" data-help="needs-attention"><h3>Needs attention</h3>
+        <div class="card" data-help="needs-attention"><h3>Needs Attention</h3>
         ${d.attention.length
           ? d.attention.map((/** @type {any} */ a) =>
             html`
@@ -141,7 +149,7 @@ export default function Dashboard() {
                   .link}>See</a></div>
             `
           )
-          : html`<p class="small dim">Nothing needs you right now.</p>`}
+          : html`<${Empty}>Nothing needs you right now</${Empty}>`}
       </div>
       </div>
     </div>
@@ -164,11 +172,11 @@ function Plans() {
       href="/ui/projections">Projections</a></h3>
       ${rows.map((p) =>
         html`<a class="list-item" href=${`/ui/projections/${p.id}`} style=${{ color: 'inherit' }}>
-          <div class="grow"><b>${p.name}</b> ${
+          <div class="grow"><span class="row-name">${p.name}</span> ${
           p.status && p.status !== 'untracked'
             ? html`<span class=${'pill ' + (TONE[p.status] || '')}>${p.status}</span>`
             : null
-        }<div class="small dim">${p.headline}${
+        }<div class="row-more">${p.headline}${
           p.sharedBy ? ` · shared by ${p.sharedBy}` : ''
         }</div></div>
           <${Spark} actual=${p.actual} baseline=${p.baseline} behind=${

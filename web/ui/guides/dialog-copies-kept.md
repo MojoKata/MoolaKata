@@ -1,7 +1,7 @@
-# Copies kept
+# Copies Kept
 
 How many days of backups the server keeps: every backup of each of the most recent days that
-have one, 3 to 365. A second backup the same day, **Back up now**, never pushes out an earlier
+have one, 3 to 365. A second backup the same day, **Backup Now**, never pushes out an earlier
 day's.
 
 ## Days of backups kept

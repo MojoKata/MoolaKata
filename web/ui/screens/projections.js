@@ -28,7 +28,7 @@ import { num } from '../kit/dec.js';
 import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -80,28 +80,25 @@ export default function Projections({ id }) {
         href=${`/ui/projections/${r.id}`} style=${{ color: 'inherit' }}>
             <div class=${'tile t-' + (TILE[r.goal] || 'banking')}><${Icon}
               name=${GOAL[r.goal]?.[1] || 'target'} /></div>
-            <div class="grow"><b>${r.name}</b> ${r.status
+            <div class="grow"><span class="row-name">${r.name}</span> ${r.status
               ? html`<span class=${'pill ' + (TONE[r.status] || '')}>${r.status}</span>`
               : null}
-              <div class="small dim">${r.headline} · on ${r.builtOnLabel}${r.access.mine
+              <div class="row-more">${r.headline} · on ${r.builtOnLabel}${r.access.mine
                 ? ''
                 : ` · shared by ${r.ownerName}`}</div></div></a>
     `;
   return html`
     <div class="grid g2">
-      <div class="card"><h3>Active<span class="spacer"></span><span class="small dim"
-        style=${{ fontWeight: 400 }}>the plans being followed</span></h3>
-        ${active.length
-          ? active.map(item)
-          : html`<p class="small dim">None yet. Make a scenario active to follow it.</p>`}</div>
+      <div class="card"><h3>Active</h3>
+        ${active.length ? active.map(item) : html`<${Empty}>None yet</${Empty}>`}</div>
       <div class="card"><h3>Scenarios<span class="spacer"></span><button type="button"
-        class="btn sm" onClick=${create}><${Icon} name="plus" /> New projection</button></h3>
-        ${scenarios.length ? scenarios.map(item) : html`<p class="small dim">None.</p>`}</div>
+        class="btn sm" onClick=${create}><${Icon} name="plus" /> New Projection</button></h3>
+        ${scenarios.length ? scenarios.map(item) : html`<${Empty}>None</${Empty}>`}</div>
     </div>
     ${current
       ? html`<${Detail} key=${current.id} id=${current.id} reloadList=${list.reload} />`
       : html`<${Empty} action=${html`<button type="button" class="btn primary" onClick=${create}>
-          <${Icon} name="plus" /> New projection</button>`}>No projections yet</${Empty}>`}
+          <${Icon} name="plus" /> New Projection</button>`}>No projections yet</${Empty}>`}
   `;
 }
 
@@ -167,55 +164,61 @@ function Detail({ id, reloadList }) {
       ${!x.active
         ? html`
           <${Action} class="btn primary" why=${whyNot(x, 'configurable')}
-            onClick=${activate}>Make active</${Action}>
+            onClick=${activate}>Make Active</${Action}>
         `
         : html`<${Action} why=${whyNot(x, 'configurable')} onClick=${() =>
           api.post(`/projections/${x.id}/deactivate`).then(() => {
             toast('It is a scenario again');
             reload();
-          })}>Stop following</${Action}>`}
+          })}>Stop Following</${Action}>`}
     </div>
     ${x.tracking && x.tracking.status !== 'untracked'
       ? html`<${Tracking} x=${x} />`
       : x.active
-      ? html`<p class="small dim">Built on a typed amount: there is no balance to track it
-          against.</p>`
+      ? html`
+        <div class="mt">
+          <${StatePill}
+            why="Built on a typed amount: there is no balance to track it against."
+          >untracked</${StatePill}></div>
+      `
       : null}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Projected value · ${r.scenarios && Object.keys(r.scenarios).length
-          ? 'bear, base and bull'
+        <h3>Projected Value · ${r.scenarios && Object.keys(r.scenarios).length
+          ? 'Bear, Base and Bull'
           : `Monte Carlo, ${r.runs.toLocaleString()} runs`}<span class="spacer"></span>
         <${Chips} label="Dollars" value=${real} onChange=${setReal}
           options=${[['nominal', 'Nominal'], ['real', "Today's dollars"]]} /></h3>
         <${FanChart} label=${`${x.name}: projected value by year`} years=${r.years} p=${p}
           paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
-        <p class="small dim">A model, not a forecast. Starts from ${dollars(r.start)} (${classes}).
-          Returns from ${mine ? 'your' : `${x.ownerName}'s`} assumptions (${Object.entries(
+        <div class="small dim" data-help="projected-value">
+          <div>Starts from: ${dollars(r.start)} (${classes})</div>
+          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.entries(
             r.weights,
           ).map(([k]) =>
             `${labelOf(k)} ${r.assumptions.classes[k].return}% ± ${
               r.assumptions.classes[k].volatility
             }%`
-          ).join(', ')}), log-normal, each class on its own; inflation ${r.assumptions
-            .inflation}%; fees ${x.inputs.fees ??
-            0.1}% a year.${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
-            ? ` Bitcoin follows the ${r.bitcoinModel} model, a model others publish; other coins keep the crypto assumption.`
-            : ''} Seeded (${r.seed}), so the same inputs give the same figures.</p>
+          ).join(', ')}</div>
+          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
+          ${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
+            ? html`<div>Bitcoin: the ${r.bitcoinModel} model</div>`
+            : null}
+          <div>Seed: ${r.seed}</div>
+        </div>
         ${r.leftOut?.length
           ? html`<p class="small dim" data-help="left-out">Left out: ${
             r.leftOut.map((
               /** @type {any} */ o,
             ) => `${o.name} ${dollars(o.value)}`).join('; ')
-          }. A projection grows cash, securities
-            and metals; a loan, a home, a car and options aren't drawn on.</p>`
+          }</p>`
           : null}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         ${a.kind === 'retirement'
           ? html`
             <div class="card kpi">
-              <div class="label">Chance the money lasts to ${a
+              <div class="label">Chance the Money Lasts to ${a
                 .horizonAge}</div>
               <div class=${'value ' + (num(a.chance) >= 0.9 ? 'up' : '')}>${pct(a.chance)}</div>
               <div class="delta dim">median at retirement (${a.retireYear}) ${dollars(
@@ -250,7 +253,7 @@ export function EducationAnswer({ a }) {
   const funded = Math.round(num(a.funded));
   return html`
     <div class="card kpi">
-      <div class="label">Funded for ${a.name}'s ${a.years} years of school</div>
+      <div class="label">Funded for ${a.name}'s ${a.years} Years of School</div>
       <div class=${'value ' + (funded >= 100 ? 'up' : '')}>${funded}%</div>
       <div
         class="delta dim">median ${dollars(a.atStart)} when school starts in ${a
@@ -283,12 +286,13 @@ function Tracking({ x }) {
     t.band.map((/** @type {any[]} */ b) => [b[0], String(b[k])]);
   return html`
     <div class="card mt"><h3>Tracking since ${date(t.since)}<span class="spacer"></span><span
-      class=${'pill ' + (TONE[t.status] || '')}>${t.status}</span></h3>
-      ${t.partial
-        ? html`<p class="small dim">Some of the accounts it is built on
-            aren't shared with you: the status is the whole projection's, the balance only that of
-            the accounts you can see.</p>`
-        : null}
+      class=${'pill ' + (TONE[t.status] || '')}>${t.status}</span>${t.partial
+        ? html`
+          ${' '}<${StatePill}
+            why="Some of the accounts it is built on aren't shared with you: the status is the whole projection's, the balance only that of the accounts you can see."
+          >partly shared</${StatePill}>
+        `
+        : null}</h3>
       ${t.points.length > 1
         ? html`<${TimeChart} label=${
           t.partial
@@ -302,9 +306,7 @@ function Tracking({ x }) {
             { name: '90th percentile', color: '--border-strong', dash: true, points: at(3) },
           ]),
         ]} />`
-        : html`<p class="small dim">Tracking starts from the baseline; the chart fills in as days pass.</p>`}
-      <p class="small dim">On track inside the baseline's 10th–90th percentile band, ahead above
-        it, behind below it. Falling behind raises an alert, checked at each month's end.</p>
+        : html`<${Empty}>Nothing to chart yet</${Empty}>`}
     </div>
   `;
 }
@@ -455,7 +457,7 @@ function Inputs({ x, reload }) {
               <div class="row">
                 <${Field} label=${`${inc.label || 'Other income'} a month`} id=${'income-' + i}
                   help="other-income"
-                  hint=${`From age ${inc.fromAge}, rising with inflation`}>
+                  hint=${`From age ${inc.fromAge}`}>
                   <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
                   ) => {
@@ -539,8 +541,7 @@ function EducationInputs({ f, set, setF, e }) {
             )} />
             </${Field}>
             </div>
-            <${Field} label="Cost per year" id="cost-basis" error=${errAt(e, 'inputs.costBasis')}
-              hint="Tuition, fees, room and board, in today's dollars; it rises with education inflation.">
+            <${Field} label="Cost per year" id="cost-basis" error=${errAt(e, 'inputs.costBasis')}>
       <${Select} value=${f.costBasis || 'public'} onChange=${set('costBasis', false)}
         options=${COST_BASIS} />
     </${Field}>
@@ -608,14 +609,11 @@ function Rebaseline({ close, name }) {
     <${Dialog} title="Re-baseline?" close=${() => close(undefined)}
       footer=${html`
         <button type="button" class="btn" onClick=${() =>
-          close(false)}>Keep the baseline</button><button
+          close(false)}>Keep the Baseline</button><button
           type="button" class="btn primary"
           onClick=${() => close(true)}>Re-baseline</button>
       `}>
-      <p style=${{ marginTop: 0 }}>${name} is active. Its tracking compares the actual balance
-        with the plan as it was made active.</p>
-      <p class="small dim">Re-baseline to compare against these new inputs from today, or keep
-        comparing against the plan as it was.</p>
+      <p style=${{ marginTop: 0 }}>${name} is active.</p>
       </${Dialog}>
   `;
 }
@@ -632,15 +630,13 @@ function MakeActive({ close, p }) {
     r.active && r.goal === p.goal && r.id !== p.id && r.access.mine
   );
   return html`
-    <${Dialog} title=${`Make “${p.name}” active?`} close=${close}
+    <${Dialog} title=${`Make “${p.name}” Active?`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${go.busy}>Make active</button>`}>
+      footer=${html`<button class="btn primary" disabled=${go.busy}>Make Active</button>`}>
       <p style=${{ marginTop: 0 }}>${others.length && p.goal === 'retirement'
         ? html`<b>${others[0].name}</b> stops being the active plan for the same people, if
           they are the same. Its tracking ends, and it stays as a scenario.`
         : 'It becomes an active plan.'}</p>
-      <p class="small dim">Its median path and 10th–90th percentile band as of today become the
-        baseline it is tracked against.</p>
       <${FormError} error=${go.error} />
       </${Dialog}>
   `;
@@ -692,7 +688,7 @@ function NewProjection({ close }) {
     close(out[0].record);
   });
   return html`
-    <${Dialog} title="New projection" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="New Projection" close=${close} onSubmit=${() => save.run().catch(() => {})}
       changed=${() => !!name || goal !== 'retirement' || built.kind !== 'typed' || !!child}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Create</button>`}>
       <div class="field" data-help="goal" id="x-goal"><label>Goal type</label>
@@ -702,12 +698,7 @@ function NewProjection({ close }) {
             'Education',
           ]]} /></div>
       <${Field} label="Name" error=${errAt(save.error, 'name')}>
-        <${Input} value=${name} onInput=${setName}
-          placeholder=${goal === 'retirement'
-            ? 'Retire at 63'
-            : goal === 'education'
-            ? "Emma's college"
-            : 'House deposit'} required />
+        <${Input} value=${name} onInput=${setName} required />
       </${Field}>
       <${BuiltOn} value=${built} onChange=${setBuilt} error=${errAt(save.error, 'builtOn')} />
       ${goal === 'education'
@@ -715,8 +706,7 @@ function NewProjection({ close }) {
           <${Field} label="For" id="beneficiary" error=${errAt(
             save.error,
             'inputs.beneficiary',
-          )}
-            hint="Someone on your list of people; add them in a 529's settings or on Gifts.">
+          )}>
             <${Select} value=${child} onChange=${setChild} options=${[
               ['', 'Choose…'],
               ...(/** @type {any[]} */ (people.data) || []).map((p) => [p.id, p.name]),
@@ -734,8 +724,6 @@ function NewProjection({ close }) {
             </${Field}>
         `
         : null}
-      <p class="small dim">It starts as a scenario, with figures to change. Make it active to
-        follow it.</p>
       <${FormError} error=${save.error} shown=${['name', 'builtOn', 'inputs.beneficiary']} />
     </${Dialog}>
   `;

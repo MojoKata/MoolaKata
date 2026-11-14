@@ -146,7 +146,7 @@ produces worksheets and exports. It never files, and says so (R1.16).
        chooses it);
     2. who prepared it, and how it was sent (e-file or paper);
     3. its **progress** (not started, in progress, filed, accepted or rejected), the due date
-       (federal from Settings › Tax tables, moved past a Saturday, a Sunday or a legal
+       (federal from Settings › Tax Tables, moved past a Saturday, a Sunday or a legal
        holiday, federal or the District of Columbia's Emancipation Day as observed, IRC
        §7503; others typed), an **extension** (date filed, new due date), the date filed,
        and the confirmation or submission number;

@@ -1,4 +1,4 @@
-# Sign-up
+# Sign-Up
 
 Whether people can ask for an account themselves, from the sign-in screen.
 
@@ -11,4 +11,5 @@ which the links are built from.
 
 ## Allowed email domains {#signup-domains}
 
-Optional: only addresses at these domains can ask. Empty allows any.
+Optional: only addresses at these domains can ask, separated by commas. Requests from other
+domains are refused. Empty allows any.

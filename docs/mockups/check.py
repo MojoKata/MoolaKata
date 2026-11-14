@@ -26,7 +26,10 @@ def main(out: Path) -> int:
         browser = p.chromium.launch()
         page = browser.new_page(viewport=VIEWPORT)
         page.on("pageerror", lambda e: errors.append(f"page error: {e}"))
-        page.on("console", lambda m: m.type == "error" and errors.append(f"console: {m.text}"))
+        page.on(
+            "console",
+            lambda m: m.type == "error" and errors.append(f"console: {m.text}"),
+        )
         page.goto(url + "#/dashboard")
         page.wait_for_timeout(200)
         index = page.evaluate("window.MOCK_INDEX")
@@ -56,7 +59,10 @@ def main(out: Path) -> int:
                 shot(tag)
                 missing_help(screen, "main")
                 for tab in page.query_selector_all(".tab"):
-                    key, value = tab.get_attribute("data-k"), tab.get_attribute("data-v")
+                    key, value = (
+                        tab.get_attribute("data-k"),
+                        tab.get_attribute("data-v"),
+                    )
                     page.evaluate(f"state.tabs[{key!r}] = {value!r}; render()")
                     page.wait_for_timeout(60)
                     shot(f"{tag}-{value.split(' ')[0].lower()}")
@@ -144,12 +150,42 @@ def main(out: Path) -> int:
             missing_help(f"dialog {dialog}", ".dialog")
             page.evaluate("closeDialog()")
 
+        # The MOCK pane (S12.9): beside the app, every screen and dialog in it as an address, a
+        # dialog opened by its address and dropped from it when closed, a user and states set.
+        page.evaluate("state.pane = false; location.hash = '#/budgets'")
+        page.wait_for_timeout(120)
+        page.click(".app .pill-mock")
+        page.wait_for_timeout(120)
+        hrefs = page.eval_on_selector_all("#mock-pane a", "e => e.map(a => a.getAttribute('href'))")
+        for screen in index["screens"]:
+            if f"#/{screen}" not in hrefs:
+                errors.append(f"mock pane: no address for the screen {screen}")
+        for dialog in index["dialogs"]:
+            if not any(h.endswith(f"dialog={dialog}") for h in hrefs):
+                errors.append(f"mock pane: no address for the dialog {dialog}")
+        if page.locator("#root").bounding_box()["x"] <= 0:
+            errors.append("mock pane: the app isn't moved over beside it")
+        shot("mock-pane")
+        page.evaluate("location.hash = '#/settings/keys?as=bob&on=stale&dialog=verifyKey'")
+        page.wait_for_timeout(150)
+        if page.evaluate("[state.settings, state.user, state.stale].join()") != "keys,bob,true":
+            errors.append("mock pane: the address's section, user or state wasn't applied")
+        if page.locator(".dialog").count() != 1:
+            errors.append("mock pane: dialog=verifyKey in the address opened no dialog")
+        shot("mock-pane-address")
+        page.evaluate("closeDialog()")
+        if "dialog=" in page.evaluate("location.hash"):
+            errors.append("mock pane: a dialog closed but stayed in the address")
+        page.evaluate("state.user = 'alice'; state.stale = false; state.pane = false; renderPane()")
         # A guide's acronyms (S12.7.7): the first under a heading underlined, a later one plain
         # until hovered; hovering either opens its card, whose icon links to the document.
         page.evaluate("state.help = true; location.hash = '#/transactions'; render()")
         page.wait_for_timeout(120)
         card = page.locator(".help .term-tip:not([hidden])")
-        for kind, selector in (("first", "abbr.term:not(.quiet)"), ("later", "abbr.term.quiet")):
+        for kind, selector in (
+            ("first", "abbr.term:not(.quiet)"),
+            ("later", "abbr.term.quiet"),
+        ):
             term = page.locator(f".help {selector}").first
             if not term.count():
                 errors.append(f"term card: the Transactions guide has no {kind} use of a term")

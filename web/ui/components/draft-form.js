@@ -158,7 +158,7 @@ function Reauth({ again }) {
             </${Field}>
             <button type="button" class="btn sm" style=${{ marginBottom: '14px' }}
               disabled=${go.busy || !password} onClick=${() =>
-                go.run().catch(() => {})}>Go on</button>
+                go.run().catch(() => {})}>Go On</button>
             </div>
             </div>
             </div>
@@ -290,9 +290,9 @@ export function LeaveDialog({ close, where, answered }) {
     close(how);
   };
   return html`
-    <${Dialog} title="Save your changes?" close=${() => answer(undefined)} footer=${html`
+    <${Dialog} title="Save Your Changes?" close=${() => answer(undefined)} footer=${html`
       <button type="button" class="btn" autofocus onClick=${() => answer(undefined)}>Keep
-        editing</button>
+        Editing</button>
       <button type="button" class="btn danger" onClick=${() => answer('discard')}>Discard</button>
       <button type="button" class="btn primary" onClick=${() => answer('save')}>Save</button>
     `}>
@@ -421,7 +421,8 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
- *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
+ *   type?: string, placeholder?: string, disabled?: boolean, why?: string | null,
+ *   onEdit?: () => void,
  *   style?: any, rows?: number, reset?: { value: string, label: string }, kind?: string,
  *   min?: number | string, max?: number | string, above?: number | string,
  *   atMost?: number | string,
@@ -446,7 +447,7 @@ export function RecField(p) {
     control = html`
       <${Switch} on=${!!rec.get(name)} label=${p.label} help=${p.bare
         ? p.help
-        : undefined} disabled=${p.disabled}
+        : undefined} disabled=${p.disabled} why=${p.why}
         readonly=${reading}
         onChange=${(/** @type {boolean} */ v) => {
           rec.set(name, v);

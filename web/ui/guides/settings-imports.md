@@ -1,11 +1,10 @@
 # Settings: Imports
 
+Accounts are kept current from the files people bring (OFX, QFX and CSV downloads, and
+statements as PDF, JPEG, PNG, WebP or HEIC, each checked from what's inside the file, never its
+name) and by the MoolaKata Connector for accounts whose sync is on.
+
 ![Settings: Imports](shots/settings-imports.png)
-
-## File types
-
-OFX, QFX and CSV, and statements as PDF, JPEG, PNG, WebP or HEIC, checked from what's inside the
-file, never its name.
 
 ## Largest file {#largest-file}
 

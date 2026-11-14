@@ -1,4 +1,4 @@
-# Add a person
+# Add a Person
 
 One of the household's people, added from a list that chooses one (a 529's beneficiary). Saved
 here, they are chosen there.
@@ -13,4 +13,4 @@ The new person's: it chooses the words for the family tree, such as daughter or 
 
 ## Year of birth
 
-Their year of birth, for when school starts.
+Their year of birth, for when school starts on the 529's Goal tab.

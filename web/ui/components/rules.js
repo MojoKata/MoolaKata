@@ -15,7 +15,7 @@ import { FormError } from '../kit/fields.js';
 import { Record } from '../app/draft.js';
 import { DraftDialog, DraftForm, RecField, saveNow, saveOne, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Failed, Loading } from '../kit/bits.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 import { TagsField } from './tags.js';
@@ -69,8 +69,7 @@ function RuleFields({ rec, draft }) {
   const writable = (/** @type {any[]} */ (accounts.data) || []).filter((a) => a.access.writable);
   return html`
     <${RecField} rec=${rec} name="payeeMatch" label="Payee contains"
-      placeholder="ex: WHOLE FOODS, or re:^AMZN"
-      hint="As the bank writes it; case doesn't matter. re: starts a regular expression." />
+      placeholder="ex: WHOLE FOODS, or re:^AMZN" />
     <div class="row">
       <${RecField} rec=${rec} name="amountMin" label="Amount from" placeholder="any" />
       <${RecField} rec=${rec} name="amountMax" label="Amount to" placeholder="any" />
@@ -84,10 +83,8 @@ function RuleFields({ rec, draft }) {
     </div>
     <${CategoryField} rec=${rec} name="categoryId" label="Category"
       first=${['', 'Leave it as it is']} />
-    <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee"
-      hint="The payee shown; the bank's text is kept beside it." />
-    <${TagsField} rec=${rec} draft=${draft} placeholder="ex: coffee, work"
-      hint="Your own." />
+    <${RecField} rec=${rec} name="payee" label="Rename to" placeholder="leave the payee" />
+    <${TagsField} rec=${rec} draft=${draft} />
   `;
 }
 
@@ -103,8 +100,8 @@ export function NewRuleDialog({ close, fill }) {
   });
   const rec = /** @type {RuleRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="New rule" close=${close} what="This rule"
-      label="Add the rule" done="Rule added"
+    <${DraftDialog} f=${f} title="New Rule" close=${close} what="This rule"
+      label="Add the Rule" done="Rule added"
       extra=${() => html`<button type="button" class="btn" data-cancel>Cancel</button>`}>
       ${rec && f.draft ? html`<${RuleFields} rec=${rec} draft=${f.draft} />` : null}
     </${DraftDialog}>
@@ -161,15 +158,13 @@ export function RulesTab({ id }) {
     <div class="rules-layout">
       <div class="card">
         <div class="toolbar">
-          <a class="btn" href=${RULES + '/new'}><${Icon} name="plus" /> Add rule</a>
+          <a class="btn" href=${RULES + '/new'}><${Icon} name="plus" /> Add Rule</a>
           ${v?.uncategorised
             ? html`<${SavedFirst}><button type="button" class="btn"
               disabled=${changed || apply.busy} onClick=${() => apply.run().catch(() => {})}>
-              Apply to ${v.uncategorised} uncategorised</button></${SavedFirst}>`
+              Apply to ${v.uncategorised} Uncategorised</button></${SavedFirst}>`
             : null}
         </div>
-        <p class="small dim" data-help="first-match">First match wins, top to bottom. Applied to
-          what you import, and to the uncategorised when you choose.</p>
         ${res.error
           ? html`<${Failed} error=${res.error} />`
           : !rows
@@ -197,10 +192,7 @@ export function RulesTab({ id }) {
                 </div>
               `
               : null}
-            ${!rows.length && !fresh
-              ? html`<p class="small dim">No rules yet. <b>Add rule</b>, or <b>Make a rule</b> from
-                a transaction.</p>`
-              : null}
+            ${!rows.length && !fresh ? html`<${Empty}>No rules yet</${Empty}>` : null}
           `}
         <${FormError} error=${act.error || apply.error} />
       </div>
@@ -264,7 +256,7 @@ function RulePane({ rule, n, listed }) {
       extra=${() =>
         rule
           ? html`<button type="button" class="btn danger" onClick=${async () => {
-            if (!(await confirmAction({ title: 'Delete this rule?' }))) return;
+            if (!(await confirmAction({ title: 'Delete This Rule?' }))) return;
             try {
               await saveNow((d) => d.remove(d.load(RuleRec, rule)));
             } catch (e) {
@@ -275,7 +267,7 @@ function RulePane({ rule, n, listed }) {
             route(RULES, true);
           }}>Delete</button>`
           : null}>
-      <h3>${rule ? `Rule ${n}` : 'New rule'}</h3>
+      <h3>${rule ? `Rule ${n}` : 'New Rule'}</h3>
       ${rec && f.draft ? html`<${RuleFields} rec=${rec} draft=${f.draft} />` : null}
     </${DraftForm}>
   `;

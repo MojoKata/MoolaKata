@@ -1,4 +1,4 @@
-# Sign in
+# Sign In
 
 ## Username or email
 
@@ -21,7 +21,8 @@ With none left, ask an admin to reset your two-step sign-in.
 
 ## Forgot password?
 
-Sends a link to choose a new one. The answer is the same whether or not the account exists.
+Sends a link to choose a new one; it works once, for an hour. The answer is the same whether or
+not the account exists.
 
 ## Account disabled
 

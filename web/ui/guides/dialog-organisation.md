@@ -1,4 +1,4 @@
-# An organisation
+# An Organisation
 
 ## Name
 
@@ -6,7 +6,8 @@ What it's called.
 
 ## EIN
 
-Its employer identification number, from its receipts or the IRS's list of charities. Optional.
+Its employer identification number, from its receipts or the IRS's list of charities: two digits,
+a hyphen and seven more (36-3136294). Blank, it has none recorded.
 
 ## Deductible
 

@@ -21,8 +21,8 @@ export default function Welcome() {
   });
   if (bad) {
     return html`
-      <${AuthCard} title="This link has expired" guide="welcome"
-        sub="An invitation works once, for 7 days. Ask an admin to send a new one."><a href="/ui/">Sign in</a></${AuthCard}>
+      <${AuthCard} title="This Link Has Expired" guide="welcome"
+        sub="Ask an admin to send a new one."><a href="/ui/">Sign In</a></${AuthCard}>
     `;
   }
   if (!who) return null;
@@ -34,8 +34,7 @@ export default function Welcome() {
         accept.run().catch(() => {});
       }}>
         <input type="text" hidden autocomplete="username" value=${who.username} />
-        <${Field} label="Choose a password" id="password" error=${errAt(accept.error, 'password')}
-          hint="At least 12 characters; not a common password.">
+        <${Field} label="Choose a password" id="password" error=${errAt(accept.error, 'password')}>
           <${Input} type="password"
             value=${password} onInput=${setPassword} autocomplete="new-password" required />
           </${Field}>

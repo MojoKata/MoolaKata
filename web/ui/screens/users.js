@@ -59,7 +59,7 @@ export default function Users() {
         ${waiting.map((r) => html`<${SignupRequest} r=${r} groups=${g} done=${reload} />`)}</div>`
       : null}
     ${asked.length
-      ? html`<div class="card"><h3>Asked to be made active again<span class="pill warn">${asked.length}</span></h3>
+      ? html`<div class="card"><h3>Asked to Be Made Active Again<span class="pill warn">${asked.length}</span></h3>
       ${
         asked.map((x) =>
           html`<div class="list-item"><${Avatar} name=${x.displayName} image=${x.avatar} id=${x.id} />
@@ -67,7 +67,7 @@ export default function Users() {
             ago(x.reactivationAskedAt)
           }</div></div>
         <button type="button" class="btn sm primary" onClick=${() =>
-            setActive(x, true)}>Make active</button></div>`
+            setActive(x, true)}>Make Active</button></div>`
         )
       }</div>`
       : null}
@@ -81,7 +81,7 @@ export default function Users() {
       ]]} />
       <button type="button" class="btn primary" onClick=${() =>
         openDialog(NewUser, { groups: g }).then((x) => x && reload())}>
-        <${Icon} name="plus" /> New user</button></div>
+        <${Icon} name="plus" /> New User</button></div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <table class="t">
         <caption class="sr-only">Users</caption>
@@ -122,7 +122,7 @@ export default function Users() {
                       api.post(`/users/${x.id}/invitation`).then(
                         () => toast('Invitation sent again'),
                         (e) => toast(e.message),
-                      )}>Resend invitation</button>
+                      )}>Resend Invitation</button>
                 `
                 : html`
                   ${x.twoStep ? html`<span class="pill ok">two-step</span>${' '}` : null}<span
@@ -152,7 +152,7 @@ export default function Users() {
     }}>Groups</h2><span class="spacer"></span>
       <button type="button" class="btn" onClick=${() =>
         openDialog(GroupDialog, { users: u }).then((x) => x && reload())}>
-        <${Icon} name="plus" /> New group</button></div>
+        <${Icon} name="plus" /> New Group</button></div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <table class="t">
         <caption class="sr-only">Groups</caption>
@@ -222,8 +222,8 @@ function NewUser({ close, groups }) {
   }, []);
   const rec = /** @type {UserRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="New user" close=${close} what="This user"
-      label="Send the invitation" note="They choose their own password from the invitation."
+    <${DraftDialog} f=${f} title="New User" close=${close} what="This user"
+      label="Send the Invitation"
       saved=${(/** @type {any} */ o) => {
         const u = o.saved[0].record;
         toast(`Invitation sent to ${u.email}`);
@@ -317,21 +317,18 @@ function EditUser({ close, user, groups }) {
   });
   if (resetting) {
     return html`
-      <${Dialog} title="Reset two-step sign-in" close=${close}
+      <${Dialog} title="Reset Two-Step Sign-In" close=${close}
         onSubmit=${() => reset.run().catch(() => {})}
         footer=${html`
           <button type="button" class="btn" onClick=${() =>
             setResetting(false)}>Back</button> <button class="btn danger"
-            disabled=${reset.busy}>Turn it off</button>
+            disabled=${reset.busy}>Turn It Off</button>
         `}>
         <p>This turns off two-step sign-in for ${user.displayName}, so their password alone signs
-          them in, and signs them out everywhere. Do it only when they have lost both their app and
-          their recovery codes, and you know it is them asking.</p>
-        <p class="small dim">They get an email saying so, and can turn it on again in Profile.</p>
+          them in, and signs them out everywhere.</p>
         ${needPassword
           ? html`
-            <${Field} label="Your password" id="reauth-password"
-              hint="Asked again: it was over 10 minutes ago.">
+            <${Field} label="Your password" id="reauth-password">
               <${Input} type="password" value=${password} onInput=${setPassword}
                 autocomplete="current-password" required />
               </${Field}>
@@ -359,16 +356,14 @@ function EditUser({ close, user, groups }) {
         user.twoStep
           ? html`
             <button type="button" class="btn" style=${{ marginRight: 'auto' }}
-              onClick=${() => setResetting(true)}>Reset two-step</button>
+              onClick=${() => setResetting(true)}>Reset Two-Step</button>
           `
           : null}>
       ${rec
         ? html`
           <${RecField} rec=${rec} name="displayName" label="Name" id="display-name" />
           <${RecField} rec=${rec} name="email" label="Email address" id="email" type="email"
-            disabled=${!user.invited} hint=${user.invited
-              ? 'Fix it before they join; the invitation then goes to the new address.'
-              : 'Once a user has joined, they change it themselves.'} />
+            disabled=${!user.invited} />
           <${GroupPicker} groups=${groups} ids=${rec.get('groupIds')} setIds=${(
             /** @type {string[]} */ v,
           ) => rec.set('groupIds', v)} error=${rec.error('groupIds') || rec.error('memberIds')} />
@@ -387,11 +382,7 @@ function GroupPicker({ groups, ids, setIds, error }) {
       html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
       checked=${ids.includes(g.id)} onChange=${() =>
         setIds(ids.includes(g.id) ? ids.filter((x) => x !== g.id) : [...ids, g.id])} />
-      <span class="grow">${g.name}${
-        g.builtIn
-          ? html`${' '}<span class="small dim">· manages users, groups and Settings</span>`
-          : null
-      }</span></label>`
+      <span class="grow">${g.name}</span></label>`
     )
   }
     ${error ? html`<div class="err">${error}</div>` : null}</fieldset>`;
@@ -407,15 +398,14 @@ function GroupDialog({ close, users, group }) {
   const rec = /** @type {GroupRec | undefined} */ (f.draft?.records[0]);
   const ids = /** @type {string[]} */ (rec?.get('memberIds') || []);
   return html`
-    <${DraftDialog} f=${f} title=${group ? group.name : 'New group'} close=${close}
+    <${DraftDialog} f=${f} title=${group ? group.name : 'New Group'} close=${close}
       what="This group" done="Saved">
       ${rec
         ? html`
           <${RecField} rec=${rec} name="name" label="Name" disabled=${group?.builtIn} />
           ${group && !group.builtIn
             ? html`
-              <${RecField} rec=${rec} name="active" label="Active"
-                hint="An inactive group's shares give its members nothing." />
+              <${RecField} rec=${rec} name="active" label="Active" />
             `
             : null}
           <fieldset class="field" style=${{

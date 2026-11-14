@@ -708,7 +708,7 @@ def test_a_connection_that_needs_a_sign_in_alerts_its_owner_and_admins(server, p
     c = sign_in(server, "alice")
     mine = c.get("/ui/api/alerts").json()["open"]
     assert [a["title"] for a in mine] == ["Alice's Schwab login needs a sign-in"]
-    assert mine[0]["fix"] == "Sign in again"
+    assert mine[0]["fix"] == "Sign In Again"
     theirs = admin.get("/ui/api/alerts").json()["open"]
     assert any(a["title"] == "Alice's Schwab login needs a sign-in" for a in theirs)
 
@@ -729,11 +729,11 @@ def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin)
     opened = alerts.evaluate(server)
     mine = [a for a in admin.get("/ui/api/alerts").json()["open"] if "sign-in" in a["title"]]
     assert [(a["title"], a["fix"]) for a in mine] == [
-        ("Alice's Schwab login needs a sign-in", "Sign in again")
+        ("Alice's Schwab login needs a sign-in", "Sign In Again")
     ]
     other = sign_in(server, "root2")
     theirs = [a for a in other.get("/ui/api/alerts").json()["open"] if "sign-in" in a["title"]]
-    assert [a["fix"] for a in theirs] == ["Connector settings"]
+    assert [a["fix"] for a in theirs] == ["Connector Settings"]
     with server.db.read(unscoped="test") as s:
         told = sorted(u.username for a in opened for u in alerts.recipients(s, a))
     assert told == sorted([me["username"], "root2"])

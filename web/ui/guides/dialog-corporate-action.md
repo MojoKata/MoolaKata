@@ -1,4 +1,4 @@
-# Record a corporate action
+# Record a Corporate Action
 
 What a company did to the shares you hold: their lots are reshaped or moved to the new shares with
 the days they were held, never sold and bought again. Delete either side of one on its transactions

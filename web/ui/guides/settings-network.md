@@ -35,7 +35,8 @@ wider range lets more addresses reach the server.
 ## Listener
 
 How the server listens, set in `moolakata.toml` and shown here read only: its mode and port. In
-`proxy` mode, behind a reverse proxy, it names the proxies whose forwarded addresses it believes.
+`proxy` mode, behind a reverse proxy, it names the proxies whose forwarded addresses it believes:
+each proxy's own address, never a whole range.
 In `tls` mode, serving HTTPS itself, it says whose certificate it uses: one given in `[tls]` (on
 TrueNAS, one from System › Certificates), or its own, self-signed, which is for trying MoolaKata
 out. Browsers warn about its own, and anyone with a copy of the data directory holds its key, so a

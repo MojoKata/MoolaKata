@@ -18,7 +18,7 @@ import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 import { CategoryField } from './categories.js';
 import { dec, num } from '../kit/dec.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -95,7 +95,7 @@ export function TermsFields({ rec, type }) {
         `
         : html`
           <${RecField} rec=${rec} name="principal" label="Original principal" above=${0}
-            format=${money} placeholder="ex: 360000" />
+            format=${money} />
         `}
       <${RecField} rec=${rec} name="startDate" label="Start date" type="date" />
     </div>
@@ -103,12 +103,12 @@ export function TermsFields({ rec, type }) {
       <${RecField} rec=${rec} name="termMonths" label="Term (months)" id="term-months"
         spin=${true} min=${1} max=${600} />
       <${RecField} rec=${rec} name="rate" label="Interest rate" kind="percent" atMost=${40}
-        negative=${false} format=${(/** @type {any} */ n) => n + '%'} placeholder="ex: 5.875%" />
+        negative=${false} format=${(/** @type {any} */ n) => n + '%'} />
     </div>
     <div class="row">
       <${RecField} rec=${rec} name="method" label="Interest method" options=${METHODS} />
       <${RecField} rec=${rec} name="payment" label="Scheduled payment"
-        hint="Blank: computed from the terms." />
+        placeholder="computed from the terms" />
     </div>
     ${mortgage
       ? html`
@@ -128,8 +128,7 @@ export function TermsFields({ rec, type }) {
     ${type === 'heloc'
       ? html`
         <${RecField} rec=${rec} name="drawMonths" label="Draw period (months)" id="draw-months"
-          spin=${true} min=${0} max=${Math.max(0, Number(rec.get('termMonths') || 600) - 1)}
-          hint="Interest only while drawing; then the balance is repaid over the rest of the term." />
+          spin=${true} min=${0} max=${Math.max(0, Number(rec.get('termMonths') || 600) - 1)} />
       `
       : null}
     <${InBudgets} rec=${rec} />
@@ -145,7 +144,7 @@ function InBudgets({ rec }) {
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="budgetCounting" label="In budgets" id="in-budgets"
-        hint="Counted at the bank account a payment comes from." options=${[
+        options=${[
           ['split', 'Split by the schedule'],
           ['whole', 'The whole payment in one category'],
         ]} />
@@ -170,15 +169,14 @@ function SecuredBy({ rec, type }) {
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="securedById" label="Secured by" id="secured-by"
-        hint="A property or vehicle, for the equity and loan-to-value." options=${[
+        options=${[
           ['', items.length ? 'Nothing' : 'Nothing yet: add the property or vehicle first'],
           ...items.map((i) => [i.id, `${i.name} · ${i.accountName}`]),
         ]} />
       ${type === 'mortgage'
         ? html`
           <${RecField} rec=${rec} name="originalValue" label="Home's original value"
-            id="original-value"
-            hint="The appraisal or price when the loan was made; blank, the home's cost then." />
+            id="original-value" placeholder="the home's cost then" />
         `
         : null}
     </div>
@@ -209,7 +207,7 @@ export function LoanSummary({ a, reload }) {
       <h3>Loan<span class="spacer"></span><${Action} class="btn sm"
       why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(PaymentDialog, { a, v }).then((ok) => ok && again())}><${Icon}
-        name="plus" /> Record a payment</${Action}></h3>
+        name="plus" /> Record a Payment</${Action}></h3>
       <div class="list-item"><span class="grow dim">Owed</span><${Amt} v=${v.balance} /></div>
       <div class="list-item"><span class="grow dim">Rate</span>${String(dec(v.rate))}% ${t
           .resets.length
@@ -289,7 +287,7 @@ export function LoanSummary({ a, reload }) {
         }</span>`
         : html`<span class="dim">not typed</span>`}${'\u00a0'}<${Action} class="btn sm"
         why=${whyNotAdd('Anchr', a)} onClick=${() =>
-          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</${Action}></div>
+          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type It</${Action}></div>
     </div>
     ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
   `;
@@ -325,7 +323,7 @@ function Candidates({ a, again }) {
   });
   if (!rows.length) return null;
   return html`
-    <div class="card"><h3>Looks like a payment</h3>
+    <div class="card"><h3>Looks like a Payment</h3>
       ${rows.map((c) =>
         html`<div class="list-item"><div class="grow">${c.payee || 'Payment'}<div
           class="small dim">${c.accountName} · ${date(c.date)}${
@@ -333,7 +331,6 @@ function Candidates({ a, again }) {
         }</div></div><${Amt} v=${c.amount} /><button class="btn sm" disabled=${link.busy} onClick=${() =>
           link.run(c).catch(() => {})}>${c.pairWith ? 'Pair' : 'Link'}</button></div>`
       )}
-      <p class="small dim">Linking makes it the transfer into this loan, split by the schedule.</p>
     </div>
   `;
 }
@@ -385,9 +382,8 @@ export function Schedule({ a }) {
       </div>
       <div class="toolbar"
         style=${{ padding: '0 8px' }}><span class="small dim">${v.rows
-          .length} payments. A payment that differs from the schedule, a rate reset or a recast
-        recomputes the rest.</span><span class="spacer"></span><button class="btn sm"
-          onClick=${() => setAll(!all)}>${all ? 'Show fewer' : 'Show all'}</button></div>
+          .length} payments</span><span class="spacer"></span><button class="btn sm"
+          onClick=${() => setAll(!all)}>${all ? 'Show Fewer' : 'Show All'}</button></div>
     </div>
   `;
 }
@@ -398,7 +394,12 @@ export function Schedule({ a }) {
  */
 function RowPill({ status }) {
   if (status === 'missed') return html`<span class="pill bad">missed</span>`;
-  if (status === 'assumed') return html`<span class="pill info">assumed as scheduled</span>`;
+  if (status === 'assumed') {
+    return html`
+      <${StatePill} tone="info"
+        why="No payment is recorded for it: it is assumed paid as scheduled.">assumed</${StatePill}>
+    `;
+  }
   return html`<span class="pill ok">paid</span>`;
 }
 
@@ -531,7 +532,7 @@ export function PaymentDialog({ close, a, v }) {
   };
   const e = failed;
   return html`
-    <${DraftDialog} f=${f} title="Record a payment" close=${close} what="This payment"
+    <${DraftDialog} f=${f} title="Record a Payment" close=${close} what="This payment"
       label="Record" done="Payment recorded and split" before=${before}
       disabled=${!split}>
       ${loan
@@ -540,8 +541,7 @@ export function PaymentDialog({ close, a, v }) {
             <${RecField} rec=${loan} name="date" label="Paid on" id="paid-on" type="date" />
             <${RecField} rec=${loan} name="amount" label="Amount" id="amount" />
           </div>
-          <${Field} label="From account" id="from-account"
-            hint="Its half of the transfer is recorded too, or paired with it when already there. None: recorded here only.">
+          <${Field} label="From account" id="from-account">
             <${Select} value=${from} onChange=${setFrom} options=${[
               ['', 'None'],
               ...banks.map((b) => [b.id, b.name]),
@@ -554,11 +554,8 @@ export function PaymentDialog({ close, a, v }) {
                 )}, <${Amt} v=${half.amount} />): it is paired with it, not recorded again.</div>
             `
             : null}
-          <div class="toolbar"><span class="small dim">${shown
-            ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
-            : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span
-            class="spacer"></span><button type="button" class="btn sm" disabled=${!split}
-              onClick=${() => setShown(true)}>Show the split</button></div>
+          <div class="toolbar"><span class="spacer"></span><button type="button" class="btn sm" disabled=${!split}
+              onClick=${() => setShown(true)}>Show the Split</button></div>
           ${shown && split
             ? html`<div class="row" style=${{ flexWrap: 'wrap' }}>${
               PARTS.map(([k, label]) =>
@@ -603,12 +600,8 @@ function ServicerDialog({ close, a }) {
   }, [a.id]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title="Type the servicer's balance" close=${close}
+    <${DraftDialog} f=${f} title="Type the Servicer's Balance" close=${close}
       what="This balance" label="Check" done="Balance recorded and checked">
-      <p class="small dim"
-        style=${{ marginTop: 0 }}>The principal still owed, from ${a
-          .institution || 'the servicer'}'s statement or site. A difference from the schedule's
-        balance shows until it is explained.</p>
       ${rec
         ? html`
           <div class="row">
@@ -635,10 +628,9 @@ export function TermsCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/loan`);
   const v = /** @type {any} */ (res.data);
   return html`
-    <div class="card"><h3>Loan terms</h3>
+    <div class="card"><h3>Loan Terms</h3>
       <${TermsFields} rec=${rec} type=${a.type} />
       <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
-        hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."
         options=${[
           [
             '',
@@ -649,9 +641,9 @@ export function TermsCard({ a, rec }) {
           ...Object.entries(MODES),
         ]} />
       <${Dated} rec=${rec} name="resets" label="Rate resets" what="rate" add="Add a reset"
-        hint="An adjustable rate's new rate from a date, typed when known." />
+        none="No rate resets" />
       <${Dated} rec=${rec} name="recasts" label="Recasts" what="fee" add="Add a recast"
-        hint="The servicer re-amortizes the balance over the rest of the term: a lower payment." />
+        none="No recasts" />
       ${v?.terms
         ? html`<p class="small dim">Computed payment <${Amt} v=${v.terms.computedPayment} />.</p>`
         : null}
@@ -661,11 +653,11 @@ export function TermsCard({ a, rec }) {
 
 /**
  * Dated rows of the terms: an ARM's resets (date, rate) or recasts (date, fee), a list field
- * of the loan's record.
+ * of the loan's record. `none` is the empty line while it has none.
  * @param {{ rec: LoanRec, name: string, label: string, what: string, add: string,
- *   hint: string }} p
+ *   none: string }} p
  */
-function Dated({ rec, name, label, what, add, hint }) {
+function Dated({ rec, name, label, what, add, none }) {
   const key = what === 'rate' ? 'rate-resets' : 'recasts';
   const rows = /** @type {any[]} */ (rec.get(name) || []);
   const set = (/** @type {any[]} */ next) => rec.set(name, next);
@@ -675,7 +667,7 @@ function Dated({ rec, name, label, what, add, hint }) {
     <div class="mt"><div class="toolbar"><b class="small" data-help=${key}>${label}</b><span
       class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
         set([...rows, { date: '', [what]: '0' }])}><${Icon} name="plus" /> ${add}</button></div>
-      ${rows.length ? null : html`<div class="small dim">${hint}</div>`}
+      ${rows.length ? null : html`<${Empty}>${none}</${Empty}>`}
       ${rows.map((r, i) =>
         html`
           <div class="row">

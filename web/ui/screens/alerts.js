@@ -8,7 +8,7 @@ import { refreshBadges } from '../app/stream.js';
 import { moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Failed, Loading } from '../kit/bits.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 
@@ -39,27 +39,26 @@ export default function Alerts() {
       <div class="list-item" style=${{ alignItems: 'flex-start' }}>
         <div class=${'tile ' + (a.resolvedAt ? 't-other' : 't-liability')}><${Icon} name=${a
           .icon} /></div>
-        <div class="grow"><b>${a.title}</b>
-          <div class="small dim">${a.about ? a.about + ' · ' : ''}opened ${moment(a.openedAt)}${a
+        <div class="grow"><span class="row-name">${a.title}</span>
+          <div class="row-more">${a.about ? a.about + ' · ' : ''}opened ${moment(a.openedAt)}${a
               .resolvedAt
             ? ` · resolved ${moment(a.resolvedAt)}${a.resolution ? ': ' + a.resolution : ''}`
             : ''}</div></div>
         ${a.resolvedAt
           ? html`<span class="pill ok">resolved</span>`
           : html`${
-            a.link ? html`<a class="btn sm" href=${a.link}>${a.fix || 'See it'}</a>` : null
+            a.link ? html`<a class="btn sm" href=${a.link}>${a.fix || 'See It'}</a>` : null
           }<button type="button" class="btn sm" onClick=${() => dismiss(a)}>Dismiss</button>`}
       </div>
     `;
   return html`
-    <div class="card"><h3>Open<span class="spacer"></span><span class="small dim"
-      style=${{ fontWeight: 400 }}>Each resolves by itself when its cause clears.</span></h3>
-      ${d.open.length ? d.open.map(row) : html`<p class="small dim">Nothing needs you.</p>`}</div>
+    <div class="card"><h3>Open</h3>
+      ${d.open.length ? d.open.map(row) : html`<${Empty}>Nothing needs you</${Empty}>`}</div>
     <div class="card mt"><h3>Resolved<span class="spacer"></span><span class="small dim"
       style=${{ fontWeight: 400 }}>kept 90 days</span></h3>
       ${d.resolved.length
         ? d.resolved.map(row)
-        : html`<p class="small dim">None in the last 90 days.</p>`}</div>
+        : html`<${Empty}>None in the last 90 days</${Empty}>`}</div>
     <p class="small dim">Emails: ${EMAILS[d.emails] || d.emails} · change it in <a
       href="/ui/profile">Profile</a>.</p>
   `;

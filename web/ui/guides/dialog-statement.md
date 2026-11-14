@@ -1,4 +1,4 @@
-# Check the statement
+# Check the Statement
 
 What was read from the statement, before anything is saved. Nothing is saved until you import it.
 
@@ -21,14 +21,14 @@ As the statement shows it. The transactions must add up from the opening balance
 
 ## Include
 
-Untick a line that isn't a transaction (a subtotal, a daily balance). A line already in the account
-is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
+Untick a line that isn't a transaction (a subtotal, a daily balance). A line marked **duplicate**, already in the
+account, is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
 
 ## Remember… {#remember}
 
 A line you untick offers **Remember…**: it asks to ignore future lines starting like it (its first
 three words, which you can change), from this institution's next statements on. They still show,
-left out, saying so, with **Stop ignoring**. Profile lists what you ignore, to remove it.
+left out, saying so, with **Stop Ignoring**. Profile lists what you ignore, to remove it.
 
 ## Description
 
@@ -36,7 +36,8 @@ The payee as the statement words it; payee rules tidy it after.
 
 ## Amount
 
-Money in is positive, money out negative. A line whose sign was guessed says so: check it. Once the
+Money in is positive, money out negative. A line whose sign the reader wasn't sure of is marked
+**its sign was guessed**: check it. Once the
 transactions add up, **Adds up** says yes.
 
 ## Accept difference {#accept-difference}

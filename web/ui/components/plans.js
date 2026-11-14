@@ -2,6 +2,7 @@
 // own page, beside the Projections screen.
 import { html } from '../app/html.js';
 import { useList } from '../app/hooks.js';
+import { Empty } from '../kit/state.js';
 
 const TONE =
   /** @type {Record<string, string>} */ ({ 'on track': 'ok', ahead: 'ok', behind: 'warn' });
@@ -18,22 +19,19 @@ export function PlansFor({ kind, id, all = false }) {
       : r.builtOn.kind === 'accounts' && r.builtOn.ids?.length === 1 && r.builtOn.ids[0] === id)
   );
   if (!rows.length) {
-    return all
-      ? html`<p class="small dim">No projection is built on it yet. Make one on the <a
-          href="/ui/projections">Projections</a> screen.</p>`
-      : null;
+    return all ? html`<${Empty}>No projection built on it yet</${Empty}>` : null;
   }
   return html`
     <div class="card"><h3>${all ? 'Projections' : 'Plan'}</h3>
       ${rows.map((r) =>
         html`<a class="list-item" href=${`/ui/projections/${r.id}`} style=${{ color: 'inherit' }}>
-          <div class="grow"><b>${r.name}</b> ${
+          <div class="grow"><span class="row-name">${r.name}</span> ${
           r.active
             ? html`<span class=${'pill ' + (TONE[r.status] || '')}>${
               r.status && r.status !== 'untracked' ? r.status : 'active'
             }</span>`
             : html`<span class="pill">scenario</span>`
-        }<div class="small dim">${r.headline}</div></div></a>`
+        }<div class="row-more">${r.headline}</div></div></a>`
       )}
     </div>
   `;

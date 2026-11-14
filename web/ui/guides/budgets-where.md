@@ -1,7 +1,10 @@
-# Where the money is
+# Where the Money Is
 
 For each account reserves are held in: what they hold, what was moved there, and what is to move
-there or back. And for each card in the budget, what it owes and how it's paid.
+there or back. And for each card in the budget, what it owes and how it's paid: spending counts when
+charged, and paying the card moves nothing in a tracking budget.
+
+A scenario is marked **scenario**: the figures are its own, and only the active budget says what to move.
 
 ## Month
 
@@ -16,7 +19,7 @@ Which budget's reserves and cards.
 Works the month's figures out again at once; they're kept once worked out, and worked out again
 on their own when anything they come from changes.
 
-## Keep as the account's own {#keep-own}
+## Keep as the Account's Own {#keep-own}
 
 A transfer into the account from the budget's accounts counts as money moved in for the reserves.
 When it's savings of the account's own instead, keep it as the account's own: it then doesn't count

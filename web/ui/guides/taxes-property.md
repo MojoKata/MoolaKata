@@ -1,4 +1,4 @@
-# Taxes: Loans and property
+# Taxes: Loans and Property
 
 Mortgage and student-loan interest, and physical assets sold.
 
@@ -14,7 +14,7 @@ out.
 Interest, PMI and property tax through escrow per loan, from the payments' splits; compare with the
 Form 1098 when it arrives.
 
-## Physical assets sold
+## Physical Assets Sold
 
 Each item sold in the year with its gain; collectables are marked, and a loss on personal-use
 property isn't deductible. A sold primary residence shows its gain and the years owned; the

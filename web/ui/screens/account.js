@@ -46,7 +46,7 @@ import { RANGES, TimeChart } from '../charts/chart.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
-import { AcctRec, KEPT_BY, KeptBy, LOT_HINT, LOT_METHODS } from './new-account.js';
+import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
 import {
   DraftDialog,
   DraftForm,
@@ -61,7 +61,7 @@ import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../kit/pager.js';
 import { pageSize } from '../store/prefs.js';
 import { Dec, dec } from '../kit/dec.js';
-import { Action, Attention } from '../kit/state.js';
+import { Action, Attention, StatePill } from '../kit/state.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -212,7 +212,7 @@ function Holdings({ a }) {
       why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(OptionTrade, { accountId: a.id }).then((x) =>
           x && res.reload()
-        )}>Record an option trade</${Action}></div>
+        )}>Record an Option Trade</${Action}></div>
   `;
   if (!h.holdings.length) {
     return html`${trade}<${Empty}>Nothing held yet</${Empty}>`;
@@ -230,7 +230,7 @@ function Holdings({ a }) {
               <th class="num">Quantity</th>
               <th class="num">Price</th>
               <th class="num">Value</th>
-              <th class="num">Cost basis</th>
+              <th class="num">Cost Basis</th>
               <th class="num">Gain</th>
             </tr>
           </thead>
@@ -279,7 +279,7 @@ function Holdings({ a }) {
                           <tr>
                             <th>Acquired</th>
                             <th class="num">Quantity</th>
-                            <th class="num">Cost basis</th>
+                            <th class="num">Cost Basis</th>
                             <th>Term</th>
                           </tr>
                         </thead>
@@ -338,7 +338,6 @@ function Holdings({ a }) {
             thing${h.problems.length === 1 ? '' : 's'} to check</${Attention}></div>
         `
         : null}
-      <p class="small dim">Prices are daily closes, delayed; hover a price for its source and date.</p>
   `;
 }
 
@@ -430,13 +429,16 @@ function Reconcile({ a, all, reload }) {
         html`
           <div class="list-item mt">
             <${Icon} name="alert" />
-            <div class="grow small"><b>Gap</b>: nothing imported between ${date(g[0])} and ${date(
-              g[1],
-            )}.</div>
+            <div
+              class="grow small"><span class="row-name">Gap</span>: nothing imported between ${date(
+                g[0],
+              )} and ${date(
+                g[1],
+              )}.</div>
             <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
-              )}>Import a file</${Action}></div>
+              )}>Import a File</${Action}></div>
         `
       )}
       ${v.overlaps.map((/** @type {string[]} */ o) =>
@@ -444,14 +446,16 @@ function Reconcile({ a, all, reload }) {
           <div class="list-item">
             <${Icon} name="info" />
             <div
-              class="grow small"><b>Overlap</b>: two imports both cover ${date(o[0])} to ${date(
+              class="grow small"><span class="row-name">Overlap</span>: two imports both cover ${date(
+                o[0],
+              )} to ${date(
                 o[1],
               )}. Rows they share were matched, not doubled.</div>
           </div>
         `
       )}
       ${segs.length && !v.gaps.length && !v.overlaps.length
-        ? html`<p class="small dim mt" style=${{ marginBottom: 0 }}>No gaps or overlaps.</p>`
+        ? html`<${Empty}>No gaps or overlaps</${Empty}>`
         : null}
     </div>
     ${v.needsAnchor
@@ -463,19 +467,19 @@ function Reconcile({ a, all, reload }) {
                 again,
               )}>Import</${Action}>
             <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
-              openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's
-              balance</${Action}>
+              openDialog(TypeBalance, { a }).then((x) => x && again())}>Type Today's
+              Balance</${Action}>
           `}>Statement overdue</${Attention}></div>
       `
       : null}
     <div class="card mt">
-      <h3>Balance checks<span class="spacer"></span>
+      <h3>Balance Checks<span class="spacer"></span>
       <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
-        openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</${Action}>
+        openDialog(TypeBalance, { a }).then((x) => x && again())}>Type Today's Balance</${Action}>
       <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
         openDialog(TickOff, { a }).then((x) =>
           x && again()
-        )}>Tick off against a statement</${Action}>
+        )}>Tick Off against a Statement</${Action}>
     </h3>
       ${v.checks.length
         ? html`
@@ -516,18 +520,20 @@ function Reconcile({ a, all, reload }) {
             </table>
           </div>
         `
-        : html`<p class="small dim">No balance from the institution yet.</p>`}
+        : html`<${Empty}>No balance from the institution yet</${Empty}>`}
       ${v.openingStandIn
         ? html`
-          <p
-            class="small dim">The opening balance stands in for history before the first import; it is worked out from the earliest reported balance.</p>
+          <div class="mt">
+            <${StatePill}
+              why="The opening balance, worked out from the earliest balance the institution reported, stands in for history before the first import."
+            >stand-in</${StatePill}></div>
         `
         : null}
     </div>
     ${bad ? html`<${Mismatch} a=${a} check=${bad} all=${all} again=${again} />` : null}
     <${StatementChecks} v=${v} />
     ${v.reconciliations.length
-      ? html`<div class="card mt"><h3>Statements ticked off</h3>${
+      ? html`<div class="card mt"><h3>Statements Ticked Off</h3>${
         v.reconciliations.map((/** @type {any} */ r) =>
           html`
             <div
@@ -565,11 +571,12 @@ function Mismatch({ a, check, all, again }) {
           html`
             <div class="list-item">
               <${Icon} name="receipt" />
-              <div class="grow"><b>Possible duplicate</b>: ${ids
-                .length} identical rows on one day.</div>
+              <div
+                class="grow"><span class="row-name">Possible duplicate</span>: ${ids
+                  .length} identical rows on one day.</div>
               <${Action} class="btn sm" why=${whyRead(a)} onClick=${() =>
-                both.run(ids[0])}>Both are real</${Action}>
-                  <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove one</a></div>
+                both.run(ids[0])}>Both Are Real</${Action}>
+                  <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove One</a></div>
           `
         )}
         ${s.changed.length
@@ -577,7 +584,7 @@ function Mismatch({ a, check, all, again }) {
             <div class="list-item">
               <${Icon} name="info" />
               <div
-                class="grow"><b>Changed amounts</b>: ${s.changed
+                class="grow"><span class="row-name">Changed amounts</span>: ${s.changed
                   .length} transaction${s.changed.length === 1
                   ? ''
                   : 's'} changed between imports.</div>
@@ -589,13 +596,14 @@ function Mismatch({ a, check, all, again }) {
             <div
               class="list-item">
               <${Icon} name="alert" />
-              <div class="grow"><b>Gap</b>: ${date(
-                g[0],
-              )} to ${date(g[1])} has no imports.</div>
+              <div
+                class="grow"><span class="row-name">Gap</span>: ${date(
+                  g[0],
+                )} to ${date(g[1])} has no imports.</div>
               <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
                 openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                   again,
-                )}>Import a file</${Action}></div>
+                )}>Import a File</${Action}></div>
           `
         )}
         ${s.firstParting
@@ -603,7 +611,7 @@ function Mismatch({ a, check, all, again }) {
             <div class="list-item">
               <${Icon} name="info" />
               <div
-                class="grow small">The file's running balance parts from MoolaKata's at one row; check the transactions around it.</div>
+                class="grow small">The file's running balance parts from MoolaKata's at one row.</div>
             </div>
           `
           : null}
@@ -611,7 +619,7 @@ function Mismatch({ a, check, all, again }) {
           why=${whyNotAdd('Txn', a)} onClick=${() =>
             openDialog(Adjust, { a, check }).then((x) =>
               x && again()
-            )}>Accept as an adjustment…</${Action}></div>
+            )}>Accept as an Adjustment…</${Action}></div>
       </div>
   `;
 }
@@ -632,11 +640,8 @@ function TypeBalance({ close, a }) {
   }, [a.id]);
   const rec = /** @type {AnchorRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Type today's balance" close=${close} what="This balance"
+    <${DraftDialog} f=${f} title="Type Today's Balance" close=${close} what="This balance"
       label="Check" done="Balance recorded and checked">
-      <p class="small dim" style=${{ marginTop: 0 }}>Copy the balance from ${a.institution ||
-        'the institution'}'s site or app.
-          MoolaKata checks it against its own for the same day.</p>
       ${rec
         ? html`
           <div class="row">
@@ -664,17 +669,15 @@ function Adjust({ close, a, check }) {
   }, [a.id, check.date]);
   const rec = /** @type {Txn | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Accept as a balance adjustment" close=${close}
-      what="This adjustment" label="Record the adjustment"
+    <${DraftDialog} f=${f} title="Accept as a Balance Adjustment" close=${close}
+      what="This adjustment" label="Record the Adjustment"
       done="Recorded as a balance adjustment">
       <p class="small dim"
         style=${{ marginTop: 0 }}>A transaction of <${Amt} v=${check
-          .difference} signed /> on ${date(check.date)},
-          marked as an adjustment, in the account and in Activity.</p>
+          .difference} signed /> on ${date(check.date)}.</p>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="memo" label="Why" id="note"
-            placeholder="ex: A fee the bank refunded" />
+          <${RecField} rec=${rec} name="memo" label="Why" id="note" />
         `
         : null}
     </${DraftDialog}>
@@ -721,11 +724,11 @@ function TickOff({ close, a }) {
   const rows =
     /** @type {any} */ (txns.data)?.items?.filter((/** @type {any} */ t) => !t.reconciled) || [];
   return html`
-    <${Dialog} title="Tick off against a statement" wide close=${close}
+    <${Dialog} title="Tick Off against a Statement" wide close=${close}
       onSubmit=${() => (rec ? finish.run().catch(() => {}) : start.run().catch(() => {}))}
       footer=${html`<button class="btn primary" disabled=${
         start.busy || finish.busy || (rec && !dec(rec.difference).isZero())
-      }>${rec ? 'Mark reconciled' : 'Start'}</button>`}>
+      }>${rec ? 'Mark Reconciled' : 'Start'}</button>`}>
       <div class="row">
         <${Field} label="Statement closing date" id="statement-date">
           <${TypedInput} kind="date" value=${day} onInput=${setDay}
@@ -783,9 +786,6 @@ function TickOff({ close, a }) {
                 </div>
               </div>
             </div>
-            <p
-              class="small dim">Tick until the difference is zero; the period is then marked reconciled, and editing a
-                    transaction inside it asks first.</p>
           `
           : null}
         <${FormError} error=${start.error || finish.error} shown=${['statementBalance']} />
@@ -800,7 +800,7 @@ function Sharing({ a, reload }) {
   if (!a.access.shareable) {
     return html`
       <div class="card">
-        <h3>Shared with you</h3>
+        <h3>Shared with You</h3>
         <div class="list-item">
           <div class="grow">
             ${a.ownerName} shares this account with you at <b>${a.access.writable
@@ -830,7 +830,7 @@ function Sharing({ a, reload }) {
     : [];
   return html`
     <div
-      class="card"><h3>Who has this account<span class="spacer"></span><button type="button" class="btn sm"
+      class="card"><h3>Who Has This Account<span class="spacer"></span><button type="button" class="btn sm"
         onClick=${() =>
           openDialog(ShareDialog, { kind: 'account', id: a.id, name: a.name }).then(() => {
             res.reload();
@@ -845,7 +845,7 @@ function Sharing({ a, reload }) {
               x.allow === 'write' ? 'pencil' : 'eye'
             } /> ${x.allow}</span></div>`
           )
-          : html`<p class="small dim">Only you. A new account is shared with no one.</p>`}</div>
+          : html`<${Empty}>Only you</${Empty}>`}</div>
   `;
 }
 
@@ -885,10 +885,10 @@ function Settings({ a, reload }) {
     if (a.access.mine) return null;
     return html`
       <div class="card content-narrow">
-        <h3>Your view of it</h3>
-        <${SwitchRow} label="Count in my totals"
-          hint="Off by default: a shared account counts in your net worth only if you say so."
-          on=${a.counted} onChange=${(/** @type {boolean} */ v) => counted.run(v)} />
+        <h3>Your View of It</h3>
+        <${SwitchRow} label="Count in my totals" on=${a.counted} onChange=${(
+          /** @type {boolean} */ v,
+        ) => counted.run(v)} />
       </div>
     `;
   }
@@ -931,7 +931,7 @@ function Settings({ a, reload }) {
                 toast(`${a.name} deleted`);
                 route('/ui/accounts');
               } else if (r?.status !== 'asks') f.draft.unremove(rec);
-            }}>Delete account…</button>
+            }}>Delete Account…</button>
         `}>
       ${rec
         ? html`
@@ -946,8 +946,7 @@ function Settings({ a, reload }) {
               ${a.investing
                 ? html`
                   <${RecField} rec=${rec} name="lotMethod" label="Lot method"
-                    options=${LOT_METHODS}
-                    hint=${LOT_HINT} />
+                    options=${LOT_METHODS} />
                 `
                 : null}
               ${loan || physical || wallet ? null : html`
@@ -958,9 +957,8 @@ function Settings({ a, reload }) {
                 </div>
               `}
               <${RecField} rec=${rec} name="closedOn" label="Closed on" type="date"
-                hint="Empty while open. A closed account counts up to this day and stays for history and taxes; to remove one made by mistake, delete it." />
-              <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth"
-                hint="Your totals include it." />
+                placeholder="still open" />
+              <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth" />
             </div>
             ${loan && terms
               ? html`
@@ -975,43 +973,31 @@ function Settings({ a, reload }) {
               : wallet
               ? html`<${WalletCard} a=${a} rec=${rec} />`
               : physical
-              ? html`
-                <div class="card">
-                  <h3>Keeping it current</h3>
-                  <p class="small dim">Its value is its items': add them, and their valuations,
-                    on the Items tab.</p>
-                </div>
-              `
+              ? null
               : education && plan && f.draft
               ? html`
                 <div class="grid" style=${{ alignContent: 'start' }}>
                   <${PlanCard} rec=${plan} />
                   <div class="card">
-                    <h3>Keeping it current</h3>
+                    <h3>Keeping It Current</h3>
                     ${keeping(rec)}
                   </div>
                 </div>
               `
               : html`
                 <div class="card">
-                  <h3>Keeping it current</h3>
+                  <h3>Keeping It Current</h3>
                   ${keeping(rec)}
-                  ${education
-                    ? null
-                    : html`<p class="small dim">Import OFX, QFX or CSV files from the Transactions
-                      tab. A CSV's columns are asked once per institution and remembered.</p>`}
                   ${['savings', 'money-market'].includes(a.type)
                     ? html`
                       <${RecField} rec=${rec} name="withdrawalsAMonth"
                         label="Withdrawals allowed a month" id="withdrawals-a-month"
-                        placeholder="no limit"
-                        hint="The bank's limit, empty for none. Budgets sum the moves back within it." />
+                        placeholder="no limit" />
                     `
                     : null}
                   ${a.type === 'hsa'
                     ? html`
                       <${RecField} rec=${rec} name="hsaCoverage" label="Coverage" id="hsa-coverage"
-                        hint="Self-only or family: the year's contribution limit is the one it says."
                         options=${[['', 'Not set'], ['self', 'Self-only'], ['family', 'Family']]} />
                     `
                     : null}
@@ -1043,7 +1029,6 @@ function StatementsExpected({ a, rec }) {
   return html`
     <${RecField} rec=${rec} name="statementInterval" label="Statements expected"
       id="statements-expected"
-      hint="An alert asks for a statement once it is overdue: the interval and a grace period after it."
       options=${[
         ['', `As the type: ${label(a.statementIntervalDefault).toLowerCase()}`],
         ...INTERVALS,
@@ -1074,7 +1059,7 @@ function StatementChecks({ v }) {
       ${v.valueChecks.length
         ? html`
           <div
-            class="card"><h3 data-help="value-checks">Statement values</h3>${v.valueChecks
+            class="card"><h3 data-help="value-checks">Statement Values</h3>${v.valueChecks
               .slice(-6)
               .reverse()
               .map((/** @type {any} */ c) =>
@@ -1085,8 +1070,7 @@ function StatementChecks({ v }) {
                     ? html`<span class="pill ok">matches</span>`
                     : html`<span class="pill warn"><${Amt} v=${c.difference} signed /></span>`
                 }</div>`
-              )}<p class="small dim">Cash and holdings together, at that day's prices: within half a
-                      percent counts as a match.</p></div>
+              )}</div>
         `
         : null}
       ${v.holdingChecks.length
@@ -1150,9 +1134,9 @@ function TransferPairs({ a, reload }) {
               x.toDate,
             )}: one transfer? <button type="button" class="btn sm primary" disabled=${act.busy}
               onClick=${() =>
-                act.run(x, true).catch(() => {})}>Match them</button> <button type="button"
+                act.run(x, true).catch(() => {})}>Match Them</button> <button type="button"
               class="btn sm" disabled=${act.busy} onClick=${() =>
-                act.run(x, false).catch(() => {})}>Not a transfer</button></div>
+                act.run(x, false).catch(() => {})}>Not a Transfer</button></div>
         </div>
       `
     )

@@ -9,7 +9,7 @@ the original schedule, interest paid so far and still to pay, and principal paid
 **Overpaid** is principal paid beyond the schedule. **Missed**, with payments recorded here, is how
 many payment days passed 15 days with no payment recorded, and what they were due.
 
-## Record a payment
+## Record a Payment
 
 A payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. From a
 bank account, its half of the transfer is recorded too.
@@ -24,7 +24,7 @@ balance shows until it is explained: a fee, a missed payment, a wrong rate.
 The payoff plan you're following (the Payoff tab), and whether what you've overpaid since you chose
 it is ahead of the plan or behind.
 
-## Looks like a payment
+## Looks like a Payment
 
 Bank transactions of the last 90 days within 2% of the payment that aren't a transfer yet. **Link**
 makes one the transfer into this loan, split by the schedule. When the loan already holds the
@@ -34,7 +34,7 @@ likely that payment.
 
 @@ settings
 
-## Loan terms
+## Loan Terms
 
 The terms give the schedule; saving them recomputes it.
 
@@ -77,7 +77,7 @@ The category the whole payment counts in: _Loan payments_ unless you choose anot
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Payments {#payments-mode}

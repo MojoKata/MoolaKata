@@ -287,12 +287,12 @@ export function Dialog(
           ? html`
             <div class="dialog-ask" role="alertdialog" aria-labelledby=${ids + 'dialog-ask-title'}>
               <div class="dialog-ask-box">
-                <h3 id=${ids + 'dialog-ask-title'}>Save your changes?</h3>
+                <h3 id=${ids + 'dialog-ask-title'}>Save Your Changes?</h3>
                 <p class="small dim">What you changed in this dialog isn't saved. Save it, or
                   discard it and go on.</p>
                 <div class="dialog-ask-buttons">
                   <button type="button" class="btn" ref=${keep}
-                    onClick=${() => setAsking(false)}>Keep editing</button>
+                    onClick=${() => setAsking(false)}>Keep Editing</button>
                   <button type="button" class="btn danger" onClick=${() => close()}>Discard</button>
                   ${save
                     ? html`

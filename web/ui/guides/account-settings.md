@@ -35,13 +35,14 @@ The day the opening balance applies to.
 ## Closed on
 
 The day the account closed; empty while it is open. A closed account counts in your figures up
-to that day, budgets and returns included, and stays for history and taxes, marked closed.
+to that day, budgets and returns included, and stays for history and taxes, marked closed. To
+remove one made by mistake, delete it instead.
 
 ## Count in net worth
 
 Whether your totals include it.
 
-## Delete account
+## Delete Account
 
 Deletes it with its transactions, only by its owner. Deleting is for an account made by
 mistake: its transactions leave every past figure too, budgets, returns and taxes. To keep its
@@ -49,26 +50,27 @@ history, close it instead. The click asks again first.
 
 ## Count in my totals
 
-On an account shared with you: whether your net worth includes it. Off by default, so a spouse's
-accounts count once.
+On an account shared with you: whether your net worth includes it. Off by default: a shared
+account counts only if you say so, so a spouse's accounts count once.
 
 {{account-type settings}}
 
 ## Method {#kept-by}
 
 How the account is kept current: by imports (files and statements alike), or by hand. It sets only
-whether statements are expected.
+whether statements are expected. Files are OFX, QFX or CSV, imported from the Transactions tab; a
+CSV's columns are asked once per institution and remembered.
 
 ## Sync using MoolaKata Connector {#sync-using-moolakata-connector}
 
 The connector fetches this account from its institution with one of your connections and
-imports what it fetches as an upload would. Only the account's owner turns it on; an account
-shared with write can't be. **Save** keeps the choice with the rest of the settings. Each post
-shows in Activity as by the connector and the connection.
+imports what it fetches as an upload would; the sign-in stays yours. Only the account's owner
+turns it on; an account shared with write can't be. **Save** keeps the choice with the rest of the
+settings. Each post shows in Activity as by the connector and the connection.
 
 ## Connection
 
-One of your own sign-ins kept by the connector (Profile › Connections), or **New connection…**
+One of your own sign-ins kept by the connector (Profile › Connections), or **New Connection…**
 to start one here.
 
 ## Institution account
@@ -89,5 +91,5 @@ proposed again once the settings are saved.
 ## Withdrawals allowed a month {#withdrawals-a-month}
 
 A savings or money-market account's limit on transfers out, the bank's; empty for none. A budget's
-**Where the money is** sums the moves back to checking into one transfer a month and warns before it
+**Where the Money Is** sums the moves back to checking into one transfer a month and warns before it
 would go past the limit.

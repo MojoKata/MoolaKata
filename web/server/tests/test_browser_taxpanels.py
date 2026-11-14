@@ -321,7 +321,7 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
     assert "Short term +$900.00 Long term +$102,290.00" in facts
     assert "Of it, collectables +$2,000.00" in facts
     assert "Loss carried from last year $1,700.00" in facts
-    washes = _text(page, _card("Wash sales"))
+    washes = _text(page, _card("Wash Sales"))
     assert (
         "KO sold Sep 1, 2021 TP broker · replaced Sep 11, 2021 in TP broker (4 shares), basis "
         "now $244.00 W $40.00 of $100.00"
@@ -364,8 +364,8 @@ def test_the_income_panel_shows_each_line(browser, world):
         "Ordinary (1a) $350.00 Qualified (1b) $300.00 Capital-gain distributions (2a) $25.00 "
         "Return of capital $130.00 TP Schwab $375.00"
     ) in div
-    assert _text(page, _card("Foreign tax paid (7)")).endswith("TP Schwab $12.34")
-    assert _text(page, _card("Crypto income")).endswith("TP exchange $20.00")
+    assert _text(page, _card("Foreign Tax Paid (7)")).endswith("TP Schwab $12.34")
+    assert _text(page, _card("Crypto Income")).endswith("TP exchange $20.00")
     assert problems == []
     page.close()
 
@@ -375,17 +375,19 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
     74; a distribution, last year's 8606 basis, the RMDs; a conversion taxed by Form 8606's
     pro rata share, and a rollover."""
     page, problems = opened(
-        browser, world, YEAR, "retirement", f"{_card('Roth conversions')} .list-item"
+        browser, world, YEAR, "retirement", f"{_card('Roth Conversions')} .list-item"
     )
     table = page.locator('table:has(caption:text("Contributions")) tbody tr')
     rows = {r.split("\n")[0]: " ".join(r.split()) for r in table.all_inner_texts()}
     ira = rows["TP IRA"]
     assert ira.startswith("TP IRA Traditional IRA Admin $7,000.00 $8,000.00")
-    assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over the limit")
+    assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over")
     assert "Roth eligibility depends on MAGI" in rows["TP Roth"]
-    assert "over the limit" in rows["TP Roth"]
+    # Over its limit: a pill, "over", whose tooltip says so.
+    over = table.filter(has=page.locator(".pill.warn", has_text="over"))
+    assert {r.split("\n")[0] for r in over.all_inner_texts()} >= {"TP IRA", "TP Roth"}
     assert rows["TP 401(k)"].startswith("TP 401(k) 401(k) Admin $0.00 $26,000")
-    assert "over the limit" not in rows["TP 401(k)"]
+    assert "TP 401(k)" not in {r.split("\n")[0] for r in over.all_inner_texts()}
     assert (
         "set the coverage; with the catch-up at 55 and over; 1,000.00 of it from the employer"
         in (rows["TP HSA"])
@@ -396,7 +398,7 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
         "Admin's Form 8606 basis: $2,000.00 carried from last year, $7,000.00 not deductible "
         "this year."
     ) in dist
-    rmds = _text(page, _card("Required minimum distributions"))
+    rmds = _text(page, _card("Required Minimum Distributions"))
     for line in (
         "TP IRA Admin, 74: $100,000 at the end of last year ÷",
         "25.5 $3,921.57",
@@ -404,7 +406,7 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
         "25.5 $1,176.47",
     ):
         assert line in rmds, (line, rmds)
-    conv = _text(page, _card("Roth conversions"))
+    conv = _text(page, _card("Roth Conversions"))
     assert "TP IRA → TP Roth Mar 2, 2021" in conv
     # 10,000 − (2,000 + 7,000) × 10,000 / (113,000 at the year's end + 10,000 + 4,000 out).
     assert "· taxed $9,291.34 by Form 8606 $10,000.00" in conv
@@ -430,10 +432,10 @@ def test_the_deductions_panel_shows_tags_payments_and_dependents(browser, world)
     pills = table.locator(".pill")
     assert pills.nth(0).get_attribute("class") == "pill ok"
     assert pills.nth(2).get_attribute("class") == "pill warn"
-    paid = _text(page, _card("Estimated payments"))
+    paid = _text(page, _card("Estimated Payments"))
     assert "Federal · Q1 $1,000.00 Federal · Q2 $1,000.00 Utah · Q1 $300.00" in paid
     assert "Last year's total tax: $8,400; paid in 2021 so far: $2,300." in paid
-    deps = _text(page, _card("Dependents' ages on Dec 31"))
+    deps = _text(page, _card("Dependents' Ages on Dec 31"))
     assert "Emma Griffin 3 · under 13 · under 17" in deps
     assert "TP Margaret age unknown" in deps
     assert (
@@ -446,7 +448,7 @@ def test_the_deductions_panel_shows_tags_payments_and_dependents(browser, world)
 def test_the_giving_panel_shows_acknowledgements_and_what_is_apart(browser, world):
     """S8.9: goods past $500 and an item past $5,000 noted; each gift's acknowledgement
     received, missing or not needed; a QCD apart, not deducted."""
-    page, problems = opened(browser, world, YEAR, "giving", 'h3:text("Not deducted")')
+    page, problems = opened(browser, world, YEAR, "giving", 'h3:text("Not Deducted")')
     notes = page.locator(".notice").all_inner_texts()
     assert notes == [
         "Goods given this year come to over $500: Form 8283 goes with the return.",
@@ -461,9 +463,9 @@ def test_the_giving_panel_shows_acknowledgements_and_what_is_apart(browser, worl
         "Oct 2, 2021 St. Mark's Parish Cash $400.00 missing",
         "Oct 2, 2021 St. Mark's Parish Goods $6,000.00 missing",
     ]
-    apart = _text(page, '.card:has(h3:text("Not deducted"))')
+    apart = _text(page, '.card:has(h3:text("Not Deducted"))')
     assert "Oct 2, 2021 St. Mark's Parish QCD from an IRA $1,000.00 —" in apart
-    assert "QCDs (excluded from income instead)" in apart
+    assert "excluded from income" not in apart, "what the card holds is in its guide (R3.12)"
     assert problems == []
     page.close()
 
@@ -473,14 +475,14 @@ def test_the_education_panel_shows_the_529_students_and_gifts(browser, world):
     its withdrawal past the expenses; a dependent student's 1098-T and withdrawals; a gift
     past the exclusion and a five-year election running."""
     page, problems = opened(browser, world, YEAR, "education", ':text("year 1 of 5")')
-    plans = _text(page, _card("529 plans"))
+    plans = _text(page, _card("529 Plans"))
     assert (
         "TP 529 · Emma Griffin From Admin $70,000.00 From TP Margaret $5,000.00 State deduction "
         "expected $2,410 Distributions (1099-Q) $6,000.00 Qualified expenses $4,500.00 Not "
         "covered $1,500.00"
     ) in plans
     assert (
-        "Dependent students Emma Griffin 529 withdrawals for them: $6,000.00 1098-T received"
+        "Dependent Students Emma Griffin 529 withdrawals for them: $6,000.00 1098-T received"
     ) in plans
     gifts = _text(page, _card("Gifts (Form 709)"))
     assert "Admin to Emma Griffin above the $15,000 exclusion $30,000.00" in gifts
@@ -500,7 +502,7 @@ def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
         "escrow $200.00"
     ) in loans
     assert "TP student loan · 1098-E Interest $83.33" in loans
-    sold = _text(page, _card("Physical assets sold"))
+    sold = _text(page, _card("Physical Assets Sold"))
     assert "TP coin May 1, 2021 · collectable +$2,000.00" in sold
     assert "TP car May 1, 2021 · a loss on personal-use property, not deductible $0.00" in sold
     assert "TP cottage Jul 1, 2021 +$100,000.00" in sold
@@ -548,16 +550,16 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     page, problems = opened(browser, world, YEAR, "summary", 'text="2 acknowledgements missing"')
     kpis = [" ".join(x.split()) for x in page.locator(".card.kpi").all_inner_texts()]
     assert kpis[:4] == [
-        "Net capital gain or loss +$103,190 short +$900 · long +$102,290",
+        "Net Capital Gain or Loss +$103,190 short +$900 · long +$102,290",
         "Dividends $350 qualified $300",
         "Interest $3,121 2 payers",
-        "Charitable gifts $6,800 2 acknowledgements missing",
+        "Charitable Gifts $6,800 2 acknowledgements missing",
     ]
     book = world.book(YEAR)
     have = sum(1 for e in book["expected"] if e["document"])
     assert kpis[4:] == [
         "Filers Admin one filer",
-        f"Accounts counted {len(book['accounts'])} all the filers’ own",
+        f"Accounts Counted {len(book['accounts'])} all the filers’ own",
         "Filings 3 past due",
         f"Documents {have} of {len(book['expected'])} {len(book['expected']) - have} still to come",
     ]
@@ -575,7 +577,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     )
     assert status == 200 and kind.startswith("text/csv")
     assert "TP coin" in csv and "10 KO" in csv
-    last = _text(page, _card("From last year"))
+    last = _text(page, _card("From Last Year"))
     assert (
         "Federal · Form 1040 · Admin Adjusted gross income $90,000.00 Total tax $8,400.00 "
         "Capital-loss carryover, short term $500.00 Capital-loss carryover, long term "
@@ -606,18 +608,18 @@ def test_the_filings_tab_shows_each_returns_progress_and_result(browser, world):
         for x in page.locator("main .card.mt").all_inner_texts()
     }
     fed = next(v for k, v in cards.items() if k.startswith("Federal"))
-    assert "In progress" in fed and "past its due date" in fed
+    assert "In progress" in fed and "overdue" in fed
     assert "Due Oct 17, 2022 extended Filed —" in fed and "· e-file Result" in fed
     assert "Result Owed $640.00 Documents 1" in fed
     assert fed.endswith("Estimated payments: Q1 $1,000 · Q2 $1,000")
     utah = next(v for k, v in cards.items() if k.startswith("Utah"))
-    assert "Accepted" in utah and "past its due date" not in utah
+    assert "Accepted" in utah and "overdue" not in utah
     assert (
         "Due — Filed Apr 10, 2022" in utah and "· paper Result Refund $120.00 Documents —" in utah
     )
     assert utah.endswith("Estimated payments: Q1 $300")
     city = next(v for k, v in cards.items() if k.startswith("TP City"))
-    assert "Not started" in city and "past its due date" in city
+    assert "Not started" in city and "overdue" in city
     assert "Due Apr 18, 2022 Filed — Result Nothing due Documents —" in city
     assert problems == []
     page.close()
@@ -659,7 +661,7 @@ def test_attach_opens_an_expected_document_filled_in(browser, world):
     page, problems = opened(browser, world, YEAR, "documents", 'text="tp-1040.pdf"')
     page.click('tr:has(td:text-is("1099-DA")) button:has-text("Attach")')
     wait(page, ".dialog #f-issuer", problems)
-    assert page.locator("#dialog-title").inner_text() == "Add a tax document"
+    assert page.locator("#dialog-title").inner_text() == "Add a Tax Document"
     assert page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text() == "Received"
     assert page.input_value("#f-form") == "1099-DA"
     assert page.input_value("#f-issuer") == "TP Coinbase"
@@ -673,14 +675,14 @@ def test_attach_opens_an_expected_document_filled_in(browser, world):
 def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
     """S8.16: a filed document is the return as filed, for one of the book's filings."""
     page, problems = opened(browser, world, YEAR, "documents", 'text="tp-1040.pdf"')
-    page.click('button:has-text("Add a filed document")')
+    page.click('button:has-text("Add a Filed Document")')
     wait(page, ".dialog #f-filing", problems)
-    assert page.locator("#dialog-title").inner_text() == "Add a filed document"
+    assert page.locator("#dialog-title").inner_text() == "Add a Filed Document"
     assert page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text() == "Filed"
     assert page.input_value("#f-form") == "Return as filed"
     first = world.book(YEAR)["filings"][0]["id"]
     assert page.input_value("#f-filing") == first
-    assert page.get_attribute("#f-issuer", "placeholder") == "ex: IRS"
+    assert page.get_attribute("#f-issuer", "placeholder") is None, "a name is no placeholder"
     assert page.locator("#f-account").count() == 0, "a filed document reports on no account"
     _close_dialog(page, problems)
     assert problems == []
@@ -688,22 +690,22 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
 
 
 EMPTY_STATES = {
-    "gains": ["No sales in 2020", "None found: no loss sale was replaced within 30 days."],
+    "gains": ["No sales in 2020", "None found"],
     "income": ["No interest in 2020", "None in 2020", "No staking or rewards in 2020"],
     "retirement": [
-        "No retirement accounts in this book.",
+        "No retirement accounts in this book",
         "None in 2020",
-        "None due: no owner has reached the RMD age.",
+        "None due",
     ],
     "deductions": [
-        "No transactions in tax-tagged categories.",
-        "None recorded in the filings.",
-        "No dependents in this book: add them on the Summary.",
+        "No transactions in tax-tagged categories",
+        "None recorded in the filings",
+        "No dependents in this book",
     ],
-    "giving": ["Deductible $0.00", "None."],
-    "education": ["No 529 plans in this book.", "No one received more than the annual exclusion."],
-    "property": ["No loans in this book.", "Nothing sold in 2020"],
-    "summary": ["Net capital gain or loss $0", "0 payers", "deductible", "Nothing carried forward"],
+    "giving": ["Deductible $0.00", "None"],
+    "education": ["No 529 plans in this book", "No one received more than the annual exclusion"],
+    "property": ["No loans in this book", "Nothing sold in 2020"],
+    "summary": ["Net Capital Gain or Loss $0", "0 payers", "deductible", "Nothing carried forward"],
 }
 
 
@@ -728,7 +730,7 @@ def test_a_year_with_nothing_in_it_says_so_on_each_panel(browser, world, tab):
     else:
         assert f"{len(world.panels(EMPTY)['leftOut'])} left out" in main
     # The summary lists the accounts counted and left out; the panels name none of them.
-    absent = ["Not deducted", "Dependent students", "Loss carried", "TXF leaves out"]
+    absent = ["Not Deducted", "Dependent Students", "Loss carried", "TXF leaves out"]
     for x in absent + (["TP "] if tab != "summary" else []):
         assert x not in main.replace(left, ""), x
     assert problems == []
@@ -754,10 +756,10 @@ def test_no_amendment_needed_settles_an_edit_made_after_filing(browser, world):
         page, problems = opened(browser, world, year, "issues", f"text={said}")
         item = page.locator(f'.list-item:has-text("{said}")')
         assert " ".join(item.inner_text().split()) == (
-            said + "TP filed broker, 1 edit Add an amended return No amendment needed"
+            said + "TP filed broker, 1 edit Add an Amended Return No Amendment Needed"
         )
         assert item.locator("a").get_attribute("href") == "/ui/taxes/filings"
-        item.locator('button:has-text("No amendment needed")').click()
+        item.locator('button:has-text("No Amendment Needed")').click()
         wait(page, f'.list-item:has-text("{said}")', problems, state="detached")
         kinds = {i["kind"] for i in world.panels(year)["issues"]}
         assert "changed-after-filing" not in kinds
@@ -778,16 +780,22 @@ def test_new_tax_book_makes_this_years_book(browser, world):
     page, problems = signed_in(browser, world.h, "/ui/taxes/summary", "#f-tax-book")
     made_id = None
     try:
-        page.click('.toolbar button:has-text("New tax book")')
+        page.click('.toolbar button:has-text("New Tax Book")')
         wait(page, ".dialog #f-year", problems)
-        assert page.locator("#dialog-title").inner_text() == "New tax book"
+        assert page.locator("#dialog-title").inner_text() == "New Tax Book"
         options = page.locator("#f-year option").all_inner_texts()
         assert options == [str(year), str(year - 1), str(year - 2)]
         assert page.input_value("#f-year") == str(year - 1)
-        dialog = _text(page, ".dialog")
-        assert "Add your spouse among your relationships in Profile to file jointly." in dialog
+        # Off, each with its reason as its tooltip (S12.19.1).
+        joint = page.locator(".dialog #f-filing-jointly")
+        assert joint.get_attribute("aria-disabled") == "true"
+        assert joint.get_attribute("data-tip") == (
+            "Add your spouse among your relationships in Profile first"
+        )
+        start = page.locator(".dialog #f-start-from-last-year")
+        assert start.get_attribute("data-tip") == "No book for the year before"
         page.select_option("#f-year", str(year))
-        wait(page, '.dialog :text("Copies last year\'s accounts left out or added")', problems)
+        wait(page, ".dialog #f-start-from-last-year:not([data-tip])", problems)
         assert page.input_value("#f-bitcoin-fees") == "sale"
         page.click(".dialog footer button.primary")
         wait(page, ".dialog", problems, state="detached")

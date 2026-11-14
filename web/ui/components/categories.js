@@ -27,7 +27,7 @@ import {
   NEW,
   usesWords,
 } from '../app/categories.js';
-import { Action, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool } from '../kit/state.js';
 
 export { categoryOptions, defaultMapping, mergeTargets, NEW };
 
@@ -190,8 +190,8 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
   const locked = !!cat && !cat.allowed.change;
   const hasKids = !!cat && cats.list.some((c) => c.parentId === cat.id);
   return html`
-    <${DraftDialog} f=${f} title=${cat ? `Edit ${cat.path}` : 'New category'} close=${close}
-      what="This category" label=${cat ? 'Save' : 'Add the category'}
+    <${DraftDialog} f=${f} title=${cat ? `Edit ${cat.path}` : 'New Category'} close=${close}
+      what="This category" label=${cat ? 'Save' : 'Add the Category'}
       done=${cat ? 'Category saved' : 'Category added'}
       saved=${(/** @type {any} */ o) => {
         toast(cat ? 'Category saved' : 'Category added');
@@ -218,8 +218,7 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
           : null}>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Name"
-            hint="Up to 60 characters. Anyone may rename a category; everyone sees the new name." />
+          <${RecField} rec=${rec} name="name" label="Name" />
           <${RecField} rec=${rec} name="parentId" label="Under"
             disabled=${locked || hasKids} options=${[
               ['', 'Nothing: a top-level category'],
@@ -233,8 +232,7 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
             <${RecField} rec=${rec} name="kind" label="Kind"
               disabled=${locked || cat?.serverNamed} options=${KINDS} />
             <${RecField} rec=${rec} name="taxTag" label="Tax tag"
-              disabled=${locked} options=${TAX_TAGS}
-              hint="Puts its transactions in Taxes › Deductions." />
+              disabled=${locked} options=${TAX_TAGS} />
           </div>
           ${cat?.inUse ? html`<${InUse} cat=${cat} />` : null}
         `
@@ -269,7 +267,7 @@ function FindThem({ cat, close, leave }) {
     if (!(await leave())) return;
     close();
     startTour({ kind: 'uses', catId: cat.id });
-  }}>Find them</button>`;
+  }}>Find Them</button>`;
 }
 
 /**
@@ -329,14 +327,10 @@ export function MergeDialog({ close, cat }) {
         run.busy || !into || !!problem
       }>Merge</button>`}>
       ${!cats.loaded ? html`<${Loading} lines=${3} />` : html`
-        <p class="small dim" style=${{ marginTop: 0 }}>Everything filed under ${cat
-          .path} (transactions,
-          splits, rules, plan lines, moves, a loan's category) moves to the one
-          you choose, for every user, and ${cat.path} is deleted.</p>
+        <${Attention}>Everything filed under ${cat.path} moves, for every user, and ${cat
+          .path} is deleted.</${Attention}>
         <${Field} label="Into" id="merge-into" error=${err('into')}
-          hint=${`Another ${KIND_NAMES[cat.kind].toLowerCase()} category${
-            kids.length ? ' at the top level, since it has categories of its own' : ''
-          }.`}>
+          hint=${`${KIND_NAMES[cat.kind]}${kids.length ? ' · top level' : ''}`}>
           <${Select} value=${into} onChange=${choose} options=${[
             ['', 'Choose…'],
             ...targets.map((c) => [c.id, c.path]),
@@ -344,7 +338,7 @@ export function MergeDialog({ close, cat }) {
         </${Field}>
         ${into && kids.length
           ? html`
-            <h4 data-help="merge-children">Its categories</h4>
+            <h4 data-help="merge-children">Its Categories</h4>
             ${kids.map((k) =>
               html`
                 <${Field} label=${k.name} id=${'merge-child-' + k.id} help="merge-children"
@@ -415,10 +409,9 @@ export function CategoriesTab() {
   const tops = cats.list.filter((c) => !c.parentId);
   return html`
     <div class="toolbar">
-      <span class="small dim">One tree for the household: everyone files under the same
-        categories, in every budget.</span><span class="spacer"></span>
+      <span class="spacer"></span>
       <button type="button" class="btn" onClick=${() => addCategory()}><${Icon}
-        name="plus" /> Add a category</button>
+        name="plus" /> Add a Category</button>
     </div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -428,8 +421,8 @@ export function CategoriesTab() {
             <tr>
               <th>Category</th>
               <th>Kind</th>
-              <th>Tax tag</th>
-              <th>Added by</th>
+              <th>Tax Tag</th>
+              <th>Added By</th>
               <th></th>
             </tr>
           </thead>

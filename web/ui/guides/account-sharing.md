@@ -4,7 +4,7 @@ Who else has this account.
 
 ![An account's Sharing tab](shots/account-sharing.png)
 
-## Who has this account
+## Who Has This Account
 
 Each person or group, directly or through a group, with their level.
 

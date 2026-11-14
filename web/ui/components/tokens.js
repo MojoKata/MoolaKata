@@ -12,6 +12,7 @@ import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { Icon } from '../kit/icon.js';
+import { Attention, Empty } from '../kit/state.js';
 import { toast } from '../kit/toast.js';
 
 const endpoint = () => `${location.origin}/mcp`;
@@ -32,20 +33,19 @@ export function AccessTokens() {
     });
   return html`
     <div class="card" id="access-tokens">
-      <h3 data-help="access-tokens">Access tokens<span class="spacer"></span><button class="btn sm"
-        onClick=${make}><${Icon} name="plus" /> New token</button></h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Let an AI assistant read, never change,
-        what you can see, through MCP at <code>${endpoint()}</code>.</p>
+      <h3 data-help="access-tokens">Access Tokens<span class="spacer"></span><button class="btn sm"
+        onClick=${make}><${Icon} name="plus" /> New Token</button></h3>
       ${res.error
         ? html`<${Failed} error=${res.error} />`
         : !rows
         ? html`<${Loading} lines=${2} />`
         : !rows.length
-        ? html`<p class="small dim">None yet.</p>`
+        ? html`<${Empty}>No access tokens yet</${Empty}>`
         : rows.map((t) =>
           html`
             <div
-              class="list-item"><div class="grow"><b>${t.name}</b><div class="small dim">${t
+              class="list-item"><div class="grow"><span class="row-name">${t
+                .name}</span><div class="row-more">${t
                   .scope === 'all'
                 ? 'everything I can see'
                 : t.items.map((/** @type {any} */ i) => i.name).join(', ')} · ${t.expired
@@ -56,13 +56,14 @@ export function AccessTokens() {
                         onClick=${async () => {
                           if (
                             !(await confirmAction({
-                              title: 'Revoke this token?',
+                              title: 'Revoke This Token?',
                             }))
                           ) return;
                           revoke.run(t).catch(() => {});
                         }}>Revoke</button></div>
           `
         )}
+      <p class="small dim mt">MCP: <code>${endpoint()}</code></p>
     </div>
   `;
 }
@@ -106,18 +107,15 @@ function NewToken({ close }) {
         : chosen.filter((x) => !(x.kind === i.kind && x.id === i.id)),
     );
   return html`
-    <${DraftDialog} f=${f} title="New access token" close=${close} what="This token"
-      label="Create token" saved=${(/** @type {any} */ o) => {
+    <${DraftDialog} f=${f} title="New Access Token" close=${close} what="This token"
+      label="Create Token" saved=${(/** @type {any} */ o) => {
         const { secret, ...token } = o.saved[0].record;
         close({ token, secret });
       }}>
-      <p class="small dim" style=${{ marginTop: 0 }}>For an AI assistant or another tool that
-        speaks MCP. It can read, never change, and only what you choose here.</p>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Token name" placeholder="ex: Claude on my laptop" />
-          <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}
-            hint="Never secrets, Settings or linked households.">
+          <${RecField} rec=${rec} name="name" label="Token name" />
+          <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}>
             <${Select} value=${rec.get('scope')} onChange=${(/** @type {string} */ v) =>
               rec.set('scope', v)} options=${[
               ['all', 'Everything I can see'],
@@ -151,18 +149,16 @@ function NewToken({ close }) {
 function TokenShown({ close, made }) {
   useDialogGuide('dialog-token-shown');
   return html`
-    <${Dialog} title="Your new access token" close=${close} onSubmit=${() => close(true)}
+    <${Dialog} title="Your New Access Token" close=${close} onSubmit=${() => close(true)}
       note="It is shown once and can't be shown again."
       footer=${html`
         <button type="button" class="btn" onClick=${() =>
           navigator.clipboard?.writeText(made.secret).then(() => toast('Copied'))}>Copy</button>
         <button class="btn primary">Done</button>
       `}>
-      <div class="notice" style=${{ marginBottom: '12px' }}>
-        <${Icon} name="alert" />
-        <div>Copy it
-        now. Anyone with it can read what it can until it expires or you revoke it.</div>
-      </div>
+      <div style=${{ marginBottom: '12px' }}>
+        <${Attention} icon=${html`<${Icon} name="alert" />`}
+        >Copy it now</${Attention}></div>
       <div class="field"
         data-help="token"><label>Token</label><code class="mono" style=${{
           display: 'block',
@@ -170,8 +166,7 @@ function TokenShown({ close, made }) {
           background: 'var(--bg-3)',
           borderRadius: '8px',
         }}>${made.secret}</code></div>
-      <p class="small dim">Use it with the MCP endpoint <code>${endpoint()}</code>, as a bearer
-        token: <code>Authorization: Bearer mkt_…</code>.</p>
+      <p class="small dim">MCP endpoint: <code>${endpoint()}</code></p>
       </${Dialog}>
   `;
 }

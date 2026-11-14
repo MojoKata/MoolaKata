@@ -21,8 +21,11 @@ import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
-import { Action, Attention, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { TagInput } from '../kit/tags.js';
+
+/** What an occasion's pill inside its reminder time means (S12.19.3). */
+const LEAD_WHY = 'Closer than the reminder time on their gift plan.';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -79,8 +82,8 @@ function Upcoming() {
     }).then(res.reload);
   const open = (/** @type {any} */ g) => openDialog(GiftDialog, { gift: g }).then(res.reload);
   return html`
-    <div class="card"><h3>Next 60 days<span class="spacer"></span><button class="btn sm"
-      onClick=${() => add(null)}><${Icon} name="plus" /> Add a gift</button></h3>
+    <div class="card"><h3>Next 60 Days<span class="spacer"></span><button class="btn sm"
+      onClick=${() => add(null)}><${Icon} name="plus" /> Add a Gift</button></h3>
       ${rows.length
         ? rows.map((u) =>
           html`
@@ -88,16 +91,18 @@ function Upcoming() {
               <div class="tile t-giving">
                 <${Icon} name="gift" />
               </div>
-              <div class="grow"><b>${u.person.name}</b> · ${u.label}${u.turns
+              <div class="grow"><span class="row-name">${u.person.name} · ${u.label}${u.turns
                 ? ` (${u.label === 'Birthday' ? 'turns' : ''} ${u.turns}${
                   u.label === 'Birthday' ? '' : ' years'
                 })`
-                : ''}
-                          <div class="small dim">${date(u.date)} · ${u.days === 0
+                : ''}</span>
+                          <div class="row-more">${date(u.date)} · ${u.days === 0
                             ? 'today'
                             : `in ${u.days} day${u.days === 1 ? '' : 's'}`}${u.inLead
-                            ? html`${' '}· <span class="pill warn">inside the reminder
-                              time</span>`
+                            ? html`
+                              ${' '}· <${StatePill} tone="warn"
+                                why=${LEAD_WHY}>soon</${StatePill}>
+                            `
                             : null}</div>
                           <div class="toolbar" style=${{
                             margin: '6px 0 0',
@@ -161,7 +166,7 @@ function People() {
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>People<span class="spacer"></span><button class="btn sm"
-        onClick=${() => open(null)}><${Icon} name="plus" /> Add a gift plan</button></h3>
+        onClick=${() => open(null)}><${Icon} name="plus" /> Add a Gift Plan</button></h3>
       ${rows.length
         ? html`
           <div class="table-wrap">
@@ -172,8 +177,8 @@ function People() {
                   <th>Person</th>
                   <th>Next</th>
                   <th class="num">Budget</th>
-                  <th class="num">Spent this year</th>
-                  <th>Last gift</th>
+                  <th class="num">Spent This Year</th>
+                  <th>Last Gift</th>
                   <th></th>
                 </tr>
               </thead>
@@ -210,9 +215,6 @@ function People() {
         `
         : html`<${Empty}>No people yet</${Empty}>`}
     </div>
-    <p class="small dim">People are the household's; your gift plans and gifts are yours alone,
-      unless you share a plan. A gift for someone who is a user here is never shown to them, even
-      through a share.</p>
   `;
 }
 
@@ -226,7 +228,7 @@ function GiftList() {
     <div class="toolbar"><${Chips} label="Show" value=${status} onChange=${setStatus}
       options=${[['', 'All'], ...STATUS]} /><span class="spacer"></span><button
       class="btn primary" onClick=${() =>
-        open(null)}><${Icon} name="plus" /> Add a gift</button></div>
+        open(null)}><${Icon} name="plus" /> Add a Gift</button></div>
     ${res.error ? html`<${Failed} error=${res.error} />` : !rows ? html`<${Loading} />` : rows
         .length
       ? html`
@@ -308,7 +310,7 @@ function Spending() {
       )
       : null}
     <div class="grid g-main mt">
-      <div class="card"><h3>By person, ${v.year}</h3>${v.byPerson.length
+      <div class="card"><h3>By Person, ${v.year}</h3>${v.byPerson.length
         ? v.byPerson.map((/** @type {any} */ p) => {
           const share = p.budget ? Math.min(100, (num(p.spent) / num(p.budget)) * 100) : 0;
           return html`
@@ -325,9 +327,9 @@ function Spending() {
             </div>
           `;
         })
-        : html`<p class="small dim">No people yet.</p>`}</div>
+        : html`<${Empty}>No people yet</${Empty}>`}</div>
       <div class="grid" style=${{ alignContent: 'start' }}>
-        <div class="card"><h3>By occasion, ${v.year}</h3>${v.byOccasion.length
+        <div class="card"><h3>By Occasion, ${v.year}</h3>${v.byOccasion.length
           ? v.byOccasion.map((/** @type {any} */ o) =>
             html`
               <div
@@ -335,8 +337,8 @@ function Spending() {
                   .amount} cents=${false} /></div>
             `
           )
-          : html`<p class="small dim">Nothing bought or given yet.</p>`}</div>
-        <div class="card"><h3>By year</h3>${v.byYear.map((/** @type {any} */ y) =>
+          : html`<${Empty}>Nothing bought or given yet</${Empty}>`}</div>
+        <div class="card"><h3>By Year</h3>${v.byYear.map((/** @type {any} */ y) =>
           html`
             <div
               class="list-item"><span class="small" style=${{ width: '48px' }}>${y
@@ -518,7 +520,7 @@ function PersonDialog({ close, row }) {
   const deleting = (plan?.removed && !using) ? (who?.removed ? 'person' : 'plan') : '';
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This gift plan"
-      title=${p ? `Gift plan for ${p.name}` : 'New gift plan'}
+      title=${p ? `Gift plan for ${p.name}` : 'New Gift Plan'}
       done=${deleting === 'person'
         ? `${p?.name} deleted`
         : deleting
@@ -553,14 +555,14 @@ function PersonDialog({ close, row }) {
           planRow
             ? html`
               <${Action} class="btn danger" why=${whyNot(planRow, 'deletable')}
-                disabled=${save.busy} onClick=${() => drop('plan')}>Delete plan</${Action}>
+                disabled=${save.busy} onClick=${() => drop('plan')}>Delete Plan</${Action}>
             `
             : null
         }${
           p && !p.userId
             ? html`
               <${Action} class="btn danger" why=${whyNot(p, 'deletable')} disabled=${save.busy}
-                onClick=${() => drop('person')}>Delete person</${Action}>
+                onClick=${() => drop('person')}>Delete Person</${Action}>
             `
             : null
         }<span class="spacer"></span>`;
@@ -572,7 +574,7 @@ function PersonDialog({ close, row }) {
               icon=${html`<${Icon} name="link" />`} actions=${html`
                 <button type="button" class="btn sm"
                   disabled=${join.busy} onClick=${() =>
-                    join.run(r).catch(() => {})}>Join them</button>
+                    join.run(r).catch(() => {})}>Join Them</button>
               `}>${r.name} on ${r.server} may be${' '}
                     ${p.name}</${Attention}></div>
         `
@@ -585,19 +587,18 @@ function PersonDialog({ close, row }) {
               : !ownPerson
               ? 'Only its owner changes the person'
               : using
-              ? 'Already here: changed on their own plan'
+              ? 'Already here: change their details once this plan is saved'
               : false}>
               <div class="card" style=${{
                 margin: '0 0 12px',
                 padding: '10px 12px',
                 minWidth: 0,
               }} data-help="the-person">
-                <div class="small dim">The person, seen by the household${p?.private
+                <div class="small dim">The person${p?.private
                   ? ' (private: only those it is shared with)'
                   : ''}</div>
                 <div class="row">
-                  <${RecField} rec=${who} name="name" label="Name" placeholder="ex: Emma Griffin"
-                    onEdit=${unuse} />
+                  <${RecField} rec=${who} name="name" label="Name" onEdit=${unuse} />
                   <${RecField} rec=${who} name="sex" label="Sex" options=${[
                     ['', 'Choose…'],
                     ['female', 'Female'],
@@ -605,7 +606,9 @@ function PersonDialog({ close, row }) {
                   ]} />
                   <${Field} label="Birthday" error=${who.error('birthday') ||
                     who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
-                    hint="2018-10-20, or 10-20 without the year.">
+                    hint=${clash && !using && who.get('differentPerson')
+                      ? 'A birth year that differs from theirs.'
+                      : null}>
                   <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
                     /** @type {string} */ v,
                   ) =>
@@ -620,12 +623,10 @@ function PersonDialog({ close, row }) {
                 </${Field}>
               </div>
               <div class="row">
-                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date"
-                  hint="Ends a marriage on that day; their gifts stay in the history." />
+                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date" />
                 ${!p || p.canMakePrivate
                   ? html`
-                    <${RecField} rec=${who} name="private" label="Private"
-                      hint="Seen only by you and whoever you share them with." />
+                    <${RecField} rec=${who} name="private" label="Private" />
                   `
                   : null}
               </div>
@@ -653,12 +654,9 @@ function PersonDialog({ close, row }) {
                     : html`
                       ${''}, kept private by ${clash.createdBy || 'someone'}. <button type="button"
                         class="btn sm" disabled=${ask.busy} onClick=${() =>
-                          ask.run().catch(() => {})}>Ask to share</button>
+                          ask.run().catch(() => {})}>Ask to Share</button>
                     `} <button type="button" class="btn sm" onClick=${() =>
-                    who.set('differentPerson', true)}>A different person</button>
-                    ${who.get('differentPerson')
-                      ? html`<div class="small">Give a birth year above that differs from theirs.</div>`
-                      : null}</div>
+                    who.set('differentPerson', true)}>A Different Person</button></div>
                 </div>
               `
               : using
@@ -694,7 +692,7 @@ function PersonDialog({ close, row }) {
                 dates</b><span class="spacer"></span><${Action} class="btn sm"
                 why=${canWrite ? null : READ_ONLY} onClick=${() =>
                   draft?.add(OccasionRec, { giftPlanId: plan.id, kind: 'anniversary' })}><${Icon}
-                name="plus" /> Add a date</${Action}></div>
+                name="plus" /> Add a Date</${Action}></div>
             ${dated.map((o, i) =>
               html`
                 <div class="row" key=${o.key}>
@@ -706,10 +704,7 @@ function PersonDialog({ close, row }) {
                     </${Field}>
                     <${Field} label="Called" help="dates" id=${'date-name-' + i}
                       error=${o.error('name')}>
-                      <${RecField} rec=${o} name="name" bare label="Called"
-                        placeholder=${o.get('kind') === 'anniversary'
-                          ? 'ex: Wedding'
-                          : 'ex: Name day'} />
+                      <${RecField} rec=${o} name="name" bare label="Called" />
                       </${Field}>
                       <${Field} label="On" help="dates" id=${'date-on-' + i}
                         error=${o.error('on') || o.error('month')}>
@@ -734,8 +729,7 @@ function PersonDialog({ close, row }) {
               ['14', '14 days before'],
               ['30', '30 days before'],
             ]} />
-            <${RecField} rec=${plan} name="notes" label="Notes" rows=${3}
-              hint="Sizes, likes, what they already have." />
+            <${RecField} rec=${plan} name="notes" label="Notes" rows=${3} />
           </${Reads}>
         `
         : null}
@@ -750,7 +744,7 @@ function History({ p }) {
   const res = useList('/gifts', { person: p.id, status: 'given' });
   const rows = /** @type {any[]} */ (res.data) || [];
   if (!rows.length) return null;
-  return html`<h4 style=${{ margin: '14px 0 8px' }} data-help="given-before">Given before</h4>
+  return html`<h4 style=${{ margin: '14px 0 8px' }} data-help="given-before">Given Before</h4>
     ${
     rows.map((g) =>
       html`<div class="list-item"><span class="grow">${g.description}<span class="small dim">
@@ -863,7 +857,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
   const onRow = !!fromRow && !canWrite;
   return html`
     <${DraftDialog} f=${f} close=${close} what="This gift" saveWhy=${canWrite ? null : READ_ONLY}
-      title=${gift ? gift.description : 'Add a gift'}
+      title=${gift ? gift.description : 'Add a Gift'}
       done=${rec?.removed ? 'Gift deleted' : 'Gift saved'}
       extra=${({ save }) =>
         gift
@@ -871,7 +865,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
             <${Action} class="btn danger" why=${whyRead(gift)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
-                if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
+                if (!(await confirmAction({ title: 'Delete This Gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -888,8 +882,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
                 /** @type {string} */ v,
               ) => rec.set('status', v)} options=${STATUS} /></div>`}
             ${onRow ? null : html`
-              <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
-                hint=${received ? '' : 'One or more of your people.'}>
+              <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}>
                 <${TagInput} value=${who} items=${list.map((p) => ({ key: p.id, label: p.name }))}
                   onChange=${(/** @type {string[]} */ keys) => rec.set('people', keys)}
                   noun=${['person', 'people']} readonly=${!canWrite} />
@@ -904,15 +897,13 @@ function GiftDialog({ close, gift, start, fromRow }) {
                 }} options=${occasions} />
                 </${Field}>
             `}
-            <${RecField} rec=${rec} name="description" label="Description"
-              placeholder="ex: Watercolour set" />
+            <${RecField} rec=${rec} name="description" label="Description" />
             ${received
               ? html`<${RecField} rec=${rec} name="thankYou" label="Thank-you sent" />`
               : html`
                 <div class="row">
                   <${RecField} rec=${rec} name="cost" label="Cost" />
-                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}
-                    hint="Its transaction; one purchase can pay for several gifts.">
+                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}>
                     <${Select} value=${rec.get('transactionId') || ''} onChange=${(
                       /** @type {string} */ x,
                     ) => {
@@ -941,8 +932,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
                     ]} />
                     </${Field}>
                     </div>
-                    <${RecField} rec=${rec} name="cash" label="Given in money"
-                      hint="Cash or a cheque: counted against the annual gift exclusion." />
+                    <${RecField} rec=${rec} name="cash" label="Given in money" />
                     <div class="row">
                       <${RecField} rec=${rec} name="store" label="Where bought" id="store" />
                       <${RecField} rec=${rec} name="link" label="Link" kind="url"
@@ -955,7 +945,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
             ? html`
               <div class="toolbar">
                 <${Action} class="btn sm" why=${READ_ONLY}><${Icon}
-                            name="clip" /> Attach a receipt</${Action}></div>
+                            name="clip" /> Attach a Receipt</${Action}></div>
             `
             : gift
             ? html`

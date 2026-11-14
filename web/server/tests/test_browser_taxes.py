@@ -66,7 +66,7 @@ def test_the_tax_panels_show_the_apis_figures(browser, household):
         facts = page.locator(".card.facts").inner_text()
         for x in api["scheduleD"]["boxes"]:
             assert f"Box {x['box']}" in facts
-        washes = page.locator('.card:has(h3:text("Wash sales"))').inner_text()
+        washes = page.locator('.card:has(h3:text("Wash Sales"))').inner_text()
         assert all(w["symbol"] in washes for w in api["washes"]) and api["washes"]
         # Every other panel draws without a fault.
         for tab in ("income", "retirement", "deductions", "giving", "education", "property"):
@@ -115,8 +115,8 @@ def test_the_retirement_and_income_panels_show_moves_and_new_kinds(browser, hous
     try:
         page, problems = signed_in(browser, h, "/ui/taxes/retirement", "#f-tax-book")
         page.select_option("#f-tax-book", book["id"])
-        wait(page, '.card:has(h3:text("Roth conversions")) .list-item', problems)
-        conv = page.locator('.card:has(h3:text("Roth conversions"))').inner_text()
+        wait(page, '.card:has(h3:text("Roth Conversions")) .list-item', problems)
+        conv = page.locator('.card:has(h3:text("Roth Conversions"))').inner_text()
         assert "Panel IRA → Panel Roth" in conv
         roll = page.locator('.card:has(h3:text("Rollovers"))').inner_text()
         assert "another account → Panel Roth" in roll
@@ -126,7 +126,7 @@ def test_the_retirement_and_income_panels_show_moves_and_new_kinds(browser, hous
         assert (
             "Panel Fidelity" in page.locator('.card:has(h3:text("Foreign tax paid"))').inner_text()
         )
-        assert "Panel exchange" in page.locator('.card:has(h3:text("Crypto income"))').inner_text()
+        assert "Panel exchange" in page.locator('.card:has(h3:text("Crypto Income"))').inner_text()
         assert problems == []
         page.close()
     finally:
@@ -148,7 +148,7 @@ def test_a_transfer_in_takes_its_lots_as_bought(browser, household):
         dialog.locator("#f-symbol").fill("VTI")
         dialog.locator("#f-quantity").fill("10")
         dialog.locator("#f-amount").fill("0")
-        dialog.get_by_role("button", name="Add a lot").click()
+        dialog.get_by_role("button", name="Add a Lot").click()
         dialog.get_by_label("Lot 1: bought on").fill("2019-03-04")
         dialog.get_by_label("Lot 1: quantity").fill("10")
         dialog.get_by_label("Lot 1: cost basis").fill("1500")

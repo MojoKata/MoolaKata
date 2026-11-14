@@ -1,4 +1,7 @@
-# Type today's balance
+# Type Today's Balance
+
+Copy the balance from the institution's site or app. MoolaKata checks it against its own for the
+same day.
 
 ## Balance
 

@@ -1,4 +1,4 @@
-# Edit plan
+# Edit Plan
 
 The plan from the month shown on. Earlier months keep the plan they had.
 
@@ -10,7 +10,7 @@ their own line.
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Amount
@@ -41,7 +41,7 @@ Shown when the budget has reserves.
 
 ## Held in
 
-The account a reserve's money is kept in, for **Where the money is**.
+The account a reserve's money is kept in, for **Where the Money Is**.
 
 ## Projection
 

@@ -9,7 +9,8 @@ read its vault: it only hears its signed reports, every five minutes. Admins onl
 The card shows whether a connector is paired, its key's fingerprint, the version it runs, when
 it last reported and whether it is **locked**. It starts locked after every restart of its own;
 an admin unlocks it with its 12 words on its page, or on its host. A connector not heard from
-for 15 minutes, or locked, raises an alert for admins.
+for 15 minutes is marked **silent**; silent or locked, it raises an alert for admins. **Confirmed** says when an admin compared
+the fingerprints, and who.
 
 After pairing, compare the fingerprint shown here with the one the connector's page showed, or that
 `moolakata-connector pair` printed on its host. If they match, confirm: until then the connector
@@ -71,8 +72,9 @@ and open sealed credentials, stays closed without the words.
 Every person's sign-ins, kept by the connector: who owns each, its driver (OFX Direct Connect or
 Schwab), the accounts it keeps current, the host its credentials go to and no other (the OFX
 server's, from the address its owner gave, or the institution's own), and its state from the
-last report: ok with what the last run added, waiting for credentials, needs a sign-in, or
-failing with the connector's words. Credentials are never shown here, or anywhere: they exist
+last report: **ok**, **waiting** for credentials, **needs sign-in** or **failing**, with what the last
+run added or the connector's words in its tooltip. **sealed** marks new credentials sealed
+by their owner that the connector hasn't collected yet. Credentials are never shown here, or anywhere: they exist
 only in the connector's vault. People start and change their own under Profile › Connections.
 
 ## Host {#host}

@@ -293,6 +293,8 @@ The rulings the rest of the requirements apply.
     beside the vault and signs only a report that the connector is locked, and `unpaired`; the
     sealing key is what a browser encrypts a credential to (a **sealed box**), its public half
     held by MoolaKata and its private half kept in the vault (S18.4.5).
+27. **Backup:** a copy of the data kept to restore from, and making one (**Backup Now**).
+    "Back up" is only a direction (back up a level).
 
 # R3. Design principles
 
@@ -352,5 +354,29 @@ The rulings the rest of the requirements apply.
     or download. A blank that is refused is refused when saved, never while the field is being
     chosen or filled. A placeholder says what a blank means, on a field where a blank means
     something (*any*, *none*, *for ever*, *no limit*); where it means nothing, a placeholder may
-    give an example, marked as one (*ex: 192.168.1.20*), so it never reads as a value a blank
-    gets.
+    give an example of a format or a syntax, marked as one (*ex: 192.168.1.20*, *ex: 1d 4h*), so
+    it never reads as a value a blank gets. A plain example (a name, a number), the label again
+    or a prompt is no placeholder; a field with no label (a search, a table's cell) keeps one
+    naming what it holds.
+12. **The screen shows; the guide explains.** Fixed words that explain (what a field is for,
+    its units, syntax, limits and implications; what a dialog, a card or a section does) are in
+    the guide (S12.7.4), under the heading of what they explain, never on the screen. The
+    screen keeps labels, what a blank means (as the placeholder), values the person or the
+    server set (*Kept until Mar 1, 2033*, *Its header shows ••4417*), the page's state
+    (S12.19), and a warning of what an action will do, cut to its consequence (*No backup is
+    made first.*). A warning that matters as the person acts shows by its field only while it
+    applies: *A written acknowledgement is needed* once a single gift is $250 or more, *Marked
+    basis missing until you add it* while a lot moved in has no cost.
+13. **Text case.** Title Case for buttons, column, panel and card headers, page headings,
+    dialog titles, tabs, the navigation, Settings sections, menu items and links that stand
+    alone; Sentence case for field labels, switch and checkbox labels, a list's choices,
+    placeholders, hints, tooltips, toasts, messages, pills and links inside a sentence. Title
+    Case is Chicago's: articles, coordinating conjunctions, prepositions and *as* are lowercase
+    unless first or last, or first after a colon, a dot (·) or a chevron (›); a word that
+    belongs to its verb is capitalised (*Sign In*, *Tick Off against a Statement*); each part
+    of a hyphenated word follows the rule but after a prefix (*Two-Step Sign-In*,
+    *Re-encrypt Now*); acronyms and names stay as written (*MoolaKata*, *IRA*). Words are
+    changed to the case and no further: a header that reads as a phrase keeps its words. A list
+    row's name stands out from the row's other parts (a medium weight, the text's full colour)
+    but never as strongly as its card's heading, and its details are dimmed; one style in the
+    kit draws every such row.

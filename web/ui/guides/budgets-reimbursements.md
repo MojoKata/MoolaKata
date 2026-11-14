@@ -19,7 +19,7 @@ Which budget's accounts to list.
 Works the month's figures out again at once; they're kept once worked out, and worked out again
 on their own when anything they come from changes.
 
-## Pair a payback {#pair}
+## Pair a Payback {#pair}
 
 Pairs a deposit with the spending: that much of it pays the spending back and isn't income. A
 deposit of the amount awaited is offered first. If it's never paid back, lower the amount in the

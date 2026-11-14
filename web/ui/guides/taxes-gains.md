@@ -1,4 +1,4 @@
-# Taxes: Capital gains (8949)
+# Taxes: Capital Gains (8949)
 
 Every sale in the book's taxable accounts in the year, and each physical asset sold, as Form 8949
 rows, with the Schedule D totals.
@@ -28,8 +28,10 @@ property, C a collectable) and amount, and the gain or loss.
 The totals by box, short and long term, the collectables among them (taxed at their own rate), and
 last year's capital-loss carryover.
 
-## Wash sales
+## Wash Sales
 
 A loss sale with the same instrument bought within 30 days either side, in any of the filers'
 accounts (IRAs included) or a spouse's: the disallowed loss, and the replacement lot with its basis
-raised by it. Whether another instrument is substantially identical is the preparer's call.
+raised by it. None is found when no loss sale was replaced within 30 days. Whether another
+instrument is substantially identical is the preparer's call: an option on the same underlying is
+marked *review*.

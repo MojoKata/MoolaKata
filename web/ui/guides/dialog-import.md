@@ -1,8 +1,8 @@
-# Import transactions
+# Import Transactions
 
 An OFX, QFX or CSV file from your bank or broker, or a **statement**: its PDF, or a photo or scan of
 it. Rows already imported are matched by the file's own transaction id, or by date, amount and
-payee, so a file can be imported again safely; a row you deleted stays deleted. Notes a CSV
+payee, so importing the same file again adds nothing; a row you deleted stays deleted. Notes a CSV
 writes below its rows, after a blank line (a disclaimer, the time it was downloaded), are left
 out.
 
@@ -17,16 +17,21 @@ The account the file belongs to.
 
 ## File
 
-The file you downloaded, or a statement's PDF or photo.
+The file you downloaded from your bank or broker, or a statement's PDF or photo.
 
-## Keep a statement without reading it {#keep-without-reading}
+## Keep a Statement without Reading It {#keep-without-reading}
 
 Keeps a statement on its account as it is, for the record: one from an account kept current from
 OFX, a brokerage statement, or one whose lines can't be read. Only its period is asked for.
 
+## Which Columns Are Which?
+
+Asked for a CSV from an institution the first time: check the columns MoolaKata guessed. What you
+choose is saved for the next file from it.
+
 ## Date column {#map-date}
 
-The column with each row's date.
+The column with each row's date: the posting or trade date.
 
 ## Description column {#map-payee}
 
@@ -46,7 +51,7 @@ When money in has its own column.
 
 ## Running balance column {#map-balance}
 
-Optional. Every row's balance is then checked against MoolaKata's.
+Optional: every row's balance is then checked against MoolaKata's.
 
 ## Memo column {#map-memo}
 
@@ -80,7 +85,7 @@ Optional: commission, fees or spread.
 
 ## Date format {#map-date-format}
 
-How the file writes dates:
+As the file writes its dates:
 
 | Written as  | Format     |
 | ----------- | ---------- |

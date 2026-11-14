@@ -1,4 +1,4 @@
-# Set up the admin account
+# Set Up the Admin Account
 
 The welcome's last step, once the key is made: the account you'll sign in with, as **admin**. (A
 server made before the welcome leads its admin's first sign-in here too.)

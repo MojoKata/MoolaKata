@@ -10,22 +10,24 @@ savings target by a date.
 
 ## Active
 
-The plans you follow. At most one per subject: one retirement plan for the same people, one per
+The plans you follow; make a scenario active to follow it. At most one per subject: one retirement plan for the same people, one per
 savings target. Making one active stores its median path and its 10th–90th percentile band as of
 that day: its **baseline**.
 
 ## Scenarios
 
 Projections that aren't active: what-ifs to compare, such as retiring at 60 against 65, or saving
-$500 more a month. **New projection** starts one.
+$500 more a month. **New Projection** starts one.
 
 ## Tracking
 
 For an active projection, the actual balance of what it is built on against its baseline: **on
-track** inside the band, **ahead** above it, **behind** below it. Falling behind raises an alert,
-checked at each month's end. In a projection shared with you, you see the status, and the balance
-of only the accounts that are shared with you too; when some aren't, there is no band to show it
-against.
+track** inside the baseline's 10th–90th percentile band, **ahead** above it, **behind** below it.
+Falling behind raises an alert, checked at each month's end. Tracking starts from the baseline, and
+the chart fills in as days pass. One built on a typed amount is **untracked**: there is no balance
+to track it against. In a projection shared with you, you see the status, and the balance of only
+the accounts that are shared with you too; when some aren't, it is marked **partly
+shared**, and there is no band to show it against.
 
 ## Show on my Dashboard {#show-on-dashboard}
 
@@ -41,7 +43,15 @@ default.
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
 value today and their mix of asset classes; each class follows your assumptions in Profile.
 
-## Left out {#left-out}
+## Projected Value {#projected-value}
+
+A model, not a forecast. Under the chart, what it is worked out from: the value it starts from and
+its mix of asset classes; each class's return and volatility, from its owner's assumptions in
+Profile, drawn log-normal, each class on its own; inflation; and the fees taken from the balance
+each year. Where a bitcoin model is chosen, bitcoin follows it, a model others publish; other coins
+keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures.
+
+## Left Out {#left-out}
 
 What a projection doesn't grow, named under its chart with its value today: a loan, a home, a
 car or another item, and options. A projection grows cash, securities and precious metals, the
@@ -84,7 +94,8 @@ Taken from each year's balance.
 
 ## Other income {#other-income}
 
-Social Security or a pension, from an age, a month. It covers part of each withdrawal.
+Social Security or a pension, from an age, a month, rising with inflation. It covers part of each
+withdrawal.
 
 ## For {#beneficiary}
 

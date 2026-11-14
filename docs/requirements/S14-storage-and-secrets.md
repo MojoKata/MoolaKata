@@ -50,12 +50,12 @@
    it is made, entered, protected and rotated.
 6. **Backups**: daily and verified, of the database **with its keyring, and nothing else**, to
    a directory set on the host; the time of day and the number of copies kept are Settings.
-   **The host backs up the filesystem**, the data directory with its receipt files, linked
+   **The host keeps backups of the filesystem**, the data directory with its receipt files, linked
    copies and keyring included (by snapshots, a replication or any backup tool); a backup here
    exists so that the live database file the host picks up has a coherent, verified twin beside
    it. Receipt files are never copied into a backup: the host's backup protects them, each
    written once and rewritten only by a re-encryption (S15.7.2). The backup directory therefore
-   belongs inside what the host backs up, not on a disk apart. The server makes and verifies
+   belongs inside what the host's backups hold, not on a disk apart. The server makes and verifies
    (`PRAGMA integrity_check`) the copies itself, never while a re-encryption runs (S15.7.2),
    and prunes by day (**backup pruning**): every backup of the most recent days that have one
    is kept, as many days as Settings › Backups keeps, never fewer than three, and the rest go;

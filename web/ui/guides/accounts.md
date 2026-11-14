@@ -15,7 +15,7 @@ eye (you can read it) or a pencil (you can change what it holds).
 
 OFX, QFX or CSV from your bank or broker. Importing the same file again adds only what's new.
 
-## New account
+## New Account
 
 Pick the type first. It decides the fields, the tax treatment and the tabs the account has.
 
@@ -32,7 +32,7 @@ A balance the institution reported doesn't match MoolaKata's for that day. Open 
 
 Opens the Share dialog for that account. Only its owner shares it.
 
-## Linked households {#linked-households}
+## Linked Households {#linked-households}
 
 Other households, on their own MoolaKata servers, that share something with you. Each opens in a
 window of its own, never mixed with yours: its accounts never count in your totals. The household

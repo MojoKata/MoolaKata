@@ -13,7 +13,7 @@ import { openDialog } from '../kit/dialog.js';
 import { toast } from '../kit/toast.js';
 import { TransactionDialog } from '../screens/transaction-dialog.js';
 import { whyRead } from '../app/draft.js';
-import { RowTool } from '../kit/state.js';
+import { RowTool, StatePill } from '../kit/state.js';
 
 export { useCategories };
 
@@ -135,22 +135,34 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
             }
           ${
               t.amountWas
-                ? html`<div class="small" style=${{
-                  color: 'var(--ask)',
-                }}>amount changed in a later import</div>`
+                ? html`
+                  <div class="small">
+                    <${StatePill} tone="warn"
+                      why="A later import brought another amount for it: check which is right."
+                    >changed</${StatePill}></div>
+                `
                 : null
             }${
               t.offChainAt
-                ? html`<div class="small"><span class="pill warn">no longer on the chain</span>
-                    <button type="button" class="btn sm" onClick=${(/** @type {Event} */ e) => {
-                  e.stopPropagation();
-                  api.post(`/transactions/${t.id}/keep`, undefined, { version: t.version }).then(
-                    () => {
-                      toast('Kept');
-                      onChanged && onChanged();
-                    },
-                  ).catch((/** @type {any} */ x) => toast(x.message));
-                }}>Keep it</button></div>`
+                ? html`
+                  <div class="small">
+                    <${StatePill} tone="warn"
+                      why="No longer on the chain: the explorer missed it on two reads in a row, so keep it or delete it."
+                    >gone</${StatePill}>
+                                      <button type="button" class="btn sm" onClick=${(
+                                        /** @type {Event} */ e,
+                                      ) => {
+                                        e.stopPropagation();
+                                        api.post(`/transactions/${t.id}/keep`, undefined, {
+                                          version: t.version,
+                                        }).then(
+                                          () => {
+                                            toast('Kept');
+                                            onChanged && onChanged();
+                                          },
+                                        ).catch((/** @type {any} */ x) => toast(x.message));
+                                      }}>Keep It</button></div>
+                `
                 : null
             }</td>
         <td>${

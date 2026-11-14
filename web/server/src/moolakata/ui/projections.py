@@ -1,5 +1,5 @@
 """Projections (requirements S6), assumptions (S6.3), the bitcoin models' comparison (S6.3.1),
-the Dashboard's Plans card (S6.8) and Settings › Tax tables (S16.11)."""
+the Dashboard's Plans card (S6.8) and Settings › Tax Tables (S16.11)."""
 
 import datetime as dt
 import json
@@ -525,7 +525,7 @@ def bitcoin_models(request: Request, c: Caller = Depends(caller)):
     return ModelsView(price=price, rows=[ModelRow(**r) for r in rows], figuresYear=year)
 
 
-# ---------- Settings › Tax tables (S16.11) ----------
+# ---------- Settings › Tax Tables (S16.11) ----------
 
 
 class TaxRow(Model):

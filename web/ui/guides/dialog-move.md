@@ -1,7 +1,8 @@
-# Move money
+# Move Money
 
 An amount put from one category to another for the month shown: covering an overspent category from
-one with money left. In an envelope budget, money can also move from or to **To Budget**.
+one with money left. In an envelope budget, money can also move from or to **To Budget**. A move
+is for that month only; it shows on both rows and in Activity, and deleting it undoes it.
 
 ## From
 

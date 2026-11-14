@@ -1,4 +1,4 @@
-# Edit a user
+# Edit a User
 
 ## Name {#display-name}
 
@@ -7,13 +7,14 @@ As others see it.
 ## Email address {#email}
 
 Fixed here only before they join: the invitation then goes to the new address, and the link
-sent to the old one stops working. Afterwards they change it themselves.
+sent to the old one stops working. Once they have joined, they change it themselves, and the
+field is shown off.
 
 ## Groups
 
-Their groups.
+Their groups. **Admins** manages users, groups and Settings.
 
-## Reset two-step
+## Reset Two-Step
 
 The last resort when someone has lost both their authenticator app and their recovery codes: it
 turns two-step sign-in off, so their password alone signs them in, and signs them out everywhere. Be

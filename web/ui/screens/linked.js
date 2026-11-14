@@ -10,7 +10,7 @@ import { useApi, useList, useSubmit } from '../app/hooks.js';
 import { ago, date, initials, quantity } from '../kit/format.js';
 import { session } from '../store/session.js';
 import { collapsed, helpOpen, privacy } from '../store/prefs.js';
-import { HelpCorner, HelpPane, useGuide } from '../components/help.js';
+import { HelpCorner, HelpPane, useDialogGuide, useGuide } from '../components/help.js';
 import { Icon } from '../kit/icon.js';
 import { Avatar, Empty, Failed, Loading, Tabs } from '../kit/bits.js';
 import { Amt } from '../kit/amount.js';
@@ -23,6 +23,7 @@ import { Dec, dec } from '../kit/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { saveOne } from '../components/draft-form.js';
+import { Attention } from '../kit/state.js';
 
 const HUES = /** @type {Record<string, string>} */ ({
   teal: '#4fc6d6',
@@ -158,7 +159,7 @@ function Frame({ id, st, reload, sub, subId, tab }) {
           (st.locksInSeconds || 0) / 60,
         )} min unused</span><span class="spacer"></span><button type="button" class="btn sm"
           disabled=${lock.busy} onClick=${() => lock.run().catch(() => {})}><${Icon}
-            name="lock" /> Lock now</button></div>
+            name="lock" /> Lock Now</button></div>
       ${items.error
         ? html`<${Failed} error=${items.error} />`
         : !items.data
@@ -203,8 +204,6 @@ function Locked({ id, st, reload }) {
   }}>
     <${HouseAvatar} h=${h} size=${56} />
     <h3>${h.name}</h3>
-    <p class="dim">What ${h.name} share with you is kept encrypted on this server. To open it,
-      enter its access key: the 12 words in your household's password manager.</p>
     <p class="small dim">synced ${ago(st.pulledAt || h.syncedAt)}${
     st.waiting ? ` · ${st.waiting} change${st.waiting === 1 ? '' : 's'} waiting` : ''
   } · locked</p>
@@ -212,19 +211,15 @@ function Locked({ id, st, reload }) {
     st.hasKey
       ? html`
         <${Field} label="Access key" id="access-key" error=${errAt(go.error, 'words') ||
-          (go.error ? go.error.message : null)}
-          hint="12 words, separated by spaces.">
+          (go.error ? go.error.message : null)}>
           <textarea class="in mono" rows="3" value=${words} onInput=${(/** @type {any} */ e) =>
             setWords(e.currentTarget.value)} autocomplete="off"
             spellcheck="false"></textarea>
           </${Field}>
           <button class="btn primary" disabled=${go.busy || !words.trim()}><${Icon}
             name="lock" /> Open</button>
-          <p class="small dim">Once open, it stays open for everyone it shares with, each seeing only
-          what names them, until it goes unused.</p>
       `
-      : html`<p class="notice">An admin here hasn't created this copy's access key yet:
-        Settings › Linked servers.</p>`
+      : html`<${Attention}>An admin here hasn't created this copy's access key yet</${Attention}>`
   }
   </form>`;
 }
@@ -239,6 +234,7 @@ class ColourRec extends Rec {
 
 /** @param {{ close: (v?: any) => void, id: string, h: any }} p */
 function ColourDialog({ close, id, h }) {
+  useDialogGuide('dialog-link-colour');
   // The colour chosen is a record of the chooser's (S12.10.3.2).
   const save = useSubmit(async (/** @type {string} */ colour) => {
     const row = h.colourId
@@ -249,8 +245,6 @@ function ColourDialog({ close, id, h }) {
   });
   return html`
     <${Dialog} title=${`Colour for ${h.name}`} close=${close} onSubmit=${() => close()}>
-      <p class="small dim" style=${{ marginTop: 0 }}>Tints this household's window for you. Other
-          people choose their own.</p>
       <div class="field"><label>Colour</label><div class="swatches">${Object.entries(HUES).map((
         [k, v],
       ) =>
@@ -328,8 +322,8 @@ function Dashboard({ base, rows }) {
       ? html`
         <div class="grid g4">
           <div class="card kpi">
-            <div class="label">Accounts shared with
-                  you</div>
+            <div class="label">Accounts Shared with
+                  You</div>
             <div class="value">
               <${Amt} v=${String(total)} cents=${false} />
             </div>
@@ -348,7 +342,7 @@ function Dashboard({ base, rows }) {
             : 's are'} shared with you by a newer MoolaKata, which this one can't show yet.</p>
       `
       : null}
-    <div class="card mt"><h3>Shared with you</h3>${rows.map((r) =>
+    <div class="card mt"><h3>Shared with You</h3>${rows.map((r) =>
       html`
         <div
           class="list-item"><div class="grow"><a href=${`${base}/${
@@ -405,7 +399,7 @@ function Accounts({ base, rows }) {
               <th>Account</th>
               <th>Owner</th>
               <th class="num">Balance</th>
-              <th class="num">30 days</th>
+              <th class="num">30 Days</th>
             </tr>
           </thead>
           <tbody>${rows.map((r) =>
@@ -467,7 +461,7 @@ function Account({ base, aid, tab }) {
             points: series.points.map((/** @type {any} */ p) => [p.date, p.value]),
           }]} />`
           : s.error
-          ? html`<p class="small dim">Its history hasn't arrived.</p>`
+          ? html`<${Empty}>Its history hasn't arrived</${Empty}>`
           : html`<${Loading} lines=${4} />`
       }</div>`
       : current === 'holdings'
@@ -583,9 +577,9 @@ function List({ guide, rows, href, value, label }) {
     rows.map((r) =>
       html`
         <div
-          class="list-item"><div class="grow"><a href=${href(r)}><b>${label
+          class="list-item"><div class="grow"><a class="row-name" href=${href(r)}>${label
             ? label(r)
-            : r.name}</b></a><div class="small dim">${r
+            : r.name}</a><div class="row-more">${r
             .ownerName}</div></div>${value && value(r) != null
             ? html`<${Amt} v=${value(r)} />`
             : null}</div>
@@ -628,7 +622,7 @@ function Portfolio({ pid }) {
     ${ret?.length
       ? html`
         <div class="card">
-          <h3>Returns by period</h3>
+          <h3>Returns by Period</h3>
           <div class="table-wrap">
             <table class="t">
               <caption class="sr-only">Returns</caption>
@@ -690,9 +684,9 @@ function Portfolio({ pid }) {
 function Budget({ base, bid, tab }) {
   useGuide('linked-budgets');
   const tabs = /** @type {[string, string][]} */ ([
-    ['month', 'This month'],
+    ['month', 'This Month'],
     ['trends', 'Trends'],
-    ['cash-flow', 'Cash flow'],
+    ['cash-flow', 'Cash Flow'],
     ['recurring', 'Recurring'],
   ]);
   return html`
@@ -922,7 +916,8 @@ function Projections({ rows }) {
     rows.map((r) =>
       html`
         <div
-          class="list-item"><div class="grow"><b>${r.name}</b><div class="small dim">${r.row
+          class="list-item"><div class="grow"><span class="row-name">${r
+            .name}</span><div class="row-more">${r.row
             ?.headline || ''}</div></div><span class="small dim">${r.row?.status || ''}</span></div>
       `
     )
@@ -1002,7 +997,7 @@ function Gifts({ rows, people }) {
   useGuide('linked-gifts');
   return html`${
     people.length
-      ? html`<div class="card"><h3 data-help="people">People shared with you</h3>${
+      ? html`<div class="card"><h3 data-help="people">People Shared with You</h3>${
         people.map((p) => html`<${SharedPerson} person=${p} />`)
       }</div>`
       : null

@@ -1,4 +1,4 @@
-# Ask for an account
+# Ask for an Account
 
 This server lets people ask for an account. An admin approves or rejects each request; you'll get an
 email either way.

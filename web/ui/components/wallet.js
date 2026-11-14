@@ -72,8 +72,7 @@ export function WalletFields({ rec, readonly }) {
   };
   return html`
     <${Field} label="Extended public keys or addresses" id="wallet-keys" error=${refused ||
-      rec.error('walletKeys')}
-      hint="An xpub, ypub or zpub, a descriptor (wpkh, tr, wsh multisig…), or addresses, one a line. Public data only.">
+      rec.error('walletKeys')}>
       ${reading ? html`<${ReadValue} text=${rec.shown('walletKeys') || '—'} rows=${3} />` : html`
         <textarea class="in mono" rows="3" value=${rec.shown('walletKeys')}
           onInput=${onText}
@@ -82,8 +81,7 @@ export function WalletFields({ rec, readonly }) {
       `}
       </${Field}>
       <${RecField} rec=${rec} name="gapLimit" label="Gap limit" readonly=${reading} spin=${true}
-        min=${1} max=${1000}
-        hint="Addresses derived past the last one used. 20 suits most wallets." />
+        min=${1} max=${1000} />
   `;
 }
 
@@ -115,12 +113,12 @@ export function WalletCard({ a, rec }) {
   }
   return html`
     <div class="card">
-      <h3>Keys and addresses</h3>
+      <h3>Keys and Addresses</h3>
       <${WalletFields} rec=${rec} readonly=${!owner} />
       <p class="small dim" data-help="watched">${v.watched} addresses watched, ${v.used} used${v
           .checkedAt
         ? `, last checked ${ago(v.checkedAt)}`
-        : ': not checked yet. Balances come from the explorer or node in Settings › Bitcoin.'}</p>
+        : ': not checked yet'}</p>
       ${v.keys.map((/** @type {any} */ k) =>
         html`
           <div class="list-item">
@@ -171,7 +169,7 @@ export function WalletCard({ a, rec }) {
       <${FormError} error=${check.error} />
       <div class="toolbar mt"><${Action} disabled=${check.busy} why=${owner
         ? v.keys.length ? null : 'Give it a key or an address first'
-        : READ_ONLY} onClick=${() => check.run().catch(() => {})}>Check now</${Action}></div>
+        : READ_ONLY} onClick=${() => check.run().catch(() => {})}>Check Now</${Action}></div>
     </div>
   `;
 }

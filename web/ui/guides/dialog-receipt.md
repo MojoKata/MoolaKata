@@ -5,7 +5,7 @@ browser's own viewer.
 
 When it was uploaded, MoolaKata read it on the server: its date, total and merchant fill the empty
 fields, marked _read from the receipt_ with how sure the reader was. Check them; anything you type
-stays yours and is never replaced. **Read again** reads it once more.
+stays yours and is never replaced. **Read Again** reads it once more.
 
 A receipt whose file is pruned keeps its record: its amounts, dates and links. One being read on the
 server fills in its fields when it's done, and they can be typed meanwhile; one that couldn't be
@@ -44,11 +44,13 @@ Anything worth keeping with it.
 
 ## Tags {#receipt-tags}
 
-Words to find it by, such as _medical_ or _warranty_. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
+Words to find it by, such as _medical_ or _warranty_. They are yours only: no one it is shared
+with sees them. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
 
-## Attached to {#attached-to}
+## Attached To {#attached-to}
 
-The transactions it supports, and what else it is kept with. **Attach** takes the best match among
+The transactions it supports, and what else it is kept with. Until it is attached to something, it
+waits in the inbox. **Attach** takes the best match among
 your transactions with the same amount near its date; the buttons beside it are the next two.
 **Detach** returns it to the inbox when nothing else links to it. Both happen when you save.
 What it is kept with that isn't shared with you is only counted: _Also kept with 2 things not

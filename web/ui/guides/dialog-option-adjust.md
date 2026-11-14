@@ -1,4 +1,4 @@
-# Adjusted options
+# Adjusted Options
 
 When an underlying splits by a ratio that isn't a whole number, merges, spins off a company or pays
 a large special dividend, the OCC adjusts its open options and says how in an information memo
@@ -10,6 +10,8 @@ account's open options with it, contracts times the ratio and strike divided by 
 already adjusted to deliver cash or another company's shares is the exception: those don't split,
 so it waits for the OCC's memo and is typed here.
 
+It lists the options open in accounts you can change; with none, there is nothing to adjust.
+
 ## Underlying {#adjust-underlying}
 
 The stock whose options were adjusted.
@@ -18,7 +20,7 @@ The stock whose options were adjusted.
 
 The day the adjustment took effect.
 
-## New root {#new-root}
+## New Root {#new-root}
 
 The adjusted contract's root, such as _XYZ1_. It is listed under it in the underlying's chain, and
 its mark comes from there.

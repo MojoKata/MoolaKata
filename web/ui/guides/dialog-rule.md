@@ -1,4 +1,4 @@
-# New rule
+# New Rule
 
 A new rule, made from a transaction over its dialog: what a transaction must match, and what the
 rule sets, its payee and category filled in from the transaction. It needs at least one of a
@@ -37,7 +37,7 @@ for a rule that only renames or tags.
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Rename to
@@ -47,4 +47,4 @@ it, and the rules match on the bank's text.
 
 ## Tags
 
-Your own tags, added to each match. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.
+Your own tags, added to each match: _coffee_, _work_. Type one and press Enter or a comma; a name you haven't used makes a new tag when you save.

@@ -156,7 +156,7 @@ def test_a_reader_views_a_transaction_without_what_its_row_shows(browser, househ
     wait(page, ".dialog #f-kind", problems)
     dialog = page.locator(".dialog")
     assert page.locator("#dialog-title").inner_text() == "Transaction"
-    for name in ("Delete", "Save", "Add a lot", "Add a receipt"):
+    for name in ("Delete", "Save", "Add a Lot", "Add a Receipt"):
         off(dialog, name)
     # Read, every field is its read persona: no control to type in or choose from.
     body = dialog.locator(".body")
@@ -182,9 +182,9 @@ def test_a_reader_views_a_transaction_without_what_its_row_shows(browser, househ
 def test_a_readers_reconcile_tab_shows_its_checks_off(browser, household, reader):
     h = household
     page, problems = signed_in_as_reader(
-        browser, h, f"/ui/accounts/{h.checking['id']}/reconcile", "h3:has-text('Balance checks')"
+        browser, h, f"/ui/accounts/{h.checking['id']}/reconcile", "h3:has-text('Balance Checks')"
     )
-    for name in ("Type today's balance", "Tick off against a statement"):
+    for name in ("Type Today's Balance", "Tick Off against a Statement"):
         b = page.get_by_role("button", name=name, exact=True).first
         assert b.get_attribute("aria-disabled") == "true", name
         assert b.get_attribute("data-tip") == "Shared with you to read", name
@@ -213,11 +213,11 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     page, problems = signed_in_as_reader(
         browser, h, f"/ui/accounts/{h.extra['homes']['id']}/items", "text=1428 Elm St"
     )
-    off(page, "Add an item")
+    off(page, "Add an Item")
     page.click('button[aria-label="View 1428 Elm St"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
-    for name in ("Save", "Add a valuation", "Add improvement", "Add", "Record the sale…"):
+    for name in ("Save", "Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
         off(dialog, name)
     off(dialog, "Remove Kitchen remodel")
     read_only(dialog)
@@ -240,7 +240,7 @@ def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household
     page, problems = signed_in_as_reader(
         browser, h, f"/ui/accounts/{a['id']}/contributions", "text=Record a contribution"
     )
-    off(page, "Record a contribution")
+    off(page, "Record a Contribution")
     # Who each came from reads, its tag a value, never a list to change it (S12.18.6).
     who = page.locator('[aria-label^="Who the"]').first
     wait(page, '[aria-label^="Who the"]', problems)
@@ -249,7 +249,7 @@ def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household
     assert page.locator("table select").count() == 0
     page.goto(h.base + f"/ui/accounts/{a['id']}/withdrawals")
     wait(page, "text=Add a qualified expense", problems)
-    off(page, "Add a qualified expense")
+    off(page, "Add a Qualified Expense")
     assert problems == []
     page.close()
 
@@ -260,12 +260,12 @@ def test_a_readers_budget_shows_its_changes_off(browser, household, reader):
         browser, h, f"/ui/budgets/{h.budget['id']}/month", "text=Edit plan"
     )
     off(page, "Share", "Only its owner shares it")
-    for name in ("Settings", "Estimate from history…", "Edit plan"):
+    for name in ("Settings", "Estimate from History…", "Edit Plan"):
         off(page, name)
     page.goto(h.base + f"/ui/budgets/{h.budget['id']}/review")
     wait(page, "#f-month-reviewed", problems)
-    page.wait_for_selector("button:has-text('Mark reviewed'), button:has-text('Review again')")
-    b = page.locator("button:has-text('Mark reviewed'), button:has-text('Review again')").first
+    page.wait_for_selector("button:has-text('Mark Reviewed'), button:has-text('Review Again')")
+    b = page.locator("button:has-text('Mark Reviewed'), button:has-text('Review Again')").first
     assert b.get_attribute("aria-disabled") == "true"
     assert b.get_attribute("data-tip") == READ
     assert problems == []
@@ -283,8 +283,8 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     dialog = page.locator(".dialog")
     off(dialog, "Save")
     off(dialog, "Share", "Only its owner shares it")
-    off(dialog, "Delete plan", "Only its owner deletes it")
-    off(dialog, "Add a date")
+    off(dialog, "Delete Plan", "Only its owner deletes it")
+    off(dialog, "Add a Date")
     read_only(dialog)
     # Her row shows her name and the plan's budget; her birthday and the notes aren't on it.
     assert dialog.locator("#f-name").count() == 0
@@ -357,7 +357,7 @@ def test_a_readers_tax_book_opens_what_holds_more_than_its_row(browser, househol
     assert dialog.locator("#f-confirmation").inner_text() == "IRS-123"
     for gone in ("#f-form", "#x-progress", "#f-filed-on"):
         assert dialog.locator(gone).count() == 0, gone
-    off(dialog, "Add a payment")
+    off(dialog, "Add a Payment")
     off(dialog, "Remove the payment")
     assert problems == []
     page.close()

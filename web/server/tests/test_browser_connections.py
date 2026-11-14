@@ -59,9 +59,9 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
         )
         assert r.ok, r.text()
         page.goto(base + "/ui/profile")
-        wait(page, 'button:has-text("Change credentials")', problems)
-        page.click('button:has-text("Change credentials")')
-        wait(page, 'text="Sealed for"', problems)
+        wait(page, 'button:has-text("Change Credentials")', problems)
+        page.click('button:has-text("Change Credentials")')
+        wait(page, '[data-help="sealed-for"]', problems)
         # The dialog shows the address and the host the sign-in is sealed for (S18.7.1).
         assert page.input_value("#f-ofx-url") == settings["url"]
         assert "ofx.cu.example" in page.inner_text('[data-help="sealed-for"]')
@@ -70,7 +70,7 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
         assert "ofx2.cu.example" in page.inner_text('[data-help="sealed-for"]')
         page.fill("#f-username", "alice")
         page.fill("#f-password", "pw")
-        page.click('button:has-text("Seal and send")')
+        page.click('button:has-text("Seal and Send")')
         wait(page, 'text="Credit union: sealed for the connector"', problems)
         assert problems == []
 

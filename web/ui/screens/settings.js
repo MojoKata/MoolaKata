@@ -34,24 +34,27 @@ import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { useSettingsDraft } from '../components/settings-draft.js';
 import { confirmAction } from '../kit/confirm.js';
-import { Attention, RowTool } from '../kit/state.js';
+import { Attention, Empty, RowTool, StatePill } from '../kit/state.js';
+
+/** A year, by which the recovery phrase's check is due again (S15.6). */
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
   ['email', 'Email (SMTP)'],
-  ['sessions', 'Sign-in and sessions'],
-  ['signup', 'Sign-up'],
+  ['sessions', 'Sign-In and Sessions'],
+  ['signup', 'Sign-Up'],
   ['passwords', 'Passwords'],
   ['prices', 'Prices'],
   ['bitcoin', 'Bitcoin'],
-  ['links', 'Linked servers'],
+  ['links', 'Linked Servers'],
   ['connector', 'Connector'],
   ['imports', 'Imports'],
   ['receipts', 'Receipts'],
-  ['tax-tables', 'Tax tables'],
+  ['tax-tables', 'Tax Tables'],
   ['backups', 'Backups'],
   ['storage', 'Storage'],
-  ['keys', 'Key storage'],
+  ['keys', 'Key Storage'],
   ['network', 'Network'],
   ['alerts', 'Alerts'],
 ]);
@@ -147,15 +150,14 @@ function Plain({ section }) {
         <${Field} label="Server name" error=${errAt(
           e,
           'serverName',
-        )} hint="Shown to linked servers.">
+        )}>
           <${Input}
             value=${f.serverName} onInput=${set('serverName')} />
           </${Field}>
           <div
             class="list-item"><span class="grow dim">Server time zone</span>${v
-              .serverZone} <span class="small dim">· from the host</span></div>
-          <${Field} label="Household name" error=${errAt(e, 'householdName')}
-            hint="At the top of the sidebar, and sent to linked servers with the avatar.">
+              .serverZone}</div>
+          <${Field} label="Household name" error=${errAt(e, 'householdName')}>
             <${Input} value=${f.householdName}
               onInput=${set('householdName')} />
             </${Field}>
@@ -176,9 +178,8 @@ function Plain({ section }) {
                       ...f,
                       householdAvatar: { ...av, kind: 'initials', color: ev.currentTarget.value },
                     })} /></${Field}></div>
-              <${Field} label="Public URL" error=${errAt(e, 'publicUrl')}
-                hint="Links in emails are built from it, never from the request."><${Input} value=${f
-                  .publicUrl || ''}
+              <${Field} label="Public URL" error=${errAt(e, 'publicUrl')}><${Input} value=${f
+                .publicUrl || ''}
                 onInput=${set(
                   'publicUrl',
                 )} placeholder="ex: https://money.example.lan" /></${Field}>
@@ -189,15 +190,13 @@ function Plain({ section }) {
     return form(
       ['sessionIdleHours', 'sessionAbsoluteDays', 'lockoutFailures', 'lockoutMinutes'],
       html`
-        <h3>Sign-in and sessions</h3>
+        <h3>Sign-In and Sessions</h3>
         <div class="row">
-          <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}
-            hint="Signed out after this long without using MoolaKata.">
+          <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}>
             <${SpinInput} min=${1} max=${168} step=${4} value=${f.sessionIdleHours}
               onInput=${set('sessionIdleHours', true)} />
             </${Field}>
-            <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}
-              hint="Signed out after this long, used or not.">
+            <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}>
               <${TypedInput} kind="count" value=${f.sessionAbsoluteDays} onInput=${set(
                 'sessionAbsoluteDays',
                 true,
@@ -227,18 +226,16 @@ function Plain({ section }) {
     return form(
       ['signupEnabled', 'signupDomains'],
       html`
-        <h3>Sign-up</h3>
+        <h3>Sign-Up</h3>
         <${SwitchRow} label="Sign-up" on=${f.signupEnabled}
-          onChange=${(/** @type {boolean} */ x) => setF({ ...f, signupEnabled: x })}
-          hint="People can ask for an account from the sign-in screen; an admin approves or rejects each request. It needs email (SMTP) and the public URL." />
+          onChange=${(/** @type {boolean} */ x) => setF({ ...f, signupEnabled: x })} />
         ${errAt(e, 'signupEnabled')
           ? html`<div class="err">${errAt(e, 'signupEnabled')}</div>`
           : null}
         <${Field} label="Allowed email domains" id="signup-domains" error=${errAt(
           e,
           'signupDomains',
-        )}
-          hint="Optional, separated by commas. Requests from other domains are refused.">
+        )}>
           <${Input} value=${(f.signupDomains || []).join(', ')} placeholder="any domain"
             onInput=${(/** @type {string} */ x) =>
               setF({
@@ -262,31 +259,24 @@ function Plain({ section }) {
       ['networkAppRanges', 'networkLinkRanges', 'networkConnectorRanges'],
       html`
         <h3>Network</h3>
-        <p class="small dim" style=${{ marginTop: '-6px' }}>While the server is locked these ranges
-          can't be read: the locked screen answers any address that reaches it, and the reverse
-          proxy and the host's firewall are what limit it.</p>
         <${Field} label="Allowed to use the app" id="network-app-ranges" error=${errAt(
           e,
           'networkAppRanges',
-        )}
-          hint="Address ranges that may reach /ui, and /mcp with it, one per line. Empty allows any.">
+        )}>
           ${area('networkAppRanges', 'any address')}
           </${Field}>
           <${Field} label="Allowed to link" id="network-link-ranges" error=${errAt(
             e,
             'networkLinkRanges',
-          )}
-            hint="Where linked servers call /link from. Empty allows any.">
+          )}>
             ${area('networkLinkRanges', 'any address')}
             </${Field}>
             <${Field} label="Allowed to connect" id="network-connector-ranges" error=${errAt(
               e,
               'networkConnectorRanges',
-            )}
-              hint="Where the MoolaKata Connector calls /connector from: the LAN and the overlay by default. A connector on a laptop away from home needs its range added.">
+            )}>
               ${area('networkConnectorRanges', 'any address')}
               </${Field}>
-              <p class="small dim">/healthz and /demo answer any address.</p>
               <${ListenerRows} />
       `,
     );
@@ -297,13 +287,6 @@ function Plain({ section }) {
         ['receiptMaxMb', 'readReceipts', 'receiptReadJobs'],
         html`
           <h3>Receipts</h3>
-          <p class="small dim" style=${{
-            marginTop: '-6px',
-          }}>Receipts are kept encrypted in the data
-            directory, each file once. Backups hold the database alone: the host's own backup of
-            the data directory keeps the files.</p>
-          <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
-            HEIC <span class="small dim">· checked from the content</span></div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
             <${SpinInput} min=${1} max=${100} value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
@@ -311,13 +294,11 @@ function Plain({ section }) {
             )} />
             </${Field}>
             <${SwitchRow} label="Read receipts" on=${f.readReceipts}
-              onChange=${(/** @type {boolean} */ x) => setF({ ...f, readReceipts: x })}
-              hint="The date, total and merchant, read on this server; nothing leaves it. Off for a host too small to run it." />
+              onChange=${(/** @type {boolean} */ x) => setF({ ...f, readReceipts: x })} />
             <${Field} label="Jobs at a time" id="receipt-read-jobs" error=${errAt(
               e,
               'receiptReadJobs',
-            )}
-              hint="Each runs in its own process with 2 threads. 1 suits most hosts; more read a batch faster.">
+            )}>
               <${Select} value=${String(f.receiptReadJobs)}
                 onChange=${(/** @type {string} */ x) => setF({ ...f, receiptReadJobs: Number(x) })}
                 options=${[['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']]} />
@@ -332,13 +313,8 @@ function Plain({ section }) {
       ['alertSourceHours', 'alertSummaryTime'],
       html`
         <h3>Alerts</h3>
-        <p class="small dim" style=${{
-          marginTop: '-6px',
-        }}>Alerts tell people when something needs them.
-          Each user chooses in Profile whether they are emailed.</p>
         <${Field} label="Alert when a source has failed for" id="alert-source-hours"
-          error=${errAt(e, 'alertSourceHours')}
-          hint="Price sources and email. Admins are alerted.">
+          error=${errAt(e, 'alertSourceHours')}>
           <${Select} value=${String(f.alertSourceHours)}
             onChange=${(/** @type {string} */ x) => setF({ ...f, alertSourceHours: Number(x) })}
             options=${[['24', '24 hours'], ['48', '48 hours'], ['72', '72 hours'], [
@@ -349,8 +325,7 @@ function Plain({ section }) {
           <${Field} label="Daily summary at" id="alert-summary-time" error=${errAt(
             e,
             'alertSummaryTime',
-          )}
-            hint="In each person's time zone, for those who chose the daily summary.">
+          )}>
             <${Input} type="time" value=${f.alertSummaryTime} onInput=${set('alertSummaryTime')} />
             </${Field}>
       `,
@@ -361,8 +336,7 @@ function Plain({ section }) {
       ['passwordMinLength'],
       html`
         <h3>Passwords</h3>
-        <${Field} label="Minimum length" error=${errAt(e, 'passwordMinLength')}
-          hint="At least 8. The only rule: no character classes, no expiry; the most common passwords are refused.">
+        <${Field} label="Minimum length" error=${errAt(e, 'passwordMinLength')}>
           <${SpinInput} min=${8} max=${128}
             value=${f.passwordMinLength} onInput=${set(
               'passwordMinLength',
@@ -376,21 +350,12 @@ function Plain({ section }) {
     ['importMaxMb', 'readStatements'],
     html`
       <h3>Imports</h3>
-      <p class="small dim"
-        style=${{
-          marginTop: '-6px',
-        }}>Accounts are kept current from the files people bring: OFX, QFX and CSV
-            downloads, and statements, and by the MoolaKata Connector for accounts whose sync
-            is on.</p>
-      <div
-        class="list-item"><span class="grow dim">File types</span>OFX, QFX, CSV; statements as PDF, JPEG, PNG, WebP, HEIC <span class="small dim">· checked from the content</span></div>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
         <${SpinInput} min=${1} max=${200} step=${5} value=${f.importMaxMb}
           onInput=${set('importMaxMb', true)} />
         </${Field}>
         <${SwitchRow} label="Read statements" on=${f.readStatements}
-          onChange=${(/** @type {boolean} */ x) => setF({ ...f, readStatements: x })}
-          hint="A statement's PDF, or a photo of one, read on this server by the receipt reader and checked before it is saved." />
+          onChange=${(/** @type {boolean} */ x) => setF({ ...f, readStatements: x })} />
     `,
   );
 }
@@ -426,15 +391,11 @@ function Prices() {
       toast(/** @type {any} */ (e).message);
     }
   };
-  return html`<div class="card"><h3>Price sources<span class="spacer"></span><button type="button" class="btn sm"
+  return html`<div class="card"><h3>Price Sources<span class="spacer"></span><button type="button" class="btn sm"
     onClick=${() =>
     openDialog(AddSource, { sources: v }).then((x) =>
       x && res.reload()
-    )}><${Icon} name="plus" /> Add a source</button></h3>
-    <p class="small dim" style=${{
-    marginTop: '-6px',
-  }}>Free, daily closes. For each class, the first enabled source in the order is
-      used, and the next one if it fails. Every price shows its source and date.</p>
+    )}><${Icon} name="plus" /> Add a Source</button></h3>
     ${
     v.sources.length
       ? html`
@@ -446,7 +407,7 @@ function Prices() {
                 <th>Source</th>
                 <th>Serves</th>
                 <th>Key</th>
-                <th>Last run</th>
+                <th>Last Run</th>
                 <th class="num">Enabled</th>
                 <th></th>
               </tr>
@@ -471,7 +432,7 @@ function Prices() {
                     : html`<button type="button" class="btn sm" onClick=${() =>
                       openDialog(SetKey, { src }).then((x) =>
                         x && res.reload()
-                      )}>Set the key</button>`}</td>
+                      )}>Set the Key</button>`}</td>
                   <td class="small dim">${src.lastRunAt
                     ? ago(src.lastRunAt)
                     : 'not yet'}${src.lastError
@@ -492,11 +453,7 @@ function Prices() {
           </table>
         </div>
       `
-      : html`
-        <p
-          class="small dim">No sources yet: prices are off until one is added. Without them, holdings are valued from
-                the brokers' files and the last trade.</p>
-      `
+      : html`<${Empty}>No sources yet</${Empty}>`
   }
     <${DraftForm} f=${fd} class="draft-form mt" where="Settings › Prices"
       what="The refresh time" saved=${() => {
@@ -504,14 +461,14 @@ function Prices() {
     all.reload();
   }}><div style=${{ maxWidth: '360px' }}><${Field} label="Daily refresh at"
       error=${time.error('priceRefreshTime')}
-      hint=${`${v.refreshZone} time, after the US market close.`}><${Input} type="time"
+      hint=${`${v.refreshZone} time.`}><${Input} type="time"
       value=${time.get('priceRefreshTime')} onInput=${(/** @type {string} */ x) =>
     time.set('priceRefreshTime', x)} /></${Field}></div></${DraftForm}>
     <div class="toolbar"><button type="button" class="btn" onClick=${() =>
     api.post('/prices/refresh').then(
       () => toast('Refreshing prices: the header shows when it is done'),
       (e) => toast(e.message),
-    )}><${Icon} name="refresh" /> Refresh prices</button></div>
+    )}><${Icon} name="refresh" /> Refresh Prices</button></div>
   </div>`;
 }
 
@@ -535,11 +492,11 @@ function AddSource({ close, sources }) {
     toast(`${chosen.label} added${chosen.needsKey ? ': set its key to enable it' : ''}`);
   });
   return html`
-    <${Dialog} title="Add a price source" close=${close} onSubmit=${() =>
+    <${Dialog} title="Add a Price Source" close=${close} onSubmit=${() =>
       save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${
         save.busy || !chosen
-      }>Add the source</button>`}>
+      }>Add the Source</button>`}>
         ${options.length
           ? html`<${Field} label="Source"><${Select} value=${name} onChange=${setName}
       options=${
@@ -559,13 +516,13 @@ function AddSource({ close, sources }) {
                 chosen.keyUrl
                   ? html`
                     ${' '}<a href=${chosen
-                      .keyUrl} target="_blank" rel="noopener noreferrer">Get a free key</a>
+                      .keyUrl} target="_blank" rel="noopener noreferrer">Get a Free Key</a>
                   `
                   : null
               }</p>`
               : null
           }`
-          : html`<p>Every source MoolaKata ships is added.</p>`}
+          : html`<${Empty}>Every source MoolaKata ships is added</${Empty}>`}
         <${FormError} error=${save.error} />
       </${Dialog}>
   `;
@@ -589,13 +546,12 @@ function RemoveCopy({ close, c }) {
   return html`
     <${Dialog} title=${`Remove ${c.name}`} close=${close} onSubmit=${() =>
       remove.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${remove.busy}>Remove it</button>`}>
-      <p class="small" style=${{ marginTop: 0 }}>It can't be put back. The server's recovery phrase
-        says it is you, as well as your password.</p>
+      footer=${html`<button class="btn primary" disabled=${remove.busy}>Remove It</button>`}>
       <${Field} label="Recovery phrase" error=${errAt(remove.error, 'phrase')}>
         <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
+        <${Attention}>It can't be put back.</${Attention}>
         <${FormError} error=${remove.error} shown=${['phrase']} />
         </${Dialog}>
   `;
@@ -610,13 +566,9 @@ function VerifyKey({ close }) {
     close(await api.post('/settings/keys/verify', { phrase: words }));
   });
   return html`
-    <${Dialog} title="Verify key" close=${close} onSubmit=${() => check.run().catch(() => {})}
+    <${Dialog} title="Verify Key" close=${close} onSubmit=${() => check.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${check.busy}>Verify</button>`}>
-      <p class="small" style=${{ marginTop: 0 }}>Type the 12 words from one copy of the recovery
-        phrase. Nothing changes: MoolaKata checks that they open this server's key, and records the
-        check.</p>
-      <${Field} label="Recovery phrase" error=${errAt(check.error, 'phrase')}
-        hint="Four letters of each word are enough.">
+      <${Field} label="Recovery phrase" error=${errAt(check.error, 'phrase')}>
         <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
           autocorrect="off" autocapitalize="off" spellcheck=${false} required />
         </${Field}>
@@ -632,12 +584,11 @@ function SetKey({ close, src }) {
   }, [src.id]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title=${`${src.label}'s key`} close=${close} what="This source"
-      label="Save the key" done=${`${src.label}'s key is set and the source is on`}>
+    <${DraftDialog} f=${f} title=${`${src.label}'s Key`} close=${close} what="This source"
+      label="Save the Key" done=${`${src.label}'s key is set and the source is on`}>
       ${rec
         ? html`
-          <${Field} label="API key" error=${rec.error('apiKey')}
-            hint="Stored encrypted and never shown again; Settings shows only that it is set, when and by whom.">
+          <${Field} label="API key" error=${rec.error('apiKey')}>
             <${Input} type="secret" value=${rec.get('apiKey') || ''} autocomplete="off"
               onInput=${(/** @type {string} */ x) => {
                 // A key turns the source on with it.
@@ -650,7 +601,7 @@ function SetKey({ close, src }) {
           ${src.keyUrl
             ? html`
               <p class="small"><a href=${src.keyUrl} target="_blank" rel="noopener noreferrer"
-                >Get a free key</a></p>
+                >Get a Free Key</a></p>
             `
             : null}
         `
@@ -720,20 +671,16 @@ function TaxTables() {
   };
   const groups = [...new Set(v.rows.map((/** @type {any} */ r) => r.group))];
   return html`
-    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Tax tables"
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Tax Tables"
       what=${`The ${v.year} tables`} saved=${() => {
         toast('Saved');
         res.reload();
       }}>
-      <h3>Tax tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
+      <h3>Tax Tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
         aria-label="Year" id="f-year" value=${v.year} disabled=${draft.changed}
         title=${draft.changed ? 'Save or put back the changes first' : undefined}
         onChange=${(/** @type {any} */ ev) => setYear(Number(ev.currentTarget.value))}>${v.years
           .map((/** @type {number} */ y) => html`<option value=${y}>${y}</option>`)}</select></h3>
-      <p class="small dim" style=${{
-        marginTop: '-6px',
-      }}>Shipped with MoolaKata and updated with it.
-        Correct a figure here if the IRS changes it before an update.</p>
       ${groups.map((g) =>
         html`
           <h4 class="small dim mt">${g}</h4>
@@ -807,10 +754,8 @@ function ReadingQueue() {
         ? ago(q.lastRun)
         : 'never'}</div>
       <${FormError} error=${reread.error} />
-      <p class="small dim">After an update with new models, read them all again: only empty fields, and
-        those still holding what was read, are replaced.</p>
       <button type="button" class="btn" disabled=${reread.busy}
-        onClick=${() => reread.run().catch(() => {})}>Re-read all receipts</button>
+        onClick=${() => reread.run().catch(() => {})}>Re-read All Receipts</button>
     </div>
   `;
 }
@@ -852,15 +797,15 @@ function EmailSection() {
         html`
           <button type="button" class="btn" disabled=${test.busy ||
             !values.smtpHost}
-            onClick=${() => test.run().catch(() => {})}>Send a test email</button>
+            onClick=${() => test.run().catch(() => {})}>Send a Test Email</button>
         `}>
       <h3>Email (SMTP)</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>${values.smtpHost
-        ? 'Emails go out through this server, waiting in the database, which is encrypted, until sent or until their link expires.'
-        : 'Until a host is set, emails are written to the mail folder in the data directory, and listed below for you to pass their links on.'}</p>
+      ${values.smtpHost ? null : html`
+        <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}>Until a host is set,
+          emails are written to the mail folder</${Attention}>
+      `}
       <div class="row">
-        <${Field} label="Host" id="smtp-host" error=${errAt(e, 'smtpHost')}
-          hint="Changing it asks for your password again and clears the password below: type it again for the new host.">
+        <${Field} label="Host" id="smtp-host" error=${errAt(e, 'smtpHost')}>
           <${Input} value=${f.smtpHost} onInput=${set(
             'smtpHost',
           )} placeholder="ex: smtp.example.com" />
@@ -869,8 +814,7 @@ function EmailSection() {
             <${TypedInput} kind="count" value=${f.smtpPort} onInput=${set('smtpPort', true)} />
             </${Field}>
             </div>
-            <${Field} label="Security" id="smtp-security" error=${errAt(e, 'smtpSecurity')}
-              hint="STARTTLS on port 587, TLS on 465. None only for a relay on your own network.">
+            <${Field} label="Security" id="smtp-security" error=${errAt(e, 'smtpSecurity')}>
               <${Select} value=${f.smtpSecurity} onChange=${set('smtpSecurity')}
                 options=${[['starttls', 'STARTTLS'], ['tls', 'TLS'], ['none', 'None']]} />
               </${Field}>
@@ -884,14 +828,13 @@ function EmailSection() {
                     hint=${v.password
                       ? `Set ${day(v.password.setAt)}${
                         v.password.setBy ? ' by ' + v.password.setBy : ''
-                      }. Type a new one to replace it.`
+                      }.`
                       : 'Not set.'}>
                     <${Input} type="password" value=${password} onInput=${setPassword}
                       autocomplete="new-password" placeholder=${v.password ? '••••••••' : ''} />
                     </${Field}>
                     </div>
-                    <${Field} label="From address" id="smtp-from" error=${errAt(e, 'smtpFrom')}
-                      hint="As emails show it, such as MoolaKata <money@example.com>.">
+                    <${Field} label="From address" id="smtp-from" error=${errAt(e, 'smtpFrom')}>
         <${Input} value=${f.smtpFrom} onInput=${set('smtpFrom')} />
       </${Field}>
       ${v.waiting || v.setAside || v.lastError
@@ -1030,8 +973,6 @@ function BitcoinSection() {
         html`<button type="button" class="btn" disabled=${test.busy} onClick=${() =>
           test.run().catch(() => {})}>Test</button>`}>
       <h3>Bitcoin</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Where self-custody wallets' balances and
-        history come from. Your own node keeps your addresses private.</p>
       <${Field} label="Explorer or node" error=${errAt(e, 'bitcoinSource')}>
         <${Select} value=${f.node} onChange=${pick} options=${NODES} />
       </${Field}>
@@ -1040,8 +981,7 @@ function BitcoinSection() {
           <${Field} label="Esplora address" id="esplora-url" error=${errAt(
             e,
             'bitcoinEsploraUrl',
-          )}
-            hint="Its API's address.">
+          )}>
             <${Input} value=${f.url} onInput=${set('url')}
               placeholder="ex: http://umbrel.local:3006/api" />
             </${Field}>
@@ -1050,17 +990,14 @@ function BitcoinSection() {
       ${own
         ? html`
           <div class="row">
-            <${Field} label="Node address" id="node-host" error=${errAt(e, 'bitcoinNodeHost')}
-              hint="Allowed through the egress guard because it is named here. Changing it clears the node’s stored password.">
+            <${Field} label="Node address" id="node-host" error=${errAt(e, 'bitcoinNodeHost')}>
               <${Input} value=${f.host} onInput=${set('host')} placeholder="ex: 192.168.1.20" />
               </${Field}>
               <${Field} label="Node port" id="node-port" error=${errAt(e, 'bitcoinNodePort')}>
                 <${TypedInput} kind="count" value=${f.port} onInput=${set('port', true)} />
                 </${Field}>
                 </div>
-                <${SwitchRow} label="TLS" hint=${f.node === 'electrum'
-                  ? 'Usually on, port 50002; off on port 50001.'
-                  : 'On when Core is behind a TLS proxy.'} on=${f.tls} onChange=${set('tls')} />
+                <${SwitchRow} label="TLS" on=${f.tls} onChange=${set('tls')} />
         `
         : null}
       ${f.node === 'core'
@@ -1073,7 +1010,7 @@ function BitcoinSection() {
                 hint=${v.password
                   ? `Set ${day(v.password.setAt)}${
                     v.password.setBy ? ' by ' + v.password.setBy : ''
-                  }. Type a new one to replace it.`
+                  }.`
                   : 'Not set.'}>
                 <${Input} type="password" value=${password} onInput=${setPassword}
                   autocomplete="new-password" placeholder=${v.password ? '••••••••' : ''} />
@@ -1084,7 +1021,7 @@ function BitcoinSection() {
       ${f.node === 'electrum' && f.tls
         ? html`<div class="list-item" data-help="certificate"><span class="grow">Certificate<div
             class="small dim mono" style=${{ wordBreak: 'break-all' }}>${
-          v.certificate ? `SHA-256 ${v.certificate}` : 'Not trusted yet: Test shows it, to confirm.'
+          v.certificate ? `SHA-256 ${v.certificate}` : 'Not trusted yet'
         }</div></span></div>
           ${
           v.certificateOffered || shown
@@ -1099,8 +1036,8 @@ function BitcoinSection() {
                               .certificateOffered ||
                               shown}</div><button type="button" class="btn sm mt"
                             disabled=${trust.busy} onClick=${() =>
-                              trust.run(v.certificateOffered || shown).catch(() => {})}>Trust this
-                            certificate</button></div>
+                              trust.run(v.certificateOffered || shown).catch(() => {})}>Trust This
+                            Certificate</button></div>
               </div>
             `
             : null
@@ -1121,8 +1058,6 @@ function BitcoinSection() {
             yet</${Attention}></div>
         `}
       <${FormError} error=${test.error} />
-      <p class="small dim">Test asks the saved explorer or node for the chain's height: save
-        first. Other coins and chains come later.</p>
     </${DraftForm}>
   `;
 }
@@ -1149,17 +1084,15 @@ function CopiesKept({ close, v }) {
     );
   });
   return html`
-    <${Dialog} title="Copies kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="Copies Kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
-      <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
-        hint="Every backup of each of these most recent days is kept: 3 to 365.">
+      <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}>
         <${SpinInput} min=${3} max=${365} value=${n} onInput=${setN} required />
         </${Field}>
       ${fewer
         ? html`
-          <p class="small">That is fewer than the ${days} days of backups kept, so the next backup
-            deletes some, which can't be undone. The server's recovery phrase says it is you, as
-            well as your password.</p>
+          <${Attention}>That is fewer than the ${days} days of backups kept: the next backup deletes
+            some, which can't be undone.</${Attention}>
           <${Field} label="Recovery phrase" error=${errAt(save.error, 'phrase')}>
             <${Input} type="secret" value=${words} onInput=${setWords} autocomplete="off"
               autocorrect="off" autocapitalize="off" spellcheck=${false} required />
@@ -1193,7 +1126,7 @@ function Backups() {
               api.post('/settings/backups/run').then(() => {
                 toast('Backing up now');
                 res.reload(); // shows it running; the live stream says when it ends
-              }, (e) => toast(e.message))}><${Icon} name="refresh" /> Back up now</button>
+              }, (e) => toast(e.message))}><${Icon} name="refresh" /> Backup Now</button>
         `}>
       <h3>Backups</h3>
       <div class="row">
@@ -1220,7 +1153,7 @@ function Backups() {
               v.lastError ? html`: failed (${v.lastError})` : ': encrypted and verified'
             }`
             : 'No backup yet'}</${Attention}>
-        <div class="list-item"><span class="grow dim">Directory (set on the host)</span><code>${v
+        <div class="list-item" data-help="directory"><span class="grow dim">Directory</span><code>${v
           .directory}</code></div>
         ${v.backups.length
           ? html`
@@ -1230,7 +1163,7 @@ function Backups() {
                 <tr>
                   <th>Made</th>
                   <th class="num">Size</th>
-                  <th>Master key</th>
+                  <th>Master Key</th>
                 </tr>
               </thead>
               <tbody>${v.backups.map((/** @type {any} */ b) =>
@@ -1284,7 +1217,7 @@ function WrittenEmails() {
       `
     )
   }
-    <div class="small dim">Each is removed once its link has expired: a password reset’s after an hour, an invitation’s after a week, the others’ after a day.</div></div>`;
+    </div>`;
 }
 
 /** @param {{ close: (v?: any) => void, w: any, text: string }} p */
@@ -1332,7 +1265,7 @@ function CopyChoices({ copies, choices, set }) {
       `
     )
   }
-    <div class="small dim">A copy that needs a previous phrase can only be left or deleted.</div></div>`;
+    </div>`;
 }
 
 /** @param {any} c @param {Record<string, string>} choices */
@@ -1381,31 +1314,26 @@ function RotateKey({ close, copies }) {
   const back = /** @type {any} */ (rotate.error)?.code;
   if (step === 'start') {
     return html`
-      <${Dialog} title="Rotate the master key" close=${close} onSubmit=${() =>
+      <${Dialog} title="Rotate the Master Key" close=${close} onSubmit=${() =>
         show.run().catch(() => {})}
-        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the new phrase</button>`}>
-        <p class="small" style=${{ marginTop: 0 }}>A new master key and recovery phrase, and with
-          them a new data key. MoolaKata then restarts; unlock it with the new phrase, and it
-          re-encrypts everything before it serves, the copies below as you choose.</p>
+        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the New Phrase</button>`}>
         ${lost
           ? html`
-            <${Field} label="Break-glass code" error=${errAt(rotate.error, 'code')}
-              hint="From the host: docker compose exec moolakata moolakata keys break-glass. It works once, for 15 minutes.">
+            <${Field} label="Break-glass code" error=${errAt(rotate.error, 'code')}>
               <${Input} value=${code} onInput=${setCode} autocomplete="off" autocapitalize="characters"
                 spellcheck=${false} required />
               </${Field}>
           `
           : html`
-            <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}
-              hint="Four letters of each word are enough.">
+            <${Field} label="Current recovery phrase" error=${errAt(rotate.error, 'phrase')}>
               <${Input} type="secret" value=${current} onInput=${setCurrent} autocomplete="off"
                 autocorrect="off" autocapitalize="off" spellcheck=${false} required />
               </${Field}>
           `}
         <div style=${{ marginBottom: '14px' }}><button type="button" class="btn sm"
           data-help="lost-phrase" onClick=${() => setLost(!lost)}>${lost
-            ? 'I have the phrase'
-            : 'The phrase is lost'}</button></div>
+            ? 'I Have the Phrase'
+            : 'The Phrase Is Lost'}</button></div>
         <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
         <${FormError} error=${show.error} />
         </${Dialog}>
@@ -1413,25 +1341,21 @@ function RotateKey({ close, copies }) {
   }
   if (step === 'phrase') {
     return html`
-      <${Dialog} title="The new recovery phrase" close=${close} onSubmit=${() => setStep('check')}
-        footer=${html`<button class="btn primary">I've written them down</button>`}>
-        <p class="small" style=${{ marginTop: 0 }}>Write these 12 words on paper, in order. They're
-          shown here once.</p>
+      <${Dialog} title="The New Recovery Phrase" close=${close} onSubmit=${() => setStep('check')}
+        footer=${html`<button class="btn primary">I've Written Them Down</button>`}>
+        <${Attention}>They're shown here once.</${Attention}>
         <ol class="phrase" aria-label="The new recovery phrase">${offer.words.map((
           /** @type {string} */ w,
         ) => html`<li><b>${w}</b></li>`)}</ol>
         <div class="small dim">Fingerprint <code>${offer.fingerprint}</code> · ${offer
           .serverName} · ${date(offer.made)}</div>
-        <div class="notice small mt">
-          <${Icon} name="alert" />
-          <div>Keep the old phrase too, until
-          every copy made under it is gone: the host's own snapshots and backups still need it.</div>
-        </div>
+        <div class="mt"><${Attention} icon=${html`<${Icon} name="alert" />`}>Keep the old phrase
+          too, until every copy made under it is gone</${Attention}></div>
         </${Dialog}>
     `;
   }
   return html`
-    <${Dialog} title="Check what you wrote" close=${close} onSubmit=${() =>
+    <${Dialog} title="Check What You Wrote" close=${close} onSubmit=${() =>
       rotate.run().catch(() => {})}
       footer=${html`
         <button type="button" class="btn" onClick=${() =>
@@ -1440,10 +1364,8 @@ function RotateKey({ close, copies }) {
           )}>Back</button><span
           class="spacer"></span><button class="btn primary" disabled=${rotate.busy}>${rotate.busy
             ? 'Rotating…'
-            : 'Rotate and restart'}</button>
+            : 'Rotate and Restart'}</button>
       `}>
-      <p class="small" style=${{ marginTop: 0 }}>Type three of the words from your sheet. Four
-        letters of each are enough.</p>
       ${offer.check.map((/** @type {number} */ n) =>
         html`
           <${Field} label=${`Word ${n}`} id=${`rotate-word-${n}`}
@@ -1471,7 +1393,7 @@ function ReminderSetting() {
   const options = [0, 6, 12, 18, 24, 36, 48, 60];
   if (!options.includes(months)) options.push(months);
   return html`
-    <${DraftForm} f=${fd} class="card mt" where="Settings › Key storage" what="The reminder"
+    <${DraftForm} f=${fd} class="card mt" where="Settings › Key Storage" what="The reminder"
       saved=${() => {
         toast('Saved');
         s.reload();
@@ -1543,15 +1465,11 @@ function Keys() {
   const last = v.lastReencryption;
   const lastCopies = last ? Object.entries(last.copies) : [];
   return html`
-    <div class="card"><h3>Key storage<span class="spacer"></span>${test
+    <div class="card"><h3>Key Storage<span class="spacer"></span>${test
       ? test.ok
         ? html`<span class="pill ok"><${Icon} name="lock" /> everything opens</span>`
         : html`<span class="pill bad">a problem</span>`
       : null}</h3>
-        <p class="small dim" style=${{
-          marginTop: 0,
-        }}>The master key is the recovery phrase, never stored: it is entered when the server starts.
-          Rotate changes it, and re-encrypts everything under a new data key.</p>
         <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v
           .fingerprint}</code></div>
         <div class="list-item"><span class="grow dim">Made</span>${day(v.created)} · ${v
@@ -1561,14 +1479,14 @@ function Keys() {
             : null}
           ${v.reminderDue
             ? html`
-              ${' '}<span class="pill warn">time to rotate</span>
+              ${' '}<${StatePill} tone="warn"
+                why="Older than its rotation reminder.">rotation due</${StatePill}>
             `
             : null}</div>
         <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${(v
           .databaseBytes / 1048576).toFixed(1)} MB), ${v.receipts} receipt file${v.receipts === 1
           ? ''
-          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'} <span
-            class="small dim">· passwords are hashed</span></div>
+          : 's'}, ${v.secrets} secret${v.secrets === 1 ? '' : 's'}</div>
         <div class="list-item"><span class="grow dim">Previous keys</span>${v.previous.length
           ? html`<span>${
             v.previous.map((/** @type {any} */ p) =>
@@ -1582,7 +1500,7 @@ function Keys() {
             )
           }</span>`
           : html`<span class="dim">none</span>`}</div>
-        <div class="list-item"><div class="grow"><span class="dim">Copies on this host</span>
+        <div class="list-item"><div class="grow"><span class="dim k">Copies on this host</span>
           ${copies.length
             ? html`
               <table class="t mt">
@@ -1619,14 +1537,17 @@ function Keys() {
             confirmed.how === 'unlock'
               ? 'by the unlock'
               : confirmed.how === 'app'
-              ? 'with Verify key'
+              ? 'with Verify Key'
               : 'with moolakata keys verify'
           } on ${day(confirmed.at)}.`
-          : 'Not confirmed since install. Every unlock confirms it; check each copy once a year with Verify key.'}</div></div>
+          : 'Not confirmed since install.'}</div></div>
           ${confirmed
             ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
             : html`<span class="pill warn">unchecked</span>`}<button type="button" class="btn sm" onClick=${() =>
-            verify().catch((e) => toast(e.message))}>Verify key</button></div>
+            verify().catch((e) => toast(e.message))}>Verify Key</button></div>
+        ${!confirmed || Date.now() - Date.parse(confirmed.at) > YEAR_MS
+          ? html`<${Attention}>Without the recovery phrase, nothing here or in a backup opens.</${Attention}>`
+          : null}
         ${last
           ? html`
             <div class="list-item" data-help="last-reencryption">
@@ -1659,8 +1580,11 @@ function Keys() {
                           lastCopies.map(([name, o]) =>
                             html`<li><code>${name}</code>: ${o}${
                               leftUnder(String(o))
-                                ? html`${' '}<span class="pill warn">still opens with an old
-                                  key</span>`
+                                ? html`
+                                  ${' '}<${StatePill} tone="warn"
+                                    why="A copy left under an old key still opens with the old phrase."
+                                  >old key</${StatePill}>
+                                `
                                 : null
                             }</li>`
                           )
@@ -1669,8 +1593,6 @@ function Keys() {
             </div>
           `
           : null}
-        <div class="notice mt"><${Icon} name="alert" /><div>Without the recovery phrase, nothing here and no backup can be
-          opened, and the server cannot even start serving. Keep the phrase in two places, one offline.</div></div>
         ${test
           ? html`<ul class="small">${
             test.checks.map((/** @type {any} */ c) =>
@@ -1705,29 +1627,20 @@ function Keys() {
           ${armed || v.scheduled ? null : html`
             <button type="button" class="btn" onClick=${rotate}>Rotate</button>
             <button type="button" class="btn" onClick=${() =>
-              setArmed(true)}>Re-encrypt now</button>
-          `}<span
-            class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
-            reminder. Re-encrypt now keeps the phrase and makes a new data key, for when the data key
-            may have been read: a memory dump or a debugging session. Both restart MoolaKata, which
-            then asks for the phrase.</span></div>
+              setArmed(true)}>Re-encrypt Now</button>
+          `}</div>
         ${armed
           ? html`
             <form class="mt" onSubmit=${(/** @type {Event} */ e) => {
               e.preventDefault();
               reencrypt.run().catch(() => {});
             }}>
-              <p class="small dim" style=${{
-                marginTop: 0,
-              }}>MoolaKata restarts at once, locked. At the
-                unlock, before it serves: a verified backup first; then the database, the receipt
-                files and every secret are rewritten under a new data key, and the copies below as
-                you choose. The phrase given at the unlock wraps the new key.</p>
+              <${Attention}>MoolaKata restarts at once, locked.</${Attention}>
               <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
               <${FormError} error=${reencrypt.error} />
               <div
                 class="toolbar"><button class="btn primary" disabled=${reencrypt
-                  .busy}>Re-encrypt and restart</button>
+                  .busy}>Re-encrypt and Restart</button>
                         <button type="button" class="btn" onClick=${() =>
                           setArmed(false)}>Cancel</button></div>
             </form>
@@ -1737,6 +1650,9 @@ function Keys() {
     <${ReminderSetting} />
   `;
 }
+
+/** What the listener's own certificate means, as its pill's tooltip (S12.19.3). */
+const SELF_SIGNED = 'Browsers warn about it, and its key sits in the data directory unencrypted.';
 
 /** How the listener runs, read only, as `moolakata.toml` sets it (S13.3, S16.14). */
 function ListenerRows() {
@@ -1753,19 +1669,11 @@ function ListenerRows() {
       ? html`
         <div class="list-item"><span class="grow dim">Trusted proxies</span><code>${l.trustedProxies
           .join(', ') || 'none'}</code></div>
-        <p class="small dim">Both are set in <code>moolakata.toml</code>: the proxy's own address, never
-          a whole range.</p>
       `
       : html`
         <div class="list-item"><span class="grow dim">Certificate</span>${own
-          ? html`its own, self-signed <span class="pill warn">for testing</span>`
+          ? html`its own, self-signed <${StatePill} tone="warn" why=${SELF_SIGNED}>for testing</${StatePill}>`
           : html`given in <code>moolakata.toml</code>`}</div>
-        <p class="small dim">${own
-          ? html`Browsers warn about it, and its key sits in the data directory unencrypted. A
-            server people rely on is given a certificate in <code>[tls]</code>, or runs behind a
-            reverse proxy.`
-          : html`Both are set in <code>moolakata.toml</code>. A renewed certificate is read at the
-            next start, which starts locked.`}</p>
       `}
   `;
 }

@@ -15,10 +15,10 @@ export default function SignupConfirm() {
   }, []);
   if (state === null) return null;
   return html`
-    <${AuthCard} title=${state ? 'Waiting for approval' : 'This link has expired'}
+    <${AuthCard} title=${state ? 'Waiting for Approval' : 'This Link Has Expired'}
       guide="signup-confirm" sub=${state
         ? `Thanks, ${state.displayName}: your email is confirmed. An admin of ${state.household} now approves or rejects your request, and you'll get an email either way.`
-        : 'A confirmation link works once, for a day. Ask for an account again from the sign-in screen.'}>
-        <a class="btn" href="/ui/signin">Back to sign in</a></${AuthCard}>
+        : 'Ask for an account again from the sign-in screen.'}>
+        <a class="btn" href="/ui/signin">Back to Sign In</a></${AuthCard}>
   `;
 }

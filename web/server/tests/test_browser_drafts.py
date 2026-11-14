@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from browser import Household, made, months_back, signed_in, wait
+from browser import SAVED_TOAST, Household, made, months_back, signed_in, wait
 from edits import (
     change,
     create,
@@ -148,15 +148,15 @@ FORMS = [
     Form(
         "the plan, tracking with reserves and moves",
         lambda h: f"/ui/budgets/{h.budget['id']}/month",
-        'button:has-text("Edit plan")',
-        'button:has-text("Edit plan")',
+        'button:has-text("Edit Plan")',
+        'button:has-text("Edit Plan")',
         lambda h: plan_of(h, h.budget),
     ),
     Form(
         "the plan, envelope with a yearly line",
         lambda h: f"/ui/budgets/{h.envelope['id']}/month",
-        'button:has-text("Edit plan")',
-        'button:has-text("Edit plan")',
+        'button:has-text("Edit Plan")',
+        'button:has-text("Edit Plan")',
         lambda h: plan_of(h, h.envelope),
     ),
     Form(
@@ -292,14 +292,14 @@ FORMS = [
     Form(
         "a mortgage's settings and terms, a reset among them",
         lambda h: f"/ui/accounts/{h.extra['mortgage']['id']}/settings",
-        'form.draft-form:has-text("Loan terms")',
+        'form.draft-form:has-text("Loan Terms")',
         "",
         lambda h: account(h, "mortgage"),
     ),
     Form(
         "a wallet's settings, its key watched past a gap of 25",
         lambda h: f"/ui/accounts/{h.extra['cold']['id']}/settings",
-        'form.draft-form:has-text("Keys and addresses")',
+        'form.draft-form:has-text("Keys and Addresses")',
         "",
         lambda h: (
             account(h, "cold"),
@@ -328,7 +328,7 @@ FORMS = [
         lambda h: h.c.get("/ui/api/assumptions").json(),
     ),
     settings_form("Settings › General", "general", 'form.card:has-text("Household name")'),
-    settings_form("Settings › Sign-up", "signup", 'form.card:has-text("Allowed email domains")'),
+    settings_form("Settings › Sign-Up", "signup", 'form.card:has-text("Allowed email domains")'),
     settings_form(
         "Settings › Email, its password kept",
         "email",
@@ -339,17 +339,17 @@ FORMS = [
     # test below, on a server of its own, so no wallet of the household is ever read.
     settings_form("Settings › Prices' refresh time", "prices", 'form:has-text("Daily refresh")'),
     settings_form(
-        "Settings › Tax tables",
+        "Settings › Tax Tables",
         "tax-tables",
-        'form.card:has-text("Tax tables")',
+        'form.card:has-text("Tax Tables")',
         "/settings/tax-tables",
     ),
-    settings_form("Settings › Backups", "backups", 'form.card:has-text("Copies kept")'),
+    settings_form("Settings › Backups", "backups", 'form.card:has-text("Copies Kept")'),
     settings_form(
-        "Settings › Key storage's reminder", "keys", 'form.card:has-text("Remind admins")'
+        "Settings › Key Storage's reminder", "keys", 'form.card:has-text("Remind admins")'
     ),
     settings_form("Settings › Storage", "storage", 'form.card:has-text("Keep statements for")'),
-    settings_form("Settings › Linked servers' address", "links", 'form:has-text("link address")'),
+    settings_form("Settings › Linked Servers' address", "links", 'form:has-text("link address")'),
 ]
 
 
@@ -367,7 +367,7 @@ def test_saved_unchanged_a_form_changes_nothing(browser, household, form):
         wait(page, ".dialog", problems, state="detached")
     else:
         page.click(f"{form.ready} button.primary:enabled")
-        wait(page, ".toast", problems)
+        wait(page, SAVED_TOAST, problems)
     assert form.reads(h) == before
     assert problems == []
     page.close()
@@ -393,7 +393,7 @@ def test_a_plan_from_history_leaves_the_lines_it_doesnt_propose(browser, househo
 
 # ---------- what every draft form does, tested once on the shared pieces ----------
 
-EDIT = 'button:has-text("Edit plan")'
+EDIT = 'button:has-text("Edit Plan")'
 
 
 def fresh_budget(h: Household, name: str) -> dict:
@@ -437,9 +437,9 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     wait(page, "text=Save your changes?", problems)
     # Keep editing, focused and what Escape answers; Discard, in red; and Save.
     buttons = page.locator(".dialog-ask-buttons button")
-    assert buttons.all_inner_texts() == ["Keep editing", "Discard", "Save"]
+    assert buttons.all_inner_texts() == ["Keep Editing", "Discard", "Save"]
     assert "danger" in (buttons.nth(1).get_attribute("class") or "")
-    assert page.evaluate("document.activeElement.textContent.trim()") == "Keep editing"
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Keep Editing"
     page.keyboard.press("Escape")
     assert page.locator(".dialog-ask").count() == 0
     assert amount_of(page).input_value() == "12.00", "what was typed stays, at its places"
@@ -600,7 +600,7 @@ def test_an_ira_contribution_is_marked_deductible_or_not_whole_or_part_by_part(b
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.click('.dialog button:has-text("Split…")')
     page.fill("#x-split-0-amount", "3000.00")
-    page.click('.dialog button:has-text("Add a part")')
+    page.click('.dialog button:has-text("Add a Part")')
     page.fill("#x-split-1-amount", "4000.00")
     assert page.locator(seg).count() == 0
     page.click('.dialog [aria-label="Part 1 deductible"] button:has-text("Deductible")')
@@ -655,8 +655,8 @@ def test_a_gift_plan_changed_keeps_its_gifts_occasions(browser, household):
 
 def test_a_new_gift_plan_for_a_new_person(browser, household):
     h = household
-    page, problems = signed_in(browser, h, "/ui/gifts/people", 'button:has-text("Add a gift plan")')
-    page.click('button:has-text("Add a gift plan")')
+    page, problems = signed_in(browser, h, "/ui/gifts/people", 'button:has-text("Add a Gift Plan")')
+    page.click('button:has-text("Add a Gift Plan")')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-name", "Leo Griffin")
     page.select_option("#f-sex", "male")
@@ -709,7 +709,7 @@ def test_a_screens_form_holding_changes_asks_before_moving_elsewhere(browser, ho
     page.fill("#f-name", "Rainy day")
     page.click('a.nav-item:has-text("Budgets")')
     wait(page, "text=Save your changes?", problems)
-    page.click('button:has-text("Keep editing")')
+    page.click('button:has-text("Keep Editing")')
     assert page.url.endswith(path) and page.input_value("#f-name") == "Rainy day"
     page.go_back()
     wait(page, "text=Save your changes?", problems)
@@ -741,8 +741,8 @@ def test_save_in_a_screens_question_saves_and_moves_on(browser, household):
 
 def test_a_new_mortgage_is_made_with_its_terms_in_one_save(browser, household):
     h = household
-    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New account")')
-    page.click('button:has-text("New account")')
+    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New Account")')
+    page.click('button:has-text("New Account")')
     page.click('button.type-card:has-text("Mortgage")')
     page.fill("#f-name", "Cabin mortgage")
     page.fill("#f-original-principal", "200000")
@@ -763,8 +763,8 @@ def test_a_new_wallet_is_made_with_its_keys_in_one_save(browser, household):
     from test_wallets import ZPUB
 
     h = household
-    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New account")')
-    page.click('button:has-text("New account")')
+    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New Account")')
+    page.click('button:has-text("New Account")')
     page.click('button.type-card:has-text("Self-custody")')
     page.fill("#f-name", "Hardware wallet")
     page.fill("#f-wallet-keys", ZPUB)
@@ -795,7 +795,7 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#x-valuation-value", "6200")
     page.click('.dialog button:has-text("Add")')
-    page.click('.dialog button:has-text("Record the sale…")')
+    page.click('.dialog button:has-text("Record the Sale…")')
     page.fill("#x-proceeds", "6100")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
@@ -829,7 +829,7 @@ def test_a_receipt_is_attached_and_detached_with_save(browser, household):
     page.click(card)
     wait(page, '.dialog button:has-text("Detach")', problems)
     page.click('.dialog button:has-text("Detach")')
-    wait(page, "text=Nothing yet: it waits in the inbox.", problems)
+    wait(page, ".dialog .empty:has-text('Nothing yet')", problems)
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     assert links() == []
@@ -879,9 +879,9 @@ def test_a_rule_moved_and_a_budget_made_active_are_saved_at_once(browser, househ
         saved(remove(h.c, "Rule", r))
     page.goto(f"{h.base}/ui/budgets/{h.budget['id']}/list")
     item = '.list-item:has-text("Envelopes")'
-    wait(page, f'{item} button:has-text("Make active")', problems)
-    page.click(f'{item} button:has-text("Make active")')
-    page.click('.dialog footer button:has-text("Make active")')
+    wait(page, f'{item} button:has-text("Make Active")', problems)
+    page.click(f'{item} button:has-text("Make Active")')
+    page.click('.dialog footer button:has-text("Make Active")')
     wait(page, ".dialog", problems, state="detached")
     assert h.c.get("/ui/api/profile").json()["activeBudgetId"] == h.envelope["id"]
     saved(change(h.c, "User", h.c.get("/ui/api/profile").json(), activeBudgetId=h.budget["id"]))
@@ -903,8 +903,8 @@ def test_not_a_transfer_undoes_the_match_through_the_save(browser, household):
     path = f"/ui/accounts/{savings['id']}/transactions"
     page, problems = signed_in(browser, h, path, 'tr:has-text("From checking") .row-tool')
     page.click('tr:has-text("From checking") .row-tool')
-    wait(page, '.dialog button:has-text("Not a transfer"):enabled', problems)
-    page.click('.dialog button:has-text("Not a transfer")')
+    wait(page, '.dialog button:has-text("Not a Transfer"):enabled', problems)
+    page.click('.dialog button:has-text("Not a Transfer")')
     wait(page, ".dialog", problems, state="detached")
     assert pair() is None
     assert h.c.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
@@ -1006,8 +1006,8 @@ def test_cancel_asks_before_discarding_too(browser, household):
 
 def test_a_new_access_token_shows_its_secret_once(browser, household):
     h = household
-    page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("New token")')
-    page.click('button:has-text("New token")')
+    page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("New Token")')
+    page.click('button:has-text("New Token")')
     wait(page, ".dialog footer button.primary:enabled", problems)
     page.fill("#f-token-name", "Reports")
     page.click(".dialog footer button.primary")
@@ -1023,9 +1023,9 @@ def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household)
     h = household
     a = made(make(h.c, "Acct", name="Emma's 529", type="529"))
     path = f"/ui/accounts/{a['id']}/contributions"
-    page, problems = signed_in(browser, h, path, 'form:has-text("Record a contribution")')
+    page, problems = signed_in(browser, h, path, 'form:has-text("Record a Contribution")')
     page.fill("#f-amount", "2500")
-    page.click('form:has-text("Record a contribution") button.primary')
+    page.click('form:has-text("Record a Contribution") button.primary')
     wait(page, '.toast:has-text("Contribution recorded")', problems)
     url = f"/ui/api/accounts/{a['id']}/contributions"
     (row,) = h.c.get(url).json()["rows"]
@@ -1035,10 +1035,10 @@ def test_a_529s_contribution_and_expense_recorded_and_tagged(browser, household)
     wait(page, '.toast:has-text("Saved")', problems)
     assert h.c.get(url).json()["rows"][0]["name"] == "Emma Griffin"
     page.goto(page.url.replace("/contributions", "/withdrawals"))
-    wait(page, 'form:has-text("Add a qualified expense")', problems)
+    wait(page, 'form:has-text("Add a Qualified Expense")', problems)
     page.fill("#f-amount", "800")
     page.fill("#f-description", "Books")
-    page.click('form:has-text("Add a qualified expense") button.primary')
+    page.click('form:has-text("Add a Qualified Expense") button.primary')
     wait(page, '.toast:has-text("Expense added")', problems)
     (e,) = h.c.get(f"/ui/api/accounts/{a['id']}/withdrawals").json()["expenses"]
     assert (e["amount"], e["description"], e["kind"]) == (800, "Books", "tuition")
@@ -1054,7 +1054,7 @@ def test_an_active_projections_new_inputs_ask_about_its_baseline(browser, househ
     page.fill("#f-fees", "0.3")
     page.click('form.card:has-text("Inputs") button.primary')
     wait(page, '.dialog:has-text("Re-baseline?")', problems)
-    page.click('.dialog button:has-text("Keep the baseline")')
+    page.click('.dialog button:has-text("Keep the Baseline")')
     wait(page, '.toast:has-text("Recomputed")', problems)
     now = h.c.get(f"/ui/api/projections/{p['id']}").json()
     assert now["inputs"]["fees"] == 0.3 and now["baselineAt"] == was["baselineAt"]
@@ -1112,7 +1112,7 @@ def test_a_statement_ticked_off_and_reconciled_through_the_save(browser, househo
     page.click(".dialog footer button.primary")
     wait(page, 'input[aria-label="Cleared: Paycheck"]', problems)
     page.check('input[aria-label="Cleared: Paycheck"]')
-    wait(page, '.dialog footer button.primary:has-text("Mark reconciled"):enabled', problems)
+    wait(page, '.dialog footer button.primary:has-text("Mark Reconciled"):enabled', problems)
     page.click(".dialog footer button.primary")
     wait(page, '.toast:has-text("reconciled")', problems)
     (rec,) = h.c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["reconciliations"]
@@ -1176,12 +1176,12 @@ def test_a_tax_books_account_left_out_and_counted_again(browser, household):
     h = household
     name = h.checking["name"]
     row = f'.list-item:has-text("{name}") button'
-    page, problems = signed_in(browser, h, "/ui/taxes/summary", f'{row}:has-text("Leave out")')
-    page.click(f'{row}:has-text("Leave out")')
-    wait(page, f'{row}:has-text("Count it")', problems)
+    page, problems = signed_in(browser, h, "/ui/taxes/summary", f'{row}:has-text("Leave Out")')
+    page.click(f'{row}:has-text("Leave Out")')
+    wait(page, f'{row}:has-text("Count It")', problems)
     assert name in [a["name"] for a in book_of(h)["leftOut"]]
-    page.click(f'{row}:has-text("Count it")')
-    wait(page, f'{row}:has-text("Leave out")', problems)
+    page.click(f'{row}:has-text("Count It")')
+    wait(page, f'{row}:has-text("Leave Out")', problems)
     b = book_of(h)
     assert name in [a["name"] for a in b["accounts"]]
     assert name not in [a["name"] for a in b["leftOut"]]
@@ -1217,12 +1217,12 @@ def test_a_loan_payment_is_recorded_split_with_its_bank_half(browser, household)
                 termMonths=60, rate="6"))  # fmt: skip
     due = h.c.get(f"/ui/api/accounts/{loan['id']}/loan").json()
     page, problems = signed_in(
-        browser, h, f"/ui/accounts/{loan['id']}", 'button:has-text("Record a payment")'
+        browser, h, f"/ui/accounts/{loan['id']}", 'button:has-text("Record a Payment")'
     )
-    page.click('button:has-text("Record a payment")')
+    page.click('button:has-text("Record a Payment")')
     wait(page, "#f-from-account", problems)
     page.select_option("#f-from-account", label=h.checking["name"])
-    page.click('button:has-text("Show the split")')
+    page.click('button:has-text("Show the Split")')
     wait(page, "#x-part-principal", problems)
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
@@ -1274,9 +1274,9 @@ def test_a_corporate_action_is_a_record_its_transactions_made_from(browser, hous
     saved(create(h.c, "Txn", accountId=acct["id"], date=f"{months_back(2)}-03", kind="buy",
                  symbol="OLDCO", quantity="5", price="10", amount="-50.00"))  # fmt: skip
     page, problems = signed_in(
-        browser, h, "/ui/positions/open", 'button:has-text("Corporate action")'
+        browser, h, "/ui/positions/open", 'button:has-text("Corporate Action")'
     )
-    page.click('button:has-text("Corporate action")')
+    page.click('button:has-text("Corporate Action")')
     wait(page, "#f-holding", problems)
     page.select_option("#f-holding", label="OLDCO in Renamed")
     page.select_option("#f-action", "symbol-change")
@@ -1306,11 +1306,11 @@ def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser
         saved(option_trade(h.c, acct["id"], day, action, sym, "put", strike, expiry, "1",
                            premium))  # fmt: skip
     page, problems = signed_in(
-        browser, h, "/ui/positions/strategies", 'button:has-text("Group them")'
+        browser, h, "/ui/positions/strategies", 'button:has-text("Group Them")'
     )
-    page.locator('.notice:has-text("on QQQ")').locator('button:has-text("Group them")').click()
+    page.locator('.notice:has-text("on QQQ")').locator('button:has-text("Group Them")').click()
     wait(page, '.toast:has-text("Grouped")', problems)
-    page.locator('.notice:has-text("on IWM")').locator('button:has-text("Not a strategy")').click()
+    page.locator('.notice:has-text("on IWM")').locator('button:has-text("Not a Strategy")').click()
     wait(page, '.toast:has-text("Left as they are")', problems)
     v = h.c.get("/ui/api/positions/strategies").json()
     mine = [x for x in v["strategies"] if x["accountId"] == acct["id"]]
@@ -1365,7 +1365,7 @@ def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
                        "60", expiry, "2", "1.10"))  # fmt: skip
     page, problems = signed_in(browser, h, "/ui/positions/open", "text=KO")
     page.get_by_role("row", name=re.compile(r"KO .* 60 P")).locator("button.linklike").click()
-    page.get_by_role("button", name="Expired, assigned or exercised…").click()
+    page.get_by_role("button", name="Expired, Assigned or Exercised…").click()
     wait(page, ".dialog .value-input input", problems)
     # The dialog puts the focus in its first field once drawn; typed before that, the field
     # would be left, and checked, when it does.
@@ -1422,7 +1422,7 @@ def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, househo
         page.wait_for_timeout(50)
     assert page.input_value("#f-beneficiary") == wren
     page.click("form.draft-form button.primary")
-    wait(page, ".toast", problems)
+    wait(page, SAVED_TOAST, problems)
     plan = h.c.get(f"/ui/api/accounts/{a['id']}/plan529").json()
     assert plan["beneficiaryId"] == wren
     assert problems == []

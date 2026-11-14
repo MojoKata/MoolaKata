@@ -1,8 +1,8 @@
 # S15. Encryption and the master key
 
 This section is for the admin who installs and runs the server. It explains what MoolaKata
-encrypts and how, how to back up and protect the master key with its recovery phrase, and
-what key rotation does.
+encrypts and how, how to keep a backup of the master key in its recovery phrase and protect it,
+and what key rotation does.
 
 **Terms used here.**
 
@@ -36,7 +36,7 @@ data directory, and the data key derives a key for each kind of thing:
 
 Nothing on the right opens without the phrase, and the phrase opens nothing without a copy of
 the data directory or a backup. No key is on the host, so a stolen disk, a snapshot or a
-replica holds only the right-hand side, and the whole host can be backed up as it is.
+replica holds only the right-hand side, and a backup can be made of the whole host as it is.
 
 1. **What is encrypted, and what is not.**
    1. **The database**: the whole main database, with SQLCipher, including the full text read
@@ -70,8 +70,8 @@ replica holds only the right-hand side, and the whole host can be backed up as i
 2. **No external key service, and no key file.** MoolaKata keeps no master key at all: the
    phrase is entered after every start and held in memory only while it is used. HashiCorp
    Vault, cloud KMSs (AWS, GCP, Azure), HSMs and TPM sealing are **not supported**: on a
-   household server, an external service adds a dependency that must be running, backed up
-   and secured itself. A key file on the host was weighed and turned down too
+   household server, an external service adds a dependency that must be running, kept in
+   backups and secured itself. A key file on the host was weighed and turned down too
    ([rejected ideas](rejected-ideas.md)): it is the one thing that must be kept out of
    every snapshot and backup of the host, and a phrase typed at each start needs no such
    care.
@@ -215,7 +215,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       restart will lose everything. **Rotate at once** (S15.7.1), with a **break-glass code** in
       place of the lost phrase: `docker compose exec moolakata moolakata keys break-glass`, run
       on the host, asks the running, unlocked server over its socket for one, and Settings ›
-      Key storage › **Rotate** takes it, with an admin's password, for 15 minutes and once.
+      Key Storage › **Rotate** takes it, with an admin's password, for 15 minutes and once.
       The server keeps only its hash, in memory, so a restart voids it; a wrong one counts
       toward the sign-in lockout, as a wrong phrase does; and every admin is alerted that one
       was asked for. The socket needs no phrase for it, and that proves nothing about who
@@ -226,7 +226,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       is a server lost; a locked server issues no code.
    3. Linked copies are not affected either way: they open with their own access keys, and
       are pulled again from their sources (S11.9.9).
-6. **Backing up and protecting the master key.**
+6. **A backup of the master key, and its protection.**
    1. **Back it up as it is made.** The welcome (S15.4.4) and **Rotate** (S15.7.1) show the
       **recovery phrase** in the browser, 12 numbered words, with the fingerprint, the server's
       name and the date, and will not finish until three words chosen at random are typed
@@ -249,14 +249,14 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       database and the phrase protects nothing.
    4. **Never put it** in git, a ticket, a chat message, email, a shared drive, a container
       image, or a screenshot.
-   5. **Check the backup.** **Verify key** in Settings › Key storage, or `moolakata keys
+   5. **Check the backup.** **Verify key** in Settings › Key Storage, or `moolakata keys
       verify` on the host, asks for the whole phrase and says whether it unwraps the keyring,
       without changing anything; a wrong phrase counts toward the lockout, as at the unlock
-      (S15.4.2). Settings › Key storage records each confirmation: which fingerprint, and
+      (S15.4.2). Settings › Key Storage records each confirmation: which fingerprint, and
       when. Check the copies once a year: that the sheet
       is readable, and that the password manager entry still verifies. Settings reminds admins
       when a year has passed. Every unlock is a check as well: a copy that unlocks the server
-      is a good copy, and Settings › Key storage and the yearly reminder count it as a
+      is a good copy, and Settings › Key Storage and the yearly reminder count it as a
       confirmation.
    6. **Two people should be able to recover it**: the admin and one trusted person, such as a
       partner, an executor or an adult child. Write down where the copies are, alongside the
@@ -268,7 +268,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       disk opens without the phrase, so the data directory and the backup directory can be
       snapshotted, replicated and sent to a NAS or a cloud bucket as they are, as long as
       the recovery phrase never goes with them. **Know where every copy is**: the copies on
-      this host are listed in Settings › Key storage, with how each opens; a copy anywhere
+      this host are listed in Settings › Key Storage, with how each opens; a copy anywhere
       else (the host's snapshots and backups above all) is never seen or pruned by MoolaKata,
       opens with the key of its day for as long as it exists, and is yours to delete after a
       rotation or a leak (S15.7.3, S15.8).
@@ -293,7 +293,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       and every secret are re-encrypted under a new data key (S15.7.2). Re-wrapping alone would
       change only which phrase opens the keyring: an old phrase and any copy made before would
       still give the data key that opens every later copy, so a rotation always re-encrypts. It
-      is done in Settings › Key storage:
+      is done in Settings › Key Storage:
       1. **Rotate** (admins) asks for the password again and **the current phrase**, or a
          break-glass code from the host when it is lost (S15.5.2), so an admin's session alone
          can't change the phrase the household holds; a wrong one counts toward the sign-in
@@ -308,7 +308,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
          Activity. A stop between the journal and the keyring leaves the keyring under the old
          phrase: the unlock with it re-encrypts all the same, and Key storage says the rotation
          didn't finish;
-      2. **back up the new phrase at once** (S15.6). The server unlocks with the new phrase
+      2. **make a backup of the new phrase at once** (S15.6). The server unlocks with the new phrase
          from the restart on;
       3. verify the new phrase (Verify key);
       4. **keep the previous phrase until every copy made under it is gone**. Settings › Key
@@ -395,11 +395,11 @@ replica holds only the right-hand side, and the whole host can be backed up as i
          password for the bitcoin node, a new SMTP password, the connector unpaired and
          paired again (S18.4.4). A secret already read is usable until its source refuses it,
          whatever happens to the keys here;
-      2. **rotate the master key** (S15.7.1), which re-encrypts as well, and back up the new
-         phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
+      2. **rotate the master key** (S15.7.1), which re-encrypts as well, and make a backup of the
+         new phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
          server;
       3. **delete every copy made before the rotation, everywhere it was copied**: on this
-         host, from the list in Settings › Key storage, or by choosing **delete** for each at
+         host, from the list in Settings › Key Storage, or by choosing **delete** for each at
          the rotation; elsewhere, the host's snapshots, replicas, backups and VM images, on
          both ends of any replication. A copy that cannot be deleted is one the finder of the
          phrase can read, and should be treated as read: its secrets revoked (step 1 covers

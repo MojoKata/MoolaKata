@@ -273,7 +273,7 @@ def backup_days(config: Config) -> int:
 
 def prune(config: Config, keep: int) -> list[Path]:
     """Every backup of the `keep` most recent days that have one is kept, and the rest go
-    (S14.6): a second backup the same day, *Back up now*, never pushes out an earlier day's,
+    (S14.6): a second backup the same day, *Backup Now*, never pushes out an earlier day's,
     and never fewer than three days are kept (CR3-63)."""
     found = backups(config)
     days = sorted({_day(p) for p in found})[-max(keep, KEEP_AT_LEAST) :]

@@ -10,6 +10,7 @@ import { loadSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { errAt, Field, FormError, Input } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
+import { Attention } from '../kit/state.js';
 
 const WIDE = { width: '100%', justifyContent: 'center' };
 
@@ -36,43 +37,33 @@ export default function NewServer({ refresh }) {
 
   if (step === 'welcome' || !offer) {
     return html`
-      <${AuthCard} title="Welcome to MoolaKata" guide="new-server"
-        sub="This server is new. Two steps make it yours: its master key, then your account.">
-        <p class="small" style=${{ marginTop: 0 }}>Everything MoolaKata keeps is encrypted under one
-          <b> master key</b>, which is a <b>recovery phrase</b> of 12 words. You write it down;
-          nothing keeps it for you. MoolaKata asks for it after every restart, and nobody can
-          recover it if it's lost.</p>
-        <p class="small dim">Have paper and a pen ready. Two copies in two places, one of them
-          offline, is the rule.</p>
+      <${AuthCard} title="Welcome to MoolaKata" guide="new-server">
         <${FormError} error=${show.error} />
         <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
-          onClick=${() => show.run().catch(() => {})}>Show my recovery phrase</button>
+          onClick=${() => show.run().catch(() => {})}>Show My Recovery Phrase</button>
         </${AuthCard}>
     `;
   }
   if (step === 'phrase') {
     return html`
-      <${AuthCard} title="Your recovery phrase" guide="new-server"
-        sub="Write these 12 words on paper, in order. They're shown here once.">
+      <${AuthCard} title="Your Recovery Phrase" guide="new-server"
+        sub="They're shown here once.">
         <ol class="phrase" aria-label="The recovery phrase">${offer.words.map((
           /** @type {string} */ w,
         ) => html`<li><b>${w}</b></li>`)}</ol>
         <div class="small dim">Fingerprint <code>${offer.fingerprint}</code> · ${offer
           .serverName} · ${date(offer.made)}</div>
-        <div class="notice small mt">
-          <${Icon} name="alert" />
-          <div>A reload, or another browser,
-          shows other words: only the ones you confirm next become the key.</div>
-        </div>
+        <div class="mt">
+          <${Attention} icon=${html`<${Icon} name="alert" />`}>A reload shows other
+          words</${Attention}></div>
         <button type="button" class="btn primary mt" style=${WIDE}
-          onClick=${() => setStep('check')}>I've written them down</button>
+          onClick=${() => setStep('check')}>I've Written Them Down</button>
         </${AuthCard}>
     `;
   }
   const gone = /** @type {any} */ (make.error)?.code === 'phrase-gone';
   return html`
-    <${AuthCard} title="Check what you wrote" guide="new-server"
-      sub="Type three of the words from your sheet.">
+    <${AuthCard} title="Check What You Wrote" guide="new-server">
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         make.run().catch(() => {});
@@ -87,19 +78,18 @@ export default function NewServer({ refresh }) {
               </${Field}>
           `
         )}
-        <p class="small dim" style=${{ marginTop: 0 }}>Four letters of each are enough.</p>
         <${FormError} error=${make.error} shown=${offer.check.map((/** @type {number} */ n) =>
           `word${n}`
         )} />
         ${gone
           ? html`
             <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
-              onClick=${() => show.run().catch(() => {})}>Show a new phrase</button>
+              onClick=${() => show.run().catch(() => {})}>Show a New Phrase</button>
           `
           : html`<div class="row"><button type="button" class="btn"
             onClick=${() => setStep('phrase')}>Back</button><span class="spacer"></span><button
             class="btn primary" disabled=${make.busy}>${
-            make.busy ? 'Making the key…' : 'Make the key'
+            make.busy ? 'Making the Key…' : 'Make the Key'
           }</button></div>`}
         </form>
       </${AuthCard}>

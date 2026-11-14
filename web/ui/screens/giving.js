@@ -16,16 +16,20 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../kit/dec.js';
 import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
-import { Action, Attention, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
+
+/** What a grant's pill and a missing acknowledgement's pill mean (S12.19.3). */
+const GRANT_WHY = 'Not deducted again: its money was deducted when it went into the fund.';
+const ACK_WHY = 'A single gift of $250 or more needs a written acknowledgement.';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
   ['donations', 'Donations'],
   ['organisations', 'Organisations'],
-  ['fund', 'Donor-advised fund'],
+  ['fund', 'Donor-Advised Fund'],
 ]);
 const KINDS = /** @type {[string, string][]} */ ([
   ['cash', 'Cash (card, cheque, transfer)'],
@@ -81,7 +85,7 @@ function Overview({ v, reload }) {
   if (!plan) {
     return html`<${Empty} action=${html`
       <button type="button" class="btn primary"
-        onClick=${editPlan}>Set a target</button>
+        onClick=${editPlan}>Set a Target</button>
     `}>No giving plan for ${v.year} yet</${Empty}>
       ${
       num(v.given)
@@ -131,7 +135,7 @@ function Overview({ v, reload }) {
         }}></i></div>
       </div>
       <div class="card kpi" data-help="pace">
-        <div class="label">Pace to date</div>
+        <div class="label">Pace to Date</div>
         <div class="value">
           <${Amt} v=${v.pace} cents=${false} />
         </div>
@@ -142,7 +146,7 @@ function Overview({ v, reload }) {
           } cents=${false} /> ahead</span>`}</div>
       </div>
       <div class="card kpi" data-help="projected">
-        <div class="label">Projected year end</div>
+        <div class="label">Projected Year End</div>
         <div class="value">
           <${Amt} v=${v.projected} cents=${false} />
         </div>
@@ -153,7 +157,7 @@ function Overview({ v, reload }) {
       ? html`
         <div class="mt">
           <${Attention} icon=${html`<${Icon} name="alert" />`}
-            actions=${html`<a class="btn sm" href="/ui/giving/donations">See them</a>`}>${v
+            actions=${html`<a class="btn sm" href="/ui/giving/donations">See Them</a>`}>${v
               .missingAcks} donation${v.missingAcks === 1 ? '' : 's'} of $250 or more without a
           written acknowledgement</${Attention}>
         </div>
@@ -169,8 +173,8 @@ function Overview({ v, reload }) {
     )}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Given against the target<span class="spacer"></span><button
-        class="btn sm primary" onClick=${record}><${Icon} name="plus" /> Record a donation</button></h3>
+        <h3>Given against the Target<span class="spacer"></span><button
+        class="btn sm primary" onClick=${record}><${Icon} name="plus" /> Record a Donation</button></h3>
         <${TimeChart} label=${`Given in ${v.year} against the target`} series=${[
           { name: 'Given', color: '--hue-giving', points: months },
           { name: 'Even pace to the target', color: '--fg-muted', dash: true, points: pace },
@@ -180,7 +184,7 @@ function Overview({ v, reload }) {
           : 'A donor-advised fund counts when it grants, not when it is funded.'}</p>
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
-        <div class="card"><h3>By cause</h3>${v.byCause.length
+        <div class="card"><h3>By Cause</h3>${v.byCause.length
           ? v.byCause.map((/** @type {any} */ c) =>
             html`<div class="list-item"><div class="grow"><div class="small">${c.label}</div><div
               class="bar" style=${{ marginTop: '6px' }}><i style=${{
@@ -190,7 +194,7 @@ function Overview({ v, reload }) {
               cents=${false} /></span></div>`
           )
           : html`<p class="small dim">Nothing given yet.</p>`}</div>
-        <div class="card"><h3>Percent of income</h3>${v.history.map((/** @type {any} */ h) =>
+        <div class="card"><h3>Percent of Income</h3>${v.history.map((/** @type {any} */ h) =>
           html`
             <div
               class="list-item"><span class="small" style=${{ width: '48px' }}>${h
@@ -203,7 +207,7 @@ function Overview({ v, reload }) {
                 : `${h.percent}%`}</span></div>
           `
         )}</div>
-        <div class="card"><h3>By organisation</h3>${v.byOrganisation.map((/** @type {any} */ o) =>
+        <div class="card"><h3>By Organisation</h3>${v.byOrganisation.map((/** @type {any} */ o) =>
           html`<div class="list-item"><span class="grow">${o.label}</span><${Amt} v=${o.amount}
             cents=${false} /></div>`
         )}</div>
@@ -227,9 +231,8 @@ function Donations({ year, reload }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} />`;
   return html`
-    <div class="toolbar"><span class="small dim">Donations come from transactions categorised
-      Giving, or are recorded here.</span><span class="spacer"></span><button class="btn primary"
-      onClick=${() => record(null)}><${Icon} name="plus" /> Record a donation</button></div>
+    <div class="toolbar"><span class="spacer"></span><button class="btn primary"
+      onClick=${() => record(null)}><${Icon} name="plus" /> Record a Donation</button></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -264,14 +267,18 @@ function Donations({ year, reload }) {
                       <${Amt} v=${d.amount} />
                     </td>
                     <td>${d.kind === 'daf-grant'
-                      ? html`<span class="small dim">a grant · not deducted again</span>`
+                      ? html`
+                        <${StatePill} why=${GRANT_WHY}>grant</${StatePill}>
+                      `
                       : d.deductible
                       ? html`<${Icon} name="check" label="Deductible" />`
                       : html`<span class="pill">no</span>`}</td>
                     <td>${d.acknowledged
                       ? html`<span class="small"><${Icon} name="clip" /> received</span>`
                       : d.needsAck
-                      ? html`<span class="pill warn">missing · needed at $250+</span>`
+                      ? html`
+                        <${StatePill} tone="warn" why=${ACK_WHY}>missing</${StatePill}>
+                      `
                       : html`<span class="dim">—</span>`}</td>
                     <td class="tool">
                       ${!d.id || d.access.writable || d.description || d.granted != null
@@ -303,7 +310,7 @@ function Organisations() {
   return html`
     <div
       class="toolbar"><span class="spacer"></span><button class="btn primary" onClick=${() =>
-        open(null)}><${Icon} name="plus" /> Add an organisation</button></div>
+        open(null)}><${Icon} name="plus" /> Add an Organisation</button></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -318,7 +325,7 @@ function Organisations() {
                   <th>Deductible</th>
                   <th>Causes</th>
                   <th>Pledge</th>
-                  <th class="num">Given this year</th>
+                  <th class="num">Given This Year</th>
                   <th></th>
                 </tr>
               </thead>
@@ -399,7 +406,7 @@ function Fund({ v, year }) {
           <div class="card kpi">
             <div class="label">Account</div>
             <div class="value small"><a
-                  href=${`/ui/accounts/${f.accountId}`}>Holdings and transactions</a></div>
+                  href=${`/ui/accounts/${f.accountId}`}>Holdings and Transactions</a></div>
           </div>
         </div>
       `
@@ -455,7 +462,7 @@ function PlanDialog({ close, v }) {
   }, [v.plan?.id]);
   const rec = /** @type {GivingPlanRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title=${`Giving plan ${v.year}`} close=${close} what="This plan"
+    <${DraftDialog} f=${f} title=${`Giving Plan ${v.year}`} close=${close} what="This plan"
       done="Giving plan saved">
       ${rec
         ? html`
@@ -478,13 +485,11 @@ function PlanDialog({ close, v }) {
                   ]} />
               </div>
               <${RecField} rec=${rec} name="income" id="income"
-                label=${rec.get('incomeBasis') === 'gross' ? 'Gross income' : 'AGI estimate'}
-                hint="From your W-2, pay stubs or last return." />
+                label=${rec.get('incomeBasis') === 'gross' ? 'Gross income' : 'AGI estimate'} />
             `
             : html`<${RecField} rec=${rec} name="amount" label="Target amount" id="amount" />`}
           <${RecField} rec=${rec} name="dafCounted" label="Count the donor-advised fund"
-            id="daf-counted" hint="Either way, a dollar through the fund counts once."
-            options=${[
+            id="daf-counted" options=${[
               ['funded', 'When it is funded'],
               ['granted', 'When it grants'],
             ]} />
@@ -492,6 +497,14 @@ function PlanDialog({ close, v }) {
         : null}
     </${DraftDialog}>
   `;
+}
+
+/**
+ * Whether a single gift of this amount needs a written acknowledgement: $250 or more (S8.9).
+ * @param {any} amount
+ */
+function ackNeeded(amount) {
+  return amount != null && !dec(amount).lt(Dec.of(250));
 }
 
 /** A donation (S7.9.2): recorded whole, then changed after the fact. */
@@ -579,7 +592,7 @@ function DonationDialog({ close, from }) {
     ? writable.filter((a) => ['ira', '401k', '403b', '457b'].includes(a.type))
     : writable.filter((a) => a.type !== 'daf' && (a.group === 'banking' || a.investing));
   return html`
-    <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a donation'}
+    <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a Donation'}
       close=${close} what="This donation" done="Donation recorded" before=${() => {
         // Shares come from a lot; money and goods from no lot.
         if (!shares && rec) rec.set('lotId', null);
@@ -604,9 +617,7 @@ function DonationDialog({ close, from }) {
             ]} />
           ${from || kind === 'goods' || kind === 'daf-grant' ? null : html`
             <${RecField} rec=${rec} name="fromAccountId" label="From account" id="from-account"
-              hint=${kind === 'cash'
-                ? 'Its withdrawal is recorded, categorised Giving. Leave it for one already imported.'
-                : ''} options=${[
+              options=${[
                 ['', kind === 'cash' ? 'Not recorded here' : 'Choose…'],
                 ...sources.map((a) => [a.id, a.name]),
               ]} />
@@ -630,23 +641,16 @@ function DonationDialog({ close, from }) {
                         rec.set('amount', dec(price).mul(Dec.of(q)).round(2), 'quantity');
                       }
                     }} />
-                  <${RecField} rec=${rec} name="amount" label="Market value" id="amount"
-                    hint="On the day given." />
-                </div>
-                <div class="notice" style=${{ marginBottom: '12px' }}>
-                  <${Icon} name="info" />
-                  <div>No gain is realized on donated shares. Held over a year, the deduction is
-                  the market value; otherwise it is the basis.</div>
+                  <${RecField} rec=${rec} name="amount" label="Market value" id="amount" />
                 </div>
             `
             : html`
               <${RecField} rec=${rec} name="amount" id="amount"
                 label=${kind === 'goods' ? 'Fair market value' : 'Amount'} />
             `}
-          <${RecField} rec=${rec} name="description" label="What was given" id="description"
-            placeholder="ex: Two bags of clothes" />
+          <${RecField} rec=${rec} name="description" label="What was given" id="description" />
           <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received"
-            hint="A written acknowledgement is needed for any single gift of $250 or more." />
+            hint=${ackNeeded(rec.get('amount')) ? 'A written acknowledgement is needed.' : null} />
         `
         : null}
     </${DraftDialog}>
@@ -691,7 +695,7 @@ function DonationView({ close, d }) {
             <${Action} class="btn danger" why=${whyRead(d)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
-                if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
+                if (!(await confirmAction({ title: 'Delete This Donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -728,7 +732,7 @@ function DonationView({ close, d }) {
         ? html`
           <div class="toolbar">
             <${Action} class="btn sm" why=${whyRead(d)}><${Icon}
-                    name="clip" /> Attach the acknowledgement</${Action}></div>
+                    name="clip" /> Attach the Acknowledgement</${Action}></div>
         `
         : html`
           <div
@@ -784,21 +788,17 @@ function OrganisationDialog({ close, o }) {
   const rec = /** @type {OrganisationRec | undefined} */ (f.draft?.records[0]);
   const canWrite = !o || o.access.writable;
   return html`
-    <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
+    <${DraftDialog} f=${f} title=${o ? o.name : 'Add an Organisation'} close=${close}
       row=${o ? ORG_ROW : []}
       what="This organisation" done="Saved" read=${!canWrite}>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Name"
-            placeholder="ex: Greater Chicago Food Depository" />
-          <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
-          <${RecField} rec=${rec} name="deductible" label="Deductible"
-            hint="A 501(c)(3) charity. Not a political campaign or a person." />
-          <${RecField} rec=${rec} name="causes" label="Causes"
-            hint="Separated by commas: Hunger, Local." />
+          <${RecField} rec=${rec} name="name" label="Name" />
+          <${RecField} rec=${rec} name="ein" label="EIN" placeholder="none" />
+          <${RecField} rec=${rec} name="deductible" label="Deductible" />
+          <${RecField} rec=${rec} name="causes" label="Causes" />
           <div class="row">
-            <${RecField} rec=${rec} name="pledge" label="Pledge"
-              hint="Shown as expected donations." />
+            <${RecField} rec=${rec} name="pledge" label="Pledge" />
             <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
               options=${[['month', 'Month'], ['year', 'Year']]} />
           </div>

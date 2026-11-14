@@ -26,8 +26,8 @@ the interest still to pay.
 
 The principal owed after the payment.
 
-## Show all
+## Show All
 
-The table shows the last few payments and the next year. **Show all** lists every one to the payoff.
+The table shows the last few payments and the next year. **Show All** lists every one to the payoff.
 
 A payment that differs from the schedule, a rate reset or a recast recomputes the rest.

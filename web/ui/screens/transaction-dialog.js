@@ -303,8 +303,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
         : readOnly
         ? 'Transaction'
         : editing
-        ? 'Edit transaction'
-        : 'Add transaction'}
+        ? 'Edit Transaction'
+        : 'Add Transaction'}
       done=${deleting ? 'Deleted' : editing ? 'Saved' : 'Added'}
       label=${editing ? 'Save' : 'Add'}
       confirm=${deleting ? 'Delete it anyway' : 'Change it anyway'}
@@ -348,7 +348,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                 t.set('transferWithId', null);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
-              }}>Not a transfer</button>`
+              }}>Not a Transfer</button>`
               : null}
             ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
               ? html`<button type="button" class="btn" onClick=${() =>
@@ -358,7 +358,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                     payeeMatch: txn.payeeRaw || txn.payee,
                     categoryId: t?.get('categoryId') || null,
                   },
-                })}>Make a rule</button>`
+                })}>Make a Rule</button>`
               : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
@@ -387,8 +387,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
             ${trade
               ? html`
                 <div class="row">
-                  <${RecField} rec=${t} name="symbol" label="Symbol" placeholder="ex: VTI"
-                    disabled=${editing} />
+                  <${RecField} rec=${t} name="symbol" label="Symbol" disabled=${editing} />
                   <${RecField} rec=${t} name="quantity" label="Quantity" />
                   <${RecField} rec=${t} name="price" label="Price" />
                 </div>
@@ -398,19 +397,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
               : null}
             <div class="row">
-              <${RecField} rec=${t} name="amount" label="Amount" hint=${kind === 'reward'
-                ? 'No cash moves: 0. The coins are income at the price, their basis that value.'
-                : kind === 'foreign-tax'
-                ? 'What the fund paid abroad, as money out (1099-DIV box 7).'
-                : trade
-                ? 'The cash effect: − for a buy, + for a sale, after fees.'
-                : '− for money out, + for money in.'} />
+              <${RecField} rec=${t} name="amount" label="Amount" />
               ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
             </div>
-            ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} />` : html`
-              <${RecField} rec=${t} name="costBasis" label="Cost basis"
-                hint="What the shares cost. Without it, the lot is marked basis missing until you add it." />
-            `}
+            ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} />` : null}
             ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
             ${!trade && !parts.length
               ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" />`
@@ -423,7 +413,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                       ? 'Split across categories'
                       : ''}</span><span class="spacer"></span>
                     <${Action} class="btn sm" why=${readOnly ? READ_ONLY : null}
-                      onClick=${addPart}>${parts.length ? 'Add a part' : 'Split…'}</${Action}>
+                      onClick=${addPart}>${parts.length ? 'Add a Part' : 'Split…'}</${Action}>
                   </div>
                   ${parts.map((r, i) =>
                     html`
@@ -464,8 +454,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
             ${type.contributions && kind === 'deposit'
               ? html`
                 <div class="row">
-                  <${RecField} rec=${t} name="contributionYear" label="Contribution year"
-                    hint="A contribution made before the April deadline may be for the year before." />
+                  <${RecField} rec=${t} name="contributionYear" label="Contribution year" />
                   <${Field} label="Contributed by" id="contribution-source">
                     <${RecField} rec=${t} name="contributionSource" bare label="Contributed by"
                       options=${[
@@ -483,10 +472,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`<${Deductible} rec=${t} label="Deductible" id="deductible" />`
               : null}
             <${RecField} rec=${t} name="memo" label="Memo" />
-            ${draft ? html`<${TagsField} rec=${t} draft=${draft} hint="Yours only." />` : null}
+            ${draft ? html`<${TagsField} rec=${t} draft=${draft} />` : null}
             ${!type.investing && !parts.length
               ? html`
-                <${SwitchRow} label="Reimbursable" hint="To be paid back; it keeps its category."
+                <${SwitchRow} label="Reimbursable"
                   on=${t.get('reimbursable') != null} onChange=${(/** @type {boolean} */ on) =>
                     t.set(
                       'reimbursable',
@@ -498,8 +487,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                   ? html`
                     <div class="row">
                       <${RecField} rec=${t} name="reimbursable" label="Reimbursable amount" />
-                      <${RecField} rec=${t} name="owedBy" label="Owed by"
-                        placeholder="ex: Acme Corp" />
+                      <${RecField} rec=${t} name="owedBy" label="Owed by" />
                     </div>
                   `
                   : null}
@@ -639,8 +627,6 @@ function InBudgets({ txn, rec }) {
                       why=${whyRead(r)} /></div>
         `;
       })}
-      <div class="hint">The category is the transaction's: changing it changes every budget that
-        counts it.</div>
     </fieldset>
   `;
 }
@@ -684,7 +670,7 @@ function TxnReceipts({ txn, draft, canWrite }) {
           `
         )}
         ${!canWrite
-          ? html`<${Action} class="btn sm" why=${READ_ONLY}>Add a receipt</${Action}>`
+          ? html`<${Action} class="btn sm" why=${READ_ONLY}>Add a Receipt</${Action}>`
           : html`
             <label class="btn sm" for="f-add-receipt">Add a receipt</label>
             <input id="f-add-receipt" class="sr-only" type="file" multiple accept=${ACCEPT}
@@ -735,15 +721,17 @@ function TransferLots({ t }) {
           </div>
         `
       )}
-      <div class="toolbar"><span class="small dim">${rows.length
-        ? 'They add up to the shares moved in.'
-        : 'None typed: one lot whose day bought is missing, its term unknown until you add it.'}</span><span
+      <div class="toolbar"><span class="small dim">${!rows.length
+        ? 'None typed: one lot whose day bought is missing, its term unknown until you add it.'
+        : rows.some((r) => r.costBasis == null)
+        ? 'Marked basis missing until you add it.'
+        : ''}</span><span
         class="spacer"></span><${Action} class="btn sm" why=${why} onClick=${() =>
           put([...rows, {
             acquiredOn: null,
             quantity: null,
             costBasis: null,
-          }])}>Add a lot</${Action}></div>
+          }])}>Add a Lot</${Action}></div>
     </div>
   `;
 }

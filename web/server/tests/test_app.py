@@ -155,7 +155,7 @@ def test_a_guides_forms_show_what_they_are(page):
     page.mouse.move(5, 5)
     card.wait_for(state="detached")
     # A later use under the same heading, in a dialog's guide.
-    open_dialog(page, "/ui/taxes/summary", "New tax book", "dialog-tax-book")
+    open_dialog(page, "/ui/taxes/summary", "New Tax Book", "dialog-tax-book")
     first, later = page.locator(".help .guide abbr.term", has_text="Form 8949").all()
     assert first.get_attribute("tabindex") == "0"
     assert later.get_attribute("class") == "term quiet"
@@ -186,7 +186,7 @@ def test_a_dialog_masks_the_content_not_the_guide(page):
     beside it isn't covered, its terms answer the pointer, and Tab goes round the dialog's
     fields and the guide's. With the pane closed the mask covers everything (S12.1.3)."""
     visit(page, "/ui/taxes/summary")
-    page.get_by_role("button", name="New tax book").click()
+    page.get_by_role("button", name="New Tax Book").click()
     page.wait_for_selector(".dialog :focus")
     wait_guide(page, "dialog-tax-book")
     scrim, pane = page.locator(".scrim").bounding_box(), page.locator(".help").bounding_box()
@@ -262,7 +262,7 @@ def test_a_linked_households_window_opens_with_its_words(page):
     assert "Mom's Retirement" in page.content() or True
     visit(page, f"/ui/linked/{link}/account/{acct}")
     page.wait_for_selector("text=412,880")
-    page.get_by_role("button", name="Lock now").click()
+    page.get_by_role("button", name="Lock Now").click()
     page.wait_for_selector(".locked-card")
     assert page.problems == []
 
@@ -349,7 +349,7 @@ def test_landed_money_assigned_a_line_for_each_reserve(page):
     visit(page, "/ui/budgets/x/where")
     page.get_by_role("button", name="Assign").first.click()
     page.wait_for_selector(".dialog #x-reserve, .dialog [data-help=reserve]")
-    page.get_by_role("button", name="Spread by balance").click()
+    page.get_by_role("button", name="Spread by Balance").click()
     page.locator(".dialog footer button.primary").click()
     page.wait_for_selector("text=Assigned")
     page.wait_for_selector(".dialog", state="detached")
@@ -386,16 +386,16 @@ def test_two_step_sign_in_through_the_app(page):
     bob = signed_in_page(page, "bob")
     bob.wait_for_selector(".side")
     visit(bob, "/ui/profile")
-    bob.locator("#two-step").get_by_role("button", name="Turn on").click()
+    bob.locator("#two-step").get_by_role("button", name="Turn On").click()
     bob.wait_for_selector(".dialog .qr img")
     wait_guide(bob, "dialog-two-step")
-    check_guide(bob, ".dialog", "Turn on two-step sign-in")
+    check_guide(bob, ".dialog", "Turn On Two-Step Sign-In")
     seed = bob.inner_text(".dialog code.key").replace(" ", "")
     bob.fill("#f-two-step-code", "000000")
-    bob.locator(".dialog").get_by_role("button", name="Turn on").click()
+    bob.locator(".dialog").get_by_role("button", name="Turn On").click()
     bob.wait_for_selector(".dialog .err")
     bob.fill("#f-two-step-code", twostep.code_at(seed, int(time.time()) // 30))
-    bob.locator(".dialog").get_by_role("button", name="Turn on").click()
+    bob.locator(".dialog").get_by_role("button", name="Turn On").click()
     bob.wait_for_selector(".dialog ul.codes")
     wait_guide(bob, "dialog-recovery-codes")
     codes = bob.locator(".dialog ul.codes code").all_inner_texts()
@@ -410,7 +410,7 @@ def test_two_step_sign_in_through_the_app(page):
     again.wait_for_selector("text=Two-step sign-in")
     again.get_by_role("button", name="Use a recovery code").click()
     again.fill("#f-recovery-code", codes[3])
-    again.get_by_role("button", name="Sign in", exact=True).click()
+    again.get_by_role("button", name="Sign In", exact=True).click()
     again.wait_for_selector(".side")
     assert again.problems == []
     again.context.close()
@@ -421,8 +421,8 @@ def test_two_step_sign_in_through_the_app(page):
     row = admin.locator("tr", has_text="bob@")
     assert row.locator(".pill.ok", has_text="two-step").count() == 1
     row.locator(".row-tool").click()
-    admin.get_by_role("button", name="Reset two-step").click()
-    admin.get_by_role("button", name="Turn it off").click()
+    admin.get_by_role("button", name="Reset Two-Step").click()
+    admin.get_by_role("button", name="Turn It Off").click()
     admin.wait_for_selector("text=Two-step sign-in is off for")
     row.locator(".pill.ok", has_text="two-step").wait_for(state="detached")
     assert admin.problems == []
@@ -458,7 +458,7 @@ def test_sign_up_through_the_app(page):
     guest.fill("#f-email", "erin@shaw.family")
     guest.fill("#f-username", "erin")
     guest.fill("#f-password", "a long passphrase for erin")
-    guest.get_by_role("button", name="Ask for an account").click()
+    guest.get_by_role("button", name="Ask for an Account").click()
     guest.wait_for_selector("text=a link to confirm it is on its way")
     url = last_mail_link()
     assert "/ui/signup/confirm#" in url
@@ -475,7 +475,7 @@ def test_sign_up_through_the_app(page):
     guest.goto(page.base + "/ui/signin")
     guest.fill("#f-username-or-email", "erin")
     guest.fill("#f-password", "a long passphrase for erin")
-    guest.get_by_role("button", name="Sign in", exact=True).click()
+    guest.get_by_role("button", name="Sign In", exact=True).click()
     guest.wait_for_selector(".side")
     ctx.close()
 

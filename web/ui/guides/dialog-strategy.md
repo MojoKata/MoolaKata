@@ -1,4 +1,4 @@
-# A strategy
+# A Strategy
 
 ## Name {#strategy-name}
 

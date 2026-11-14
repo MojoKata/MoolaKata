@@ -13,11 +13,13 @@ import pytest
 from browser import made, months_back, signed_in, wait
 from edits import loan_payment, make, remove, saved, terms
 
+from moolakata import paths
+
 pytestmark = pytest.mark.browser
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-RESULTS = '.card:has(h3:text("Balance: the schedule against your plan"))'
-SAVED = '.card:has(h3:text("Saved plans"))'
+RESULTS = '.card:has(h3:text("Balance: The Schedule against Your Plan"))'
+SAVED = '.card:has(h3:text("Saved Plans"))'
 PLAN_ROWS = 'table:has(caption:text("The schedule with your plan")) tbody tr'
 
 
@@ -125,8 +127,7 @@ def invested_notice(r: dict, label: str) -> str:
     return (
         f"Investing the same {money(i['contributed'], False)} in {label} at {pct} a year "
         f"instead would be worth about {money(i['value'], False)} by {month(p['payoffDate'])}, "
-        f"against {money(p['interestSaved'], False)} of interest saved. A comparison, not "
-        "advice: the return is an assumption; the interest saved is certain."
+        f"against {money(p['interestSaved'], False)} of interest saved."
     )
 
 
@@ -170,15 +171,15 @@ def test_an_empty_plan_shows_the_schedule(browser, household, new_loan):
     assert month(r["plan"]["payoffDate"]) == month(r["schedule"]["payoffDate"])
     card = page.locator(RESULTS)
     assert card.locator(".legend").inner_text().split() == ["Schedule", "With", "your", "plan"]
-    assert flat(page.locator(SAVED).inner_text()).startswith("Saved plans No saved plans")
+    assert flat(page.locator(SAVED).inner_text()).startswith("Saved Plans No saved plans")
     # The plan's schedule, shown and hidden again: no extra on any row.
-    page.get_by_role("button", name="Show the plan’s schedule").click()
+    page.get_by_role("button", name="Show the Plan’s Schedule").click()
     wait(page, PLAN_ROWS, problems)
     shown = extras(page)
     assert len(shown) == len(r["planRows"])
     assert shown[0][0] == day(r["planRows"][0]["date"])
     assert {x for _, x in shown} == {"—"}
-    page.get_by_role("button", name="Hide the plan’s schedule").click()
+    page.get_by_role("button", name="Hide the Plan’s Schedule").click()
     wait(page, PLAN_ROWS, problems, state="detached")
     assert problems == []
     page.close()
@@ -191,7 +192,7 @@ def test_an_empty_plan_asks_for_an_overpayment(browser, household, new_loan):
     card = page.locator(RESULTS)
     try:
         assert "Investing the same" not in card.inner_text()
-        assert "Add an overpayment to see what it saves." in card.inner_text()
+        assert "No overpayment in the plan" in card.inner_text()
         assert problems == []
     finally:
         page.close()
@@ -213,7 +214,7 @@ def test_a_monthly_extra_from_and_until_and_where_it_would_be_invested(
     notice = page.locator(f'{RESULTS} .notice:has-text("Investing the same")')
     assert flat(notice.inner_text()) == invested_notice(r, "US stocks")
     # Six payments carry it, from the first due on or after its start to the last before its end.
-    page.get_by_role("button", name="Show the plan’s schedule").click()
+    page.get_by_role("button", name="Show the Plan’s Schedule").click()
     wait(page, PLAN_ROWS, problems)
     carried = [(d, x) for d, x in extras(page) if x != "—"]
     assert carried == [(day(ahead(n)), "$1,000.00") for n in range(2, 8)]
@@ -236,7 +237,7 @@ def test_a_yearly_extra_goes_with_the_payment_of_its_month(browser, household, n
     r = plan(h, a, yearly="5000", yearlyMonth=3)
     assert_outcome(page, r)
     assert r["plan"]["monthsSaved"] > 0
-    page.get_by_role("button", name="Show the plan’s schedule").click()
+    page.get_by_role("button", name="Show the Plan’s Schedule").click()
     wait(page, PLAN_ROWS, problems)
     carried = [(d, x) for d, x in extras(page) if x != "—"]
     assert len(carried) >= 5
@@ -252,7 +253,7 @@ def test_lump_sums_shorten_the_loan_or_recast_it(browser, household, new_loan):
     a = fixed(new_loan, "Payoff lumps mortgage")
     first, second = ahead(4), ahead(16)
     page, problems = planner(browser, h, a)
-    add = page.get_by_role("button", name="Add a lump sum")
+    add = page.get_by_role("button", name="Add a Lump Sum")
     for i, (when, amount) in enumerate([(first, "20000"), (second, "10000")]):
         add.click()
         page.fill(f"#x-lump-date-{i}", when)
@@ -308,7 +309,7 @@ def test_biweekly_payments_and_rounding_each_payment_up(browser, household, new_
     worked_out(page, problems, lambda: page.click("#f-biweekly-payments"))
     rounded = plan(h, a, roundTo="100")
     assert_outcome(page, rounded)
-    page.get_by_role("button", name="Show the plan’s schedule").click()
+    page.get_by_role("button", name="Show the Plan’s Schedule").click()
     wait(page, PLAN_ROWS, problems)
     assert extras(page)[0][1] == "$1.35"
     assert problems == []
@@ -322,10 +323,7 @@ def test_an_arms_rates_after_today_are_named_as_assumed(browser, household, new_
                                    {"date": "2031-04-01", "rate": "7.5"}])  # fmt: skip
     page, problems = planner(browser, h, a)
     warn = page.locator(f"{RESULTS} .notice.warn")
-    assert flat(warn.inner_text()) == (
-        "After Apr 1, 2030 the rate is your assumption (7.125% from Apr 2030, 7.5% from "
-        "Apr 2031), as typed in the terms."
-    )
+    assert flat(warn.inner_text()) == "Assumed rates: 7.125% from Apr 2030, 7.5% from Apr 2031"
     assert_outcome(page, plan(h, a))
     # Its Overview calls the rate adjustable.
     tab(page, problems, "Overview", '.card.facts:has(h3:has-text("Loan"))')
@@ -355,12 +353,12 @@ def test_the_plans_refusals_show_at_their_fields(browser, household, new_loan):
     good = plan(h, a, monthly="100", monthlyFrom=ahead(6))
     worked_out(page, problems, lambda: page.fill("#f-monthly-until", ahead(3)))
     assert page.locator("#f-monthly-until-err").inner_text() == "After the start."
-    page.get_by_role("button", name="Add a lump sum").click()
+    page.get_by_role("button", name="Add a Lump Sum").click()
     page.fill("#x-lump-date-0", ahead(2))
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "0"))
     assert page.locator("#x-lump-amount-0-err").inner_text() == "More than zero."
     # Each refusal at its field alone, none again below the form; the last figures stay.
-    assert page.locator('.card:has(h3:text("Your plan")) .notice.bad').count() == 0
+    assert page.locator('.card:has(h3:text("Your Plan")) .notice.bad').count() == 0
     assert_outcome(page, good)
     # Corrected, the refusals go and the plan is worked out again.
     worked_out(page, problems, lambda: page.fill("#f-monthly-until", ""))
@@ -380,8 +378,8 @@ def test_a_lump_sum_half_filled_is_left_out_then_refused_at_its_row(browser, hou
     h = household
     a = fixed(new_loan, "Payoff lumps mortgage")
     page, problems = planner(browser, h, a)
-    page.get_by_role("button", name="Add a lump sum").click()
-    page.get_by_role("button", name="Add a lump sum").click()
+    page.get_by_role("button", name="Add a Lump Sum").click()
+    page.get_by_role("button", name="Add a Lump Sum").click()
     page.fill("#x-lump-date-0", ahead(3))  # a date only
     page.fill("#x-lump-date-1", ahead(2))
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-1", "0"))
@@ -391,7 +389,7 @@ def test_a_lump_sum_half_filled_is_left_out_then_refused_at_its_row(browser, hou
     assert_outcome(page, plan(h, a, lumps=[{"date": ahead(2), "amount": "5000"}]))
     assert page.locator(".field .err").count() == 0, "a row being filled isn't refused"
     page.fill("#f-plan-name", "Half filled")
-    page.click(f'{SAVED} button:has-text("Save plan")')
+    page.click(f'{SAVED} button:has-text("Save Plan")')
     wait(page, "#x-lump-amount-0-err", problems)
     said = page.locator("#x-lump-amount-0-err").inner_text()
     assert said == "A date and an amount, or remove the lump sum."
@@ -401,7 +399,7 @@ def test_a_lump_sum_half_filled_is_left_out_then_refused_at_its_row(browser, hou
     # Typed in, the refusal goes; saved, it holds both lump sums.
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "1000"))
     assert page.locator(".field .err").count() == 0
-    page.click(f'{SAVED} button:has-text("Save plan")')
+    page.click(f'{SAVED} button:has-text("Save Plan")')
     wait(page, f'{SAVED} .list-item:has-text("Half filled")', problems)
     [p] = h.c.get(f"/ui/api/accounts/{a['id']}/loan/plans").json()["items"]
     assert [(x["date"], float(x["amount"])) for x in p["inputs"]["lumps"]] == [
@@ -417,13 +415,13 @@ def test_a_plan_saved_followed_shown_again_and_deleted(browser, household, new_l
     a = fixed(new_loan, "Payoff saved mortgage")
     page, problems = planner(browser, h, a)
     worked_out(page, problems, lambda: page.fill("#f-extra-each-month", "200"))
-    page.get_by_role("button", name="Add a lump sum").click()
+    page.get_by_role("button", name="Add a Lump Sum").click()
     page.fill("#x-lump-date-0", ahead(5))
     worked_out(page, problems, lambda: page.fill("#x-lump-amount-0", "15000"))
     worked_out(page, problems, lambda: page.click("#f-recast-after-the-lump-sums"))
     worked_out(page, problems, lambda: page.fill("#f-recast-fee", "300"))
     page.fill("#f-plan-name", "Extra $200 and a bonus")
-    page.get_by_role("button", name="Save plan").click()
+    page.get_by_role("button", name="Save Plan").click()
     wait(page, '.toast:has-text("Plan saved")', problems)
     wait(page, f'{SAVED} .list-item:has-text("Extra $200 and a bonus")', problems)
     (kept,) = h.c.get(f"/ui/api/accounts/{a['id']}/loan/plans").json()["items"]
@@ -580,15 +578,15 @@ def test_a_helocs_draw_period_is_interest_only(browser, household, new_loan):
     first = rows.nth(3).locator("td").all_inner_texts()
     assert first == [day(v["nextDate"]), "$333.33", "$0.00", "$333.33", "—", "$50,000.00"]
     assert page.locator("thead").inner_text().count("Escrow") == 0
-    note = page.locator('.toolbar:has(button:text("Show all")) .small').inner_text()
-    assert note.startswith(f"{len(v['rows'])} payments.")
-    page.get_by_role("button", name="Show all").click()
-    wait(page, 'button:text("Show fewer")', problems)
+    note = page.locator('.toolbar:has(button:text("Show All")) .small').inner_text()
+    assert note == f"{len(v['rows'])} payments"
+    page.get_by_role("button", name="Show All").click()
+    wait(page, 'button:text("Show Fewer")', problems)
     assert rows.count() == len(v["rows"])
     last = rows.last.locator("td").all_inner_texts()
     assert last[0] == day(v["payoffDate"]) and last[-1] == "$0.00"
-    page.get_by_role("button", name="Show fewer").click()
-    wait(page, 'button:text("Show all")', problems)
+    page.get_by_role("button", name="Show Fewer").click()
+    wait(page, 'button:text("Show All")', problems)
     assert rows.count() == 15
     # Its payoff plan: an extra each month during the draw period pays principal down.
     tab(page, problems, "Payoff", f"{RESULTS} .kv")
@@ -660,8 +658,8 @@ def test_a_loan_that_cant_be_read_says_so_on_each_tab(browser, household, new_lo
 
 def test_the_terms_form_refuses_what_a_loan_cant_be(browser, household, new_loan):
     h = household
-    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New account")')
-    page.click('button:has-text("New account")')
+    page, problems = signed_in(browser, h, "/ui/accounts", 'button:has-text("New Account")')
+    page.click('button:has-text("New Account")')
     page.click('button.type-card:has-text("HELOC")')
     wait(page, "#f-draw-months", problems)
     assert page.locator("#f-draw-months").input_value() == "120"
@@ -714,19 +712,19 @@ def test_the_terms_form_refuses_what_a_loan_cant_be(browser, household, new_loan
 def test_resets_and_recasts_are_typed_in_the_terms(browser, household, new_loan):
     h = household
     a = fixed(new_loan, "Resets mortgage")
-    form = 'form.draft-form:has-text("Loan terms")'
+    form = 'form.draft-form:has-text("Loan Terms")'
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}/settings", form)
     resets = page.locator('.mt:has(> .toolbar b:text("Rate resets"))')
     recasts = page.locator('.mt:has(> .toolbar b:text("Recasts"))')
-    assert "An adjustable rate's new rate from a date" in resets.inner_text()
-    assert "The servicer re-amortizes the balance" in recasts.inner_text()
+    assert "No rate resets" in resets.inner_text()
+    assert "No recasts" in recasts.inner_text()
     page.get_by_role("button", name="Add a reset").click()
     page.fill("#x-rate-date-0", "2029-01-01")
     page.fill("#x-rate-0", "7.25%")
     page.get_by_role("button", name="Add a recast").click()
     page.fill("#x-fee-date-0", "2027-06-01")
     page.fill("#x-fee-0", "$250")
-    assert "An adjustable rate's new rate" not in resets.inner_text()
+    assert "No rate resets" not in resets.inner_text()
     page.click(f"{form} button.primary:enabled")
     wait(page, '.toast:has-text("Saved")', problems)
     t = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["terms"]
@@ -772,7 +770,7 @@ def test_the_payments_setting_and_a_payment_missed(browser, household, new_loan)
     assert cells[0] == f"{day(last['date'])} missed" and cells[-1] == money(v["balance"])
     assert cells[1] == money(last["payment"]) and shown.last.get_attribute("class") == ""
     # Settings: Automatic names what it reads as; assumed as scheduled, nothing is missed.
-    form = 'form.draft-form:has-text("Loan terms")'
+    form = 'form.draft-form:has-text("Loan Terms")'
     tab(page, problems, "Settings", form)
     wait(page, '#f-payments-mode option:text("Automatic: recorded here")', problems,
          state="attached")  # fmt: skip
@@ -809,11 +807,13 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     facts = '.card.facts:has(h3:has-text("Loan"))'
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", facts)
     row = page.locator(f'{facts} .list-item:has-text("Servicer\'s balance")')
-    assert flat(row.inner_text()) == "Servicer's balance not typed Type it"
-    row.get_by_role("button", name="Type it").click()
+    assert flat(row.inner_text()) == "Servicer's balance not typed Type It"
+    row.get_by_role("button", name="Type It").click()
     wait(page, ".dialog #f-owed", problems)
     dialog = page.locator(".dialog")
-    assert "The principal still owed, from the servicer's statement" in dialog.inner_text()
+    assert "The principal still owed" not in dialog.inner_text(), "it is in the guide (R3.12)"
+    guide = " ".join((paths.UI / "guides" / "dialog-servicer-balance.md").read_text().split())
+    assert "The principal still owed, typed from the servicer's statement" in guide
     earlier = f"{months_back(1)}-15"
     page.fill("#f-as-of", earlier)
     page.fill("#f-owed", "300,000")
@@ -821,10 +821,10 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     wait(page, ".dialog", problems, state="detached")
     wait(page, f"{facts} .pill.ok", problems)
     assert flat(row.inner_text()) == (
-        f"Servicer's balance $300,000.00 on {day(earlier)} matches Type it"
+        f"Servicer's balance $300,000.00 on {day(earlier)} matches Type It"
     )
     # A later statement, $1,000 under the schedule's balance.
-    row.get_by_role("button", name="Type it").click()
+    row.get_by_role("button", name="Type It").click()
     wait(page, ".dialog #f-owed", problems)
     as_of = iso(page.locator("#f-as-of").input_value())
     page.fill("#f-owed", "299000")
@@ -837,7 +837,7 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
         str(s["computed"])
     )
     assert flat(row.inner_text()) == f"Servicer's balance $299,000.00 on {day(as_of)} off by " \
-        f"{money(s['difference'])} Type it"  # fmt: skip
+        f"{money(s['difference'])} Type It"  # fmt: skip
     assert problems == []
     page.close()
 
@@ -848,17 +848,12 @@ def test_a_payments_split_is_corrected_before_it_is_recorded(browser, household,
                  startDate=f"{months_back(2)}-01", termMonths=60, rate="6")  # fmt: skip
     due = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}",
-                               'button:has-text("Record a payment")')  # fmt: skip
-    page.click('button:has-text("Record a payment")')
+                               'button:has-text("Record a Payment")')  # fmt: skip
+    page.click('button:has-text("Record a Payment")')
     wait(page, ".dialog #f-from-account", problems)
-    hint = page.locator('.dialog .toolbar:has(button:text("Show the split")) .small')
-    assert hint.inner_text() == "The schedule splits it into principal, interest, escrow and PMI."
-    wait(page, '.dialog button:text("Show the split"):enabled', problems)
-    page.click('.dialog button:text("Show the split")')
+    wait(page, '.dialog button:text("Show the Split"):enabled', problems)
+    page.click('.dialog button:text("Show the Split")')
     wait(page, "#x-part-principal", problems)
-    assert hint.inner_text() == (
-        "Split by the schedule. Correct it from the servicer’s statement if it differs."
-    )
     principal = value(page, "#x-part-principal")
     interest = value(page, "#x-part-interest")
     assert principal + interest == Decimal(str(due["total"]))

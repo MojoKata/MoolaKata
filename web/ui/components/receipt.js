@@ -86,13 +86,13 @@ export function ReceiptCard({ r, onOpen }) {
         }}>${r.readStatus === 'waiting' || r.readStatus === 'reading'
           ? html`<span class="pill info">Reading…</span>`
           : r.readStatus === 'failed'
-          ? html`<span class="pill bad">couldn't read it</span>`
+          ? html`<span class="pill bad">unreadable</span>`
           : r.links.length
           ? html`<span class="pill ok">${r.links[0].accountName || r.links[0].label}${
             r.links.length + r.alsoKeptWith > 1 ? ` +${r.links.length + r.alsoKeptWith - 1}` : ''
           }</span>`
           : r.alsoKeptWith
-          ? html`<span class="pill ok">kept with ${r.alsoKeptWith} not shared</span>`
+          ? html`<span class="pill ok">+${r.alsoKeptWith} not shared</span>`
           : html`<span class="pill warn">inbox</span>`}</div>
       </div>
     </button>
@@ -186,7 +186,7 @@ export function ReceiptDialog({ close, id }) {
                 : null)} onClick=${async () => {
               const draft = f.draft;
               if (!draft) return;
-              if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
+              if (!(await confirmAction({ title: 'Delete This Receipt?' }))) return;
               draft.remove(rec);
               const o = await save.run().catch(() => null);
               if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
@@ -232,7 +232,7 @@ export function ReceiptDialog({ close, id }) {
                 onClick=${() =>
                   again.run().catch((e) =>
                     toast(e.message)
-                  )}><${Icon} name="refresh" /> Read again</${Action}></div>
+                  )}><${Icon} name="refresh" /> Read Again</${Action}></div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'
@@ -269,10 +269,10 @@ export function ReceiptDialog({ close, id }) {
           ${f.draft
             ? html`
               <${TagsField} rec=${rec} draft=${f.draft} id="receipt-tags"
-                hint="Yours only." disabled=${!canEdit} />
+                disabled=${!canEdit} />
             `
             : null}
-          <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>
+          <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached To</h4>
           ${kept.length || added.length
             ? [...kept, ...added].map((/** @type {any} */ l) =>
               html`<div class="list-item"><div class="grow small">${
@@ -292,7 +292,7 @@ export function ReceiptDialog({ close, id }) {
             )
             : r.alsoKeptWith
             ? null
-            : html`<p class="small dim">Nothing yet: it waits in the inbox.</p>`}
+            : html`<${Empty}>Nothing yet</${Empty}>`}
           ${r.alsoKeptWith
             ? html`
               <p class="small dim"

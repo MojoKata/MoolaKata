@@ -63,7 +63,7 @@
          should continue. MoolaKata shows these as models others publish, not as its own
          view, and not as advice (R1.16).
       3. **Their figures ship with the app**, dated and with their source, in Settings ›
-         Tax tables, and are updated with it (a new ARK target, a refit of the power law).
+         Tax Tables, and are updated with it (a new ARK target, a refit of the power law).
       4. A projection that uses a model with bear, base and bull cases shows those three
          paths in place of a fan, since they are not percentiles.
 4. **Models:**
@@ -127,7 +127,8 @@
    returns percentiles per year. It uses NumPy, in floats: the one exception to R1.9, since its
    figures are estimates. Its percentiles are rounded to cents and sent as exact numbers
    (S13.8.2.1), and the start value and the tracking figures stay exact. The screen states its
-   assumptions in full under the chart and says plainly that it is a model, not a forecast.
+   assumptions in full under the chart, each a labelled line, and its guide says plainly that it
+   is a model, not a forecast (R3.12).
 10. **Loan payoff planner** (on each loan's *Payoff* tab, S1.9.5). It compares the schedule
     with the user's **overpayment** plans:
     1. **Plans**, combined freely: an extra amount every month (from a date, until a date),

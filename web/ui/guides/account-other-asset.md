@@ -4,4 +4,4 @@
 
 @@ settings
 
-> Its value is its items': add them on the Items tab.
+> Its value is its items': add them, and their valuations, on the Items tab.

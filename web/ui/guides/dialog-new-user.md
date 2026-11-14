@@ -1,4 +1,4 @@
-# New user
+# New User
 
 They get an invitation by email and choose their own password.
 
@@ -21,4 +21,4 @@ Where the invitation goes.
 
 ## Groups
 
-Their groups. **Admins** makes them an admin.
+Their groups. **Admins** makes them an admin, who manages users, groups and Settings.

@@ -15,9 +15,9 @@ function Reauth({ close }) {
     close(true);
   });
   return html`
-    <${Dialog} title="Your password again" close=${close}
+    <${Dialog} title="Your Password Again" close=${close}
       onSubmit=${() => go.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${go.busy || !password}>Go on</button>`}>
+      footer=${html`<button class="btn primary" disabled=${go.busy || !password}>Go On</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>This needs your password: it was given over
         10 minutes ago.</p>
       <${Field} label="Your password" id="reauth-password">

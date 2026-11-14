@@ -1,4 +1,4 @@
-"""Settings › Linked servers (requirements S11.1, S11.7): invite a server or join one with its
+"""Settings › Linked Servers (requirements S11.1, S11.7): invite a server or join one with its
 code, approve a request, pause, resume or end a link, and see each link's users."""
 
 import contextlib

@@ -2,7 +2,8 @@
 
 How much the database and the files take, and how long receipt and statement files are kept.
 Records are never removed: only files whose retention has run out, and only when an admin prunes
-them here. Sizes and counts only, never what the files hold.
+them here. Receipt and statement files are kept as long as their category says, counted from when
+their record ended, and for ever by default. Sizes and counts only, never what the files hold.
 
 ![Storage](shots/settings-storage.png)
 
@@ -21,16 +22,17 @@ password.
 
 Years after each statement's period. Empty keeps them for ever, the default.
 
-## Receipt and statement files {#files}
+## Receipt and Statement Files {#files}
 
 The files expired and prunable, those that expire later or are kept while their record is open,
 and those kept for ever.
 
-## What expires each year {#what-expires-each-year}
+## What Expires Each Year {#what-expires-each-year}
 
-By category, from the periods set now: change a category's period and these move.
+By category, from the periods set now: change a category's period and these move. *Nothing
+expires* when every file is kept for ever or while its record is open.
 
-## Keep receipts for {#keep-receipts-for}
+## Keep Receipts For {#keep-receipts-for}
 
 Each category's period: years after the record a receipt is attached to ended. A subcategory
 without its own takes its parent's; empty keeps them for ever, the default.

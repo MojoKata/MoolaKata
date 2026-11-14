@@ -1,7 +1,8 @@
-# A dependent
+# A Dependent
 
 Someone the filers claim for the year, from the household's people. MoolaKata doesn't decide who
-qualifies: what you enter here feeds the panels, the documents expected and a few flags.
+qualifies: what you enter here feeds the panels, the documents expected and a few flags. Each
+dependent's age on Dec 31 shows in the panels: under 17, under 13, and who ages out this year.
 
 ## Person {#person}
 
@@ -27,7 +28,7 @@ beside the 529 withdrawals for them in Education.
 
 The accounts this book counts that are theirs, such as a custodial account. A dependent child's
 interest, dividends and gains in them are checked against the year's Form 8615 threshold from
-Settings › Tax tables.
+Settings › Tax Tables.
 
 ## Remove
 

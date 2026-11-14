@@ -1277,7 +1277,7 @@ def backup_copies(body: CopiesIn, request: Request, c: Caller = Depends(admin)):
 
 @router.post("/settings/backups/run", response_model=JobOut, status_code=202)
 def backup_now(request: Request, c: Caller = Depends(admin)):
-    """Back up now: the daily task, at once, followed as a job (S13.8.7)."""
+    """Backup Now: the daily task, at once, followed as a job (S13.8.7)."""
     srv = server(request)
     job = srv.jobs.create("backup", c.id)
     if not srv.tasks.run_now("backups", srv.jobs.follow(job)):
