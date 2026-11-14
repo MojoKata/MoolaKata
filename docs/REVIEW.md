@@ -11,7 +11,7 @@ documents and the code at once (together they are several times what fits). So t
 cut into pieces that each fit with room to think, every piece writes what it finds to a file
 as it goes, and what passes between pieces is files, never a session's memory.
 
-Reviews 1 and 2 (`reviews/initial-code-review-1.md`, `reviews/initial-code-review-2.md`) came
+Reviews 1 and 2 came
 before this process and keep their names and ids. Review 3 is the first run this way.
 
 ## 1. The choices a review makes
@@ -311,7 +311,9 @@ One session writes the review from the work pad. Its parts, in order:
 
 1. **The header**: the review's number, the commit it read, the last review's commit it is
    measured from, scope, checking, serial or parallel (and, if parallel, that the user asked
-   for it for this review), and the paths as review 2's header gives them.
+   for it for this review), and how its paths are written: code paths relative to
+   `web/server/src/moolakata/`, `mkc/` for `connector/moolakata_connector/`, and others from
+   the repository's root.
 2. **The summary**: the verdict in one line (*Ready to release: no. 4 High open:
    CR3-1, CR3-2, …*), kept current as the tables change, and a few lines on what matters most.
 3. **One part per severity**, High, then Med, then Low, headed `## Summary - High Severity`,

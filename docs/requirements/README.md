@@ -87,7 +87,7 @@ A new question takes the next id after Q30.
 
 ## Later work
 
-Work planned for after the first release ([later.md](later.md), S17.9.11).
+Work planned for after the first release ([later.md](later.md)).
 
 | Id | Item | What it is |
 |---|---|---|

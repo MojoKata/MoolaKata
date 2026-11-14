@@ -22,7 +22,7 @@ PDF invoice with a text layer, a scanned statement page), with no card numbers, 
 addresses beyond what the merchant prints, under `web/server/tests/fixtures/receipts/` with an
 `expected.json` of date, total and merchant each; the floor set from the first run on them and
 recorded in the test; the synthetic test kept beside it for pipeline regressions. Built in
-milestone 7 part 9 (S17.9.7). **Waits on:** the receipts themselves.
+milestone 7, part 9. **Waits on:** the receipts themselves.
 
 ## G25: Real exported files for the import corpus — Low
 

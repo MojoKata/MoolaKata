@@ -1,4 +1,4 @@
-"""The bitcoin backend mocks (requirements S17.9.7.8): each real source class in
+"""The bitcoin backend mocks (docs/test-plan.md): each real source class in
 bitcoin/sources.py against the fake Esplora, Electrum server and Bitcoin Core over real
 sockets, reading the same chain, and a wallet synced from each through the server."""
 

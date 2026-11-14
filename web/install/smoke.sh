@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build both images for one platform and run them once, as the release gate asks
-# (requirements S17.8.1, S17.9.7.8): the server refuses a keyring it can't read; starts
+# (requirements S17.8.1, docs/test-plan.md): the server refuses a keyring it can't read; starts
 # uninitialised, locked down as compose runs it, and alive to its health check; makes its key
 # and first admin through the welcome's routes; stops cleanly, starts again locked, is unlocked
 # with `keys unlock`, answers /healthz and a sign-in, reads a receipt, and stops cleanly; the

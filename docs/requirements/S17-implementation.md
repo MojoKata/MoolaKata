@@ -1,7 +1,7 @@
 # S17. Implementation
 
-The stack, the repository's layout, the checks, dev mode, the Docker image, the milestones, and
-continuous integration and releases. Each first-level item has a file of its own.
+The stack, the repository's layout, the checks, dev mode, the Docker image, and continuous
+integration and releases. Each first-level item has a file of its own.
 
 | Id | Item | What it covers |
 |---|---|---|
@@ -13,5 +13,4 @@ continuous integration and releases. Each first-level item has a file of its own
 | **S17.6** | [`web/dev.sh`](S17-implementation-06-dev-sh.md) | the developer's front door and its pinned downloads |
 | **S17.7** | [Dev mode](S17-implementation-07-dev-mode.md) | the whole server from a checkout, relaxing the surroundings, never the rules |
 | **S17.8** | [Packaging](S17-implementation-08-packaging.md) | the server's Docker image, its architectures and where it is published, the documented hosts (Proxmox, TrueNAS), TLS and the base image's updates |
-| **S17.9** | [Milestones](S17-implementation-09-milestones.md) | the order the product is built in, and what each milestone holds |
 | **S17.10** | [Continuous integration and releases](S17-implementation-10-ci-and-releases.md) | the checks on GitHub Actions, the release workflow, and the workflows' own dependencies |

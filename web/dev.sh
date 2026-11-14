@@ -140,7 +140,7 @@ case "$cmd" in
     exec uv run --frozen python -m moolakata.dev.coverage site
     ;;
   mocks)
-    # Fake bitcoin backends on local ports (S17.9.7.8); point Settings › Bitcoin at them.
+    # Fake bitcoin backends on local ports (docs/test-plan.md); point Settings › Bitcoin at them.
     cd "$SERVER" && exec uv run --frozen python -m moolakata.dev.mocks "$@"
     ;;
   audit)
