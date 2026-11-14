@@ -1,4 +1,4 @@
-# A price source's key
+# A Price Source's Key
 
 ## API key
 

@@ -26,7 +26,7 @@ notes and tags.
 ## Being read
 
 Each upload is read on this server in the background: **Reading…** until it's done, then its fields
-are filled in. **Couldn't read it** says why; the receipt still works with its fields typed by hand.
+are filled in. **unreadable** says why; the receipt still works with its fields typed by hand.
 
 ## Sharing
 

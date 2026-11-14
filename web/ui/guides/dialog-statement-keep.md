@@ -1,4 +1,4 @@
-# Keep the statement
+# Keep the Statement
 
 A statement kept on its account as it is: its lines aren't read or added. It is kept as a receipt
 named by its period, and counts as the account's statement for that period, so no alert asks for

@@ -1,4 +1,4 @@
-# Colour for a linked household
+# Colour for a Linked Household
 
 Tints this household's window for you. Other people choose their own.
 

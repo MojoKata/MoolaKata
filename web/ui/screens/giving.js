@@ -22,7 +22,7 @@ import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
 
 /** What a grant's pill and a missing acknowledgement's pill mean (S12.19.3). */
-const GRANT_WHY = 'Its money was deducted when it went into the fund.';
+const GRANT_WHY = 'Not deducted again: its money was deducted when it went into the fund.';
 const ACK_WHY = 'A single gift of $250 or more needs a written acknowledgement.';
 
 const TABS = /** @type {[string, string][]} */ ([
@@ -268,7 +268,7 @@ function Donations({ year, reload }) {
                     </td>
                     <td>${d.kind === 'daf-grant'
                       ? html`
-                        <${StatePill} why=${GRANT_WHY}>a grant · not deducted again</${StatePill}>
+                        <${StatePill} why=${GRANT_WHY}>grant</${StatePill}>
                       `
                       : d.deductible
                       ? html`<${Icon} name="check" label="Deductible" />`
@@ -277,7 +277,7 @@ function Donations({ year, reload }) {
                       ? html`<span class="small"><${Icon} name="clip" /> received</span>`
                       : d.needsAck
                       ? html`
-                        <${StatePill} tone="warn" why=${ACK_WHY}>missing · needed at $250+</${StatePill}>
+                        <${StatePill} tone="warn" why=${ACK_WHY}>missing</${StatePill}>
                       `
                       : html`<span class="dim">—</span>`}</td>
                     <td class="tool">

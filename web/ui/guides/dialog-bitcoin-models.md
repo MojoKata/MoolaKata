@@ -1,4 +1,4 @@
-# Bitcoin models
+# Bitcoin Models
 
 Published models of bitcoin's price, each from today's price on a log scale, with its figures for
 2030, 2035 and 2045 and what is known of its record. They are models other people publish, not

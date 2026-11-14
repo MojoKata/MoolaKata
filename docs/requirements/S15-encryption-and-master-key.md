@@ -36,7 +36,7 @@ data directory, and the data key derives a key for each kind of thing:
 
 Nothing on the right opens without the phrase, and the phrase opens nothing without a copy of
 the data directory or a backup. No key is on the host, so a stolen disk, a snapshot or a
-replica holds only the right-hand side, and the whole host can be backed up as it is.
+replica holds only the right-hand side, and a backup can be made of the whole host as it is.
 
 1. **What is encrypted, and what is not.**
    1. **The database**: the whole main database, with SQLCipher, including the full text read
@@ -70,8 +70,8 @@ replica holds only the right-hand side, and the whole host can be backed up as i
 2. **No external key service, and no key file.** MoolaKata keeps no master key at all: the
    phrase is entered after every start and held in memory only while it is used. HashiCorp
    Vault, cloud KMSs (AWS, GCP, Azure), HSMs and TPM sealing are **not supported**: on a
-   household server, an external service adds a dependency that must be running, backed up
-   and secured itself. A key file on the host was weighed and turned down too
+   household server, an external service adds a dependency that must be running, kept in
+   backups and secured itself. A key file on the host was weighed and turned down too
    ([rejected ideas](rejected-ideas.md)): it is the one thing that must be kept out of
    every snapshot and backup of the host, and a phrase typed at each start needs no such
    care.
@@ -226,7 +226,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
       is a server lost; a locked server issues no code.
    3. Linked copies are not affected either way: they open with their own access keys, and
       are pulled again from their sources (S11.9.9).
-6. **Backing up and protecting the master key.**
+6. **A backup of the master key, and its protection.**
    1. **Back it up as it is made.** The welcome (S15.4.4) and **Rotate** (S15.7.1) show the
       **recovery phrase** in the browser, 12 numbered words, with the fingerprint, the server's
       name and the date, and will not finish until three words chosen at random are typed

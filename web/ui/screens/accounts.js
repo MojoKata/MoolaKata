@@ -178,8 +178,9 @@ function LinkedHouseholds() {
         <a class="list-item" href=${`/ui/linked/${h.linkId}/`} target=${`mk-linked-${h.linkId}`}
           style=${{ color: 'inherit' }}><span class="brand-av" style=${{
             background: h.avatar?.color || '#7a4b9c',
-          }}>${h.avatar?.initials || '?'}</span><span class="grow"><b>${h.name}</b><div
-                  class="small dim">${h.items} item${h.items === 1
+          }}>${h.avatar?.initials || '?'}</span><span class="grow"><span class="row-name">${h
+            .name}</span><div
+                  class="row-more">${h.items} item${h.items === 1
                     ? ''
                     : 's'} shared with you · synced ${ago(h.syncedAt)}${h.locked
                     ? ' · locked'

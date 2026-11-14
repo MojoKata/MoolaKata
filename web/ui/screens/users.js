@@ -325,8 +325,7 @@ function EditUser({ close, user, groups }) {
             disabled=${reset.busy}>Turn It Off</button>
         `}>
         <p>This turns off two-step sign-in for ${user.displayName}, so their password alone signs
-          them in, and signs them out everywhere. Do it only when they have lost both their app and
-          their recovery codes, and you know it is them asking.</p>
+          them in, and signs them out everywhere.</p>
         ${needPassword
           ? html`
             <${Field} label="Your password" id="reauth-password">

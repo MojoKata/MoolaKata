@@ -32,6 +32,11 @@ The same money invested on the days it would have been paid, at your expected re
 class you choose, and its value at the plan's payoff date. A comparison, not advice: the return is
 an assumption, the interest saved is certain.
 
+## Assumed rates {#assumed-rates}
+
+An adjustable rate's resets after today, as typed in the loan's terms: they are your assumption, not
+known yet, and the payoff after the first is worked out from them.
+
 ## Extra each month
 
 Added to principal with every payment. Blank: none.

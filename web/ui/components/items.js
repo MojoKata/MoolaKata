@@ -156,7 +156,7 @@ export function Items({ a }) {
                           )
                         } ${
                           i.stale
-                            ? html`<${StatePill} tone="warn" why=${STALE}>over a year old</${StatePill}>`
+                            ? html`<${StatePill} tone="warn" why=${STALE}>stale</${StatePill}>`
                             : null
                         }</div>`
                         : html`<div class="small dim">${
@@ -197,6 +197,7 @@ export function Items({ a }) {
 
 // What the pills on an item's row and its sale mean (S12.19.3).
 const STALE = 'Its latest valuation is over a year old: a newer one keeps its value true.';
+const STALE_SOME = 'Valued over a year ago: newer valuations keep their value true.';
 const COLLECTABLE = 'Taxed as a collectable, flagged on Form 8949.';
 const PERSONAL = "A loss on property you used yourself isn't deductible.";
 
@@ -219,7 +220,7 @@ export function ItemsSummary({ a }) {
       <h3>Details</h3>
       <div class="list-item"><span class="grow dim">Type</span>${a.typeLabel}</div>
       <div class="list-item"><span class="grow dim">Items held</span>${held.length}${stale
-        ? html`<span class="pill warn">${stale} valued over a year ago</span>`
+        ? html`<${StatePill} tone="warn" why=${STALE_SOME}>${stale} stale</${StatePill}>`
         : null}</div>
       <div class="list-item"><span class="grow dim">Valued by</span>${VALUED_BY.find(([k]) =>
         k === BY_TYPE[a.type]?.physical
@@ -675,7 +676,7 @@ function SaleCard({ it, rec }) {
         ? html`<div class="toolbar">${
           s.collectable ? html`<${StatePill} why=${COLLECTABLE}>collectable</${StatePill}>` : null
         }${
-          !s.deductible ? html`<${StatePill} why=${PERSONAL}>used personally</${StatePill}>` : null
+          !s.deductible ? html`<${StatePill} why=${PERSONAL}>personal</${StatePill}>` : null
         }</div>`
         : null}
       <${Action} class="btn sm" why=${whyRead(it)} onClick=${() => {

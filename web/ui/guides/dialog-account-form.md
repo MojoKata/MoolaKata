@@ -1,4 +1,4 @@
-# New account: details
+# New Account: Details
 
 The new account's details, which its type decides. A physical asset's items (real estate, a
 vehicle, collectables, precious metals) are added after making the account, each with its

@@ -1,4 +1,4 @@
-# Rotate the master key
+# Rotate the Master Key
 
 A new master key and recovery phrase, and with them a new data key. MoolaKata then restarts,
 locked: unlock it with the new phrase, and it re-encrypts the database, the receipt files and

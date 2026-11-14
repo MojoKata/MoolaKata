@@ -1,4 +1,4 @@
-# Giving: Donor-advised fund
+# Giving: Donor-Advised Fund
 
 A donor-advised fund: what it holds, what went into it this year (deducted then), and the grants it
 made (not deducted again).

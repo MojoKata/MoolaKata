@@ -1,4 +1,4 @@
-# Settings: Key storage
+# Settings: Key Storage
 
 Everything the server stores is encrypted under one master key, which is the recovery phrase:
 never stored, entered when the server starts, and changed with **Rotate**.
@@ -21,10 +21,10 @@ Passwords are hashed, not encrypted.
 
 ## Recovery phrase
 
-The master key written as 12 words. The welcome showed it once, when the server was new, and
-nothing shows it again: without it nothing here, no backup, and no restart of the server opens, and
-the server cannot even start serving. Keep the phrase in two places, one offline. Every unlock
-confirms it; check each copy once a year with **Verify Key**.
+The master key, written as 12 words. MoolaKata showed it once, on the welcome when the server
+was new, and never shows it again. Without it, the server can't start after a restart, and
+neither its data nor any backup can be opened. Keep it in two places, one of them offline. Each
+unlock confirms the phrase; check every copy once a year with **Verify Key**.
 
 ## Verify Key
 

@@ -1,4 +1,4 @@
-# A statement of several accounts
+# A Statement of Several Accounts
 
 A combined statement, such as UMB's checking and savings or a Schwab combined statement, split
 where each account's part begins. Each part is checked against its own opening and closing

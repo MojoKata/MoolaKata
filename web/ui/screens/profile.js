@@ -188,8 +188,12 @@ function Relations({ p, reload }) {
         ? rows.map((/** @type {any} */ r) =>
           html`
             <div class="list-item">
-              <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r)
-                ? html`<div class="small dim">${relDates(r)}</div>`
+              <div class="grow"><span class="row-name">${name(
+                r,
+              )}</span> <span class="row-more">· ${word(
+                r,
+              )}</span>${relDates(r)
+                ? html`<div class="row-more">${relDates(r)}</div>`
                 : null}${confirmation(r)}</div>
               ${r.canConfirm
                 ? html`<button type="button" class="btn sm primary" onClick=${(
@@ -212,7 +216,9 @@ function Relations({ p, reload }) {
           worked.map((/** @type {any} */ r) =>
             html`
               <div class="list-item">
-                <div class="grow"><b>${r.name}</b> · ${r.word}</div>
+                <div
+                  class="grow"><span class="row-name">${r.name}</span> <span class="row-more">· ${r
+                    .word}</span></div>
               </div>
             `
           )
@@ -228,14 +234,14 @@ const confirmation = (/** @type {any} */ r) => {
   if (r.confirmed) {
     return html`
       <div>
-        <${StatePill} tone="ok" why="Used for wash sales and joint tax books.">confirmed by
-        both</${StatePill}></div>
+        <${StatePill} tone="ok"
+          why="Both have confirmed it: it is used for wash sales and joint tax books.">confirmed</${StatePill}></div>
     `;
   }
   const who = r.waitingFor.map((/** @type {any} */ x) => x.name).join(' and ');
   return html`
     <div>
-      <${StatePill} why="It counts for gifts only until then.">${`waiting for ${who} to confirm`}</${StatePill}></div>
+      <${StatePill} why=${`Waiting for ${who} to confirm: it counts for gifts only until then.`}>waiting</${StatePill}></div>
   `;
 };
 
@@ -525,10 +531,8 @@ function TwoStep({ p, reload }) {
       ${ts.on && ts.recoveryCodesLeft <= 3
         ? html`
           <${StatePill} tone="warn"
-            why="Make new recovery codes before they run out.">${ts
-              .recoveryCodesLeft} recovery code${ts.recoveryCodesLeft === 1
-              ? ''
-              : 's'} left</${StatePill}>
+            why="Recovery codes left: make new ones before they run out.">${ts
+              .recoveryCodesLeft} code${ts.recoveryCodesLeft === 1 ? '' : 's'} left</${StatePill}>
         `
         : null}
       ${needPassword

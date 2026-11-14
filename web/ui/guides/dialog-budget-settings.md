@@ -1,4 +1,4 @@
-# Budget settings
+# Budget Settings
 
 A budget's name, its options and its accounts, and where its money comes from. It keeps its method.
 

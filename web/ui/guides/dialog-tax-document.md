@@ -1,4 +1,4 @@
-# A tax document
+# A Tax Document
 
 ## Kind {#direction}
 

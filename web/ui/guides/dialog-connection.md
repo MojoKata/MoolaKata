@@ -1,4 +1,4 @@
-# New connection
+# New Connection
 
 A sign-in at one institution, kept by the MoolaKata Connector. What you type is encrypted in
 your browser for the connector before it is sent: MoolaKata keeps only what it can't read, until

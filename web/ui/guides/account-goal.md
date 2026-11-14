@@ -15,7 +15,9 @@ percentage, and the monthly saving that would fund it fully, or that none reache
 ## The chart
 
 The balance by year, from the 10th to the 90th percentile of many runs, falling as each year of
-school is paid.
+school is paid. A model, not a forecast. Under it, what it is worked out from: the years of school
+and the first of them, the cost per year in today's dollars (the amount typed, or a shipped average),
+and the education inflation it rises by each year, from your assumptions.
 
 ## Its Years
 

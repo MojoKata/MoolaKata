@@ -1,4 +1,7 @@
-# Balance adjustment
+# Balance Adjustment
+
+A transaction of the difference on the day checked, marked as an adjustment, in the account and in
+Activity.
 
 ## Why {#note}
 

@@ -1,4 +1,4 @@
-# Reset your password
+# Reset Your Password
 
 ## New password {#password}
 

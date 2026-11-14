@@ -27,7 +27,7 @@ is zero. The period is then reconciled, and editing a transaction inside it asks
 Every balance the institution reported (an OFX file's balance, a CSV's balance column, a statement,
 or a typed one), next to MoolaKata's for the same day. While the opening balance is worked out
 from the earliest one reported, standing in for history before the first import, it is marked
-**opening balance stand-in**.
+**stand-in**.
 
 ## Mismatch
 

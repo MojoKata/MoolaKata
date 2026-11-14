@@ -32,14 +32,32 @@ const KIND = /** @type {Record<string, string>} */ ({
 /** A certificate key's fingerprint in groups of four, for two admins to read out. */
 const grouped = (/** @type {string} */ fp) => (fp.match(/.{1,4}/g) || []).join(' ');
 
-const STATE = /** @type {Record<string, [string, string]>} */ ({
+// A link's state: its pill's word and tone, and what a word needing it means.
+const STATE = /** @type {Record<string, [string, string, string?]>} */ ({
   invited: ['invitation', ''],
-  requested: ['wants to link', 'info'],
-  pending: ['waiting for approval', ''],
+  requested: ['request', 'info', 'The other server asks to link with this one.'],
+  pending: ['waiting', '', 'Waiting for the other server to approve the link.'],
   active: ['active', 'ok'],
   paused: ['paused', 'warn'],
   ended: ['ended', ''],
 });
+
+/** A link's state as a pill: broken, unreachable, paused or its state. @param {any} l */
+function linkState(l) {
+  const [word, tone, said] = STATE[l.state];
+  const why = l.brokenAt
+    ? null
+    : l.failingSince
+    ? `Unreachable since ${day(l.failingSince)}.`
+    : l.state === 'paused' && l.pausedUntil
+    ? `Paused until ${moment(l.pausedUntil)}.`
+    : said;
+  const shown = l.brokenAt ? 'broken' : l.failingSince ? 'unreachable' : word;
+  const hue = l.brokenAt ? 'bad' : l.failingSince ? 'warn' : tone;
+  return why
+    ? html`<${StatePill} tone=${hue} why=${why}>${shown}</${StatePill}>`
+    : html`<span class=${'pill ' + hue}>${shown}</span>`;
+}
 
 export function LinksSection() {
   const res = useApi('/settings/links', {}, ['task']);
@@ -146,15 +164,7 @@ export function LinksSection() {
                           : ''}</div></div>
                       </div>
                     </td>
-                    <td><span class=${'pill ' +
-                      (l.brokenAt ? 'bad' : l.failingSince ? 'warn' : STATE[l.state][1])}>${l
-                        .brokenAt
-                      ? 'broken'
-                      : l.failingSince
-                      ? `unreachable since ${day(l.failingSince)}`
-                      : l.state === 'paused' && l.pausedUntil
-                      ? `paused until ${moment(l.pausedUntil)}`
-                      : STATE[l.state][0]}</span>${l.syncTotal
+                    <td>${linkState(l)}${l.syncTotal
                       ? html`
                         <div class="small"
                           data-help="progress">Syncing: up to ${l.syncThrough
@@ -248,8 +258,10 @@ export function LinksSection() {
       html`<div class="card mt"><h3 data-help="outgoing">Shared from Here with ${l.peerName}</h3>
         ${
         l.outgoing.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
-            class="small dim">of ${x.ownerName} since ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><span class="row-name">${
+            KIND[x.kind] || 'An item'
+          }</span> <span
+            class="row-more">of ${x.ownerName} since ${day(x.sharedAt)}${
             x.includeReceipts ? ', with its receipts' : ''
           }</span></div><span class="small">to ${x.names.join(', ')}</span></div>`
         )
@@ -259,8 +271,10 @@ export function LinksSection() {
       html`<div class="card mt"><h3 data-help="incoming">Shared from ${l.peerName}</h3>
         ${
         l.incoming.map((/** @type {any} */ x) =>
-          html`<div class="list-item"><div class="grow"><b>${KIND[x.kind] || 'An item'}</b> <span
-            class="small dim">shared by ${x.ownerName} on ${day(x.sharedAt)}${
+          html`<div class="list-item"><div class="grow"><span class="row-name">${
+            KIND[x.kind] || 'An item'
+          }</span> <span
+            class="row-more">shared by ${x.ownerName} on ${day(x.sharedAt)}${
             x
                 .includeReceipts
               ? ', with its receipts'
@@ -286,7 +300,7 @@ export function LinksSection() {
                     .username}${u.email ? ` · ${u.email}` : ''}</div></div>
                   <${StatePill}
                     why="A user on a linked server: people here can share with them, read only."
-                  >remote · read only</${StatePill}></div>
+                  >remote</${StatePill}></div>
               `
             )
           }`
@@ -469,9 +483,6 @@ function CopyKey({ close, link }) {
           )}>Copy</button>
         <button class="btn primary" disabled=${!saved}>Done, Words Saved</button>
       `}>
-      <div class="notice" style=${{ marginBottom: '12px' }}><${Icon} name="link" /><div>
-        <b>${link.peerName}</b>'s copy is kept encrypted under these 12 words. <b>They are
-          shown once.</b></div></div>
       ${make.error
         ? html`<${FormError} error=${make.error} />`
         : words

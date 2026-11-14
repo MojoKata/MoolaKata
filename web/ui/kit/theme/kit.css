@@ -46,6 +46,16 @@
     flex: 1;
     min-width: 0;
   }
+  /* A row's name and its details, the same in every list: the name stands out among the row's
+     own parts, in the text's full colour at a medium weight, never as bold as its card's
+     heading; the details are dimmed, on a line of their own or after the name. */
+  .row-name {
+    font-weight: 500;
+  }
+  .row-more {
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
 
   .avatar {
     width: 34px;

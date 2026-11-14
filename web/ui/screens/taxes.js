@@ -312,7 +312,7 @@ const ageLine = (/** @type {any} */ d, /** @type {number} */ year) => {
 /** What a dependent's line shows: read from it, the dialog leaves them out (S12.18.6.5). */
 const DEPENDENT_ROW = ['personId', 'claimedAs', 'months', 'student'];
 /** What a filing's pill past its due date means (S12.19.3). */
-const OVERDUE_WHY = 'Not filed, and no extension is still running.';
+const OVERDUE_WHY = 'Past its due date: not filed, and no extension is still running.';
 /** What a filing's card shows. */
 const FILING_ROW = [
   'jurisdiction',
@@ -333,7 +333,7 @@ const DOCUMENT_ROW = ['direction', 'form', 'issuer', 'receiptId'];
 function elsewhere(d) {
   if (!d.claimedElsewhere) return null;
   const why = 'Claimed on another tax book for this year.';
-  return html`${' '}<${StatePill} tone="warn" why=${why}>also claimed elsewhere</${StatePill}>`;
+  return html`${' '}<${StatePill} tone="warn" why=${why}>claimed elsewhere</${StatePill}>`;
 }
 
 /** @param {{ b: any, done: (out: any) => void }} p */
@@ -350,7 +350,8 @@ function Dependents({ b, done }) {
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
             <div
-              class="list-item"><div class="grow"><b>${d.name}</b><div class="small dim">${[
+              class="list-item"><div class="grow"><span class="row-name">${d
+                .name}</span><div class="row-more">${[
                 d.relation && d.relation[0].toUpperCase() + d.relation.slice(1),
                 d.claimedAs,
                 `${d.months} month${d.months === 1 ? '' : 's'}`,
@@ -520,7 +521,7 @@ function Filings({ b, done }) {
           <div
             class="card mt"><h3>${f.label}<span class=${'pill ' + (TONE[f.progress] ||
               '')}>${PROGRESS.find(([k]) => k === f.progress)?.[1]}</span>${f.overdue
-              ? html`<${StatePill} tone="warn" why=${OVERDUE_WHY}>past its due date</${StatePill}>`
+              ? html`<${StatePill} tone="warn" why=${OVERDUE_WHY}>overdue</${StatePill}>`
               : null}<span class="spacer"></span><${RowTool} name=${f.label}
               read=${!b.access.writable} onClick=${() => open(f)} /></h3>
                     <div class="grid g4">
@@ -772,13 +773,12 @@ function NewBook({ close, rows }) {
         ? html`
           <${RecField} rec=${rec} name="year" label="Year"
             options=${[year, year - 1, year - 2].map((y) => [String(y), String(y)])} />
-          <${SwitchRow} label="Filing jointly" hint=${spouse
-            ? `With ${spouse.displayName}`
-            : 'Add your spouse among your relationships in Profile to file jointly.'}
-            on=${joint} disabled=${!spouse} onChange=${(/** @type {boolean} */ on) =>
+          <${SwitchRow} label="Filing jointly" hint=${spouse ? `With ${spouse.displayName}` : null}
+            why=${spouse ? null : 'Add your spouse among your relationships in Profile first'}
+            on=${joint} onChange=${(/** @type {boolean} */ on) =>
               rec.set('filers', on ? [p.id, spouse.id] : [p.id])} />
           <${RecField} rec=${rec} name="fromLastYear" label="Start from last year"
-            hint=${has ? null : 'No book for the year before.'} />
+            why=${has ? null : 'No book for the year before'} />
           <${RecField} rec=${rec} name="bitcoinFees" label="Bitcoin network fees"
             id="bitcoin-fees" options=${[
               ['sale', 'A sale, in Form 8949'],

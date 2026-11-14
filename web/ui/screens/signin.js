@@ -76,8 +76,7 @@ export default function SignIn() {
 
   if (mode === 'forgot') {
     return html`
-      <${AuthCard} title="Forgot Password" guide="signin"
-        sub="We'll email a link to choose a new password. It works once, for an hour.">
+      <${AuthCard} title="Forgot Password" guide="signin">
             ${sent
               ? html`
                 <div class="notice" role="status">If ${login} has an account here, an email is on its way.</div>
@@ -110,8 +109,7 @@ export default function SignIn() {
       setForm({ ...form, [k]: v });
     const domains = signupOpen?.domains || [];
     return html`
-      <${AuthCard} title="Ask for an Account" guide="signup"
-        sub="An admin approves each request. First, confirm your email from the link we send.">
+      <${AuthCard} title="Ask for an Account" guide="signup">
         ${sent
           ? html`
             <div class="notice"
@@ -179,10 +177,7 @@ export default function SignIn() {
 
   if (mode === 'code') {
     return html`
-      <${AuthCard} title="Two-Step Sign-In" guide="signin"
-        sub=${recovery
-          ? 'Type one of your recovery codes. Each works once.'
-          : 'Type the six-digit code your authenticator app shows for MoolaKata.'}>
+      <${AuthCard} title="Two-Step Sign-In" guide="signin">
         <form onSubmit=${(/** @type {Event} */ e) => {
           e.preventDefault();
           second.run().catch(() => {});
@@ -218,7 +213,7 @@ export default function SignIn() {
   if (mode === 'disabled') {
     return html`
       <${AuthCard} title="This Account Is Disabled" guide="signin"
-        sub="An admin switched it off. You can ask them to make it active again, once a week.">
+        sub="An admin switched it off.">
             ${sent
               ? html`<div class="notice" role="status">If that is a disabled account here, the admins will
                 see your request.</div>`

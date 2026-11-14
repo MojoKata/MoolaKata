@@ -1,4 +1,4 @@
-# Positions: Option trades
+# Positions: Option Trades
 
 Each option trade from its first contract opened to its last one closed, with what it made.
 

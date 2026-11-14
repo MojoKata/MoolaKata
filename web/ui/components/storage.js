@@ -303,7 +303,9 @@ function PruneDialog({ close, v }) {
           checked=${ticked.includes(x.category)} onChange=${() => toggle(x.category)} /> <span
           class="grow">${x.category}</span>${count(x.files)} files · ${size(x.bytes)}</label>`
       )}
-      <div class="list-item"><span class="grow"><b>Space freed</b></span><b>${size(bytes)}</b></div>
+      <div class="list-item"><span class="grow row-name">Space freed</span><b>${size(
+        bytes,
+      )}</b></div>
       <div class="mt"><${Attention}>No backup is made first.</${Attention}></div>
       <${Field} label=${`Type ${files} to confirm`} id="prune-count"
         error=${errAt(run.error, 'count')}>

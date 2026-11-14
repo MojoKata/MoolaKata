@@ -1,9 +1,9 @@
 # Settings: Backups
 
 Daily copies of the database with its keyring, made, checked and pruned by the server. Never
-the receipt files: the host backs up the data directory, files and all, and this copy exists so
+the receipt files: the host's own backup of the data directory holds them, files and all, and this copy exists so
 that the live database the host picks up has a coherent, verified twin beside it. The backup
-directory belongs inside what the host backs up.
+directory belongs inside what the host's backups hold.
 
 ![Settings: Backups](shots/settings-backups.png)
 

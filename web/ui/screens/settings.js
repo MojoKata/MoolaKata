@@ -36,6 +36,9 @@ import { useSettingsDraft } from '../components/settings-draft.js';
 import { confirmAction } from '../kit/confirm.js';
 import { Attention, Empty, RowTool, StatePill } from '../kit/state.js';
 
+/** A year, by which the recovery phrase's check is due again (S15.6). */
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
   ['email', 'Email (SMTP)'],
@@ -284,8 +287,6 @@ function Plain({ section }) {
         ['receiptMaxMb', 'readReceipts', 'receiptReadJobs'],
         html`
           <h3>Receipts</h3>
-          <div class="list-item"><span class="grow dim">File types</span>PDF, JPEG, PNG, WebP,
-            HEIC</div>
           <${Field} label="Largest file (MB)" id="receipt-max-mb" error=${errAt(e, 'receiptMaxMb')}>
             <${SpinInput} min=${1} max=${100} value=${f.receiptMaxMb} onInput=${set(
               'receiptMaxMb',
@@ -349,8 +350,6 @@ function Plain({ section }) {
     ['importMaxMb', 'readStatements'],
     html`
       <h3>Imports</h3>
-      <div
-        class="list-item"><span class="grow dim">File types</span>OFX, QFX, CSV; statements as PDF, JPEG, PNG, WebP, HEIC</div>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
         <${SpinInput} min=${1} max=${200} step=${5} value=${f.importMaxMb}
           onInput=${set('importMaxMb', true)} />
@@ -1480,7 +1479,8 @@ function Keys() {
             : null}
           ${v.reminderDue
             ? html`
-              ${' '}<span class="pill warn">time to rotate</span>
+              ${' '}<${StatePill} tone="warn"
+                why="Older than its rotation reminder.">rotation due</${StatePill}>
             `
             : null}</div>
         <div class="list-item"><span class="grow dim">Encrypted under it</span>the database (${(v
@@ -1537,7 +1537,7 @@ function Keys() {
             confirmed.how === 'unlock'
               ? 'by the unlock'
               : confirmed.how === 'app'
-              ? 'with Verify key'
+              ? 'with Verify Key'
               : 'with moolakata keys verify'
           } on ${day(confirmed.at)}.`
           : 'Not confirmed since install.'}</div></div>
@@ -1545,6 +1545,9 @@ function Keys() {
             ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
             : html`<span class="pill warn">unchecked</span>`}<button type="button" class="btn sm" onClick=${() =>
             verify().catch((e) => toast(e.message))}>Verify Key</button></div>
+        ${!confirmed || Date.now() - Date.parse(confirmed.at) > YEAR_MS
+          ? html`<${Attention}>Without the recovery phrase, nothing here or in a backup opens.</${Attention}>`
+          : null}
         ${last
           ? html`
             <div class="list-item" data-help="last-reencryption">
@@ -1580,7 +1583,7 @@ function Keys() {
                                 ? html`
                                   ${' '}<${StatePill} tone="warn"
                                     why="A copy left under an old key still opens with the old phrase."
-                                  >still opens with an old key</${StatePill}>
+                                  >old key</${StatePill}>
                                 `
                                 : null
                             }</li>`

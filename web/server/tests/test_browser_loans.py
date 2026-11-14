@@ -127,8 +127,7 @@ def invested_notice(r: dict, label: str) -> str:
     return (
         f"Investing the same {money(i['contributed'], False)} in {label} at {pct} a year "
         f"instead would be worth about {money(i['value'], False)} by {month(p['payoffDate'])}, "
-        f"against {money(p['interestSaved'], False)} of interest saved. A comparison, not "
-        "advice: the return is an assumption; the interest saved is certain."
+        f"against {money(p['interestSaved'], False)} of interest saved."
     )
 
 
@@ -324,10 +323,7 @@ def test_an_arms_rates_after_today_are_named_as_assumed(browser, household, new_
                                    {"date": "2031-04-01", "rate": "7.5"}])  # fmt: skip
     page, problems = planner(browser, h, a)
     warn = page.locator(f"{RESULTS} .notice.warn")
-    assert flat(warn.inner_text()) == (
-        "After Apr 1, 2030 the rate is your assumption (7.125% from Apr 2030, 7.5% from "
-        "Apr 2031), as typed in the terms."
-    )
+    assert flat(warn.inner_text()) == "Assumed rates: 7.125% from Apr 2030, 7.5% from Apr 2031"
     assert_outcome(page, plan(h, a))
     # Its Overview calls the rate adjustable.
     tab(page, problems, "Overview", '.card.facts:has(h3:has-text("Loan"))')
@@ -583,7 +579,7 @@ def test_a_helocs_draw_period_is_interest_only(browser, household, new_loan):
     assert first == [day(v["nextDate"]), "$333.33", "$0.00", "$333.33", "—", "$50,000.00"]
     assert page.locator("thead").inner_text().count("Escrow") == 0
     note = page.locator('.toolbar:has(button:text("Show All")) .small').inner_text()
-    assert note.startswith(f"{len(v['rows'])} payments.")
+    assert note == f"{len(v['rows'])} payments"
     page.get_by_role("button", name="Show All").click()
     wait(page, 'button:text("Show Fewer")', problems)
     assert rows.count() == len(v["rows"])

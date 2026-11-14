@@ -204,8 +204,6 @@ function Locked({ id, st, reload }) {
   }}>
     <${HouseAvatar} h=${h} size=${56} />
     <h3>${h.name}</h3>
-    <p class="dim">What ${h.name} share with you is kept encrypted on this server. To open it,
-      enter its access key: the 12 words in your household's password manager.</p>
     <p class="small dim">synced ${ago(st.pulledAt || h.syncedAt)}${
     st.waiting ? ` · ${st.waiting} change${st.waiting === 1 ? '' : 's'} waiting` : ''
   } · locked</p>
@@ -579,9 +577,9 @@ function List({ guide, rows, href, value, label }) {
     rows.map((r) =>
       html`
         <div
-          class="list-item"><div class="grow"><a href=${href(r)}><b>${label
+          class="list-item"><div class="grow"><a class="row-name" href=${href(r)}>${label
             ? label(r)
-            : r.name}</b></a><div class="small dim">${r
+            : r.name}</a><div class="row-more">${r
             .ownerName}</div></div>${value && value(r) != null
             ? html`<${Amt} v=${value(r)} />`
             : null}</div>
@@ -918,7 +916,8 @@ function Projections({ rows }) {
     rows.map((r) =>
       html`
         <div
-          class="list-item"><div class="grow"><b>${r.name}</b><div class="small dim">${r.row
+          class="list-item"><div class="grow"><span class="row-name">${r
+            .name}</span><div class="row-more">${r.row
             ?.headline || ''}</div></div><span class="small dim">${r.row?.status || ''}</span></div>
       `
     )

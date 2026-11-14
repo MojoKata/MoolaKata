@@ -421,7 +421,8 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
- *   type?: string, placeholder?: string, disabled?: boolean, onEdit?: () => void,
+ *   type?: string, placeholder?: string, disabled?: boolean, why?: string | null,
+ *   onEdit?: () => void,
  *   style?: any, rows?: number, reset?: { value: string, label: string }, kind?: string,
  *   min?: number | string, max?: number | string, above?: number | string,
  *   atMost?: number | string,
@@ -446,7 +447,7 @@ export function RecField(p) {
     control = html`
       <${Switch} on=${!!rec.get(name)} label=${p.label} help=${p.bare
         ? p.help
-        : undefined} disabled=${p.disabled}
+        : undefined} disabled=${p.disabled} why=${p.why}
         readonly=${reading}
         onChange=${(/** @type {boolean} */ v) => {
           rec.set(name, v);

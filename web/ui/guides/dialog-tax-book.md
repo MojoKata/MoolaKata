@@ -1,4 +1,4 @@
-# New tax book
+# New Tax Book
 
 One tax year's record, for you, or for you and your spouse filing jointly.
 

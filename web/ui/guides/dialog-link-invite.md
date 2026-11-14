@@ -1,4 +1,4 @@
-# Invite a server to link
+# Invite a Server to Link
 
 ## Link code {#link-code}
 

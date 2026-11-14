@@ -1,4 +1,4 @@
-# A category's retention
+# A Category's Retention
 
 ## Keep receipts for {#keep-receipts-years}
 

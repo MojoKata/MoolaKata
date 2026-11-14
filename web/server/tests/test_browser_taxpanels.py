@@ -381,11 +381,13 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
     rows = {r.split("\n")[0]: " ".join(r.split()) for r in table.all_inner_texts()}
     ira = rows["TP IRA"]
     assert ira.startswith("TP IRA Traditional IRA Admin $7,000.00 $8,000.00")
-    assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over the limit")
+    assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over")
     assert "Roth eligibility depends on MAGI" in rows["TP Roth"]
-    assert "over the limit" in rows["TP Roth"]
+    # Over its limit: a pill, "over", whose tooltip says so.
+    over = table.filter(has=page.locator(".pill.warn", has_text="over"))
+    assert {r.split("\n")[0] for r in over.all_inner_texts()} >= {"TP IRA", "TP Roth"}
     assert rows["TP 401(k)"].startswith("TP 401(k) 401(k) Admin $0.00 $26,000")
-    assert "over the limit" not in rows["TP 401(k)"]
+    assert "TP 401(k)" not in {r.split("\n")[0] for r in over.all_inner_texts()}
     assert (
         "set the coverage; with the catch-up at 55 and over; 1,000.00 of it from the employer"
         in (rows["TP HSA"])
@@ -606,18 +608,18 @@ def test_the_filings_tab_shows_each_returns_progress_and_result(browser, world):
         for x in page.locator("main .card.mt").all_inner_texts()
     }
     fed = next(v for k, v in cards.items() if k.startswith("Federal"))
-    assert "In progress" in fed and "past its due date" in fed
+    assert "In progress" in fed and "overdue" in fed
     assert "Due Oct 17, 2022 extended Filed —" in fed and "· e-file Result" in fed
     assert "Result Owed $640.00 Documents 1" in fed
     assert fed.endswith("Estimated payments: Q1 $1,000 · Q2 $1,000")
     utah = next(v for k, v in cards.items() if k.startswith("Utah"))
-    assert "Accepted" in utah and "past its due date" not in utah
+    assert "Accepted" in utah and "overdue" not in utah
     assert (
         "Due — Filed Apr 10, 2022" in utah and "· paper Result Refund $120.00 Documents —" in utah
     )
     assert utah.endswith("Estimated payments: Q1 $300")
     city = next(v for k, v in cards.items() if k.startswith("TP City"))
-    assert "Not started" in city and "past its due date" in city
+    assert "Not started" in city and "overdue" in city
     assert "Due Apr 18, 2022 Filed — Result Nothing due Documents —" in city
     assert problems == []
     page.close()
@@ -784,10 +786,16 @@ def test_new_tax_book_makes_this_years_book(browser, world):
         options = page.locator("#f-year option").all_inner_texts()
         assert options == [str(year), str(year - 1), str(year - 2)]
         assert page.input_value("#f-year") == str(year - 1)
-        dialog = _text(page, ".dialog")
-        assert "Add your spouse among your relationships in Profile to file jointly." in dialog
+        # Off, each with its reason as its tooltip (S12.19.1).
+        joint = page.locator(".dialog #f-filing-jointly")
+        assert joint.get_attribute("aria-disabled") == "true"
+        assert joint.get_attribute("data-tip") == (
+            "Add your spouse among your relationships in Profile first"
+        )
+        start = page.locator(".dialog #f-start-from-last-year")
+        assert start.get_attribute("data-tip") == "No book for the year before"
         page.select_option("#f-year", str(year))
-        wait(page, '.dialog :text("No book for the year before.")', problems, state="detached")
+        wait(page, ".dialog #f-start-from-last-year:not([data-tip])", problems)
         assert page.input_value("#f-bitcoin-fees") == "sale"
         page.click(".dialog footer button.primary")
         wait(page, ".dialog", problems, state="detached")

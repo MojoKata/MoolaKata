@@ -1,4 +1,4 @@
-# Remove a copy
+# Remove a Copy
 
 A copy on this host, removed for good: a backup, the database as it was before a migration, or what
 a restore set aside.

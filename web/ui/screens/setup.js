@@ -37,7 +37,7 @@ export default function Setup() {
           The key is made and MoolaKata is open. Now your account: you'll sign in as <b
           >admin</b>.
         `
-        : "This server is new. Choose the admin's password and email before anything else."}>
+        : null}>
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         save.run().catch(() => {});

@@ -1,4 +1,4 @@
-# Add a price source
+# Add a Price Source
 
 ## Source
 

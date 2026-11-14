@@ -1,4 +1,4 @@
-# Edit a user
+# Edit a User
 
 ## Name {#display-name}
 

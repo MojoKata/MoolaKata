@@ -1,4 +1,4 @@
-# An item
+# An Item
 
 A physical asset: what it is, when and how it was acquired, its cost basis, and how it's valued.
 
@@ -127,4 +127,4 @@ this server.
 The day it was sold, the proceeds and the fees, recorded when you save the item; **Undo the Sale**
 takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of
 metals or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One
-of property you used yourself is marked **used personally**: a loss on it isn't deductible.
+of property you used yourself is marked **personal**: a loss on it isn't deductible.

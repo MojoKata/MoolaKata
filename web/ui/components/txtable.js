@@ -139,7 +139,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                   <div class="small">
                     <${StatePill} tone="warn"
                       why="A later import brought another amount for it: check which is right."
-                    >amount changed in a later import</${StatePill}></div>
+                    >changed</${StatePill}></div>
                 `
                 : null
             }${
@@ -147,8 +147,8 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                 ? html`
                   <div class="small">
                     <${StatePill} tone="warn"
-                      why="The explorer missed it on two reads in a row: keep it, or delete it."
-                    >no longer on the chain</${StatePill}>
+                      why="No longer on the chain: the explorer missed it on two reads in a row, so keep it or delete it."
+                    >gone</${StatePill}>
                                       <button type="button" class="btn sm" onClick=${(
                                         /** @type {Event} */ e,
                                       ) => {

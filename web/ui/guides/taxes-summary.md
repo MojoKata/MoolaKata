@@ -60,7 +60,7 @@ Your part of the joint return's long-term capital-loss carryover.
 ## Dependents
 
 The people the filers claim this year, each with how they're claimed, the months they lived with
-you, whether a student, and their age on Dec 31. **Also claimed elsewhere** marks someone another
+you, whether a student, and their age on Dec 31. **claimed elsewhere** marks someone another
 tax book claims for the same year. A dependent child's unearned income above the year's threshold is
 flagged for Form 8615 (the kiddie tax). A new tax book copies them a year older, and says whom it
 left out as past a qualifying child's age.

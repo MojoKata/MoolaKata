@@ -1,4 +1,4 @@
-# Adjusted options
+# Adjusted Options
 
 When an underlying splits by a ratio that isn't a whole number, merges, spins off a company or pays
 a large special dividend, the OCC adjusts its open options and says how in an information memo

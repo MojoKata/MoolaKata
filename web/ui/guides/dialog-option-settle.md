@@ -1,4 +1,4 @@
-# What happened to the option
+# What Happened to the Option
 
 ## It was {#how}
 

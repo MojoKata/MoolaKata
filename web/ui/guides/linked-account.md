@@ -1,4 +1,4 @@
-# An account
+# An Account
 
 One shared account: its balance over time, what it holds, and its latest transactions, as its owner's server worked them out. Everything here is read only and comes from that household's server; nothing is worked
 out again here.

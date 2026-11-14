@@ -1,4 +1,4 @@
-# A gift plan
+# A Gift Plan
 
 Your plan for someone you give gifts to: your budget, their holidays and dates, and your notes.
 Yours alone unless you share it.

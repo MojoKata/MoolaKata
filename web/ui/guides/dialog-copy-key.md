@@ -1,4 +1,6 @@
-# A linked copy's access key
+# A Linked Copy's Access Key
+
+The linked household's copy is kept encrypted under these 12 words, shown only now.
 
 ## The words {#words}
 

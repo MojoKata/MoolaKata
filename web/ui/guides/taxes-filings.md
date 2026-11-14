@@ -15,5 +15,5 @@ a grown child.
 ## Filings
 
 Each with its progress, due date (and extension), when and how it was filed, and its result. A
-filing past its due date that isn't filed and has no extension still running is marked *past its
-due date* and shows on the Dashboard.
+filing past its due date that isn't filed and has no extension still running is marked *overdue*
+and shows on the Dashboard.

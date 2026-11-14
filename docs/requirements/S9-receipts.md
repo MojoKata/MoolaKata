@@ -130,7 +130,7 @@
             does (S12.11.1.1);
       3. Pillow's decompression-bomb limit and a cap of 40 million pixels refuse oversized
          images before decoding, and a PDF page is rendered only within the same cap;
-      4. a receipt that fails is marked *couldn't read it*, with the reason, and stays usable
+      4. a receipt that fails is marked *unreadable*, with the reason, and stays usable
          with fields typed by hand;
       5. expected speed, to be measured on the target hardware: about 1–3 s per receipt on a
          current x86 CPU, about 3–10 s on a Raspberry Pi 5. A batch of uploads works through

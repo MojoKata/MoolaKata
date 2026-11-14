@@ -1,4 +1,4 @@
-# Sign-up
+# Sign-Up
 
 Whether people can ask for an account themselves, from the sign-in screen.
 

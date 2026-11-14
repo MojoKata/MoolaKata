@@ -39,8 +39,8 @@ export default function Alerts() {
       <div class="list-item" style=${{ alignItems: 'flex-start' }}>
         <div class=${'tile ' + (a.resolvedAt ? 't-other' : 't-liability')}><${Icon} name=${a
           .icon} /></div>
-        <div class="grow"><b>${a.title}</b>
-          <div class="small dim">${a.about ? a.about + ' · ' : ''}opened ${moment(a.openedAt)}${a
+        <div class="grow"><span class="row-name">${a.title}</span>
+          <div class="row-more">${a.about ? a.about + ' · ' : ''}opened ${moment(a.openedAt)}${a
               .resolvedAt
             ? ` · resolved ${moment(a.resolvedAt)}${a.resolution ? ': ' + a.resolution : ''}`
             : ''}</div></div>

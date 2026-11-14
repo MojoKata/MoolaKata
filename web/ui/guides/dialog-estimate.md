@@ -1,4 +1,4 @@
-# Plan from history
+# Plan from History
 
 A plan line per category from its average over the months you pick, and the recurring payments as
 lines of their own. Nothing is saved until you save; the lines you keep replace those categories'

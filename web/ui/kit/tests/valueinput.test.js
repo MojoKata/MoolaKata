@@ -206,3 +206,12 @@ Deno.test('checked when left, at Enter and at Save; any change clears the mark',
   t.h['onmk-check'](t.ev(blank));
   equal(blank.detail.marked, false, "a blank is the server's to refuse");
 });
+
+Deno.test("a switch's row passes its reason to the switch, which is then off (S12.19.1)", async () => {
+  const { SwitchRow, Switch } = await import('../fields.js');
+  const row = (/** @type {string | null} */ why) =>
+    all(SwitchRow({ label: 'Filing jointly', on: false, onChange: () => {}, why }))
+      .find((x) => x.type === Switch);
+  equal(row('Add your spouse first').props.why, 'Add your spouse first');
+  equal(row(null).props.why, null);
+});

@@ -92,7 +92,7 @@
          Imports can turn statement reading off.
       3. **Checking**: the period, both balances and each line can be corrected, and a line
          left out. A line already in the account (the same date and amount, each transaction
-         there answering for one line) is shown ticked, *already in the account*, and can't be
+         there answering for one line) is shown ticked, *duplicate*, and can't be
          unticked: it counts towards the closing balance and is never added again. The
          opening balance becomes
          the account's reported balance the day before the period, the closing balance its

@@ -1,4 +1,4 @@
-# Pause a link
+# Pause a Link
 
 ## Pause for {#pause-for}
 

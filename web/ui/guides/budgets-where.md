@@ -1,10 +1,10 @@
-# Where the money is
+# Where the Money Is
 
 For each account reserves are held in: what they hold, what was moved there, and what is to move
 there or back. And for each card in the budget, what it owes and how it's paid: spending counts when
 charged, and paying the card moves nothing in a tracking budget.
 
-A scenario shows **this scenario's own figures**: only the active budget says what to move.
+A scenario is marked **scenario**: the figures are its own, and only the active budget says what to move.
 
 ## Month
 

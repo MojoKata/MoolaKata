@@ -1,4 +1,4 @@
-# Record a payment
+# Record a Payment
 
 A payment on the loan, split by its schedule.
 

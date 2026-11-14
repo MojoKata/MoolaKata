@@ -74,8 +74,8 @@ export function Connections() {
         : rows.map((c) =>
           html`
             <div
-              class="list-item wraps"><div class="grow"><b>${c
-                .label}</b><div class="small dim">${DRIVERS[c.driver] ||
+              class="list-item wraps"><div class="grow"><span class="row-name">${c
+                .label}</span><div class="row-more">${DRIVERS[c.driver] ||
                 c.driver} driver${c.institutionAccounts.length
                 ? ` · ${accountsOf(c).join(', ')}`
                 : ''}${c.accounts.length
@@ -84,8 +84,8 @@ export function Connections() {
                 ? html`
                   <div>
                     <${StatePill} tone="info"
-                      why="MoolaKata holds them sealed until the connector collects them at its next report."
-                    >credentials sealed, waiting for the connector</${StatePill}></div>
+                      why="Its credentials are sealed: MoolaKata holds them until the connector collects them at its next report."
+                    >sealed</${StatePill}></div>
                 `
                 : null}</div>${connectionState(c)}
               <button class="btn sm" onClick=${() =>
@@ -311,8 +311,10 @@ export function ConnectionDialog({ close, connection }) {
         `
         : null}
       ${goesTo
-        ? html`<p class="small" data-help="sealed-for" style=${{ margin: '0 0 12px' }}>Sealed for <b
-            class="mono">${goesTo}</b> only: the connector sends this sign-in nowhere else.</p>`
+        ? html`<p class="small" data-help="sealed-for" style=${{
+          margin: '0 0 12px',
+        }}>Sealed for: <b
+            class="mono">${goesTo}</b></p>`
         : null}
       ${html`
         <${Field} label="How you sign in" id="how-you-sign-in">

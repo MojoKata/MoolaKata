@@ -685,7 +685,7 @@ def test_a_portfolios_projections_list_those_built_on_it(browser, household):
     acct = brokerage(h, "Unplanned")
     other = made(make(h.c, "Portf", name="Unplanned", accountIds=[acct], benchmark="60-40"))
     page.goto(h.base + f"/ui/portfolios/{other['id']}/projections")
-    wait(page, 'main :text("No projection is built on it yet.")', problems)
+    wait(page, 'main .empty:text("No projection built on it yet")', problems)
     assert problems == []
     page.close()
 

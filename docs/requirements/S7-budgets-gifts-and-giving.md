@@ -393,5 +393,5 @@
     what is to move (S7.10.4), what is left in *To Budget*, and what is uncategorised or left
     or entered the budget, to sort, each with its action. **Mark reviewed** records who and
     when. A reviewed month whose figures later change (a late transaction, a recategorised
-    one, a move in it) is flagged *changed since reviewed*, with what changed, until it is
+    one, a move in it) is flagged *changed*, with what changed, until it is
     reviewed again. Months are never locked, since history can be edited (S2.8).

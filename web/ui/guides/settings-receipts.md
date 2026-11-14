@@ -1,15 +1,12 @@
 # Receipts
 
 How receipts are kept: encrypted in the data directory, each file once however often it is uploaded.
-Backups hold the database alone; the host's own backup of the data directory keeps the files.
+Backups hold the database alone; the host's own backup of the data directory keeps the files. A
+receipt is a PDF, JPEG, PNG, WebP or HEIC file, checked from its content, never its name.
 
 Reading runs without its file sandbox on a host that doesn't offer Landlock (Linux 5.13 or later,
 and a container that allows it): the reader could then open the data directory. It still has no
 network, and it still runs apart from the server. Admins have an alert while it lasts.
-
-## File types
-
-PDF, JPEG, PNG, WebP and HEIC, checked from each file's content, never its name.
 
 ## Largest file (MB) {#receipt-max-mb}
 

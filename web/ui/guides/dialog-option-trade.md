@@ -1,4 +1,4 @@
-# Record an option trade
+# Record an Option Trade
 
 ## Trade {#action}
 

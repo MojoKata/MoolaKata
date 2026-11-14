@@ -438,9 +438,12 @@ FEWEST = 4  # words: fewer is a label or a state's word, not an explanation
 LABELLED = re.compile(r'class="(?:[^"]*\s)?(?:label|grow|k)(?:\s[^"]*)?"')
 
 
-def fixed_paragraphs(src: str):
-    """Each paragraph a template writes that is only fixed words (FEWEST or more), outside the
-    page's state and the elements that hold words of their own: (line, words)."""
+MIXED_FEWEST = 6  # fixed words around a value: fewer is a label of it, more an explanation
+
+
+def _paragraphs(src: str):
+    """Each paragraph a template writes, outside the page's state and the elements that hold
+    words of their own: (line, parts), a part None for each value in it."""
     i = 0
     while (i := src.find("html`", i)) >= 0:
         i += len("html`")
@@ -461,10 +464,8 @@ def fixed_paragraphs(src: str):
                     else:
                         continue
                     held = e[3] or any(s[0] in HOLDERS or s[0].strip("${}") in STATE for s in stack)
-                    if e[0] in PARAGRAPHS and not held and None not in e[1]:
-                        words = re.sub(r"\s+", " ", "".join(e[1])).strip()
-                        if len(words.split()) >= FEWEST:
-                            yield src.count("\n", 0, e[2]) + 1, words
+                    if e[0] in PARAGRAPHS and not held:
+                        yield src.count("\n", 0, e[2]) + 1, e[1]
                     if stack:
                         stack[-1][1].extend(e[1] if e[0] in INLINE else [None])
                 continue
@@ -476,6 +477,27 @@ def fixed_paragraphs(src: str):
                     lit = _string(src, a, b)
                     whole = lit and None not in lit
                     stack[-1][1].extend([str(x) for x in lit] if whole else [None])
+
+
+def fixed_paragraphs(src: str):
+    """Each paragraph a template writes that is only fixed words (FEWEST or more), outside the
+    page's state and the elements that hold words of their own: (line, words)."""
+    for line, parts in _paragraphs(src):
+        if None not in parts:
+            words = re.sub(r"\s+", " ", "".join(parts)).strip()
+            if len(words.split()) >= FEWEST:
+                yield line, words
+
+
+def mixed_paragraphs(src: str):
+    """Each paragraph that wraps fixed words (MIXED_FEWEST or more) around a value (R3.12):
+    (line, words), each value as `…`. A label of a value is a few words; more explain it."""
+    for line, parts in _paragraphs(src):
+        if None in parts:
+            fixed = "".join(x for x in parts if x is not None)
+            if len(re.findall(r"[A-Za-z]{2,}", fixed)) >= MIXED_FEWEST:
+                words = "".join(x if x is not None else " … " for x in parts)
+                yield line, re.sub(r"\s+", " ", words).strip()
 
 
 def fixed_hints(src: str):
@@ -490,3 +512,20 @@ def fixed_hints(src: str):
             lit = _attr(src, a, b, "hint")
             if lit and all(isinstance(f, Lit) for f in lit) and "".join(lit).strip():
                 yield src.count("\n", 0, a) + 1, "".join(lit)
+
+
+def auth_subtitles(src: str):
+    """Each fixed subtitle of a card outside the frame (`<AuthCard sub=…>`), a choice of strings
+    read one at a time: (line, words). A subtitle built around a value is left to the reader."""
+    i = 0
+    while (i := src.find("html`", i)) >= 0:
+        i += len("html`")
+        for tok in _tokens(src, i):
+            if tok[0] != "tag" or tok[1] == "close" or tok[2] != "${AuthCard}":
+                continue
+            a, b = tok[3], tok[4]
+            for frags in expand(_attr(src, a, b, "sub") or []):
+                if frags and all(isinstance(f, Lit) for f in frags):
+                    words = re.sub(r"\s+", " ", "".join(frags)).strip()
+                    if len(words.split()) >= FEWEST:
+                        yield src.count("\n", 0, a) + 1, words

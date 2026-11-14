@@ -23,23 +23,24 @@ export const DRIVERS = /** @type {Record<string, string>} */ ({
   'ofx-direct': 'OFX Direct Connect',
   schwab: 'Schwab',
 });
-const STATE = /** @type {Record<string, [string, string]>} */ ({
-  new: ['waiting for credentials', ''],
-  ok: ['ok', 'ok'],
-  'needs-sign-in': ['needs a sign-in', 'warn'],
-  failing: ['failing', 'bad'],
-  removed: ['removed', ''],
+// A Connection's state: its pill's word, tone, and what it means when its report says no more.
+const STATE = /** @type {Record<string, [string, string, string]>} */ ({
+  new: ['waiting', '', 'Waiting for its credentials.'],
+  ok: ['ok', 'ok', 'It runs without a problem.'],
+  'needs-sign-in': ['needs sign-in', 'warn', 'The institution wants a new sign-in.'],
+  failing: ['failing', 'bad', 'Its last run failed.'],
+  removed: ['removed', '', 'It no longer runs.'],
 });
 
-/** @param {any} c */
+/** A Connection's state as a pill, its last run or its message the tooltip. @param {any} c */
 export function connectionState(c) {
-  const [label, tone] = STATE[c.state] || [c.state, ''];
-  const detail = c.state === 'ok' && c.lastRunAt
-    ? ` · ${c.lastRunAdded != null ? `${c.lastRunAdded} new · ` : ''}${ago(c.lastRunAt)}`
+  const [label, tone, said] = STATE[c.state] || [c.state, '', c.state];
+  const why = c.state === 'ok' && c.lastRunAt
+    ? `Last run ${ago(c.lastRunAt)}${c.lastRunAdded != null ? `, ${c.lastRunAdded} new` : ''}.`
     : c.message && c.state !== 'ok'
-    ? ` · ${c.message}`
-    : '';
-  return html`<span class=${'pill ' + tone}>${label}${detail}</span>`;
+    ? c.message
+    : said;
+  return html`<${StatePill} tone=${tone} why=${why}>${label}</${StatePill}>`;
 }
 
 export function ConnectorSection() {
@@ -60,16 +61,20 @@ export function ConnectorSection() {
   const paired = v.state === 'paired';
   const tone = !paired ? '' : v.silentForSeconds ? 'bad' : v.locked ? 'warn' : 'ok';
   const status = !paired
-    ? v.state === 'pairing' ? 'pairing code out' : 'not paired'
+    ? v.state === 'pairing' ? 'pairing' : 'not paired'
     : v.silentForSeconds
-    ? `not heard from for ${Math.round(v.silentForSeconds / 60)} min`
+    ? 'silent'
     : v.locked
     ? 'paired · locked'
     : 'paired · unlocked';
+  const icon = html`<${Icon} name=${paired && !v.locked ? 'check' : 'lock'} />`;
   return html`
     <div class="card">
-      <h3>MoolaKata Connector<span class="spacer"></span><span class=${'pill ' + tone}><${Icon}
-          name=${paired && !v.locked ? 'check' : 'lock'} /> ${status}</span></h3>
+      <h3>MoolaKata Connector<span class="spacer"></span>${paired && v.silentForSeconds
+        ? html`<${StatePill} tone=${tone} why=${`Not heard from for ${
+          Math.round(v.silentForSeconds / 60)
+        } min.`}>${icon} ${status}</${StatePill}>`
+        : html`<span class=${'pill ' + tone}>${icon} ${status}</span>`}</h3>
       ${paired
         ? html`
           <div class="list-item"><span class="grow dim">Connector</span><code
@@ -124,9 +129,10 @@ export function ConnectorSection() {
         `
         : v.state === 'pairing'
         ? html`
-          <${StatePill} tone="info"
-            why="Paste it into Pair on the connector's page, or run it on its host; then compare the fingerprint both sides show.">Code
-            out until ${moment(v.codeExpiresAt)}</${StatePill}>
+          <${StatePill} tone="info" why=${`It expires ${
+            moment(v.codeExpiresAt)
+          }: paste it into Pair on the connector's page, or run it on its host, then compare the fingerprint both sides show.`}>code
+            out</${StatePill}>
         `
         : html`
           <${Attention} tone="info" icon=${html`<${Icon} name="info" />`}>No connector
@@ -198,8 +204,8 @@ export function ConnectorSection() {
                       ? html`
                         <div>
                           <${StatePill} tone="info"
-                            why="Sealed by their owner; MoolaKata holds them until the connector collects them at its next report."
-                          >credentials waiting for the connector</${StatePill}></div>
+                            why="Its credentials are sealed by their owner: MoolaKata holds them until the connector collects them at its next report."
+                          >sealed</${StatePill}></div>
                       `
                       : null}</td>
                   </tr>
@@ -243,7 +249,7 @@ function PairDialog({ close, paired }) {
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}>${made.code}</code></div>
-          <p class="small dim">Or, with Docker Compose on the connector's host: <code
+          <p class="small dim">Docker Compose: <code
               class="mono">${made.command}</code></p>
         `
         : html`<${Loading} lines=${2} />`}

@@ -203,8 +203,7 @@ export function ShareDialog({ close, kind, id, name }) {
                         ${hiddenNames.map((h) =>
                           html`<div><b>${h.who}</b> can't see ${
                             h.accounts.join(', ')
-                          }: they see only what is shared
-            with them, and the rest is left out of the portfolio's figures.</div>`
+                          }: left out of the portfolio's figures they see.</div>`
                         )}
                         <div class="toolbar mt" style=${{ marginBottom: 0 }}>${pending.length
                           ? html`

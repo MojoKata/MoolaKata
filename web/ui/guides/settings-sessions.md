@@ -1,4 +1,4 @@
-# Settings: Sign-in and sessions
+# Settings: Sign-In and Sessions
 
 How long a sign-in lasts and when repeated failures lock the address they come from.
 

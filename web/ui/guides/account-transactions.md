@@ -22,9 +22,9 @@ Change one transaction's category in place. A split shows its parts in the trans
 
 ## Keep It
 
-A row is marked **amount changed in a later import** when a file imported since gave it another
+A row is marked **changed** when a file imported since gave it another
 amount: check which is right. A crypto wallet's transaction that two reads of the chain in a row
-didn't find is marked **no longer on the chain**: **Keep It** keeps it for good, or delete it.
+didn't find is marked **gone**: **Keep It** keeps it for good, or delete it.
 
 ## Transfers
 

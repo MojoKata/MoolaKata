@@ -1,4 +1,4 @@
-# Pair a payback
+# Pair a Payback
 
 A deposit paired with spending awaiting being paid back: that much of the deposit pays it back, so
 it isn't income, and the spending stops being awaited.

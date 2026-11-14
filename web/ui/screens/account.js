@@ -429,9 +429,12 @@ function Reconcile({ a, all, reload }) {
         html`
           <div class="list-item mt">
             <${Icon} name="alert" />
-            <div class="grow small"><b>Gap</b>: nothing imported between ${date(g[0])} and ${date(
-              g[1],
-            )}.</div>
+            <div
+              class="grow small"><span class="row-name">Gap</span>: nothing imported between ${date(
+                g[0],
+              )} and ${date(
+                g[1],
+              )}.</div>
             <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
@@ -443,7 +446,9 @@ function Reconcile({ a, all, reload }) {
           <div class="list-item">
             <${Icon} name="info" />
             <div
-              class="grow small"><b>Overlap</b>: two imports both cover ${date(o[0])} to ${date(
+              class="grow small"><span class="row-name">Overlap</span>: two imports both cover ${date(
+                o[0],
+              )} to ${date(
                 o[1],
               )}. Rows they share were matched, not doubled.</div>
           </div>
@@ -520,8 +525,8 @@ function Reconcile({ a, all, reload }) {
         ? html`
           <div class="mt">
             <${StatePill}
-              why="Worked out from the earliest balance the institution reported, standing in for history before the first import."
-            >opening balance stand-in</${StatePill}></div>
+              why="The opening balance, worked out from the earliest balance the institution reported, stands in for history before the first import."
+            >stand-in</${StatePill}></div>
         `
         : null}
     </div>
@@ -566,8 +571,9 @@ function Mismatch({ a, check, all, again }) {
           html`
             <div class="list-item">
               <${Icon} name="receipt" />
-              <div class="grow"><b>Possible duplicate</b>: ${ids
-                .length} identical rows on one day.</div>
+              <div
+                class="grow"><span class="row-name">Possible duplicate</span>: ${ids
+                  .length} identical rows on one day.</div>
               <${Action} class="btn sm" why=${whyRead(a)} onClick=${() =>
                 both.run(ids[0])}>Both Are Real</${Action}>
                   <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove One</a></div>
@@ -578,7 +584,7 @@ function Mismatch({ a, check, all, again }) {
             <div class="list-item">
               <${Icon} name="info" />
               <div
-                class="grow"><b>Changed amounts</b>: ${s.changed
+                class="grow"><span class="row-name">Changed amounts</span>: ${s.changed
                   .length} transaction${s.changed.length === 1
                   ? ''
                   : 's'} changed between imports.</div>
@@ -590,9 +596,10 @@ function Mismatch({ a, check, all, again }) {
             <div
               class="list-item">
               <${Icon} name="alert" />
-              <div class="grow"><b>Gap</b>: ${date(
-                g[0],
-              )} to ${date(g[1])} has no imports.</div>
+              <div
+                class="grow"><span class="row-name">Gap</span>: ${date(
+                  g[0],
+                )} to ${date(g[1])} has no imports.</div>
               <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
                 openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                   again,
@@ -667,8 +674,7 @@ function Adjust({ close, a, check }) {
       done="Recorded as a balance adjustment">
       <p class="small dim"
         style=${{ marginTop: 0 }}>A transaction of <${Amt} v=${check
-          .difference} signed /> on ${date(check.date)},
-          marked as an adjustment, in the account and in Activity.</p>
+          .difference} signed /> on ${date(check.date)}.</p>
       ${rec
         ? html`
           <${RecField} rec=${rec} name="memo" label="Why" id="note" />
@@ -967,12 +973,7 @@ function Settings({ a, reload }) {
               : wallet
               ? html`<${WalletCard} a=${a} rec=${rec} />`
               : physical
-              ? html`
-                <div class="card">
-                  <h3>Keeping It Current<span class="spacer"></span><a class="btn sm"
-                    href=${`/ui/accounts/${a.id}/items`}>Items</a></h3>
-                </div>
-              `
+              ? null
               : education && plan && f.draft
               ? html`
                 <div class="grid" style=${{ alignContent: 'start' }}>

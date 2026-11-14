@@ -1,4 +1,4 @@
-# Check a brokerage statement
+# Check a Brokerage Statement
 
 A brokerage or plan statement's PDF, read from its text layer: its summary, its positions on the
 last day and its cash activity, checked here before anything is saved. The PDF is kept on the account. A photo or scan isn't read,
@@ -22,9 +22,10 @@ cash, and becomes a cash anchor.
 ## Cash Activity {#cash-activity}
 
 Deposits, withdrawals, dividends, interest and fees, each kept as a transaction when ticked. A line
-already in the account (its OFX brought it) is ticked, counted and never added again. A line you
+already in the account (its OFX brought it) is marked **duplicate**, ticked, counted and never added again. A line you
 untick offers **Remember…**, as a bank statement's does, to ignore lines like it from then on. When
-the lines read don't add up to the summary's figures, a line may not have been read: check them.
+the lines read don't add up to the summary's figures, a line may not have been read: check them
+against the statement before saving.
 
 Trades, options activity, corporate actions and margin lines aren't read. A trade opens the trade
 dialog with its figures filled in; the others are entered by hand.

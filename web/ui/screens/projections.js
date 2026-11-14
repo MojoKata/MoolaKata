@@ -80,10 +80,10 @@ export default function Projections({ id }) {
         href=${`/ui/projections/${r.id}`} style=${{ color: 'inherit' }}>
             <div class=${'tile t-' + (TILE[r.goal] || 'banking')}><${Icon}
               name=${GOAL[r.goal]?.[1] || 'target'} /></div>
-            <div class="grow"><b>${r.name}</b> ${r.status
+            <div class="grow"><span class="row-name">${r.name}</span> ${r.status
               ? html`<span class=${'pill ' + (TONE[r.status] || '')}>${r.status}</span>`
               : null}
-              <div class="small dim">${r.headline} · on ${r.builtOnLabel}${r.access.mine
+              <div class="row-more">${r.headline} · on ${r.builtOnLabel}${r.access.mine
                 ? ''
                 : ` · shared by ${r.ownerName}`}</div></div></a>
     `;
@@ -191,25 +191,27 @@ function Detail({ id, reloadList }) {
           options=${[['nominal', 'Nominal'], ['real', "Today's dollars"]]} /></h3>
         <${FanChart} label=${`${x.name}: projected value by year`} years=${r.years} p=${p}
           paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
-        <p class="small dim">A model, not a forecast. Starts from ${dollars(r.start)} (${classes}).
-          Returns from ${mine ? 'your' : `${x.ownerName}'s`} assumptions (${Object.entries(
+        <div class="small dim" data-help="projected-value">
+          <div>Starts from: ${dollars(r.start)} (${classes})</div>
+          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.entries(
             r.weights,
           ).map(([k]) =>
             `${labelOf(k)} ${r.assumptions.classes[k].return}% ± ${
               r.assumptions.classes[k].volatility
             }%`
-          ).join(', ')}), log-normal, each class on its own; inflation ${r.assumptions
-            .inflation}%; fees ${x.inputs.fees ??
-            0.1}% a year.${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
-            ? ` Bitcoin follows the ${r.bitcoinModel} model, a model others publish; other coins keep the crypto assumption.`
-            : ''} Seeded (${r.seed}), so the same inputs give the same figures.</p>
+          ).join(', ')}</div>
+          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
+          ${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
+            ? html`<div>Bitcoin: the ${r.bitcoinModel} model</div>`
+            : null}
+          <div>Seed: ${r.seed}</div>
+        </div>
         ${r.leftOut?.length
           ? html`<p class="small dim" data-help="left-out">Left out: ${
             r.leftOut.map((
               /** @type {any} */ o,
             ) => `${o.name} ${dollars(o.value)}`).join('; ')
-          }. A projection grows cash, securities
-            and metals; a loan, a home, a car and options aren't drawn on.</p>`
+          }</p>`
           : null}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
@@ -288,7 +290,7 @@ function Tracking({ x }) {
         ? html`
           ${' '}<${StatePill}
             why="Some of the accounts it is built on aren't shared with you: the status is the whole projection's, the balance only that of the accounts you can see."
-          >partly shared with you</${StatePill}>
+          >partly shared</${StatePill}>
         `
         : null}</h3>
       ${t.points.length > 1
@@ -611,8 +613,7 @@ function Rebaseline({ close, name }) {
           type="button" class="btn primary"
           onClick=${() => close(true)}>Re-baseline</button>
       `}>
-      <p style=${{ marginTop: 0 }}>${name} is active. Its tracking compares the actual balance
-        with the plan as it was made active.</p>
+      <p style=${{ marginTop: 0 }}>${name} is active.</p>
       </${Dialog}>
   `;
 }

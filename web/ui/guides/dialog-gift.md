@@ -1,4 +1,4 @@
-# A gift
+# A Gift
 
 A gift for one or more people and an occasion, from idea to given; or one you received.
 

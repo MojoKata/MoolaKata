@@ -1,4 +1,4 @@
-# New access token
+# New Access Token
 
 A token for an AI assistant or another tool that speaks MCP. It reads, never changes, and only what
 you choose here. Making one asks for your password again if you gave it over 10 minutes ago, and

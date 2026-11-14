@@ -1,4 +1,4 @@
-# Type the servicer's balance
+# Type the Servicer's Balance
 
 The principal still owed, typed from the servicer's statement or site, to check the schedule
 against.

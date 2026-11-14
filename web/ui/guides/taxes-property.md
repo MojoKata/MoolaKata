@@ -1,4 +1,4 @@
-# Taxes: Loans and property
+# Taxes: Loans and Property
 
 Mortgage and student-loan interest, and physical assets sold.
 

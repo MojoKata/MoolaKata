@@ -1,4 +1,4 @@
-# A relationship
+# A Relationship
 
 How you are related to one of the household's people. You add relationships you are in; an admin
 adds any. Mothers, grandparents, cousins and in-laws are worked out from these.

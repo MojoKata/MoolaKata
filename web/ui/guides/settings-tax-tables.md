@@ -1,4 +1,4 @@
-# Tax tables
+# Tax Tables
 
 Figures that change each year and ship with MoolaKata: contribution limits, the gift exclusion, the
 QCD limit, the bitcoin models' published figures, and more. They are updated with MoolaKata; correct

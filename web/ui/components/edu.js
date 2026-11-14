@@ -20,7 +20,7 @@ import { FIELDS } from '../api/fields.js';
 import { DraftDialog, DraftForm, RecField, saveNow, useDraft } from './draft-form.js';
 import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 /** A 529's plan (S1.8.1), in its account's draft. */
 export class EduPlanRec extends Record {
@@ -240,7 +240,9 @@ export function Contributions({ a }) {
                     <td class="num">
                       <${Amt} v=${y.exclusion} cents=${false} />
                     </td>
-                    <td>${y.over ? html`<span class="pill warn">over: Form 709</span>` : null}</td>
+                    <td>${y.over
+                      ? html`<${StatePill} tone="warn" why="Over the exclusion, so it is reported on Form 709.">over</${StatePill}>`
+                      : null}</td>
                   </tr>
                 `
               )}</tbody>
@@ -601,11 +603,12 @@ export function Goal({ a }) {
         <${FanChart} label=${`${x.name}: projected balance by year`} years=${r.years}
           p=${r.percentiles} marks=${[[ans.firstYear, 'school starts']]} />
         <p
-          class="small dim">A model, not a forecast: ${ans.years} years from ${ans
-            .firstYear}, each costing ${ans.costBasis === 'typed'
-            ? 'the typed amount'
-            : `the shipped ${ans.costBasis} average`} of ${money0(ans.costToday)} in today's
-          dollars, rising ${r.assumptions.educationInflation}% a year.</p>
+          class="small dim"><span>Years of school: ${ans.years}, from ${ans
+            .firstYear}</span> · <span>Cost per year: ${money0(ans.costToday)} today, ${ans
+              .costBasis === 'typed'
+            ? 'typed'
+            : `the shipped ${ans.costBasis} average`}</span> · <span>Education inflation: ${r
+            .assumptions.educationInflation}% a year</span></p>
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${EducationAnswer} a=${ans} />

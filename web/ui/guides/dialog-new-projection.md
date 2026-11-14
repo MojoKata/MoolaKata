@@ -1,4 +1,4 @@
-# New projection
+# New Projection
 
 It starts as a scenario, with figures to change; make it active to follow it.
 

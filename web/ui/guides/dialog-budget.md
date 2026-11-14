@@ -1,4 +1,4 @@
-# New budget
+# New Budget
 
 A budget plans spending per category over the accounts you choose. Choose how it works and what it
 offers now; plan its categories next, from history or with **Edit Plan**.

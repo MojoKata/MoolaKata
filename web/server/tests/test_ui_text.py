@@ -168,6 +168,64 @@ def test_no_paragraph_is_fixed_words():
     assert not found, "fixed paragraphs (to the guide, or a state):\n" + "\n".join(found)
 
 
+def test_a_paragraph_around_a_value_is_found():
+    src = """html`<p class="small">Use it with the endpoint <code>${url}</code>, as a bearer.</p>
+      <p class="small dim">MCP: <code>${url}</code></p>
+      <span class="small dim">${n} payments</span>
+      <div class="list-item"><span class="grow dim">Encrypted under it</span>${a} and more</div>
+      <${Attention}>Nothing is backed up first for ${name}, so it is lost.</${Attention}>
+      <div class="label">The value of the house today, at ${when}</div>`"""
+    assert [w for _, w in uitext.mixed_paragraphs(src)] == [
+        "Use it with the endpoint … , as a bearer."
+    ]
+
+
+# Fixed words around a value that stay (S12.19.7, R3.12): the answer to an action just taken, a
+# question, a security prompt carrying a value to compare, a warning of a consequence beside its
+# action, a result the screen works out, a state line, a tour's step. Each by its file and words
+# in it, so a new one is a choice made here.
+AROUND_VALUES = {
+    ("components/draft-form.js", "changed since you opened it"),  # a save refused: it moved on
+    ("components/draft-form.js", "isn't saved. Save it, or discard"),  # Save Your Changes?
+    ("components/edu.js", "five-year election"),  # a year's figure worked out from an election
+    ("components/links.js", "Its certificate changed to"),  # a security prompt: its fingerprint
+    ("components/loan.js", "already holds this payment"),  # the save's consequence: paired
+    ("components/receipt.js", "Also kept with"),  # a state: what else holds it, unseen
+    ("components/share.js", "left out of the portfolio's figures"),  # a share's consequence
+    ("components/taxpanels.js", "at the end of last year ÷"),  # an RMD worked out
+    ("components/taxpanels.js", "Last year's total tax:"),  # figures worked out, each labelled
+    ("components/tour.js", "uses you can see"),  # a tour's step (S12.17)
+    ("components/tour.js", "more you can't see"),  # a tour's step
+    ("components/tour.js", "Nothing uses it:"),  # a tour's step
+    ("screens/account.js", "one transfer?"),  # a question, its answers as buttons
+    ("screens/budgets.js", "paid for a reserve"),  # the money to move, worked out
+    ("screens/gifts.js", "who is already here"),  # the answer to choosing a person here
+    ("screens/import.js", "below the rows"),  # what the mapping read: lines left out
+    ("screens/import.js", "read from its text layer"),  # a statement's state: how it was read
+    ("screens/import.js", "don't add up to the summary's"),  # a check worked out, before Save
+    ("screens/linked.js", "locks after"),  # a state: who unlocked it, when it locks
+    ("screens/linked.js", "as of their last sync"),  # a count's state
+    ("screens/linked.js", "by a newer MoolaKata"),  # a state: items this one can't show
+    ("screens/projections.js", "when school starts in"),  # an education answer worked out
+    ("screens/settings.js", "the database ("),  # what the key encrypts, counted
+    ("screens/signin.js", "has an account here"),  # the answer to Send
+    ("screens/signin.js", "can ask for an account"),  # the answer to Ask for an Account
+    ("screens/users.js", "This turns off two-step sign-in"),  # Turn It Off's consequence
+}
+
+
+def test_no_paragraph_explains_around_a_value():
+    """A value keeps a short label on the screen (Label: value); the words that explain it are
+    in the guide (R3.12)."""
+    found = [
+        f"{name}:{line} {words[:90]!r}"
+        for name, src in uitext.sources()
+        for line, words in uitext.mixed_paragraphs(src)
+        if not any(n == name and w in words for n, w in AROUND_VALUES)
+    ]
+    assert not found, "explanations around a value (to the guide):\n" + "\n".join(found)
+
+
 def field_labels() -> set[str]:
     out = set()
     for _, src in uitext.sources():
@@ -207,3 +265,52 @@ def test_each_answer_kept_is_still_there():
     for name, words in ANSWERS:
         src = (paths.UI / name).read_text()
         assert any(w.startswith(words) for _, w in uitext.fixed_paragraphs(src)), (name, words)
+
+
+def test_each_kept_around_a_value_is_still_there():
+    """Each paragraph around a value named above is still drawn, so the list can't go stale."""
+    for name, words in AROUND_VALUES:
+        src = (paths.UI / name).read_text()
+        assert any(words in w for _, w in uitext.mixed_paragraphs(src)), (name, words)
+
+
+# The subtitles of the cards outside the frame that keep their words (R3.12, S12.19.7): each an
+# answer, a state or a consequence, by its file and its words' start.
+SUBTITLES = {
+    ("screens/reset.js", "Every session was signed out"),  # the answer to a password changed
+    ("screens/confirm-email.js", "Your new address is in use"),  # the answer to a link opened
+    ("screens/confirm-email.js", "Ask for a new one in Profile"),  # an expired link's remedy
+    ("screens/signup-confirm.js", "Ask for an account again"),  # an expired link's remedy
+    ("screens/welcome.js", "Ask an admin to send a new one"),  # an expired invitation's remedy
+    ("screens/new-server.js", "They're shown here once"),  # the consequence of going on
+    ("screens/signin.js", "An admin switched it off"),  # the account's state
+    ("screens/signin.js", "Your session ended"),  # the answer to a session that expired
+}
+
+
+def test_a_fixed_subtitle_is_found():
+    src = """html`<${AuthCard} title="A" sub="This server is new, and two steps make it yours." />
+      <${AuthCard} title="B" sub=${x ? 'Short' : 'An invitation works once, for 7 days.'} />
+      <${AuthCard} title="C" sub=${`You are invited to ${who}'s server here.`} />`"""
+    assert [w for _, w in uitext.auth_subtitles(src)] == [
+        "This server is new, and two steps make it yours.",
+        "An invitation works once, for 7 days.",
+    ]
+
+
+def test_no_card_outside_the_frame_explains_in_its_subtitle():
+    """A card outside the frame keeps an answer, a state or a consequence as its subtitle; what
+    the screen is for is in its guide (R3.12)."""
+    found = [
+        f"{name}:{line} {words!r}"
+        for name, src in uitext.sources()
+        for line, words in uitext.auth_subtitles(src)
+        if not any(n == name and words.startswith(w) for n, w in SUBTITLES)
+    ]
+    assert not found, "fixed subtitles (to the guide):\n" + "\n".join(found)
+
+
+def test_each_subtitle_kept_is_still_there():
+    for name, words in SUBTITLES:
+        src = (paths.UI / name).read_text()
+        assert any(w.startswith(words) for _, w in uitext.auth_subtitles(src)), (name, words)

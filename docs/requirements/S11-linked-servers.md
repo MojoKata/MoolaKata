@@ -118,8 +118,9 @@ preparer.
    two servers have, and a second join with it is refused. The states and what moves a link
    between them are `docs/link-protocol.md` §4.6.
 7. **Settings › Linked Servers** lists each link: the peer's name and address, its
-   fingerprint, state (invited, requested, pending, active, paused until…, unreachable
-   since…, broken, ended), the last pull, and
+   fingerprint, state (invited, requested, pending, active, paused, unreachable, broken,
+   ended; until when a pause lasts and since when it is unreachable in the state's tooltip),
+   the last pull, and
    what flows each way, with *Pull now*, *Pause* and *End link*.
    1. **Progress**: while a pull is under way, how far it has come both in time and in
       quantity: *Up to July 2022 (47 MB of 2 GB)*, the date being the newest record applied so

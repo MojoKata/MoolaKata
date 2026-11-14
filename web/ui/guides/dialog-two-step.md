@@ -1,4 +1,4 @@
-# Turn on two-step sign-in
+# Turn On Two-Step Sign-In
 
 Any authenticator app that reads TOTP codes works: the ones built into password managers too.
 

@@ -1,4 +1,4 @@
-# Copy as scenario
+# Copy as Scenario
 
 A new budget of yours with the same accounts and plan from this month, to try another method or
 plan beside the one you follow, which doesn't change.

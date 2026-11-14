@@ -1,4 +1,4 @@
-# MoolaKata is locked
+# MoolaKata Is Locked
 
 The server has started and holds no key: the master key is the recovery phrase, which is
 never stored. Until an admin enters it, the server serves this screen and nothing else, and

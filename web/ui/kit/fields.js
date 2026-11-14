@@ -750,17 +750,18 @@ export function Switch({ on, onChange, label, id, disabled, help, why, readonly 
 }
 
 /**
- * A row with a label and a switch, as Settings and account forms use.
+ * A row with a label and a switch, as Settings and account forms use. `why` shows the switch
+ * off, saying why, as its tooltip (S12.19.1).
  * @param {{ label: string, hint?: string, on: boolean, onChange: (v: boolean) => void,
- *   disabled?: boolean, readonly?: boolean }} p
+ *   disabled?: boolean, readonly?: boolean, why?: string | null }} p
  */
-export function SwitchRow({ label, hint, on, onChange, disabled, readonly }) {
+export function SwitchRow({ label, hint, on, onChange, disabled, readonly, why }) {
   return html`
     <div
       class="list-item"><span class="grow">${label}${hint
         ? html`<div class="small dim">${hint}</div>`
         : null}</span><${Switch} on=${on} onChange=${onChange} label=${label} disabled=${disabled}
-          readonly=${readonly} /></div>
+          readonly=${readonly} why=${why} /></div>
   `;
 }
 

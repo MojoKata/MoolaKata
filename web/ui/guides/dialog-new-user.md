@@ -1,4 +1,4 @@
-# New user
+# New User
 
 They get an invitation by email and choose their own password.
 

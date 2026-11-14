@@ -399,21 +399,18 @@ function Results({ r, className, rows, showRows }) {
             html`<b><${Amt} v=${r.invested.value} cents=${false} /></b>`,
             ` by ${month(p.payoffDate)}, against `,
             html`<b><${Amt} v=${p.interestSaved} cents=${false} /></b>`,
-            ' of interest saved. A comparison, not advice: the return is an assumption; the',
-            ' interest saved is certain.',
+            ' of interest saved.',
           ]}</div>
         </div>
       `
       : html`<${Empty}>No overpayment in the plan</${Empty}>`}
     ${r.assumedRates.length
       ? html`
-        <div class="notice warn mt">
+        <div class="notice warn mt" data-help="assumed-rates">
           <${Icon} name="alert" />
-          <div>After ${date(
-            r.assumedRates[0].date,
-          )} the rate is your assumption (${r.assumedRates.map((/** @type {any} */ x) =>
+          <div>Assumed rates: ${r.assumedRates.map((/** @type {any} */ x) =>
             `${rate(x.rate)} from ${month(x.date)}`
-          ).join(', ')}), as typed in the terms.</div>
+          ).join(', ')}</div>
         </div>
       `
       : null}

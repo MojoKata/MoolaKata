@@ -1,4 +1,4 @@
-# Check the statement
+# Check the Statement
 
 What was read from the statement, before anything is saved. Nothing is saved until you import it.
 
@@ -21,8 +21,8 @@ As the statement shows it. The transactions must add up from the opening balance
 
 ## Include
 
-Untick a line that isn't a transaction (a subtotal, a daily balance). A line marked **already in the
-account** is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
+Untick a line that isn't a transaction (a subtotal, a daily balance). A line marked **duplicate**, already in the
+account, is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
 
 ## Remember… {#remember}
 

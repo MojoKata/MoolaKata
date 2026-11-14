@@ -330,7 +330,9 @@ function Retirement({ p }) {
                     <td class="num">${c.limit
                       ? html`<${Amt} v=${c.limit} cents=${false} />`
                       : '—'}${c.note ? html`<div class="small dim">${c.note}</div>` : null}</td>
-                    <td>${c.over ? html`<span class="pill warn">over the limit</span>` : null}</td>
+                    <td>${c.over
+                      ? html`<${StatePill} tone="warn" why="Over the limit.">over</${StatePill}>`
+                      : null}</td>
                   </tr>
                 `
               )}</tbody>

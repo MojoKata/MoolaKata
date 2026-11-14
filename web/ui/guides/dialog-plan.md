@@ -1,4 +1,4 @@
-# Edit plan
+# Edit Plan
 
 The plan from the month shown on. Earlier months keep the plan they had.
 

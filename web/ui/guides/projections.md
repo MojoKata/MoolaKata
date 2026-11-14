@@ -26,8 +26,8 @@ track** inside the baseline's 10th–90th percentile band, **ahead** above it, *
 Falling behind raises an alert, checked at each month's end. Tracking starts from the baseline, and
 the chart fills in as days pass. One built on a typed amount is **untracked**: there is no balance
 to track it against. In a projection shared with you, you see the status, and the balance of only
-the accounts that are shared with you too; when some aren't, it is marked **partly shared with
-you**, and there is no band to show it against.
+the accounts that are shared with you too; when some aren't, it is marked **partly
+shared**, and there is no band to show it against.
 
 ## Show on my Dashboard {#show-on-dashboard}
 
@@ -42,6 +42,14 @@ default.
 
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
 value today and their mix of asset classes; each class follows your assumptions in Profile.
+
+## Projected Value {#projected-value}
+
+A model, not a forecast. Under the chart, what it is worked out from: the value it starts from and
+its mix of asset classes; each class's return and volatility, from its owner's assumptions in
+Profile, drawn log-normal, each class on its own; inflation; and the fees taken from the balance
+each year. Where a bitcoin model is chosen, bitcoin follows it, a model others publish; other coins
+keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures.
 
 ## Left Out {#left-out}
 

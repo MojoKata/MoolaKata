@@ -1,4 +1,4 @@
-# Prune files
+# Prune Files
 
 The expired files, by category: untick any to keep for now. No backup is made first: a backup
 holds no files, and a pruned file survives only in the host's own backups of the data directory.

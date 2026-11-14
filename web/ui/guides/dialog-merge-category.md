@@ -1,4 +1,4 @@
-# Merge a category
+# Merge a Category
 
 Moves everything filed under a category into another, then deletes it: transactions, their
 parts, rules, budget plan lines and moves, and a loan's whole-payment category, for every user. An

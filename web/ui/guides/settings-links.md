@@ -1,4 +1,4 @@
-# Linked servers
+# Linked Servers
 
 Other MoolaKata servers that share read-only with this one: another household's, or a
 preparer's. Admins only.
@@ -7,7 +7,7 @@ preparer's. Admins only.
 
 **Invite a Server** makes a one-time code for the other server's admin. **Enter a Link Code**
 answers one: MoolaKata connects to the address in the code, checks the server's key against the
-fingerprint in it, and asks to link. The inviting side then lists it as **wants to link**: compare
+fingerprint in it, and asks to link. The inviting side then lists it as a **request**: compare
 the fingerprint shown with what the other admin sees for their own server (by phone, in person)
 and **Approve** or **Reject** it.
 
@@ -22,10 +22,10 @@ A link works when either side can reach the other: each exchange carries both di
 
 Each link shows its state, its fingerprint and MoolaKata version, and when the last exchange
 worked. **Pull Now** exchanges at once rather than at the next hour. **Pause** stops this side
-exchanging for a time you choose; it shows **paused until** then and resumes on its own, or at
+exchanging for a time you choose; it shows **paused** (until when, in its tooltip) and resumes on its own, or at
 once with **Resume Now**. **End Link** ends it on both sides: the other side learns at once, or
 at its next call; its users are removed here, and nothing is deleted on the server that shared.
-A server that can't be reached shows **unreachable since** and the reason. One that answers it
+A server that can't be reached shows **unreachable**, since when in its tooltip, and the reason. One that answers it
 has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
 link again. Only the other server ending the link ends it here.
 

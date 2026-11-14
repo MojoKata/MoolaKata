@@ -37,8 +37,7 @@ export default function NewServer({ refresh }) {
 
   if (step === 'welcome' || !offer) {
     return html`
-      <${AuthCard} title="Welcome to MoolaKata" guide="new-server"
-        sub="This server is new. Two steps make it yours: its master key, then your account.">
+      <${AuthCard} title="Welcome to MoolaKata" guide="new-server">
         <${FormError} error=${show.error} />
         <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
           onClick=${() => show.run().catch(() => {})}>Show My Recovery Phrase</button>
@@ -48,7 +47,7 @@ export default function NewServer({ refresh }) {
   if (step === 'phrase') {
     return html`
       <${AuthCard} title="Your Recovery Phrase" guide="new-server"
-        sub="Write these 12 words on paper, in order. They're shown here once.">
+        sub="They're shown here once.">
         <ol class="phrase" aria-label="The recovery phrase">${offer.words.map((
           /** @type {string} */ w,
         ) => html`<li><b>${w}</b></li>`)}</ol>
@@ -64,8 +63,7 @@ export default function NewServer({ refresh }) {
   }
   const gone = /** @type {any} */ (make.error)?.code === 'phrase-gone';
   return html`
-    <${AuthCard} title="Check What You Wrote" guide="new-server"
-      sub="Type three of the words from your sheet.">
+    <${AuthCard} title="Check What You Wrote" guide="new-server">
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         make.run().catch(() => {});

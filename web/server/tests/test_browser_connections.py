@@ -61,7 +61,7 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
         page.goto(base + "/ui/profile")
         wait(page, 'button:has-text("Change Credentials")', problems)
         page.click('button:has-text("Change Credentials")')
-        wait(page, 'text="Sealed for"', problems)
+        wait(page, '[data-help="sealed-for"]', problems)
         # The dialog shows the address and the host the sign-in is sealed for (S18.7.1).
         assert page.input_value("#f-ofx-url") == settings["url"]
         assert "ofx.cu.example" in page.inner_text('[data-help="sealed-for"]')

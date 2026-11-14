@@ -1,4 +1,4 @@
-# New account
+# New Account
 
 Choose the account's type. It decides the fields, the tax treatment, the tabs and how the account
 can be kept current.

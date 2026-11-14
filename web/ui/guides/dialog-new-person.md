@@ -1,4 +1,4 @@
-# Add a person
+# Add a Person
 
 One of the household's people, added from a list that chooses one (a 529's beneficiary). Saved
 here, they are chosen there.

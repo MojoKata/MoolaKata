@@ -45,8 +45,8 @@ Your spouse, children, friends and colleagues, each from a date and, once over, 
 grandparents, cousins and in-laws are worked out from them. Your spouse on the day of a sale counts
 for **wash sales** (a loss sale with a purchase of the same thing within 30 days either side), and
 your spouse on the last day of a year for a joint tax book, once you have both confirmed the
-marriage: one your spouse entered shows **Confirm** here. A marriage is marked **confirmed by
-both** once it counts for those, or **waiting for** whoever is still to confirm it, when it counts
+marriage: one your spouse entered shows **Confirm** here. A marriage is marked **confirmed**
+once both have confirmed it and it counts for those, or **waiting** while someone is still to confirm it, when it counts
 for gifts only. Under **Worked Out from These** are the relatives found through them. The pencil
 at a row's end changes its dates, such as a divorce's, or removes it.
 
@@ -84,8 +84,8 @@ driver found, the accounts here it keeps current, and its state from the connect
 report. **New Connection** starts one; **Sign In Again** or **Change Credentials** gives the
 connector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**
 (the click asks again) turns its accounts' sync off, and the connector deletes its credentials.
-A connection that needs a sign-in, as Schwab's does each week, alerts you. *credentials sealed,
-waiting for the connector* marks new credentials the connector hasn't collected yet. With no
+A connection that needs a sign-in, as Schwab's does each week, alerts you. **sealed**
+marks new credentials the connector hasn't collected yet. With no
 connector paired, there are none: an admin pairs one under Settings › Connector.
 
 ## Access Tokens {#access-tokens}

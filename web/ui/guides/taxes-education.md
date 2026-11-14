@@ -1,4 +1,4 @@
-# Taxes: Education and gifts
+# Taxes: Education and Gifts
 
 529 plans' contributions and distributions, and the gifts that need Form 709.
 

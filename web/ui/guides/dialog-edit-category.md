@@ -1,4 +1,4 @@
-# A category
+# A Category
 
 A category of the household's tree. Everyone sees it, and a change to it shows in Activity.
 

@@ -34,6 +34,9 @@ import { Amt } from '../kit/amount.js';
 import { CategoriesTab, CategoryField } from '../components/categories.js';
 import { Action, Attention, StatePill } from '../kit/state.js';
 
+/** What the uncategorised count means, its pill's tooltip (S12.19.3). */
+const UNCATEGORISED = 'Transactions without a category count nowhere until sorted: open them.';
+
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
   ['cash-flow', 'Cash Flow'],
@@ -447,8 +450,8 @@ function ThisMonth({ b, month, reloadList }) {
       `
       : null}
     ${v.uncategorised
-      ? html`<p class="small"><a href="/ui/transactions?category=none">${v.uncategorised} Uncategorised
-        Transaction${v.uncategorised === 1 ? '' : 's'} to Sort →</a></p>`
+      ? html`<p class="small"><a class="pill warn" href="/ui/transactions?category=none"
+        data-tip=${UNCATEGORISED} aria-description=${UNCATEGORISED}>${v.uncategorised} uncategorised</a></p>`
       : null}
   `;
 }
@@ -610,7 +613,7 @@ function Review({ b }) {
                 <div
                   class="grow">${monthLabel(h.month.slice(0, 7))}${h
                       .changes.length
-                    ? html`${' '}<span class="pill warn">changed since reviewed</span>`
+                    ? html`${' '}<${StatePill} tone="warn" why="It changed after it was reviewed.">changed</${StatePill}>`
                     : null}<div class="small dim">reviewed ${date(h.at.slice(0, 10))}${h.byName
                     ? ` by ${h.byName}`
                     : ''}${h.changes.length ? ` · ${h.changes.join('; ')}` : ''}</div></div>
@@ -632,10 +635,11 @@ function BudgetList({ budgets, reload }) {
   const item = (/** @type {any} */ x) =>
     html`
       <div class="list-item wraps">
-        <div class="grow"><b>${x.name}</b> <span class="pill">${x.method === 'envelope'
+        <div class="grow"><span class="row-name">${x
+          .name}</span> <span class="pill">${x.method === 'envelope'
           ? 'Envelope'
           : 'Tracking'}</span>${x.active ? html`${' '}<span class="pill ok">active</span>` : null}
-          <div class="small dim">${x.accountIds.length} account${x.accountIds.length === 1
+          <div class="row-more">${x.accountIds.length} account${x.accountIds.length === 1
             ? ''
             : 's'}${x.reserves ? ' · reserves' : ''}${x.moves ? ' · moves' : ''} · ${x.access.mine
             ? (x.sharedWith ? `shared with ${x.sharedWith}` : 'yours')
@@ -877,8 +881,7 @@ function MoveDialog({ close, b, month, rows, to, cards = [] }) {
                 </div>
                 <${RecField} rec=${rec} name="amount" label="Amount to move" />
                 <${RecField} rec=${rec} name="note" label="Note" />
-                <p class="small dim">For ${monthLabel(month)} only. It shows on both rows and in
-            Activity; delete it to undo.</p>
+                <p class="small dim">For ${monthLabel(month)} only.</p>
         `
         : null}
     </${DraftDialog}>
@@ -1027,8 +1030,9 @@ function WhereMoneyIs({ b, month }) {
           ${!w.sayToMove
             ? html`
               <div class="mt">
-                <${StatePill} why="Only the active budget says what to move."
-                >this scenario's own figures</${StatePill}></div>
+                <${StatePill}
+                  why="These are this scenario's own figures: only the active budget says what to move."
+                >scenario</${StatePill}></div>
             `
             : dec(h.toMove).isZero() && h.between.length
             ? null
@@ -1158,8 +1162,7 @@ function AssignDialog({ close, b, h, landed }) {
     <${DraftDialog} f=${f} title="Assign Landed Money" close=${close} what="This assignment"
       label="Assign" done="Assigned" before=${before}>
       <p style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
-        .accountName} on ${date(landed.date)}. In the budget it counts as it always does; this
-        says whose it is.</p>
+        .accountName} on ${date(landed.date)}.</p>
       ${lines.length
         ? html`
           ${h.reserves.map((/** @type {any} */ r, /** @type {number} */ i) =>
@@ -1173,7 +1176,7 @@ function AssignDialog({ close, b, h, landed }) {
           <div
             class="toolbar"><span class="small dim">${money(String(given))} of ${money(
               free,
-            )} given; the rest stays unassigned.</span><span class="spacer"></span><button
+            )} given</span><span class="spacer"></span><button
             type="button" class="btn sm" onClick=${spread}>Spread by Balance</button></div>
         `
         : null}
@@ -1264,14 +1267,15 @@ function Recurring({ b }) {
               <td class="dim">${r.every}</td>
               <td>${date(r.next)}</td>
               <td class="num amt">${money(r.usual)}</td>
-              <td>${r.missed
-                ? html`<span class="pill bad">missed</span>`
-                : r.changed
-                ? html`<span class="pill warn">last one ${
-                  Math.round(
-                    Math.abs(num(r.lastAmount) / num(r.usual) - 1) * 100,
-                  )
-                }% ${dec(r.lastAmount).abs().gt(dec(r.usual).abs()) ? 'higher' : 'lower'}</span>`
+              <td>${r.missed ? html`<span class="pill bad">missed</span>` : r.changed
+                ? html`
+                  <${StatePill} tone="warn"
+                    why="How far the last one was from the usual amount.">${Math.round(
+                      Math.abs(num(r.lastAmount) / num(r.usual) - 1) * 100,
+                    )}% ${dec(r.lastAmount).abs().gt(dec(r.usual).abs())
+                      ? 'higher'
+                      : 'lower'}</${StatePill}>
+                `
                 : null}</td>
             </tr>
           `

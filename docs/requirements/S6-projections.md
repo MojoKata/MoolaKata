@@ -127,7 +127,8 @@
    returns percentiles per year. It uses NumPy, in floats: the one exception to R1.9, since its
    figures are estimates. Its percentiles are rounded to cents and sent as exact numbers
    (S13.8.2.1), and the start value and the tracking figures stay exact. The screen states its
-   assumptions in full under the chart and says plainly that it is a model, not a forecast.
+   assumptions in full under the chart, each a labelled line, and its guide says plainly that it
+   is a model, not a forecast (R3.12).
 10. **Loan payoff planner** (on each loan's *Payoff* tab, S1.9.5). It compares the schedule
     with the user's **overpayment** plans:
     1. **Plans**, combined freely: an extra amount every month (from a date, until a date),

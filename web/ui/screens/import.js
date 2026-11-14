@@ -393,7 +393,7 @@ function LineState({ r, set, fresh }) {
     return html`
       <${StatePill}
         why="It is in the account already: it counts towards the closing balance and isn't added again."
-      >already in the account</${StatePill}>
+      >duplicate</${StatePill}>
     `;
   }
   if (r.ignored && !r.stop) {
@@ -595,7 +595,7 @@ function StatementReview({ review, setReview, close, done, part = null }) {
                             ? html`
                               <div class="small">
                                 <${StatePill} tone="info"
-                                  why="The reader wasn't sure of its sign: check it.">its sign was guessed</${StatePill}></div>
+                                  why="The reader wasn't sure of its sign: check it.">sign guessed</${StatePill}></div>
                             `
                             : null}</td>
               <td class="num"><input class="in num" value=${r.amount} aria-label="Amount"
@@ -807,11 +807,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
         ? html`
           <div class="notice warn mt">
             <${Icon} name="alert" />
-            <div>The lines read don't add up
-                    to the summary's ${offBy.join(
-                      ' and ',
-                    )}: a line may not have been read. Check them
-                    before saving.</div>
+            <div>The lines read don't add up to the summary's ${offBy.join(' and ')}.</div>
           </div>
         `
         : null}

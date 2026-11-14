@@ -1,4 +1,4 @@
-# Taxes: Capital gains (8949)
+# Taxes: Capital Gains (8949)
 
 Every sale in the book's taxable accounts in the year, and each physical asset sold, as Form 8949
 rows, with the Schedule D totals.

@@ -17,7 +17,7 @@ export default function ConfirmEmail() {
     <${AuthCard} title=${state === 'done' ? 'Email Address Confirmed' : 'This Link Has Expired'}
       guide="confirm-email" sub=${state === 'done'
         ? 'Your new address is in use from now on.'
-        : 'A confirmation link works once, for a day. Ask for a new one in Profile.'}>
+        : 'Ask for a new one in Profile.'}>
         <a class="btn primary" href="/ui/">Continue</a></${AuthCard}>
   `;
 }

@@ -1,4 +1,4 @@
-# Recovery codes
+# Recovery Codes
 
 Ten codes, each of which signs you in once in place of a code from the app. They are shown only now:
 MoolaKata keeps only a fingerprint of each.

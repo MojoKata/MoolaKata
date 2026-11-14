@@ -1,4 +1,4 @@
-# An organisation
+# An Organisation
 
 ## Name
 

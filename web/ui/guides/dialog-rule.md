@@ -1,4 +1,4 @@
-# New rule
+# New Rule
 
 A new rule, made from a transaction over its dialog: what a transaction must match, and what the
 rule sets, its payee and category filled in from the transaction. It needs at least one of a

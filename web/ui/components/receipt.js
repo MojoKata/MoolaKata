@@ -86,13 +86,13 @@ export function ReceiptCard({ r, onOpen }) {
         }}>${r.readStatus === 'waiting' || r.readStatus === 'reading'
           ? html`<span class="pill info">Reading…</span>`
           : r.readStatus === 'failed'
-          ? html`<span class="pill bad">couldn't read it</span>`
+          ? html`<span class="pill bad">unreadable</span>`
           : r.links.length
           ? html`<span class="pill ok">${r.links[0].accountName || r.links[0].label}${
             r.links.length + r.alsoKeptWith > 1 ? ` +${r.links.length + r.alsoKeptWith - 1}` : ''
           }</span>`
           : r.alsoKeptWith
-          ? html`<span class="pill ok">kept with ${r.alsoKeptWith} not shared</span>`
+          ? html`<span class="pill ok">+${r.alsoKeptWith} not shared</span>`
           : html`<span class="pill warn">inbox</span>`}</div>
       </div>
     </button>

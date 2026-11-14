@@ -18,7 +18,7 @@ import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 import { CategoryField } from './categories.js';
 import { dec, num } from '../kit/dec.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -382,8 +382,7 @@ export function Schedule({ a }) {
       </div>
       <div class="toolbar"
         style=${{ padding: '0 8px' }}><span class="small dim">${v.rows
-          .length} payments. A payment that differs from the schedule, a rate reset or a recast
-        recomputes the rest.</span><span class="spacer"></span><button class="btn sm"
+          .length} payments</span><span class="spacer"></span><button class="btn sm"
           onClick=${() => setAll(!all)}>${all ? 'Show Fewer' : 'Show All'}</button></div>
     </div>
   `;
@@ -395,7 +394,12 @@ export function Schedule({ a }) {
  */
 function RowPill({ status }) {
   if (status === 'missed') return html`<span class="pill bad">missed</span>`;
-  if (status === 'assumed') return html`<span class="pill info">assumed as scheduled</span>`;
+  if (status === 'assumed') {
+    return html`
+      <${StatePill} tone="info"
+        why="No payment is recorded for it: it is assumed paid as scheduled.">assumed</${StatePill}>
+    `;
+  }
   return html`<span class="pill ok">paid</span>`;
 }
 

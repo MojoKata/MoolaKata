@@ -1,4 +1,4 @@
-# A donation
+# A Donation
 
 ## Type {#kind}
 

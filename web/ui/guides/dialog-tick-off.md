@@ -1,4 +1,4 @@
-# Tick off against a statement
+# Tick Off against a Statement
 
 ## Statement closing date {#statement-date}
 

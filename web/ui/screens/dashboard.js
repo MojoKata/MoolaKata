@@ -122,8 +122,10 @@ export default function Dashboard() {
         ${d.groups.length
           ? d.groups.map((/** @type {any} */ g) =>
             html`<a class="list-item" href="/ui/accounts" style=${{ color: 'inherit' }}>
-              <${Tile} group=${g.group} /><div class="grow"><b>${labels[g.group] || g.group}</b>
-              <div class="small dim">${g.accounts.join(' · ')}</div></div>
+              <${Tile} group=${g.group} /><div class="grow"><span class="row-name">${
+              labels[g.group] || g.group
+            }</span>
+              <div class="row-more">${g.accounts.join(' · ')}</div></div>
               <div class="num"><b><${Amt} v=${g.total} /></b></div></a>`
           )
           : html`
@@ -170,11 +172,11 @@ function Plans() {
       href="/ui/projections">Projections</a></h3>
       ${rows.map((p) =>
         html`<a class="list-item" href=${`/ui/projections/${p.id}`} style=${{ color: 'inherit' }}>
-          <div class="grow"><b>${p.name}</b> ${
+          <div class="grow"><span class="row-name">${p.name}</span> ${
           p.status && p.status !== 'untracked'
             ? html`<span class=${'pill ' + (TONE[p.status] || '')}>${p.status}</span>`
             : null
-        }<div class="small dim">${p.headline}${
+        }<div class="row-more">${p.headline}${
           p.sharedBy ? ` · shared by ${p.sharedBy}` : ''
         }</div></div>
           <${Spark} actual=${p.actual} baseline=${p.baseline} behind=${

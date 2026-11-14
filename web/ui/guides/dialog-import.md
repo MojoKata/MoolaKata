@@ -1,4 +1,4 @@
-# Import transactions
+# Import Transactions
 
 An OFX, QFX or CSV file from your bank or broker, or a **statement**: its PDF, or a photo or scan of
 it. Rows already imported are matched by the file's own transaction id, or by date, amount and

@@ -91,17 +91,17 @@ function Upcoming() {
               <div class="tile t-giving">
                 <${Icon} name="gift" />
               </div>
-              <div class="grow"><b>${u.person.name}</b> · ${u.label}${u.turns
+              <div class="grow"><span class="row-name">${u.person.name} · ${u.label}${u.turns
                 ? ` (${u.label === 'Birthday' ? 'turns' : ''} ${u.turns}${
                   u.label === 'Birthday' ? '' : ' years'
                 })`
-                : ''}
-                          <div class="small dim">${date(u.date)} · ${u.days === 0
+                : ''}</span>
+                          <div class="row-more">${date(u.date)} · ${u.days === 0
                             ? 'today'
                             : `in ${u.days} day${u.days === 1 ? '' : 's'}`}${u.inLead
                             ? html`
                               ${' '}· <${StatePill} tone="warn"
-                                why=${LEAD_WHY}>inside the reminder time</${StatePill}>
+                                why=${LEAD_WHY}>soon</${StatePill}>
                             `
                             : null}</div>
                           <div class="toolbar" style=${{
@@ -594,7 +594,7 @@ function PersonDialog({ close, row }) {
                 padding: '10px 12px',
                 minWidth: 0,
               }} data-help="the-person">
-                <div class="small dim">The person, seen by the household${p?.private
+                <div class="small dim">The person${p?.private
                   ? ' (private: only those it is shared with)'
                   : ''}</div>
                 <div class="row">

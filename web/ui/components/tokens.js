@@ -35,8 +35,6 @@ export function AccessTokens() {
     <div class="card" id="access-tokens">
       <h3 data-help="access-tokens">Access Tokens<span class="spacer"></span><button class="btn sm"
         onClick=${make}><${Icon} name="plus" /> New Token</button></h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Let an AI assistant read, never change,
-        what you can see, through MCP at <code>${endpoint()}</code>.</p>
       ${res.error
         ? html`<${Failed} error=${res.error} />`
         : !rows
@@ -46,7 +44,8 @@ export function AccessTokens() {
         : rows.map((t) =>
           html`
             <div
-              class="list-item"><div class="grow"><b>${t.name}</b><div class="small dim">${t
+              class="list-item"><div class="grow"><span class="row-name">${t
+                .name}</span><div class="row-more">${t
                   .scope === 'all'
                 ? 'everything I can see'
                 : t.items.map((/** @type {any} */ i) => i.name).join(', ')} · ${t.expired
@@ -64,6 +63,7 @@ export function AccessTokens() {
                         }}>Revoke</button></div>
           `
         )}
+      <p class="small dim mt">MCP: <code>${endpoint()}</code></p>
     </div>
   `;
 }
@@ -166,8 +166,7 @@ function TokenShown({ close, made }) {
           background: 'var(--bg-3)',
           borderRadius: '8px',
         }}>${made.secret}</code></div>
-      <p class="small dim">Use it with the MCP endpoint <code>${endpoint()}</code>, as a bearer
-        token: <code>Authorization: Bearer mkt_…</code>.</p>
+      <p class="small dim">MCP endpoint: <code>${endpoint()}</code></p>
       </${Dialog}>
   `;
 }

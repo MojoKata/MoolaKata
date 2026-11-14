@@ -1,4 +1,4 @@
-# A linked household, locked
+# A Linked Household, Locked
 
 What another household shares with you is kept on this server in its own encrypted copy, under its
 own access key: 12 words, kept in your household's password manager. Changes keep arriving while it
