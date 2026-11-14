@@ -51,7 +51,12 @@ web/dev.sh <command>
                what each test took in a CI run, into tests/durations.json (the parts' split)
   mutate       a mutation run over modules, in web/.dev/mutate (run, summary, check, record;
                the CI baseline: testrun, testmap, plan, export, gather)
-  help-shots   rebuild the help guides' screenshots from the mockup
+  make-screenshots [--set guides|readme|truenas] [--out DIR] [--check] [key ...]
+               the app's screenshots from the generated mockup (CI makes them on every run)
+  download-screenshots
+               main's help screenshots from the Pages site, for the help pane here
+  pr-screenshots PR FILE... [--note TEXT]
+               show images in a pull request's conversation (the fork's pr-shots branch)
   deno [args]  run the pinned Deno
   uv [args]    run the pinned uv in web/server
   vendor add NAME VERSION [--young REASON]
@@ -203,8 +208,19 @@ case "$cmd" in
     [[ -n "$id" ]] || { echo "run $run kept no $file (yet)" >&2; exit 1; }
     echo "https://github.com/$repo/actions/runs/$run/artifacts/$id"
     ;;
-  help-shots)
-    cd "$SERVER" && exec uv run --frozen python "$WEB/ui/mockup/help_shots.py" "$@"
+  make-screenshots | download-screenshots | pr-screenshots)
+    # Paths as given, from here, before moving to the server's directory.
+    args=() prev=
+    for a in "$@"; do
+      if [[ -e "$a" || $prev == --out ]]; then args+=("$(realpath -m -- "$a")"); else args+=("$a"); fi
+      prev="$a"
+    done
+    case "$cmd" in
+      make-screenshots) set -- python "$WEB/ui/mockup/screenshots.py" ;;
+      download-screenshots) set -- python "$WEB/ui/mockup/screenshots.py" --download ;;
+      pr-screenshots) set -- python -m moolakata.dev.prshots ;;
+    esac
+    cd "$SERVER" && exec uv run --frozen "$@" "${args[@]}"
     ;;
   kit-pack)
     # The ui-kit's pages packed into one file that opens on its own (S17.3.10.4): OUT/kit.html.

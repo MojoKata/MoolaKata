@@ -398,12 +398,18 @@ def test_the_truenas_catalog_apps_keep_the_compose_files_promises():
             assert "{% if not values.moolakata_connector.names %}" in template
             assert "tpl.funcs.fail(" in template
     _the_installed_release(tags, "publish/truenas's images")
-    # What the request links for TrueNAS's CDN is in the repository: two icons and, for the
-    # catalog's pages, screenshots saved as the help shots are, PNG of 256 colours.
+    # What the request links for TrueNAS's CDN: two icons and the connector's pictures in the
+    # repository, saved as the app's are, PNG of 256 colours; the app's four pictures are made
+    # by CI from main and published on the Pages site (S12.7.5).
     script = (CATALOG / "create-pr.sh").read_text()
     media = re.search(r"^MEDIA=\((.*?)^\)", script, re.M | re.S).group(1).split()
     assert len([m for m in media if m.endswith(".svg")]) == 2
-    for path in media:
+    published = [m for m in media if m.startswith("https://")]
+    assert published == [
+        f"https://mojokata.github.io/MoolaKata/screenshots/truenas/moolakata-{n}.png"
+        for n in range(1, 5)
+    ]
+    for path in (m for m in media if m not in published):
         assert (paths.ROOT / path).is_file(), path
         if path.endswith(".png"):
             with Image.open(paths.ROOT / path) as shot:

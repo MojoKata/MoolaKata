@@ -139,7 +139,7 @@ an earlier one between releases.
    request. Its documents describe the release from the moment it is tagged. Start from
    what changed since the last release, `git log --oneline v0.1.0..upstream/main`, and
    check each document against it:
-   1. **README**: the **Release** line and the dashboard's screenshots; **`DEVELOP.md`**: the
+   1. **README**: the **Release** line; **`DEVELOP.md`**: the
       **Status** paragraph.
    2. **`docs/DEPLOY.md`**: every step the release changed (a setting, a screen, a port, a
       file), and new screenshots of the screens that now look different. Its second
@@ -148,8 +148,8 @@ an earlier one between releases.
       upgrading, commands, configuration keys and backups.
    4. **`docs/test-plan.md`**: a test for anything new that the build can't try by itself.
    5. **The app's guides** (`web/ui/guides/`), which ship inside the image. Each screen the
-      release changed must still read true. Retake the screenshots of those screens with
-      `web/dev.sh help-shots <key> …`.
+      release changed must still read true. Their screenshots are main's CI's, taken into the
+      image from main's check run of the tagged commit; nothing to retake.
    6. **`docs/api.md`, `docs/connector-protocol.md` and `docs/link-protocol.md`**: every
       change to the API, the connector's protocol or the link protocol since the last
       release. The release notes say what each change means for a server and a connector,

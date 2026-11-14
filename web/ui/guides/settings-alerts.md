@@ -2,6 +2,8 @@
 
 How alerts behave for everyone. Each user chooses in Profile whether alerts reach them by email.
 
+![Settings: Alerts](shots/settings-alerts.png)
+
 ## Alert when a source has failed for {#alert-source-hours}
 
 How long a price source, or email, may keep failing before admins are alerted. A source that fails

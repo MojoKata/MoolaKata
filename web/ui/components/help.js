@@ -5,7 +5,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
-import { guides } from '../app/config.js';
+import { guides, shots } from '../app/config.js';
 import { helpOpen, helpWidth } from '../store/prefs.js';
 import { assemble, glossary, render } from './markdown.js';
 import { Icon } from '../kit/icon.js';
@@ -160,7 +160,12 @@ export function HelpPane() {
         onClick=${() => (helpOpen.value = false)}><${Icon} name="x" /></button>
       <div class="guide" data-guide=${shown?.key}>${md === null ? null : render(
         md,
-        (src) => /^https?:|^\//.test(src) ? src : `${guides}/${src}`,
+        (src) =>
+          /^https?:|^\//.test(src)
+            ? src
+            : !shots && src.startsWith('shots/')
+            ? null
+            : `${guides}/${src}`,
         terms,
         forms,
       )}</div>

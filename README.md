@@ -9,8 +9,8 @@ server, and households on other MoolaKata servers can share with named people he
 only, in a window of their own.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png">
-  <img src="docs/images/dashboard-light.png" alt="MoolaKata's dashboard: net worth, investments, cash and the month's budget across the top; net worth over a year, stacked by group; the accounts by group, the plans on track, and what needs attention.">
+  <source media="(prefers-color-scheme: dark)" srcset="https://mojokata.github.io/MoolaKata/screenshots/readme/dashboard-dark.png">
+  <img src="https://mojokata.github.io/MoolaKata/screenshots/readme/dashboard-light.png" alt="MoolaKata's dashboard: net worth, investments, cash and the month's budget across the top; net worth over a year, stacked by group; the accounts by group, the plans on track, and what needs attention.">
 </picture>
 
 **Release:** 0.1.0, a pre-release for testers. Its images are `ghcr.io/mojokata/moolakata` and

@@ -31,9 +31,11 @@
       explanation in the guide of the screen where they appear. The Markdown is a subset:
       headings, paragraphs, lists, tables, code, quotes (shown as notes), images, links, bold,
       italic; raw HTML is shown as text.
-   5. **Screenshots** come from the clickable mockup (`web/dev.sh help-shots`, dark theme,
-      1280 px, PNG quantized to 256 colours) and are committed.
-   6. **Checks**: a test fails when a screen has no guide, a guide's screenshot is missing,
+   5. **Screenshots** are the app's own, made from the mockup generated from it (S12.9): dark
+      theme, 1280 px, PNG quantized to 256 colours. A release carries them; without them a guide
+      shows no picture, and asks for none.
+   6. **Checks**: a guide's screenshot that isn't made, or one made that no guide shows, fails
+      when they are made; a test fails when a screen has no guide,
       a field's label finds no heading, a heading names its field or button in another case,
       a field's hint or a dialog's or card's paragraph is fixed words (R3.12), a button,
       header, title or tab isn't in Title Case (R3.13), the next field down the page sends the

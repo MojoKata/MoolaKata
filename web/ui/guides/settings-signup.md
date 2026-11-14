@@ -2,6 +2,8 @@
 
 Whether people can ask for an account themselves, from the sign-in screen.
 
+![Settings: Sign-Up](shots/settings-signup.png)
+
 ## Sign-up
 
 When on, the sign-in screen offers **Sign up**. A person gives their name, email, a username and a
