@@ -34,3 +34,11 @@ Deno.test('an image with nowhere to point is left out, and the words stay', () =
     true,
   );
 });
+
+Deno.test('an image that fails to load is hidden, not drawn broken', () => {
+  const [img] = all(render(GUIDE, (src) => `/guides/${src}`, none, none))
+    .filter((e) => e.type === 'img');
+  const shown = { hidden: false };
+  img.props.onError({ currentTarget: shown });
+  equal(shown.hidden, true);
+});
