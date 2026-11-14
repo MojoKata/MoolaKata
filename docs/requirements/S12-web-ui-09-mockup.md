@@ -12,8 +12,10 @@
       screen, Settings section, dialog, user and state, grouped by the navigation's sections
       in their order, then by what has none (Profile, the linked households, signing in, a
       new server, a locked server, the connector's page, who is signed in, states),
-      alphabetical within a group, with a filter at its top. Each is an address that opens
-      it when typed into the address bar, so one can be shared: a screen `#/budgets`, a
+      alphabetical within a group, with a filter at its top that matches an item's words or
+      its address: an address pasted into it (where the address bar can't be used, as in a
+      viewer that frames the file) is offered as a link. Each is an address that opens it when
+      typed into the address bar, so one can be shared: a screen `#/budgets`, a
       section `#/settings/keys`, a dialog over its screen `#/settings?dialog=prune`, a user
       `?as=bob`, states `?on=stale,privacy`. What only happens (a new alert arriving) is a
       button.

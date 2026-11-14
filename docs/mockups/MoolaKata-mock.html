@@ -3704,10 +3704,19 @@ function paneItems() {
 }
 function renderPaneList() {
   const list = $('#mock-pane .mp-list'); if (!list) return;
-  const f = (state.paneFilter || '').toLowerCase();
-  const items = paneItems().filter((x) => !f || `${x.group} ${x.label} ${x.kind}`.toLowerCase().includes(f));
+  const raw = (state.paneFilter || '').trim();
+  const f = raw.toLowerCase();
+  // An address pasted in (where the address bar can't be used, as in GitHub's viewer) matches
+  // the items it names, and is offered as a link of its own whatever it holds.
+  const asAddress = /^(#|\/|[a-z-]+\/|[a-z-]+\?)/.test(raw) && !/\s/.test(raw);
+  const frag = asAddress ? '#/' + raw.replace(/^#?\/?/, '') : '';
+  const bare = (h) => h.split('?')[0];
+  const items = paneItems().filter((x) => !f
+    || `${x.group} ${x.label} ${x.kind}`.toLowerCase().includes(f)
+    || (x.href && (x.href.toLowerCase().includes(f) || (frag && (frag.includes('dialog=') ? x.href.endsWith(frag.slice(frag.indexOf('dialog='))) : bare(x.href) === bare(frag))))));
   const here = location.hash || '#/dashboard';
-  list.innerHTML = [...NAV_GROUPS, ...MORE_GROUPS].map((g) => {
+  const open = frag ? `<h4>Address</h4><a href="${esc(frag)}">${esc(frag)}<span class="mp-kind">open</span></a>` : '';
+  list.innerHTML = open + [...NAV_GROUPS, ...MORE_GROUPS].map((g) => {
     const own = items.filter((x) => x.group === g).sort((a, b) => a.label.localeCompare(b.label));
     if (!own.length) return '';
     return `<h4>${g}</h4>${own.map((x) => x.act
@@ -3721,7 +3730,7 @@ function renderPane() {
   document.body.classList.toggle('mock-open', !!state.pane);
   if (!state.pane) return;
   if (!pane.querySelector('.mp-list')) {
-    pane.innerHTML = `<div class="mp-head"><span class="pill-mock">MOCK</span><input class="in sm" type="search" placeholder="filter" aria-label="Filter the mockup’s screens, dialogs and states" data-pane-filter value="${esc(state.paneFilter || '')}"><button type="button" class="icon-btn" data-act="mock" title="Close the pane" aria-label="Close the pane">${icon('x')}</button></div><nav class="mp-list"></nav>`;
+    pane.innerHTML = `<div class="mp-head"><span class="pill-mock">MOCK</span><input class="in sm" type="search" placeholder="filter, or paste an address" aria-label="Filter the mockup’s screens, dialogs and states, or paste an address" data-pane-filter value="${esc(state.paneFilter || '')}"><button type="button" class="icon-btn" data-act="mock" title="Close the pane" aria-label="Close the pane">${icon('x')}</button></div><nav class="mp-list"></nav>`;
   }
   renderPaneList();
 }
