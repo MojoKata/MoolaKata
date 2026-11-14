@@ -4,7 +4,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, thisYear } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -739,10 +740,11 @@ class BookRec extends Rec {
 
 /** @param {{ close: (v?: any) => void, rows: any[] }} p */
 function NewBook({ close, rows }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-tax-book');
   const me = useApi('/profile');
   const p = /** @type {any} */ (me.data);
-  const year = thisYear();
+  const year = fmt.thisYear();
   const f = useDraft(async (draft) => {
     const who = await api.get('/profile');
     draft.add(BookRec, {

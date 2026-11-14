@@ -286,7 +286,9 @@
       with 8 places (S14.3), the same whole number of sats. Each user chooses in Profile
       whether they are shown as **BTC** (`0.12345678 BTC`, the default) or **sats**
       (`12,345,678 sats`);
-      the conversion is only in how they are shown. A price is per bitcoin, in dollars.
+      a quantity of bitcoin is typed in the same unit, whole sats when sats are chosen (a
+      trade's, its lots' and its picks'), and the conversion is only in how they are shown
+      and typed. A price is per bitcoin, in dollars.
 7. **Transfers** between two of a user's accounts are matched (same amount, a few days apart),
    so they count neither as spending nor as income, nor as a buy or sell of cash. Opposite
    amounts of cash, not trades, in two of the owner's accounts within 4 days of each other

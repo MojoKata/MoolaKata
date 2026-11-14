@@ -52,24 +52,17 @@ export function quantity(s) {
   return (neg ? '−' : '') + group(whole) + (f ? '.' + f : '');
 }
 
-/** How bitcoin amounts are shown: BTC or sats, the user's choice in Profile (S1.6.4). */
-let btcUnit = 'btc';
-/** @param {string} u */
-export function setBitcoinUnit(u) {
-  btcUnit = u === 'sats' ? 'sats' : 'btc';
-}
-/** The bitcoin unit set at sign-in: `btc` or `sats`. */
-export function defaultBitcoinUnit() {
-  return btcUnit;
-}
+/** Bitcoin is shown in BTC until a person's choice (Profile, S1.6.4) says sats. */
+export const DEFAULT_BITCOIN_UNIT = 'btc';
 
 /**
- * A bitcoin amount, as the user chose: "0.12345678 BTC" or "12,345,678 sats". From BTC (a
- * quantity) or, with `fromSats`, whole sats; exact either way.
+ * A bitcoin amount in the unit given (the person's, from `useFormats`): "0.12345678 BTC" or
+ * "12,345,678 sats". From BTC (a quantity) or, with `fromSats`, whole sats; exact either way.
  * @param {import('./dec.js').Dec | string | number | null | undefined} s
+ * @param {string} unit  `sats` or `btc`
  * @param {boolean} [fromSats]
  */
-export function bitcoin(s, fromSats = false) {
+export function bitcoin(s, unit, fromSats = false) {
   if (s == null) return '—';
   let sats;
   if (fromSats) sats = BigInt(String(s));
@@ -80,7 +73,7 @@ export function bitcoin(s, fromSats = false) {
   }
   const neg = sats < 0n;
   const a = neg ? -sats : sats;
-  if (btcUnit === 'sats') return (neg ? '−' : '') + group(a.toString()) + ' sats';
+  if (unit === 'sats') return (neg ? '−' : '') + group(a.toString()) + ' sats';
   const w = (a / 100000000n).toString();
   const f = (a % 100000000n).toString().padStart(8, '0');
   return `${neg ? '−' : ''}${group(w)}.${f} BTC`;
@@ -135,51 +128,42 @@ export function date(iso, opts = {}) {
   return `${MONTHS[m - 1]} ${d}` + (opts.year === false ? '' : `, ${y}`);
 }
 
-/** The time zone moments are shown in: the user's (Profile), set at sign-in. A control takes
- * its own, or its part of the page's, through `Formats` (formats.js). */
-let zone = 'UTC';
-/** @param {string} z */
-export function setTimezone(z) {
-  zone = z || 'UTC';
-}
-/** The time zone set at sign-in. */
-export function defaultTimezone() {
-  return zone;
-}
+/** Moments are shown in UTC until a person's time zone (Profile) says otherwise. */
+export const DEFAULT_TIMEZONE = 'UTC';
 
 /**
- * A moment in the viewer's zone: "Oct 12, 2026, 2:05 PM".
- * @param {string | null | undefined} iso
+ * A moment in the time zone given (the person's, from `useFormats`): "Oct 12, 2026, 2:05 PM".
+ * @param {string | null | undefined} iso @param {string} timezone
  */
-export function moment(iso) {
+export function moment(iso, timezone) {
   if (!iso) return '—';
   return new Intl.DateTimeFormat('en-US', {
-    timeZone: zone,
+    timeZone: timezone,
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(iso));
 }
 
 /**
- * The day of a moment, in the viewer's zone: "Oct 12, 2026" (S14.9.1). A calendar date is
+ * The day of a moment, in the time zone given: "Oct 12, 2026" (S14.9.1). A calendar date is
  * `date`'s, never shifted.
- * @param {string | null | undefined} iso
+ * @param {string | null | undefined} iso @param {string} timezone
  */
-export function day(iso) {
+export function day(iso, timezone) {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat('en-US', { timeZone: zone, dateStyle: 'medium' })
+  return new Intl.DateTimeFormat('en-US', { timeZone: timezone, dateStyle: 'medium' })
     .format(new Date(iso));
 }
 
-/** Today in the viewer's zone, or the one given, as a calendar date: "2026-10-12" (S14.9.5).
- * @param {string} [timezone] */
-export function today(timezone = zone) {
+/** Today in the time zone given, as a calendar date: "2026-10-12" (S14.9.5).
+ * @param {string} timezone */
+export function today(timezone) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
 }
 
-/** This year in the viewer's zone (S14.9.5). */
-export function thisYear() {
-  return Number(today().slice(0, 4));
+/** This year in the time zone given (S14.9.5). @param {string} timezone */
+export function thisYear(timezone) {
+  return Number(today(timezone).slice(0, 4));
 }
 
 /**

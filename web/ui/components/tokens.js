@@ -2,7 +2,8 @@
 // change, what you can see through the MCP endpoint. Each is shown once, when it is made.
 import { html } from '../app/html.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { ago, day } from '../kit/format.js';
+import { ago } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { confirmAction } from '../kit/confirm.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
@@ -18,6 +19,7 @@ import { toast } from '../kit/toast.js';
 const endpoint = () => `${location.origin}/mcp`;
 
 export function AccessTokens() {
+  const fmt = useFormats();
   const res = useList('/profile/tokens');
   const rows = /** @type {any[]} */ (res.data);
   const revoke = useSubmit(async (/** @type {any} */ t) => {
@@ -50,7 +52,7 @@ export function AccessTokens() {
                 ? 'everything I can see'
                 : t.items.map((/** @type {any} */ i) => i.name).join(', ')} · ${t.expired
                 ? html`<span class="pill warn">expired</span>`
-                : `expires ${day(t.expiresAt)}`} · ${t.lastUsedAt
+                : `expires ${fmt.day(t.expiresAt)}`} · ${t.lastUsedAt
                 ? `last used ${ago(t.lastUsedAt)}`
                 : 'never used'}</div></div><button class="btn sm danger" disabled=${revoke.busy}
                         onClick=${async () => {

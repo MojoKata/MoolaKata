@@ -3,7 +3,8 @@
 1. **Layout**:
 
    ```
-   README.md
+   README.md             what MoolaKata is, its release, the dashboard (docs/images/)
+   DEVELOP.md            the build's status, the conventions, the stack, setting up
    .github/workflows/    check.yml (web/check on every pull request), release.yml (S17.10)
    docs/                 requirements/ (README.md and its sections), schema.md, api.md,
                          link-protocol.md, connector-protocol.md, operations.md,

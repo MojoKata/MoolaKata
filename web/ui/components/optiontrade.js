@@ -7,7 +7,8 @@ import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { money, today } from '../kit/format.js';
+import { money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { Dialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
 import { CountInput, errAt, Field, FormError, Seg, TypedInput } from '../kit/fields.js';
@@ -52,6 +53,7 @@ function cashOf(/** @type {OptionTxn} */ r) {
 
 /** @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p */
 export function OptionTrade({ close, accountId, start }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-option-trade');
   const accounts = useList('/accounts');
   const list = (/** @type {any[]} */ (accounts.data) || []).filter((a) =>
@@ -63,7 +65,7 @@ export function OptionTrade({ close, accountId, start }) {
       .find((a) => a.investing && !a.closedOn && canAdd('Txn', a))?.id;
     draft.add(OptionTxn, {
       accountId: first || null,
-      date: today(),
+      date: fmt.today(),
       kind: start?.action || 'sell-to-open',
       symbol: start?.underlying || '',
       right: start?.right || 'put',
@@ -121,12 +123,13 @@ export function OptionTrade({ close, accountId, start }) {
 /** An option's end: expired, assigned (short) or exercised (long) (S3.4, S3.6). */
 /** @param {{ close: (v?: any) => void, row: any }} p */
 export function Settle({ close, row }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-option-settle');
   const short = row.side === 'short';
   const held = dec(row.quantity).abs().toNumber(); // contracts: a whole number
   const [f, setF] = useState({
     how: row.inTheMoney === false ? 'expired' : short ? 'assign' : 'exercise',
-    date: row.expiry || today(),
+    date: row.expiry || fmt.today(),
     contracts: '',
   });
   const set = (/** @type {string} */ k) => (/** @type {any} */ x) => setF({ ...f, [k]: x });
@@ -167,9 +170,10 @@ export function Settle({ close, row }) {
 /** A typed mark for an option the source doesn't price (S3.7, S4.5). */
 /** @param {{ close: (v?: any) => void, row: any }} p */
 export function Mark({ close, row }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-option-mark');
   // A price typed for a day is changed; a day without one gets one (S4.10).
-  const [day, setDay] = useState(today());
+  const [day, setDay] = useState(fmt.today());
   const f = useDraft(async (draft) => {
     const closes = await api.get(`/instruments/${row.instrumentId}/prices`, {
       from: day,

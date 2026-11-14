@@ -5,7 +5,8 @@ import { useRef, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, thisYear } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
@@ -644,6 +645,7 @@ function MakeActive({ close, p }) {
 
 /** @param {{ close: (v?: any) => void }} props */
 function NewProjection({ close }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-new-projection');
   const me = useApi('/profile');
   const [goal, setGoal] = useState('retirement');
@@ -654,7 +656,7 @@ function NewProjection({ close }) {
   const [child, setChild] = useState('');
   const save = useSubmit(async () => {
     const p = /** @type {any} */ (me.data);
-    const born = p?.birthYear || thisYear() - 40;
+    const born = p?.birthYear || fmt.thisYear() - 40;
     const people = [{ name: p?.displayName || 'Me', birthYear: born, retireAge: 65 }];
     if (who === 'couple' && p?.spouse) {
       people.push({
@@ -663,7 +665,7 @@ function NewProjection({ close }) {
         retireAge: 65,
       });
     }
-    const year = thisYear();
+    const year = fmt.thisYear();
     const inputs = goal === 'retirement'
       ? {
         people,

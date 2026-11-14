@@ -8,7 +8,8 @@ import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
 import { openDialog } from '../kit/dialog.js';
@@ -474,13 +475,14 @@ function fillPayment(draft, a, loan, own, { from, pairedWith, split }) {
 
 /** @param {{ close: (v?: any) => void, a: any, v: any }} p */
 export function PaymentDialog({ close, a, v }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-loan-payment');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
     x.group === 'banking' && !x.closedOn && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
-    draft.add(PayTxn, { accountId: a.id, date: v.nextDate || today(), amount: v.total });
+    draft.add(PayTxn, { accountId: a.id, date: v.nextDate || fmt.today(), amount: v.total });
   }, [a.id]);
   const loan = /** @type {PayTxn | undefined} */ (f.draft?.records[0]);
   const own = useRef(new WeakMap());
@@ -592,11 +594,12 @@ export class AnchorRec extends Record {
 
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function ServicerDialog({ close, a }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-servicer-balance');
   // Typed as the principal owed; kept as the loan's balance, below zero.
   const [owed, setOwed] = useState('');
   const f = useDraft((draft) => {
-    draft.add(AnchorRec, { accountId: a.id, date: today() });
+    draft.add(AnchorRec, { accountId: a.id, date: fmt.today() });
   }, [a.id]);
   const rec = f.draft?.records[0];
   return html`

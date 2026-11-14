@@ -4,7 +4,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { date, day, money } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useDialogGuide } from './help.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
@@ -64,6 +65,7 @@ export function ApiImg({ src, alt, class: cls }) {
 
 /** @param {{ r: any, onOpen: () => void }} p */
 export function ReceiptCard({ r, onOpen }) {
+  const fmt = useFormats();
   return html`
     <button type="button" class="receipt" onClick=${onOpen} aria-label=${'Receipt ' +
       (r.payee || r.fileName)}>
@@ -76,7 +78,7 @@ export function ReceiptCard({ r, onOpen }) {
       <div class="meta">
         <div class="ellipsis" style=${{ fontWeight: 550 }}>${r.payee ||
           r.fileName}</div>
-        <div class="dim">${r.date ? date(r.date) : day(r.uploadedAt)}${r.amount
+        <div class="dim">${r.date ? date(r.date) : fmt.day(r.uploadedAt)}${r.amount
           ? html`
             ${'\u00a0· '}<span class="amt">${money(r.amount)}</span>
           `
@@ -121,6 +123,7 @@ export class ReceiptLinkRec extends Rec {
  * @param {{ close: (v?: any) => void, id: string }} p
  */
 export function ReceiptDialog({ close, id }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-receipt');
   const res = useApi(`/receipts/${id}`, {}, ['receipt']);
   const r = /** @type {any} */ (res.data);
@@ -242,7 +245,7 @@ export function ReceiptDialog({ close, id }) {
           `}
           <p class="small dim">${KIND[r.mediaType]} · ${(r.size / 1024).toFixed(
             0,
-          )} KB · uploaded ${day(r.uploadedAt)}${!r.access.mine ? ` by ${r.ownerName}` : ''}</p>
+          )} KB · uploaded ${fmt.day(r.uploadedAt)}${!r.access.mine ? ` by ${r.ownerName}` : ''}</p>
         </div>
         <div style=${{ flex: '0 1 280px' }}>
           ${reading

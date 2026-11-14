@@ -4,7 +4,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { ago, day } from '../kit/format.js';
+import { ago } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Avatar, Chips, Failed, Loading } from '../kit/bits.js';
@@ -19,6 +20,7 @@ import { DraftDialog, RecField, saveNow, useDraft } from '../components/draft-fo
 import { RowTool } from '../kit/state.js';
 
 export default function Users() {
+  const fmt = useFormats();
   useTitle('Users and Groups');
   useGuide('users');
   const users = useList('/users');
@@ -180,7 +182,7 @@ export default function Users() {
                   `
                   : null;
               })}</td>
-              <td class="dim">${day(x.createdAt)}</td>
+              <td class="dim">${fmt.day(x.createdAt)}</td>
               <td class="num">${x.active ? 'yes' : 'no'}</td>
               <td class="tool">
                 <${RowTool} name=${x.name} onClick=${() =>

@@ -9,7 +9,8 @@ import { api } from '../api/client.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { useDialogGuide } from './help.js';
 import { Field, Select } from '../kit/fields.js';
-import { money, today } from '../kit/format.js';
+import { money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 
 const KINDS = [
   ['split', 'Split or reverse split'],
@@ -53,6 +54,7 @@ class ActionRec extends Record {
 
 /** @param {{ close: (v?: any) => void, accountId?: string }} p */
 export function CorporateAction({ close, accountId }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-corporate-action');
   const pos = useApi('/positions');
   const held = (/** @type {any[]} */ ((/** @type {any} */ (pos.data))?.open) || []).filter((
@@ -69,7 +71,7 @@ export function CorporateAction({ close, accountId }) {
       (!accountId || p.accountId === accountId)
     );
     draft.add(ActionRec, {
-      date: today(),
+      date: fmt.today(),
       accountId: first?.accountId ?? null,
       instrumentId: first?.instrumentId ?? null,
     });

@@ -5,7 +5,7 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList } from '../app/hooks.js';
 import { changes } from '../app/stream.js';
-import { moment } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Avatar, Empty, Failed, Loading } from '../kit/bits.js';
@@ -13,6 +13,7 @@ import { offsetOf, Pager } from '../kit/pager.js';
 import { pageSize } from '../store/prefs.js';
 
 export default function Activity() {
+  const fmt = useFormats();
   useTitle('Activity');
   useGuide('activity');
   const [account, setAccount] = useState('');
@@ -60,7 +61,7 @@ export default function Activity() {
             <tbody>${d.items.map((/** @type {any} */ a) =>
               html`
                 <tr>
-                  <td class="dim small" style=${{ whiteSpace: 'nowrap' }}>${moment(a.at)}</td>
+                  <td class="dim small" style=${{ whiteSpace: 'nowrap' }}>${fmt.moment(a.at)}</td>
                   <td>${a.actorName
                     ? html`
                       <span

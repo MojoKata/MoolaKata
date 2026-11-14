@@ -27,6 +27,9 @@ import { Action } from '../kit/state.js';
 import { Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
+import { useFormats } from '../kit/formats.js';
+import { textOf } from '../kit/numbers.js';
+import { inputSats } from '../app/sats.js';
 
 /**
  * A form's draft: `load(draft)` reads its records into a new draft, on the first draw, when
@@ -417,7 +420,9 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  * and `negative` bound it without one. A number is typed as its kind is (S12.18.8: dollars from
  * the cents, the rest as written; `entry` says otherwise), its unit in the field (S12.18.9: an
  * amount's `$`, a percent's `%`, `unit` for a quantity's own). `spin` steps a small whole number
- * between `min` and `max` with chevrons and ↑ ↓.
+ * between `min` and `max` with chevrons and ↑ ↓. `bitcoin` makes a quantity held in BTC a
+ * bitcoin amount, shown and typed in the person's unit (S1.6.4), with **BTC** or **sats** after
+ * it; sats are whole.
  * @param {{ rec: import('../app/draft.js').Record, name: string, label: string, id?: string,
  *   'data-help'?: string, 'aria-invalid'?: string, 'aria-describedby'?: string,
  *   options?: ([string, string] | string)[], hint?: any, help?: string, bare?: boolean,
@@ -429,11 +434,12 @@ const KIND = /** @type {{ [type: string]: string }} */ ({
  *   negative?: boolean, noun?: string,
  *   format?: (n: any) => string, clear?: boolean, fill?: import('../kit/fields.js').Fill[],
  *   mark?: string | null, readonly?: boolean, unit?: string, prefix?: string | null,
- *   entry?: 'natural' | 'register' | 'none', spin?: boolean }} p
+ *   entry?: 'natural' | 'register' | 'none', spin?: boolean, bitcoin?: boolean }} p
  */
 export function RecField(p) {
   const { rec, name } = p;
   const reading = useReading(p.readonly);
+  const sats = useFormats().bitcoinUnit === 'sats';
   const onRow = useContext(OnRow);
   if (!rec.applies(name)) return null;
   // Read, a field its row already shows is left out (S12.18.6.5).
@@ -498,7 +504,9 @@ export function RecField(p) {
     // a quantity's unit is the field's own (`unit`: shares, days).
     const pct = kind === 'percent';
     const typed = rec.typed(name);
-    const shown = typed ?? rec.shown(name);
+    // Bitcoin in sats is shown and typed 8 places from the BTC the record holds.
+    const held = p.bitcoin && sats ? { minorDigits: 8, show: 8 } : null;
+    const shown = typed ?? (held ? textOf(rec.shown(name), held) : rec.shown(name));
     // A small whole number, stepped between its bounds (`spin`).
     if (p.spin) {
       control = html`
@@ -514,13 +522,15 @@ export function RecField(p) {
         <${TypedInput} kind=${kind} value=${shown} bad=${!!error} reset=${p.reset}
           min=${p.min} max=${p.max} above=${p.above} atMost=${p.atMost} negative=${p.negative}
           noun=${p.noun}
-          format=${p.format} suffix=${pct ? '%' : p.unit} prefix=${p.prefix} entry=${p.entry}
+          format=${p.format} suffix=${pct ? '%' : p.bitcoin ? (sats ? 'sats' : 'BTC') : p.unit}
+          places=${p.bitcoin ? (sats ? 0 : 8) : undefined} prefix=${p.prefix} entry=${p.entry}
           clear=${p.clear} fill=${p.fill} mark=${p.mark} type=${p.type === 'date'
             ? undefined
             : p.type} placeholder=${p.placeholder}
           disabled=${p.disabled} style=${p.style} readonly=${reading}
           ...${named} onInput=${(/** @type {string} */ v) => {
-            rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
+            if (held) inputSats(rec, name, v, held);
+            else rec.input(name, v, pct ? v.trim().replace(/%$/, '') : v);
             edited();
           }} />
       `;

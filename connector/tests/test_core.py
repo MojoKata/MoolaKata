@@ -15,6 +15,8 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from moolakata_connector import client, keys, sealed, signing, sock, vault, words
 from moolakata_connector.drivers import registry
 
+from moolakata.dev.waits import idle
+
 PACKAGE = Path(__file__).resolve().parents[1] / "moolakata_connector"
 
 
@@ -734,7 +736,7 @@ def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path
         s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n")
         for _ in range(100):
             s.sendall(b"x")
-            time.sleep(0.4)  # each read waits less than the socket's timeout
+            idle(0.4, why="a slow peer, under test: each byte comes inside the socket's timeout")
 
     def prompt(s):
         s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")

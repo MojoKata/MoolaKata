@@ -29,7 +29,7 @@ you see.
   package repository), and sign in once with `gh auth login`. `gh release verify` (§8) needs
   [version 2.81](https://github.com/cli/cli/releases/tag/v2.81.0) or later.
 - **Docker** with buildx, to check what was published (§7).
-- **A checkout set up for development** (`web/dev.sh setup`, README), for the regenerated
+- **A checkout set up for development** (`web/dev.sh setup`, `DEVELOP.md`), for the regenerated
   files and `web/check`. Its remote for MojoKata/MoolaKata is called `upstream` below. In a
   clone of MojoKata/MoolaKata itself, that remote is `origin`. `web/release.sh` finds that
   remote by its address, whatever it is called.
@@ -139,7 +139,8 @@ an earlier one between releases.
    request. Its documents describe the release from the moment it is tagged. Start from
    what changed since the last release, `git log --oneline v0.1.0..upstream/main`, and
    check each document against it:
-   1. **README**: the **Release** line and the **Status** paragraph.
+   1. **README**: the **Release** line and the dashboard's screenshots; **`DEVELOP.md`**: the
+      **Status** paragraph.
    2. **`docs/DEPLOY.md`**: every step the release changed (a setting, a screen, a port, a
       file), and new screenshots of the screens that now look different. Its second
       paragraph waits for §10.

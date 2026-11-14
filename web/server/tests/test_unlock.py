@@ -9,6 +9,7 @@ from conftest import LOOPBACK, ORIGIN
 from fastapi.testclient import TestClient
 
 from moolakata.app import Server, create_app
+from moolakata.dev.waits import eventually
 from moolakata.keys import master, phrase
 from moolakata.store import maintenance
 from moolakata.store.entities.core import Activity
@@ -153,7 +154,6 @@ def test_keys_unlock_hands_the_phrase_over_the_socket(locked, master_key):
 def test_a_scheduled_reencryption_runs_at_the_unlock_before_the_server_serves(locked, master_key):
     """S15.7.2: scheduled, it runs when the phrase is given, the locked screen following its
     progress and /healthz answering re-encrypting, then the server serves under a new key."""
-    import time
 
     from moolakata.store import reencrypt
 
@@ -168,12 +168,13 @@ def test_a_scheduled_reencryption_runs_at_the_unlock_before_the_server_serves(lo
     r = c.post("/ui/api/unlock", json={"phrase": words}, headers={"Origin": ORIGIN})
     assert r.status_code == 200, r.text
     seen = []
-    for _ in range(300):
+
+    def unlocked() -> bool:
         state = c.get("/ui/api/unlock").json()
         seen.append((state["locked"], state["reencrypting"], c.get("/healthz").json()["status"]))
-        if not state["locked"]:
-            break
-        time.sleep(0.05)
+        return not state["locked"]
+
+    eventually(unlocked, timeout=60, what="unlocked, re-encrypted")
     assert seen[-1][0] is False and c.get("/healthz").status_code == 200
     assert reencrypt.journal(srv.config) is None and reencrypt.report(srv.config)["backup"]
     assert srv.config.keyring_path.read_text() != before

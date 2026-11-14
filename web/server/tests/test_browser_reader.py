@@ -10,6 +10,8 @@ import pytest
 from browser import PASSWORD, made, months_back, open_page, signed_in, wait
 from edits import make, plan529, remove, saved, share
 
+from moolakata.dev.waits import idle
+
 # One after another on one worker: the reader and what it is given are undone after them, so
 # the household the other browser tests share is as it was.
 pytestmark = [pytest.mark.browser, pytest.mark.xdist_group("reader")]
@@ -86,7 +88,7 @@ def test_actions_not_open_to_a_reader_are_shown_off_with_why(browser, household,
         assert b.get_attribute("aria-description") == "Shared with you to read", name
     # Pressed, it opens nothing; reached by Tab, it shows its reason.
     page.get_by_role("button", name="Add", exact=True).click(force=True)
-    page.wait_for_timeout(200)
+    idle(0.2, page=page, why="it opens nothing: time for a dialog to open")
     assert page.locator(".dialog").count() == 0
     page.get_by_role("button", name="Add", exact=True).focus()
     wait(page, '.tooltip:has-text("Shared with you to read")', problems)

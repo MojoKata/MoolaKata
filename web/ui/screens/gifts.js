@@ -4,7 +4,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, thisYear } from '../kit/format.js';
+import { date } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -291,7 +292,8 @@ function GiftList() {
 }
 
 function Spending() {
-  const now = thisYear();
+  const fmt = useFormats();
+  const now = fmt.thisYear();
   const [year, setYear] = useState(String(now));
   const res = useApi('/gifts/spending', { year });
   const v = /** @type {any} */ (res.data);
@@ -793,6 +795,7 @@ const GIFT_ROW = ['description', 'status', 'cost', 'people', 'occasion'];
 
 /** @param {{ close: (v?: any) => void, gift?: any, start?: any, fromRow?: boolean }} p */
 function GiftDialog({ close, gift, start, fromRow }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-gift');
   const people = usePlans();
   const buys = useList('/gifts/purchases');
@@ -821,7 +824,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
     occasions: plan.occasions,
   }));
   const canWrite = !gift || gift.access.writable;
-  const year = thisYear();
+  const year = fmt.thisYear();
   const who = /** @type {string[]} */ (rec?.get('people') || []);
   // The occasions of the chosen people, this year and next.
   const chosen = list.filter((p) => who.includes(p.id));

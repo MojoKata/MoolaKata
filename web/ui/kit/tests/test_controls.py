@@ -10,6 +10,8 @@ import pytest
 from conftest import open_page
 from playwright.sync_api import expect
 
+from moolakata.dev.waits import idle
+
 
 def report(page, demo: str):
     return page.locator(f"[data-report='{demo}'] code")
@@ -354,7 +356,7 @@ def test_dialogs_stack_three_deep_each_narrower_and_taller_and_close_one_at_a_ti
         expect(page.locator(".dialog-layer").last.locator(":focus")).to_have_count(1)
         page.keyboard.press("Escape")
         expect(page.locator(".dialog")).to_have_count(depth)
-        page.wait_for_timeout(200)
+        idle(0.2, page=page, why="one Escape takes one dialog: time for a second to close")
         expect(page.locator(".dialog")).to_have_count(depth)
 
 

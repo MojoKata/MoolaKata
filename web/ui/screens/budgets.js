@@ -7,7 +7,8 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
@@ -69,6 +70,7 @@ function monthLabel(key) {
 
 /** @param {{ id?: string, tab?: string }} p */
 export default function Budgets({ id, tab }) {
+  const fmt = useFormats();
   useTitle('Budgets');
   // `?month=YYYY-MM` opens that month (S12.2.6): a tour's link to a plan line or a move. Once
   // for each address, so the month list still moves it afterwards.
@@ -83,7 +85,7 @@ export default function Budgets({ id, tab }) {
   const budgets = /** @type {any[]} */ (list.data);
   if (list.error) return html`<${Failed} error=${list.error} />`;
   if (!budgets) return html`<${Loading} lines=${6} />`;
-  const [y, m] = today().split('-').map(Number);
+  const [y, m] = fmt.today().split('-').map(Number);
   const now = new Date(y, m - 1, 1);
   if (!shown.value) shown.value = monthKey(now);
   const months = Array.from(
@@ -517,7 +519,8 @@ function BudgetRow({ r, cover, coverWhy }) {
  * @param {{ b: any }} p
  */
 function Review({ b }) {
-  const [y, m] = today().split('-').map(Number);
+  const fmt = useFormats();
+  const [y, m] = fmt.today().split('-').map(Number);
   const [month, setMonth] = useState(monthKey(new Date(y, m - 2, 1)));
   const res = useApi(`/budgets/${b.id}/review`, { month }, ['import', 'refresh']);
   const v = /** @type {any} */ (res.data);
@@ -1531,11 +1534,12 @@ function fromChoices(thisMonth) {
  * @param {{ close: (v?: any) => void, b: any }} p
  */
 function BudgetSettingsDialog({ close, b }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-budget-settings');
   const accounts = useList('/accounts');
   const list = /** @type {any[]} */ (accounts.data) || [];
   const byId = Object.fromEntries(list.map((a) => [a.id, a]));
-  const thisMonth = today().slice(0, 7) + '-01';
+  const thisMonth = fmt.today().slice(0, 7) + '-01';
   const [from, setFrom] = useState(thisMonth);
   // The accounts ticked or unticked here, applied to the records from the month chosen.
   const [wanted, setWanted] = useState(/** @type {Set<string> | null} */ (null));

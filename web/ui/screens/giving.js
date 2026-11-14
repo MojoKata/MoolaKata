@@ -3,7 +3,8 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { date, money, quantity, thisYear, today } from '../kit/format.js';
+import { date, money, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -43,8 +44,9 @@ const KINDS = /** @type {[string, string][]} */ ([
 
 /** @param {{ tab?: string }} p */
 export default function Giving({ tab }) {
+  const fmt = useFormats();
   const current = TABS.some(([k]) => k === tab) ? /** @type {string} */ (tab) : 'overview';
-  const now = thisYear();
+  const now = fmt.thisYear();
   const [year, setYear] = useState(String(now));
   useTitle('Giving');
   useGuide('giving-' + current);
@@ -70,6 +72,7 @@ export default function Giving({ tab }) {
 
 /** @param {{ v: any, reload: () => void }} p */
 function Overview({ v, reload }) {
+  const fmt = useFormats();
   const plan = v.plan;
   const editPlan = () => openDialog(PlanDialog, { v }).then((x) => x && reload());
   const record = () => openDialog(DonationDialog, {}).then((x) => x && reload());
@@ -77,7 +80,7 @@ function Overview({ v, reload }) {
   const months = v.byMonth.map((/** @type {string} */ x, /** @type {number} */ i) => [
     new Date(Date.UTC(v.year, i + 1, 0)).toISOString().slice(0, 10),
     x,
-  ]).filter((/** @type {[string, string]} */ p) => p[0] <= today() || v.year < thisYear());
+  ]).filter((/** @type {[string, string]} */ p) => p[0] <= fmt.today() || v.year < fmt.thisYear());
   const pace = months.map((/** @type {[string, string]} */ [d]) => {
     const start = Date.UTC(v.year, 0, 1);
     const days = (Date.parse(d) - start) / 86400000 + 1;
@@ -543,13 +546,14 @@ class DonationRec extends Rec {
 
 /** @param {{ close: (v?: any) => void, from?: any }} p */
 function DonationDialog({ close, from }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-donation');
   const orgs = useList('/giving/organisations');
   const accounts = useList('/accounts');
   const f = useDraft((draft) => {
     const d = draft.add(DonationRec, {
       kind: 'cash',
-      date: from?.date || today(),
+      date: from?.date || fmt.today(),
       transactionId: from?.transactionId || null,
     });
     if (from?.amount) d.input('amount', String(from.amount));

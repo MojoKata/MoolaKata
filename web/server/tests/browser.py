@@ -10,7 +10,6 @@ import re
 import socket
 import subprocess
 import sys
-import time
 from dataclasses import dataclass, field
 
 import httpx
@@ -19,6 +18,7 @@ from edits import edit, giving_plan, make, save_settings, saved, share, tag, ter
 
 from moolakata.config import load
 from moolakata.dev.settled import SETTLED, TRACK_FETCHES
+from moolakata.dev.waits import eventually
 from moolakata.keys import master, phrase
 
 PASSWORD = "a long admin passphrase"
@@ -131,17 +131,19 @@ socket = "{tmp / "run" / "sock"}"
         stderr=subprocess.STDOUT,
     )
     base = f"{'https' if mode == 'tls' else 'http'}://127.0.0.1:{port}"
-    deadline = time.monotonic() + 20
-    while time.monotonic() < deadline:
+
+    def up() -> bool:
         try:
             r = httpx.get(base + "/healthz", verify=False)  # a tls server's own certificate
             if r.status_code == 503 and r.json()["status"] in ("locked", "uninitialised"):
-                break
+                return True
         except httpx.TransportError:
             pass
         if proc.poll() is not None:
             pytest.fail(f"server exited: {(tmp / 'server.log').read_text()}")
-        time.sleep(0.1)
+        return False
+
+    eventually(up, timeout=60, what=f"the server up at {base}")
     return base, proc, key
 
 
@@ -597,11 +599,14 @@ def transactions(h: Household) -> dict:
     receipt = made(c.post("/ui/api/receipts", files={"file": ("coffee.png", png(), "image/png")}))
     # Its reading saves the receipt, and a change made meanwhile is refused as stale (as a
     # user's is, S12.15): the edit waits for the read to finish.
-    for _ in range(600):
-        status = c.get(f"/ui/api/receipts/{receipt['id']}").json()["readStatus"]
-        if status not in ("waiting", "reading"):
-            break
-        time.sleep(0.1)
+    eventually(
+        lambda: (
+            c.get(f"/ui/api/receipts/{receipt['id']}").json()["readStatus"]
+            not in ("waiting", "reading")
+        ),
+        timeout=60,
+        what="the receipt read",
+    )
     coffee = {"add": [tag(c, "coffee")], "remove": []}
     receipt = saved(
         edit(c, "Rcpt", f"/ui/api/receipts/{receipt['id']}", date=f"{months_back(1)}-12",

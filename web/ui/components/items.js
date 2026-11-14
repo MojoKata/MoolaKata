@@ -5,7 +5,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi } from '../app/hooks.js';
-import { date, quantity, today } from '../kit/format.js';
+import { date, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
 import { openDialog } from '../kit/dialog.js';
@@ -491,7 +492,8 @@ function Side({ a, it, rec, draft }) {
 
 /** @param {{ it: any, rec: ItemRec, draft: import('../app/draft.js').Draft }} p */
 function Valuations({ it, rec, draft }) {
-  const [f, setF] = useState({ date: today(), value: '', source: 'estimate' });
+  const fmt = useFormats();
+  const [f, setF] = useState({ date: fmt.today(), value: '', source: 'estimate' });
   const rows = /** @type {ValuationRec[]} */ (
     draft.records.filter((r) => r instanceof ValuationRec && !r.removed)
   ).sort((x, y) => (x.get('date') < y.get('date') ? 1 : -1));
@@ -546,7 +548,8 @@ function Valuations({ it, rec, draft }) {
 
 /** @param {{ it: any, rec: ItemRec, draft: import('../app/draft.js').Draft }} p */
 function Improvements({ it, rec, draft }) {
-  const [f, setF] = useState({ date: today(), description: '', amount: '' });
+  const fmt = useFormats();
+  const [f, setF] = useState({ date: fmt.today(), description: '', amount: '' });
   const rows = /** @type {ImprovementRec[]} */ (
     draft.records.filter((r) => r instanceof ImprovementRec && !r.removed)
   );
@@ -660,6 +663,7 @@ function Documents({ it, rec }) {
  * @param {{ it: any, rec: ItemRec }} p
  */
 function SaleCard({ it, rec }) {
+  const fmt = useFormats();
   const s = it.sale;
   const sold = rec.get('soldOn') != null;
   if (s && sold && !rec.isChanged('soldOn')) {
@@ -692,7 +696,7 @@ function SaleCard({ it, rec }) {
       <div
         class="toolbar mt">
         <${Action} class="btn sm" why=${whyRead(it)}
-          onClick=${() => rec.set('soldOn', today())}>Record the Sale…</${Action}></div>
+          onClick=${() => rec.set('soldOn', fmt.today())}>Record the Sale…</${Action}></div>
     `;
   }
   return html`

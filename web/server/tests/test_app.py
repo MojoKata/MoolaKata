@@ -18,6 +18,8 @@ from devapp import (
     wait_guide,
 )
 
+from moolakata.dev.waits import idle, until
+
 # Its tests share one page and its dev server, one after another: one worker runs them all.
 pytestmark = [pytest.mark.browser, pytest.mark.xdist_group("app")]
 
@@ -70,7 +72,7 @@ def test_a_guides_acronyms_show_what_they_stand_for(page):
     assert box["x"] + box["width"] - (icon["x"] + icon["width"]) < 16, "at the card's right"
     assert abs((icon["y"] + icon["height"] / 2) - (title["y"] + title["height"] / 2)) < 3
     source.hover()
-    page.wait_for_timeout(300)
+    idle(0.3, page=page, why="the card stays open under the pointer: time for it to close")
     assert card.count() == 1, "the card closed under the pointer"
     page.mouse.move(5, 5)
     page.wait_for_selector(shown, state="detached")
@@ -105,12 +107,19 @@ def test_a_guides_acronyms_show_what_they_stand_for(page):
         "a => a.getBoundingClientRect().top < a.closest('.help').getBoundingClientRect().bottom"
     ), "the last term shows without scrolling"
     last.focus()
-    page.wait_for_timeout(300)
-    assert card.count() == 1
-    top = card.bounding_box()["y"]
+    page.wait_for_selector(shown)
+    # The pane scrolls to the term smoothly: its card's place is read once it has stopped.
+    ys = []
+
+    def still() -> bool:
+        ys.append(card.bounding_box()["y"])
+        return len(ys) > 2 and ys[-1] == ys[-2] == ys[-3]
+
+    until(page, still, what="the card at rest")
+    top = ys[-1]
     page.evaluate("document.querySelector('.help').scrollTop -= 30")
-    page.wait_for_timeout(300)
-    assert card.count() == 1 and abs(card.bounding_box()["y"] - (top + 30)) < 2
+    until(page, lambda: card.count() == 1 and abs(card.bounding_box()["y"] - (top + 30)) < 2,
+          what="the card 30 px lower, with its term")  # fmt: skip
     page.evaluate("document.querySelector('.help').scrollTop = 0")
     page.wait_for_selector(shown, state="detached")
     page.set_viewport_size({"width": 1440, "height": 900})
@@ -211,11 +220,7 @@ def test_a_dialog_masks_the_content_not_the_guide(page):
     page.keyboard.press("F1")
     page.wait_for_selector(".help", state="detached")
     edge = "document.querySelector('.scrim').getBoundingClientRect().right === innerWidth"
-    for _ in range(40):
-        if page.evaluate(edge):
-            break
-        page.wait_for_timeout(50)
-    assert page.evaluate(edge), "the mask covers the window"
+    until(page, edge, what="the mask covers the window")
     assert page.get_attribute(".dialog", "aria-modal") == "true"
     page.keyboard.press("F1")
     page.wait_for_selector(".help")
@@ -296,17 +301,14 @@ def test_privacy_mode_blurs_amounts(page):
 
 def test_a_moment_shows_its_day_in_the_viewers_zone(page):
     """S14.9: a moment's day and "today" are the viewer's; a calendar date never shifts. Late
-    on Oct 18 in Los Angeles is already Oct 19 in UTC. (A module of its own, by its query, so
-    the page's zone is left as it is.)"""
+    on Oct 18 in Los Angeles is already Oct 19 in UTC. The zone is passed, never held."""
     got = page.evaluate("""async () => {
         const main = document.querySelector('script[src$="/app/main.js"]').src;
-        const f = await import(new URL('../kit/format.js?zone-test', main).href);
-        f.setTimezone('America/Los_Angeles');
-        const days = [f.day('2026-10-19T00:26:00Z'), f.date('2026-10-19'), f.day(null)];
-        f.setTimezone('Pacific/Kiritimati');
-        const ahead = [f.today(), f.thisYear()];
-        f.setTimezone('Etc/GMT+12');
-        return { days, ahead, behind: f.today() };
+        const f = await import(new URL('../kit/format.js', main).href);
+        const la = 'America/Los_Angeles';
+        const days = [f.day('2026-10-19T00:26:00Z', la), f.date('2026-10-19'), f.day(null, la)];
+        const ahead = [f.today('Pacific/Kiritimati'), f.thisYear('Pacific/Kiritimati')];
+        return { days, ahead, behind: f.today('Etc/GMT+12') };
     }""")
     assert got["days"] == ["Oct 18, 2026", "Oct 19, 2026", "—"]
     ahead, year = got["ahead"]

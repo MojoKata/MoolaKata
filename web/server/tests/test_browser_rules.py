@@ -8,6 +8,8 @@ import pytest
 from browser import Household, made, months_back, signed_in, wait
 from edits import make, remove, saved
 
+from moolakata.dev.waits import until
+
 pytestmark = pytest.mark.browser
 
 RULES = "/ui/transactions/rules"
@@ -32,16 +34,6 @@ def drop(h: Household, *ids: str) -> None:
         r = rule(h, rule_id)
         if r:
             saved(remove(h.c, "Rule", r))
-
-
-def until(page, expr: str) -> None:
-    """Poll an expression from outside the page (the app's CSP refuses a string evaluated
-    inside it), for up to 30 s."""
-    for _ in range(600):
-        if page.evaluate(expr):
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"never true: {expr}")
 
 
 def buttons(page) -> list[str]:

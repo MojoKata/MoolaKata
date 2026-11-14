@@ -14,6 +14,7 @@ from browser import made, months_back, signed_in, wait
 from edits import loan_payment, make, remove, saved, terms
 
 from moolakata import paths
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 
@@ -489,10 +490,8 @@ def test_a_late_answer_never_replaces_a_newer_plans(browser, household, new_loan
     with page.expect_request("**/loan/payoff"):
         page.fill("#f-extra-each-month", "200")
         page.keyboard.press("Enter")
-    for _ in range(250):  # each request reaches its handler a moment after it is sent
-        if len(held) == 2:
-            break
-        page.wait_for_timeout(20)
+    # Each request reaches its handler a moment after it is sent.
+    until(page, lambda: len(held) == 2, what="both requests held")
     first, second = held
     with page.expect_response(lambda r: r.request == second.request):
         second.continue_()

@@ -36,7 +36,7 @@ MoolaKata; this is only about email.
 
 ## Bitcoin in {#bitcoin-unit}
 
-How amounts of bitcoin are shown to you: **BTC** (0.12345678 BTC) or **sats** (12,345,678 sats).
+How amounts of bitcoin are shown to you, and typed: **BTC** (0.12345678 BTC) or **sats** (12,345,678 sats).
 They are kept to the sat either way.
 
 ## Relationships

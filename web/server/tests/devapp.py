@@ -17,6 +17,7 @@ import pytest
 from browser import SERVER_LOG
 
 from moolakata.dev.settled import SETTLED, TRACK_FETCHES, WAITING
+from moolakata.dev.waits import eventually, idle, until
 
 # A failed request shows in the console without its address; failed responses are checked by
 # address instead, where the session check before signing in may answer 401.
@@ -80,16 +81,18 @@ def dev_server(tmp_path_factory):
     )
     base = f"https://127.0.0.1:{port}"
     DEV["data"] = data
-    deadline = time.monotonic() + 60
-    while time.monotonic() < deadline:
+
+    def up() -> bool:
         try:
             if httpx.get(base + "/healthz", verify=False).status_code == 200:
-                break
+                return True
         except httpx.TransportError:
             pass
         if proc.poll() is not None:
             pytest.fail("dev server exited: " + (data / "server.log").read_text())
-        time.sleep(0.2)
+        return False
+
+    eventually(up, timeout=60, what=f"the dev server up at {base}")
     yield base
     proc.terminate()
     proc.wait(timeout=15)
@@ -199,14 +202,19 @@ GUIDE_CHECK = r"""(scope) => {
 
 def check_guide(page, scope: str, where: str) -> None:
     """The guide shown has a heading for each field, in the fields' order, each reading as what
-    it names (S12.7.4). Asked again until
-    it does or 10 s pass, as a field drawn late (its record still loading) gets its heading
-    once it is there; the last answer is the one judged."""
-    for _ in range(200):
-        r = page.evaluate(GUIDE_CHECK, scope)
-        if "error" not in r and not r["missing"] and r["backwards"] is None and not r["cased"]:
-            break
-        page.wait_for_timeout(50)
+    it names (S12.7.4). Asked again until it does or 30 s pass, as a field drawn late (its
+    record still loading) gets its heading once it is there; the last answer is the one
+    judged, by what it lacks."""
+    answers = []
+
+    def right() -> bool:
+        answers.append(page.evaluate(GUIDE_CHECK, scope))
+        a = answers[-1]
+        return "error" not in a and not a["missing"] and a["backwards"] is None and not a["cased"]
+
+    with contextlib.suppress(AssertionError):
+        until(page, right, what=f"{where}'s guide")
+    r = answers[-1]
     assert "error" not in r, f"{where}: {r}"
     assert not r["missingGuide"], f"{where}: no guide {r['key']}"
     assert r["missing"] == [], f"{where} ({r['key']}): fields without a heading: {r['missing']}"
@@ -239,7 +247,11 @@ def pace(page) -> None:
     while times and time.monotonic() - times[0] > 60:
         times.popleft()
     if len(times) >= API_PER_MINUTE:
-        page.wait_for_timeout(1000 * (61 - (time.monotonic() - times[0])))
+        idle(
+            61 - (time.monotonic() - times[0]),
+            page=page,
+            why="the API's limit per session: until the oldest request leaves its minute",
+        )
 
 
 def api_items(page, path: str) -> list[dict]:
@@ -254,7 +266,7 @@ def api_items(page, path: str) -> list[dict]:
             path,
         )
         if r["status"] == 429:
-            time.sleep(min(int(r["wait"] or 1), 60))
+            idle(min(int(r["wait"] or 1), 60), page=page, why="the API's Retry-After")
             continue
         assert r["status"] == 200, f"{path}: {r['status']} {r['body'][:300]}"
         return json.loads(r["body"])["items"]
@@ -268,11 +280,11 @@ def account_ids(page) -> dict[str, str]:
 def wait_guide(page, key: str) -> None:
     """Wait for the help pane to show a guide. Polled from outside the page: a string
     evaluated inside it is refused by the app's CSP, which is the point."""
-    for _ in range(100):
-        if page.evaluate("document.querySelector('.help .guide')?.dataset.guide") == key:
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"the help pane never showed {key}")
+    until(
+        page,
+        lambda: page.evaluate("document.querySelector('.help .guide')?.dataset.guide") == key,
+        what=f"the help pane showing {key}",
+    )
 
 
 def open_dialog(page, path: str, button: str, guide: str) -> None:

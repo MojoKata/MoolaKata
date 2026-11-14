@@ -3,7 +3,8 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { bitcoin, date, quantity, thisYear } from '../kit/format.js';
+import { date, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -43,6 +44,7 @@ const TERM = /** @type {Record<string, string>} */ ({
 
 /** @param {{ tab?: string }} p */
 export default function Positions({ tab }) {
+  const fmt = useFormats();
   const current = TABS.some(([k]) => k === tab) ? /** @type {string} */ (tab) : 'open';
   useTitle('Positions');
   useGuide('positions-' + current);
@@ -63,7 +65,7 @@ export default function Positions({ tab }) {
                   positions</div>
           </div>
           <div class="card kpi">
-            <div class="label">Realized ${thisYear()}</div>
+            <div class="label">Realized ${fmt.thisYear()}</div>
             <div
               class="value">
               <${Amt} v=${v.summary.realizedThisYear} signed cents=${false} />
@@ -121,6 +123,7 @@ export default function Positions({ tab }) {
 
 /** @param {{ rows: any[], reload: () => void }} p */
 function Open({ rows, reload }) {
+  const fmt = useFormats();
   const [shown, setShown] = useState(/** @type {string | null} */ (null));
   // Legs selected to group as a strategy by hand (S3.5.1).
   const [picked, setPicked] = useState(/** @type {string[]} */ ([]));
@@ -180,7 +183,7 @@ function Open({ rows, reload }) {
                   ? 'Short'
                   : 'Long'}</span></td>
                 <td class="num">${r.symbol === 'BTC'
-                  ? bitcoin(r.quantity)
+                  ? fmt.bitcoin(r.quantity)
                   : quantity(r.quantity)}</td>
                 <td class="num">${r.cost ? html`<${Amt} v=${r.cost} />` : html`
                   <span
@@ -387,7 +390,8 @@ function Trades() {
 }
 
 function Gains() {
-  const now = thisYear();
+  const fmt = useFormats();
+  const now = fmt.thisYear();
   const [by, setBy] = useState('year');
   const [year, setYear] = useState('');
   const res = useApi('/positions/gains', { by, year: year || undefined }, ['import', 'prices']);

@@ -5,7 +5,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { date, money, today } from '../kit/format.js';
+import { date, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
 import { Field, ReadValue, Select } from '../kit/fields.js';
@@ -322,13 +323,14 @@ class ContribRec extends Record {
 
 /** @param {{ a: any, done: () => void }} p */
 function AddContribution({ a, done }) {
+  const fmt = useFormats();
   const people = useList('/persons');
   const accounts = useList('/accounts');
   const banks = (/** @type {any[]} */ (accounts.data) || []).filter((x) =>
     x.group === 'banking' && !x.closedOn && canAdd('Txn', x)
   );
   const f = useDraft((draft) => {
-    draft.add(ContribRec, { accountId: a.id, date: today(), contributor: 'owner' });
+    draft.add(ContribRec, { accountId: a.id, date: fmt.today(), contributor: 'owner' });
   }, [a.id]);
   const rec = /** @type {ContribRec | undefined} */ (f.draft?.records[0]);
   return html`
@@ -475,8 +477,9 @@ class ExpenseRec extends Record {
 
 /** @param {{ a: any, kinds: [string, string][], done: () => void }} p */
 function AddExpense({ a, kinds, done }) {
+  const fmt = useFormats();
   const f = useDraft((draft) => {
-    draft.add(ExpenseRec, { accountId: a.id, date: today(), kind: 'tuition' });
+    draft.add(ExpenseRec, { accountId: a.id, date: fmt.today(), kind: 'tuition' });
   }, [a.id]);
   const rec = /** @type {ExpenseRec | undefined} */ (f.draft?.records[0]);
   return html`

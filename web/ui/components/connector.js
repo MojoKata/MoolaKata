@@ -5,7 +5,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, moment } from '../kit/format.js';
+import { ago } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { withReauth } from './reauth.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
@@ -44,6 +45,7 @@ export function connectionState(c) {
 }
 
 export function ConnectorSection() {
+  const fmt = useFormats();
   const res = useApi('/settings/connector', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -91,7 +93,7 @@ export function ConnectorSection() {
           ${v.confirmedAt
             ? html`
               <div
-                class="list-item"><span class="grow dim">Confirmed</span>${moment(
+                class="list-item"><span class="grow dim">Confirmed</span>${fmt.moment(
                   v.confirmedAt,
                 )}${v.confirmedBy ? ` by ${v.confirmedBy}` : ''}</div>
             `
@@ -120,7 +122,7 @@ export function ConnectorSection() {
           <div class="list-item"><span class="grow dim">Last report</span>${v.lastReportAt
             ? html`${ago(v.lastReportAt)}${
               v.pairedAt
-                ? html`${' '}<span class="small dim">· paired ${moment(v.pairedAt)}${
+                ? html`${' '}<span class="small dim">· paired ${fmt.moment(v.pairedAt)}${
                   v.pairedBy ? ` by ${v.pairedBy}` : ''
                 }</span>`
                 : null
@@ -130,7 +132,7 @@ export function ConnectorSection() {
         : v.state === 'pairing'
         ? html`
           <${StatePill} tone="info" why=${`It expires ${
-            moment(v.codeExpiresAt)
+            fmt.moment(v.codeExpiresAt)
           }: paste it into Pair on the connector's page, or run it on its host, then compare the fingerprint both sides show.`}>code
             out</${StatePill}>
         `

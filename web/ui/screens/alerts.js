@@ -5,7 +5,7 @@ import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi } from '../app/hooks.js';
 import { refreshBadges } from '../app/stream.js';
-import { moment } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
@@ -19,6 +19,7 @@ const EMAILS = /** @type {Record<string, string>} */ ({
 });
 
 export default function Alerts() {
+  const fmt = useFormats();
   useTitle('Alerts');
   useGuide('alerts');
   const res = useApi('/alerts', {}, ['alert']);
@@ -40,9 +41,9 @@ export default function Alerts() {
         <div class=${'tile ' + (a.resolvedAt ? 't-other' : 't-liability')}><${Icon} name=${a
           .icon} /></div>
         <div class="grow"><span class="row-name">${a.title}</span>
-          <div class="row-more">${a.about ? a.about + ' · ' : ''}opened ${moment(a.openedAt)}${a
+          <div class="row-more">${a.about ? a.about + ' · ' : ''}opened ${fmt.moment(a.openedAt)}${a
               .resolvedAt
-            ? ` · resolved ${moment(a.resolvedAt)}${a.resolution ? ': ' + a.resolution : ''}`
+            ? ` · resolved ${fmt.moment(a.resolvedAt)}${a.resolution ? ': ' + a.resolution : ''}`
             : ''}</div></div>
         ${a.resolvedAt
           ? html`<span class="pill ok">resolved</span>`

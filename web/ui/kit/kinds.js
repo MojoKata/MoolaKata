@@ -3,7 +3,7 @@
 // are tested without a page; `<TypedInput>` (components/fields.js) draws them.
 import { Dec } from './dec.js';
 import { parseDuration } from './duration.js';
-import { date, money, quantity, today } from './format.js';
+import { date, DEFAULT_TIMEZONE, money, quantity, today } from './format.js';
 import { readDate, readTime, timeText } from './dates.js';
 
 /**
@@ -81,7 +81,10 @@ export const KINDS = {
     chars: null,
     takes: [],
     date: true,
-    read: (t, now) => (readDate(t, now ?? today()) ? null : 'Type a date, such as 10/12/2026.'),
+    read: (
+      t,
+      now,
+    ) => (readDate(t, now ?? today(DEFAULT_TIMEZONE)) ? null : 'Type a date, such as 10/12/2026.'),
   },
   time: {
     chars: null,
@@ -173,7 +176,7 @@ export function check(k, b, text, format = String, now = undefined) {
   const bad = k.read(t, now);
   if (bad) return bad;
   if (k.date) {
-    const iso = /** @type {string} */ (readDate(t, now ?? today()));
+    const iso = /** @type {string} */ (readDate(t, now ?? today(DEFAULT_TIMEZONE)));
     if (b.min != null && iso < String(b.min)) return `On or after ${date(String(b.min))}.`;
     if (b.max != null && iso > String(b.max)) return `On or before ${date(String(b.max))}.`;
     return null;

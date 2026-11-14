@@ -4,7 +4,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
 import { useApi, useList } from '../app/hooks.js';
-import { bitcoin, date, quantity } from '../kit/format.js';
+import { date, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt, Pct } from '../kit/amount.js';
@@ -161,6 +162,7 @@ function Performance({ p }) {
 
 /** @param {{ p: any }} props */
 function Holdings({ p }) {
+  const fmt = useFormats();
   const res = useApi(`/portfolios/${p.id}/holdings`, {}, ['prices', 'import']);
   const h = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
@@ -194,7 +196,7 @@ function Holdings({ p }) {
                     <div class="small dim">${x.accounts.join(', ')}</div></td>
                 <td class="dim">${x.name || ''}</td>
                 <td class="num">${x.symbol === 'BTC'
-                  ? bitcoin(x.quantity)
+                  ? fmt.bitcoin(x.quantity)
                   : quantity(x.quantity)}</td>
                 <td class="num amt" data-tip=${x.price
                   ? `${x.priceSource === 'close' ? 'Daily close' : x.priceSource} · as of ${

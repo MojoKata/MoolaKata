@@ -5,7 +5,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, day, moment } from '../kit/format.js';
+import { ago } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { parseDuration } from '../kit/duration.js';
 import { withReauth } from './reauth.js';
 import { confirmAction } from '../kit/confirm.js';
@@ -42,15 +43,16 @@ const STATE = /** @type {Record<string, [string, string, string?]>} */ ({
   ended: ['ended', ''],
 });
 
-/** A link's state as a pill: broken, unreachable, paused or its state. @param {any} l */
-function linkState(l) {
+/** A link's state as a pill: broken, unreachable, paused or its state.
+ * @param {any} l @param {import('../kit/formats.js').Fmt} fmt */
+function linkState(l, fmt) {
   const [word, tone, said] = STATE[l.state];
   const why = l.brokenAt
     ? null
     : l.failingSince
-    ? `Unreachable since ${day(l.failingSince)}.`
+    ? `Unreachable since ${fmt.day(l.failingSince)}.`
     : l.state === 'paused' && l.pausedUntil
-    ? `Paused until ${moment(l.pausedUntil)}.`
+    ? `Paused until ${fmt.moment(l.pausedUntil)}.`
     : said;
   const shown = l.brokenAt ? 'broken' : l.failingSince ? 'unreachable' : word;
   const hue = l.brokenAt ? 'bad' : l.failingSince ? 'warn' : tone;
@@ -60,6 +62,7 @@ function linkState(l) {
 }
 
 export function LinksSection() {
+  const fmt = useFormats();
   const res = useApi('/settings/links', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -164,7 +167,7 @@ export function LinksSection() {
                           : ''}</div></div>
                       </div>
                     </td>
-                    <td>${linkState(l)}${l.syncTotal
+                    <td>${linkState(l, fmt)}${l.syncTotal
                       ? html`
                         <div class="small"
                           data-help="progress">Syncing: up to ${l.syncThrough
@@ -189,7 +192,7 @@ export function LinksSection() {
                         their admin before accepting it.</div>`
                       : null}</td>
                     <td class="small dim">${l.state === 'invited'
-                      ? `code valid until ${day(l.codeExpiresAt)}`
+                      ? `code valid until ${fmt.day(l.codeExpiresAt)}`
                       : l.state === 'requested'
                       ? 'Compare the fingerprint with them before approving.'
                       : ago(l.lastOkAt)}</td>
@@ -247,13 +250,13 @@ export function LinksSection() {
       ${ended.length
         ? html`<p class="small dim">Ended: ${
           ended.map((/** @type {any} */ l) =>
-            `${l.peerName || 'an invitation'} (${day(l.endedAt)})`
+            `${l.peerName || 'an invitation'} (${fmt.day(l.endedAt)})`
           ).join(', ')
         }.</p>`
         : null}
       <${FormError} error=${act.error} />
     </div>
-    ${copies(live, values, res.reload, copyAct, release)}
+    ${copies(live, values, res.reload, copyAct, release, fmt)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="outgoing">Shared from Here with ${l.peerName}</h3>
         ${
@@ -261,7 +264,7 @@ export function LinksSection() {
           html`<div class="list-item"><div class="grow"><span class="row-name">${
             KIND[x.kind] || 'An item'
           }</span> <span
-            class="row-more">of ${x.ownerName} since ${day(x.sharedAt)}${
+            class="row-more">of ${x.ownerName} since ${fmt.day(x.sharedAt)}${
             x.includeReceipts ? ', with its receipts' : ''
           }</span></div><span class="small">to ${x.names.join(', ')}</span></div>`
         )
@@ -274,7 +277,7 @@ export function LinksSection() {
           html`<div class="list-item"><div class="grow"><span class="row-name">${
             KIND[x.kind] || 'An item'
           }</span> <span
-            class="row-more">shared by ${x.ownerName} on ${day(x.sharedAt)}${
+            class="row-more">shared by ${x.ownerName} on ${fmt.day(x.sharedAt)}${
             x
                 .includeReceipts
               ? ', with its receipts'
@@ -374,9 +377,9 @@ const size = (n) =>
  * The Linked copies card (S11.7, S11.9): each copy's access key, size and lock, Create the
  * access key, Lock now and Reset copy, and how long an unused copy stays unlocked.
  * @param {any[]} live @param {any} values @param {() => void} reload @param {any} act
- * @param {any} release
+ * @param {any} release @param {import('../kit/formats.js').Fmt} fmt
  */
-function copies(live, values, reload, act, release) {
+function copies(live, values, reload, act, release, fmt) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
@@ -410,7 +413,7 @@ function copies(live, values, reload, act, release) {
                       ? `${c.waiting} change${c.waiting === 1 ? '' : 's'}`
                       : html`<span class="dim">none</span>`}</td>
                     <td class="small">${c.keyMadeAt
-                      ? html`${day(c.keyMadeAt)}<div class="dim">by ${
+                      ? html`${fmt.day(c.keyMadeAt)}<div class="dim">by ${
                         c.keyMadeBy || 'an admin'
                       }</div>`
                       : html`<span class="pill warn">not made</span>`}</td>
@@ -512,12 +515,13 @@ const month = (iso) =>
  * @param {{ close: (v?: any) => void, link: any }} p
  */
 function PauseDialog({ close, link }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-link-pause');
   // Empty until a duration is typed or ↺ fills in the default (S11.7.2, R3.11).
   const [span, setSpan] = useState('');
   const go = useSubmit(async () => {
     const out = await api.post(`/settings/links/${link.id}/pause`, { for: span });
-    toast(`Paused until ${moment(out.pausedUntil)}`);
+    toast(`Paused until ${fmt.moment(out.pausedUntil)}`);
     close(out);
   });
   const parsed = parseDuration(span);
@@ -528,7 +532,9 @@ function PauseDialog({ close, link }) {
       footer=${html`<button class="btn primary" disabled=${go.busy}>Pause</button>`}>
       <${Field} label="Pause for" id="pause-for" error=${errAt(go.error, 'for')}
         hint=${minutes
-          ? `Resumes on its own ${moment(new Date(Date.now() + minutes * 60000).toISOString())}.`
+          ? `Resumes on its own ${
+            fmt.moment(new Date(Date.now() + minutes * 60000).toISOString())
+          }.`
           : null}>
         <${TypedInput} kind="duration" value=${span} onInput=${setSpan}
           reset=${{ value: '1d', label: '1 day' }} placeholder="ex: 1d 4h" />

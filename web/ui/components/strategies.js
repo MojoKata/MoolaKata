@@ -6,7 +6,8 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { date, quantity, today } from '../kit/format.js';
+import { date, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
 import { Dec, dec } from '../kit/dec.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
@@ -217,12 +218,13 @@ const parts = (text) =>
  * @param {{ close: (v?: any) => void }} p
  */
 function AdjustDialog({ close }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-option-adjust');
   const res = useApi('/options/adjustable');
   const groups = /** @type {any[] | null} */ ((/** @type {any} */ (res.data))?.items ?? null);
   const [under, setUnder] = useState('');
   const [rows, setRows] = useState(/** @type {Record<string, any>} */ ({}));
-  const [day, setDay] = useState(today());
+  const [day, setDay] = useState(fmt.today());
   const g = groups?.find((x) => x.underlyingId === under) || groups?.[0];
   const row = (/** @type {any} */ c) =>
     rows[c.instrumentId] || {

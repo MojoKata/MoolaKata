@@ -28,7 +28,8 @@ import {
 } from '../components/edu.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { ago, bitcoin, date, price, quantity, today } from '../kit/format.js';
+import { ago, date, price, quantity } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -201,6 +202,7 @@ function Details({ a }) {
 
 /** @param {{ a: any }} p */
 function Holdings({ a }) {
+  const fmt = useFormats();
   const res = useApi(`/accounts/${a.id}/holdings`, {}, ['import', 'prices']);
   const [open, setOpen] = useState(/** @type {string | null} */ (null));
   const h = /** @type {any} */ (res.data);
@@ -246,7 +248,7 @@ function Holdings({ a }) {
                     : null}</td>
                 <td class="dim">${x.name || ''}</td>
                 <td class="num">${x.symbol === 'BTC'
-                  ? bitcoin(x.quantity)
+                  ? fmt.bitcoin(x.quantity)
                   : quantity(x.quantity)}</td>
                 <td class="num amt" data-tip=${x.price
                   ? `${
@@ -634,9 +636,10 @@ class CountedRec extends Rec {
 
 /** @param {{ close: (v?: any) => void, a: any }} p */
 function TypeBalance({ close, a }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-type-balance');
   const f = useDraft((draft) => {
-    draft.add(AnchorRec, { accountId: a.id, date: today() });
+    draft.add(AnchorRec, { accountId: a.id, date: fmt.today() });
   }, [a.id]);
   const rec = /** @type {AnchorRec | undefined} */ (f.draft?.records[0]);
   return html`
@@ -1110,6 +1113,7 @@ function StatementChecks({ v }) {
  * @param {{ a: any, reload: () => void }} p
  */
 function TransferPairs({ a, reload }) {
+  const fmt = useFormats();
   const res = useList('/transfers/bitcoin', {}, ['import']);
   const rows = /** @type {any[]} */ (res.data || []).filter((x) =>
     x.fromAccount === a.name || x.toAccount === a.name
@@ -1126,7 +1130,7 @@ function TransferPairs({ a, reload }) {
         <div class="notice mb" role="status">
           <${Icon} name="info" />
           <div><b>${x.symbol === 'BTC'
-            ? bitcoin(x.sats, true)
+            ? fmt.bitcoin(x.sats, true)
             : `${quantity(x.quantity)} ${x.symbol}`}</b> left ${x.fromAccount} on ${date(
               x.fromDate,
             )} and arrived in ${x

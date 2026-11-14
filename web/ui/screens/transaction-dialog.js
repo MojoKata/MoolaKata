@@ -13,10 +13,11 @@ import { Dec } from '../kit/dec.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { useDialogGuide } from '../components/help.js';
 import { NewRuleDialog } from '../components/rules.js';
-import { Field, Seg, Switch, SwitchRow, TypedInput } from '../kit/fields.js';
+import { Field, NumberInput, Seg, Switch, SwitchRow, TypedInput } from '../kit/fields.js';
 import { Reads, useReadWhy } from '../components/reads.js';
 import { Icon } from '../kit/icon.js';
-import { date as fmtDate, money, today } from '../kit/format.js';
+import { date as fmtDate, money } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { CategoryField, useCategories } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { TagsField } from '../components/tags.js';
@@ -239,6 +240,7 @@ class Pick extends Record {
  *   accountId?: string, fromRow?: boolean, budgets?: boolean }} p
  */
 export function TransactionDialog({ close, txn, start, accounts, accountId, fromRow, budgets }) {
+  const fmt = useFormats();
   useDialogGuide('dialog-transaction');
   const editing = !!txn;
   const readOnly = editing && !txn.access.writable;
@@ -262,7 +264,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
     const kind = kindsOf(acct)[0];
     const t = draft.add(Txn, {
       accountId: acct,
-      date: today(),
+      date: fmt.today(),
       kind,
       fees: TRADE.includes(kind) ? '0' : null,
     });
@@ -284,6 +286,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const type = BY_TYPE[account.type] || BY_TYPE.checking;
   const kind = t?.get('kind') || '';
   const trade = TRADE.includes(kind);
+  // Bitcoin is typed and shown in the person's unit, BTC or sats (S1.6.4).
+  const btc = isBitcoin(t);
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
   const left = t && t.get('amount') != null ? Dec.of(t.get('amount')).sub(total) : total.neg();
   const deleting = !!t?.removed;
@@ -389,7 +393,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`
                 <div class="row">
                   <${RecField} rec=${t} name="symbol" label="Symbol" disabled=${editing} />
-                  <${RecField} rec=${t} name="quantity" label="Quantity" />
+                  <${RecField} rec=${t} name="quantity" label="Quantity" bitcoin=${btc} />
                   <${RecField} rec=${t} name="price" label="Price" />
                 </div>
               `
@@ -401,7 +405,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               <${RecField} rec=${t} name="amount" label="Amount" />
               ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
             </div>
-            ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} />` : null}
+            ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} btc=${btc} />` : null}
             ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
             ${!trade && !parts.length
               ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" />`
@@ -505,6 +509,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   `;
 }
 
+/** Whether a trade's instrument is bitcoin. @param {Txn | undefined} t */
+const isBitcoin = (t) => String(t?.get('symbol') || '').trim().toUpperCase() === 'BTC';
+
 /**
  * A sale's lots (S2.3): the lots held on its day, each with how many the sale takes from it;
  * typed, the sale is specific identification, and what isn't picked goes oldest first. A lot
@@ -513,7 +520,11 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
  * @param {{ t: Txn, draft: any, saleId: string | null }} p
  */
 function LotPicks({ t, draft, saleId }) {
+  const fmt = useFormats();
   const symbol = String(t.get('symbol') || '').trim().toUpperCase();
+  const btc = isBitcoin(t);
+  /** A quantity as the lots show it: bitcoin in the person's unit. @param {Dec | string} q */
+  const qty = (q) => (btc ? fmt.bitcoin(String(q)) : String(q));
   const date = t.get('date');
   const accountId = t.get('accountId');
   const res = useList(
@@ -572,12 +583,12 @@ function LotPicks({ t, draft, saleId }) {
             return html`
               <tr key=${l.lotId}>
                 <td>${l.acquiredOn}</td>
-                <td class="num">${l.quantity}</td>
+                <td class="num">${qty(l.quantity)}</td>
                 <td class="num">${l.basis == null ? 'missing' : money(l.basis)}</td>
                 <td>${l.longTerm ? 'long' : 'short'}</td>
                 <td class="num">${p
                   ? html`
-                    <${RecField} rec=${p} name="quantity" bare help="take"
+                    <${RecField} rec=${p} name="quantity" bare help="take" bitcoin=${btc}
                       label=${`Take from the lot bought ${l.acquiredOn}`} />
                   `
                   : null}</td>
@@ -589,7 +600,7 @@ function LotPicks({ t, draft, saleId }) {
       ${refused ? html`<div class="err">${refused}</div>` : null}
       <div class=${'small ' + (over ? 'err' : 'dim')}>${taken.isZero()
         ? "None picked: the account's lot method chooses."
-        : `${taken.toString()} of ${sold != null ? sold.toString() : '?'} picked. ` +
+        : `${qty(taken)} of ${sold != null ? qty(sold) : '?'} picked. ` +
           (over ? 'More than the sale.' : "What isn't picked goes oldest first.")}</div>
     </fieldset>
   `;
@@ -687,10 +698,11 @@ function TxnReceipts({ txn, draft, canWrite }) {
 
 /**
  * Shares moved in, lot by lot (S2.2, CR3-73): when each was bought, how many, and what it
- * cost. None typed, they arrive as one lot whose day bought is missing until it is.
- * @param {{ t: Txn }} p
+ * cost. None typed, they arrive as one lot whose day bought is missing until it is. Bitcoin's
+ * are typed in the person's unit (`btc`).
+ * @param {{ t: Txn, btc: boolean }} p
  */
-function TransferLots({ t }) {
+function TransferLots({ t, btc }) {
   const why = useReadWhy();
   const rows = /** @type {any[]} */ (t.get('transferLots') || []);
   /** @param {any[]} next */
@@ -707,11 +719,11 @@ function TransferLots({ t }) {
               i + 1
             }: bought on`}
               onInput=${(/** @type {string} */ v) => edit(i, 'acquiredOn', v)} />
-            <${TypedInput} kind="quantity" value=${r.quantity || ''} aria-label=${`Lot ${
+            <${NumberInput} value=${r.quantity ?? null} bitcoin=${btc} aria-label=${`Lot ${
               i + 1
             }: quantity`}
-              placeholder="quantity" onInput=${(/** @type {string} */ v) =>
-                edit(i, 'quantity', v)} />
+              placeholder="quantity" onChange=${(/** @type {string | null} */ v) =>
+                edit(i, 'quantity', v ?? '')} />
             <${TypedInput} kind="money" value=${r.costBasis || ''} aria-label=${`Lot ${
               i + 1
             }: cost basis`}

@@ -25,7 +25,8 @@ The instrument traded, such as `VTI`.
 
 ## Quantity
 
-How many shares or units.
+How many shares or units. Bitcoin is typed in your unit (Profile › Bitcoin in): BTC to 8
+places, or whole sats; it is kept to the sat either way.
 
 ## Price
 
@@ -52,7 +53,8 @@ takes from both parts.
 
 ## Take {#take}
 
-How many shares of that lot the sale takes; no more than the lot holds.
+How many shares of that lot the sale takes; no more than the lot holds. Bitcoin is typed in
+your unit (Profile › Bitcoin in): BTC to 8 places, or whole sats.
 
 ## Lots, as bought {#transfer-lots}
 

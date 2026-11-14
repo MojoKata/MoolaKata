@@ -5,7 +5,8 @@ import { html } from '../app/html.js';
 import { dev } from '../app/config.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, date, day, moment } from '../kit/format.js';
+import { ago, date } from '../kit/format.js';
+import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
 import { Failed, Loading } from '../kit/bits.js';
@@ -361,6 +362,7 @@ function Plain({ section }) {
 }
 
 function Prices() {
+  const fmt = useFormats();
   const res = useApi('/price-sources', {}, ['prices']);
   const all = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -423,7 +425,7 @@ function Prices() {
                     ? html`<span class="dim">none needed</span>`
                     : src.key
                     ? html`
-                      <span class="pill ok" data-tip=${`set ${moment(src.key.setAt)}${
+                      <span class="pill ok" data-tip=${`set ${fmt.moment(src.key.setAt)}${
                         src.key.setBy ? ' by ' + src.key.setBy : ''
                       }`}><${Icon} name="lock" /> set</span>
                       <button type="button" class="linklike small" onClick=${() =>
@@ -764,6 +766,7 @@ function ReadingQueue() {
 const EMAIL_KEYS = ['smtpHost', 'smtpPort', 'smtpSecurity', 'smtpUsername', 'smtpFrom'];
 
 function EmailSection() {
+  const fmt = useFormats();
   const res = useApi('/settings/email', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -826,7 +829,7 @@ function EmailSection() {
                   </${Field}>
                   <${Field} label="Password" id="smtp-password" error=${errAt(e, 'password')}
                     hint=${v.password
-                      ? `Set ${day(v.password.setAt)}${
+                      ? `Set ${fmt.day(v.password.setAt)}${
                         v.password.setBy ? ' by ' + v.password.setBy : ''
                       }.`
                       : 'Not set.'}>
@@ -874,6 +877,7 @@ const BITCOIN_KEYS = [
 
 /** Settings › Bitcoin (S16.7, S1.6.2): where self-custody wallets are read. */
 function BitcoinSection() {
+  const fmt = useFormats();
   const res = useApi('/settings/bitcoin', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -1008,7 +1012,7 @@ function BitcoinSection() {
               </${Field}>
               <${Field} label="Node password" id="node-password" error=${errAt(e, 'password')}
                 hint=${v.password
-                  ? `Set ${day(v.password.setAt)}${
+                  ? `Set ${fmt.day(v.password.setAt)}${
                     v.password.setBy ? ' by ' + v.password.setBy : ''
                   }.`
                   : 'Not set.'}>
@@ -1105,6 +1109,7 @@ function CopiesKept({ close, v }) {
 }
 
 function Backups() {
+  const fmt = useFormats();
   const res = useApi('/settings/backups', {}, ['task']);
   const s = useApi('/settings');
   const v = /** @type {any} */ (res.data);
@@ -1149,7 +1154,7 @@ function Backups() {
           <${Attention} tone=${v.lastError ? 'bad' : 'info'} icon=${html`<${Icon} name=${
             v.lastError ? 'alert' : 'check'
           } />`}>${v.lastRun
-            ? html`Last backup ${moment(v.lastRun)}${
+            ? html`Last backup ${fmt.moment(v.lastRun)}${
               v.lastError ? html`: failed (${v.lastError})` : ': encrypted and verified'
             }`
             : 'No backup yet'}</${Attention}>
@@ -1169,7 +1174,7 @@ function Backups() {
               <tbody>${v.backups.map((/** @type {any} */ b) =>
                 html`
                   <tr>
-                    <td>${moment(b.made)}</td>
+                    <td>${fmt.moment(b.made)}</td>
                     <td class="num">${mb(b.bytes)}</td>
                     <td><code>${b.masterKey}</code></td>
                   </tr>
@@ -1414,6 +1419,7 @@ function ReminderSetting() {
 const leftUnder = (o) => o.startsWith('left');
 
 function Keys() {
+  const fmt = useFormats();
   const res = useApi('/settings/keys', {}, ['task']);
   const cps = useApi('/settings/keys/copies', {}, ['task']);
   const v = /** @type {any} */ (res.data);
@@ -1472,7 +1478,7 @@ function Keys() {
       : null}</h3>
         <div class="list-item"><span class="grow dim">Fingerprint</span><code>${v
           .fingerprint}</code></div>
-        <div class="list-item"><span class="grow dim">Made</span>${day(v.created)} · ${v
+        <div class="list-item"><span class="grow dim">Made</span>${fmt.day(v.created)} · ${v
           .ageDays} days old
           ${v.reminderMonths
             ? html`<span class="small dim"> · rotation reminder at ${v.reminderMonths} months</span>`
@@ -1518,7 +1524,7 @@ function Keys() {
                   html`
                     <tr>
                       <td><code>${c.name}</code><div class="small dim">${c.what}</div></td>
-                      <td>${moment(c.made)}</td>
+                      <td>${fmt.moment(c.made)}</td>
                       <td class="num">${(c.bytes / 1048576).toFixed(1)} MB</td>
                       <td class="small">${opensWith(c.opens)}${c.masterKey
                         ? html`${' '}<code>${c.masterKey}</code>`
@@ -1539,7 +1545,7 @@ function Keys() {
               : confirmed.how === 'app'
               ? 'with Verify Key'
               : 'with moolakata keys verify'
-          } on ${day(confirmed.at)}.`
+          } on ${fmt.day(confirmed.at)}.`
           : 'Not confirmed since install.'}</div></div>
           ${confirmed
             ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
@@ -1552,7 +1558,7 @@ function Keys() {
           ? html`
             <div class="list-item" data-help="last-reencryption">
               <div class="grow"><span class="dim">Last re-encryption</span>
-                      <div class="small">${day(last.finishedAt)}${last.why === 'rotation'
+                      <div class="small">${fmt.day(last.finishedAt)}${last.why === 'rotation'
                         ? ', with a rotation'
                         : last.why === 'host'
                         ? ', on the host'

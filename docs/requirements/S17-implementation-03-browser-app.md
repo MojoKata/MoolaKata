@@ -134,7 +134,10 @@
           its caller can't set. What depends on the person is a prop that wins over its part
           of the page's: `readonly` over `Reading`, and `timezone` (a date's *today*) and
           `bitcoinUnit` (BTC or sats) over `Formats`, which the app sets at its root from the
-          session; the plain format functions take the person's, set at sign-in.
+          session. The format functions that depend on the person (a moment, a day, today,
+          this year, bitcoin) keep no module state: a component takes them from
+          `useFormats()`, bound to its part of the page's, and code outside a component is
+          handed them by the component that builds it.
        3. **On its own**: a module in `kit/` imports only `kit/` and the vendored libraries,
           and a check fails on any other import. So the kit's tests run only when the kit
           changes (S17.10.1), while the app's tests, which draw the kit's controls, run on
