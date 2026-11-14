@@ -35,8 +35,8 @@ request's is the run's artifact, `web/dev.sh mockup-link PR`; the hand-written o
 The requirements (`docs/requirements/`) say what MoolaKata is and does, in the present tense.
 They carry no dates, versions or status lines, no "now", "no longer", "revised", "proposed"
 or "approved", and no record of what changed: git holds the history. `docs/schema.md` follows
-the same rule. The repository's root README is where repo, build and product status goes,
-also without dates or words of approval.
+the same rule. Status goes in the repository's root README (the product and its release) and
+`DEVELOP.md` (the build, the repo and its coverage), also without dates or words of approval.
 
 ## How the requirements are laid out
 
