@@ -665,6 +665,22 @@ def lines(data: dict) -> str:
     return "{\n" + ",\n".join(out) + "\n}"
 
 
+# A long data: URL (an avatar, a household's image) is kept once in the page and named by each
+# answer that carries it; the page's backend puts it back as the answers load.
+BLOB_MIN = 1024
+
+
+def stored_once(value, blobs: dict[str, int]):
+    """`value` with each long data: URL swapped for `mk-blob:<n>`, its place in `blobs`."""
+    if isinstance(value, str) and value.startswith("data:") and len(value) >= BLOB_MIN:
+        return f"mk-blob:{blobs.setdefault(value, len(blobs))}"
+    if isinstance(value, dict):
+        return {k: stored_once(v, blobs) for k, v in value.items()}
+    if isinstance(value, list):
+        return [stored_once(v, blobs) for v in value]
+    return value
+
+
 def assemble(answers: dict, hellos: dict, users: list) -> str:
     version = (ROOT / "web" / "VERSION").read_text().strip()
     page = (UI / "index.html").read_text()
@@ -702,17 +718,19 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     )
     favicon = data_url((UI / "assets" / "favicon.svg").read_text(), "image/svg+xml")
     guides = {p.stem: p.read_text() for p in sorted((UI / "guides").glob("*.md"))}
+    blobs: dict[str, int] = {}
     data = {
         "now": AT,
         "users": users,
-        "api": answers,
-        "events": hellos,
+        "api": stored_once(answers, blobs),
+        "events": stored_once(hellos, blobs),
         "guides": guides,
         "aliases": aliases,
         "main": "@mk/app/main.js",
     }
     # JSON with no "<", which could end its <script> element early.
     blob = lines(data).replace("<", "\\u003c")
+    stored = json.dumps(list(blobs)).replace("<", "\\u003c")
     runtime = (UI / "mockup" / "runtime.js").read_text()
 
     page = re.sub(r'<link rel="stylesheet"[^>]*>\n', "", page)
@@ -735,6 +753,7 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     page = page.replace(
         '<div id="app"></div>\n',
         f'{sprite.strip()}\n<div id="app"></div>\n'
+        f'<script type="application/json" id="mk-blobs">\n{stored}\n</script>\n'
         f'<script type="application/json" id="mk-data">\n{blob}\n</script>\n'
         f"{scripts}<script>\n{embed('runtime.js', runtime)}</script>\n",
     )
