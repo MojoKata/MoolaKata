@@ -163,8 +163,11 @@ GUIDE_CHECK = r"""(scope) => {
     .map((h) => ({ id: h.dataset.anchor, text: norm(h.textContent).replace(/^▶\s*/, '') }));
   const cased = [];
   const labels = new Set();
-  // A switch is named by its label too (SwitchRow).
-  for (const el of root.querySelectorAll('[role=switch][aria-label]')) {
+  // A switch, and a field drawn without its label (a table's cell), is named by aria-label.
+  for (const el of root.querySelectorAll(
+    '[role=switch][aria-label], [role=combobox][aria-label], [data-help][aria-label], ' +
+      'input[aria-label], select[aria-label], textarea[aria-label]',
+  )) {
     labels.add(norm(el.getAttribute('aria-label')).toLowerCase());
   }
   for (const el of root.querySelectorAll('label[for]')) {
