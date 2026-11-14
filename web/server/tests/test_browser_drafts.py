@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from browser import Household, made, months_back, signed_in, wait
+from browser import SAVED_TOAST, Household, made, months_back, signed_in, wait
 from edits import (
     change,
     create,
@@ -367,7 +367,7 @@ def test_saved_unchanged_a_form_changes_nothing(browser, household, form):
         wait(page, ".dialog", problems, state="detached")
     else:
         page.click(f"{form.ready} button.primary:enabled")
-        wait(page, ".toast", problems)
+        wait(page, SAVED_TOAST, problems)
     assert form.reads(h) == before
     assert problems == []
     page.close()
@@ -1422,7 +1422,7 @@ def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, househo
         page.wait_for_timeout(50)
     assert page.input_value("#f-beneficiary") == wren
     page.click("form.draft-form button.primary")
-    wait(page, ".toast", problems)
+    wait(page, SAVED_TOAST, problems)
     plan = h.c.get(f"/ui/api/accounts/{a['id']}/plan529").json()
     assert plan["beneficiaryId"] == wren
     assert problems == []

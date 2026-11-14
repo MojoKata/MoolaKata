@@ -24,8 +24,9 @@ def edit(browser, h: Household, name: str, fields: dict[str, str]) -> str:
     for label, value in fields.items():
         dialog.get_by_label(label, exact=True).fill(value)
     page.click(".dialog footer button.primary:enabled")
-    wait(page, ".toast", problems)
-    said = page.locator(".toast").first.inner_text()
+    # The save's own toast: a live alert's may arrive beside it ("New alert: …").
+    wait(page, '.toast:has-text("Saved")', problems)
+    said = page.locator(".toast", has_text="Saved").first.inner_text()
     assert problems == []
     page.close()
     return said
