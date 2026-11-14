@@ -131,4 +131,4 @@ def test_an_avatar_kept_once_is_drawn_whole(browser):
     ctx.close()
     assert srcs and set(srcs) == {want}
     assert page.problems == []
-    assert PAGE.read_text().count(want[:200]) == 1, "the picture is in the page once"
+    assert PAGE.read_text().count(want) == 1, "the picture is in the page once"
