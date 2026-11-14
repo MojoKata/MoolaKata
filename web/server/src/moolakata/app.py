@@ -46,7 +46,7 @@ class Server:
     loop: Any = None
     restarting: bool = False
     # A new server's welcome: the phrases on offer until one is confirmed (S15.4.4); and a
-    # rotation's, offered the same way in Settings › Key storage (S15.7.1).
+    # rotation's, offered the same way in Settings › Key Storage (S15.7.1).
     phrases: Phrases = field(default_factory=Phrases)
     rotations: Phrases = field(default_factory=Phrases)
     # The break-glass code a host command asked for, for a lost phrase (S15.5.2).

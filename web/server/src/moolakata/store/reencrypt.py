@@ -91,7 +91,7 @@ def pending(config: Config) -> bool:
 def schedule(
     config: Config, choices: dict[str, str], by: str | None, why: str, to: str | None = None
 ) -> dict:
-    """A re-encryption for the next unlock (Settings › Key storage, or a rotation), with each
+    """A re-encryption for the next unlock (Settings › Key Storage, or a rotation), with each
     copy's choice; the server restarts for it at once (S15.7.2). The phrase is the one given
     at that unlock. `to`, for a rotation, is the new master key's id, so a run that finds the
     keyring still under the old one says the rotation didn't finish. One already pending is
@@ -405,7 +405,7 @@ def at_once(config: Config, master_key: bytes, choices: dict[str, str], why: str
     run in one go, the data directory's lock held."""
     from .maintenance import lock_data_dir
 
-    lock = lock_data_dir(config, "stop the server first, or schedule it in Settings › Key storage")
+    lock = lock_data_dir(config, "stop the server first, or schedule it in Settings › Key Storage")
     try:
         if journal(config) is None:
             schedule(config, choices, None, why)

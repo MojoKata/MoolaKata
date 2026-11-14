@@ -28,7 +28,7 @@ beside the 529 withdrawals for them in Education.
 
 The accounts this book counts that are theirs, such as a custodial account. A dependent child's
 interest, dividends and gains in them are checked against the year's Form 8615 threshold from
-Settings › Tax tables.
+Settings › Tax Tables.
 
 ## Remove
 

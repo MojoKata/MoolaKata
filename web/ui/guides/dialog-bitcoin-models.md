@@ -5,4 +5,4 @@ Published models of bitcoin's price, each from today's price on a log scale, wit
 MoolaKata's view and not advice: the curve fits describe the past, stock-to-flow has run below its
 own band since 2022, and the targets come from people who hold bitcoin.
 
-Their figures ship with MoolaKata, dated, in Settings › Tax tables, where an admin can correct them.
+Their figures ship with MoolaKata, dated, in Settings › Tax Tables, where an admin can correct them.

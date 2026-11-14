@@ -672,7 +672,7 @@ function TaxTables() {
   };
   const groups = [...new Set(v.rows.map((/** @type {any} */ r) => r.group))];
   return html`
-    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Tax tables"
+    <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Tax Tables"
       what=${`The ${v.year} tables`} saved=${() => {
         toast('Saved');
         res.reload();
@@ -1394,7 +1394,7 @@ function ReminderSetting() {
   const options = [0, 6, 12, 18, 24, 36, 48, 60];
   if (!options.includes(months)) options.push(months);
   return html`
-    <${DraftForm} f=${fd} class="card mt" where="Settings › Key storage" what="The reminder"
+    <${DraftForm} f=${fd} class="card mt" where="Settings › Key Storage" what="The reminder"
       saved=${() => {
         toast('Saved');
         s.reload();

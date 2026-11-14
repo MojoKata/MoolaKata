@@ -144,7 +144,7 @@ def test_keys_unlock_hands_the_phrase_over_the_socket(locked, master_key):
         assert said[-1].startswith("unlocked: mk-") and srv.store is not None
         said.clear()
         assert keys_cli.break_glass(srv.config, say=said.append) == 0, said
-        assert said[0].startswith("BG-") and "Settings › Key storage › Rotate" in said[0]
+        assert said[0].startswith("BG-") and "Settings › Key Storage › Rotate" in said[0]
     finally:
         stop.set()
         t.join(10)
@@ -182,7 +182,7 @@ def test_a_scheduled_reencryption_runs_at_the_unlock_before_the_server_serves(lo
 
 
 def test_reencrypt_now_schedules_it_and_restarts_never_running_while_serving(server, admin_client):
-    """S15.7.2: Settings › Key storage's Re-encrypt now, after the password again, schedules it
+    """S15.7.2: Settings › Key Storage's Re-encrypt now, after the password again, schedules it
     and restarts the server; the unlock that follows runs it. Once scheduled it is neither
     withdrawn nor replaced (CR3-61)."""
     from conftest import stale

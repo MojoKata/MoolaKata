@@ -49,7 +49,7 @@ async def unlock(body: Phrase, request: Request):
 @router.post("/keys/break-glass")
 def break_glass(request: Request):
     """`moolakata keys break-glass` (S15.5.2): a code that stands in for a lost phrase at
-    Settings › Key storage › Rotate, for 15 minutes and once. Every admin is told."""
+    Settings › Key Storage › Rotate, for 15 minutes and once. Every admin is told."""
     from . import activity
 
     srv = server(request)

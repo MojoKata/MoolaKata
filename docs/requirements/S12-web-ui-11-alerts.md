@@ -14,8 +14,8 @@
           unpairs (S18.5), and a Connection needing a sign-in or failing; the yearly check of
           the master key's recovery phrase (S15.6.5), due a year after the phrase last opened
           the keyring, by an unlock, **Verify key** or `keys verify`, or after the key was made,
-          which opens Settings › Key storage's **Verify key**; the master
-          key's rotation, due after the period Settings › Key storage sets (S15.8.4), which
+          which opens Settings › Key Storage's **Verify key**; the master
+          key's rotation, due after the period Settings › Key Storage sets (S15.8.4), which
           opens Key storage's **Rotate**; a break-glass code asked for on the host, for two
           days, so one nobody here asked for is noticed (S15.5.2); and the
           receipt reader running without its file sandbox, on a host that doesn't offer

@@ -82,7 +82,7 @@ def price_sources(s: Session, server) -> Iterable[Cause]:
             title=f"{label} failing for {_ago(now - since)}",
             about=f"price source · {src.lastError}",
             link="/ui/settings/prices",
-            fix="Prices settings",
+            fix="Prices Settings",
             icon="sync",
             since=since,
             delay=limit,
@@ -102,7 +102,7 @@ def bitcoin_certificate(s: Session, server) -> Iterable[Cause]:
             about="it is refused until an admin confirms the new one",
             user_id=None,
             link="/ui/settings/bitcoin",
-            fix="Bitcoin settings",
+            fix="Bitcoin Settings",
             icon="lock",
         )
 
@@ -127,7 +127,7 @@ def bitcoin_off_chain(s: Session, server) -> Iterable[Cause]:
             about="keep it, or delete it",
             user_id=owner,
             link=f"/ui/accounts/{account_id}/transactions",
-            fix="See it",
+            fix="See It",
             icon="alert",
         )
 
@@ -162,7 +162,7 @@ def bitcoin_source(s: Session, server) -> Iterable[Cause]:
             about=f"explorer or node · {run.error}",
             user_id=who,
             link="/ui/settings/bitcoin" if who is None else "/ui/accounts",
-            fix="Bitcoin settings" if who is None else "Your accounts",
+            fix="Bitcoin Settings" if who is None else "Your Accounts",
             icon="sync",
             since=since,
             delay=dt.timedelta(hours=settings.get(s, "alertSourceHours")),
@@ -189,7 +189,7 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
                 title=f"{name} has no link with this server",
                 about="restored from an older backup, perhaps · end the link, or link again",
                 link="/ui/settings/links",
-                fix="Linked servers",
+                fix="Linked Servers",
                 icon="link",
                 since=link.brokenAt,
             )
@@ -201,7 +201,7 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
                 title=f"{name}'s certificate changed",
                 about="compare its new fingerprint with its admin, then accept it",
                 link="/ui/settings/links",
-                fix="Linked servers",
+                fix="Linked Servers",
                 icon="link",
             )
             continue
@@ -212,7 +212,7 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
                 title=f"{name} not reached for {_ago(now - link.failingSince)}",
                 about=f"linked server · {link.lastError}",
                 link="/ui/settings/links",
-                fix="Linked servers",
+                fix="Linked Servers",
                 icon="link",
                 since=link.failingSince,
                 delay=limit,
@@ -227,7 +227,7 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
                 title=f"{name} shares something with people here",
                 about="its copy waits for an access key",
                 link="/ui/settings/links",
-                fix="Create the access key",
+                fix="Create the Access Key",
                 icon="link",
             )
 
@@ -253,7 +253,7 @@ def connector(s: Session, server) -> Iterable[Cause]:
             about=f"Connector · last report {row.lastReportAt:%b %-d, %H:%M} UTC · "
             "it is stopped, down, or can't reach MoolaKata",
             link="/ui/settings/connector",
-            fix="Connector settings",
+            fix="Connector Settings",
             icon="sync",
             since=row.lastReportAt,
         )
@@ -267,7 +267,7 @@ def connector(s: Session, server) -> Iterable[Cause]:
             about=f"Connector · was {row.knownAddress}, now {row.newAddress} · accept it if "
             "the connector moved; unpair if its host was lost",
             link="/ui/settings/connector",
-            fix="Connector settings",
+            fix="Connector Settings",
             icon="alert",
             since=row.lastReportAt,
         )
@@ -278,7 +278,7 @@ def connector(s: Session, server) -> Iterable[Cause]:
             title="The MoolaKata Connector is locked",
             about="Connector · unlock it on its page, or on its host, with its 12 words",
             link="/ui/settings/connector",
-            fix="Connector settings",
+            fix="Connector Settings",
             icon="lock",
             since=row.lastReportAt,
         )
@@ -308,7 +308,7 @@ def connector(s: Session, server) -> Iterable[Cause]:
                 about=about,
                 user_id=owner,
                 link="/ui/profile",
-                fix="Sign in again" if needs and owner == c.ownerId else "Your connections",
+                fix="Sign In Again" if needs and owner == c.ownerId else "Your Connections",
                 icon="lock" if needs else "sync",
                 since=c.lastRunAt,
             )
@@ -318,7 +318,7 @@ def connector(s: Session, server) -> Iterable[Cause]:
             title=title,
             about=about,
             link="/ui/settings/connector",
-            fix="Connector settings",
+            fix="Connector Settings",
             icon="lock" if needs else "sync",
             since=c.lastRunAt,
         )
@@ -356,7 +356,7 @@ def reader_sandbox(s: Session, server) -> Iterable[Cause]:
             about="this host doesn't offer Landlock (Linux 5.13 or later, and a container "
             "that allows it), so a file that exploits a reader could reach the data directory",
             link="/ui/settings/receipts",
-            fix="Receipts settings",
+            fix="Receipts Settings",
             icon="lock",
         )
 
@@ -377,7 +377,7 @@ def email(s: Session, server) -> Iterable[Cause]:
         title=f"Email can't be sent: {len(waiting)} waiting",
         about=f"SMTP · {run.error}",
         link="/ui/settings/email",
-        fix="Email settings",
+        fix="Email Settings",
         icon="sync",
         since=oldest,
         delay=dt.timedelta(hours=settings.get(s, "alertSourceHours")),
@@ -398,9 +398,9 @@ def key_rotation(s: Session, server) -> Iterable[Cause]:
             key="keys:rotation",
             kind="key-rotation",
             title="Time to rotate the master key",
-            about=f"it is over {months} months old: Rotate, in Settings › Key storage",
+            about=f"it is over {months} months old: Rotate, in Settings › Key Storage",
             link="/ui/settings/keys",
-            fix="Key storage",
+            fix="Key Storage",
             icon="lock",
             since=due,
         )
@@ -451,9 +451,9 @@ def recovery_phrase(s: Session, server) -> Iterable[Cause]:
             key="keys:phrase",
             kind="phrase-check",
             title="Check the recovery phrase: it's been a year",
-            about="type a copy of the phrase into Verify key, in Settings › Key storage",
+            about="type a copy of the phrase into Verify Key, in Settings › Key Storage",
             link="/ui/settings/keys?verify",
-            fix="Verify key",
+            fix="Verify Key",
             icon="lock",
             since=due,
         )
@@ -492,7 +492,7 @@ def accounts(s: Session, server) -> Iterable[Cause]:
                 f"overdue from {late.due:%b %-d}",
                 user_id=a.ownerId,
                 link=where,
-                fix="Import a statement",
+                fix="Import a Statement",
                 icon="receipt",
                 since=dt.datetime.combine(late.due, dt.time(), dt.UTC),
             )
@@ -555,7 +555,7 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
             "it, or type a price",
             user_id=a.ownerId,
             link=f"/ui/accounts/{a.id}/holdings",
-            fix="See the holdings",
+            fix="See the Holdings",
             icon="receipt",
         )
 
@@ -603,7 +603,7 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
                 about=f"{before} · the recurring payments from it",
                 user_id=u.id,
                 link=f"/ui/budgets/{b.id}/recurring",
-                fix="See the recurring payments",
+                fix="See the Recurring Payments",
                 icon="bank",
             )
 
@@ -659,7 +659,7 @@ def projections_behind(s: Session, server) -> Iterable[Cause]:
                 about=f"below the band of the baseline set {p.baselineAt:%b %-d, %Y}",
                 user_id=p.ownerId,
                 link="/ui/projections",
-                fix="See the plan",
+                fix="See the Plan",
                 icon="trend",
             )
 
@@ -689,7 +689,7 @@ def options_expired(s: Session, server) -> Iterable[Cause]:
                 about=f"in {a.name}; expired, assigned or exercised",
                 user_id=a.ownerId,
                 link="/ui/positions/open",
-                fix="Record it",
+                fix="Record It",
                 icon="candles",
             )
 
@@ -724,7 +724,7 @@ def options_expiring(s: Session, server) -> Iterable[Cause]:
                 about=f"{abs(qty).normalize():f} {'short' if qty < 0 else 'long'} in {a.name}",
                 user_id=a.ownerId,
                 link="/ui/positions/open",
-                fix="See it",
+                fix="See It",
                 icon="candles",
             )
 
@@ -772,7 +772,7 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
             about=f"for {period}",
             user_id=o.ownerId,
             link="/ui/giving/organisations",
-            fix="Record a donation",
+            fix="Record a Donation",
             icon="heart",
         )
 
@@ -796,7 +796,7 @@ def occasions(s: Session, server) -> Iterable[Cause]:
                 about=gifts.what_is_missing(up),
                 user_id=u.id,
                 link="/ui/gifts",
-                fix="Plan a gift",
+                fix="Plan a Gift",
                 icon="gift",
             )
 

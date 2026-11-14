@@ -43,7 +43,7 @@ preparer.
    directions, receipts included (the side that calls sends its own receipts' bytes in it), so
    whichever side can reach the other makes it. A link address is `https`, with no query or
    fragment, and never a loopback, link-local or cloud metadata address, whoever names it
-   (S13.5). Each server's **link address** is set in Settings › Linked servers (its public URL
+   (S13.5). Each server's **link address** is set in Settings › Linked Servers (its public URL
    when not set), and the link listener answers under `/link/`.
 3. **What a link carries**: only what a user on one server has shared with named people on the
    other (S10.3.3), always **read**, never write. The shares travel with the data, and the
@@ -117,7 +117,7 @@ preparer.
    deleted), and the new link pulls everything afresh. A link that is neither is the one the
    two servers have, and a second join with it is refused. The states and what moves a link
    between them are `docs/link-protocol.md` §4.6.
-7. **Settings › Linked servers** lists each link: the peer's name and address, its
+7. **Settings › Linked Servers** lists each link: the peer's name and address, its
    fingerprint, state (invited, requested, pending, active, paused until…, unreachable
    since…, broken, ended), the last pull, and
    what flows each way, with *Pull now*, *Pause* and *End link*.
@@ -167,7 +167,7 @@ preparer.
       **12 words** from the BIP39 English word list (the last word carries a checksum). The
       words are the copy's **access key**.
       1. **Made by the receiving admin**, when the link's first share arrives: Settings ›
-         Linked servers › **Create the access key**. The server makes the copy key, shows the
+         Linked Servers › **Create the access key**. The server makes the copy key, shows the
          words once, and asks the admin to confirm they have saved them, typically in the
          household's password manager, where the people the shares name can reach them. The
          receiving admin is trusted with the copy: holding the words, they could open it, as
@@ -203,7 +203,7 @@ preparer.
          memory until it is reclaimed, so this is a release, overwritten where possible, not a
          guaranteed erasure.
       3. It also locks at **Lock now** (in the linked household's window, and in Settings ›
-         Linked servers for admins), which anyone the copy shares with can press, and when
+         Linked Servers for admins), which anyone the copy shares with can press, and when
          the server restarts.
       4. While a copy is locked, its window asks for the words. Nothing from it appears
          anywhere else at any time (S12.10).
@@ -260,7 +260,7 @@ preparer.
       reaches the copy at its next exchange (S11.4), which then hides the item from that user,
       with no re-keying. New words are needed only if they reach someone who could also read
       this server's disk (S11.9.10).
-   8. **Lost words.** **Reset copy** (Settings › Linked servers, admins) deletes the folder,
+   8. **Lost words.** **Reset copy** (Settings › Linked Servers, admins) deletes the folder,
       makes a new copy key with new words, and pulls everything again from the source.
       Nothing is lost: the linked copy is only a copy, and the source keeps the data. The
       master key has a recovery phrase because it is the only way into this server's own

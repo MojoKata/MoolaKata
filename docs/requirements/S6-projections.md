@@ -63,7 +63,7 @@
          should continue. MoolaKata shows these as models others publish, not as its own
          view, and not as advice (R1.16).
       3. **Their figures ship with the app**, dated and with their source, in Settings ›
-         Tax tables, and are updated with it (a new ARK target, a refit of the power law).
+         Tax Tables, and are updated with it (a new ARK target, a refit of the power law).
       4. A projection that uses a model with bear, base and bull cases shows those three
          paths in place of a fan, since they are not percentiles.
 4. **Models:**

@@ -68,7 +68,7 @@ def test_the_welcome_makes_the_key_and_the_first_admin(tmp_path, browser):
 
 
 def test_rotate_restarts_the_server_and_it_opens_with_the_new_phrase(tmp_path, browser):
-    """S15.7.1, S15.7.2: Rotate in Settings › Key storage shows a new phrase and takes three
+    """S15.7.1, S15.7.2: Rotate in Settings › Key Storage shows a new phrase and takes three
     of its words back; the server restarts itself, in the same process, locked; the new
     phrase unlocks it, re-encrypting first, and the old one no longer does."""
     import re

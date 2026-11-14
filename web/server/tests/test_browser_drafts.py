@@ -328,7 +328,7 @@ FORMS = [
         lambda h: h.c.get("/ui/api/assumptions").json(),
     ),
     settings_form("Settings › General", "general", 'form.card:has-text("Household name")'),
-    settings_form("Settings › Sign-up", "signup", 'form.card:has-text("Allowed email domains")'),
+    settings_form("Settings › Sign-Up", "signup", 'form.card:has-text("Allowed email domains")'),
     settings_form(
         "Settings › Email, its password kept",
         "email",
@@ -339,17 +339,17 @@ FORMS = [
     # test below, on a server of its own, so no wallet of the household is ever read.
     settings_form("Settings › Prices' refresh time", "prices", 'form:has-text("Daily refresh")'),
     settings_form(
-        "Settings › Tax tables",
+        "Settings › Tax Tables",
         "tax-tables",
         'form.card:has-text("Tax Tables")',
         "/settings/tax-tables",
     ),
     settings_form("Settings › Backups", "backups", 'form.card:has-text("Copies Kept")'),
     settings_form(
-        "Settings › Key storage's reminder", "keys", 'form.card:has-text("Remind admins")'
+        "Settings › Key Storage's reminder", "keys", 'form.card:has-text("Remind admins")'
     ),
     settings_form("Settings › Storage", "storage", 'form.card:has-text("Keep statements for")'),
-    settings_form("Settings › Linked servers' address", "links", 'form:has-text("link address")'),
+    settings_form("Settings › Linked Servers' address", "links", 'form:has-text("link address")'),
 ]
 
 

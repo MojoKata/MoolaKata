@@ -433,7 +433,7 @@ def test_the_deductions_panel_shows_tags_payments_and_dependents(browser, world)
     paid = _text(page, _card("Estimated Payments"))
     assert "Federal · Q1 $1,000.00 Federal · Q2 $1,000.00 Utah · Q1 $300.00" in paid
     assert "Last year's total tax: $8,400; paid in 2021 so far: $2,300." in paid
-    deps = _text(page, _card("Dependents' ages on Dec 31"))
+    deps = _text(page, _card("Dependents' Ages on Dec 31"))
     assert "Emma Griffin 3 · under 13 · under 17" in deps
     assert "TP Margaret age unknown" in deps
     assert (
@@ -480,7 +480,7 @@ def test_the_education_panel_shows_the_529_students_and_gifts(browser, world):
         "covered $1,500.00"
     ) in plans
     assert (
-        "Dependent students Emma Griffin 529 withdrawals for them: $6,000.00 1098-T received"
+        "Dependent Students Emma Griffin 529 withdrawals for them: $6,000.00 1098-T received"
     ) in plans
     gifts = _text(page, _card("Gifts (Form 709)"))
     assert "Admin to Emma Griffin above the $15,000 exclusion $30,000.00" in gifts
@@ -551,13 +551,13 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
         "Net Capital Gain or Loss +$103,190 short +$900 · long +$102,290",
         "Dividends $350 qualified $300",
         "Interest $3,121 2 payers",
-        "Charitable gifts $6,800 2 acknowledgements missing",
+        "Charitable Gifts $6,800 2 acknowledgements missing",
     ]
     book = world.book(YEAR)
     have = sum(1 for e in book["expected"] if e["document"])
     assert kpis[4:] == [
         "Filers Admin one filer",
-        f"Accounts counted {len(book['accounts'])} all the filers’ own",
+        f"Accounts Counted {len(book['accounts'])} all the filers’ own",
         "Filings 3 past due",
         f"Documents {have} of {len(book['expected'])} {len(book['expected']) - have} still to come",
     ]

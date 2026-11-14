@@ -15,7 +15,7 @@ looked at a phrase knows nothing of the key the server keeps.
 
 Write the 12 words on paper, in order, with the fingerprint. Keep two copies in two places, one of
 them offline, and never with the backups. Nothing shows them again; **Verify Key** in Settings ›
-Key storage checks a copy later.
+Key Storage checks a copy later.
 
 ## Words back {#words-back}
 

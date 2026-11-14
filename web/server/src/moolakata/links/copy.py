@@ -8,7 +8,7 @@ SQLCipher database under the link's own access key.
    key, then holds the key in memory for the whole server. Five wrong tries in a row make that
    user wait 15 minutes; a copy takes at most 20 tries an hour from everyone together.
 3. **Locking** (S11.9.4) closes the copy's connections and overwrites the key's bytes: when it
-   has gone unused for the time Settings › Linked servers sets, at Lock now, and at restart
+   has gone unused for the time Settings › Linked Servers sets, at Lock now, and at restart
    (the key only ever lived in memory)."""
 
 import datetime as dt

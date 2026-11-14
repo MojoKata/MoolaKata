@@ -1,5 +1,5 @@
 """The tax tables (requirements S16.11): per year, figures that ship with MoolaKata and are
-updated with it, which an admin can correct in Settings › Tax tables if the IRS changes one
+updated with it, which an admin can correct in Settings › Tax Tables if the IRS changes one
 before an update. Projections take contribution limits and the bitcoin models' published
 figures from here; taxes, 529s and giving take the rest as they are built.
 

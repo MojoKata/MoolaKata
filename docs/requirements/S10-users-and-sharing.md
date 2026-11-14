@@ -126,7 +126,7 @@
          spouse (S10.10.4), the owner of anything, and who receives alerts (S12.11). A
          remote user has a person too, filled from its server and used only for gifts
          (S10.10.1).
-      3. **Settings › Linked servers** lists each link's users, read only.
+      3. **Settings › Linked Servers** lists each link's users, read only.
 4. **The Share dialog** lists every active user, then every active group, then the people on
    each linked server, each list alphabetical under a heading with a line on what sharing
    gives. Local users and groups have a three-way switch **None · Read · Write**. People on

@@ -37,7 +37,7 @@ Not started, in progress, filed, accepted or rejected.
 
 ## Due date
 
-Left blank, the federal date comes from Settings › Tax tables; type a state's or a locality's.
+Left blank, the federal date comes from Settings › Tax Tables; type a state's or a locality's.
 
 ## Extension filed {#extension-filed-on}
 

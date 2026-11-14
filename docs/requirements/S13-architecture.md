@@ -93,7 +93,7 @@
       `Secure`, `SameSite=Strict`, `Path=/ui`, stored as its SHA-256. A new token at sign-in
       and at every change of privilege (two-step passed, made admin), so a token from before
       sign-in never works after it. Idle lifetime 8 hours and absolute 30 days by default
-      (Settings › Sign-in and sessions). Signing out, a password change and deactivation end
+      (Settings › Sign-In and Sessions). Signing out, a password change and deactivation end
       every session of that user at once. The cookie's `Max-Age` is the absolute lifetime, so
       a browser restart keeps the session. After a password change, the browser that made it
       gets a new session; accepting an invitation signs in, and a reset does not. The new

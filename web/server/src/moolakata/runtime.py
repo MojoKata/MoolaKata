@@ -250,7 +250,7 @@ def _build(server: Server, was_pending: bool) -> None:
 def check_restored(server: Server, restored: dict) -> None:
     """The first unlock after a restore (S15.6.8): each link's copy starts again, pulled in
     full (S11.9.9), and every receipt file and secret the restored keys can't open is reported
-    in Settings › Key storage and in Activity."""
+    in Settings › Key Storage and in Activity."""
     from sqlalchemy import select as sql_select
 
     from . import activity

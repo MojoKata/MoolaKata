@@ -3,7 +3,7 @@
 What another household shares with you is kept on this server in its own encrypted copy, under its
 own access key: 12 words, kept in your household's password manager. Changes keep arriving while it
 is locked; they are applied when it opens. It can't be opened until an admin here creates this copy's
-access key, in Settings › Linked servers.
+access key, in Settings › Linked Servers.
 
 ## Access key {#access-key}
 

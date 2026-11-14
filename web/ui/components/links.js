@@ -1,4 +1,4 @@
-// Settings › Linked servers (requirements S11.1, S11.7): invite a server or enter its code,
+// Settings › Linked Servers (requirements S11.1, S11.7): invite a server or enter its code,
 // approve a request after comparing fingerprints, pause, resume, pull now or end a link, and
 // each linked server's users.
 import { useEffect, useState } from 'preact/hooks';
@@ -95,7 +95,7 @@ export function LinksSection() {
           ? html`. Its own certificate's key: <code>${grouped(v.certificate)}</code>`
           : ''}</div>
       </div>
-      <${DraftForm} f=${fd} class="draft-form mb" where="Settings › Linked servers"
+      <${DraftForm} f=${fd} class="draft-form mb" where="Settings › Linked Servers"
         what="This server's link address" saved=${() => {
           toast('Saved');
           res.reload();
