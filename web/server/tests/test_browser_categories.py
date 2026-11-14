@@ -6,7 +6,7 @@ category's own categories, starting from the names they share. Settings › Stor
 a category warns while its receipts are kept under 7 years."""
 
 import pytest
-from browser import Household, made, months_back, signed_in, wait
+from browser import Household, made, months_back, signed_in, until, wait
 from edits import make
 
 pytestmark = pytest.mark.browser
@@ -81,16 +81,6 @@ def test_a_category_nothing_uses_is_deleted_from_its_dialog(browser, household):
 
 
 TOP = ".dialog-layer:not([inert])"
-
-
-def until(page, expr: str) -> None:
-    """Poll an expression from outside the page (the app's CSP refuses a string evaluated
-    inside it), for up to 30 s."""
-    for _ in range(600):
-        if page.evaluate(expr):
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"never true: {expr}")
 
 
 def test_a_new_category_from_a_dialog_opens_over_it_and_is_chosen(browser, household):

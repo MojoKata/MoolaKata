@@ -5,7 +5,7 @@ Discard or Save; Add rule puts a new one in the list until it is saved or discar
 rule opens New rule over a transaction's dialog, which stays as it was (S2.7.6, S12.15.7)."""
 
 import pytest
-from browser import Household, made, months_back, signed_in, wait
+from browser import Household, made, months_back, signed_in, until, wait
 from edits import make, remove, saved
 
 pytestmark = pytest.mark.browser
@@ -32,16 +32,6 @@ def drop(h: Household, *ids: str) -> None:
         r = rule(h, rule_id)
         if r:
             saved(remove(h.c, "Rule", r))
-
-
-def until(page, expr: str) -> None:
-    """Poll an expression from outside the page (the app's CSP refuses a string evaluated
-    inside it), for up to 30 s."""
-    for _ in range(600):
-        if page.evaluate(expr):
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"never true: {expr}")
 
 
 def buttons(page) -> list[str]:

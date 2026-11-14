@@ -211,6 +211,18 @@ def open_page(browser, url):
 SAVED_TOAST = '.toast:not(:has-text("New alert"))'
 
 
+def until(page, cond, timeout: float = 30, what: str = "") -> None:
+    """Wait until a condition holds: a page expression, polled from outside the page (the
+    app's CSP refuses a string evaluated inside it), or a check of the test's own. Never a
+    fixed time (S17.5): the timeout is generous, as a spurious failure costs more than a real
+    one that is slow to show."""
+    end = time.monotonic() + timeout
+    while not (page.evaluate(cond) if isinstance(cond, str) else cond()):
+        if time.monotonic() > end:
+            raise AssertionError(f"never true in {timeout:g} s: {what or cond}")
+        page.wait_for_timeout(50)
+
+
 def wait(page, selector: str, problems: list, **kw) -> None:
     """Wait for a selector, then for the page to settle (jscoverage.SETTLED), so the test moves
     on from the same state every run (S17.5.8); a timeout names what the page reported on the

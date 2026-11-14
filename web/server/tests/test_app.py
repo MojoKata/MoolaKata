@@ -7,6 +7,7 @@ import time
 from collections import deque
 
 import pytest
+from browser import until
 from devapp import (
     DEV,
     LOAD_FAILED,
@@ -105,12 +106,19 @@ def test_a_guides_acronyms_show_what_they_stand_for(page):
         "a => a.getBoundingClientRect().top < a.closest('.help').getBoundingClientRect().bottom"
     ), "the last term shows without scrolling"
     last.focus()
-    page.wait_for_timeout(300)
-    assert card.count() == 1
-    top = card.bounding_box()["y"]
+    page.wait_for_selector(shown)
+    # The pane scrolls to the term smoothly: its card's place is read once it has stopped.
+    ys = []
+
+    def still() -> bool:
+        ys.append(card.bounding_box()["y"])
+        return len(ys) > 2 and ys[-1] == ys[-2] == ys[-3]
+
+    until(page, still, what="the card at rest")
+    top = ys[-1]
     page.evaluate("document.querySelector('.help').scrollTop -= 30")
-    page.wait_for_timeout(300)
-    assert card.count() == 1 and abs(card.bounding_box()["y"] - (top + 30)) < 2
+    until(page, lambda: card.count() == 1 and abs(card.bounding_box()["y"] - (top + 30)) < 2,
+          what="the card 30 px lower, with its term")  # fmt: skip
     page.evaluate("document.querySelector('.help').scrollTop = 0")
     page.wait_for_selector(shown, state="detached")
     page.set_viewport_size({"width": 1440, "height": 900})
@@ -211,11 +219,7 @@ def test_a_dialog_masks_the_content_not_the_guide(page):
     page.keyboard.press("F1")
     page.wait_for_selector(".help", state="detached")
     edge = "document.querySelector('.scrim').getBoundingClientRect().right === innerWidth"
-    for _ in range(40):
-        if page.evaluate(edge):
-            break
-        page.wait_for_timeout(50)
-    assert page.evaluate(edge), "the mask covers the window"
+    until(page, edge, what="the mask covers the window")
     assert page.get_attribute(".dialog", "aria-modal") == "true"
     page.keyboard.press("F1")
     page.wait_for_selector(".help")

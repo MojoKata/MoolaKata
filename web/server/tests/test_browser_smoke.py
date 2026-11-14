@@ -2,7 +2,7 @@
 
 import httpx
 import pytest
-from browser import open_page, start, stop, unlocked
+from browser import open_page, start, stop, unlocked, until
 
 from moolakata.keys import phrase
 
@@ -25,8 +25,7 @@ def test_app_loads_under_its_csp(running, browser):
 
 def test_demo_runs_in_its_sandbox(running, browser):
     page, problems = open_page(browser, running + "/demo#/dashboard")
-    page.wait_for_timeout(300)
-    assert page.evaluate("typeof window.MOCK_INDEX") == "object"
+    until(page, "typeof window.MOCK_INDEX === 'object'")
     assert problems == []
     page.close()
 

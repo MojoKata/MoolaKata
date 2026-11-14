@@ -4,7 +4,7 @@ the page whose links move around the app while it stays; a step ticks itself as 
 it lasts through a reload, its width drags, and ✕ closes it."""
 
 import pytest
-from browser import made, months_back, signed_in, wait
+from browser import made, months_back, signed_in, until, wait
 from edits import change, make, remove, saved
 from test_budgets import save_plan
 
@@ -12,16 +12,6 @@ pytestmark = pytest.mark.browser
 
 TAB = "/ui/budgets/none/categories"
 TOUR = "aside.tour"
-
-
-def until(page, expr: str) -> None:
-    """Poll an expression from outside the page (the app's CSP refuses a string evaluated
-    inside it), for up to 30 s."""
-    for _ in range(600):
-        if page.evaluate(expr):
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"never true: {expr}")
 
 
 def step(page, title: str):

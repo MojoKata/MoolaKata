@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from browser import SAVED_TOAST, Household, made, months_back, signed_in, wait
+from browser import SAVED_TOAST, Household, made, months_back, signed_in, until, wait
 from edits import (
     change,
     create,
@@ -1196,11 +1196,7 @@ def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, househol
     page, problems = signed_in(browser, h, "/ui/settings/links", "#f-link-release")
     before = h.c.get("/ui/api/profile").json()["theme"]
     page.click('button[aria-label^="Theme: "]')
-    for _ in range(50):
-        if h.c.get("/ui/api/profile").json()["theme"] != before:
-            break
-        page.wait_for_timeout(100)
-    assert h.c.get("/ui/api/profile").json()["theme"] != before
+    until(page, lambda: h.c.get("/ui/api/profile").json()["theme"] != before, what="theme saved")
     page.select_option("#f-link-release", "240")
     wait(page, '.toast:has-text("Saved")', problems)
     assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 240
@@ -1441,11 +1437,8 @@ def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, househo
     wait(page, ".dialog #f-their-name", problems)
     page.keyboard.press("Escape")
     wait(page, ".dialog", problems, state="detached")
-    for _ in range(600):  # the choice goes back once the dialog has gone
-        if page.input_value("#f-beneficiary") == "":
-            break
-        page.wait_for_timeout(50)
-    assert page.input_value("#f-beneficiary") == ""
+    # The choice goes back once the dialog has gone.
+    until(page, lambda: page.input_value("#f-beneficiary") == "", what="the choice back")
     page.select_option("#f-beneficiary", "new")
     wait(page, ".dialog #f-their-name", problems)
     page.fill(".dialog #f-their-name", "Browser Wren")
@@ -1458,11 +1451,7 @@ def test_a_529s_beneficiary_added_in_a_dialog_over_its_settings(browser, househo
     wait(page, ".dialog", problems, state="detached")
     people = {p["name"]: p["id"] for p in h.c.get("/ui/api/persons").json()["items"]}
     wren = people["Browser Wren"]
-    for _ in range(600):
-        if page.input_value("#f-beneficiary") == wren:
-            break
-        page.wait_for_timeout(50)
-    assert page.input_value("#f-beneficiary") == wren
+    until(page, lambda: page.input_value("#f-beneficiary") == wren, what="Wren chosen")
     page.click("form.draft-form button.primary")
     wait(page, SAVED_TOAST, problems)
     plan = h.c.get(f"/ui/api/accounts/{a['id']}/plan529").json()

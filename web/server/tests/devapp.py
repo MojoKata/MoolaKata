@@ -14,7 +14,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from browser import SERVER_LOG
+from browser import SERVER_LOG, until
 
 from moolakata.dev.settled import SETTLED, TRACK_FETCHES, WAITING
 
@@ -200,9 +200,9 @@ GUIDE_CHECK = r"""(scope) => {
 def check_guide(page, scope: str, where: str) -> None:
     """The guide shown has a heading for each field, in the fields' order, each reading as what
     it names (S12.7.4). Asked again until
-    it does or 10 s pass, as a field drawn late (its record still loading) gets its heading
+    it does or 30 s pass, as a field drawn late (its record still loading) gets its heading
     once it is there; the last answer is the one judged."""
-    for _ in range(200):
+    for _ in range(600):
         r = page.evaluate(GUIDE_CHECK, scope)
         if "error" not in r and not r["missing"] and r["backwards"] is None and not r["cased"]:
             break
@@ -268,11 +268,11 @@ def account_ids(page) -> dict[str, str]:
 def wait_guide(page, key: str) -> None:
     """Wait for the help pane to show a guide. Polled from outside the page: a string
     evaluated inside it is refused by the app's CSP, which is the point."""
-    for _ in range(100):
-        if page.evaluate("document.querySelector('.help .guide')?.dataset.guide") == key:
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"the help pane never showed {key}")
+    until(
+        page,
+        lambda: page.evaluate("document.querySelector('.help .guide')?.dataset.guide") == key,
+        what=f"the help pane showing {key}",
+    )
 
 
 def open_dialog(page, path: str, button: str, guide: str) -> None:

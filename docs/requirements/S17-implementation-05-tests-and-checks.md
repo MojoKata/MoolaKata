@@ -18,8 +18,11 @@
    Code is shaped for this: what a route, a task or a call does lives in functions beneath it,
    tested without a running server or a network, and a fake stands where the network or the
    clock begins, never in place of the code above it. A test waits on an event or a
-   condition, with a generous timeout, never for a fixed time unless the time is what it tests;
-   a test that waits for time passing moves an injected clock. Code that turns on the shape of
+   condition, never for a fixed time, except to see that nothing happens (no dialog opens, a
+   card stays open), where the time is what it gives the page to go wrong. Its timeouts are
+   generous: a spurious failure costs far more than a real one that is slow to show, so a wait
+   long enough on a busy runner is never cut to save seconds on a quiet one. A test that waits
+   for time passing moves an injected clock. Code that turns on the shape of
    its data has its axes named and a case for each combination, and where they multiply past
    reason the choice of cases is written down. A bug that got past the tests is fixed with the
    test that covers its kind, not just its case.
