@@ -15,7 +15,7 @@
        the same way; the parts split by measured time, each test weighing what it took in a
        recent run (`web/server/tests/durations.json`, which `web/dev.sh ci-durations` gathers
        from a run's artifacts), the longest first, each to the part with the least so far, a
-       module whose tests run one after another kept whole; the generated mockup, built, opened and kept as the run's artifact; the hand-written mockup's screens, opened and kept as the run's artifact too; the ui-kit's pages and tests, S17.5.13, kept with their screenshots as the run's artifact),
+       module whose tests run one after another kept whole; the generated mockup, crawled in two parts side by side and joined as one crawl keeps its answers, then opened and kept as the run's artifact; the hand-written mockup's screens, opened and kept as the run's artifact too; the ui-kit's pages and tests, S17.5.13, kept with their screenshots as the run's artifact),
        then the coverage of the test jobs together, from their measurements passed on as
        artifacts; the `check` job, the status the rulesets require, passes when every part
        does. The ui-kit's job runs on a pull request only when it changes the kit (or the

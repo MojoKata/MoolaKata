@@ -7,7 +7,14 @@ and those answers, with a small backend in the page that serves them, so it open
 and sends nothing anywhere. It isn't committed: CI builds it on every run, keeps a pull
 request's as the run's artifact and publishes main's on the Pages site (S12.9).
 
-    python web/ui/mockup/build.py           write the file
+    python web/ui/mockup/build.py                 write the file
+    python web/ui/mockup/build.py --part 1/2      crawl every second job, from the first, and
+                                                  write what it recorded beside the file
+    python web/ui/mockup/build.py --join A B ...  join the parts' records and write the file
+
+CI crawls in parts side by side and joins them (S17.10.1): the parts sign in as the same users
+in the same order on the same seeded server, so each job's answers are what one crawl would
+have recorded, and the join keeps them by the same rule a single crawl does (`Book.keep`).
 """
 
 import argparse
@@ -290,6 +297,11 @@ class Book:
     def kept(self) -> dict:
         return {k: self.answers[k][1] for k in sorted(self.answers)}
 
+    def join(self, other: dict[str, tuple[int, dict]]) -> None:
+        """Another part's answers, each with its job, kept as if this crawl had recorded them."""
+        for key, (job, answer) in other.items():
+            self.keep(key, job, answer)
+
 
 class Recorder:
     """A browser context crawling as one user, recording every answer the app's GETs receive
@@ -535,10 +547,11 @@ def crawl(base: str, data: str, username: str, signed: dict, book: Book, jobs: l
             browser.close()
 
 
-def record() -> tuple[dict, dict, list]:
+def record(part: tuple[int, int] | None = None) -> tuple[dict, dict, list]:
     """Every user's answers, one user after another as each signs in (what one user sees can
     tell who has signed in so far). A user's first recorder signs in and plans the jobs, WORKERS
-    workers run them in its session, and it asks for the event stream's hello last."""
+    workers run them in its session, and it asks for the event stream's hello last. With a
+    part (k of n), only every nth job from the kth, and each user's Book is returned whole."""
     from playwright.sync_api import sync_playwright
 
     answers, hellos, users = {}, {}, []
@@ -551,6 +564,9 @@ def record() -> tuple[dict, dict, list]:
                     book = Book()
                     first = Recorder(browser, server.base, username, tmp, book)
                     jobs = list(enumerate(first.plan()))
+                    if part:
+                        k, n = part
+                        jobs = [j for j in jobs if j[0] % n == k - 1]
                     # The longest first, so no worker is left with a long one at the end.
                     jobs.sort(key=lambda j: j[1][0] != "account")
                     signed = first.ctx.storage_state()
@@ -561,7 +577,7 @@ def record() -> tuple[dict, dict, list]:
                         ]
                         for f in running:
                             f.result()
-                    answers[username] = book.kept()
+                    answers[username] = book.answers if part else book.kept()
                     me = answers[username]["GET /ui/api/session"]["body"]["user"]
                     users.append({"username": username, "name": me["displayName"]})
                     hellos[username] = first.hello()
@@ -725,10 +741,39 @@ def assemble(answers: dict, hellos: dict, users: list) -> str:
     return page
 
 
+def part_file(k: int) -> Path:
+    return OUT.with_name(f"MoolaKata-app.part{k}.json")
+
+
+def join(paths: list[Path]) -> tuple[dict, dict, list]:
+    """The parts' records as one crawl's: each user's answers kept by `Book.keep`'s rule, the
+    hellos and users of the first part (every part signs in alike)."""
+    parts = [exactjson.loads(p.read_text()) for p in paths]
+    answers = {}
+    for username in parts[0]["answers"]:
+        book = Book()
+        for part in parts:
+            book.join({k: (job, a) for k, (job, a) in part["answers"][username].items()})
+        answers[username] = book.kept()
+    return answers, parts[0]["hellos"], parts[0]["users"]
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.parse_args(argv)
-    html = assemble(*record())
+    how = p.add_mutually_exclusive_group()
+    how.add_argument("--part", help="K/N: crawl every Nth job from the Kth, and keep its record")
+    how.add_argument("--join", nargs="+", type=Path, help="the parts' records to join")
+    a = p.parse_args(argv)
+    if a.part:
+        k, n = (int(x) for x in a.part.split("/"))
+        if not 1 <= k <= n:
+            p.error(f"--part {a.part}: K is from 1 to N")
+        answers, hellos, users = record((k, n))
+        out = part_file(k)
+        out.write_text(exactjson.dumps({"answers": answers, "hellos": hellos, "users": users}))
+        print(f"wrote {out.relative_to(ROOT)}: part {k} of {n}")
+        return 0
+    html = assemble(*(join(a.join) if a.join else record()))
     OUT.write_text(html)
     print(f"wrote {OUT.relative_to(ROOT)} ({len(html.encode()) // 1024} KiB)")
     return 0

@@ -184,36 +184,74 @@ jobs:
         if: failure()
         run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
 
-  # The mockups side by side: the generated one's drift, and the hand-written one's screens.
-  mockups:
-    name: ${{ matrix.part }}
+  # The mockup generated from the app (S12.9), crawled in two parts side by side: each signs in
+  # as the same users on the same seeded server and crawls every second job, keeping its record.
+  mockup-crawl:
+    name: app-mockup crawl ${{ matrix.part }} of 2
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        part: [app-mockup, hand-mockup]
+        part: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: true
-          # The commit before too: the coverage of the changed lines counts from it (a pull
-          # request's merge commit's first parent is its base).
           fetch-depth: 2
       - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
         run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
       - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
-      - name: web/check ${{ matrix.part }}
+      - name: web/check app-mockup, part ${{ matrix.part }} of 2
+        env:
+          MK_MOCKUP_PART: ${{ matrix.part }}/2
         run: |
           set -o pipefail
-          web/check ${{ matrix.part }} 2>&1 | tee "$RUNNER_TEMP/check.log"
-      # The mockup generated from the app (S12.9), kept as the file itself, so its link opens
-      # or saves the page; main's is published with the coverage site.
+          web/check app-mockup 2>&1 | tee "$RUNNER_TEMP/check.log"
+      - name: the part's record
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mockup-part-${{ matrix.part }}
+          path: docs/mockups/MoolaKata-app.part${{ matrix.part }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: say what failed
+        if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  # The parts' records joined into the page, as one crawl would have kept them, then opened
+  # screen by screen; kept as the file itself, so its link opens or saves the page; main's is
+  # published with the coverage site.
+  app-mockup:
+    name: app-mockup
+    needs: mockup-crawl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+          fetch-depth: 2
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
+      - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: the parts' records
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mockup-part-*
+          path: ${{ runner.temp }}/parts
+          merge-multiple: true
+      - name: web/check app-mockup, the parts joined
+        run: |
+          set -o pipefail
+          MK_MOCKUP_JOIN="$(ls "$RUNNER_TEMP"/parts/MoolaKata-app.part*.json | tr '\n' ' ')" \
+            web/check app-mockup 2>&1 | tee "$RUNNER_TEMP/check.log"
       - name: the generated mockup
         id: mockup
-        if: matrix.part == 'app-mockup'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: docs/mockups/MoolaKata-app.html
@@ -221,15 +259,35 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: the generated mockup's link, in the run's summary
-        if: matrix.part == 'app-mockup'
         env:
           URL: ${{ steps.mockup.outputs.artifact-url }}
         run: echo "**The mockup generated from the app:** [MoolaKata-app.html]($URL)" >> "$GITHUB_STEP_SUMMARY"
-      # The hand-written mockup as this commit has it, kept the same way, so a pull request's
-      # design changes open from the run; main's is published with the coverage site.
+      - name: say what failed
+        if: failure()
+        run: python3 web/check-failures.py "$RUNNER_TEMP/check.log"
+
+  # The hand-written mockup's screens, and the file as this commit has it, kept the same way, so
+  # a pull request's design changes open from the run; main's is published with the coverage site.
+  mockups:
+    name: hand-mockup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+          fetch-depth: 2
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
+      - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
+        run: web/dev.sh setup
+      - name: web/check hand-mockup
+        run: |
+          set -o pipefail
+          web/check hand-mockup 2>&1 | tee "$RUNNER_TEMP/check.log"
       - name: the hand-written mockup
         id: hand
-        if: matrix.part == 'hand-mockup'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: docs/mockups/MoolaKata-mock.html
@@ -237,7 +295,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: the hand-written mockup's link, in the run's summary
-        if: matrix.part == 'hand-mockup'
         env:
           URL: ${{ steps.hand.outputs.artifact-url }}
         run: echo "**The hand-written mockup:** [MoolaKata-mock.html]($URL)" >> "$GITHUB_STEP_SUMMARY"
@@ -375,7 +432,7 @@ jobs:
   # The status the rulesets require (docs/GENESIS.md): passing only when every part did.
   check:
     name: check
-    needs: [changes, tests, browser, ui-kit, mockups, coverage]
+    needs: [changes, tests, browser, ui-kit, mockup-crawl, app-mockup, mockups, coverage]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -386,7 +443,7 @@ jobs:
           KIT: ${{ needs.ui-kit.result }}
           KIT_CHANGED: ${{ needs.changes.outputs.kit }}
         run: |
-          echo "changes, tests, browser, ui-kit, mockups, coverage: $RESULTS"
+          echo "changes, tests, browser, ui-kit, mockup crawl, app-mockup, hand-mockup, coverage: $RESULTS"
           # The ui-kit's job is skipped only where the kit is unchanged; anything else that isn't
           # a success fails the check.
           for r in $RESULTS; do

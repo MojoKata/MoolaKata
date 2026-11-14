@@ -82,10 +82,16 @@ if want static; then
 step "OpenAPI and typedef drift" py python -m moolakata.contract check
 fi
 # The mockup generated from the app (S12.9): built, then opened screen by screen; CI keeps it as
-# the run's artifact and publishes main's.
+# the run's artifact and publishes main's. CI crawls it in parts side by side: MK_MOCKUP_PART=k/n
+# crawls one part and keeps its record; MK_MOCKUP_JOIN names the parts' records to join.
 if want app-mockup && [[ -f "$WEB/ui/mockup/build.py" ]]; then
-  step "generated mockup" py python "$WEB/ui/mockup/build.py"
-  step "generated mockup opened" py python -m pytest -n 3 -m mockup tests/test_mockup_app.py
+  if [[ -n ${MK_MOCKUP_PART:-} ]]; then
+    step "generated mockup, part $MK_MOCKUP_PART" py python "$WEB/ui/mockup/build.py" --part "$MK_MOCKUP_PART"
+  else
+    # shellcheck disable=SC2086 # the records' paths, one word each
+    step "generated mockup" py python "$WEB/ui/mockup/build.py" ${MK_MOCKUP_JOIN:+--join $MK_MOCKUP_JOIN}
+    step "generated mockup opened" py python -m pytest -n 3 -m mockup tests/test_mockup_app.py
+  fi
 fi
 # The server's tests across a worker per core (S17.5), each its own process measured as the rest
 # are, with the 30 slowest listed so a test that grows shows in the log. The browser modules' across four, each worker with its own servers, seeded household and
