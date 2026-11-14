@@ -8,7 +8,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 import tomllib
 
 import pytest
@@ -463,8 +462,13 @@ def test_a_worker_past_its_memory_is_named_and_its_change_counted_killed(tmp_pat
 
 
 def test_the_signal_that_stops_a_worker_ends_python_with_the_code_counted_killed():
-    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-    time.sleep(0.5)
+    # The signal reaches Python once it is up and says so.
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; print('up', flush=True); time.sleep(60)"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert child.stdout.readline() == "up\n"
     os.kill(child.pid, -mutate.OUT_OF_MEMORY)
     assert child.wait(timeout=10) == mutate.OUT_OF_MEMORY
 

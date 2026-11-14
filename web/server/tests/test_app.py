@@ -7,7 +7,6 @@ import time
 from collections import deque
 
 import pytest
-from browser import until
 from devapp import (
     DEV,
     LOAD_FAILED,
@@ -18,6 +17,8 @@ from devapp import (
     visit,
     wait_guide,
 )
+
+from moolakata.dev.waits import idle, until
 
 # Its tests share one page and its dev server, one after another: one worker runs them all.
 pytestmark = [pytest.mark.browser, pytest.mark.xdist_group("app")]
@@ -71,7 +72,7 @@ def test_a_guides_acronyms_show_what_they_stand_for(page):
     assert box["x"] + box["width"] - (icon["x"] + icon["width"]) < 16, "at the card's right"
     assert abs((icon["y"] + icon["height"] / 2) - (title["y"] + title["height"] / 2)) < 3
     source.hover()
-    page.wait_for_timeout(300)
+    idle(0.3, page=page, why="the card stays open under the pointer: time for it to close")
     assert card.count() == 1, "the card closed under the pointer"
     page.mouse.move(5, 5)
     page.wait_for_selector(shown, state="detached")

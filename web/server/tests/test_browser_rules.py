@@ -5,8 +5,10 @@ Discard or Save; Add rule puts a new one in the list until it is saved or discar
 rule opens New rule over a transaction's dialog, which stays as it was (S2.7.6, S12.15.7)."""
 
 import pytest
-from browser import Household, made, months_back, signed_in, until, wait
+from browser import Household, made, months_back, signed_in, wait
 from edits import make, remove, saved
+
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 

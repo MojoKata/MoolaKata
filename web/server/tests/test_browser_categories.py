@@ -6,8 +6,10 @@ category's own categories, starting from the names they share. Settings › Stor
 a category warns while its receipts are kept under 7 years."""
 
 import pytest
-from browser import Household, made, months_back, signed_in, until, wait
+from browser import Household, made, months_back, signed_in, wait
 from edits import make
+
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 

@@ -10,10 +10,11 @@ import datetime as dt
 from decimal import ROUND_HALF_UP, Decimal
 
 import pytest
-from browser import made, months_back, signed_in, until, wait
+from browser import made, months_back, signed_in, wait
 from edits import loan_payment, make, remove, saved, terms
 
 from moolakata import paths
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 

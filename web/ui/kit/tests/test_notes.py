@@ -7,6 +7,8 @@ import json
 from conftest import open_page
 from playwright.sync_api import expect
 
+from moolakata.dev.waits import idle
+
 
 def editor(page, demo: str):
     return page.locator(f"[data-demo='{demo}'] .ProseMirror")
@@ -238,7 +240,7 @@ def test_pasted_markup_keeps_only_what_a_note_holds(page, kit):
             "text/plain": "Title a b bad good w c1 c2",
         },
     )
-    page.wait_for_timeout(200)
+    idle(0.2, page=page, why="nothing pasted runs: time for a script to")
     assert page.evaluate("window.pwned") is None
     doc = kept(page, "note-empty")
     assert [b["type"] for b in doc["content"]] == [

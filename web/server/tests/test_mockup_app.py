@@ -7,6 +7,7 @@ import pytest
 from devapp import api_items
 
 from moolakata import paths
+from moolakata.dev.waits import idle
 
 # Run in web/check's app-mockup part, after the build writes the file (S12.9).
 pytestmark = [pytest.mark.browser, pytest.mark.mockup]
@@ -60,7 +61,7 @@ def open_as(browser, user: str):
 def show(page, path: str) -> None:
     page.goto(PAGE.as_uri() + "#" + path)
     page.wait_for_selector(".content > *")
-    page.wait_for_timeout(300)
+    idle(0.3, page=page, why="no unrecorded answer is asked for: time for the screen to ask")
     assert not page.is_visible("text=was not recorded"), f"{path} asked for an unrecorded answer"
 
 

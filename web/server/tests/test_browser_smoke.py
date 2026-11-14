@@ -2,8 +2,9 @@
 
 import httpx
 import pytest
-from browser import open_page, start, stop, unlocked, until
+from browser import open_page, start, stop, unlocked
 
+from moolakata.dev.waits import until
 from moolakata.keys import phrase
 
 pytestmark = pytest.mark.browser

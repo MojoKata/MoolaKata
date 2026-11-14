@@ -1,10 +1,11 @@
-import time
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from conftest import make_user, sign_in
 from edits import asked, change, create, edit, make, new_id, reconcile, remove, saved
+
+from moolakata.dev.waits import eventually
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -30,12 +31,14 @@ def add(c, account_id, amount, day="2026-09-01", **kw):
 
 def wait_job(c, job):
     # A statement starts its reader's process first: allow it time on a slow host.
-    for _ in range(600):
-        j = c.get(f"/ui/api/jobs/{job['id']}").json()
-        if j["state"] in ("done", "failed"):
-            return j
-        time.sleep(0.05)
-    raise AssertionError("the job did not finish")
+    seen = []
+
+    def finished() -> bool:
+        seen.append(c.get(f"/ui/api/jobs/{job['id']}").json())
+        return seen[-1]["state"] in ("done", "failed")
+
+    eventually(finished, timeout=60, what=f"job {job['id']} finished")
+    return seen[-1]
 
 
 def upload(c, account_id, name, data):

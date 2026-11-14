@@ -9,6 +9,8 @@ import pytest
 from browser import Household, made, months_back, signed_in, wait
 from edits import create, make, option_trade, saved
 
+from moolakata.dev.waits import idle
+
 pytestmark = pytest.mark.browser
 
 # An expiry still to come, and the days trades are made on: all in the past, on the real clock.
@@ -712,7 +714,7 @@ def test_the_portfolios_list_and_a_new_portfolio(browser, household):
     toast(page, "Saved", problems)
     # Saved, the new portfolio opens, and stays open (CR3-406).
     page.wait_for_url(re.compile(r"/ui/portfolios/Portf_"))
-    page.wait_for_timeout(1500)  # a late history.back() would land in this time
+    idle(1.5, page=page, why="it stays open: a late history.back() would land in this time")
     assert re.search(r"/ui/portfolios/Portf_", page.url), page.url
     assert problems == []
     page.close()

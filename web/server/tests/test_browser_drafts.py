@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
-from browser import SAVED_TOAST, Household, made, months_back, signed_in, until, wait
+from browser import SAVED_TOAST, Household, made, months_back, signed_in, wait
 from edits import (
     change,
     create,
@@ -23,6 +23,8 @@ from edits import (
     terms,
 )
 from test_budgets import save_plan
+
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 

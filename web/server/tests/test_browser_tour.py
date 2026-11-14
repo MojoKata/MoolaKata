@@ -4,9 +4,11 @@ the page whose links move around the app while it stays; a step ticks itself as 
 it lasts through a reload, its width drags, and ✕ closes it."""
 
 import pytest
-from browser import made, months_back, signed_in, until, wait
+from browser import made, months_back, signed_in, wait
 from edits import change, make, remove, saved
 from test_budgets import save_plan
+
+from moolakata.dev.waits import until
 
 pytestmark = pytest.mark.browser
 
