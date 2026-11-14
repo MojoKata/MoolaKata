@@ -2,7 +2,7 @@
 of writing that can move realized gains, against every state a tax book's federal return can
 be in, through the API (the filed tax years walk, decision 1, and its tests, decision 1.7).
 
-Each case makes a small household (Alice and Bob, married since 2009, a 2025 book they file
+Each case makes a small household (Jane and John, married since 2009, a 2025 book they file
 jointly) whose 2025 sales gain $250 in all, puts the book's federal return in a state, and
 writes one way. The invariant:
 
@@ -42,15 +42,15 @@ def _ok(r):
 
 
 class World:
-    """Alice and Bob, married; Alice's Brokerage, Second and IRA, Bob's brokerage; a 2025 book
+    """Jane and John, married; Jane's Brokerage, Second and IRA, John's brokerage; a 2025 book
     they file jointly."""
 
     def __init__(self, server):
         clock.fix(T0)
-        make_user(server, "alice")
-        make_user(server, "bob")
+        make_user(server, "jane")
+        make_user(server, "john")
         self.server = server
-        self.a, self.b = sign_in(server, "alice"), sign_in(server, "bob")
+        self.a, self.b = sign_in(server, "jane"), sign_in(server, "john")
         uid = {n: c.get("/ui/api/session").json()["user"]["id"] for n, c in (("a", self.a),
                ("b", self.b))}  # fmt: skip
         pa = self.a.get("/ui/api/profile").json()["personId"]
@@ -60,7 +60,7 @@ class World:
         _ok(self.b.post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
         self.acct = {}
         accounts = (("a", "Brokerage", "brokerage"), ("a", "Second", "brokerage"),
-                    ("a", "IRA", "ira"), ("b", "Bob's brokerage", "brokerage"))  # fmt: skip
+                    ("a", "IRA", "ira"), ("b", "John's brokerage", "brokerage"))  # fmt: skip
         for who, name, kind in accounts:
             c = self.a if who == "a" else self.b
             self.acct[name] = _ok(make(c, "Acct", name=name, type=kind, institution="Example",
@@ -80,7 +80,7 @@ class World:
     def trade(self, account, day, kind, symbol, qty, price, c=None):
         cents = qty * int(Decimal(price) * 100)
         amount = f"{'-' if kind == 'buy' else ''}{cents // 100}.{cents % 100:02d}"
-        c = c or (self.b if account == "Bob's brokerage" else self.a)
+        c = c or (self.b if account == "John's brokerage" else self.a)
         r = make(c, "Txn", accountId=self.acct[account]["id"], date=day, kind=kind,
                  symbol=symbol, quantity=str(qty), price=price, amount=amount)  # fmt: skip
         return _ok(r).json()
@@ -163,7 +163,7 @@ def _ira_wash(w: World, confirm: bool):
 
 
 def _spouse_wash(w: World, confirm: bool):
-    return make(w.b, "Txn", confirm=confirm, accountId=w.acct["Bob's brokerage"]["id"],
+    return make(w.b, "Txn", confirm=confirm, accountId=w.acct["John's brokerage"]["id"],
                 date="2026-01-06", kind="buy", symbol="AAPL", quantity="10", price="82",
                 amount="-820.00")  # fmt: skip
 
@@ -294,22 +294,22 @@ def test_a_difference_no_write_made_is_listed(world):
 
 
 def test_a_route_outside_the_save_refuses_until_its_request_confirms(server):
-    # S2.8.2 for a route outside the save: Bob accepting a joint 2025 book whose return was
+    # S2.8.2 for a route outside the save: John accepting a joint 2025 book whose return was
     # filed brings his sales into it. Refused with 409 closed-year, naming the year, until the
     # request says it is confirmed (the browser sends it again so once the person agrees).
     from moolakata.store.commit_checks import HEADER
 
     clock.fix(T0)
     try:
-        make_user(server, "alice")
-        make_user(server, "bob")
-        a, b = sign_in(server, "alice"), sign_in(server, "bob")
+        make_user(server, "jane")
+        make_user(server, "john")
+        a, b = sign_in(server, "jane"), sign_in(server, "john")
         ids_ = [c.get("/ui/api/session").json()["user"]["id"] for c in (a, b)]
         pa, pb = (c.get("/ui/api/profile").json()["personId"] for c in (a, b))
         r = _ok(make(a, "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
                      fromDate="2009-06-14"))  # fmt: skip
         _ok(b.post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
-        acct = _ok(make(b, "Acct", name="Bob's brokerage", type="brokerage")).json()
+        acct = _ok(make(b, "Acct", name="John's brokerage", type="brokerage")).json()
         for day, kind, amount in (("2024-01-08", "buy", "-1000.00"), ("2025-05-05", "sell",
                                                                       "1300.00")):  # fmt: skip
             _ok(make(b, "Txn", accountId=acct["id"], date=day, kind=kind, symbol="IBM",

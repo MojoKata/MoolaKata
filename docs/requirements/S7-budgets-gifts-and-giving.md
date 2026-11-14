@@ -179,7 +179,7 @@
    1. **Cash before payday**, for each checking account in the budget with recurring payments
       out (S7.5): when its balance, less the recurring payments expected from it before its
       next expected money in (income landing there, or a regular transfer in), would fall
-      below zero, an alert names the account and the day (*Bob's Checking dips below $0 on the
+      below zero, an alert names the account and the day (*John's Checking dips below $0 on the
       26th, before the transfer from Joint on the 1st*). It resolves when the figures no
       longer say so. The balance is carried day by day: every payment the schedules expect
       before the money comes in is taken off on its day (a weekly one each week), payments out
@@ -204,7 +204,7 @@
       al-Fitr) from shipped tables, plus **custom occasions** with a date of their own.
    3. **Upcoming occasions**: the next 60 days of the dates in the user's gift plans, each with its budget,
       the gifts planned so far, and what is still missing. Those inside their lead time show
-      on the Dashboard (*Emma's birthday in 9 days, no gift yet*), and an occasion entering
+      on the Dashboard (*Lisa's birthday in 9 days, no gift yet*), and an occasion entering
       its lead time raises an alert (S12.11).
 8. **Gifts.**
    1. **A gift** is for one or more people and an occasion (and its year): a description, a
@@ -228,7 +228,7 @@
       user of a linked server, the owner's server leaves those gifts out before sending, so
       they never reach the other server.
    6. **A deleted person**: gifts bought, given or received stay, still count in past
-      spending, and show the person as *Emma (deleted)* (R3.10). Ideas and planned gifts
+      spending, and show the person as *Lisa (deleted)* (R3.10). Ideas and planned gifts
       for that person alone are deleted with them; a shared idea loses only that person.
    7. **Gift-tax flag**: money given to one person in a year (cash gifts, and 529
       contributions to any of the user's 529s, whether or not the beneficiary has a gift

@@ -61,16 +61,16 @@ class Made:
     def __init__(self, server, w: tw.World):
         self.w = w
         clock.fix(T0)
-        make_user(server, "alice")
-        make_user(server, "bob")
-        self.c = {"alice": sign_in(server, "alice"), "bob": sign_in(server, "bob")}
+        make_user(server, "jane")
+        make_user(server, "john")
+        self.c = {"jane": sign_in(server, "jane"), "john": sign_in(server, "john")}
         self.uid = {u: c.get("/ui/api/session").json()["user"]["id"] for u, c in self.c.items()}
         if w.married:
-            pa = self.c["alice"].get("/ui/api/profile").json()["personId"]
-            pb = self.c["bob"].get("/ui/api/profile").json()["personId"]
-            r = _ok(make(self.c["alice"], "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
+            pa = self.c["jane"].get("/ui/api/profile").json()["personId"]
+            pb = self.c["john"].get("/ui/api/profile").json()["personId"]
+            r = _ok(make(self.c["jane"], "Rltn", person1Id=pa, person2Id=pb, relation="spouse",
                          fromDate="2009-06-14"))  # fmt: skip
-            _ok(self.c["bob"].post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
+            _ok(self.c["john"].post(f"/ui/api/relationships/{r.json()['id']}/confirm"))
         self.accounts: dict[str, str] = {}
         for i, (name, (owner, kind)) in enumerate(tw.ACCOUNTS.items()):
             r = make(self.c[owner], "Acct", name=name, type=kind, institution="Example",
@@ -84,8 +84,8 @@ class Made:
         for year, filers in w.books():
             self.books[(year, filers)] = self._book(year, filers)
         if w.left_out:
-            alice = next(f for y, f in w.books() if y == 2026 and "alice" in f)
-            _ok(create(self.c["alice"], "TxBkA", bookId=self.books[(2026, alice)],
+            jane = next(f for y, f in w.books() if y == 2026 and "jane" in f)
+            _ok(create(self.c["jane"], "TxBkA", bookId=self.books[(2026, jane)],
                        accountId=self.accounts["Second"], counted=False))  # fmt: skip
 
     def _income(self, inc: tw.Income) -> None:

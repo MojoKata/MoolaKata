@@ -68,7 +68,7 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
         # The institution moved its server: the new address is shown as it is typed.
         page.fill("#f-ofx-url", "https://ofx2.cu.example/ofx")
         assert "ofx2.cu.example" in page.inner_text('[data-help="sealed-for"]')
-        page.fill("#f-username", "alice")
+        page.fill("#f-username", "jane")
         page.fill("#f-password", "pw")
         page.click('button:has-text("Seal and Send")')
         wait(page, 'text="Credit union: sealed for the connector"', problems)
@@ -85,7 +85,7 @@ def test_change_credentials_shows_and_seals_the_host_and_takes_a_new_address(tmp
             sealed.open_box(got["sealed"]["ciphertext"], fake.sealing_private, conn["id"])
         )
         assert box["host"] == "ofx2.cu.example"
-        assert box["credentials"] == {"username": "alice", "password": "pw"}
+        assert box["credentials"] == {"username": "jane", "password": "pw"}
         # Admins see where each Connection's credentials go (S16.18), never its settings.
         admin_view = c.get("/ui/api/settings/connector").json()["connections"][0]
         assert admin_view["host"] == "ofx2.cu.example" and admin_view["settings"] is None

@@ -25,11 +25,11 @@ TODAY = dt.date(2026, 12, 28)
 YEARS = (2025, 2026)
 
 # Per world.
-FILERS = ("solo", "joint", "separate")  # Bob is Alice's spouse but in solo, where he's a stranger
+FILERS = ("solo", "joint", "separate")  # John is Jane's spouse but in solo, where he's a stranger
 METHODS = ("fifo", "lifo", "hifo", "average")
 
 # Per story.
-SELLERS = ("alice", "bob")
+SELLERS = ("jane", "john")
 CLASSES = ("equity", "fund", "crypto")
 PICKS = ("account", "specific", "specific-short")  # the account's method, or lots picked
 TERMS = ("short", "long", "mixed", "anniversary", "old")
@@ -43,7 +43,7 @@ FOLLOW = ("none", "resold")
 # Between the buys and the sale: a 2-for-1 split, or a merger into two new shares a share and
 # $3.00 cash (S2.4, IRC §356).
 ACTION = ("none", "split", "merger")
-OVERRIDE = ("none", "left-out")  # per world: Second left out of Alice's 2026 book
+OVERRIDE = ("none", "left-out")  # per world: Second left out of Jane's 2026 book
 
 # Per option story (S3.2–S3.4): a contract opened long or short, ended closed, expired, or
 # assigned (short) or exercised (long), its stock traded at the strike with the premium in it.
@@ -57,7 +57,7 @@ OPT_UNDERLYINGS = ("SPY", "QQQ", "IWM", "DIA", "XLF", "XLE", "XLK", "GLD", "SMH"
 # Per income record (S8.5): interest and dividends of each type, in each account, each year.
 INCOME_KINDS = ("interest", "dividend", "reinvest", "capital-gain", "return-of-capital")
 DIV_TYPES = ("qualified", "ordinary", "none")
-INCOME_ACCOUNTS = ("Brokerage", "Second", "Bob's brokerage")
+INCOME_ACCOUNTS = ("Brokerage", "Second", "John's brokerage")
 INCOME_YEARS = ("2025", "2026")
 INCOME_SYMBOLS = ("SCHD", "VYM", "DGRO", "HDV", "NOBL", "SPYD", "DVY", "SDY")
 
@@ -75,15 +75,15 @@ _AXES = {
 
 SEEDS = range(24)
 
-# Accounts: name -> (owner, type). Alice's two brokerages and her two crypto accounts carry the
-# world's lot methods; Bob has one brokerage.
+# Accounts: name -> (owner, type). Jane's two brokerages and her two crypto accounts carry the
+# world's lot methods; John has one brokerage.
 ACCOUNTS = {
-    "Brokerage": ("alice", "brokerage"),
-    "Second": ("alice", "brokerage"),
-    "IRA": ("alice", "ira"),
-    "Exchange": ("alice", "crypto-exchange"),
-    "Wallet": ("alice", "crypto-wallet"),
-    "Bob's brokerage": ("bob", "brokerage"),
+    "Brokerage": ("jane", "brokerage"),
+    "Second": ("jane", "brokerage"),
+    "IRA": ("jane", "ira"),
+    "Exchange": ("jane", "crypto-exchange"),
+    "Wallet": ("jane", "crypto-wallet"),
+    "John's brokerage": ("john", "brokerage"),
 }
 TAXABLE = ("brokerage", "crypto-exchange", "crypto-wallet")
 
@@ -126,16 +126,16 @@ def _impossible(kind: str, a: tuple[str, str], b: tuple[str, str]) -> bool:
     ):
         return True
     crypto = get("class") == "crypto"
-    # Coins are Alice's, in her exchange and wallet: none in an IRA, none bought before 2011.
+    # Coins are Jane's, in her exchange and wallet: none in an IRA, none bought before 2011.
     if crypto and (get("where") in ("ira", "partner") or get("term") == "old"):
         return True
-    if crypto and get("seller") == "bob":
+    if crypto and get("seller") == "john":
         return True
-    # In solo, Bob files no book: his sales are on no 8949.
-    if get("seller") == "bob" and get("filers") == "solo":
+    # In solo, John files no book: his sales are on no 8949.
+    if get("seller") == "john" and get("filers") == "solo":
         return True
-    # Bob has one account.
-    if get("seller") == "bob" and get("where") in ("other", "ira"):
+    # John has one account.
+    if get("seller") == "john" and get("where") in ("other", "ira"):
         return True
     # No buy near the sale, or one: the three axes go together.
     near = [x for x in ("where", "when", "replaced") if x in k]
@@ -240,7 +240,7 @@ class World:
     stories: list[Story] = field(default_factory=list)
     incomes: list[Income] = field(default_factory=list)
     options: list[dict] = field(default_factory=list)  # each option story's axes
-    left_out: bool = False  # Second left out of Alice's 2026 book
+    left_out: bool = False  # Second left out of Jane's 2026 book
 
     @property
     def married(self) -> bool:
@@ -248,8 +248,8 @@ class World:
 
     def books(self) -> list[tuple[int, tuple[str, ...]]]:
         """The tax books: (year, filers)."""
-        units = {"solo": [("alice",)], "joint": [("alice", "bob")],
-                 "separate": [("alice",), ("bob",)]}[self.filers]  # fmt: skip
+        units = {"solo": [("jane",)], "joint": [("jane", "john")],
+                 "separate": [("jane",), ("john",)]}[self.filers]  # fmt: skip
         return [(y, u) for y in YEARS for u in units]
 
     def records(self) -> dict[str, list[dict]]:
@@ -272,7 +272,7 @@ def world(seed: int) -> World:
     m = METHODS
     methods = {"Brokerage": m[seed % 4], "Second": m[(seed + 1) % 4], "IRA": "fifo",
                "Exchange": m[(seed + 2) % 4], "Wallet": m[(seed + 3) % 4],
-               "Bob's brokerage": m[(seed // 3) % 4]}  # fmt: skip
+               "John's brokerage": m[(seed // 3) % 4]}  # fmt: skip
     w = World(seed, filers, methods, left_out=seed % 4 in (1, 2))
     pools = {"equity": list(EQUITIES), "fund": list(FUNDS), "crypto": list(COINS)}
     for p in pools.values():
@@ -408,14 +408,14 @@ def _fit(axes: dict, filers: str, rnd: random.Random) -> dict:
     """The dealt values made possible, changing the fewest."""
     a = dict(axes)
     if a["class"] == "crypto":
-        a["seller"] = "alice"
+        a["seller"] = "jane"
         if a["term"] == "old":
             a["term"] = "long"
         if a["where"] in ("ira", "partner"):
             a["where"] = rnd.choice(("same", "other"))
-    if a["seller"] == "bob" and filers == "solo":
-        a["seller"] = "alice"
-    if a["seller"] == "bob" and a["where"] in ("other", "ira"):
+    if a["seller"] == "john" and filers == "solo":
+        a["seller"] = "jane"
+    if a["seller"] == "john" and a["where"] in ("other", "ira"):
         a["where"] = rnd.choice(("same", "partner"))
     near = [a["where"], a["when"], a["replaced"]]
     if "none" in near and near != ["none"] * 3:
@@ -439,8 +439,8 @@ def _fit(axes: dict, filers: str, rnd: random.Random) -> dict:
 def _account(story: Story, w: World) -> str:
     """The selling account: one with the dealt method where the seller has one, else by turn."""
     a = story.axes
-    if a["seller"] == "bob":
-        return "Bob's brokerage"
+    if a["seller"] == "john":
+        return "John's brokerage"
     names = ("Exchange", "Wallet") if a["class"] == "crypto" else ("Brokerage", "Second")
     for name in names:
         if w.methods[name] == a["method"]:
@@ -456,7 +456,7 @@ def _other(story: Story, account: str) -> str:
     if where == "ira":
         return "IRA"
     if where == "partner":
-        return "Brokerage" if account == "Bob's brokerage" else "Bob's brokerage"
+        return "Brokerage" if account == "John's brokerage" else "John's brokerage"
     return {"Brokerage": "Second", "Second": "Brokerage", "Exchange": "Wallet",
             "Wallet": "Exchange"}[account]  # fmt: skip
 

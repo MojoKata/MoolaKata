@@ -18,154 +18,152 @@ def share(c, kind, item, users=None, groups=None, too=False):
 
 
 def setup(server):
-    users = {n: make_user(server, n) for n in ("alice", "bob", "carol")}
+    users = {n: make_user(server, n) for n in ("jane", "john", "bart")}
     return users, {n: sign_in(server, n) for n in users}
 
 
 def test_read_and_write_shares(server):
     u, c = setup(server)
-    a = new_account(c["alice"], openingBalance="100.00", openingDate="2026-08-31")
-    add(c["alice"], a["id"], "-10.00", payee="Shop")
-    assert c["bob"].get(f"/ui/api/accounts/{a['id']}").status_code == 404
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "read"})
-    seen = c["bob"].get("/ui/api/accounts").json()["items"]
-    assert len(seen) == 1 and not seen[0]["access"]["writable"] and seen[0]["ownerName"] == "Alice"
+    a = new_account(c["jane"], openingBalance="100.00", openingDate="2026-08-31")
+    add(c["jane"], a["id"], "-10.00", payee="Shop")
+    assert c["john"].get(f"/ui/api/accounts/{a['id']}").status_code == 404
+    share(c["jane"], "account", a["id"], users={u["john"].id: "read"})
+    seen = c["john"].get("/ui/api/accounts").json()["items"]
+    assert len(seen) == 1 and not seen[0]["access"]["writable"] and seen[0]["ownerName"] == "Jane"
     assert seen[0]["counted"] is False  # Count in my totals is off by default (S10.7)
-    assert c["alice"].get("/ui/api/accounts").json()["items"][0]["sharedWith"] == 1
-    assert len(c["bob"].get("/ui/api/transactions").json()["items"]) == 1
-    r = make(c["bob"], "Txn", accountId=a["id"], date="2026-09-02", amount="-1.00")
+    assert c["jane"].get("/ui/api/accounts").json()["items"][0]["sharedWith"] == 1
+    assert len(c["john"].get("/ui/api/transactions").json()["items"]) == 1
+    r = make(c["john"], "Txn", accountId=a["id"], date="2026-09-02", amount="-1.00")
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "share-read-only"
-    assert c["bob"].get(f"/ui/api/shares/account/{a['id']}").status_code == 403
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "write"})
-    add(c["bob"], a["id"], "-2.00", payee="Bob's coffee")
-    acct = c["bob"].get(f"/ui/api/accounts/{a['id']}").json()
-    r = change(c["bob"], "Acct", acct, lotMethod="lifo")
+    assert c["john"].get(f"/ui/api/shares/account/{a['id']}").status_code == 403
+    share(c["jane"], "account", a["id"], users={u["john"].id: "write"})
+    add(c["john"], a["id"], "-2.00", payee="John's coffee")
+    acct = c["john"].get(f"/ui/api/accounts/{a['id']}").json()
+    r = change(c["john"], "Acct", acct, lotMethod="lifo")
     assert r.status_code == 403  # a write share doesn't change the account's settings
-    r = remove(c["bob"], "Acct", acct)
+    r = remove(c["john"], "Acct", acct)
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only"
 
 
 def test_groups_via_and_the_higher_level(server, admin_client):
     u, c = setup(server)
-    g = make(admin_client, "Group", name="Household", memberIds=[u["bob"].id, u["carol"].id]).json()
-    a = new_account(c["alice"])
+    g = make(admin_client, "Group", name="Household", memberIds=[u["john"].id, u["bart"].id]).json()
+    a = new_account(c["jane"])
     view = share(
-        c["alice"], "account", a["id"], users={u["bob"].id: "write"}, groups={g["id"]: "read"}
+        c["jane"], "account", a["id"], users={u["john"].id: "write"}, groups={g["id"]: "read"}
     )["view"]
-    bob = next(x for x in view["users"] if x["id"] == u["bob"].id)
-    carol = next(x for x in view["users"] if x["id"] == u["carol"].id)
-    assert bob["allow"] == "write" and bob["via"][0]["groupName"] == "Household"
-    assert carol["allow"] == "none" and carol["via"][0]["allow"] == "read"
-    assert not c["carol"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
-    assert c["bob"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
+    john = next(x for x in view["users"] if x["id"] == u["john"].id)
+    bart = next(x for x in view["users"] if x["id"] == u["bart"].id)
+    assert john["allow"] == "write" and john["via"][0]["groupName"] == "Household"
+    assert bart["allow"] == "none" and bart["via"][0]["allow"] == "read"
+    assert not c["bart"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
+    assert c["john"].get("/ui/api/accounts").json()["items"][0]["access"]["writable"]
     saved(change(admin_client, "Group", g, active=False))
     assert (
-        c["carol"].get("/ui/api/accounts").json()["items"] == []
+        c["bart"].get("/ui/api/accounts").json()["items"] == []
     )  # an inactive group gives nothing
 
 
 def test_removing_a_share_ends_access_and_drops_their_tags(server):
     u, c = setup(server)
-    a = new_account(c["alice"])
-    t = add(c["alice"], a["id"], "-5.00", payee="Shop")
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "write"})
-    r = change(c["bob"], "Txn", t, tagIds={"add": [tag(c["bob"], "bobs")], "remove": []})
-    assert saved(r)["tags"] == ["bobs"]
-    assert c["alice"].get("/ui/api/transactions").json()["items"][0]["tags"] == []
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "none"})
-    assert c["bob"].get(f"/ui/api/accounts/{a['id']}").status_code == 404
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "read"})
-    assert c["bob"].get("/ui/api/transactions").json()["items"][0]["tags"] == []
+    a = new_account(c["jane"])
+    t = add(c["jane"], a["id"], "-5.00", payee="Shop")
+    share(c["jane"], "account", a["id"], users={u["john"].id: "write"})
+    r = change(c["john"], "Txn", t, tagIds={"add": [tag(c["john"], "johns")], "remove": []})
+    assert saved(r)["tags"] == ["johns"]
+    assert c["jane"].get("/ui/api/transactions").json()["items"][0]["tags"] == []
+    share(c["jane"], "account", a["id"], users={u["john"].id: "none"})
+    assert c["john"].get(f"/ui/api/accounts/{a['id']}").status_code == 404
+    share(c["jane"], "account", a["id"], users={u["john"].id: "read"})
+    assert c["john"].get("/ui/api/transactions").json()["items"][0]["tags"] == []
 
 
 def test_inactive_users_cant_be_added(server, admin_client):
     u, c = setup(server)
-    a = new_account(c["alice"])
+    a = new_account(c["jane"])
     row = next(
-        x for x in admin_client.get("/ui/api/users").json()["items"] if x["username"] == "carol"
+        x for x in admin_client.get("/ui/api/users").json()["items"] if x["username"] == "bart"
     )
     saved(change(admin_client, "User", row, active=False))
-    r = shared(c["alice"], "account", a["id"], users={u["carol"].id: "read"})
+    r = shared(c["jane"], "account", a["id"], users={u["bart"].id: "read"})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "user-inactive"
 
 
 def test_count_in_my_totals_and_all_my_accounts(server):
     u, c = setup(server)
-    mine = new_account(c["bob"], name="Bob's", openingBalance="10.00", openingDate="2026-01-01")
-    hers = new_account(c["alice"], openingBalance="1000.00", openingDate="2026-01-01")
-    share(c["alice"], "account", hers["id"], users={u["bob"].id: "read"})
-    everything = c["bob"].get("/ui/api/portfolios").json()["items"][0]
+    mine = new_account(c["john"], name="John's", openingBalance="10.00", openingDate="2026-01-01")
+    hers = new_account(c["jane"], openingBalance="1000.00", openingDate="2026-01-01")
+    share(c["jane"], "account", hers["id"], users={u["john"].id: "read"})
+    everything = c["john"].get("/ui/api/portfolios").json()["items"][0]
     assert everything["implicit"] and everything["accountIds"] == [mine["id"]]
     assert everything["value"] == "10.00"
-    saved(create(c["bob"], "CntAc", accountId=hers["id"], counted=True))
-    everything = c["bob"].get("/ui/api/portfolios/all").json()
+    saved(create(c["john"], "CntAc", accountId=hers["id"], counted=True))
+    everything = c["john"].get("/ui/api/portfolios/all").json()
     assert sorted(everything["accountIds"]) == sorted([mine["id"], hers["id"]])
     assert everything["value"] == "1010.00"
-    r = create(c["alice"], "CntAc", accountId=hers["id"], counted=True)
+    r = create(c["jane"], "CntAc", accountId=hers["id"], counted=True)
     assert r.status_code == 409 and r.json()["errors"][0]["code"] == "owner-counts"
 
 
 def test_portfolio_viewers_see_only_their_accounts(server):
     u, c = setup(server)
-    checking = new_account(c["alice"], openingBalance="100.00", openingDate="2026-01-01")
+    checking = new_account(c["jane"], openingBalance="100.00", openingDate="2026-01-01")
     brokerage = new_account(
-        c["alice"],
+        c["jane"],
         name="Brokerage",
         type="brokerage",
         mask="9999",
         openingBalance="500.00",
         openingDate="2026-01-01",
     )
-    p = make(
-        c["alice"], "Portf", name="Family", accountIds=[checking["id"], brokerage["id"]]
-    ).json()
+    p = make(c["jane"], "Portf", name="Family", accountIds=[checking["id"], brokerage["id"]]).json()
     assert p["value"] == "600.00"
-    share(c["alice"], "account", checking["id"], users={u["bob"].id: "read"})
-    saved = share(c["alice"], "portfolio", p["id"], users={u["bob"].id: "read"})
-    assert saved["view"]["hidden"] == {u["bob"].id: [brokerage["id"]]}
-    seen = c["bob"].get(f"/ui/api/portfolios/{p['id']}").json()
+    share(c["jane"], "account", checking["id"], users={u["john"].id: "read"})
+    saved = share(c["jane"], "portfolio", p["id"], users={u["john"].id: "read"})
+    assert saved["view"]["hidden"] == {u["john"].id: [brokerage["id"]]}
+    seen = c["john"].get(f"/ui/api/portfolios/{p['id']}").json()
     assert seen["accountIds"] == [checking["id"]] and seen["value"] == "100.00"
-    saved = share(c["alice"], "portfolio", p["id"], users={u["bob"].id: "read"}, too=True)
+    saved = share(c["jane"], "portfolio", p["id"], users={u["john"].id: "read"}, too=True)
     assert saved["alsoShared"] == 1 and saved["view"]["hidden"] == {}
-    seen = c["bob"].get(f"/ui/api/portfolios/{p['id']}").json()
+    seen = c["john"].get(f"/ui/api/portfolios/{p['id']}").json()
     assert seen["value"] == "600.00"
-    r = change(c["bob"], "Portf", seen, name="Mine now")
+    r = change(c["john"], "Portf", seen, name="Mine now")
     assert r.status_code == 403
-    r = make(c["alice"], "Portf", name="Not mine", accountIds=["Acct_00000000000000000000000000"])
+    r = make(c["jane"], "Portf", name="Not mine", accountIds=["Acct_00000000000000000000000000"])
     assert r.json()["errors"][0]["field"] == "accountIds"
 
 
 def test_activity_goes_to_the_people_concerned_without_amounts(server, admin_client):
     u, c = setup(server)
-    a = new_account(c["alice"], name="Joint checking")
-    private = new_account(c["alice"], name="Secret savings", type="savings", mask="0001")
-    t = add(c["alice"], a["id"], "-1234.56", payee="Shop")
-    add(c["alice"], private["id"], "-9.99", payee="Hidden")
-    cats = {x["path"]: x["id"] for x in c["alice"].get("/ui/api/categories").json()["items"]}
-    c["alice"].post(
+    a = new_account(c["jane"], name="Joint checking")
+    private = new_account(c["jane"], name="Secret savings", type="savings", mask="0001")
+    t = add(c["jane"], a["id"], "-1234.56", payee="Shop")
+    add(c["jane"], private["id"], "-9.99", payee="Hidden")
+    cats = {x["path"]: x["id"] for x in c["jane"].get("/ui/api/categories").json()["items"]}
+    c["jane"].post(
         "/ui/api/transactions/categorise",
         json={"ids": [t["id"]], "categoryId": cats["Food › Groceries"]},
     )
-    share(c["alice"], "account", a["id"], users={u["bob"].id: "read"})
-    bob = [x["text"] for x in c["bob"].get("/ui/api/activity").json()["items"]]
-    assert "Alice changed the category of 1 transaction in Joint checking" in bob
-    assert "Alice shared Joint checking with Bob (read)" in bob
-    assert not any("Secret savings" in x for x in bob)
-    alice = [x["text"] for x in c["alice"].get("/ui/api/activity").json()["items"]]
-    assert any("Secret savings" in x for x in alice)
-    assert not any(re.search(r"\d+\.\d\d", x) for x in alice)  # never an amount
+    share(c["jane"], "account", a["id"], users={u["john"].id: "read"})
+    john = [x["text"] for x in c["john"].get("/ui/api/activity").json()["items"]]
+    assert "Jane changed the category of 1 transaction in Joint checking" in john
+    assert "Jane shared Joint checking with John (read)" in john
+    assert not any("Secret savings" in x for x in john)
+    jane = [x["text"] for x in c["jane"].get("/ui/api/activity").json()["items"]]
+    assert any("Secret savings" in x for x in jane)
+    assert not any(re.search(r"\d+\.\d\d", x) for x in jane)  # never an amount
     admin = [x["text"] for x in admin_client.get("/ui/api/activity").json()["items"]]
     assert any("Ada Admin" in x and "set up" in x for x in admin)
     assert not any("Joint checking" in x for x in admin)  # admins see only what is shared
-    page = c["alice"].get("/ui/api/activity", params={"limit": 1}).json()
+    page = c["jane"].get("/ui/api/activity", params={"limit": 1}).json()
     newest = page["items"][0]["id"]
-    add(c["alice"], a["id"], "-1.00", payee="x")
-    c["alice"].post(
+    add(c["jane"], a["id"], "-1.00", payee="x")
+    c["jane"].post(
         "/ui/api/transactions/categorise",
         json={"ids": [t["id"]], "categoryId": cats["Food › Dining out"]},
     )
-    assert c["alice"].get("/ui/api/activity/newer", params={"since": newest}).json()["count"] == 1
-    filtered = c["alice"].get("/ui/api/activity", params={"account": private["id"]}).json()
+    assert c["jane"].get("/ui/api/activity/newer", params={"since": newest}).json()["count"] == 1
+    filtered = c["jane"].get("/ui/api/activity", params={"account": private["id"]}).json()
     assert all("Secret savings" in x["text"] for x in filtered["items"])
 
 
@@ -174,18 +172,18 @@ def test_receivers_see_what_happens_to_what_is_shared_and_its_removal(server):
     and someone whose share is removed keeps the one entry that says so."""
     u, c = setup(server)
     p = make(
-        c["alice"],
+        c["jane"],
         "Prjct",
         name="Retire early",
         goal="savings",
         builtOn={"kind": "typed", "amount": "1000"},
         inputs={"target": 5000, "date": "2031-01-01"},
     ).json()
-    share(c["alice"], "projection", p["id"], users={u["bob"].id: "read"})
-    texts = [e["text"] for e in c["bob"].get("/ui/api/activity").json()["items"]]
-    assert any("shared Retire early with Bob" in t for t in texts), texts
-    share(c["alice"], "projection", p["id"], users={u["bob"].id: "none"})
-    texts = [e["text"] for e in c["bob"].get("/ui/api/activity").json()["items"]]
-    assert any("stopped sharing Retire early with Bob" in t for t in texts), texts
-    carols = [e["text"] for e in c["carol"].get("/ui/api/activity").json()["items"]]
-    assert not any("Retire early" in t for t in carols)
+    share(c["jane"], "projection", p["id"], users={u["john"].id: "read"})
+    texts = [e["text"] for e in c["john"].get("/ui/api/activity").json()["items"]]
+    assert any("shared Retire early with John" in t for t in texts), texts
+    share(c["jane"], "projection", p["id"], users={u["john"].id: "none"})
+    texts = [e["text"] for e in c["john"].get("/ui/api/activity").json()["items"]]
+    assert any("stopped sharing Retire early with John" in t for t in texts), texts
+    barts = [e["text"] for e in c["bart"].get("/ui/api/activity").json()["items"]]
+    assert not any("Retire early" in t for t in barts)

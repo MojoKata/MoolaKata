@@ -40,8 +40,8 @@ def test_a_network_fee_is_a_sale_unless_the_book_reads_own_transfers_as_not_taxe
     refresh.install()  # stored closes value the fee, as the running server reads them
     clock.fix(T0)
     try:
-        make_user(server, "alice")
-        c = sign_in(server, "alice")
+        make_user(server, "jane")
+        c = sign_in(server, "jane")
         me = c.get("/ui/api/session").json()["user"]["id"]
         hot = make(c, "Acct", name="Hot wallet", type="crypto-wallet").json()["id"]
         cold = make(c, "Acct", name="Cold storage", type="crypto-wallet").json()["id"]

@@ -1,4 +1,4 @@
-"""Mocks of the bitcoin backends (requirements S17.9.7.8): a fake Esplora, Electrum server and
+"""Mocks of the bitcoin backends (docs/test-plan.md): a fake Esplora, Electrum server and
 Bitcoin Core speaking the subset MoolaKata uses (bitcoin/sources.py), over real sockets, so
 the code that talks to a node can be tried without one, and the manual test plan's T1–T4 have
 a rehearsal. One small chain stands behind all three: the dev seed's wallet (the public BIP84

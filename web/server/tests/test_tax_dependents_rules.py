@@ -92,10 +92,10 @@ def test_a_due_date_moves_past_weekends_and_legal_holidays(due, moved):
 
 
 def test_the_age_on_dec_31_is_the_year_less_the_birth_year():
-    emma = Person(id="Persn_x", name="Emma", sex="female", birthYear=2010)
-    assert dependents.age_on_dec_31(emma, 2026) == 16
-    emma.birthYear = None
-    assert dependents.age_on_dec_31(emma, 2026) is None
+    lisa = Person(id="Persn_x", name="Lisa", sex="female", birthYear=2010)
+    assert dependents.age_on_dec_31(lisa, 2026) == 16
+    lisa.birthYear = None
+    assert dependents.age_on_dec_31(lisa, 2026) is None
 
 
 def test_an_unknown_age_suggests_a_qualifying_child_and_ages_out_of_nothing():
@@ -282,14 +282,14 @@ T4 = dt.datetime(2026, 4, 5, 9, tzinfo=dt.UTC)
 
 
 class Home:
-    """Alice and Bob, users with their people, and a session over the store that writes the
+    """Jane and John, users with their people, and a session over the store that writes the
     records a test needs straight in."""
 
-    def __init__(self, s, alice, bob):
-        self.s, self.alice, self.bob = s, alice, bob
+    def __init__(self, s, jane, john):
+        self.s, self.jane, self.john = s, jane, john
 
     def book(self, year: int, *filers, deleted: bool = False) -> TaxBook:
-        filers = filers or (self.alice,)
+        filers = filers or (self.jane,)
         b = TaxBook(id=ids.new_id("TaxBk"), ownerId=filers[0].id, year=year)
         if deleted:
             b.mark_deleted(None)
@@ -331,7 +331,7 @@ class Home:
         return d
 
     def account(self, name: str, type_: str = "brokerage", owner=None) -> Account:
-        a = Account(id=ids.new_id("Acct"), ownerId=(owner or self.alice).id, name=name, type=type_)
+        a = Account(id=ids.new_id("Acct"), ownerId=(owner or self.jane).id, name=name, type=type_)
         self.s.add(a)
         self.s.flush()
         return a
@@ -354,17 +354,17 @@ class Home:
 
 @pytest.fixture
 def home(server):
-    alice = make_user(server, "alice", born=1980)
-    bob = make_user(server, "bob", sex="male", born=1981)
+    jane = make_user(server, "jane", born=1980)
+    john = make_user(server, "john", sex="male", born=1981)
     with Session(server.db.engine, expire_on_commit=False, autoflush=True) as s:
         scoping.scope_server(s, "test")
-        yield Home(s, alice, bob)
+        yield Home(s, jane, john)
         s.rollback()
 
 
 def test_a_books_dependents_are_its_live_ones_in_the_order_added(home):
     h = home
-    book, other = h.book(2025), h.book(2025, h.bob)
+    book, other = h.book(2025), h.book(2025, h.john)
     later = h.dep(book, h.person("Later"), created=T2)
     first = h.dep(book, h.person("First"), created=T1)
     h.dep(book, h.person("Removed"), created=T1, deleted=True)
@@ -413,15 +413,15 @@ def test_a_dependents_accounts_are_its_own_live_rows_set_restored_and_left_out(h
 
 def test_a_books_filers_are_its_live_filers_people(home):
     h = home
-    book = h.book(2025, h.alice, h.bob)
-    h.book(2025, h.bob)
-    assert sorted(dependents.filer_people(h.s, book)) == sorted([h.alice.personId, h.bob.personId])
-    bobs = h.s.scalars(
-        select(TaxBookFiler).where(TaxBookFiler.bookId == book.id, TaxBookFiler.userId == h.bob.id)
+    book = h.book(2025, h.jane, h.john)
+    h.book(2025, h.john)
+    assert sorted(dependents.filer_people(h.s, book)) == sorted([h.jane.personId, h.john.personId])
+    johns = h.s.scalars(
+        select(TaxBookFiler).where(TaxBookFiler.bookId == book.id, TaxBookFiler.userId == h.john.id)
     ).one()
-    bobs.mark_deleted(None)
+    johns.mark_deleted(None)
     h.s.flush()
-    assert dependents.filer_people(h.s, book) == [h.alice.personId]
+    assert dependents.filer_people(h.s, book) == [h.jane.personId]
 
 
 def test_claimed_elsewhere_is_another_live_book_of_the_same_year(home):
@@ -431,24 +431,24 @@ def test_claimed_elsewhere_is_another_live_book_of_the_same_year(home):
     assert not dependents.claimed_elsewhere(h.s, mine, kid.id)  # no other book
     h.dep(mine, kid)
     assert not dependents.claimed_elsewhere(h.s, mine, kid.id)  # only this book claims them
-    h.dep(h.book(2024, h.bob), kid)  # another year
-    h.dep(h.book(2025, h.bob, deleted=True), kid)  # a deleted book
-    theirs = h.book(2025, h.bob)
+    h.dep(h.book(2024, h.john), kid)  # another year
+    h.dep(h.book(2025, h.john, deleted=True), kid)  # a deleted book
+    theirs = h.book(2025, h.john)
     h.dep(theirs, kid, deleted=True)  # a removed claim
     h.dep(theirs, h.person("Someone else", 2015))
     assert not dependents.claimed_elsewhere(h.s, mine, kid.id)
     h.dep(theirs, kid)
     assert dependents.claimed_elsewhere(h.s, mine, kid.id)
     assert dependents.claimed_elsewhere(h.s, theirs, kid.id)
-    assert not dependents.claimed_elsewhere(h.s, theirs, h.alice.personId)
+    assert not dependents.claimed_elsewhere(h.s, theirs, h.jane.personId)
 
 
 def test_a_filer_claimed_on_another_book_is_named_on_their_own(home):
     h = home
-    mine, theirs = h.book(2025, h.alice), h.book(2025, h.bob)
+    mine, theirs = h.book(2025, h.jane), h.book(2025, h.john)
     assert dependents.filers_claimed_elsewhere(h.s, theirs) == []
-    h.dep(mine, h.s.get(Person, h.bob.personId), "qualifying relative")
-    assert [p.id for p in dependents.filers_claimed_elsewhere(h.s, theirs)] == [h.bob.personId]
+    h.dep(mine, h.s.get(Person, h.john.personId), "qualifying relative")
+    assert [p.id for p in dependents.filers_claimed_elsewhere(h.s, theirs)] == [h.john.personId]
     assert dependents.filers_claimed_elsewhere(h.s, mine) == []
 
 
@@ -530,10 +530,10 @@ def test_childcare_paid_on_the_years_first_or_last_day_counts(home, day):
 
 
 def family(h: Home) -> dict[str, Person]:
-    """Alice's and Bob's people about a 2025 book: children each has (and is the other's
-    friend), a grandchild, Alice's parents (her father died in 2025), a grandmother who died in
-    2024, a godmother, a boy Bob adopts in 2026, and someone unrelated."""
-    alice, bob = h.me(h.alice), h.me(h.bob)
+    """Jane's and John's people about a 2025 book: children each has (and is the other's
+    friend), a grandchild, Jane's parents (her father died in 2025), a grandmother who died in
+    2024, a godmother, a boy John adopts in 2026, and someone unrelated."""
+    jane, john = h.me(h.jane), h.me(h.john)
     p = {
         "bea": h.person("bea", 2009),
         "dan": h.person("dan", 2011, sex="male"),
@@ -545,16 +545,16 @@ def family(h: Home) -> dict[str, Person]:
         "Abe": h.person("Abe", 2010, sex="male"),
         "Stan": h.person("Stan", sex="male"),
     }
-    h.relate(alice, p["bea"], "child")
-    h.relate(bob, p["bea"], "friend")
-    h.relate(bob, p["dan"], "child")
-    h.relate(alice, p["dan"], "friend")
+    h.relate(jane, p["bea"], "child")
+    h.relate(john, p["bea"], "friend")
+    h.relate(john, p["dan"], "child")
+    h.relate(jane, p["dan"], "friend")
     h.relate(p["bea"], p["Cal"], "child")
-    h.relate(p["Mum"], alice, "child")
-    h.relate(p["Lou"], alice, "child")
+    h.relate(p["Mum"], jane, "child")
+    h.relate(p["Lou"], jane, "child")
     h.relate(p["Gone"], p["Mum"], "child")
-    h.relate(alice, p["Fay"], "family", label="Godmother")
-    h.relate(bob, p["Abe"], "child", since=D(2026, 3, 1))
+    h.relate(jane, p["Fay"], "family", label="Godmother")
+    h.relate(john, p["Abe"], "child", since=D(2026, 3, 1))
     return p
 
 
@@ -563,16 +563,16 @@ def test_candidates_are_the_people_seen_but_the_filers_relatives_and_descendants
     # over a friend of the other) and their age then; anyone who died before the year left out.
     h = home
     family(h)
-    book = h.book(2025, h.alice, h.bob)
+    book = h.book(2025, h.jane, h.john)
     got = [
         (c.person.name, c.relation, c.descendant, c.age)
-        for c in dependents.candidates(h.s, h.alice.id, book)
+        for c in dependents.candidates(h.s, h.jane.id, book)
         if c.person.name != "Ada Admin"
     ]
     assert got == [
-        ("bea", "daughter", True, 16),
-        ("Cal", "granddaughter", True, 1),
+        ("bea", "daughter", True, 16),  # descendants oldest first (S10.10.7)
         ("dan", "son", True, 14),
+        ("Cal", "granddaughter", True, 1),
         ("Fay", "Godmother", False, 65),
         ("Lou", "father", False, 77),
         ("Mum", "mother", False, 75),
@@ -582,35 +582,35 @@ def test_candidates_are_the_people_seen_but_the_filers_relatives_and_descendants
 
 
 def test_a_candidate_related_to_both_filers_keeps_the_first_relation_but_a_descendants(home):
-    # Fay is Alice's godmother and Bob's friend; Kit is Alice's granddaughter and Bob's
+    # Fay is Jane's godmother and John's friend; Kit is Jane's granddaughter and John's
     # daughter: the first filer's relation is kept, unless only the other's is a descendant.
     h = home
-    alice, bob = h.me(h.alice), h.me(h.bob)
+    jane, john = h.me(h.jane), h.me(h.john)
     fay, kit, mid = h.person("Fay", 1960), h.person("Kit", 2015), h.person("Mid", 1990)
-    h.relate(alice, fay, "family", label="Godmother")
-    h.relate(bob, fay, "friend")
-    h.relate(alice, mid, "child")
+    h.relate(jane, fay, "family", label="Godmother")
+    h.relate(john, fay, "friend")
+    h.relate(jane, mid, "child")
     h.relate(mid, kit, "child")
-    h.relate(bob, kit, "child")
-    book = h.book(2025, h.alice, h.bob)
+    h.relate(john, kit, "child")
+    book = h.book(2025, h.jane, h.john)
     first = dependents.filer_people(h.s, book)[0]
-    got = {c.person.name: c.relation for c in dependents.candidates(h.s, h.alice.id, book)}
-    assert got["Fay"] == ("Godmother" if first == alice.id else "friend")
-    assert got["Kit"] == ("granddaughter" if first == alice.id else "daughter")
+    got = {c.person.name: c.relation for c in dependents.candidates(h.s, h.jane.id, book)}
+    assert got["Fay"] == ("Godmother" if first == jane.id else "friend")
+    assert got["Kit"] == ("granddaughter" if first == jane.id else "daughter")
 
 
 def test_a_person_has_one_relation_word_in_the_book_and_when_chosen(home):
-    """S8.14.5.5: Zoe is Alice's friend and Bob's daughter. Whichever filer is first, she is
+    """S8.14.5.5: Zoe is Jane's friend and John's daughter. Whichever filer is first, she is
     a daughter both when chosen and in the book's list (CR3-440)."""
     h = home
-    alice, bob = h.me(h.alice), h.me(h.bob)
+    jane, john = h.me(h.jane), h.me(h.john)
     zoe = h.person("Zoe", 2012)
-    h.relate(alice, zoe, "friend")
-    h.relate(bob, zoe, "child")
-    book = h.book(2025, h.alice, h.bob)
+    h.relate(jane, zoe, "friend")
+    h.relate(john, zoe, "child")
+    book = h.book(2025, h.jane, h.john)
     h.dep(book, zoe, "qualifying child")
     h.s.flush()
-    chosen = {c.person.name: c.relation for c in dependents.candidates(h.s, h.alice.id, book)}
+    chosen = {c.person.name: c.relation for c in dependents.candidates(h.s, h.jane.id, book)}
     listed = {d.person.name: d.relation for d in dependents.listed(h.s, book)}
     assert chosen["Zoe"] == listed["Zoe"] == "daughter"
 
@@ -618,12 +618,12 @@ def test_a_person_has_one_relation_word_in_the_book_and_when_chosen(home):
 def test_a_descendant_is_a_child_or_grandchild_of_a_filer_on_dec_31(home):
     h = home
     p = family(h)
-    joint = h.book(2025, h.alice, h.bob)
+    joint = h.book(2025, h.jane, h.john)
     is_ = {n for n in p if dependents.is_descendant(h.s, joint, p[n].id)}
     assert is_ == {"bea", "dan", "Cal"}
-    assert not dependents.is_descendant(h.s, h.book(2025, h.bob), p["Abe"].id)
-    assert dependents.is_descendant(h.s, h.book(2026, h.bob), p["Abe"].id)  # adopted in 2026
-    assert not dependents.is_descendant(h.s, h.book(2025, h.bob), p["bea"].id)  # Bob's friend
+    assert not dependents.is_descendant(h.s, h.book(2025, h.john), p["Abe"].id)
+    assert dependents.is_descendant(h.s, h.book(2026, h.john), p["Abe"].id)  # adopted in 2026
+    assert not dependents.is_descendant(h.s, h.book(2025, h.john), p["bea"].id)  # John's friend
 
 
 def test_a_books_dependents_are_listed_with_relation_age_and_the_lines_they_cross(home):
@@ -648,21 +648,23 @@ def test_a_books_dependents_are_listed_with_relation_age_and_the_lines_they_cros
         made[key] = h.dep(book, person, claimed, created=T1 + dt.timedelta(hours=i),
                           student=student)  # fmt: skip
     dependents.set_accounts(h.s, made["bea"], [a1.id, a2.id], T1)
-    h.dep(h.book(2025, h.bob), p["Fay"], "qualifying relative")
+    h.dep(h.book(2025, h.john), p["Fay"], "qualifying relative")
     h.s.flush()
     got = dependents.listed(h.s, book)
-    assert [d.row.id for d in got] == [made[k].id for k, *_ in rows]
+    # The filers' children first, oldest first; then anyone else by name (S10.10.7).
+    want = ["bea", "Abe", "Fay", "k12", "k13", "k17", "n19", "nob", "r24", "s19"]
+    assert [d.row.id for d in got] == [made[k].id for k in want]
     assert [(d.person.name, d.relation, d.age, d.under17, d.under13) for d in got] == [
         ("bea", "daughter", 16, True, False),
-        ("k17", None, 17, False, False),
-        ("k13", None, 13, True, False),
-        ("k12", None, 12, True, True),
-        ("s19", None, 19, False, False),
-        ("n19", None, 19, False, False),
-        ("r24", None, 24, False, False),
-        ("Fay", "Godmother", 65, False, False),
         ("Abe", None, 15, True, False),
+        ("Fay", "Godmother", 65, False, False),
+        ("k12", None, 12, True, True),
+        ("k13", None, 13, True, False),
+        ("k17", None, 17, False, False),
+        ("n19", None, 19, False, False),
         ("nob", None, None, False, False),
+        ("r24", None, 24, False, False),
+        ("s19", None, 19, False, False),
     ]
     assert {d.person.name: d.agesOut for d in got if d.agesOut} == {
         "k17": ["turns 17: no longer under 17 for the child tax credit"],
@@ -676,13 +678,13 @@ def test_a_books_dependents_are_listed_with_relation_age_and_the_lines_they_cros
 
 
 def test_a_listed_dependents_relation_is_as_of_dec_31(home):
-    # Ivy, whom Alice adopts in February 2026, is no relation on Alice's 2025 book, though she
+    # Ivy, whom Jane adopts in February 2026, is no relation on Jane's 2025 book, though she
     # is her daughter by the day the book is read.
     from moolakata import clock
 
     h = home
     ivy = h.person("Ivy", 2016)
-    h.relate(h.me(h.alice), ivy, "child", since=D(2026, 2, 1))
+    h.relate(h.me(h.jane), ivy, "child", since=D(2026, 2, 1))
     old, new = h.book(2025), h.book(2026)
     h.dep(old, ivy)
     h.dep(new, ivy)
@@ -756,8 +758,8 @@ def test_next_years_dependents_are_last_years_a_year_older_with_their_accounts(h
     )
     assert link.createdAt == T3
 
-    # From Bob's book of the year before too: a person both claimed is copied once.
-    theirs = h.book(2024, h.bob)
+    # From John's book of the year before too: a person both claimed is copied once.
+    theirs = h.book(2024, h.john)
     h.dep(theirs, ppl["kid"])
     other = h.dep(theirs, h.person("Other", 2014))
     h.dep(theirs, ppl["n19"])

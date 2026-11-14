@@ -1,6 +1,6 @@
 # Later work
 
-Work planned for after the first release (S17.9.11), with what is already known about it. Each
+Work planned for after the first release, with what is already known about it. Each
 item has a lasting id (L1, L2, …), kept as gaps' and questions' are. When an item is taken up,
 it is specified in its section and removed from here; its id is never used again. The
 [README](README.md#later-work) lists them.

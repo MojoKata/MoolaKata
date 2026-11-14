@@ -72,8 +72,8 @@ def test_one_payment_is_one_row_each_side(server, seed):
 def check_world(server, seed: int) -> None:
     clock.fix(T0)
     try:
-        make_user(server, "alice")
-        c = sign_in(server, "alice")
+        make_user(server, "jane")
+        c = sign_in(server, "jane")
         wrong = []
         for k, seq in enumerate(hw.world(seed).sequences):
             bank = new_account(c, name=f"Checking {k}", mask=f"{4000 + k}")["id"]

@@ -46,8 +46,8 @@ def ids(srv) -> dict[str, str]:
 
     with srv.db.read(unscoped="test") as s:
         users = {u.username: u for u in s.scalars(select(User))}
-        alice = users["alice"]
-        acct = {a.type: a.id for a in s.scalars(select(Account).where(Account.ownerId == alice.id))}
+        jane = users["jane"]
+        acct = {a.type: a.id for a in s.scalars(select(Account).where(Account.ownerId == jane.id))}
         held = s.scalars(
             select(Instrument)
             .join(Lot, Lot.instrumentId == Instrument.id)
@@ -57,11 +57,11 @@ def ids(srv) -> dict[str, str]:
         kid = s.scalars(
             select(Person).where(Person.id.not_in([u.personId for u in users.values()]))
         ).first()
-        book = s.scalars(select(TaxBook).where(TaxBook.ownerId == alice.id)).first()
+        book = s.scalars(select(TaxBook).where(TaxBook.ownerId == jane.id)).first()
         from moolakata.store.entities.accounts import Category
         from moolakata.store.entities.budgets import Budget
 
-        budget = s.scalars(select(Budget).where(Budget.ownerId == alice.id)).first()
+        budget = s.scalars(select(Budget).where(Budget.ownerId == jane.id)).first()
         cats = {c.builtIn: c.id for c in s.scalars(select(Category))}
         deposit = s.scalars(
             select(Transaction).where(
@@ -77,8 +77,8 @@ def ids(srv) -> dict[str, str]:
             "instrument": held.id,
             "item": item.id,
             "kid": kid.id,
-            "me": alice.personId,
-            "alice": alice.id,
+            "me": jane.personId,
+            "jane": jane.id,
             "book": book.id,
             "org": org.id,
             "year": str(book.year + 1),
@@ -98,17 +98,17 @@ def calls(i: dict[str, str]):
         "/ui/api/settings/links/invitations": ("admin", None, None),
         "/ui/api/settings/connector/pairings": ("admin", None, None),
         "/ui/api/budgets/{budget_id}/copy": (
-            "alice",
+            "jane",
             {"budget_id": i["budget"]},
             {"name": "Household, envelope", "method": "envelope"},
         ),
         "/ui/api/accounts/{account_id}/options/{instrument_id}/settle": (
-            "alice",
+            "jane",
             lambda made: {"account_id": brk, "instrument_id": made["option"]},
             {"how": "expired", "date": "2026-12-18", "contracts": "1"},
         ),
-        "/ui/api/receipts": ("alice", None, "receipt"),
-        "/ui/api/accounts/{account_id}/goal": ("alice", {"account_id": edu}, None),
+        "/ui/api/receipts": ("jane", None, "receipt"),
+        "/ui/api/accounts/{account_id}/goal": ("jane", {"account_id": edu}, None),
     }
 
 
@@ -123,10 +123,10 @@ def test_every_201_answers_a_location_that_reads_what_it_made(seeded):
     ]
     assert len(routes) > 5
     assert sorted(set(routes) - set(todo) - set(NOT_WALKED)) == [], "walk every 201 route"
-    clients = {who: sign_in(srv, who, pw) for who in ("admin", "alice")}
+    clients = {who: sign_in(srv, who, pw) for who in ("admin", "jane")}
     # An option trade is a transaction of the save's (S3.2): the option made ahead.
     made: dict[str, str] = {}
-    trade = saved(option_trade(clients["alice"], i["acct:brokerage"], "2026-10-01", "buy-to-open",
+    trade = saved(option_trade(clients["jane"], i["acct:brokerage"], "2026-10-01", "buy-to-open",
                                "AAPL", "call",
                                300, "2026-12-18", 1, 3))  # fmt: skip
     made["option"] = trade["instrumentId"]

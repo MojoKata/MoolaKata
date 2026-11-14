@@ -118,7 +118,7 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
 
 def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
     """Which shares a change carried, for Activity (S11.8): whose item, of what kind, and for
-    whom, never its name (*Alice Griffin's account for Carol*). `here`: its viewers are this
+    whom, never its name (*Jane Doe's account for Bart*). `here`: its viewers are this
     server's users (a change taken); else the peer's (a change sent)."""
     key = User.id if here else User.remoteId
     rows = s.execute(

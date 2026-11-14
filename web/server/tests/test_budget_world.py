@@ -56,8 +56,8 @@ def _ok(r):
 class Made:
     def __init__(self, server, w: bw.World):
         self.w = w
-        make_user(server, "alice")
-        self.c = sign_in(server, "alice")
+        make_user(server, "jane")
+        self.c = sign_in(server, "jane")
         self.cat = cats(self.c)
         self.accounts: dict[str, dict] = {}
         for i, (name, kind) in enumerate({**bw.IN_BUDGET, **bw.OUTSIDE}.items()):
@@ -165,14 +165,14 @@ class Made:
         _ok(drop(self.c, "Acct", f"/ui/api/accounts/{self.id('Old')}", confirm=True))
 
     def _receiver(self, server):
-        make_user(server, "bob")
-        bob = sign_in(server, "bob")
-        bob_id = bob.get("/ui/api/session").json()["user"]["id"]
-        _ok(share(self.c, "budget", self.b["id"], users={bob_id: "read"}))
+        make_user(server, "john")
+        john = sign_in(server, "john")
+        john_id = john.get("/ui/api/session").json()["user"]["id"]
+        _ok(share(self.c, "budget", self.b["id"], users={john_id: "read"}))
         seen = bw.IN_BUDGET if self.w.viewer == "receiver-all" else ("Checking", "Ally")
         for name in seen:
-            _ok(share(self.c, "account", self.id(name), users={bob_id: "read"}))
-        return bob
+            _ok(share(self.c, "account", self.id(name), users={john_id: "read"}))
+        return john
 
 
 # ---------- the invariants ----------

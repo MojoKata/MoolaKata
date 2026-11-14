@@ -94,12 +94,14 @@ produces worksheets and exports. It never files, and says so (R1.16).
     married couple filing jointly. Each household member who files has their own, and a
     couple filing separately has two.
     1. **Filers**: one user, or two who are spouses (S10.10.4) on the last day of the year, or
-       of whom one died during it. Creating a tax book names the year and the filers. A user
+       of whom one died during it. Creating a tax book names the year and the filers, and the
+       book is called by them, a joint one's named as S10.10.7 orders a couple
+       (*2026 · John & Jane (joint)*). A user
        named as a filer by someone else accepts before the tax book counts their accounts or
        shows anything from their year before, or **declines**, which takes them off it and
        tells its owner in Activity. A filer is on one tax book a year: naming one already a
        filer on a book of the year, or accepting a second, is refused, naming the other
-       (*You're a filer on 2025's tax book with Bob*); an invitation not yet accepted blocks
+       (*You're a filer on 2025's tax book with John*); an invitation not yet accepted blocks
        nothing.
     2. **Accounts counted**: the filers' own accounts, each counted once even when the filers
        share it with each other. A filer can add an account they can see (a custodial account
@@ -119,8 +121,9 @@ produces worksheets and exports. It never files, and says so (R1.16).
        after filing separately, each copied from. Not started from last year, nothing is
        copied or expected.
     5. **Dependents**: the people the filers claim for the year, chosen from the household's
-       people (S10.10). MoolaKata doesn't decide who qualifies (S8.18); dependents feed the
-       panels, the checklist and a few flags.
+       people (S10.10) and listed as S10.10.7 orders them, children oldest first. MoolaKata
+       doesn't decide who qualifies (S8.18); dependents feed the panels, the checklist and a
+       few flags.
        1. **Each** has how they are claimed (*qualifying child* or *qualifying relative*,
           suggested from the family tree: a child or grandchild under 19, or under 24 and a
           student), the months they lived with the filers, a *full-time student* tick, and

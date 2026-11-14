@@ -125,13 +125,13 @@ def main(out: Path) -> int:
         page.evaluate("state.txFilters = null")
 
         # An action not open to the reader (S12.19.1): shown off, its reason its tooltip.
-        page.evaluate("state.user = 'bob'; location.hash = '#/accounts'; render()")
+        page.evaluate("state.user = 'john'; location.hash = '#/accounts'; render()")
         page.wait_for_timeout(120)
         off = page.locator("table button[aria-disabled='true'][title='Only its owner shares it']")
         if not off.count():
             errors.append("accounts: Share on an account shared with the reader isn't shown off")
         shot("accounts-share-off")
-        page.evaluate("state.user = 'alice'; render()")
+        page.evaluate("state.user = 'jane'; render()")
 
         page.evaluate("state.locked = true; location.hash = '#/settings'")
         page.wait_for_timeout(120)
@@ -166,9 +166,9 @@ def main(out: Path) -> int:
         if page.locator("#root").bounding_box()["x"] <= 0:
             errors.append("mock pane: the app isn't moved over beside it")
         shot("mock-pane")
-        page.evaluate("location.hash = '#/settings/keys?as=bob&on=stale&dialog=verifyKey'")
+        page.evaluate("location.hash = '#/settings/keys?as=john&on=stale&dialog=verifyKey'")
         page.wait_for_timeout(150)
-        if page.evaluate("[state.settings, state.user, state.stale].join()") != "keys,bob,true":
+        if page.evaluate("[state.settings, state.user, state.stale].join()") != "keys,john,true":
             errors.append("mock pane: the address's section, user or state wasn't applied")
         if page.locator(".dialog").count() != 1:
             errors.append("mock pane: dialog=verifyKey in the address opened no dialog")
@@ -176,7 +176,7 @@ def main(out: Path) -> int:
         page.evaluate("closeDialog()")
         if "dialog=" in page.evaluate("location.hash"):
             errors.append("mock pane: a dialog closed but stayed in the address")
-        page.evaluate("state.user = 'alice'; state.stale = false; state.pane = false; renderPane()")
+        page.evaluate("state.user = 'jane'; state.stale = false; state.pane = false; renderPane()")
         # A guide's acronyms (S12.7.7): the first under a heading underlined, a later one plain
         # until hovered; hovering either opens its card, whose icon links to the document.
         page.evaluate("state.help = true; location.hash = '#/transactions'; render()")

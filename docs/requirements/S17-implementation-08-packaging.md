@@ -27,7 +27,7 @@
       its unlock, health, a sign-in, a receipt read, the connector's vault made on its page and
       its unlock after a restart, clean stops); the trial on household hardware
       (a Raspberry Pi, an arm64 NAS), which alone measures the reader's speed there
-      (S9.8.4.5), is in the manual test plan (S17.9.7.8), and a release says whether it was
+      (S9.8.4.5), is in the manual test plan (`docs/test-plan.md`), and a release says whether it was
       run.
    2. **Published images.** Each release is published as `ghcr.io/mojokata/moolakata` and
       `ghcr.io/mojokata/moolakata-connector`, tagged with the version, one tag for both

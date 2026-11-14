@@ -834,7 +834,7 @@ def share_asked(s: Session, server) -> Iterable[Cause]:
 
 
 def occasion_title(up) -> str:
-    """'Emma's birthday in 9 days'; a holiday or a named date keeps its capitals."""
+    """'Lisa's birthday in 9 days'; a holiday or a named date keeps its capitals."""
     when = "today" if up.days == 0 else "tomorrow" if up.days == 1 else f"in {up.days} days"
     plain = up.date.kind in ("birthday", "anniversary") and up.date.label in (
         "Birthday",

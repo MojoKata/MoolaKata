@@ -56,33 +56,33 @@ def test_flows_count_money_in_and_out_not_income():
 
 
 def test_dashboard_counts_owned_and_ticked_accounts(server):
-    make_user(server, "alice")
-    make_user(server, "bob")
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
-    a = new_account(alice, openingBalance="1000.00", openingDate="2026-01-01")
-    add(alice, a["id"], "-40.00", "2026-09-01")
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    a = new_account(jane, openingBalance="1000.00", openingDate="2026-01-01")
+    add(jane, a["id"], "-40.00", "2026-09-01")
     card = new_account(
-        alice,
+        jane,
         name="Card",
         type="credit-card",
         mask="5555",
         openingBalance="0.00",
         openingDate="2026-01-01",
     )
-    add(alice, card["id"], "-60.00", "2026-09-02")
-    dash = alice.get("/ui/api/dashboard").json()
+    add(jane, card["id"], "-60.00", "2026-09-02")
+    dash = jane.get("/ui/api/dashboard").json()
     assert dash["netWorth"] == "900.00" and dash["cash"] == "960.00"
     assert [g["group"] for g in dash["groups"]] == ["banking", "liabilities"]
     assert any(x["kind"] == "uncategorised" for x in dash["attention"])
-    series = alice.get("/ui/api/dashboard/series", params={"range": "1M"}).json()
+    series = jane.get("/ui/api/dashboard/series", params={"range": "1M"}).json()
     assert series["groups"] == ["banking", "liabilities"]
     assert series["points"][-1]["total"] == "900.00"
-    assert bob.get("/ui/api/dashboard").json()["netWorth"] == "0.00"
+    assert john.get("/ui/api/dashboard").json()["netWorth"] == "0.00"
 
 
 def test_portfolio_series_returns_and_holdings(server):
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(
         c, name="Brokerage", type="brokerage", openingBalance="0.00", openingDate="2026-06-30"
     )
@@ -127,8 +127,8 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
 def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
     # B22: the past keeps it (R3.10); from its closing on it counts nothing, and its leaving
     # is no loss.
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     ids = []
     for name, mask in (("Kept", "1111"), ("Closed", "2222")):
         a = new_account(c, name=name, mask=mask, openingBalance="0.00", openingDate="2026-06-30")
@@ -145,8 +145,8 @@ def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
 
 def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
     # B22: an account's gain before it closed stays in the portfolio's returns (R3.10).
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2026-06-30")
     add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
     add(c, a["id"], "100.00", "2026-08-01", kind="interest")
@@ -161,8 +161,8 @@ def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
 
 def test_a_deleted_account_leaves_a_portfolios_past(server):
     """Deleting is a correction (R3.10): the account was never there, past included."""
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     ids = []
     for name, mask in (("Kept", "1111"), ("Mistake", "2222")):
         a = new_account(c, name=name, mask=mask, openingBalance="0.00", openingDate="2026-06-30")
@@ -181,8 +181,8 @@ def test_a_deleted_account_leaves_a_portfolios_past(server):
 def _checking_and_mortgage(server):
     from edits import saved, terms
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     bank = new_account(c, name="Checking", openingBalance="0.00", openingDate="2026-06-30")
     add(c, bank["id"], "5000.00", "2026-07-01", kind="deposit")
     loan = new_account(c, name="Mortgage", type="mortgage")
@@ -230,8 +230,8 @@ def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
     from moolakata.store.entities.accounts import Account
     from moolakata.store.repos import ledger as repo
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
                     openingDate="2026-01-01")  # fmt: skip
     add(c, a["id"], "3000.00", "2026-01-02", kind="deposit")
@@ -250,8 +250,8 @@ def test_shares_moved_in_are_money_in_not_growth(server):
     series values them; the time-weighted return takes none of them as performance."""
     clock.fix(dt.datetime(2026, 10, 13, 15, 0, tzinfo=dt.UTC))
     try:
-        make_user(server, "alice")
-        c = sign_in(server, "alice")
+        make_user(server, "jane")
+        c = sign_in(server, "jane")
         a = new_account(c, name="Brokerage", type="brokerage", openingBalance="0.00",
                         openingDate="2026-01-01")  # fmt: skip
         add(c, a["id"], "10000.00", "2026-01-02", kind="deposit")
@@ -300,8 +300,8 @@ def test_an_option_without_a_mark_is_worth_what_exercising_it_would_be(server):
     money counts nothing, never less."""
     from edits import create, option_trade, saved
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     a = new_account(c, name="Options", type="brokerage", openingBalance="0.00",
                     openingDate="2026-01-01")  # fmt: skip
     r = create(c, "Txn", accountId=a["id"], date="2026-09-01", kind="buy", symbol="MSFT",

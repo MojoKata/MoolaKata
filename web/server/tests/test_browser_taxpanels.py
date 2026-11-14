@@ -158,7 +158,7 @@ def build(h) -> World:
     w.txn(ira, f"{y}-12-01", "-4000.00", kind="withdrawal")
     w.txn(hsa, f"{y}-02-01", "1000.00", kind="deposit", contributionSource="employer")
     w.txn(hsa, f"{y}-03-01", "2000.00", kind="deposit")
-    # A custodial account in Emma's name, earning past the Form 8615 threshold.
+    # A custodial account in Lisa's name, earning past the Form 8615 threshold.
     kid = w.acct("custodial", "TP custodial", "savings", institution="TP Credit Union")
     w.txn(kid, f"{y}-12-31", "3000.00", kind="interest")
     # Giving: acknowledged, one missing, one too small to need it; goods past $5,000; a QCD.
@@ -172,13 +172,13 @@ def build(h) -> World:
     ):
         w.donations.append(made(make(c, "Dnatn", date=f"{y}-10-02", kind=kind,
                                      organisationId=church, amount=amount, **extra)))  # fmt: skip
-    # Emma's 529: the owner's gift past the exclusion, a five-year election, a grandmother's
+    # Lisa's 529: the owner's gift past the exclusion, a five-year election, a grandmother's
     # gift; a withdrawal past the qualified expenses.
-    emma = h.extra["emma"]["personId"]
-    gran = made(make(c, "Persn", name="TP Margaret", sex="female"))["id"]
+    lisa = h.extra["lisa"]["personId"]
+    gran = made(make(c, "Persn", name="TP Candace", sex="female"))["id"]
     w.persons.append(gran)
     plan529_id = w.acct("529", "TP 529", "529", institution="TP my529")
-    saved(plan529(c, plan529_id, planState="Utah", planName="my529", beneficiaryId=emma,
+    saved(plan529(c, plan529_id, planState="Utah", planName="my529", beneficiaryId=lisa,
                   openedOn="2019-05-02", stateDeduction="2410"))  # fmt: skip
     made(make(c, "Cntrb", accountId=plan529_id, date=f"{y}-02-01", amount="20000"))
     made(make(c, "Cntrb", accountId=plan529_id, date=f"{y}-03-01", amount="5000",
@@ -208,10 +208,10 @@ def build(h) -> World:
               progress="accepted", filedOn=f"{y}-04-01", sentBy="e-file",
               carried={"agi": "90000", "totalTax": "8400", "capitalLossShort": "500",
                        "capitalLossLong": "1200", "basis8606": {w.me: "2000"}}))  # fmt: skip
-    # This year's book: Emma a dependent student with her custodial account, a relative of
+    # This year's book: Lisa a dependent student with her custodial account, a relative of
     # unknown age, a son; three filings, with estimated payments; documents received and filed.
     b = w.books[y] = made(make(c, "TaxBk", year=y, filers=[w.me], fromLastYear=False))
-    made(make(c, "TxDep", bookId=b["id"], personId=emma, claimedAs="qualifying child",
+    made(make(c, "TxDep", bookId=b["id"], personId=lisa, claimedAs="qualifying child",
               months=12, student=True, accountIds=[kid]))  # fmt: skip
     made(make(c, "TxDep", bookId=b["id"], personId=gran, claimedAs="qualifying relative",
               months=7))  # fmt: skip
@@ -436,8 +436,8 @@ def test_the_deductions_panel_shows_tags_payments_and_dependents(browser, world)
     assert "Federal · Q1 $1,000.00 Federal · Q2 $1,000.00 Utah · Q1 $300.00" in paid
     assert "Last year's total tax: $8,400; paid in 2021 so far: $2,300." in paid
     deps = _text(page, _card("Dependents' Ages on Dec 31"))
-    assert "Emma Griffin 3 · under 13 · under 17" in deps
-    assert "TP Margaret age unknown" in deps
+    assert "Lisa Doe 3 · under 13 · under 17" in deps
+    assert "TP Candace age unknown" in deps
     assert (
         "TP Leo · son turns 13: no longer under 13 for the childcare credit 13 · under 17" in deps
     )
@@ -477,15 +477,15 @@ def test_the_education_panel_shows_the_529_students_and_gifts(browser, world):
     page, problems = opened(browser, world, YEAR, "education", ':text("year 1 of 5")')
     plans = _text(page, _card("529 Plans"))
     assert (
-        "TP 529 · Emma Griffin From Admin $70,000.00 From TP Margaret $5,000.00 State deduction "
+        "TP 529 · Lisa Doe From Admin $70,000.00 From TP Candace $5,000.00 State deduction "
         "expected $2,410 Distributions (1099-Q) $6,000.00 Qualified expenses $4,500.00 Not "
         "covered $1,500.00"
     ) in plans
     assert (
-        "Dependent Students Emma Griffin 529 withdrawals for them: $6,000.00 1098-T received"
+        "Dependent Students Lisa Doe 529 withdrawals for them: $6,000.00 1098-T received"
     ) in plans
     gifts = _text(page, _card("Gifts (Form 709)"))
-    assert "Admin to Emma Griffin above the $15,000 exclusion $30,000.00" in gifts
+    assert "Admin to Lisa Doe above the $15,000 exclusion $30,000.00" in gifts
     assert "Admin's 2021 five-year election to TP 529: year 1 of 5, 10,000 a year" in gifts
     assert problems == []
     page.close()
@@ -585,15 +585,15 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     ) in last
     deps = _text(page, '.card:has(h3:has-text("Dependents"))')
     assert (
-        "Emma Griffin qualifying child · 12 months · student Age 3 on Dec 31, 2021: under 13 "
+        "Lisa Doe qualifying child · 12 months · student Age 3 on Dec 31, 2021: under 13 "
         "and under 17"
     ) in deps
-    assert "TP Margaret qualifying relative · 7 months Age unknown: no birth year" in deps
+    assert "TP Candace qualifying relative · 7 months Age unknown: no birth year" in deps
     assert (
         "TP Leo Son · qualifying child · 12 months turns 13: no longer under 13 for the childcare "
         "credit Age 13 on Dec 31, 2021: under 17"
     ) in deps
-    assert "Emma Griffin: $3,000.00 unearned, above $2,200.00 · Form 8615 may apply" in deps
+    assert "Lisa Doe: $3,000.00 unearned, above $2,200.00 · Form 8615 may apply" in deps
     assert problems == []
     page.close()
 
@@ -634,7 +634,7 @@ def test_the_documents_tab_shows_what_came_and_what_was_filed(browser, world):
     assert (
         "1099-INT TP Ally From TP savings: $10 or more of interest received tp-1099-int.pdf"
     ) in rows
-    assert "1098-T — For Emma Griffin: a student received" in rows
+    assert "1098-T — For Lisa Doe: a student received" in rows
     # Each row says whether its document came; Attach beside one that hasn't (S12.19.1).
     assert "1099-DA TP Coinbase From TP exchange: a crypto exchange missing Attach" in rows
     expected = world.book(YEAR)["expected"]

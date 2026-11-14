@@ -138,9 +138,9 @@ def test_marks_and_pairings_are_checked(server, frozen):
     r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=plain["id"], amount="10.00")
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-a-deposit"
     # Someone else can't pair with the account's spending.
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    mine = new_account(bob, name="Bob's checking")
-    theirs = add(bob, mine["id"], "20.00", "2026-10-05")
-    r = make(bob, "Rmbrs", spendingId=lunch["id"], paybackId=theirs["id"], amount="10.00")
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    mine = new_account(john, name="John's checking")
+    theirs = add(john, mine["id"], "20.00", "2026-10-05")
+    r = make(john, "Rmbrs", spendingId=lunch["id"], paybackId=theirs["id"], amount="10.00")
     assert r.status_code in (403, 404)

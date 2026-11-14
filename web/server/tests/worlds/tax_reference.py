@@ -425,7 +425,7 @@ def household(w: tw.World) -> Household:
 def counted(w: tw.World, year: int, filers: tuple[str, ...]) -> set[str]:
     """The accounts a book counts (S8.14.2): its filers' own, but one left out."""
     out = {a for a, (owner, _) in tw.ACCOUNTS.items() if owner in filers}
-    if w.left_out and year == 2026 and "alice" in filers:
+    if w.left_out and year == 2026 and "jane" in filers:
         out.discard("Second")
     return out
 

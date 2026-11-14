@@ -59,6 +59,6 @@ def test_one_active_budget_and_scenarios_beside_it(server, frozen):
     # Active is each user's own choice; deleting it leaves none active.
     saved(drop(c, "Bdgt", f"/ui/api/budgets/{copy['id']}"))
     assert c.get("/ui/api/dashboard").json()["budget"] is None
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    assert bob.get("/ui/api/dashboard").json()["budget"] is None
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    assert john.get("/ui/api/dashboard").json()["budget"] is None

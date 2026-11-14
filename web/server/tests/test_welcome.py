@@ -187,10 +187,10 @@ def test_verify_key_checks_a_copy_of_the_phrase_and_changes_nothing(
     confirmations = admin_client.get("/ui/api/settings/keys").json()["confirmations"]
     assert [(x["how"], x["matched"]) for x in confirmations[:2]] == [("app", True), ("app", False)]
 
-    make_user(server, "bob")
-    with new_client(server) as bob:
-        bob.post("/ui/api/session", json={"login": "bob", "password": "a long user passphrase"})
-        r = bob.post("/ui/api/settings/keys/verify", json={"phrase": words})
+    make_user(server, "john")
+    with new_client(server) as john:
+        john.post("/ui/api/session", json={"login": "john", "password": "a long user passphrase"})
+        r = john.post("/ui/api/settings/keys/verify", json={"phrase": words})
         assert r.status_code == 403
 
 

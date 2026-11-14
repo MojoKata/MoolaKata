@@ -44,7 +44,7 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
     """A card's paying account is learned from its payments; where money for a savings
     account moves from, from its transfers in; either can be chosen (S7.1.6)."""
     c, acct, _, b = setup_budget(server)
-    other = new_account(c, name="Bob's checking", mask="5555")
+    other = new_account(c, name="John's checking", mask="5555")
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
     savings = new_account(c, name="Ally", type="savings", mask="2222")
     add(c, acct["id"], "3000.00", "2026-09-01", payee="Payroll")
@@ -73,7 +73,7 @@ def test_where_money_comes_from_is_worked_out(server, frozen):
 
 def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     c, acct, cat, b = setup_budget(server)
-    r = make(c, "GfPln", name="Emma Griffin", sex="female", giftBudget="600")
+    r = make(c, "GfPln", name="Lisa Doe", sex="female", giftBudget="600")
     assert r.status_code == 200, r.text
     r = giving_plan(c, 2026, targetKind="amount", amount="1200")
     assert r.status_code == 200, r.text

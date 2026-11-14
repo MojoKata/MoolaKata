@@ -278,7 +278,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
    Reports never carry a credential, an amount or an account number beyond its last four
    digits.
 6. **Connections.** A **Connection** is one sign-in at one institution, kept by the
-   connector: *Alice's Schwab login*, using the Schwab driver.
+   connector: *Jane's Schwab login*, using the Schwab driver.
    1. **Owned by a user**, the one whose sign-in it is, who names it. MoolaKata holds its
       record (owner, driver, label, state, last run) and, after its first run, **the
       institution accounts the driver found**, by name and last four digits. Its credentials
@@ -378,7 +378,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
    restart the drivers fetch again, and the import's idempotence drops what arrived before. A PDF is kept without reading (S1.3.3.6), or,
    where MoolaKata reads that kind, waits in the account's inbox for its owner to check:
    nothing read from a PDF is saved unchecked. Every post is recorded in Activity as *by
-   MoolaKata Connector, Alice's Schwab login*.
+   MoolaKata Connector, Jane's Schwab login*.
 9. **The first drivers**, for the average cases. A driver pushes what it fetches from its
    institution; an institution with nothing to fetch from, such as UMB, is kept current by
    files its owner downloads and uploads (S1.3), since the downloads land on the owner's

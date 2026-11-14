@@ -84,9 +84,9 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     core.tick()
     assert admin.get("/ui/api/settings/connector").json()["locked"] is True
 
-    # Alice makes a Connection to her credit union and syncs her checking account to it.
-    alice = make_user(server, "alice").id
-    c = sign_in(server, "alice")
+    # Jane makes a Connection to her credit union and syncs her checking account to it.
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
     # The connection made as the profile's dialog makes it, through the save (S13.8.11).
     settings = {"url": f"https://{BANK}/ofx", "org": "CU", "fid": "1",
                 "accountType": "CHECKING", "accountId": "4417"}  # fmt: skip
@@ -97,7 +97,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     conn = r.json()["saved"][0]["record"]
     with server.db.tx(unscoped="test") as s:
         a = Account(
-            id="Acct_01m4zzbtececftrsacpbatewws", ownerId=alice, name="Checking", type="checking"
+            id="Acct_01m4zzbtececftrsacpbatewws", ownerId=jane, name="Checking", type="checking"
         )
         s.add(a)
     aid = "Acct_01m4zzbtececftrsacpbatewws"
@@ -112,7 +112,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     box = mk_sealed.seal(
         json.dumps(
             {
-                "credentials": {"username": "alice", "password": "pw"},
+                "credentials": {"username": "jane", "password": "pw"},
                 "host": BANK,
                 "sealedAt": 1792000000000,
             }
@@ -127,7 +127,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is True
     core.unlock(phrase)
     core.tick()
-    assert core.vault.get(conn["id"]) == {"username": "alice", "password": "pw"}
+    assert core.vault.get(conn["id"]) == {"username": "jane", "password": "pw"}
     assert c.get("/ui/api/profile/connections").json()["items"][0]["credentialWaiting"] is False
     state = core.connections[conn["id"]]
     assert state.state == "ok" and state.last_added == 2 and state.message == "1 statement"
@@ -142,16 +142,16 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
 
     # The owner's upload limit: the file waits for a later run.
     for _ in range(60):
-        server.upload_rate.hit(alice)
+        server.upload_rate.hit(jane)
     core.transport.bank["ofx"] = OFX.replace(b"20260912", b"20261002")
     state.last_run = None
     core.tick()
     assert len(state.backlog) == 1 and "upload limit" in (state.message or "")
-    server.upload_rate.clear(alice)
+    server.upload_rate.clear(jane)
     core.tick()
     assert state.backlog == []
 
-    # CR3-70, S18.7.3: the credit union moves its server. Alice changes the address in the
+    # CR3-70, S18.7.3: the credit union moves its server. Jane changes the address in the
     # credentials dialog, which saves it first, then seals the sign-in for the new host; the
     # connector files it bound there, and runs against the new server alone.
     conn = c.get("/ui/api/profile/connections").json()["items"][0]
@@ -163,7 +163,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     r = c.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 200, r.text
     box = mk_sealed.seal(
-        json.dumps({"credentials": {"username": "alice", "password": "pw2"}, "host": BANK2,
+        json.dumps({"credentials": {"username": "jane", "password": "pw2"}, "host": BANK2,
                     "sealedAt": 1792000001000}).encode(),
         public,
         conn["id"],
@@ -173,7 +173,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     state.last_run = None
     core.tick()
     assert core.vault.host(conn["id"]) == BANK2
-    assert core.vault.get(conn["id"]) == {"username": "alice", "password": "pw2"}
+    assert core.vault.get(conn["id"]) == {"username": "jane", "password": "pw2"}
     assert core.transport.asked == [BANK2] and state.state == "ok", state.message
 
     # Unpair from MoolaKata: the next report is refused and the connector's loop survives.

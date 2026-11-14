@@ -6,7 +6,7 @@
    dev server makes its key on first run and keeps the phrase in `web/.dev/phrase`, so it
    unlocks itself at every start; its data is throwaway, and an installed server never does
    this (S15.4). `https://localhost:37373` with a self-signed certificate, `web/.dev/` for
-   data, receipts and mail, seed users (`admin`, `alice`, `bob`, a *Household* group), a year
+   data, receipts and mail, seed users (`admin`, `jane`, `john`, a *Household* group), a year
    of seeded transactions across every account type, open and closed option positions with an
    assignment and a wash sale, budgets, two projections, receipts, a **stub price source**
    (deterministic random walks, `--stubs`), and a **stub wallet source** (a made-up history,

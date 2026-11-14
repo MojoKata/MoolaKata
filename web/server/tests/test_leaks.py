@@ -15,7 +15,7 @@ from moolakata.store import access_views
 from moolakata.store.tables import metadata
 
 ID = re.compile(r"\b([A-Z][A-Za-z]{0,4})_[0-9a-z]{26}\b")
-USERS = ("admin", "alice", "bob", "dave", "erin")
+USERS = ("admin", "jane", "john", "dave", "erin")
 
 # A path parameter, and the table whose records fill it: one the caller reads.
 PARAMS = {

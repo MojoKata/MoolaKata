@@ -24,7 +24,7 @@ from moolakata.store.tables._base import Seen, record
 from moolakata.store.tables.receipts import is_search_table
 
 
-def new_user(s, name="alice"):
+def new_user(s, name="jane"):
     from moolakata import people
 
     u = User(
@@ -43,7 +43,7 @@ def test_database_is_encrypted_at_rest(store, keyed_config):
         new_user(s)
     raw = keyed_config.db_path.read_bytes()
     assert b"SQLite format 3" not in raw[:100]
-    assert b"alice" not in raw
+    assert b"jane" not in raw
     with pytest.raises(sqlite3.DatabaseError):
         sqlite3.connect(keyed_config.db_path).execute("SELECT * FROM User").fetchall()
 
@@ -52,7 +52,7 @@ def test_read_refuses_writes_and_tx_commits(db):
     with db.tx(unscoped="test") as s:
         new_user(s)
     with db.read(unscoped="test") as s:
-        assert s.scalars(select(User)).one().username == "alice"
+        assert s.scalars(select(User)).one().username == "jane"
         with pytest.raises(Exception, match=r"readonly|query_only|attempt to write"):
             s.execute(text("UPDATE User SET displayName = 'x'"))
 
@@ -63,7 +63,7 @@ def test_versions_change_with_every_save(db):
     assert u.version == 1
     with db.tx(unscoped="test") as s:
         u = s.get(User, u.id)
-        u.displayName = "Alice G."
+        u.displayName = "Jane G."
     assert u.version == 2
 
 
@@ -275,7 +275,7 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
     shutil.copy(made[-1] / "keyring", restored.keyring_path)
     again = maintenance.open_store(restored, master_key)
     with again.db.read(unscoped="test") as s:
-        assert s.scalars(select(User)).one().username == "alice"
+        assert s.scalars(select(User)).one().username == "jane"
     again.db.dispose()
 
     (made[-1] / "keyring").write_text((made[-1] / "keyring").read_text().replace("a", "b", 1))
@@ -299,7 +299,7 @@ def test_reencrypt_changes_the_data_key_and_keeps_everything(store, keyed_config
     store2.db.dispose()
     store3 = maintenance.open_store(keyed_config, master_key)
     with store3.db.read(unscoped="test") as s:
-        assert s.scalars(select(User)).one().username == "alice"
+        assert s.scalars(select(User)).one().username == "jane"
     store3.db.dispose()
 
 
@@ -402,7 +402,7 @@ def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
         assert ring.data_key_id == named  # the journal's new key, never a third
     assert ring.data_key_id != store.keys.ring.data_key_id
     with again.db.read(unscoped="test") as s:
-        assert s.scalars(select(User)).one().username == "alice"
+        assert s.scalars(select(User)).one().username == "jane"
         assert (
             secret_repo.use(s, again.keys.keys.secrets, "Smtp", "Smtp_x", "password") == "hunter2"
         )
@@ -591,15 +591,15 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         conn.commit()
         for statement in (
             'INSERT INTO "Person" (id, name, sex, version, "createdAt", "updatedAt", deleted) '
-            f"VALUES ('{pa}', 'Alice', 'female', 1, {stamp}, {stamp}, 0)",
+            f"VALUES ('{pa}', 'Jane', 'female', 1, {stamp}, {stamp}, 0)",
             'INSERT INTO "Person" (id, name, sex, version, "createdAt", "updatedAt", deleted) '
-            f"VALUES ('{pb}', 'Bob', 'male', 1, {stamp}, {stamp}, 0)",
+            f"VALUES ('{pb}', 'John', 'male', 1, {stamp}, {stamp}, 0)",
             'INSERT INTO "User" (id, "personId", username, "displayName", version, '
-            f"\"createdAt\", \"updatedAt\", deleted) VALUES ('{uid}', '{pa}', 'alice', "
-            f"'Alice', 1, {stamp}, {stamp}, 0)",
+            f"\"createdAt\", \"updatedAt\", deleted) VALUES ('{uid}', '{pa}', 'jane', "
+            f"'Jane', 1, {stamp}, {stamp}, 0)",
             'INSERT INTO "User" (id, "personId", username, "displayName", version, '
             f'"createdAt", "updatedAt", deleted, "deletedAt", "deletedById") VALUES '
-            f"('{gone}', '{pb}', 'bob', 'Bob', 1, {stamp}, {stamp}, 1, {stamp}, '{uid}')",
+            f"('{gone}', '{pb}', 'john', 'John', 1, {stamp}, {stamp}, 1, {stamp}, '{uid}')",
             # Closed: 0046 takes the day of its last transaction as its closed date.
             'INSERT INTO "Account" (id, "ownerId", name, type, active, version, "createdAt", '
             f"\"updatedAt\", deleted) VALUES ('{aid}', '{uid}', 'Checking', 'checking', 0, 1, "
@@ -613,7 +613,7 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
             'INSERT INTO "OneTimeToken" ("tokenHash", purpose, "userId", "createdAt", '
             f"\"expiresAt\") VALUES ('h1', 'invitation', '{uid}', {stamp}, '2030-01-01 00:00:00')",
             'INSERT INTO "Setting" ("key", value, "updatedById", version, "updatedAt", deleted) '
-            f"VALUES ('householdName', '\"The Griffins\"', '{uid}', 3, {stamp}, 0)",
+            f"VALUES ('householdName', '\"The Does\"', '{uid}', 3, {stamp}, 0)",
             'INSERT INTO "TransactionTags" ("transactionId", "userId", tag, "createdAt", deleted) '
             f"VALUES ('{tid}', '{uid}', 'coffee', {stamp}, 0)",
         ):
@@ -639,7 +639,7 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         users = conn.exec_driver_sql(
             'SELECT username, "effectiveDeleted" FROM "UserEffective" ORDER BY 1'
         ).all()
-        assert [tuple(u) for u in users] == [("alice", 0), ("bob", 1)]
+        assert [tuple(u) for u in users] == [("jane", 0), ("john", 1)]
         closed = conn.exec_driver_sql(f'SELECT "closedOn" FROM "Account" WHERE id = \'{aid}\'')
         assert closed.scalar_one() == "2026-10-01"
         txn = conn.exec_driver_sql(f'SELECT "importId" FROM "Transaction" WHERE id = \'{tid}\'')
@@ -649,7 +649,7 @@ def test_revisions_carry_a_database_from_0001_to_head(tmp_path):
         ).one()
         assert tuple(tagged) == (uid, "coffee")
         setting = conn.exec_driver_sql('SELECT id, value, version FROM "Setting"').one()
-        assert setting[0].startswith("Setng_") and setting[1:] == ('"The Griffins"', 3)
+        assert setting[0].startswith("Setng_") and setting[1:] == ('"The Does"', 3)
         migrated = dict(
             conn.exec_driver_sql("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all()
         )
@@ -684,7 +684,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
         files.write(keyed_config.receipts_dir / f"{name}.mkr", [data], public, name)
 
     with store.db.tx(unscoped="test") as s:
-        new_user(s, "alice")
+        new_user(s, "jane")
     keyed_config.receipts_dir.mkdir(parents=True)
     receipt("abc", b"sealed bytes")
     made = maintenance.backup(keyed_config, store)
@@ -692,7 +692,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
     with pytest.raises(RefuseStart, match="does not open with that phrase"):
         maintenance.verify_backup(keyed_config, os.urandom(16))
     with store.db.tx(unscoped="test") as s:
-        new_user(s, "bob")
+        new_user(s, "john")
     receipt("later", b"after the backup")
     store.db.dispose()
 
@@ -708,7 +708,7 @@ def test_restore_puts_a_backup_back_and_keeps_what_it_replaced(store, keyed_conf
     assert sorted(p.name for p in keyed_config.receipts_dir.iterdir()) == ["abc.mkr", "later.mkr"]
     again = maintenance.open_store(keyed_config, master_key)
     with again.db.read(unscoped="test") as s:
-        assert [u.username for u in s.scalars(select(User))] == ["alice"]
+        assert [u.username for u in s.scalars(select(User))] == ["jane"]
         # A file no record names is counted, for Settings › Storage to offer removing.
         from moolakata.receipts import retention
 
@@ -909,19 +909,19 @@ def test_a_restore_under_an_earlier_phrase_asks_first(store, keyed_config, maste
 def test_a_pre_upgrade_copy_restores_like_a_backup(store, keyed_config, master_key):
     """S16.13: `db restore` takes a pre-upgrade copy's .db with its .keyring beside it."""
     with store.db.tx(unscoped="test") as s:
-        new_user(s, "alice")
+        new_user(s, "jane")
     older = keyed_config.data_dir / "pre-upgrade"
     older.mkdir()
     key = store.keys.keys.sqlcipher_key
     copy.export(store.db.engine, older / "moolakata-before-0009-t.db", key)
     shutil.copy2(keyed_config.keyring_path, older / "moolakata-before-0009-t.keyring")
     with store.db.tx(unscoped="test") as s:
-        new_user(s, "bob")
+        new_user(s, "john")
     store.db.dispose()
     maintenance.restore(keyed_config, older / "moolakata-before-0009-t.db", master_key)
     again = maintenance.open_store(keyed_config, master_key)
     with again.db.read(unscoped="test") as s:
-        assert [u.username for u in s.scalars(select(User))] == ["alice"]
+        assert [u.username for u in s.scalars(select(User))] == ["jane"]
     again.db.dispose()
 
 

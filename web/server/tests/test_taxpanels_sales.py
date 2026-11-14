@@ -24,10 +24,10 @@ T0 = dt.datetime(2027, 1, 15, 12, tzinfo=dt.UTC)
 
 
 @pytest.fixture
-def alice(server):
+def jane(server):
     clock.fix(T0)
-    make_user(server, "alice", born=1951)
-    yield sign_in(server, "alice")
+    make_user(server, "jane", born=1951)
+    yield sign_in(server, "jane")
     clock.fix(None)
 
 
@@ -279,39 +279,39 @@ def rows_of(server, book_id):
         return panels.form_8949(s, s.get(TaxBook, book_id))[0]
 
 
-def test_physical_items_sold_in_the_year_are_8949_rows(server, alice):
-    coll = new_account(alice, name="Coins", type="collectables")
-    metal = new_account(alice, name="Vault", type="precious-metals")
-    cars = new_account(alice, name="Cars", type="vehicle")
-    other = new_account(alice, name="Stuff", type="other-asset")
-    homes = new_account(alice, name="Homes", type="real-estate")
+def test_physical_items_sold_in_the_year_are_8949_rows(server, jane):
+    coll = new_account(jane, name="Coins", type="collectables")
+    metal = new_account(jane, name="Vault", type="precious-metals")
+    cars = new_account(jane, name="Cars", type="vehicle")
+    other = new_account(jane, name="Stuff", type="other-asset")
+    homes = new_account(jane, name="Homes", type="real-estate")
     # Held exactly a year: short term; a day more: long term.
-    thing(alice, coll["id"], "2026-05-01", "3000", "100", name="Coin", acquiredOn="2025-05-01")
-    thing(alice, metal["id"], "2026-05-01", "500", name="Bar", acquiredOn="2025-04-30",
+    thing(jane, coll["id"], "2026-05-01", "3000", "100", name="Coin", acquiredOn="2025-05-01")
+    thing(jane, metal["id"], "2026-05-01", "500", name="Bar", acquiredOn="2025-04-30",
           costBasis="800")  # fmt: skip
-    thing(alice, cars["id"], "2026-01-01", "18000", name="Car", acquiredOn="2022-01-01",
+    thing(jane, cars["id"], "2026-01-01", "18000", name="Car", acquiredOn="2022-01-01",
           costBasis="30000", personalUse=True)  # fmt: skip
-    thing(alice, cars["id"], "2026-12-31", "5000", name="Bike", acquiredOn="2022-01-01",
+    thing(jane, cars["id"], "2026-12-31", "5000", name="Bike", acquiredOn="2022-01-01",
           costBasis="5000", personalUse=True)  # fmt: skip
-    thing(alice, other["id"], "2026-06-01", "400", name="Loom", acquiredOn="2026-01-02")
-    home = thing(alice, homes["id"], name="Cabin", acquiredOn="2020-01-02", costBasis="100000",
+    thing(jane, other["id"], "2026-06-01", "400", name="Loom", acquiredOn="2026-01-02")
+    home = thing(jane, homes["id"], name="Cabin", acquiredOn="2020-01-02", costBasis="100000",
                  closingCosts="2000")  # fmt: skip
     for day, amount in (("2025-06-01", "5000"), ("2026-08-01", "7000")):
-        r = make(alice, "Imprv", itemId=home["id"], date=day, description="Roof", amount=amount)
+        r = make(jane, "Imprv", itemId=home["id"], date=day, description="Roof", amount=amount)
         assert r.status_code == 200, r.text
-    saved(sell(alice, home["id"], "2026-07-01", "150000", "6000"))
+    saved(sell(jane, home["id"], "2026-07-01", "150000", "6000"))
     # Not this book's: sold the year before or the year after, never sold, deleted, and sold
     # from an account the book leaves out.
-    thing(alice, other["id"], "2025-12-31", "10", name="Old")
-    thing(alice, other["id"], "2027-01-02", "10", name="Next")
-    thing(alice, other["id"], name="Kept")
-    gone = thing(alice, other["id"], "2026-03-01", "10", name="Gone")
-    saved(drop(alice, "Item", f"/ui/api/items/{gone['id']}"))
-    left = new_account(alice, name="Left", type="other-asset")
-    thing(alice, left["id"], "2026-03-01", "10", name="Elsewhere")
-    b = book(alice)
-    saved(create(alice, "TxBkA", bookId=b, accountId=left["id"], counted=False))
-    rows = {r["description"]: r for r in read_panels(alice, b)["rows"]}
+    thing(jane, other["id"], "2025-12-31", "10", name="Old")
+    thing(jane, other["id"], "2027-01-02", "10", name="Next")
+    thing(jane, other["id"], name="Kept")
+    gone = thing(jane, other["id"], "2026-03-01", "10", name="Gone")
+    saved(drop(jane, "Item", f"/ui/api/items/{gone['id']}"))
+    left = new_account(jane, name="Left", type="other-asset")
+    thing(jane, left["id"], "2026-03-01", "10", name="Elsewhere")
+    b = book(jane)
+    saved(create(jane, "TxBkA", bookId=b, accountId=left["id"], counted=False))
+    rows = {r["description"]: r for r in read_panels(jane, b)["rows"]}
     assert set(rows) == {"Coin", "Bar", "Car", "Bike", "Loom", "Cabin"}
     want = {
         # name: proceeds, basis, code, adjustment, gain, long term, box, collectable
@@ -341,40 +341,40 @@ def test_physical_items_sold_in_the_year_are_8949_rows(server, alice):
     assert (coin.acquired, coin.sold) == (dt.date(2025, 5, 1), dt.date(2026, 5, 1))
 
 
-def test_a_sold_primary_residence_has_its_gain_and_years_owned(alice):
-    homes = new_account(alice, name="Homes", type="real-estate")
+def test_a_sold_primary_residence_has_its_gain_and_years_owned(jane):
+    homes = new_account(jane, name="Homes", type="real-estate")
     # "Attic" sorts first: an account not real estate is passed over, never the end of the list.
-    other = new_account(alice, name="Attic", type="other-asset")
+    other = new_account(jane, name="Attic", type="other-asset")
     # 384 days: 1.05 years and a little, to the tenth.
-    home = thing(alice, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000",
+    home = thing(jane, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000",
                  closingCosts="4000", primaryResidence=True)  # fmt: skip
-    r = make(alice, "Imprv", itemId=home["id"], date="2025-06-01", description="Deck",
+    r = make(jane, "Imprv", itemId=home["id"], date="2025-06-01", description="Deck",
              amount="6000")  # fmt: skip
     assert r.status_code == 200, r.text
-    saved(sell(alice, home["id"], "2026-01-20", "350000", "20000"))
+    saved(sell(jane, home["id"], "2026-01-20", "350000", "20000"))
     # Sold on the year's first day and its last.
-    thing(alice, homes["id"], "2026-01-01", "100000", name="Pine St", acquiredOn="2025-01-01",
+    thing(jane, homes["id"], "2026-01-01", "100000", name="Pine St", acquiredOn="2025-01-01",
           costBasis="90000", primaryResidence=True)  # fmt: skip
-    thing(alice, homes["id"], "2026-12-31", "200000", name="Oak St", acquiredOn="2016-12-31",
+    thing(jane, homes["id"], "2026-12-31", "200000", name="Oak St", acquiredOn="2016-12-31",
           costBasis="200000", primaryResidence=True)  # fmt: skip
     # Not a sold residence of the year: a rental, one sold the year before or after, one kept,
     # one deleted, one in a real-estate account the book leaves out, and the attic's things.
-    thing(alice, homes["id"], "2026-03-01", "90000", name="Rental", acquiredOn="2020-01-01")
-    thing(alice, homes["id"], "2025-12-31", "90000", name="Before", acquiredOn="2020-01-01",
+    thing(jane, homes["id"], "2026-03-01", "90000", name="Rental", acquiredOn="2020-01-01")
+    thing(jane, homes["id"], "2025-12-31", "90000", name="Before", acquiredOn="2020-01-01",
           primaryResidence=True)  # fmt: skip
-    thing(alice, homes["id"], "2027-01-02", "90000", name="After", acquiredOn="2020-01-01",
+    thing(jane, homes["id"], "2027-01-02", "90000", name="After", acquiredOn="2020-01-01",
           primaryResidence=True)  # fmt: skip
-    thing(alice, homes["id"], name="Kept", acquiredOn="2020-01-01", primaryResidence=True)
-    gone = thing(alice, homes["id"], "2026-02-01", "1", name="Gone", primaryResidence=True)
-    saved(drop(alice, "Item", f"/ui/api/items/{gone['id']}"))
-    lake = new_account(alice, name="Lake", type="real-estate")
-    thing(alice, lake["id"], "2026-05-01", "1", name="Cabin", primaryResidence=True)
-    thing(alice, other["id"], "2026-04-01", "1", name="Shed")
-    b = book(alice)
-    saved(create(alice, "TxBkA", bookId=b, accountId=lake["id"], counted=False))
+    thing(jane, homes["id"], name="Kept", acquiredOn="2020-01-01", primaryResidence=True)
+    gone = thing(jane, homes["id"], "2026-02-01", "1", name="Gone", primaryResidence=True)
+    saved(drop(jane, "Item", f"/ui/api/items/{gone['id']}"))
+    lake = new_account(jane, name="Lake", type="real-estate")
+    thing(jane, lake["id"], "2026-05-01", "1", name="Cabin", primaryResidence=True)
+    thing(jane, other["id"], "2026-04-01", "1", name="Shed")
+    b = book(jane)
+    saved(create(jane, "TxBkA", bookId=b, accountId=lake["id"], counted=False))
     got = sorted(
         (x["name"], x["sold"], x["gain"], x["yearsOwned"])
-        for x in read_panels(alice, b)["residences"]
+        for x in read_panels(jane, b)["residences"]
     )
     assert got == [
         ("Elm St", "2026-01-20", "20000.00", 1.1),
@@ -386,32 +386,32 @@ def test_a_sold_primary_residence_has_its_gain_and_years_owned(alice):
 # ---------- Sales in the year's investing accounts (S8.1) ----------
 
 
-def test_the_8949_rows_are_the_sales_in_the_years_investing_accounts(server, alice):
+def test_the_8949_rows_are_the_sales_in_the_years_investing_accounts(server, jane):
     # "Bank" sorts first: an account with no sales is passed over, never the end of the list.
-    bank = new_account(alice, name="Bank", type="checking")
-    add(alice, bank["id"], "500.00", "2026-03-01", kind="deposit")
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    ex = new_account(alice, name="Exchange", type="crypto-exchange")
-    wal = new_account(alice, name="Wallet", type="crypto-wallet")
+    bank = new_account(jane, name="Bank", type="checking")
+    add(jane, bank["id"], "500.00", "2026-03-01", kind="deposit")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    ex = new_account(jane, name="Exchange", type="crypto-exchange")
+    wal = new_account(jane, name="Wallet", type="crypto-wallet")
     sales = {}
 
     def sold(acct, day, qty, price, symbol):
         amount = f"{D(qty) * D(price):.2f}"
-        t = add(alice, acct["id"], amount, day, kind="sell", symbol=symbol, quantity=qty,
+        t = add(jane, acct["id"], amount, day, kind="sell", symbol=symbol, quantity=qty,
                 price=price)  # fmt: skip
         sales[t["id"]] = (dt.date.fromisoformat(day), acct["id"])
 
-    trade(alice, brk["id"], "2024-01-05", "buy", "10", "100", "IBM")
+    trade(jane, brk["id"], "2024-01-05", "buy", "10", "100", "IBM")
     # Sold the year before first: passed over, never the end of the account's sales.
     sold(brk, "2025-12-31", "1", "120", "IBM")
     sold(brk, "2026-01-01", "1", "130", "IBM")
     sold(brk, "2026-12-31", "2", "140", "IBM")
     sold(brk, "2027-01-02", "1", "150", "IBM")
-    trade(alice, ex["id"], "2025-03-01", "buy", "1", "50000", "BTC")
+    trade(jane, ex["id"], "2025-03-01", "buy", "1", "50000", "BTC")
     sold(ex, "2026-06-01", "0.5", "60000", "BTC")
-    trade(alice, wal["id"], "2026-02-01", "buy", "1", "40000", "BTC")
+    trade(jane, wal["id"], "2026-02-01", "buy", "1", "40000", "BTC")
     sold(wal, "2026-07-01", "0.25", "44000", "BTC")
-    b = book(alice)
+    b = book(jane)
     rows = rows_of(server, b)
     got = sorted(
         (r.account, r.description, r.sold, r.proceeds, r.basis, r.box, r.kind, r.quantity)
@@ -438,18 +438,18 @@ def opt(c, acct, action, day, premium, underlying="MSFT", right="call", strike="
                               premium, "0"))  # fmt: skip
 
 
-def test_an_options_row_is_its_premium_and_its_close_as_paid(server, alice):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+def test_an_options_row_is_its_premium_and_its_close_as_paid(server, jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     # Written: the premium received is the proceeds, the close's cost the basis.
-    opt(alice, brk["id"], "sell-to-open", "2026-02-02", "4.00", right="put", strike="400")
-    opt(alice, brk["id"], "buy-to-close", "2026-03-02", "1.00", right="put", strike="400")
-    opt(alice, brk["id"], "sell-to-open", "2026-02-02", "1.00", right="put", strike="300")
-    opt(alice, brk["id"], "buy-to-close", "2026-03-02", "3.50", right="put", strike="300")
+    opt(jane, brk["id"], "sell-to-open", "2026-02-02", "4.00", right="put", strike="400")
+    opt(jane, brk["id"], "buy-to-close", "2026-03-02", "1.00", right="put", strike="400")
+    opt(jane, brk["id"], "sell-to-open", "2026-02-02", "1.00", right="put", strike="300")
+    opt(jane, brk["id"], "buy-to-close", "2026-03-02", "3.50", right="put", strike="300")
     # Bought: the premium paid is the basis.
-    opt(alice, brk["id"], "buy-to-open", "2026-02-02", "2.00", strike="600")
-    opt(alice, brk["id"], "sell-to-close", "2026-03-02", "5.00", strike="600")
-    rows = {r.description.split(" ", 1)[1]: r for r in rows_of(server, book(alice))}
+    opt(jane, brk["id"], "buy-to-open", "2026-02-02", "2.00", strike="600")
+    opt(jane, brk["id"], "sell-to-close", "2026-03-02", "5.00", strike="600")
+    rows = {r.description.split(" ", 1)[1]: r for r in rows_of(server, book(jane))}
     got = {k: (r.proceeds, r.basis, r.gain, r.kind, r.longTerm) for k, r in rows.items()}
     assert got == {
         "MSFT 18DEC26 400 P": (D("400.00"), D("100.00"), D("300.00"), "option", False),
@@ -461,19 +461,19 @@ def test_an_options_row_is_its_premium_and_its_close_as_paid(server, alice):
 # ---------- The wash sales a book lists (S3.8, S8.3) ----------
 
 
-def test_a_wash_sale_lists_its_whole_loss_and_the_replacements_basis_with_it(alice):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    other = new_account(alice, name="Second", type="brokerage")
-    trade(alice, brk["id"], "2026-01-05", "buy", "6", "100", "IBM")
-    trade(alice, brk["id"], "2026-01-20", "buy", "4", "110", "IBM")
-    trade(alice, brk["id"], "2026-02-02", "buy", "2", "50", "IBM")
+def test_a_wash_sale_lists_its_whole_loss_and_the_replacements_basis_with_it(jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    other = new_account(jane, name="Second", type="brokerage")
+    trade(jane, brk["id"], "2026-01-05", "buy", "6", "100", "IBM")
+    trade(jane, brk["id"], "2026-01-20", "buy", "4", "110", "IBM")
+    trade(jane, brk["id"], "2026-02-02", "buy", "2", "50", "IBM")
     # One sale of the three lots: a 400 loss, 216 (36 a share) and 184 (46 a share), and a
     # gain of 28 on the third, which is no part of the loss.
-    trade(alice, brk["id"], "2026-03-02", "sell", "12", "64", "IBM")
+    trade(jane, brk["id"], "2026-03-02", "sell", "12", "64", "IBM")
     # Eight of its ten shares replaced by one lot, the earliest acquired first: the six of the
     # first lot, two of the second, each wash with its share of the lot's 560 cost.
-    trade(alice, other["id"], "2026-03-16", "buy", "8", "70", "IBM")
-    washes = sorted(read_panels(alice, book(alice))["washes"], key=lambda w: w["disallowed"])
+    trade(jane, other["id"], "2026-03-16", "buy", "8", "70", "IBM")
+    washes = sorted(read_panels(jane, book(jane))["washes"], key=lambda w: w["disallowed"])
     for w in washes:
         assert (w["sold"], w["symbol"], w["account"]) == ("2026-03-02", "IBM", "Brokerage")
         assert (w["replacedOn"], w["replacementAccount"]) == ("2026-03-16", "Second")
@@ -483,43 +483,43 @@ def test_a_wash_sale_lists_its_whole_loss_and_the_replacements_basis_with_it(ali
     assert got == [("2.0", "92.00", "232.00"), ("6.0", "216.00", "636.00")]
 
 
-def test_an_added_accounts_wash_sale_is_listed_with_its_row(server, alice):
+def test_an_added_accounts_wash_sale_is_listed_with_its_row(server, jane):
     # S8.14.2, S8.3: an account another user owns, shared and added to the book, counts with
     # its wash sales: the row's W adjustment and the wash beside it.
     from edits import share
 
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    me = alice.get("/ui/api/session").json()["user"]["id"]
-    kid = new_account(bob, name="Emma's custodial", type="brokerage")
-    share(bob, "account", kid["id"], users={me: "read"})
-    trade(bob, kid["id"], "2026-01-05", "buy", "10", "100", "IBM")
-    trade(bob, kid["id"], "2026-03-02", "sell", "10", "80", "IBM")
-    trade(bob, kid["id"], "2026-03-16", "buy", "10", "82", "IBM")
-    b = book(alice)
-    saved(create(alice, "TxBkA", bookId=b, accountId=kid["id"], counted=True))
-    p = read_panels(alice, b)
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    kid = new_account(john, name="Lisa's custodial", type="brokerage")
+    share(john, "account", kid["id"], users={me: "read"})
+    trade(john, kid["id"], "2026-01-05", "buy", "10", "100", "IBM")
+    trade(john, kid["id"], "2026-03-02", "sell", "10", "80", "IBM")
+    trade(john, kid["id"], "2026-03-16", "buy", "10", "82", "IBM")
+    b = book(jane)
+    saved(create(jane, "TxBkA", bookId=b, accountId=kid["id"], counted=True))
+    p = read_panels(jane, b)
     assert [(r["description"], r["code"], r["adjustment"]) for r in p["rows"]] == [
         ("10 IBM", "W", "200.00")
     ]
     assert [(w["symbol"], w["account"], w["disallowed"]) for w in p["washes"]] == [
-        ("IBM", "Emma's custodial", "200.00")
+        ("IBM", "Lisa's custodial", "200.00")
     ]
 
 
-def test_a_book_lists_only_the_wash_sales_of_the_accounts_it_counts(alice):
+def test_a_book_lists_only_the_wash_sales_of_the_accounts_it_counts(jane):
     # The left-out account's wash sale comes first: passed over, never the end of the list.
-    early = new_account(alice, name="Early", type="brokerage")
-    late = new_account(alice, name="Late", type="brokerage")
-    trade(alice, early["id"], "2026-01-05", "buy", "10", "100", "IBM")
-    trade(alice, early["id"], "2026-02-02", "sell", "10", "80", "IBM")
-    trade(alice, early["id"], "2026-02-10", "buy", "10", "82", "IBM")
-    trade(alice, late["id"], "2026-01-05", "buy", "10", "100", "AAPL")
-    trade(alice, late["id"], "2026-03-02", "sell", "10", "90", "AAPL")
-    trade(alice, late["id"], "2026-03-10", "buy", "10", "91", "AAPL")
-    b = book(alice)
-    saved(create(alice, "TxBkA", bookId=b, accountId=early["id"], counted=False))
-    assert [(w["symbol"], w["account"]) for w in read_panels(alice, b)["washes"]] == [
+    early = new_account(jane, name="Early", type="brokerage")
+    late = new_account(jane, name="Late", type="brokerage")
+    trade(jane, early["id"], "2026-01-05", "buy", "10", "100", "IBM")
+    trade(jane, early["id"], "2026-02-02", "sell", "10", "80", "IBM")
+    trade(jane, early["id"], "2026-02-10", "buy", "10", "82", "IBM")
+    trade(jane, late["id"], "2026-01-05", "buy", "10", "100", "AAPL")
+    trade(jane, late["id"], "2026-03-02", "sell", "10", "90", "AAPL")
+    trade(jane, late["id"], "2026-03-10", "buy", "10", "91", "AAPL")
+    b = book(jane)
+    saved(create(jane, "TxBkA", bookId=b, accountId=early["id"], counted=False))
+    assert [(w["symbol"], w["account"]) for w in read_panels(jane, b)["washes"]] == [
         ("AAPL", "Late")
     ]
 
@@ -528,28 +528,28 @@ def reviews(c, b):
     return [w for w in read_panels(c, b)["washes"] if w["review"]]
 
 
-def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(alice):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     for symbol in ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "HHH"):
-        trade(alice, brk["id"], "2026-01-05", "buy", "10", "100", symbol)
+        trade(jane, brk["id"], "2026-01-05", "buy", "10", "100", symbol)
     # In the order sold: a gain of 0.50, none, a gain: not flagged, whatever was bought.
-    trade(alice, brk["id"], "2026-03-02", "sell", "10", "100.05", "AAA")
-    trade(alice, brk["id"], "2026-03-03", "sell", "10", "100", "BBB")
-    trade(alice, brk["id"], "2026-03-04", "sell", "10", "120", "CCC")
+    trade(jane, brk["id"], "2026-03-02", "sell", "10", "100.05", "AAA")
+    trade(jane, brk["id"], "2026-03-03", "sell", "10", "100", "BBB")
+    trade(jane, brk["id"], "2026-03-04", "sell", "10", "120", "CCC")
     for symbol in ("AAA", "BBB", "CCC", "DDD", "GGG"):
-        opt(alice, brk["id"], "buy-to-open", "2026-03-10", "1.00", underlying=symbol,
+        opt(jane, brk["id"], "buy-to-open", "2026-03-10", "1.00", underlying=symbol,
             contracts="2")  # fmt: skip
     # A loss with a call bought on it: flagged.
-    trade(alice, brk["id"], "2026-03-05", "sell", "10", "90", "DDD")
+    trade(jane, brk["id"], "2026-03-05", "sell", "10", "90", "DDD")
     # A loss with a put written on it, one with a call bought on another stock, one with the
     # shares bought back (a wash sale, not a review): not flagged.
-    trade(alice, brk["id"], "2026-03-06", "sell", "10", "90", "EEE")
-    opt(alice, brk["id"], "sell-to-open", "2026-03-10", "1.00", underlying="EEE", right="put")
-    trade(alice, brk["id"], "2026-03-07", "sell", "10", "90", "FFF")
-    trade(alice, brk["id"], "2026-03-08", "sell", "10", "90", "HHH")
-    trade(alice, brk["id"], "2026-03-20", "buy", "10", "91", "HHH")
-    p = read_panels(alice, book(alice))
+    trade(jane, brk["id"], "2026-03-06", "sell", "10", "90", "EEE")
+    opt(jane, brk["id"], "sell-to-open", "2026-03-10", "1.00", underlying="EEE", right="put")
+    trade(jane, brk["id"], "2026-03-07", "sell", "10", "90", "FFF")
+    trade(jane, brk["id"], "2026-03-08", "sell", "10", "90", "HHH")
+    trade(jane, brk["id"], "2026-03-20", "buy", "10", "91", "HHH")
+    p = read_panels(jane, book(jane))
     assert [w["symbol"] for w in p["washes"] if not w["review"]] == ["HHH"]
     (w,) = [w for w in p["washes"] if w["review"]]
     assert w == {
@@ -563,34 +563,34 @@ def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(alice):
     ("bought", "flagged"),
     [("2026-02-03", False), ("2026-02-04", True), ("2026-04-05", True), ("2026-04-06", False)],
 )
-def test_an_option_bought_flags_a_loss_within_30_days_either_side(alice, bought, flagged):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
-    trade(alice, brk["id"], "2026-01-05", "buy", "10", "100", "DDD")
-    trade(alice, brk["id"], "2026-03-06", "sell", "10", "90", "DDD")
-    opt(alice, brk["id"], "buy-to-open", bought, "1.00", underlying="DDD")
-    assert len(reviews(alice, book(alice))) == int(flagged)
+def test_an_option_bought_flags_a_loss_within_30_days_either_side(jane, bought, flagged):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-01-05", "buy", "10", "100", "DDD")
+    trade(jane, brk["id"], "2026-03-06", "sell", "10", "90", "DDD")
+    opt(jane, brk["id"], "buy-to-open", bought, "1.00", underlying="DDD")
+    assert len(reviews(jane, book(jane))) == int(flagged)
 
 
 @pytest.mark.parametrize("kind", ["buy", "reinvest", "sell"])
-def test_an_options_loss_with_its_stock_bought_is_flagged(alice, kind):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    add(alice, brk["id"], "100000.00", "2026-01-02", kind="deposit")
-    trade(alice, brk["id"], "2026-01-05", "buy", "20", "100", "XYZ")
-    opt(alice, brk["id"], "buy-to-open", "2026-02-02", "5.00", underlying="XYZ")
-    opt(alice, brk["id"], "sell-to-close", "2026-03-02", "2.00", underlying="XYZ")
+def test_an_options_loss_with_its_stock_bought_is_flagged(jane, kind):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-01-05", "buy", "20", "100", "XYZ")
+    opt(jane, brk["id"], "buy-to-open", "2026-02-02", "5.00", underlying="XYZ")
+    opt(jane, brk["id"], "sell-to-close", "2026-03-02", "2.00", underlying="XYZ")
     # Written and closed at a loss too.
-    opt(alice, brk["id"], "sell-to-open", "2026-02-02", "1.00", underlying="XYZ", right="put")
-    opt(alice, brk["id"], "buy-to-close", "2026-03-03", "1.50", underlying="XYZ", right="put")
+    opt(jane, brk["id"], "sell-to-open", "2026-02-02", "1.00", underlying="XYZ", right="put")
+    opt(jane, brk["id"], "buy-to-close", "2026-03-03", "1.50", underlying="XYZ", right="put")
     if kind == "sell":
         # Its stock sold, and another stock bought: nothing of its stock bought.
-        trade(alice, brk["id"], "2026-03-20", "sell", "7", "100", "XYZ")
-        trade(alice, brk["id"], "2026-03-20", "buy", "7", "100", "ABC")
+        trade(jane, brk["id"], "2026-03-20", "sell", "7", "100", "XYZ")
+        trade(jane, brk["id"], "2026-03-20", "buy", "7", "100", "ABC")
     else:
-        add(alice, brk["id"], "-700.00", "2026-03-20", kind=kind, symbol="XYZ", quantity="7",
+        add(jane, brk["id"], "-700.00", "2026-03-20", kind=kind, symbol="XYZ", quantity="7",
             price="100")  # fmt: skip
     got = [(w["symbol"], w["loss"], w["replacedOn"], w["replacementQty"])
-           for w in reviews(alice, book(alice))]  # fmt: skip
+           for w in reviews(jane, book(jane))]  # fmt: skip
     if kind == "sell":
         assert got == []
     else:
@@ -600,14 +600,14 @@ def test_an_options_loss_with_its_stock_bought_is_flagged(alice, kind):
         ]
 
 
-def test_an_imported_option_with_no_contract_is_flagged_for_nothing(server, alice):
+def test_an_imported_option_with_no_contract_is_flagged_for_nothing(server, jane):
     # A file's option whose ticker can't be read is an option with no contract: no underlying
     # to look for, so its loss flags nothing.
     from moolakata.store.entities.accounts import Account
     from moolakata.store.repos import ledger as repo
 
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    trade(alice, brk["id"], "2026-03-10", "buy", "10", "100", "DDD")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-03-10", "buy", "10", "100", "DDD")
     with server.db.tx(unscoped="test: an option a file named") as s:
         inst_id = repo.instrument(s, "DDD MYSTERY", None, "option").id
     loss = row("A", "50", "300")
@@ -618,24 +618,24 @@ def test_an_imported_option_with_no_contract_is_flagged_for_nothing(server, alic
     assert got == []
 
 
-def test_a_spouses_call_bought_flags_the_loss_too(server, alice):
+def test_a_spouses_call_bought_flags_the_loss_too(server, jane):
     from moolakata.store.entities.accounts import Account
     from moolakata.store.entities.taxes import TaxBook
 
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    theirs = new_account(bob, name="Bob's", type="brokerage")
-    add(bob, theirs["id"], "10000.00", "2026-01-02", kind="deposit")
-    opt(bob, theirs["id"], "buy-to-open", "2026-03-10", "1.00", underlying="DDD")
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    trade(alice, brk["id"], "2026-01-05", "buy", "10", "100", "DDD")
-    trade(alice, brk["id"], "2026-03-06", "sell", "10", "90", "DDD")
-    b = book(alice)
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    theirs = new_account(john, name="John's", type="brokerage")
+    add(john, theirs["id"], "10000.00", "2026-01-02", kind="deposit")
+    opt(john, theirs["id"], "buy-to-open", "2026-03-10", "1.00", underlying="DDD")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-01-05", "buy", "10", "100", "DDD")
+    trade(jane, brk["id"], "2026-03-06", "sell", "10", "90", "DDD")
+    b = book(jane)
     with server.db.read(unscoped="test") as s:
         book_ = s.get(TaxBook, b)
         assert panels.form_8949(s, book_)[1] == []
         _, washes = panels.form_8949(s, book_, [s.get(Account, theirs["id"])])
-    assert [(w.symbol, w.replacementAccount, w.review) for w in washes] == [("DDD", "Bob's", True)]
+    assert [(w.symbol, w.replacementAccount, w.review) for w in washes] == [("DDD", "John's", True)]
 
 
 def settle(c, acct, symbol, how, day):
@@ -658,16 +658,16 @@ def settle(c, acct, symbol, how, day):
         ("MSFT", "assign", "2026-06-15", False),  # a call assigned sells the stock
     ],
 )
-def test_shares_bought_through_a_call_exercised_are_flagged(alice, underlying, how, day, flagged):
-    brk = new_account(alice, name="Brokerage", type="brokerage")
-    add(alice, brk["id"], "200000.00", "2026-01-02", kind="deposit")
-    trade(alice, brk["id"], "2026-01-05", "buy", "200", "500", "MSFT")
-    trade(alice, brk["id"], "2026-06-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
+def test_shares_bought_through_a_call_exercised_are_flagged(jane, underlying, how, day, flagged):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "200000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-01-05", "buy", "200", "500", "MSFT")
+    trade(jane, brk["id"], "2026-06-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
     # Opened more than 30 days before the sale: the trade itself flags nothing.
     action = "buy-to-open" if how == "exercise" else "sell-to-open"
-    opt(alice, brk["id"], action, "2026-04-01", "3.00", underlying=underlying, strike="520")
-    settle(alice, brk["id"], f"{underlying} 18DEC26 520 C", how, day)
-    got = [(w["symbol"], w["replacedOn"], w["replacementQty"]) for w in reviews(alice, book(alice))]
+    opt(jane, brk["id"], action, "2026-04-01", "3.00", underlying=underlying, strike="520")
+    settle(jane, brk["id"], f"{underlying} 18DEC26 520 C", how, day)
+    got = [(w["symbol"], w["replacedOn"], w["replacementQty"]) for w in reviews(jane, book(jane))]
     assert got == ([("MSFT", day, "100.0")] if flagged else [])
 
 
@@ -725,7 +725,10 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
     msft, vti = SimpleNamespace(symbol="MSFT"), SimpleNamespace(symbol="VTI")
     bank, brk, ira = (acct("a1", "Bank", "checking"), acct("a2", "Brokerage", "brokerage"),
                       acct("a3", "IRA", "ira"))  # fmt: skip
-    theirs, mine = acct("a8", "Bob's Brokerage", "brokerage", "u2"), acct("a9", "Mine", "brokerage")
+    theirs, mine = (
+        acct("a8", "John's Brokerage", "brokerage", "u2"),
+        acct("a9", "Mine", "brokerage"),
+    )
     quiet.accounts[:] = [bank, brk, ira]
     quiet.leftOut[:] = [acct("a4", "Old", "brokerage")]
     monkeypatch.setattr(panels, "changed_after_filing", lambda s, book: "Changed.")
@@ -761,13 +764,13 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
         return SimpleNamespace(replay=lambda: replay)
 
     monkeypatch.setattr(panels.repo, "load", load)
-    emma = SimpleNamespace(person=SimpleNamespace(name="Emma"), claimedElsewhere=True)
+    lisa = SimpleNamespace(person=SimpleNamespace(name="Lisa"), claimedElsewhere=True)
     liam = SimpleNamespace(person=SimpleNamespace(name="Liam"), claimedElsewhere=False)
-    monkeypatch.setattr(panels.dependents, "listed", lambda s, book: [emma, liam])
+    monkeypatch.setattr(panels.dependents, "listed", lambda s, book: [lisa, liam])
     monkeypatch.setattr(panels.dependents, "filers_claimed_elsewhere",
-                        lambda s, book: [SimpleNamespace(name="Bob")])  # fmt: skip
+                        lambda s, book: [SimpleNamespace(name="John")])  # fmt: skip
     monkeypatch.setattr(panels.dependents, "form_8615", lambda s, book, deps, accounts: [
-        SimpleNamespace(name="Emma", unearned=D("3456.7"), threshold=D("2700"))])  # fmt: skip
+        SimpleNamespace(name="Lisa", unearned=D("3456.7"), threshold=D("2700"))])  # fmt: skip
     gift = SimpleNamespace(accountId="a2", transferId="t1", date=dt.date(2026, 8, 9))
     own = SimpleNamespace(accountId="a2", transferId="t2", date=dt.date(2026, 8, 10))
     lost = SimpleNamespace(accountId="a2", transferId="t3", date=dt.date(2026, 8, 11))
@@ -798,23 +801,23 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
          "when they were bought, for its term", link),
         ("sale-basis", "Brokerage: the sale of 3 MSFT on May 1 has no basis or day bought", None),
         ("sale-basis", "Brokerage: the sale of 2 IBM on Jul 3 has no basis", None),
-        ("claimed-twice", "Emma is claimed on another 2026 tax book too", None),
-        ("claimed-elsewhere", "Bob is claimed as a dependent on another 2026 tax book", None),
-        ("form-8615", "Emma's unearned income of $3,456.70 is above the $2,700 threshold: "
+        ("claimed-twice", "Lisa is claimed on another 2026 tax book too", None),
+        ("claimed-elsewhere", "John is claimed as a dependent on another 2026 tax book", None),
+        ("form-8615", "Lisa's unearned income of $3,456.70 is above the $2,700 threshold: "
          "Form 8615 may apply", None),
-        ("gift-basis", "Brokerage: shares from Bob's Brokerage on Aug 9 keep the giver's basis",
+        ("gift-basis", "Brokerage: shares from John's Brokerage on Aug 9 keep the giver's basis",
          None),
     ]  # fmt: skip
 
 
-def test_shares_moved_in_from_another_users_account_in_the_year_keep_its_basis(server, alice):
+def test_shares_moved_in_from_another_users_account_in_the_year_keep_its_basis(server, jane):
     from moolakata import ids
     from moolakata.store.entities.accounts import Transaction
 
-    make_user(server, "bob")
-    bob = sign_in(server, "bob")
-    theirs = new_account(bob, name="Bob's", type="brokerage")
-    mine = new_account(alice, name="Mine", type="brokerage")
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    theirs = new_account(john, name="John's", type="brokerage")
+    mine = new_account(jane, name="Mine", type="brokerage")
     days = ("2025-12-31", "2026-01-01", "2026-06-01", "2026-12-31", "2027-01-01")
     with server.db.tx(unscoped="test: transfers between two users' accounts") as s:
         for n, day in enumerate(days):
@@ -828,7 +831,7 @@ def test_shares_moved_in_from_another_users_account_in_the_year_keep_its_basis(s
             s.add_all([out, into])
             s.flush()
             out.transferId, into.transferId = into.id, out.id
-        # Money moved out to Bob's, and in from nowhere linked: not a gift's basis.
+        # Money moved out to John's, and in from nowhere linked: not a gift's basis.
         out = Transaction(id=ids.new_id("Txn"), accountId=mine["id"], date=dt.date(2026, 3, 2),
                           kind="transfer-out", amount=D(-5))  # fmt: skip
         into = Transaction(id=ids.new_id("Txn"), accountId=theirs["id"], date=out.date,
@@ -838,10 +841,8 @@ def test_shares_moved_in_from_another_users_account_in_the_year_keep_its_basis(s
         out.transferId, into.transferId = into.id, out.id
         s.add(Transaction(id=ids.new_id("Txn"), accountId=mine["id"], date=dt.date(2026, 3, 3),
                           kind="transfer-in", amount=D(7)))  # fmt: skip
-    got = [
-        i["text"] for i in read_panels(alice, book(alice))["issues"] if i["kind"] == "gift-basis"
-    ]
+    got = [i["text"] for i in read_panels(jane, book(jane))["issues"] if i["kind"] == "gift-basis"]
     assert sorted(got) == [
-        "Mine: shares from Bob's on Dec 31 keep the giver's basis",
-        "Mine: shares from Bob's on Jan 1 keep the giver's basis",
+        "Mine: shares from John's on Dec 31 keep the giver's basis",
+        "Mine: shares from John's on Jan 1 keep the giver's basis",
     ]

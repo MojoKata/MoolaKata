@@ -1,4 +1,4 @@
-"""Dev mode's giving (requirements S17.7): Alice's plan for this year, 10% of a typed gross
+"""Dev mode's giving (requirements S17.7): Jane's plan for this year, 10% of a typed gross
 income, shared with the household; her organisations with their causes and pledges, one not
 deductible; donations of each type this year and last, one missing its acknowledgement; and a
 donor-advised fund with a contribution and its grants."""
@@ -17,13 +17,13 @@ from .seed_accounts import Book
 
 
 def seed_giving(s, people: dict) -> None:
-    alice = people["alice"]
+    jane = people["jane"]
     today = clock.today()
     year = today.year
     b = Book(s, today)
     plan = GivingPlan(
         id=ids.new_id("GvPln"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         year=year,
         targetKind="percent",
         percent=D(10),
@@ -38,14 +38,14 @@ def seed_giving(s, people: dict) -> None:
             plan.id,
             "write",
             group_id=household.id,
-            by=alice.id,
+            by=jane.id,
         )
     )
 
     def org(name, causes, ein=None, deductible=True, pledge=None, every=None):
         o = Organisation(
             id=ids.new_id("Orgzn"),
-            ownerId=alice.id,
+            ownerId=jane.id,
             name=name,
             ein=ein,
             deductible=deductible,
@@ -71,7 +71,7 @@ def seed_giving(s, people: dict) -> None:
         s.add(
             Donation(
                 id=ids.new_id("Dnatn"),
-                ownerId=alice.id,
+                ownerId=jane.id,
                 date=day,
                 kind=kind,
                 amount=D(amount),
@@ -94,8 +94,8 @@ def seed_giving(s, people: dict) -> None:
     give(dt.date(year - 1, 12, 1), "cash", "2500", msf, acknowledged=True)
     fund = Account(
         id=ids.new_id("Acct"),
-        ownerId=alice.id,
-        name="Griffin Giving Fund",
+        ownerId=jane.id,
+        name="Doe Giving Fund",
         type="daf",
         institution="Fidelity Charitable",
         keptBy='["manual"]',

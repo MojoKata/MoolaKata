@@ -109,7 +109,7 @@ class Book:
 
 def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     b = Book(s, today or clock.today())
-    alice, bob = people["alice"], people["bob"]
+    jane, john = people["jane"], people["john"]
     months = b.months()
     start = months[0]
     insts = {
@@ -128,15 +128,15 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
         """The stub price source's walk, so the trades agree with --stubs' closes."""
         return walk(sym, day)
 
-    # ---- Alice's banking, kept from files ----
+    # ---- Jane's banking, kept from files ----
     checking = b.account(
-        alice, "Everyday checking", "checking", "First Example Bank", "4821", keptBy='["file"]'
+        jane, "Everyday checking", "checking", "First Example Bank", "4821", keptBy='["file"]'
     )
     savings = b.account(
-        alice, "Emergency savings", "savings", "First Example Bank", "7730", keptBy='["file"]'
+        jane, "Emergency savings", "savings", "First Example Bank", "7730", keptBy='["file"]'
     )
     card = b.account(
-        alice,
+        jane,
         "Travel Visa",
         "credit-card",
         "Example Card Co",
@@ -148,7 +148,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     imp_check = Import(
         id=ids.new_id("Imprt"),
         accountId=checking.id,
-        userId=alice.id,
+        userId=jane.id,
         format="ofx",
         fileName="checking.qfx",
         fileHash="seed",
@@ -158,7 +158,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     imp_card = Import(
         id=ids.new_id("Imprt"),
         accountId=card.id,
-        userId=alice.id,
+        userId=jane.id,
         format="csv",
         fileName="card.csv",
         fileHash="seed",
@@ -168,7 +168,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     imp_card2 = Import(
         id=ids.new_id("Imprt"),
         accountId=card.id,
-        userId=alice.id,
+        userId=jane.id,
         format="csv",
         fileName="card-recent.csv",
         fileHash="seed2",
@@ -179,7 +179,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     imp_savings = Import(
         id=ids.new_id("Imprt"),
         accountId=savings.id,
-        userId=alice.id,
+        userId=jane.id,
         format="ofx",
         fileName="savings-august.qfx",
         fileHash="seed3",
@@ -320,9 +320,9 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
         )
     )
 
-    # ---- Alice's investing, by hand and from files ----
+    # ---- Jane's investing, by hand and from files ----
     brokerage = b.account(
-        alice, "Taxable brokerage", "brokerage", "Example Brokerage", "5521", keptBy='["file"]'
+        jane, "Taxable brokerage", "brokerage", "Example Brokerage", "5521", keptBy='["file"]'
     )
     b.txn(brokerage, start, "40000.00", "Transfer in", kind="deposit")
     s.flush()
@@ -355,7 +355,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     if sale <= b.today:
         b.trade(brokerage, sale, "sell", insts["AAPL"], "8", price("AAPL", sale))
 
-    roth = b.account(alice, "Roth IRA", "roth-ira", "Example Brokerage", "6610")
+    roth = b.account(jane, "Roth IRA", "roth-ira", "Example Brokerage", "6610")
     for month in months:
         if (day := b.day(month, 10)) is not None:
             b.txn(
@@ -377,7 +377,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
                 price("VTI", day),
             )
 
-    k401 = b.account(alice, "Acme 401(k)", "401k", "Example Retirement Services", "0042")
+    k401 = b.account(jane, "Acme 401(k)", "401k", "Example Retirement Services", "0042")
     for month in months:
         for d_ in (1, 15):
             if (day := b.day(month, d_)) is None:
@@ -411,7 +411,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
             )
 
     hsa = b.account(
-        alice,
+        jane,
         "Health savings",
         "hsa",
         "Example HSA Bank",
@@ -431,10 +431,10 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
                 cat="health.pharmacy",
             )
 
-    # ---- Bob ----
-    bob_checking = b.account(
-        bob,
-        "Bob's checking",
+    # ---- John ----
+    john_checking = b.account(
+        john,
+        "John's checking",
         "checking",
         "Second Example Bank",
         "3390",
@@ -443,16 +443,16 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
     )
     for month in months:
         if (day := b.day(month, 28)) is not None:
-            b.txn(bob_checking, day, "5100.00", "Northwind payroll", cat="income.salary")
+            b.txn(john_checking, day, "5100.00", "Northwind payroll", cat="income.salary")
         for _ in range(6):
             if (day := b.day(month, b.rng.randint(1, 28))) is not None:
                 payee, cat, lo, hi = b.rng.choice(shops)
-                b.txn(bob_checking, day, -D(str(round(b.rng.uniform(lo, hi), 2))), payee, cat=cat)
-    bob_ira = b.account(bob, "Rollover IRA", "ira", "Example Brokerage", "9012")
-    b.txn(bob_ira, start, "85000.00", "Rollover", kind="deposit", contributionSource="rollover")
+                b.txn(john_checking, day, -D(str(round(b.rng.uniform(lo, hi), 2))), payee, cat=cat)
+    john_ira = b.account(john, "Rollover IRA", "ira", "Example Brokerage", "9012")
+    b.txn(john_ira, start, "85000.00", "Rollover", kind="deposit", contributionSource="rollover")
     s.flush()
     b.trade(
-        bob_ira,
+        john_ira,
         start + dt.timedelta(days=1),
         "buy",
         insts["VTI"],
@@ -460,7 +460,7 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
         price("VTI", start + dt.timedelta(days=1)),
     )
     b.trade(
-        bob_ira,
+        john_ira,
         start + dt.timedelta(days=1),
         "buy",
         insts["BND"],
@@ -468,12 +468,12 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
         price("BND", start + dt.timedelta(days=1)),
     )
     s.flush()
-    for a in (checking, savings, card, brokerage, roth, k401, hsa, bob_checking, bob_ira):
+    for a in (checking, savings, card, brokerage, roth, k401, hsa, john_checking, john_ira):
         a.updatedAt = clock.now()
 
 
 def seed_rules(s, people: dict) -> None:
-    """Alice's categorisation rules (S2.7), first match wins."""
+    """Jane's categorisation rules (S2.7), first match wins."""
     from ..store.entities.accounts import Category, Rule
 
     cats = {
@@ -490,7 +490,7 @@ def seed_rules(s, people: dict) -> None:
     ):
         rule = Rule(
             id=ids.new_id("Rule"),
-            ownerId=people["alice"].id,
+            ownerId=people["jane"].id,
             position=i,
             payeeMatch=match,
             categoryId=cats[key],
@@ -501,5 +501,5 @@ def seed_rules(s, people: dict) -> None:
             s.flush()
             from .. import tags
 
-            tag = tags.make(s, people["alice"].id, "streaming")
-            tags.set_on(s, "rule", rule.id, people["alice"].id, [tag.id], people["alice"].id)
+            tag = tags.make(s, people["jane"].id, "streaming")
+            tags.set_on(s, "rule", rule.id, people["jane"].id, [tag.id], people["jane"].id)

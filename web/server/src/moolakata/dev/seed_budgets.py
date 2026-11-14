@@ -1,4 +1,4 @@
-"""Dev mode's budget (requirements S17.7): Alice's household budget over her banking, shared
+"""Dev mode's budget (requirements S17.7): Jane's household budget over her banking, shared
 with the Household group at write, planned from a year ago with one change since; and a hotel
 her employer pays back, with the deposit that may pay it (S2.9)."""
 
@@ -15,7 +15,7 @@ from ..store.entities.users import Group
 
 
 def seed_budgets(s, people: dict) -> None:
-    alice = people["alice"]
+    jane = people["jane"]
     acct = {a.name: a for a in s.scalars(select(Account))}
     cat = {c.builtIn: c for c in s.scalars(select(Category).where(Category.builtIn.is_not(None)))}
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
@@ -23,7 +23,7 @@ def seed_budgets(s, people: dict) -> None:
     start = add_months(month_of(clock.today()), -11)
     b = Budget(
         id=ids.new_id("Bdgt"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         name="Household",
         reserves=True,
         moves=True,
@@ -31,7 +31,7 @@ def seed_budgets(s, people: dict) -> None:
     )
     s.add(b)
     s.flush()
-    alice.activeBudgetId = b.id  # the budget she follows (S7.12)
+    jane.activeBudgetId = b.id  # the budget she follows (S7.12)
     for name in ("Everyday checking", "Emergency savings", "Travel Visa"):
         s.add(BudgetAccount(budgetId=b.id, accountId=acct[name].id, createdAt=now))
     plan = [
@@ -103,7 +103,7 @@ def seed_budgets(s, people: dict) -> None:
     this_month = month_of(clock.today())
     env = Budget(
         id=ids.new_id("Bdgt"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         name="Household, envelope",
         method="envelope",
         reserves=True,
@@ -139,6 +139,6 @@ def seed_budgets(s, people: dict) -> None:
             b.id,
             "write",
             group_id=household.id,
-            by=alice.id,
+            by=jane.id,
         )
     )

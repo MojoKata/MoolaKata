@@ -11,7 +11,7 @@
    (HEIC): it decodes only, so it is smaller than pillow-heif, which also encodes. **numpy** is a direct dependency for projections
    (S6) as well as RapidOCR's.
    Standard library for email (`smtplib`), config (`tomllib`), logging and the command line.
-   Pinned exactly in `uv.lock`, Python 3.14 (S17.9.7.1).
+   Pinned exactly in `uv.lock`, Python 3.14.
    1. **The dependency register and the egress audit.** `docs/dependencies.md` lists every
       library the server, the browser app and the build run with: its version, what it is for,
       why it was chosen, what it could do that MoolaKata must not (a call out of the house

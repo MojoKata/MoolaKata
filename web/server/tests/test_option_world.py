@@ -53,28 +53,28 @@ class Made:
     def __init__(self, server, w: ow.World):
         self.server, self.w = server, w
         _at(ow.BEFORE)
-        for u in ("alice", "bob"):
+        for u in ("jane", "john"):
             make_user(server, u)
-        self.c = {u: sign_in(server, u) for u in ("alice", "bob")}
-        alice = self.c["alice"]
+        self.c = {u: sign_in(server, u) for u in ("jane", "john")}
+        jane = self.c["jane"]
         with server.db.tx(unscoped="test") as s:
             s.add(PriceSource(id=ids.new_id("Src"), name="world-test", enabled=True,
                               preference='{"equity": 1}'))  # fmt: skip
         ANSWERS.clear()
         self.accounts, self.instruments = {}, {}
-        self.bob_account = new_account(self.c["bob"], name="Bob's", type="brokerage",
+        self.john_account = new_account(self.c["john"], name="John's", type="brokerage",
                                        mask="8800")  # fmt: skip
         for k, o in enumerate(w.options):
-            a = new_account(alice, name=f"Options {k}", type="brokerage", mask=f"{8000 + k}")
+            a = new_account(jane, name=f"Options {k}", type="brokerage", mask=f"{8000 + k}")
             self.accounts[o.symbol] = a["id"]
             if o.shares == "held":
                 q = 100 * o.contracts
-                r = create(alice, "Txn", accountId=a["id"], date="2026-09-01", kind="buy",
+                r = create(jane, "Txn", accountId=a["id"], date="2026-09-01", kind="buy",
                            symbol=o.symbol, quantity=str(q), price="100",
                            amount=f"-{q * 100}.00")  # fmt: skip
                 assert r.status_code == 200, r.text
             action = "buy-to-open" if o.side == "long" else "sell-to-open"
-            r = option_trade(alice, a["id"], ow.OPENED.isoformat(), action, o.symbol, o.right,
+            r = option_trade(jane, a["id"], ow.OPENED.isoformat(), action, o.symbol, o.right,
                              ow.STRIKE, ow.EXPIRY.isoformat(), o.contracts, o.premium,
                              "0")  # fmt: skip
             assert r.status_code == 200, r.text
@@ -88,10 +88,10 @@ class Made:
                 if o.shares == "held" and o.right == "call" and o.side == "short":
                     legs.append({"instrumentId": self.instruments[o.symbol]["equity"],
                                  "quantity": str(100 * o.contracts)})  # fmt: skip
-                self.strategy = saved(create(alice, "Strat", accountId=a["id"], legs=legs))
+                self.strategy = saved(create(jane, "Strat", accountId=a["id"], legs=legs))
                 o.axes = {**o.axes, "strategy": self.strategy["id"]}
             if o.adjusted != "no":
-                r = alice.post("/ui/api/options/adjust", json={
+                r = jane.post("/ui/api/options/adjust", json={
                     "date": ow.ADJUSTED_ON.isoformat(),
                     "contracts": [{"instrumentId": self.instruments[o.symbol]["option"],
                                    "root": o.root, "strike": str(ow.STRIKE),
@@ -107,18 +107,18 @@ class Made:
                     ANSWERS[o.symbol][ow.EXPIRY - dt.timedelta(days=1)] = o.other_price
 
     def on_the_day(self) -> None:
-        """What the expiry day brings without a source: Alice's typed price, or Bob's trade. Days
+        """What the expiry day brings without a source: Jane's typed price, or John's trade. Days
         later, each signs in again."""
-        self.c = {u: sign_in(self.server, u) for u in ("alice", "bob")}
-        alice = self.c["alice"]
+        self.c = {u: sign_in(self.server, u) for u in ("jane", "john")}
+        jane = self.c["jane"]
         for o in self.w.options:
             if o.case == "typed-only":
-                r = create(alice, "TyPrc", instrumentId=self._underlying(o),
+                r = create(jane, "TyPrc", instrumentId=self._underlying(o),
                            date=ow.EXPIRY.isoformat(), close=str(o.other_price))  # fmt: skip
                 assert r.status_code == 200, r.text
             elif o.case == "other-trade":
                 p = o.other_price
-                r = create(self.c["bob"], "Txn", accountId=self.bob_account["id"],
+                r = create(self.c["john"], "Txn", accountId=self.john_account["id"],
                            date=ow.EXPIRY.isoformat(), kind="buy", symbol=o.symbol, quantity="1",
                            price=str(p), amount=f"-{p}")  # fmt: skip
                 assert r.status_code == 200, r.text
@@ -176,14 +176,14 @@ def _d(x):
 
 
 def _a_leg_risks_what_its_shape_does(made):
-    alice, wrong = made.c["alice"], []
+    jane, wrong = made.c["jane"], []
     for o in made.w.options:
-        acct = alice.get(f"/ui/api/accounts/{made.accounts[o.symbol]}").json()
+        acct = jane.get(f"/ui/api/accounts/{made.accounts[o.symbol]}").json()
         got = None if acct["capitalAtRiskUnlimited"] else _d(acct["capitalAtRisk"])
         if got != o.risk():
             wrong.append(f"{o.symbol} {o.axes}: account {got}, want {o.risk()}")
         if o.grouped == "grouped":
-            [st] = [x for x in alice.get("/ui/api/positions/strategies").json()["strategies"]
+            [st] = [x for x in jane.get("/ui/api/positions/strategies").json()["strategies"]
                     if x["id"] == o.axes["strategy"]]  # fmt: skip
             if _d(st["capitalAtRiskNow"]) != o.risk():
                 wrong.append(f"{o.symbol} {o.axes}: grouped {st['capitalAtRiskNow']}")
@@ -206,8 +206,8 @@ def _an_expiry_waits_for_a_close(made):
     pricing.refresh(made.server)
     with made.server.db.tx(unscoped="test") as s:
         options.expire_due(s, ow.AFTER)
-    alice, wrong = made.c["alice"], []
-    closed = {r["symbol"]: r for r in alice.get("/ui/api/positions").json()["closed"]}
+    jane, wrong = made.c["jane"], []
+    closed = {r["symbol"]: r for r in jane.get("/ui/api/positions").json()["closed"]}
     for o in made.w.options:
         sym = next(k for k in closed if k.startswith(o.root + " ")) if any(
             k.startswith(o.root + " ") for k in closed) else None  # fmt: skip

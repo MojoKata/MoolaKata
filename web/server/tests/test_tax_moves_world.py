@@ -4,7 +4,7 @@ to the reference (requirements S2.2, S8.1, S8.5, S8.6; the values, taxes and opt
 rollovers, the distributions, an HSA's limit), its Income panel (foreign tax by payer, crypto
 income by account) and Form 8949's rows of shares moved in and coins received.
 
-A decoy stranger, Mallory, holds the same kinds of records; none of them may reach Alice's
+A decoy stranger, Mallory, holds the same kinds of records; none of them may reach Jane's
 book.
 """
 
@@ -43,9 +43,9 @@ class Made:
     def __init__(self, server, w: tm.World):
         self.w, self.ids = w, {}
         clock.fix(T0)
-        make_user(server, "alice", born=w.born)
+        make_user(server, "jane", born=w.born)
         make_user(server, "mallory", born=1966)
-        self.c = sign_in(server, "alice")
+        self.c = sign_in(server, "jane")
         me = self.c.get("/ui/api/session").json()["user"]["id"]
         for k, m in enumerate(w.moves):
             self._move(k, m)
@@ -160,7 +160,7 @@ class Made:
             symbol=m.symbol, quantity=qty, price=f"{tm._money(m.proceeds_cents) / 10}")  # fmt: skip
 
     def _decoy(self, m) -> None:
-        """Mallory's own money moved, foreign tax and rewards: none may reach Alice's book."""
+        """Mallory's own money moved, foreign tax and rewards: none may reach Jane's book."""
         ira = new_account(m, name="IRA 0", type="ira", mask=None)["id"]
         roth = new_account(m, name="Roth IRA 0", type="roth-ira", mask=None)["id"]
         add(m, ira, "90000.00", "2026-01-05", kind="deposit")

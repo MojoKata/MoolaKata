@@ -1,7 +1,7 @@
 # Testing the dev server
 
 `web/dev.sh run --seed --stubs` runs the whole server from a checkout (requirements S17.7) at
-`https://localhost:37373`, with a self-signed certificate. Sign in as `admin`, `alice` or `bob`
+`https://localhost:37373`, with a self-signed certificate. Sign in as `admin`, `jane` or `john`
 with `moolakata-dev`. This page covers reaching it from a browser in the setups we use: on the
 same machine, or from a Mac or Linux machine while the server (and often the coding agent)
 runs on a Linux VM.

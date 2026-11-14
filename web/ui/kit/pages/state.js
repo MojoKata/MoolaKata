@@ -78,8 +78,8 @@ export default function StatePage() {
       </${Demo}>
       <${Demo} id="avatars" title="Avatars and amounts">
         <div class="toolbar">
-          <${Avatar} name="Alice Griffin" id="User_alice" />
-          <${Avatar} name="Bob Griffin" id="User_bob" sm=${true} />
+          <${Avatar} name="Jane Doe" id="User_jane" />
+          <${Avatar} name="John Doe" id="User_john" sm=${true} />
           <${Amt} v="-1234.5" />${' '}<${Amt} v="250" signed=${true} />${' '}<${Pct} v="5.875" />
         </div>
       </${Demo}>

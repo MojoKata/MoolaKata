@@ -21,9 +21,9 @@ from moolakata.store.tables import metadata
 
 @pytest.fixture(scope="module")
 def household(tmp_path_factory):
-    """The dev seed (admin, alice, bob, the Household group, a linked server), and what it
+    """The dev seed (admin, jane, john, the Household group, a linked server), and what it
     doesn't reach: an inactive user, a member of an active and of an inactive group, a filer
-    who hasn't accepted, a gift plan for bob shared with him, a receipt kept with a gift and
+    who hasn't accepted, a gift plan for john shared with him, a receipt kept with a gift and
     with transactions on both sides of a share, and a linked server's user with and without
     *Include receipts*."""
     from moolakata.dev import seed
@@ -71,7 +71,7 @@ def edge_cases(s) -> dict[str, str]:
 
     now = clock.now()
     users = {u.username: u for u in s.scalars(select(User).where(User.linkId.is_(None)))}
-    alice, bob = users["alice"], users["bob"]
+    jane, john = users["jane"], users["john"]
 
     def user(name: str, active: bool = True) -> User:
         from moolakata.auth import passwords
@@ -83,7 +83,7 @@ def edge_cases(s) -> dict[str, str]:
             personId=p.id,
             username=name,
             displayName=name.title(),
-            email=f"{name}@griffin.home",
+            email=f"{name}@doe.home",
             active=active,
             passwordHash=passwords.hash_password(PASSWORD),
         )
@@ -107,21 +107,21 @@ def edge_cases(s) -> dict[str, str]:
                 allow,
                 user_id=user.id if user else None,
                 group_id=grp.id if grp else None,
-                by=alice.id,
+                by=jane.id,
                 include_receipts=receipts,
             )
         )
 
     AccountShare = SHARE_ENTITIES["account"]
 
-    def alices(entity, **where):
-        q = select(entity).where(entity.ownerId == alice.id, entity.deleted.is_(False))
+    def janes(entity, **where):
+        q = select(entity).where(entity.ownerId == jane.id, entity.deleted.is_(False))
         for k, v in where.items():
             q = q.where(getattr(entity, k) == v)
         return s.scalars(q.order_by(entity.id)).first()
 
     accounts = list(
-        s.scalars(select(Account).where(Account.ownerId == alice.id).order_by(Account.name))
+        s.scalars(select(Account).where(Account.ownerId == jane.id).order_by(Account.name))
     )
     shared = next(a for a in accounts if a.name == "Everyday checking")
     unshared = next(
@@ -131,16 +131,16 @@ def edge_cases(s) -> dict[str, str]:
         and s.scalars(select(Transaction).where(Transaction.accountId == a.id)).first()
     )
 
-    carol = user("carol", active=False)
-    carols = Account(id=ids.new_id("Acct"), ownerId=carol.id, name="Carol's", type="checking")
-    s.add(carols)
-    share("account", shared.id, "read", user=carol)
+    bart = user("bart", active=False)
+    barts = Account(id=ids.new_id("Acct"), ownerId=bart.id, name="Bart's", type="checking")
+    s.add(barts)
+    share("account", shared.id, "read", user=bart)
 
     dave = user("dave")
     helpers = group("Helpers", True, dave)
     former = group("Former helpers", False, dave)
-    book = alices(TaxBook)
-    budget = alices(Budget)
+    book = janes(TaxBook)
+    budget = janes(Budget)
     share("tax-book", book.id, "read", grp=helpers)
     share("budget", budget.id, "write", grp=former)
 
@@ -149,16 +149,16 @@ def edge_cases(s) -> dict[str, str]:
     s.add(invitation)
 
     household = s.scalars(select(Group).where(Group.name == "Household")).one()
-    plan = alices(GiftPlan, personId=bob.personId)
+    plan = janes(GiftPlan, personId=john.personId)
     if plan is None:
-        plan = GiftPlan(id=ids.new_id("GfPln"), ownerId=alice.id, personId=bob.personId)
+        plan = GiftPlan(id=ids.new_id("GfPln"), ownerId=jane.id, personId=john.personId)
         s.add(plan)
         s.flush()
     share("gift-plan", plan.id, "read", grp=household)
-    surprise = Gift(id=ids.new_id("Gift"), ownerId=alice.id, description="A watch")
+    surprise = Gift(id=ids.new_id("Gift"), ownerId=jane.id, description="A watch")
     s.add(surprise)
     s.flush()
-    s.add(GiftPerson(giftId=surprise.id, personId=bob.personId, createdAt=now))
+    s.add(GiftPerson(giftId=surprise.id, personId=john.personId, createdAt=now))
 
     def txn(account):
         return s.scalars(
@@ -169,7 +169,7 @@ def edge_cases(s) -> dict[str, str]:
 
     receipt = Receipt(
         id=ids.new_id("Rcpt"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         fileName="jeweller.pdf",
         mediaType="application/pdf",
         size=1,
@@ -184,7 +184,7 @@ def edge_cases(s) -> dict[str, str]:
         ("unshared link", "transaction", txn(unshared).id),
         ("gift link", "gift", surprise.id),
     ):
-        ln = ReceiptLink(receiptId=receipt.id, kind=kind, itemId=item, linkedById=alice.id)
+        ln = ReceiptLink(receiptId=receipt.id, kind=kind, itemId=item, linkedById=jane.id)
         s.add(ln)
         links[name] = ln.id
 
@@ -207,10 +207,10 @@ def edge_cases(s) -> dict[str, str]:
     reimbursement = Reimbursement(
         id=ids.new_id("Rmbrs"), spendingId=mine.id, paybackId=ours.id, amount=Decimal("1.00")
     )
-    match = TransferMatch(id=ids.new_id("XfrMt"), ownerId=alice.id, outId=mine.id, inId=ours.id)
+    match = TransferMatch(id=ids.new_id("XfrMt"), ownerId=jane.id, outId=mine.id, inId=ours.id)
     wash = WashSale(
         id=ids.new_id("WashS"),
-        ownerId=alice.id,
+        ownerId=jane.id,
         saleId=mine.id,
         replacementId=ours.id,
         quantity=Decimal(1),
@@ -226,31 +226,31 @@ def edge_cases(s) -> dict[str, str]:
         link,
         {
             "users": [
-                {"id": "r-tom", "username": "tom", "displayName": "Tom", "sex": "male"},
+                {"id": "r-jeremy", "username": "jeremy", "displayName": "Jeremy", "sex": "male"},
                 {"id": "r-ann", "username": "ann", "displayName": "Ann", "sex": "female"},
             ]
         },
     )
     remote = {u.remoteId: u for u in s.scalars(select(User).where(User.linkId == link.id))}
-    share("account", shared.id, "read", user=remote["r-tom"])
+    share("account", shared.id, "read", user=remote["r-jeremy"])
     share("account", shared.id, "read", user=remote["r-ann"], receipts=True)
     s.flush()
     admin = s.scalars(select(User).where(User.username == "admin")).one()
     return {
         **links,
         "shared": shared.id,
-        "carols": carols.id,
+        "barts": barts.id,
         "erins invitation": invitation.id,
         "reimbursement": reimbursement.id,
         "match": match.id,
         "wash": wash.id,
-        "bobs person": bob.personId,
+        "johns person": john.personId,
         "admin": admin.id,
         "former": former.id,
-        "carol": carol.id,
+        "bart": bart.id,
         "dave": dave.id,
         "erin": erin.id,
-        "tom": remote["r-tom"].id,
+        "jeremy": remote["r-jeremy"].id,
         "ann": remote["r-ann"].id,
         "receipt": receipt.id,
         "gift": surprise.id,
@@ -258,8 +258,8 @@ def edge_cases(s) -> dict[str, str]:
         "book": book.id,
         "budget": budget.id,
         "unshared": unshared.id,
-        "alice": alice.id,
-        "bob": bob.id,
+        "jane": jane.id,
+        "john": john.id,
     }
 
 
@@ -335,40 +335,40 @@ EVERY = (W, D, S, C)
 
 # (table, record, user, what they hold: None when they don't read it).
 HOLDS = [
-    ("Account", "unshared", "alice", EVERY),
-    ("Account", "unshared", "bob", None),
-    ("Account", "shared", "bob", (R,)),  # through the Household group
-    ("Account", "shared", "carol", None),  # inactive (4.1)
-    ("Account", "shared", "tom", (R,)),  # a linked server's user reads, never more (4.3)
-    ("Account", "carols", "carol", None),  # an inactive user holds nothing, not even theirs
-    ("TaxBook", "book", "alice", EVERY),
+    ("Account", "unshared", "jane", EVERY),
+    ("Account", "unshared", "john", None),
+    ("Account", "shared", "john", (R,)),  # through the Household group
+    ("Account", "shared", "bart", None),  # inactive (4.1)
+    ("Account", "shared", "jeremy", (R,)),  # a linked server's user reads, never more (4.3)
+    ("Account", "barts", "bart", None),  # an inactive user holds nothing, not even theirs
+    ("TaxBook", "book", "jane", EVERY),
     ("TaxBook", "book", "dave", (R,)),  # an active group's share
     ("TaxBook", "book", "erin", None),  # a filer who hasn't accepted
     ("TaxBookFiler", "erins invitation", "erin", (W,)),  # answered before accepting
     ("Budget", "budget", "dave", None),  # an inactive group's share gives nothing
-    ("GiftPlan", "plan", "bob", (R,)),
-    ("Gift", "gift", "alice", (W, D)),
-    ("Gift", "gift", "bob", None),  # the person it is for (1d.3)
-    ("Receipt", "receipt", "alice", (W, D)),
-    ("Receipt", "receipt", "bob", (R,)),  # through the shared account
-    ("Receipt", "receipt", "tom", None),  # without Include receipts (4.4)
+    ("GiftPlan", "plan", "john", (R,)),
+    ("Gift", "gift", "jane", (W, D)),
+    ("Gift", "gift", "john", None),  # the person it is for (1d.3)
+    ("Receipt", "receipt", "jane", (W, D)),
+    ("Receipt", "receipt", "john", (R,)),  # through the shared account
+    ("Receipt", "receipt", "jeremy", None),  # without Include receipts (4.4)
     ("Receipt", "receipt", "ann", (R,)),  # with it
-    ("ReceiptLink", "shared link", "bob", (R,)),
-    ("ReceiptLink", "unshared link", "bob", None),  # CR3-47: never the other account's
-    ("ReceiptLink", "gift link", "bob", None),
-    ("ReceiptLink", "unshared link", "alice", (W, D)),
-    ("Reimbursement", "reimbursement", "alice", (W, D)),
-    ("Reimbursement", "reimbursement", "bob", (R,)),  # from the side he reads (1e.3)
-    ("TransferMatch", "match", "alice", (W, D)),
-    ("TransferMatch", "match", "bob", None),  # its owner's alone (1e.4)
-    ("WashSale", "wash", "alice", (R,)),  # a cache: read with its sale, never changed
-    ("WashSale", "wash", "bob", None),
-    ("Person", "bobs person", "erin", (R,)),  # every local user, as he is not private
-    ("Person", "bobs person", "bob", EVERY),
-    ("Person", "bobs person", "admin", EVERY),  # admins hold every person (1b.3)
-    ("User", "carol", "admin", (W, D)),  # admins read inactive users too
-    ("User", "carol", "bob", None),
-    ("User", "tom", "tom", (R,)),  # one's own row; changed only by a local user
+    ("ReceiptLink", "shared link", "john", (R,)),
+    ("ReceiptLink", "unshared link", "john", None),  # CR3-47: never the other account's
+    ("ReceiptLink", "gift link", "john", None),
+    ("ReceiptLink", "unshared link", "jane", (W, D)),
+    ("Reimbursement", "reimbursement", "jane", (W, D)),
+    ("Reimbursement", "reimbursement", "john", (R,)),  # from the side he reads (1e.3)
+    ("TransferMatch", "match", "jane", (W, D)),
+    ("TransferMatch", "match", "john", None),  # its owner's alone (1e.4)
+    ("WashSale", "wash", "jane", (R,)),  # a cache: read with its sale, never changed
+    ("WashSale", "wash", "john", None),
+    ("Person", "johns person", "erin", (R,)),  # every local user, as he is not private
+    ("Person", "johns person", "john", EVERY),
+    ("Person", "johns person", "admin", EVERY),  # admins hold every person (1b.3)
+    ("User", "bart", "admin", (W, D)),  # admins read inactive users too
+    ("User", "bart", "john", None),
+    ("User", "jeremy", "jeremy", (R,)),  # one's own row; changed only by a local user
     ("Group", "former", "dave", None),  # an inactive group
     ("Group", "former", "admin", (W, D)),
 ]
@@ -394,23 +394,23 @@ def test_who_holds_what(household):
 
 # (table, record, user, whether it is theirs): decision 7 of the mine walk.
 MINE = [
-    ("Account", "unshared", "alice", 1),
-    ("Account", "shared", "bob", 0),  # shared with him
-    ("TaxBook", "book", "alice", 1),
+    ("Account", "unshared", "jane", 1),
+    ("Account", "shared", "john", 0),  # shared with him
+    ("TaxBook", "book", "jane", 1),
     ("TaxBook", "book", "dave", 0),
     ("TaxBookFiler", "erins invitation", "erin", 1),
-    ("Gift", "gift", "alice", 1),
-    ("Receipt", "receipt", "alice", 1),
-    ("Receipt", "receipt", "bob", 0),
-    ("Reimbursement", "reimbursement", "alice", 1),  # both sides hers
-    ("Reimbursement", "reimbursement", "bob", 0),
-    ("TransferMatch", "match", "alice", 1),
-    ("WashSale", "wash", "alice", 1),  # its sale's
-    ("Person", "bobs person", "bob", 1),  # his own person
-    ("Person", "bobs person", "admin", 0),  # an admin holds everyone, theirs or not
-    ("Person", "bobs person", "erin", 0),
-    ("User", "tom", "tom", 1),
-    ("User", "carol", "admin", 0),
+    ("Gift", "gift", "jane", 1),
+    ("Receipt", "receipt", "jane", 1),
+    ("Receipt", "receipt", "john", 0),
+    ("Reimbursement", "reimbursement", "jane", 1),  # both sides hers
+    ("Reimbursement", "reimbursement", "john", 0),
+    ("TransferMatch", "match", "jane", 1),
+    ("WashSale", "wash", "jane", 1),  # its sale's
+    ("Person", "johns person", "john", 1),  # his own person
+    ("Person", "johns person", "admin", 0),  # an admin holds everyone, theirs or not
+    ("Person", "johns person", "erin", 0),
+    ("User", "jeremy", "jeremy", 1),
+    ("User", "bart", "admin", 0),
 ]
 
 
@@ -502,7 +502,7 @@ UNTRIED = {
     ("RcLnk", "itemId", "QualifiedExpense", 404),
 }
 
-TRIERS = ("bob", "dave", "erin", "alice")
+TRIERS = ("john", "dave", "erin", "jane")
 
 
 def _candidate(s, n, sql: str) -> tuple[str, str] | None:
@@ -585,7 +585,7 @@ def test_a_users_session_reads_only_what_their_views_give(household):
 
     every, all_txns, _, unshared = ids_of(unscoped="test: every account")
     assert unshared is not None
-    for user in ("alice", "bob", "tom", "carol"):
+    for user in ("jane", "john", "jeremy", "bart"):
         with srv.db.read(unscoped="test: the view") as s:
             view = rows(s, "Account")
             txns = rows(s, "Transaction")
@@ -602,23 +602,23 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
     from moolakata.store.entities.accounts import Account
 
     srv, n = household
-    with srv.db.read(user=n["bob"]) as s:
+    with srv.db.read(user=n["john"]) as s:
         shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
-        got, p = access.need(s, Account, shared.id, n["bob"])
+        got, p = access.need(s, Account, shared.id, n["john"])
         assert got.id == shared.id and p == access.READ
         with pytest.raises(ValueError):  # nothing is allowed by `mine` (mine walk, decision 7)
-            access.need(s, Account, shared.id, n["bob"], "mine")
+            access.need(s, Account, shared.id, n["john"], "mine")
         with pytest.raises(Problem) as e:
-            access.need(s, Account, shared.id, n["bob"], "writable", "account")
+            access.need(s, Account, shared.id, n["john"], "writable", "account")
         assert e.value.status == 403
         with pytest.raises(Problem) as e:
-            access.need(s, Account, n["unshared"], n["bob"])
+            access.need(s, Account, n["unshared"], n["john"])
         assert e.value.status == 404
-        listed = access.listing(s, Account, n["bob"], order_by=Account.name)
-        assert {a.id for a, _ in listed} == {k[0] for k in rows(s, "Account") if k[1] == n["bob"]}
+        listed = access.listing(s, Account, n["john"], order_by=Account.name)
+        assert {a.id for a, _ in listed} == {k[0] for k in rows(s, "Account") if k[1] == n["john"]}
     with srv.db.read(unscoped="test: holders") as s:
         held = access.holders_of(s, Account, shared.id)
-        assert held[n["alice"]] == access.OWNER and n["bob"] in held
+        assert held[n["jane"]] == access.OWNER and n["john"] in held
 
 
 # ---- The write check at flush (decision 5.4) ----
@@ -640,14 +640,14 @@ def test_a_users_session_writes_only_what_their_views_allow(household):
         return a, t
 
     def refused(change):
-        with pytest.raises(Problem) as e, srv.db.tx(user=n["bob"]) as s:
+        with pytest.raises(Problem) as e, srv.db.tx(user=n["john"]) as s:
             change(s)
         assert e.value.status == 403 and e.value.code == "write-refused"
 
     # Everyday checking: read through the Household group; Emergency savings: write.
     refused(lambda s: setattr(first(s, "Everyday checking")[1], "memo", "mine now"))
     refused(lambda s: setattr(first(s, "Emergency savings")[0], "name", "renamed"))
-    refused(lambda s: first(s, "Emergency savings")[0].mark_deleted(n["bob"]))
+    refused(lambda s: first(s, "Emergency savings")[0].mark_deleted(n["john"]))
 
     def add_to_read_only(s):
         a, t = first(s, "Everyday checking")
@@ -655,10 +655,10 @@ def test_a_users_session_writes_only_what_their_views_allow(household):
                           amount=t.amount))  # fmt: skip
 
     refused(add_to_read_only)
-    with srv.db.tx(user=n["bob"]) as s:
+    with srv.db.tx(user=n["john"]) as s:
         _, t = first(s, "Emergency savings")
         was, t.memo = t.memo, "allowed"
-    with srv.db.tx(user=n["bob"]) as s:
+    with srv.db.tx(user=n["john"]) as s:
         first(s, "Emergency savings")[1].memo = was
 
 

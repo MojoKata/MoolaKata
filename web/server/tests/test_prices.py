@@ -175,7 +175,7 @@ def _source(server, name, pref):
 def test_refresh_falls_back_records_errors_and_stores_once(server):
     pricing.install()
     server.config = server.config.__class__(**{**server.config.__dict__, "dev": True})
-    user = make_user(server, "alice")
+    user = make_user(server, "jane")
     account_id, inst_id = _book(server, user)
     _source(server, "broken-test", 1)
     _source(server, "stub", 2)
@@ -199,7 +199,7 @@ def test_refresh_falls_back_records_errors_and_stores_once(server):
 
 
 def test_refresh_fails_when_every_source_does(server):
-    user = make_user(server, "alice")
+    user = make_user(server, "jane")
     _book(server, user)
     _source(server, "broken-test", 1)
     with pytest.raises(SourceError, match=r"^Broken answered HTTP 500$"):
@@ -209,7 +209,7 @@ def test_refresh_fails_when_every_source_does(server):
 def test_an_unreadable_answer_falls_back_like_a_failure(server):
     pricing.install()
     server.config = server.config.__class__(**{**server.config.__dict__, "dev": True})
-    _book(server, make_user(server, "alice"))
+    _book(server, make_user(server, "jane"))
     _source(server, "garbled-test", 1)
     _source(server, "stub", 2)
     assert pricing.refresh(server)["stored"] > 10
@@ -221,7 +221,7 @@ def test_an_unreadable_answer_falls_back_like_a_failure(server):
 def test_only_what_is_held_is_priced(server):
     from moolakata.store.entities.accounts import Transaction
 
-    account_id, inst_id = _book(server, make_user(server, "alice"))
+    account_id, inst_id = _book(server, make_user(server, "jane"))
     with server.db.read(unscoped="test") as s:
         assert inst_id in {i.id for i, _ in pricing.priced(s)}
     with server.db.tx(unscoped="test") as s:
@@ -283,41 +283,41 @@ def test_price_sources_in_settings(admin_client, server):
 
 def test_typed_prices_win_and_only_for_holders(server):
     pricing.install()
-    user = make_user(server, "alice")
-    make_user(server, "bob")
+    user = make_user(server, "jane")
+    make_user(server, "john")
     _account_id, inst_id = _book(server, user)
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
     day = (TODAY - dt.timedelta(days=1)).isoformat()
-    assert create(bob, "TyPrc", instrumentId=inst_id, date=day, close="300").status_code == 404
-    typed = saved(create(alice, "TyPrc", instrumentId=inst_id, date=day, close="300"))
-    closes = alice.get(f"/ui/api/instruments/{inst_id}/prices").json()["items"]
+    assert create(john, "TyPrc", instrumentId=inst_id, date=day, close="300").status_code == 404
+    typed = saved(create(jane, "TyPrc", instrumentId=inst_id, date=day, close="300"))
+    closes = jane.get(f"/ui/api/instruments/{inst_id}/prices").json()["items"]
     assert closes[-1] == {"date": day, "close": "300.0", "source": "manual", "id": typed["id"],
                           "version": typed["version"]}  # fmt: skip
-    again = create(alice, "TyPrc", instrumentId=inst_id, date=day, close="301")
+    again = create(jane, "TyPrc", instrumentId=inst_id, date=day, close="301")
     assert again.json()["errors"][0]["code"] == "price-typed"
-    assert saved(change(alice, "TyPrc", typed, close="301"))["close"] == "301.0"
-    status = alice.get("/ui/api/prices/status").json()
+    assert saved(change(jane, "TyPrc", typed, close="301"))["close"] == "301.0"
+    status = jane.get("/ui/api/prices/status").json()
     assert status["stale"] is False and status["running"] is False
-    assert alice.post("/ui/api/prices/refresh").status_code in (202, 503)
+    assert jane.post("/ui/api/prices/refresh").status_code in (202, 503)
 
 
 def test_a_typed_price_values_only_its_typers_accounts(server):
-    """S4.10: Bob holds what Alice holds; her typed price values her account alone, and his
+    """S4.10: John holds what Jane holds; her typed price values her account alone, and his
     holding has no price from her trade either."""
     pricing.install()
-    alice_user, bob_user = make_user(server, "alice"), make_user(server, "bob")
-    a_id, inst_id = _book(server, alice_user)
-    b_id, same = _book(server, bob_user)
+    jane_user, john_user = make_user(server, "jane"), make_user(server, "john")
+    a_id, inst_id = _book(server, jane_user)
+    b_id, same = _book(server, john_user)
     assert same == inst_id
-    alice, bob = sign_in(server, "alice"), sign_in(server, "bob")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
     day = (TODAY - dt.timedelta(days=1)).isoformat()
-    saved(create(alice, "TyPrc", instrumentId=inst_id, date=day, close="300"))
-    mine = alice.get(f"/ui/api/accounts/{a_id}/holdings").json()["holdings"][0]
+    saved(create(jane, "TyPrc", instrumentId=inst_id, date=day, close="300"))
+    mine = jane.get(f"/ui/api/accounts/{a_id}/holdings").json()["holdings"][0]
     assert mine["value"] == "1200.00" and mine["priceSource"] == "manual"
-    theirs = bob.get(f"/ui/api/accounts/{b_id}/holdings").json()["holdings"][0]
+    theirs = john.get(f"/ui/api/accounts/{b_id}/holdings").json()["holdings"][0]
     assert theirs["priceSource"] == "trade" and theirs["value"] == "1000.00", "his own trade"
     assert [
-        p["close"] for p in bob.get(f"/ui/api/instruments/{inst_id}/prices").json()["items"]
+        p["close"] for p in john.get(f"/ui/api/instruments/{inst_id}/prices").json()["items"]
     ] == []
 
 
@@ -406,8 +406,8 @@ def test_an_options_underlying_is_priced_held_or_not(server):
 
     from moolakata.store.entities.accounts import Instrument
 
-    make_user(server, "alice")
-    c = sign_in(server, "alice")
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
     brk = new_account(c, name="Brokerage", type="brokerage")
     r = option_trade(c, brk["id"], "2026-09-02", "sell-to-open", "XYZ", "put", "50",
                      "2026-11-20", 1, "2.00")  # fmt: skip
@@ -433,13 +433,13 @@ def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
     clock.fix(dt.datetime(2026, 10, 13, 15, tzinfo=dt.UTC))
     try:
         pricing.install()
-        for u in ("alice", "mallory"):
+        for u in ("jane", "mallory"):
             make_user(server, u)
         ids_ = {}
         with server.db.tx(unscoped="test") as s:
             from moolakata.store.entities.users import User
 
-            users = {u: s.query(User).filter_by(username=u).one().id for u in ("alice", "mallory")}
+            users = {u: s.query(User).filter_by(username=u).one().id for u in ("jane", "mallory")}
             accts = {}
             for u, uid in users.items():
                 a = Account(id=ids.new_id("Acct"), ownerId=uid, name=f"{u} brokerage",
@@ -455,7 +455,7 @@ def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
                 s.add(inst)
                 s.flush()
                 ids_[shape] = inst.id
-                for who, base in (("alice", 100), ("mallory", 7)):
+                for who, base in (("jane", 100), ("mallory", 7)):
                     day0 = first - dt.timedelta(days=20)
                     s.add(Transaction(id=ids.new_id("Txn"), accountId=accts[who], date=day0,
                                       kind="buy", amount=-D(base), instrumentId=inst.id,
@@ -483,10 +483,10 @@ def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
         mallory = {D(7), D(10), D(12)}  # her trade, statement and typed prices
         with server.db.read(unscoped="test") as s:
             points = valuation.price_points(s, list(ids_.values()), first, last,
-                                            owner=users["alice"])  # fmt: skip
+                                            owner=users["jane"])  # fmt: skip
             day = first
             while day <= last:
-                found = valuation.prices(s, list(ids_.values()), day, owner=users["alice"])
+                found = valuation.prices(s, list(ids_.values()), day, owner=users["jane"])
                 for shape, iid in ids_.items():
                     pts = [p for d, p in points[iid] if d <= day]
                     want = pts[-1] if pts else None
@@ -494,10 +494,10 @@ def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
                     assert (got.price if got else None) == want, (shape, day, got, want)
                     assert want not in mallory, (shape, day)
                 day += dt.timedelta(days=1)
-        # And the shapes mean what they say: alice's typed price wins on its day, her statement
+        # And the shapes mean what they say: jane's typed price wins on its day, her statement
         # stands before any close, her trade where nothing else is, a close once one comes.
         with server.db.read(unscoped="test") as s:
-            on = valuation.prices(s, list(ids_.values()), last, owner=users["alice"])
+            on = valuation.prices(s, list(ids_.values()), last, owner=users["jane"])
         assert on[ids_["typed"]].source in ("close", "manual")
         assert on[ids_["statement"]].price == D(103) and on[ids_["trades"]].price == D(100)
         assert on[ids_["late-closes"]].price == D(300) and on[ids_["fund"]].price == D(1)

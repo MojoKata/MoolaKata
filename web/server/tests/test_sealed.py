@@ -89,15 +89,15 @@ def signed_change(key, seq, server, link_id, **body):
 
 
 def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setup):  # noqa: F811
-    link_id, admin, alice, _ = setup
+    link_id, admin, jane, _ = setup
     peer = Ed25519PrivateKey.generate()
     with server.db.tx(unscoped="test") as s:
         s.get(Link, link_id).peerKey = b64(
             peer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         )
     words = admin.post(f"/ui/api/settings/links/{link_id}/copy-key").json()["words"]
-    alice_id = alice.get("/ui/api/session").json()["user"]["id"]
-    item = {"id": "Acct_1", "kind": "account", "name": "Mom's IRA", "ownerName": "Margaret"}
+    jane_id = jane.get("/ui/api/session").json()["user"]["id"]
+    item = {"id": "Acct_1", "kind": "account", "name": "Mom's IRA", "ownerName": "Candace"}
     changes.enqueue(
         server,
         link_id,
@@ -107,7 +107,7 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
             server,
             link_id,
             full=True,
-            items=[{**item, "viewers": [alice_id], "version": 1}],
+            items=[{**item, "viewers": [jane_id], "version": 1}],
         ),
     )
     changes.enqueue(
@@ -118,12 +118,12 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
             2,
             server,
             link_id,
-            items=[{**item, "name": "Mom's Roth IRA", "viewers": [alice_id], "version": 2}],
+            items=[{**item, "name": "Mom's Roth IRA", "viewers": [jane_id], "version": 2}],
             docs=[
                 {
                     "itemId": "Acct_1",
                     "path": "/accounts/Acct_1",
-                    "viewer": alice_id,
+                    "viewer": jane_id,
                     "body": {"balance": "412880.00"},
                 }
             ],
@@ -134,7 +134,7 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
     assert all(b"Roth" not in p.read_bytes() for p in inbox), "sealed: no names on disk"
     with server.db.read(unscoped="test") as s:
         assert s.get(Link, link_id).inboxAsOf is not None
-    r = alice.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
+    r = jane.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
     assert r.status_code == 200
     assert changes.waiting(server.config.data_dir, link_id) == []
     o = server.copies.get(link_id)
@@ -150,7 +150,7 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
 
 
 def test_a_change_not_signed_by_the_peer_stops_the_apply(server, setup):  # noqa: F811
-    link_id, admin, alice, _ = setup
+    link_id, admin, jane, _ = setup
     peer, stranger = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
     with server.db.tx(unscoped="test") as s:
         s.get(Link, link_id).peerKey = b64(
@@ -160,7 +160,7 @@ def test_a_change_not_signed_by_the_peer_stops_the_apply(server, setup):  # noqa
     changes.enqueue(server, link_id, signed_change(peer, 1, server, link_id, items=[]))
     forged = signed_change(stranger, 2, server, link_id, items=[{"id": "x", "kind": "account"}])
     changes.enqueue(server, link_id, forged)
-    alice.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
+    jane.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
     # Nothing applied: set aside, recorded, and everything asked for again (S11.9.5.3).
     assert changes.waiting(server.config.data_dir, link_id) == []
     aside = lcopy.folder(server.config.data_dir, link_id) / "set-aside"

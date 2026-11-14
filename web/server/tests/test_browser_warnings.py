@@ -84,14 +84,14 @@ def test_a_different_person_by_a_name_already_here_needs_a_birth_year(browser, h
     page.click('button:has-text("Add a Gift Plan")')
     wait(page, ".dialog #f-name", problems)
     hint = ".dialog .field:has(#f-birthday) .hint"
-    page.fill(".dialog #f-name", "Emma Griffin")
+    page.fill(".dialog #f-name", "Lisa Doe")
     page.select_option(".dialog #f-sex", "female")
     page.click(".dialog footer button.primary")
-    wait(page, '.dialog .notice:has-text("Emma Griffin is already here")', problems)
+    wait(page, '.dialog .notice:has-text("Lisa Doe is already here")', problems)
     assert page.locator(hint).count() == 0, "not yet marked a different person"
     page.click('.dialog button:has-text("A Different Person")')
     wait(page, f'{hint}:text-is("A birth year that differs from theirs.")', problems)
-    page.click('.dialog button:has-text("Use Emma Griffin")')
+    page.click('.dialog button:has-text("Use Lisa Doe")')
     wait(page, hint, problems, state="detached")
     discard(page, problems)
     # The save refused for the name already here is the answer the test brought about.
