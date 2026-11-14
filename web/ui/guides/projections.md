@@ -38,11 +38,6 @@ default.
 
 **Nominal** dollars as they will be; **today's dollars** take inflation out.
 
-## Built on
-
-A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
-value today and their mix of asset classes; each class follows your assumptions in Profile.
-
 ## Projected Value {#projected-value}
 
 A model, not a forecast. Under the chart, what it is worked out from: the value it starts from and
@@ -56,6 +51,11 @@ keep the crypto assumption. Its runs are seeded, so the same inputs give the sam
 What a projection doesn't grow, named under its chart with its value today: a loan, a home, a
 car or another item, and options. A projection grows cash, securities and precious metals, the
 money that can be drawn on; a home isn't sold to pay for retirement, and a car loses value.
+
+## Built on
+
+A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
+value today and their mix of asset classes; each class follows your assumptions in Profile.
 
 ## Amount {#typed-amount}
 

@@ -574,7 +574,7 @@ def test_a_helocs_draw_period_is_interest_only(browser, household, new_loan):
     tab(page, problems, "Schedule", 'table:has(caption:text("Amortization schedule"))')
     rows = page.locator('table:has(caption:text("Amortization schedule")) tbody tr')
     assert rows.count() == 15
-    assert rows.first.locator(".pill.info").inner_text() == "assumed as scheduled"
+    assert rows.first.locator(".pill.info").inner_text() == "assumed"
     first = rows.nth(3).locator("td").all_inner_texts()
     assert first == [day(v["nextDate"]), "$333.33", "$0.00", "$333.33", "—", "$50,000.00"]
     assert page.locator("thead").inner_text().count("Escrow") == 0
