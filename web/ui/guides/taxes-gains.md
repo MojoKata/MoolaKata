@@ -28,7 +28,7 @@ property, C a collectable) and amount, and the gain or loss.
 The totals by box, short and long term, the collectables among them (taxed at their own rate), and
 last year's capital-loss carryover.
 
-## Wash sales
+## Wash Sales
 
 A loss sale with the same instrument bought within 30 days either side, in any of the filers'
 accounts (IRAs included) or a spouse's: the disallowed loss, and the replacement lot with its basis

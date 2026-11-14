@@ -37,7 +37,7 @@ for a rule that only renames or tags.
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Rename to

@@ -82,12 +82,12 @@ function Performance({ p }) {
           : 's'}</div>
       </div>
       <div class="card kpi" data-help="time-weighted-return">
-        <div class="label">Time-weighted return (${range})</div>
+        <div class="label">Time-Weighted Return (${range})</div>
         <div class="value">${s ? html`<${Pct} v=${s.twr} />` : '…'}</div>
         <div class="delta dim">what the investments did</div>
       </div>
       <div class="card kpi" data-help="money-weighted-return">
-        <div class="label">Money-weighted (IRR)</div>
+        <div class="label">Money-Weighted (IRR)</div>
         <div class="value">${s ? html`<${Pct} v=${s.irr} />` : '…'}</div>
         <div class="delta dim">a year, for your timing</div>
       </div>
@@ -100,7 +100,7 @@ function Performance({ p }) {
       </div>
     </div>
     <div
-      class="card mt"><h3>Value over time<span class="spacer"></span><${Chips} label="Range" value=${range} onChange=${setRange} options=${RANGES} /></h3>
+      class="card mt"><h3>Value over Time<span class="spacer"></span><${Chips} label="Range" value=${range} onChange=${setRange} options=${RANGES} /></h3>
       ${series.error
         ? html`<${Failed} error=${series.error} />`
         : s
@@ -127,7 +127,7 @@ function Performance({ p }) {
         : html`<${Loading} lines=${4} />`}
       <p class="small dim">The benchmark is given the same money at the same times, so the lines compare what the
         investments did, not when money came in.</p></div>
-    <div class="card mt"><h3>Returns by period</h3>
+    <div class="card mt"><h3>Returns by Period</h3>
       ${!rows ? html`<${Loading} />` : html`
         <div class="table-wrap">
           <table class="t">
@@ -139,8 +139,8 @@ function Performance({ p }) {
                 <th class="num">3M</th>
                 <th class="num">YTD</th>
                 <th class="num">1Y</th>
-                <th class="num">3Y (a year)</th>
-                <th class="num">5Y (a year)</th>
+                <th class="num">3Y (a Year)</th>
+                <th class="num">5Y (a Year)</th>
               </tr>
             </thead>
             <tbody>${rows.map((r, i) =>
@@ -184,7 +184,7 @@ function Holdings({ p }) {
               <th class="num">Quantity</th>
               <th class="num">Price</th>
               <th class="num">Value</th>
-              <th class="num">Cost basis</th>
+              <th class="num">Cost Basis</th>
               <th class="num">Gain</th>
               <th class="num">Weight</th>
             </tr>

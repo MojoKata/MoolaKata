@@ -27,7 +27,7 @@ the host as chosen. This screen shows how far it has come; sign-in opens when it
 
 ## Restarting
 
-After **Rotate** or **Re-encrypt now** in Settings › Key storage, MoolaKata restarts itself and
+After **Rotate** or **Re-encrypt Now** in Settings › Key storage, MoolaKata restarts itself and
 this page waits for it, then shows the locked screen: unlock it with the phrase (the new one,
 after a rotation), and the re-encryption runs first. If it hasn't come back within a minute,
 start it on the host (`docker compose up -d`).

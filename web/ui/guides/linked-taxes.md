@@ -11,4 +11,4 @@ shared with **Include receipts** and the file has arrived; otherwise it stays ho
 ## The header strip {#strip}
 
 Which server this comes from, that it is read only, when it last synced, and who unlocked it and
-when it locks. **Lock now** locks it for everyone at once.
+when it locks. **Lock Now** locks it for everyone at once.

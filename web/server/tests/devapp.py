@@ -156,30 +156,55 @@ GUIDE_CHECK = r"""(scope) => {
     .map((el) => el.dataset.help || el.id.replace(/^d\d+-/, '').slice(2))
     .filter((id, i, all) => all.indexOf(id) === i);
   const missing = fields.filter((f) => !anchors.includes(f));
+  // A heading reads as what it names (S12.7.4): a field's as its label; a button's, a tab's or
+  // a header's as it is drawn. Words that are a field's label here too are judged as one.
+  const norm = (t) => t.replace(/\s+/g, ' ').replace(/…$/, '').trim();
+  const heads = [...guide.querySelectorAll('[data-anchor]')]
+    .map((h) => ({ id: h.dataset.anchor, text: norm(h.textContent).replace(/^▶\s*/, '') }));
+  const cased = [];
+  const labels = new Set();
+  for (const el of root.querySelectorAll('label[for]')) {
+    const m = /^(?:d\d+-)?f-(.*)$/.exec(el.htmlFor);
+    const text = norm(el.textContent);
+    labels.add(text.toLowerCase());
+    const h = m && heads.find((x) => x.id === m[1]);
+    if (h && h.text.toLowerCase() === text.toLowerCase() && h.text !== text) {
+      cased.push(`${h.text} → ${text}`);
+    }
+  }
+  const drawn = [...root.querySelectorAll('button, [role=tab], th, h1, h2, h3, h4, .label')]
+    .map((e) => norm(e.textContent)).filter(Boolean);
+  for (const h of heads) {
+    const low = h.text.toLowerCase();
+    const d = drawn.find((t) => t.toLowerCase() === low);
+    if (d && d !== h.text && !labels.has(low)) cased.push(`${h.text} → ${d}`);
+  }
   const order = fields.filter((f) => anchors.includes(f)).map((f) => anchors.indexOf(f));
   const backwards = order.findIndex((v, i) => i > 0 && v < order[i - 1]);
   return {
     key: guide.dataset.guide,
     missingGuide: guide.textContent.includes("guide is missing"),
-    missing, fields,
+    missing, fields, cased,
     backwards: backwards < 0 ? null : fields.filter((f) => anchors.includes(f))[backwards],
   };
 }"""
 
 
 def check_guide(page, scope: str, where: str) -> None:
-    """The guide shown has a heading for each field, in the fields' order. Asked again until
+    """The guide shown has a heading for each field, in the fields' order, each reading as what
+    it names (S12.7.4). Asked again until
     it does or 10 s pass, as a field drawn late (its record still loading) gets its heading
     once it is there; the last answer is the one judged."""
     for _ in range(200):
         r = page.evaluate(GUIDE_CHECK, scope)
-        if "error" not in r and not r["missing"] and r["backwards"] is None:
+        if "error" not in r and not r["missing"] and r["backwards"] is None and not r["cased"]:
             break
         page.wait_for_timeout(50)
     assert "error" not in r, f"{where}: {r}"
     assert not r["missingGuide"], f"{where}: no guide {r['key']}"
     assert r["missing"] == [], f"{where} ({r['key']}): fields without a heading: {r['missing']}"
     assert r["backwards"] is None, f"{where} ({r['key']}): {r['backwards']} sends the guide up"
+    assert r["cased"] == [], f"{where} ({r['key']}): headings in another case: {r['cased']}"
 
 
 def visit(page, path: str) -> None:

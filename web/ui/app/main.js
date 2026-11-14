@@ -147,7 +147,7 @@ whenSignedOut((code) => signOutLocally(code === 'account-disabled' ? 'disabled' 
 // A route that would move a filed year's gains asks first (S2.8.2), as the save does.
 whenClosedYear((problem) =>
   confirmAction({
-    title: 'Change a filed year?',
+    title: 'Change a Filed Year?',
     detail: problem?.detail || '',
   })
 );

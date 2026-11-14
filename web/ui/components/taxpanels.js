@@ -15,13 +15,13 @@ import { whyRead } from '../app/draft.js';
 import { Action, Attention } from '../kit/state.js';
 
 export const PANEL_TABS = /** @type {[string, string][]} */ ([
-  ['gains', 'Capital gains (8949)'],
+  ['gains', 'Capital Gains (8949)'],
   ['income', 'Income'],
   ['retirement', 'Retirement'],
   ['deductions', 'Deductions'],
   ['giving', 'Giving'],
-  ['education', 'Education and gifts'],
-  ['property', 'Loans and property'],
+  ['education', 'Education and Gifts'],
+  ['property', 'Loans and Property'],
   ['issues', 'Issues'],
 ]);
 
@@ -63,7 +63,7 @@ export function SummaryFigures({ b }) {
   return html`
     <div class="grid g4">
       <div class="card kpi">
-        <div class="label">Net capital gain or loss</div>
+        <div class="label">Net Capital Gain or Loss</div>
         <div class="value">
           <${Amt}
             v=${dec(d.shortTerm).add(dec(d.longTerm))} signed cents=${false} />
@@ -91,7 +91,7 @@ export function SummaryFigures({ b }) {
           .length} payer${p.income.interest.length === 1 ? '' : 's'}</div>
       </div>
       <div class="card kpi">
-        <div class="label">Charitable gifts</div>
+        <div class="label">Charitable Gifts</div>
         <div class="value">
           <${Amt}
             v=${p.giving.deductibleTotal} cents=${false} />
@@ -181,7 +181,7 @@ function Gains({ p }) {
                     <th class="num">Basis</th>
                     <th>Code</th>
                     <th class="num">Adjustment</th>
-                    <th class="num">Gain or loss</th>
+                    <th class="num">Gain or Loss</th>
                   </tr>
                 </thead>
                 <tbody>${rows.map((/** @type {any} */ r) =>
@@ -236,7 +236,7 @@ function Gains({ p }) {
               v=${dec(d.carryoverShort).add(dec(d.carryoverLong))} /></div>`
             : null}
         </div>
-        <div class="card"><h3 data-help="wash-sales">Wash sales</h3>${p.washes.length
+        <div class="card"><h3 data-help="wash-sales">Wash Sales</h3>${p.washes.length
           ? p.washes.map((/** @type {any} */ w) =>
             html`<div class="list-item"><div class="grow">${w.symbol} sold ${date(w.sold)}<div
               class="small dim">${w.account} · replaced ${
@@ -286,12 +286,12 @@ function Income({ p }) {
             v=${x.amount} /></div>`
         )}
       </div>
-      <div class="card"><h3 data-help="foreign-tax">Foreign tax paid (7)</h3>${i.foreignTax.length
+      <div class="card"><h3 data-help="foreign-tax">Foreign Tax Paid (7)</h3>${i.foreignTax.length
         ? i.foreignTax.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
         : html`<${Empty}>None in ${p.year}</${Empty}>`}</div>
-      <div class="card"><h3 data-help="crypto-income">Crypto income</h3>${i.cryptoIncome.length
+      <div class="card"><h3 data-help="crypto-income">Crypto Income</h3>${i.cryptoIncome.length
         ? i.cryptoIncome.map((/** @type {any} */ x) =>
           html`<div class="list-item"><span class="grow">${x.label}</span><${Amt} v=${x.amount} /></div>`
         )
@@ -305,7 +305,7 @@ function Retirement({ p }) {
   const r = p.retirement;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{ padding: '8px 8px 0' }}>
-      Contributions against the limits</h3>${r.contributions.length
+      Contributions against the Limits</h3>${r.contributions.length
         ? html`
           <div class="table-wrap">
             <table class="t">
@@ -361,7 +361,7 @@ function Retirement({ p }) {
                 : ''}.</p>
           `
         )}</div>
-      <div class="card"><h3 data-help="rmds">Required minimum distributions</h3>${r.rmds.length
+      <div class="card"><h3 data-help="rmds">Required Minimum Distributions</h3>${r.rmds.length
         ? r.rmds.map((/** @type {any} */ x) =>
           html`
             <div class="list-item">
@@ -376,7 +376,7 @@ function Retirement({ p }) {
         : html`<p class="small dim">None due: no owner has reached the RMD age.</p>`}</div>
     </div>
     <div class="grid g2 mt">
-      <div class="card"><h3 data-help="conversions">Roth conversions</h3>${r.conversions.length
+      <div class="card"><h3 data-help="conversions">Roth Conversions</h3>${r.conversions.length
         ? r.conversions.map((/** @type {any} */ m) =>
           html`<div class="list-item"><span class="grow">${m.fromAccount} → ${m.toAccount}<div
             class="small dim">${date(m.date)}${
@@ -404,7 +404,7 @@ function Deductions({ p }) {
   return html`
     <div class="grid g-main">
       <div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{ padding: '8px 8px 0' }}>
-        Tax-tagged categories</h3>${p.deductions.length
+        Tax-Tagged Categories</h3>${p.deductions.length
           ? html`
             <div class="table-wrap">
               <table class="t">
@@ -435,7 +435,7 @@ function Deductions({ p }) {
             </div>
           `
           : html`<p class="small dim">No transactions in tax-tagged categories.</p>`}</div>
-      <div class="card"><h3 data-help="estimated-payments">Estimated payments</h3>${p.estimated
+      <div class="card"><h3 data-help="estimated-payments">Estimated Payments</h3>${p.estimated
           .length
         ? p.estimated.map((/** @type {any} */ q) =>
           html`<div class="list-item"><span class="grow">${q.jurisdiction} · Q${q.quarter}</span><${Amt}
@@ -447,7 +447,7 @@ function Deductions({ p }) {
             cents=${false} />; paid in ${p.year} so far: ${money(total, { cents: false })}.</p>`
           : null}</div>
     </div>
-    <div class="card mt"><h3 data-help="dependents-ages">Dependents' ages on Dec 31</h3>${p
+    <div class="card mt"><h3 data-help="dependents-ages">Dependents' Ages on Dec 31</h3>${p
         .dependents.length
       ? p.dependents.map((/** @type {any} */ d) =>
         html`
@@ -526,7 +526,7 @@ function Giving({ p }) {
         <div class="card mt"
           style=${{ padding: '4px 8px' }}><h3 style=${{
             padding: '8px 8px 0',
-          }}>Not deducted</h3>${table(g.apart)}<p class="small dim" style=${{
+          }}>Not Deducted</h3>${table(g.apart)}<p class="small dim" style=${{
             padding: '0 8px',
           }}>QCDs (excluded from income instead), grants from a donor-advised fund, and gifts to
                 organisations that aren't deductible.</p></div>
@@ -539,7 +539,7 @@ function Giving({ p }) {
 function Education({ p }) {
   return html`
     <div class="grid g2">
-      <div class="card"><h3>529 plans</h3>${p.education.length
+      <div class="card"><h3>529 Plans</h3>${p.education.length
         ? p.education.map((/** @type {any} */ e) =>
           html`<h4 style=${{ margin: '8px 0 4px' }}>${e.account} · ${e.beneficiary}</h4>
             ${
@@ -569,7 +569,7 @@ function Education({ p }) {
         <p class="small dim">The earnings in what isn't covered may be taxable, with a 10%
           additional tax; the preparer applies the rules with education credits.</p>
         ${p.students.length
-          ? html`<h4 style=${{ margin: '12px 0 4px' }}>Dependent students</h4>${
+          ? html`<h4 style=${{ margin: '12px 0 4px' }}>Dependent Students</h4>${
             p.students.map((
               /** @type {any} */ x,
             ) =>
@@ -625,7 +625,7 @@ function Property({ p }) {
         : html`<p class="small dim">No loans in this book.</p>`}
         <p class="small dim">Computed from the payments' splits; compare with the 1098 when it
           arrives.</p></div>
-      <div class="card"><h3>Physical assets sold</h3>${sold.length
+      <div class="card"><h3>Physical Assets Sold</h3>${sold.length
         ? sold.map((/** @type {any} */ r) =>
           html`
             <div class="list-item">
@@ -668,7 +668,7 @@ function Issues({ p, b, reload }) {
                 .kind === 'changed-after-filing'
               ? html`
                 ${''}<a class="btn sm" href="/ui/taxes/filings">Add an amended return</a><${Action}
-                  class="btn sm" why=${whyRead(b)} onClick=${waive}>No amendment needed</${Action}>
+                  class="btn sm" why=${whyRead(b)} onClick=${waive}>No Amendment Needed</${Action}>
               `
               : i.link
               ? html`<a class="small" href=${i.link}>Look</a>`

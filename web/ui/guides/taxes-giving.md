@@ -14,7 +14,7 @@ out.
 Deductible donations: cash, goods, appreciated shares and donor-advised-fund contributions, each
 with its acknowledgement. One is needed for any single gift of $250 or more.
 
-## Not deducted
+## Not Deducted
 
 QCDs (excluded from income instead), grants from a donor-advised fund, and gifts to organisations
 that aren't deductible.

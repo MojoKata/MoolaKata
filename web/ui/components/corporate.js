@@ -83,8 +83,8 @@ export function CorporateAction({ close, accountId }) {
     p.accountId === rec?.get('accountId') && p.instrumentId === rec?.get('instrumentId')
   );
   return html`
-    <${DraftDialog} f=${f} title="Record a corporate action" close=${close}
-      what="This corporate action" label="Record it" done="Corporate action recorded"
+    <${DraftDialog} f=${f} title="Record a Corporate Action" close=${close}
+      what="This corporate action" label="Record It" done="Corporate action recorded"
       disabled=${!chosen}>
       ${rec
         ? html`

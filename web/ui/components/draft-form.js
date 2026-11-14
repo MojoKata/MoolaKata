@@ -158,7 +158,7 @@ function Reauth({ again }) {
             </${Field}>
             <button type="button" class="btn sm" style=${{ marginBottom: '14px' }}
               disabled=${go.busy || !password} onClick=${() =>
-                go.run().catch(() => {})}>Go on</button>
+                go.run().catch(() => {})}>Go On</button>
             </div>
             </div>
             </div>
@@ -290,9 +290,9 @@ export function LeaveDialog({ close, where, answered }) {
     close(how);
   };
   return html`
-    <${Dialog} title="Save your changes?" close=${() => answer(undefined)} footer=${html`
+    <${Dialog} title="Save Your Changes?" close=${() => answer(undefined)} footer=${html`
       <button type="button" class="btn" autofocus onClick=${() => answer(undefined)}>Keep
-        editing</button>
+        Editing</button>
       <button type="button" class="btn danger" onClick=${() => answer('discard')}>Discard</button>
       <button type="button" class="btn primary" onClick=${() => answer('save')}>Save</button>
     `}>

@@ -16,12 +16,12 @@ export default function Reset() {
   });
   if (done) {
     return html`
-      <${AuthCard} title="Password changed" guide="reset"
+      <${AuthCard} title="Password Changed" guide="reset"
         sub="Every session was signed out. Sign in with the new password."><a class="btn primary" href="/ui/">Sign in</a></${AuthCard}>
     `;
   }
   return html`
-    <${AuthCard} title="Choose a new password" guide="reset">
+    <${AuthCard} title="Choose a New Password" guide="reset">
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
         save.run().catch(() => {});
@@ -33,7 +33,7 @@ export default function Reset() {
           </${Field}>
           <${FormError} error=${save.error} shown=${['password']} />
           <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-            disabled=${save.busy}>Change the password</button>
+            disabled=${save.busy}>Change the Password</button>
           </form>
           </${AuthCard}>
   `;

@@ -157,12 +157,12 @@ export function ConnectorSection() {
       <div class="toolbar mt">
         <button class="btn" onClick=${() =>
           openDialog(PairDialog, {}).then(() => res.reload())}>${paired
-          ? 'Pair a replacement…'
+          ? 'Pair a Replacement…'
           : 'Pair…'}</button>
         <span class="spacer"></span>${paired || v.state === 'pairing'
           ? html`<button class="btn danger" disabled=${unpair.busy} onClick=${async () => {
             const sure = await confirmAction({
-              title: 'Unpair the connector?',
+              title: 'Unpair the Connector?',
               detail: "Every Connection stops and every account's sync turns off.",
             });
             if (sure) unpair.run().catch(() => {});
@@ -228,12 +228,12 @@ function PairDialog({ close }) {
     make.run().catch(() => {});
   }, []);
   return html`
-    <${Dialog} title="Pair a connector" close=${close} onSubmit=${() => close(true)}
+    <${Dialog} title="Pair a Connector" close=${close} onSubmit=${() => close(true)}
       note="The code works once, for 24 hours."
       footer=${html`
         <button type="button" class="btn" disabled=${!made} onClick=${() =>
           navigator.clipboard?.writeText(made.code).then(() => toast('Copied'))}>Copy the
-          code</button>
+          Code</button>
         <button class="btn primary">Done</button>
       `}>
       <p class="small dim" style=${{ marginTop: 0 }}>Paste this code into <b>Pair</b> on the

@@ -7,13 +7,13 @@ What was taken out of a 529 each year, against the qualified expenses it paid fo
 When school starts, each year lists what was taken out against the qualified expenses and their
 receipts.
 
-## Each year
+## Each Year
 
 Distributions (as on Form 1099-Q) against qualified expenses. What isn't covered may have taxable
 earnings, with a 10% additional tax; your preparer applies the rules and coordinates them with
 education credits.
 
-## Add a qualified expense
+## Add a Qualified Expense
 
 Tuition and fees, room and board, books and supplies, a computer and internet, K-12 tuition,
 apprenticeships, or student-loan repayment.
@@ -34,7 +34,7 @@ What it cost.
 
 What it was for: _Fall tuition, State University_.
 
-## Qualified expenses
+## Qualified Expenses
 
 Each expense, with its receipts. **Receipt** keeps a bill or a statement with it.
 

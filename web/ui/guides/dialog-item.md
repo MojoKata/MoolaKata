@@ -115,7 +115,7 @@ latest counts; one over a year old is marked.
 A property's improvements: a new roof, a remodel. Each adds to the cost basis on its date, with its
 receipts kept as documents.
 
-## Photos and documents
+## Photos and Documents
 
 The purchase receipt, an appraisal, a certificate, the title, photos. Kept as receipts, encrypted on
 this server.

@@ -8,7 +8,7 @@ Every donation in the year: those recorded here, and transactions categorised Gi
 
 The year shown.
 
-## Record a donation
+## Record a Donation
 
 Cash, goods, appreciated shares, a qualified charitable distribution from an IRA, a contribution
 into a donor-advised fund, or a grant from one.

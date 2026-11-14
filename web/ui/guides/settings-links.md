@@ -5,7 +5,7 @@ preparer's. Admins only.
 
 ![Linked servers](shots/settings-links.png)
 
-**Invite a server** makes a one-time code for the other server's admin. **Enter a link code**
+**Invite a Server** makes a one-time code for the other server's admin. **Enter a Link Code**
 answers one: MoolaKata connects to the address in the code, checks the server's key against the
 fingerprint in it, and asks to link. The inviting side then lists it as **wants to link**: compare
 the fingerprint shown with what the other admin sees for their own server (by phone, in person)
@@ -21,9 +21,9 @@ way, with no open port). Empty, the public URL is used.
 A link works when either side can reach the other: each exchange carries both directions.
 
 Each link shows its state, its fingerprint and MoolaKata version, and when the last exchange
-worked. **Pull now** exchanges at once rather than at the next hour. **Pause** stops this side
+worked. **Pull Now** exchanges at once rather than at the next hour. **Pause** stops this side
 exchanging for a time you choose; it shows **paused until** then and resumes on its own, or at
-once with **Resume now**. **End link** ends it on both sides: the other side learns at once, or
+once with **Resume Now**. **End Link** ends it on both sides: the other side learns at once, or
 at its next call; its users are removed here, and nothing is deleted on the server that shared.
 A server that can't be reached shows **unreachable since** and the reason. One that answers it
 has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
@@ -38,7 +38,7 @@ The connection to each server is TLS, checked before anything is sent: a public 
 against the system's trusted roots, and a server's own certificate by its key, pinned when the
 link was made. A server whose own certificate's key changes tells its peers first. One that
 presents a key it didn't announce is refused, and the link shows the new key: ask its admin to
-read out **Its own certificate's key** from their Linked servers, compare it, and **Accept it**
+read out **Its own certificate's key** from their Linked servers, compare it, and **Accept It**
 (it asks for your password again). This server's own certificate's key, when it has one of its
 own, is shown at the top of this section.
 
@@ -48,11 +48,11 @@ A large change, such as the first pull into a new copy, arrives in parts of abou
 first, so what has arrived is usable at once. While parts are still coming the link shows the date
 it has reached and how much of the change has arrived.
 
-## Linked copies {#linked-copies}
+## Linked Copies {#linked-copies}
 
 What each link brings in is kept apart from this household's data, in its own encrypted copy under
 its own **access key**: 12 words. This server's master key can't open it, and backups leave it
-out. **Create the access key** once the link is active: MoolaKata shows the words once, for the
+out. **Create the Access Key** once the link is active: MoolaKata shows the words once, for the
 household's password manager, where the people its shares name can reach them. Pulls into the copy
 begin then.
 
@@ -60,8 +60,8 @@ The first person its shares name who opens the household's window enters the wor
 stays unlocked for everyone it shares with, each seeing only what names them, until it goes unused.
 Each copy shows its size, the changes **waiting** (pulled while it was locked, sealed so only its
 words open them, and applied when it is next unlocked), when its key was made and by whom, and who
-unlocked it. **Lock now**
-locks it at once. **Reset copy** (if the words are lost) deletes the copy and its key: make a new
+unlocked it. **Lock Now**
+locks it at once. **Reset Copy** (if the words are lost) deletes the copy and its key: make a new
 access key, and everything is pulled again from the other server, where nothing was lost.
 
 ## Release linked keys after {#link-release}
@@ -83,7 +83,7 @@ name, when it was shared and the people here it names. Its name and figures stay
 encrypted copy, for those people. The owner there decides who sees what; an admin here can't
 change it, and nothing shared from there can be shared on.
 
-## Users on linked servers {#linked-users}
+## Users on Linked Servers {#linked-users}
 
 Each linked server's active users, sent at every exchange and updated in place: a new user is
 added, a changed name or email is updated, and a user no longer on the list is removed (and comes

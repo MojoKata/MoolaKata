@@ -13,16 +13,16 @@ institution's site.
 The periods your imports cover. A **gap** is a stretch nothing was imported for; an **overlap** is
 two imports covering the same days, whose shared rows were matched, not doubled.
 
-## Type today's balance
+## Type Today's Balance
 
 Copy the balance from the institution's site. MoolaKata compares it with its own for that day.
 
-## Tick off against a statement
+## Tick Off against a Statement
 
 Enter a statement's closing date and balance, then tick transactions as cleared until the difference
 is zero. The period is then reconciled, and editing a transaction inside it asks first.
 
-## Balance checks
+## Balance Checks
 
 Every balance the institution reported (an OFX file's balance, a CSV's balance column, a statement,
 or a typed one), next to MoolaKata's for the same day.
@@ -35,15 +35,15 @@ where a CSV's running balance parts from MoolaKata's.
 
 ## Possible duplicate
 
-Two identical rows on one day. **Both are real** keeps both and remembers it; otherwise delete one
+Two identical rows on one day. **Both Are Real** keeps both and remembers it; otherwise delete one
 from Transactions.
 
-## Accept as an adjustment
+## Accept as an Adjustment
 
 Records the difference as a balance adjustment with a note, shown as such in the account and in
 Activity.
 
-## Statement values {#value-checks}
+## Statement Values {#value-checks}
 
 A brokerage statement's ending value against what MoolaKata says the account was worth that day:
 cash and holdings at that day's prices. Within half a percent counts as a match.

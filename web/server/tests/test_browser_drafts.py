@@ -439,7 +439,7 @@ def test_a_form_holding_changes_asks_before_discarding_them(browser, household):
     buttons = page.locator(".dialog-ask-buttons button")
     assert buttons.all_inner_texts() == ["Keep editing", "Discard", "Save"]
     assert "danger" in (buttons.nth(1).get_attribute("class") or "")
-    assert page.evaluate("document.activeElement.textContent.trim()") == "Keep editing"
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Keep Editing"
     page.keyboard.press("Escape")
     assert page.locator(".dialog-ask").count() == 0
     assert amount_of(page).input_value() == "12.00", "what was typed stays, at its places"

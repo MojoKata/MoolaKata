@@ -209,7 +209,7 @@ export function LoanSummary({ a, reload }) {
       <h3>Loan<span class="spacer"></span><${Action} class="btn sm"
       why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(PaymentDialog, { a, v }).then((ok) => ok && again())}><${Icon}
-        name="plus" /> Record a payment</${Action}></h3>
+        name="plus" /> Record a Payment</${Action}></h3>
       <div class="list-item"><span class="grow dim">Owed</span><${Amt} v=${v.balance} /></div>
       <div class="list-item"><span class="grow dim">Rate</span>${String(dec(v.rate))}% ${t
           .resets.length
@@ -289,7 +289,7 @@ export function LoanSummary({ a, reload }) {
         }</span>`
         : html`<span class="dim">not typed</span>`}${'\u00a0'}<${Action} class="btn sm"
         why=${whyNotAdd('Anchr', a)} onClick=${() =>
-          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type it</${Action}></div>
+          openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type It</${Action}></div>
     </div>
     ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
   `;
@@ -325,7 +325,7 @@ function Candidates({ a, again }) {
   });
   if (!rows.length) return null;
   return html`
-    <div class="card"><h3>Looks like a payment</h3>
+    <div class="card"><h3>Looks like a Payment</h3>
       ${rows.map((c) =>
         html`<div class="list-item"><div class="grow">${c.payee || 'Payment'}<div
           class="small dim">${c.accountName} · ${date(c.date)}${
@@ -387,7 +387,7 @@ export function Schedule({ a }) {
         style=${{ padding: '0 8px' }}><span class="small dim">${v.rows
           .length} payments. A payment that differs from the schedule, a rate reset or a recast
         recomputes the rest.</span><span class="spacer"></span><button class="btn sm"
-          onClick=${() => setAll(!all)}>${all ? 'Show fewer' : 'Show all'}</button></div>
+          onClick=${() => setAll(!all)}>${all ? 'Show Fewer' : 'Show All'}</button></div>
     </div>
   `;
 }
@@ -531,7 +531,7 @@ export function PaymentDialog({ close, a, v }) {
   };
   const e = failed;
   return html`
-    <${DraftDialog} f=${f} title="Record a payment" close=${close} what="This payment"
+    <${DraftDialog} f=${f} title="Record a Payment" close=${close} what="This payment"
       label="Record" done="Payment recorded and split" before=${before}
       disabled=${!split}>
       ${loan
@@ -558,7 +558,7 @@ export function PaymentDialog({ close, a, v }) {
             ? 'Split by the schedule. Correct it from the servicer’s statement if it differs.'
             : 'The schedule splits it into principal, interest, escrow and PMI.'}</span><span
             class="spacer"></span><button type="button" class="btn sm" disabled=${!split}
-              onClick=${() => setShown(true)}>Show the split</button></div>
+              onClick=${() => setShown(true)}>Show the Split</button></div>
           ${shown && split
             ? html`<div class="row" style=${{ flexWrap: 'wrap' }}>${
               PARTS.map(([k, label]) =>
@@ -603,7 +603,7 @@ function ServicerDialog({ close, a }) {
   }, [a.id]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title="Type the servicer's balance" close=${close}
+    <${DraftDialog} f=${f} title="Type the Servicer's Balance" close=${close}
       what="This balance" label="Check" done="Balance recorded and checked">
       <p class="small dim"
         style=${{ marginTop: 0 }}>The principal still owed, from ${a
@@ -635,7 +635,7 @@ export function TermsCard({ a, rec }) {
   const res = useApi(`/accounts/${a.id}/loan`);
   const v = /** @type {any} */ (res.data);
   return html`
-    <div class="card"><h3>Loan terms</h3>
+    <div class="card"><h3>Loan Terms</h3>
       <${TermsFields} rec=${rec} type=${a.type} />
       <${RecField} rec=${rec} name="paymentsMode" label="Payments" id="payments-mode"
         hint="A payment day with none recorded: missed 15 days after it, or paid as scheduled."

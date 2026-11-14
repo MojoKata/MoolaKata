@@ -5,7 +5,7 @@
 
 @@ settings
 
-## Keys and addresses
+## Keys and Addresses
 
 The wallet's extended public keys and addresses, and the addresses watched.
 
@@ -31,7 +31,7 @@ wallets.
 How many addresses are watched and how many have been used, and when the explorer or node in
 Settings › Bitcoin last checked them. **Addresses** lists them: receive and change, by index.
 
-## Check now
+## Check Now
 
 Reads the wallet from the explorer or node in Settings › Bitcoin now, rather than at the next
 hourly check. Each confirmed transaction is recorded once: bitcoin received as a transfer in
@@ -50,5 +50,5 @@ the chain_, never deleted: keep it, or delete it.
 ## Transfers between your accounts
 
 A transfer out of one of your accounts and in to another of the same amount, within 3 days, is
-offered as a pair. **Match them**, and the coins arrive with the lots they left with: the basis and
+offered as a pair. **Match Them**, and the coins arrive with the lots they left with: the basis and
 the day each was acquired carry over, so nothing is taxed or missing a basis.

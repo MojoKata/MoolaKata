@@ -19,7 +19,7 @@ For an account kept by snapshots (one with no trades of its own, however it is k
 positions become its holdings on that date. The same statement again adds nothing. The cash or sweep line is checked against the account's
 cash, and becomes a cash anchor.
 
-## Cash activity {#cash-activity}
+## Cash Activity {#cash-activity}
 
 Deposits, withdrawals, dividends, interest and fees, each kept as a transaction when ticked. A line
 already in the account (its OFX brought it) is ticked, counted and never added again. A line you

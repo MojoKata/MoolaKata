@@ -26,6 +26,6 @@ The part's balance before the period: it becomes the account's balance the day b
 
 The part's balance at the end: it becomes the account's balance on the last day.
 
-## Leave this part out
+## Leave This Part Out
 
 For an account MoolaKata doesn't hold, or one you keep elsewhere.

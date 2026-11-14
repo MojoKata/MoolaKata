@@ -3,7 +3,7 @@ import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 
 export default function NotFound() {
-  useTitle('Not found');
+  useTitle('Not Found');
   useGuide('dashboard');
   return html`
     <div class="card">

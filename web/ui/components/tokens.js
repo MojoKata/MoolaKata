@@ -32,8 +32,8 @@ export function AccessTokens() {
     });
   return html`
     <div class="card" id="access-tokens">
-      <h3 data-help="access-tokens">Access tokens<span class="spacer"></span><button class="btn sm"
-        onClick=${make}><${Icon} name="plus" /> New token</button></h3>
+      <h3 data-help="access-tokens">Access Tokens<span class="spacer"></span><button class="btn sm"
+        onClick=${make}><${Icon} name="plus" /> New Token</button></h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Let an AI assistant read, never change,
         what you can see, through MCP at <code>${endpoint()}</code>.</p>
       ${res.error
@@ -56,7 +56,7 @@ export function AccessTokens() {
                         onClick=${async () => {
                           if (
                             !(await confirmAction({
-                              title: 'Revoke this token?',
+                              title: 'Revoke This Token?',
                             }))
                           ) return;
                           revoke.run(t).catch(() => {});
@@ -106,8 +106,8 @@ function NewToken({ close }) {
         : chosen.filter((x) => !(x.kind === i.kind && x.id === i.id)),
     );
   return html`
-    <${DraftDialog} f=${f} title="New access token" close=${close} what="This token"
-      label="Create token" saved=${(/** @type {any} */ o) => {
+    <${DraftDialog} f=${f} title="New Access Token" close=${close} what="This token"
+      label="Create Token" saved=${(/** @type {any} */ o) => {
         const { secret, ...token } = o.saved[0].record;
         close({ token, secret });
       }}>
@@ -151,7 +151,7 @@ function NewToken({ close }) {
 function TokenShown({ close, made }) {
   useDialogGuide('dialog-token-shown');
   return html`
-    <${Dialog} title="Your new access token" close=${close} onSubmit=${() => close(true)}
+    <${Dialog} title="Your New Access Token" close=${close} onSubmit=${() => close(true)}
       note="It is shown once and can't be shown again."
       footer=${html`
         <button type="button" class="btn" onClick=${() =>

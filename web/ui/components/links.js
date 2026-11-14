@@ -82,12 +82,12 @@ export function LinksSection() {
   const people = live.filter((/** @type {any} */ l) => l.users.length);
   return html`
     <div class="card">
-      <h3 style=${{ flexWrap: 'wrap' }}>Linked servers<span class="spacer"></span><button
+      <h3 style=${{ flexWrap: 'wrap' }}>Linked Servers<span class="spacer"></span><button
         class="btn" onClick=${() =>
-          openDialog(JoinLink, {}).then((x) => x && res.reload())}>Enter a link code</button>
+          openDialog(JoinLink, {}).then((x) => x && res.reload())}>Enter a Link Code</button>
         <button class="btn primary" onClick=${() =>
           openDialog(InviteLink, {}).then(() => res.reload())}><${Icon} name="plus" /> Invite a
-          server</button></h3>
+          Server</button></h3>
       <div class="notice" style=${{ marginBottom: '12px' }}>
         <${Icon} name="info" />
         <div>A link
@@ -120,7 +120,7 @@ export function LinksSection() {
                 <tr>
                   <th>Server</th>
                   <th>State</th>
-                  <th>Last exchange</th>
+                  <th>Last Exchange</th>
                   <th></th>
                 </tr>
               </thead>
@@ -201,12 +201,12 @@ export function LinksSection() {
                           ${l.certificateOffered
                             ? html`
                               <button class="btn sm primary" disabled=${act.busy} onClick=${() =>
-                                act.run(l.id, 'accept-certificate')}>Accept it</button>
+                                act.run(l.id, 'accept-certificate')}>Accept It</button>
                             `
                             : null}${['active', 'pending'].includes(l.state)
                             ? html`
                               <button class="btn sm" disabled=${act.busy} onClick=${() =>
-                                act.run(l.id, 'pull')}>Pull now</button>
+                                act.run(l.id, 'pull')}>Pull Now</button>
                             `
                             : null}${l.state === 'active'
                             ? html`
@@ -215,7 +215,7 @@ export function LinksSection() {
                             : l.state === 'paused'
                             ? html`
                               <button class="btn sm" onClick=${() =>
-                                act.run(l.id, 'resume')}>Resume now</button>
+                                act.run(l.id, 'resume')}>Resume Now</button>
                             `
                             : null}<button class="btn sm danger"
                             onClick=${async () => {
@@ -226,7 +226,7 @@ export function LinksSection() {
                                 }))
                               ) return;
                               act.run(l.id, 'end').catch(() => {});
-                            }}>${l.state === 'invited' ? 'Withdraw' : 'End link'}</button>
+                            }}>${l.state === 'invited' ? 'Withdraw' : 'End Link'}</button>
                         `}</div>
                     </td>
                   </tr>
@@ -247,7 +247,7 @@ export function LinksSection() {
     </div>
     ${copies(live, values, res.reload, copyAct, release)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
-      html`<div class="card mt"><h3 data-help="outgoing">Shared from here with ${l.peerName}</h3>
+      html`<div class="card mt"><h3 data-help="outgoing">Shared from Here with ${l.peerName}</h3>
         <p class="small dim" style=${{ marginTop: '-6px' }}>What this server sends at each pull,
           each to the people there it names, read only. Only the kinds and their owners show here.</p>
         ${
@@ -279,7 +279,7 @@ export function LinksSection() {
       }</div>`
     )}
     <div class="card mt">
-      <h3 data-help="linked-users">Users on linked servers</h3>
+      <h3 data-help="linked-users">Users on Linked Servers</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Each linked server's active users,
         kept up to date at every exchange. People here can share with them, read only; they
         never sign in here.</p>
@@ -315,7 +315,7 @@ function InviteLink({ close }) {
     make.run().catch(() => {});
   }, []);
   return html`
-    <${Dialog} title="Invite a server to link" close=${close} onSubmit=${() => close(true)}
+    <${Dialog} title="Invite a Server to Link" close=${close} onSubmit=${() => close(true)}
       note="It works once, for 24 hours."
       footer=${html`
         <button type="button" class="btn" disabled=${!made} onClick=${() =>
@@ -352,7 +352,7 @@ function JoinLink({ close }) {
     close(out);
   });
   return html`
-    <${Dialog} title="Enter a link code" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="Enter a Link Code" close=${close} onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy || !code}>Connect</button>`}>
       <${Field} label="Link code" error=${errAt(save.error, 'code')}>
         <textarea class="in mono" rows="3" value=${code} onInput=${(/** @type {any} */ e) =>
@@ -382,7 +382,7 @@ function copies(live, values, reload, act, release) {
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
-      <h3 data-help="linked-copies">Linked copies</h3>
+      <h3 data-help="linked-copies">Linked Copies</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Each link's copy is encrypted under its
         own <b>access key</b>: 12 words made here once and kept in the household's password
         manager. The first person its shares name who opens it enters the words; it then stays
@@ -398,7 +398,7 @@ function copies(live, values, reload, act, release) {
                   <th>Link</th>
                   <th>Copy</th>
                   <th>Waiting</th>
-                  <th>Access key</th>
+                  <th>Access Key</th>
                   <th>State</th>
                   <th></th>
                 </tr>
@@ -431,20 +431,20 @@ function copies(live, values, reload, act, release) {
                       ? html`<button class="btn sm primary" onClick=${() =>
                         openDialog(CopyKey, { link: l }).then(
                           reload,
-                        )}>Create the access key</button>`
+                        )}>Create the Access Key</button>`
                       : html`${
                         c.unlocked
                           ? html`
                             <button class="btn sm" onClick=${() =>
-                              act.run(l.id, 'lock').catch(() => {})}>Lock now</button>
+                              act.run(l.id, 'lock').catch(() => {})}>Lock Now</button>
                           `
                           : null
                       }<button class="btn sm danger" onClick=${async () => {
                         if (
-                          !(await confirmAction({ title: 'Reset this copy?' }))
+                          !(await confirmAction({ title: 'Reset This Copy?' }))
                         ) return;
                         act.run(l.id, 'reset-copy').catch(() => {});
-                      }}>Reset copy</button>`}</td>
+                      }}>Reset Copy</button>`}</td>
                   </tr>
                 `;
               })}</tbody>
@@ -482,14 +482,14 @@ function CopyKey({ close, link }) {
     make.run().catch(() => {});
   }, []);
   return html`
-    <${Dialog} title=${`Access key for ${link.peerName}`} close=${close}
+    <${Dialog} title=${`Access Key for ${link.peerName}`} close=${close}
       onSubmit=${() => saved && close(true)} note="They are shown once."
       footer=${html`
         <button type="button" class="btn" disabled=${!words} onClick=${() =>
           navigator.clipboard?.writeText((words || []).join(' ')).then(() =>
             toast('Copied')
           )}>Copy</button>
-        <button class="btn primary" disabled=${!saved}>Done, words saved</button>
+        <button class="btn primary" disabled=${!saved}>Done, Words Saved</button>
       `}>
       <div class="notice" style=${{ marginBottom: '12px' }}><${Icon} name="link" /><div>
         <b>${link.peerName}</b>'s copy is kept encrypted under these 12 words. <b>They are
@@ -537,7 +537,7 @@ function PauseDialog({ close, link }) {
   const parsed = parseDuration(span);
   const minutes = 'minutes' in parsed ? parsed.minutes : 0;
   return html`
-    <${Dialog} title=${`Pause the link with ${link.peerName || 'the other server'}`} close=${close}
+    <${Dialog} title=${`Pause the Link with ${link.peerName || 'the other server'}`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${go.busy}>Pause</button>`}>
       <${Field} label="Pause for" id="pause-for" error=${errAt(go.error, 'for')}

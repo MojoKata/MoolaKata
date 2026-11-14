@@ -335,7 +335,7 @@ function RelationshipDialog({ close, me, r }) {
   const all = /** @type {any[]} */ ((/** @type {any} */ (persons.data))?.items || []);
   const list = all.filter((/** @type {any} */ x) => x.id !== f.who);
   return html`
-    <${Dialog} title=${r ? 'A relationship' : 'Add a relationship'} close=${close} onSubmit=${() =>
+    <${Dialog} title=${r ? 'A Relationship' : 'Add a Relationship'} close=${close} onSubmit=${() =>
       save.run().catch(
         () => {},
       )} changed=${() => JSON.stringify(f) !== was}
@@ -345,7 +345,7 @@ function RelationshipDialog({ close, me, r }) {
             <button type="button" class="btn danger" disabled=${remove.busy}
               onClick=${async () => {
                 const sure = await confirmAction({
-                  title: 'Remove this relationship?',
+                  title: 'Remove This Relationship?',
                 });
                 if (sure) remove.run().catch(() => {});
               }}>Remove</button><span class="spacer"
@@ -440,7 +440,7 @@ function Email({ p, reload }) {
       ev.preventDefault();
       save.run().catch(() => {});
     }}>
-      <h3>Email address</h3>
+      <h3>Email Address</h3>
       <p class="small" style=${{ marginTop: 0 }}>${p.email}${p.pendingEmail
         ? html`<span class="dim"> · waiting for ${p.pendingEmail} to be confirmed</span>`
         : null}</p>
@@ -458,7 +458,7 @@ function Email({ p, reload }) {
           `
           : null}
         <${FormError} error=${save.error} shown=${['email']} />
-        <button class="btn" disabled=${save.busy}>Send the confirmation link</button></form>
+        <button class="btn" disabled=${save.busy}>Send the Confirmation Link</button></form>
   `;
 }
 
@@ -485,7 +485,7 @@ function Password() {
           hint="At least 12 characters; not a common password.">
           <${Input} type="password" value=${next} onInput=${setNext} autocomplete="new-password" required /></${Field}>
         <${FormError} error=${save.error} shown=${['currentPassword', 'newPassword']} />
-        <button class="btn" disabled=${save.busy}>Change password</button></form>
+        <button class="btn" disabled=${save.busy}>Change Password</button></form>
   `;
 }
 
@@ -531,7 +531,7 @@ function TwoStep({ p, reload }) {
   const ts = p.twoStep;
   return html`
     <div class="card" id="two-step">
-      <h3>Two-step sign-in ${ts.on
+      <h3>Two-Step Sign-In ${ts.on
         ? html`<span class="pill ok">on</span>`
         : html`<span class="pill">off</span>`}</h3>
       <p class="small dim" style=${{ marginTop: 0 }}>${ts.on
@@ -561,11 +561,11 @@ function TwoStep({ p, reload }) {
         ? html`
           <button type="button" class="btn" disabled=${act.busy}
             onClick=${() =>
-              run(newCodes)}>New recovery codes</button> <button type="button" class="btn danger"
-            disabled=${act.busy} onClick=${() => run(turnOff)}>Turn off</button>
+              run(newCodes)}>New Recovery Codes</button> <button type="button" class="btn danger"
+            disabled=${act.busy} onClick=${() => run(turnOff)}>Turn Off</button>
         `
         : html`<button type="button" class="btn" disabled=${act.busy} onClick=${() =>
-          run(turnOn)}>Turn on</button>`}
+          run(turnOn)}>Turn On</button>`}
     </div>
   `;
 }
@@ -588,9 +588,9 @@ function TwoStepSetup({ close, setup }) {
   }
   const key = setup.secret.replace(/(.{4})/g, '$1 ').trim();
   return html`
-    <${Dialog} title="Turn on two-step sign-in" close=${close}
+    <${Dialog} title="Turn On Two-Step Sign-In" close=${close}
       onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Turn on</button>`}>
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Turn On</button>`}>
       <ol class="steps small">
         <li>Open your authenticator app (any app that reads TOTP codes) and add an account.</li>
         <li>Scan this code, or type the key below it.</li>
@@ -616,7 +616,7 @@ function RecoveryCodes({ close, codes, fresh }) {
   useDialogGuide('dialog-recovery-codes');
   const text = codes.join('\n') + '\n';
   return html`
-    <${Dialog} title=${fresh ? 'New recovery codes' : 'Two-step sign-in is on'} close=${close}
+    <${Dialog} title=${fresh ? 'New Recovery Codes' : 'Two-Step Sign-In Is On'} close=${close}
       onSubmit=${() => close(true)}
       note="They won't be shown again."
       footer=${html`
@@ -624,7 +624,7 @@ function RecoveryCodes({ close, codes, fresh }) {
           navigator.clipboard?.writeText(text).then(() => toast('Copied'))}>Copy</button>
         <a class="btn" download="moolakata-recovery-codes.txt"
           href=${'data:text/plain;charset=utf-8,' + encodeURIComponent(text)}>Download</a>
-        <button class="btn primary">I've saved them</button>
+        <button class="btn primary">I've Saved Them</button>
       `}>
       <p class="small">Keep these somewhere safe, away from your phone. Each one signs you in once
         in place of a code from the app${fresh ? ', and the old ones no longer work' : ''}.</p>
@@ -673,8 +673,8 @@ function Assumptions() {
       <table class="t">
         <thead>
           <tr>
-            <th>Asset class</th>
-            <th class="num">Expected return %</th>
+            <th>Asset Class</th>
+            <th class="num">Expected Return %</th>
             <th
               class="num">Volatility %</th>
           </tr>
@@ -749,7 +749,7 @@ function BitcoinModels({ close }) {
       ? `$${(n / 1e6).toFixed(1)}M`
       : `$${Math.round(n / 1e3)}K`;
   return html`
-    <${Dialog} title="Bitcoin models" wide close=${close} footer=${html`
+    <${Dialog} title="Bitcoin Models" wide close=${close} footer=${html`
       <button type="button"
         class="btn" onClick=${() => close()}>Close</button>
     `}>
@@ -769,7 +769,7 @@ function BitcoinModels({ close }) {
                   <th class="num">2030</th>
                   <th class="num">2035</th>
                   <th class="num">2045</th>
-                  <th>Source and record</th>
+                  <th>Source and Record</th>
                 </tr>
               </thead>
               <tbody>${v.rows.map((/** @type {any} */ r) =>
@@ -794,7 +794,7 @@ function IgnoredLines() {
   const rows = /** @type {any[]} */ ((/** @type {any} */ (res.data))?.items || []);
   const remove = async (/** @type {any} */ x) => {
     const sure = await confirmAction({
-      title: `Stop ignoring lines starting “${x.start}”?`,
+      title: `Stop Ignoring Lines Starting “${x.start}”?`,
       detail: `They are read again from ${x.institution}'s next statement.`,
     });
     if (!sure) return;
@@ -807,7 +807,7 @@ function IgnoredLines() {
     }
   };
   return html`
-    <div class="card" data-help="ignored-statement-lines"><h3>Ignored statement lines</h3>
+    <div class="card" data-help="ignored-statement-lines"><h3>Ignored Statement Lines</h3>
       ${rows.length
         ? rows.map((x) =>
           html`

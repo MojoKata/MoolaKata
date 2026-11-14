@@ -17,7 +17,7 @@ receipts you add: a rule that renames a payee renames the merchant a receipt nam
 ## Add rule
 
 Adds a rule at the end of the list and shows it on the right; **Discard** takes it away again. A
-transaction's own dialog offers **Make a rule**, which opens **New rule** over it with its payee
+transaction's own dialog offers **Make a Rule**, which opens **New Rule** over it with its payee
 and category filled in.
 
 ## Apply to the uncategorised
@@ -28,7 +28,7 @@ transactions in the accounts you can change. Activity records how many it set, n
 ## Save and Discard
 
 Show while the rule has changes, and go when you put it back as it was. Choosing another rule, or
-going elsewhere, with changes asks first: **Keep editing**, **Discard** or **Save**.
+going elsewhere, with changes asks first: **Keep Editing**, **Discard** or **Save**.
 
 ## Payee contains
 
@@ -62,7 +62,7 @@ for a rule that only renames or tags.
 
 ## New category…
 
-At the end of the list: opens **New category** over this page. The category it makes is chosen
+At the end of the list: opens **New Category** over this page. The category it makes is chosen
 here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Rename to

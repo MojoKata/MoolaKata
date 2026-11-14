@@ -181,7 +181,7 @@ def test_make_a_rule_opens_new_rule_over_the_transaction(browser, household):
     page.fill(".dialog #f-memo", "kept while the rule is made")
     page.click('.dialog button:has-text("Make a rule")')
     wait(page, f"{TOP} #d1-f-payee-contains", problems)
-    assert page.locator(f"{TOP} h2").inner_text() == "New rule"
+    assert page.locator(f"{TOP} h2").inner_text() == "New Rule"
     assert page.input_value(f"{TOP} #d1-f-payee-contains") == "Browser pretzels"
     # The categories come as the dialog opens: their list may arrive after the field.
     until(

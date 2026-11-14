@@ -9,12 +9,12 @@
 The book shown, for one tax year. Its panels count the book's accounts only, and say which were left
 out.
 
-## 529 plans
+## 529 Plans
 
 Each 529's contributions by contributor, the state deduction the owner expects, the year's
 distributions (Form 1099-Q) against the qualified expenses, and the part not covered.
 
-## Dependent students
+## Dependent Students
 
 Each dependent marked a full-time student: whether their 1098-T has arrived, and the 529 withdrawals
 for them this year.

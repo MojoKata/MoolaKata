@@ -303,8 +303,8 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
         : readOnly
         ? 'Transaction'
         : editing
-        ? 'Edit transaction'
-        : 'Add transaction'}
+        ? 'Edit Transaction'
+        : 'Add Transaction'}
       done=${deleting ? 'Deleted' : editing ? 'Saved' : 'Added'}
       label=${editing ? 'Save' : 'Add'}
       confirm=${deleting ? 'Delete it anyway' : 'Change it anyway'}
@@ -348,7 +348,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                 t.set('transferWithId', null);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
-              }}>Not a transfer</button>`
+              }}>Not a Transfer</button>`
               : null}
             ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
               ? html`<button type="button" class="btn" onClick=${() =>
@@ -358,7 +358,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                     payeeMatch: txn.payeeRaw || txn.payee,
                     categoryId: t?.get('categoryId') || null,
                   },
-                })}>Make a rule</button>`
+                })}>Make a Rule</button>`
               : null}<span class="spacer" style=${{ flex: 1 }}></span>
             <button type="button" class="btn" data-cancel>Cancel</button>
           `}>
@@ -423,7 +423,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                       ? 'Split across categories'
                       : ''}</span><span class="spacer"></span>
                     <${Action} class="btn sm" why=${readOnly ? READ_ONLY : null}
-                      onClick=${addPart}>${parts.length ? 'Add a part' : 'Split…'}</${Action}>
+                      onClick=${addPart}>${parts.length ? 'Add a Part' : 'Split…'}</${Action}>
                   </div>
                   ${parts.map((r, i) =>
                     html`
@@ -684,7 +684,7 @@ function TxnReceipts({ txn, draft, canWrite }) {
           `
         )}
         ${!canWrite
-          ? html`<${Action} class="btn sm" why=${READ_ONLY}>Add a receipt</${Action}>`
+          ? html`<${Action} class="btn sm" why=${READ_ONLY}>Add a Receipt</${Action}>`
           : html`
             <label class="btn sm" for="f-add-receipt">Add a receipt</label>
             <input id="f-add-receipt" class="sr-only" type="file" multiple accept=${ACCEPT}
@@ -743,7 +743,7 @@ function TransferLots({ t }) {
             acquiredOn: null,
             quantity: null,
             costBasis: null,
-          }])}>Add a lot</${Action}></div>
+          }])}>Add a Lot</${Action}></div>
     </div>
   `;
 }

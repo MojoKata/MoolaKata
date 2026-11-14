@@ -5,7 +5,7 @@ shared: share it with a group at **Write** for a household budget everyone in it
 
 ![Budgets](shots/budgets-month.png)
 
-A scenario is a budget you don't follow; **Make active** follows it, **Compare** sets it beside the
+A scenario is a budget you don't follow; **Make Active** follows it, **Compare** sets it beside the
 one you do.
 
 ## Month
@@ -43,7 +43,7 @@ parent category counts its children that have no line of their own, so each amou
 category with **rollover** carries what was left (or
 overspent) into the next month. A **year** category compares the year so far with its yearly plan.
 
-**Not in the plan** lists spending in categories without a plan. Transfers between the budget's
+**Not in the Plan** lists spending in categories without a plan. Transfers between the budget's
 accounts never count.
 
 ## Cover from… {#cover-from}
@@ -83,7 +83,7 @@ says: split into interest, escrow, PMI and fees, with the principal as saved, or
 The month's moves, each shown on both its rows and recorded in Activity. Delete one to undo it. A
 move in a past month changes that month and what carries after it.
 
-## Left or entered the budget
+## Left or Entered the Budget
 
 Transfers between one of the budget's accounts and one it doesn't count. With a category they count
 like any transaction: to a brokerage account as _Savings › Investing_, in from savings as income.
@@ -93,7 +93,7 @@ Without one they count nowhere until you sort them.
 
 Opens the transfer to give it a category.
 
-## Edit plan
+## Edit Plan
 
 The amount per category from this month on. Anyone the budget is shared with at **Write** can change
 the plan; only its owner chooses its accounts or shares it.

@@ -24,7 +24,7 @@ export default function Portfolios() {
     <div class="toolbar"><span class="spacer"></span><button type="button" class="btn primary"
         onClick=${() =>
           openDialog(PortfolioDialog, {}).then((p) => p && route(`/ui/portfolios/${p.id}`))}>
-        <${Icon} name="plus" /> New portfolio</button></div>
+        <${Icon} name="plus" /> New Portfolio</button></div>
     <div class="grid g2">${list.map((p) =>
       html`<a class="card" href=${`/ui/portfolios/${p.id}`} style=${{ color: 'inherit' }}>
       <h3><${Tile} group="investing" icon="pie" /><div><div>${p.name}</div><div class="small dim" style=${{

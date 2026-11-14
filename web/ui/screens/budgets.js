@@ -36,12 +36,12 @@ import { Action, Attention, StatePill } from '../kit/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
-  ['cash-flow', 'Cash flow'],
+  ['cash-flow', 'Cash Flow'],
   ['trends', 'Trends'],
   ['recurring', 'Recurring'],
   ['reimbursements', 'Reimbursements'],
 ]);
-TABS.splice(1, 0, ['where', 'Where it is']);
+TABS.splice(1, 0, ['where', 'Where It Is']);
 TABS.unshift(['list', 'Budgets']);
 TABS.splice(TABS.length - 1, 0, ['compare', 'Compare']);
 TABS.splice(3, 0, ['review', 'Review']);
@@ -104,7 +104,7 @@ export default function Budgets({ id, tab }) {
     return html`
       <${Empty} action=${html`
         <button type="button" class="btn primary" onClick=${newBudget}>
-                  <${Icon} name="plus" /> New budget</button>
+                  <${Icon} name="plus" /> New Budget</button>
         <a class="btn" href="/ui/budgets/none/categories">Categories</a>
       `}>No budget yet</${Empty}>
     `;
@@ -136,7 +136,7 @@ export default function Budgets({ id, tab }) {
         }}><${Icon} name="refresh" /></button>
       <span class="spacer"></span>
       <button type="button" class="btn"
-        onClick=${newBudget}><${Icon} name="plus" /> New budget</button>
+        onClick=${newBudget}><${Icon} name="plus" /> New Budget</button>
     </div>
     ${!b.active
       ? html`
@@ -146,7 +146,7 @@ export default function Budgets({ id, tab }) {
               <${Action} class="btn sm" why=${whyRead(b)} onClick=${() =>
                 openDialog(MakeActiveDialog, { b, from: budgets.find((x) => x.active) }).then((x) =>
                   x && list.reload()
-                )}>Make active</${Action}>
+                )}>Make Active</${Action}>
               <a class="btn sm" href=${`/ui/budgets/${b.id}/compare`}>Compare</a>
             `}>Scenario · ${b.method === 'envelope' ? 'envelope' : 'tracking'}</${Attention}></div>
       `
@@ -261,7 +261,7 @@ function ThisMonth({ b, month, reloadList }) {
             )} by moves</div>
           </div>
           <div class="card kpi">
-            <div class="label">Set aside for cards</div>
+            <div class="label">Set Aside for Cards</div>
             <div class="value amt">${money(setAside, { cents: false })}</div>
             <div class=${'delta' + (notBacked.gt(0) ? ' down' : ' dim')}>${notBacked.gt(0)
               ? `${money(notBacked)} owed, not backed`
@@ -313,8 +313,8 @@ function ThisMonth({ b, month, reloadList }) {
           )}><${Icon} name="share" /> Share</${Action}>
       <${Action} class="btn sm" why=${whyRead(b)} onClick=${settings}>Settings</${Action}>
       <${Action} class="btn sm" why=${whyRead(b)} onClick=${estimate}>Estimate from
-        history…</${Action}>
-      <${Action} class="btn sm" why=${whyRead(b)} onClick=${edit}>Edit plan</${Action}></h3>
+        History…</${Action}>
+      <${Action} class="btn sm" why=${whyRead(b)} onClick=${edit}>Edit Plan</${Action}></h3>
       ${spend.length
         ? spend.map((/** @type {any} */ r) =>
           html`
@@ -324,7 +324,7 @@ function ThisMonth({ b, month, reloadList }) {
         )
         : html`<${Empty} action=${html`
           <${Action} class="btn sm" why=${whyRead(b)}
-            onClick=${edit}>Plan it</${Action}>
+            onClick=${edit}>Plan It</${Action}>
         `}>Nothing planned this month</${Empty}>`}
       ${v.cards.length
         ? html`<h4 class="small dim mt">Cards</h4>${
@@ -365,7 +365,7 @@ function ThisMonth({ b, month, reloadList }) {
         }`
         : null}
       ${v.unplanned.length
-        ? html`<h4 class="small dim mt">Not in the plan</h4>${
+        ? html`<h4 class="small dim mt">Not in the Plan</h4>${
           v.unplanned.map((/** @type {any} */ u) =>
             html`
               <div class="budget-row">
@@ -431,7 +431,7 @@ function ThisMonth({ b, month, reloadList }) {
       : null}
     ${v.moved.length
       ? html`
-        <div class="card mt"><h3>Left or entered the budget<span class="spacer"></span><span
+        <div class="card mt"><h3>Left or Entered the Budget<span class="spacer"></span><span
           class="small dim" style=${{ fontWeight: 400 }}>transfers with no category count
             nowhere until sorted</span></h3>
           ${v.moved.map((/** @type {any} */ m) =>
@@ -540,7 +540,7 @@ function Review({ b }) {
       </select>
       <span class="spacer"></span><${Action} class="btn primary" disabled=${mark.busy}
         why=${write ? null : READ_ONLY} onClick=${() => mark.run().catch(() => {})}><${Icon}
-        name="check" /> ${v.reviewed ? 'Review again' : 'Mark reviewed'}</${Action}>
+        name="check" /> ${v.reviewed ? 'Review Again' : 'Mark Reviewed'}</${Action}>
     </div>
     ${v.reviewed
       ? html`
@@ -607,7 +607,7 @@ function Review({ b }) {
     </div>
     ${v.history.length
       ? html`
-        <div class="card mt"><h3>Months reviewed</h3>
+        <div class="card mt"><h3>Months Reviewed</h3>
           ${v.history.map((/** @type {any} */ h) =>
             html`
               <div class="list-item">
@@ -649,11 +649,11 @@ function BudgetList({ budgets, reload }) {
           : html`<button type="button" class="btn sm" onClick=${() =>
             openDialog(MakeActiveDialog, { b: x, from: active }).then((y) =>
               y && reload()
-            )}>Make active</button>`}
+            )}>Make Active</button>`}
         <button type="button" class="btn sm" onClick=${() =>
           openDialog(CopyDialog, { b: x }).then((y) => {
             if (y) location.assign(`/ui/budgets/${y.id}/month`);
-          })}>Copy as scenario…</button>
+          })}>Copy as Scenario…</button>
       </div>
     `;
   return html`
@@ -693,9 +693,9 @@ function MakeActiveDialog({ close, b, from }) {
     close(true);
   });
   return html`
-    <${Dialog} title="Make this budget active?" close=${close}
+    <${Dialog} title="Make This Budget Active?" close=${close}
       onSubmit=${() => save.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${save.busy}>Make active</button>`}>
+      footer=${html`<button class="btn primary" disabled=${save.busy}>Make Active</button>`}>
       <p style=${{ marginTop: 0 }}><b>${b.name}</b> becomes the budget you follow${from
         ? html`, in place of <b>${from.name}</b>, which stays as a scenario`
         : ''}.</p>
@@ -725,7 +725,7 @@ function CopyDialog({ close, b }) {
     close(out);
   });
   return html`
-    <${Dialog} title="Copy as scenario" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="Copy as Scenario" close=${close} onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Copy</button>`}>
       <${Field} label="Name" error=${errAt(save.error, 'name')}>
         <${Input} value=${name} onInput=${setName} required />
@@ -785,12 +785,12 @@ function Compare({ b, budgets, month }) {
             <thead>
               <tr>
                 <th></th>
-                <th class="num">${b.name}: available</th>
-                <th class="num">spent</th>
-                <th class="num">left</th>
-                <th class="num">${otherName}: available</th>
-                <th class="num">spent</th>
-                <th class="num">left</th>
+                <th class="num">${b.name}: Available</th>
+                <th class="num">Spent</th>
+                <th class="num">Left</th>
+                <th class="num">${otherName}: Available</th>
+                <th class="num">Spent</th>
+                <th class="num">Left</th>
               </tr>
             </thead>
             <tbody>${v.rows.map((/** @type {any} */ r) =>
@@ -859,7 +859,7 @@ function MoveDialog({ close, b, month, rows, to, cards = [] }) {
       left(r).isNegative() ? 'over' : 'left'
     }`;
   return html`
-    <${DraftDialog} f=${f} title=${`Move money: ${monthLabel(month)}`} close=${close}
+    <${DraftDialog} f=${f} title=${`Move Money: ${monthLabel(month)}`} close=${close}
       what="This move" label="Move" done="Moved">
       ${rec
         ? html`
@@ -996,7 +996,7 @@ function WhereMoneyIs({ b, month }) {
                   : 'Moved in'}<div class="small dim">${money(x.amount)} ${x.payee ||
                   'a transfer'}, ${date(x.date)}</div></span>${x.kept ? null : html`
                   <button type="button" class="btn sm" data-help="keep-own"
-                    onClick=${() => keepOwn(x)}>Keep as the account's own</button>
+                    onClick=${() => keepOwn(x)}>Keep as the Account's Own</button>
                 `}</div>
             `
           )}
@@ -1172,7 +1172,7 @@ function AssignDialog({ close, b, h, landed }) {
     } catch { /* typed, not yet a number */ }
   }
   return html`
-    <${DraftDialog} f=${f} title="Assign landed money" close=${close} what="This assignment"
+    <${DraftDialog} f=${f} title="Assign Landed Money" close=${close} what="This assignment"
       label="Assign" done="Assigned" before=${before}>
       <p style=${{ marginTop: 0 }}>${money(landed.amount)} ${landed.payee || 'landed'} in ${h
         .accountName} on ${date(landed.date)}. In the budget it counts as it always does; this
@@ -1191,7 +1191,7 @@ function AssignDialog({ close, b, h, landed }) {
             class="toolbar"><span class="small dim">${money(String(given))} of ${money(
               free,
             )} given; the rest stays unassigned.</span><span class="spacer"></span><button
-            type="button" class="btn sm" onClick=${spread}>Spread by balance</button></div>
+            type="button" class="btn sm" onClick=${spread}>Spread by Balance</button></div>
         `
         : null}
     </${DraftDialog}>
@@ -1205,7 +1205,7 @@ function CashFlow({ b, month }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!f) return html`<${Loading} lines=${6} />`;
   return html`
-    <div class="card"><h3>${monthLabel(month)}: where the money went</h3>
+    <div class="card"><h3>${monthLabel(month)}: Where the Money Went</h3>
       ${f.sources.length || f.uses.length
         ? html`
           <${FlowChart} label=${`Cash flow, ${monthLabel(month)}`} sources=${f.sources}
@@ -1231,7 +1231,7 @@ function Trends({ b, month }) {
     ) => [c.id, c.path]),
   ]);
   return html`
-    <div class="card"><h3>Spending by month<span class="spacer"></span>
+    <div class="card"><h3>Spending by Month<span class="spacer"></span>
       <select class="in" style=${{ maxWidth: '220px' }} aria-label="Category" id="f-category"
         value=${category} onChange=${(/** @type {any} */ e) => setCategory(e.currentTarget.value)}>
         ${options.map(([v, l]) => html`<option value=${v}>${l}</option>`)}
@@ -1316,7 +1316,7 @@ function Reimbursements({ b }) {
     openDialog(PairDialog, { item: r }).then((x) => x && res.reload());
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting reimbursement<span class="spacer"></span><span
+      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting Reimbursement<span class="spacer"></span><span
         class="small dim" style=${{ fontWeight: 400 }}>not counted while awaited</span></h3>
       <table class="t">
         <thead>
@@ -1324,7 +1324,7 @@ function Reimbursements({ b }) {
             <th>Spent</th>
             <th>Payee</th>
             <th>Category</th>
-            <th>Owed by</th>
+            <th>Owed By</th>
             <th class="num">Awaited</th>
             <th>Age</th>
             <th></th>
@@ -1344,7 +1344,7 @@ function Reimbursements({ b }) {
                 : null}</td>
               <td>${r.ageDays} day${r.ageDays === 1 ? '' : 's'}</td>
               <td><button type="button" class="btn sm" data-help="pair" disabled=${!r.offers
-                .length} onClick=${() => pair(r)}>Pair a payback</button></td>
+                .length} onClick=${() => pair(r)}>Pair a Payback</button></td>
             </tr>
           `
         )}</tbody>
@@ -1382,7 +1382,7 @@ function PairDialog({ close, item }) {
   const rec = /** @type {PairRec | undefined} */ (f.draft?.records[0]);
   const pick = rec?.get('paybackId');
   return html`
-    <${DraftDialog} f=${f} title="Pair a payback" close=${close} what="This pairing"
+    <${DraftDialog} f=${f} title="Pair a Payback" close=${close} what="This pairing"
       label="Pair" done="Paired: that much is paid back" disabled=${!pick}>
       <p style=${{ marginTop: 0 }}>${item.payee || 'Spending'}, ${date(item.date)}: ${money(
         item.awaited,
@@ -1447,7 +1447,7 @@ function AccountsPicker({ ids, setIds, error }) {
             icon=${html`<${Icon} name="info" />`}
             actions=${html`
               <button type="button" class="btn sm"
-                onClick=${() => setIds(new Set([...ids, x.accountId]))}>Include it</button>
+                onClick=${() => setIds(new Set([...ids, x.accountId]))}>Include It</button>
             `}>${x
               .name} gets transfers from these accounts (${x.transfers} this
           year)</${Attention}></div>
@@ -1485,8 +1485,8 @@ function BudgetDialog({ close }) {
     }
   };
   return html`
-    <${DraftDialog} f=${f} title="New budget" wide close=${close} what="This budget"
-      label="Make it" saved=${(/** @type {any} */ o) => {
+    <${DraftDialog} f=${f} title="New Budget" wide close=${close} what="This budget"
+      label="Make It" saved=${(/** @type {any} */ o) => {
         toast('Budget made');
         close({ ...o.saved[0].record, estimate: Number(estimate) || 0 });
       }}>
@@ -1626,7 +1626,7 @@ function BudgetSettingsDialog({ close, b }) {
   const changedAccounts = wanted !== null &&
     (wanted.size !== counting.size || [...wanted].some((x) => !counting.has(x)));
   return html`
-    <${DraftDialog} f=${f} title=${`${b.name}: settings`} wide close=${close} what="This budget"
+    <${DraftDialog} f=${f} title=${`${b.name}: Settings`} wide close=${close} what="This budget"
       done="Saved" note=${`${
         b.method === 'envelope' ? 'An envelope' : 'A tracking'
       } budget: it keeps its method.`}>
@@ -1856,8 +1856,8 @@ function EstimateDialog({ close, b, month, months }) {
   };
   const changed = () => drop.size > 0 || Object.keys(amounts).length > 0;
   return html`
-    <${DraftDialog} f=${p.f} title="Plan from history" wide close=${close} changed=${changed}
-      before=${apply} what="The plan" done="Plan saved" label="Save the plan"
+    <${DraftDialog} f=${p.f} title="Plan from History" wide close=${close} changed=${changed}
+      before=${apply} what="The plan" done="Plan saved" label="Save the Plan"
       disabled=${!found.length} note="Nothing is saved until you save.">
       <${Field} label="Months to average" id="months">
         <${Select} value=${span} onChange=${(/** @type {string} */ v) => setSpan(v)} options=${[
@@ -1972,7 +1972,7 @@ function PlanDialog({ close, b, month }) {
             ${b.reserves
               ? html`
                 <th class="num">Target</th>
-                <th>Held in</th>
+                <th>Held In</th>
               `
               : null}
             <th>Projection</th>
@@ -2037,7 +2037,7 @@ function PlanDialog({ close, b, month }) {
         )}</tbody>
       </table>
       <button type="button" class="btn sm mt" onClick=${() => p.add()}>
-        <${Icon} name="plus" /> Add a category</button>
+        <${Icon} name="plus" /> Add a Category</button>
       </${DraftDialog}>
   `;
 }

@@ -80,7 +80,7 @@ export default function Locked() {
   });
   if (restarting.value) {
     return html`
-      <${AuthCard} title="MoolaKata is restarting" guide="locked"
+      <${AuthCard} title="MoolaKata Is Restarting" guide="locked"
         sub="It starts again locked, so the re-encryption runs at the unlock, with the phrase entered there, before the server serves.">
         ${late
           ? html`
@@ -100,7 +100,7 @@ export default function Locked() {
     const r = lock.reencrypting;
     const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
     return html`
-      <${AuthCard} title="MoolaKata is re-encrypting" guide="locked"
+      <${AuthCard} title="MoolaKata Is Re-encrypting" guide="locked"
         sub="The phrase opened the keyring. The data is being rewritten under a new data key before the server serves; this takes a few minutes.">
         <div class="list-item"><span class="grow">${STAGES[r.stage] || r.stage}</span>${r.total
           ? `${r.done.toLocaleString()} of ${r.total.toLocaleString()}`
@@ -121,7 +121,7 @@ export default function Locked() {
     `;
   }
   return html`
-    <${AuthCard} title="MoolaKata is locked" guide="locked"
+    <${AuthCard} title="MoolaKata Is Locked" guide="locked"
       sub=${(lostChanges.value ? "Changes you hadn't saved were lost. " : '') +
         'The server started and holds no key. An admin enters the recovery phrase to open it; everyone signs in after that.'}>
       <form onSubmit=${(/** @type {Event} */ e) => {

@@ -675,7 +675,7 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
     page, problems = opened(browser, world, YEAR, "documents", 'text="tp-1040.pdf"')
     page.click('button:has-text("Add a filed document")')
     wait(page, ".dialog #f-filing", problems)
-    assert page.locator("#dialog-title").inner_text() == "Add a filed document"
+    assert page.locator("#dialog-title").inner_text() == "Add a Filed Document"
     assert page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text() == "Filed"
     assert page.input_value("#f-form") == "Return as filed"
     first = world.book(YEAR)["filings"][0]["id"]
@@ -780,7 +780,7 @@ def test_new_tax_book_makes_this_years_book(browser, world):
     try:
         page.click('.toolbar button:has-text("New tax book")')
         wait(page, ".dialog #f-year", problems)
-        assert page.locator("#dialog-title").inner_text() == "New tax book"
+        assert page.locator("#dialog-title").inner_text() == "New Tax Book"
         options = page.locator("#f-year option").all_inner_texts()
         assert options == [str(year), str(year - 1), str(year - 2)]
         assert page.input_value("#f-year") == str(year - 1)

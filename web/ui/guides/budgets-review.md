@@ -20,7 +20,7 @@ their own when anything they come from changes.
 
 The month this review is of: last month unless you pick another.
 
-## Mark reviewed
+## Mark Reviewed
 
 Records who reviewed the month, and when, with its figures then. A reviewed month whose figures later
 change (a late transaction, a recategorised one, a move in it) is flagged **changed since reviewed**,

@@ -25,7 +25,7 @@ A name to tell it apart: *Schwab login*, *Credit union*.
 The institution's OFX Direct Connect address, from the institution or a directory such as
 ofxhome.com. The sign-in you seal is bound to this address: the connector sends it there and
 nowhere else. When the institution moves its server, change the address here, with **Change
-credentials**: it is saved with your password again, and the sign-in you then seal is bound to
+Credentials**: it is saved with your password again, and the sign-in you then seal is bound to
 the new one. Changed any other way, the connection asks for the sign-in again.
 
 ## ORG {#ofx-org}

@@ -17,7 +17,7 @@ that day: its **baseline**.
 ## Scenarios
 
 Projections that aren't active: what-ifs to compare, such as retiring at 60 against 65, or saving
-$500 more a month. **New projection** starts one.
+$500 more a month. **New Projection** starts one.
 
 ## Tracking
 
@@ -41,7 +41,7 @@ default.
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
 value today and their mix of asset classes; each class follows your assumptions in Profile.
 
-## Left out {#left-out}
+## Left Out {#left-out}
 
 What a projection doesn't grow, named under its chart with its value today: a loan, a home, a
 car or another item, and options. A projection grows cash, securities and precious metals, the

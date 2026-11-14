@@ -22,7 +22,7 @@ my529, Bright Start, and so on.
 
 ## Beneficiary
 
-Who a 529 is for: one of the household's people, or **Add a person…**, which opens **Add a person** over this dialog: the one it adds is chosen here.
+Who a 529 is for: one of the household's people, or **Add a Person…**, which opens **Add a Person** over this dialog: the one it adds is chosen here.
 
 ## Opened {#opened-on}
 
@@ -130,5 +130,5 @@ The category the whole payment counts in: _Loan payments_ unless you choose anot
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.

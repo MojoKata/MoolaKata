@@ -19,7 +19,7 @@ const TABS = /** @type {[string, string][]} */ ([
   ['open', 'Open'],
   ['strategies', 'Strategies'],
   ['closed', 'Closed'],
-  ['trades', 'Option trades'],
+  ['trades', 'Option Trades'],
   ['gains', 'Gains'],
 ]);
 const SOURCE = /** @type {Record<string, string>} */ ({
@@ -54,7 +54,7 @@ export default function Positions({ tab }) {
       ? html`
         <div class="grid g4">
           <div class="card kpi">
-            <div class="label">Unrealized gain</div>
+            <div class="label">Unrealized Gain</div>
             <div class="value">
               <${Amt}
                 v=${v.summary.unrealized} signed cents=${false} />
@@ -74,14 +74,14 @@ export default function Positions({ tab }) {
                 .realizedLong} signed cents=${false} /></div>
           </div>
           <div class="card kpi">
-            <div class="label">Open positions</div>
+            <div class="label">Open Positions</div>
             <div class="value">${v.open
               .length}</div>
             <div class="delta dim">${v.open.filter((/** @type {any} */ r) => r.side === 'short')
               .length} short</div>
           </div>
           <div class="card kpi">
-            <div class="label">Expiring within 7 days</div>
+            <div class="label">Expiring within 7 Days</div>
             <div class="value">${v.summary.expiringSoon.length}</div>
             <div class="delta">${v.summary.expiringSoon.map((/** @type {any} */ x) =>
               html`
@@ -97,10 +97,10 @@ export default function Positions({ tab }) {
         options=${KIND} />
       <span class="spacer"></span>
       <button class="btn" onClick=${() =>
-        openDialog(CorporateAction, {}).then((x) => x && res.reload())}>Corporate action…</button>
+        openDialog(CorporateAction, {}).then((x) => x && res.reload())}>Corporate Action…</button>
       <button class="btn primary" onClick=${() =>
         openDialog(OptionTrade, {}).then((x) => x && res.reload())}><${Icon} name="plus" /> Record
-        an option trade</button>
+        an Option Trade</button>
     </div>
     <${Tabs} tabs=${TABS} current=${current} base="/ui/positions" />
     ${res.error
@@ -150,7 +150,7 @@ function Open({ rows, reload }) {
               <th>Side</th>
               <th class="num">Quantity</th>
               <th class="num">Cost</th>
-              <th class="num">Market value</th>
+              <th class="num">Market Value</th>
               <th class="num">Unrealized</th>
               <th>Term</th>
             </tr>
@@ -239,11 +239,11 @@ function Open({ rows, reload }) {
                                                                           }).then((x) =>
                                                                             x && reload()
                                                                           );
-                                                                        }}>Expired, assigned or exercised…</button><button class="btn sm"
+                                                                        }}>Expired, Assigned or Exercised…</button><button class="btn sm"
                                         onClick=${(/** @type {Event} */ ev) => {
                                           ev.stopPropagation();
                                           openDialog(Mark, { row: r }).then((x) => x && reload());
-                                        }}>Type a mark…</button></div>
+                                        }}>Type a Mark…</button></div>
                                   `
                                   : null}</div>
                               </td>
@@ -339,11 +339,11 @@ function Trades() {
               <th>Account</th>
               <th>Opened</th>
               <th>Closed</th>
-              <th class="num">Premium in</th>
-              <th class="num">Premium out</th>
+              <th class="num">Premium In</th>
+              <th class="num">Premium Out</th>
               <th class="num">P/L</th>
-              <th class="num" data-help="capital-required">Capital required</th>
-              <th class="num" data-help="capital-required">Return on it</th>
+              <th class="num" data-help="capital-required">Capital Required</th>
+              <th class="num" data-help="capital-required">Return on It</th>
             </tr>
           </thead>
           <tbody>${rows.map((r) =>
@@ -405,8 +405,8 @@ function Gains() {
               <thead>
                 <tr>
                   <th></th>
-                  <th class="num">Short term</th>
-                  <th class="num">Long term</th>
+                  <th class="num">Short Term</th>
+                  <th class="num">Long Term</th>
                   <th class="num">Total</th>
                 </tr>
               </thead>

@@ -81,7 +81,7 @@ export function OptionTrade({ close, accountId, start }) {
     rec.set('amount', cash);
   };
   return html`
-    <${DraftDialog} f=${f} title="Record an option trade" close=${close} what="This trade"
+    <${DraftDialog} f=${f} title="Record an Option Trade" close=${close} what="This trade"
       label="Record" done="Option trade recorded" before=${before}
       disabled=${!rec?.get('accountId')}>
       ${rec
@@ -141,7 +141,7 @@ export function Settle({ close, row }) {
   });
   const e = save.error;
   return html`
-    <${Dialog} title=${`${row.symbol}: what happened?`} close=${close} onSubmit=${() =>
+    <${Dialog} title=${`${row.symbol}: What Happened?`} close=${close} onSubmit=${() =>
       save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Record</button>`}>
       <div class="field" data-help="how" id="x-how"><label>It was</label>

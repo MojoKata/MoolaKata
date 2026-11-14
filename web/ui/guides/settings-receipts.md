@@ -38,7 +38,7 @@ that doesn't (an older kernel, or a container that doesn't allow it), this secti
 reader runs without that file sandbox, and admins have an alert while it lasts; the reader still
 has no network and still runs apart from the server.
 
-## Re-read all receipts
+## Re-read All Receipts
 
 After an update with new models: every receipt is read again. Only empty fields, and those still
 holding what was read before, are replaced; anything a person typed stays.

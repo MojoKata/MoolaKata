@@ -21,7 +21,7 @@ on their own when anything they come from changes.
 ## Active and scenarios
 
 You follow one **active** budget: the Dashboard, budget alerts and what to move come from it. The
-others are **scenarios**, to try another method or plan beside it. **Make active** swaps them and
-rewrites nothing; **Copy as scenario…** starts one from the same accounts and plan. Active is each
+others are **scenarios**, to try another method or plan beside it. **Make Active** swaps them and
+rewrites nothing; **Copy as Scenario…** starts one from the same accounts and plan. Active is each
 person's own choice: a household budget can be active for both partners while one of them tries a
 scenario.

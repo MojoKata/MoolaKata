@@ -1,8 +1,8 @@
 # S15. Encryption and the master key
 
 This section is for the admin who installs and runs the server. It explains what MoolaKata
-encrypts and how, how to back up and protect the master key with its recovery phrase, and
-what key rotation does.
+encrypts and how, how to keep a backup of the master key in its recovery phrase and protect it,
+and what key rotation does.
 
 **Terms used here.**
 
@@ -308,7 +308,7 @@ replica holds only the right-hand side, and the whole host can be backed up as i
          Activity. A stop between the journal and the keyring leaves the keyring under the old
          phrase: the unlock with it re-encrypts all the same, and Key storage says the rotation
          didn't finish;
-      2. **back up the new phrase at once** (S15.6). The server unlocks with the new phrase
+      2. **make a backup of the new phrase at once** (S15.6). The server unlocks with the new phrase
          from the restart on;
       3. verify the new phrase (Verify key);
       4. **keep the previous phrase until every copy made under it is gone**. Settings › Key
@@ -395,8 +395,8 @@ replica holds only the right-hand side, and the whole host can be backed up as i
          password for the bitcoin node, a new SMTP password, the connector unpaired and
          paired again (S18.4.4). A secret already read is usable until its source refuses it,
          whatever happens to the keys here;
-      2. **rotate the master key** (S15.7.1), which re-encrypts as well, and back up the new
-         phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
+      2. **rotate the master key** (S15.7.1), which re-encrypts as well, and make a backup of the
+         new phrase, so the leaked phrase opens nothing made from now on, and no longer unlocks the
          server;
       3. **delete every copy made before the rotation, everywhere it was copied**: on this
          host, from the list in Settings › Key storage, or by choosing **delete** for each at

@@ -186,7 +186,7 @@ export function ReceiptDialog({ close, id }) {
                 : null)} onClick=${async () => {
               const draft = f.draft;
               if (!draft) return;
-              if (!(await confirmAction({ title: 'Delete this receipt?' }))) return;
+              if (!(await confirmAction({ title: 'Delete This Receipt?' }))) return;
               draft.remove(rec);
               const o = await save.run().catch(() => null);
               if (o?.status !== 'asks' && o?.status !== 'saved') draft.unremove(rec);
@@ -232,7 +232,7 @@ export function ReceiptDialog({ close, id }) {
                 onClick=${() =>
                   again.run().catch((e) =>
                     toast(e.message)
-                  )}><${Icon} name="refresh" /> Read again</${Action}></div>
+                  )}><${Icon} name="refresh" /> Read Again</${Action}></div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'
@@ -272,7 +272,7 @@ export function ReceiptDialog({ close, id }) {
                 hint="Yours only." disabled=${!canEdit} />
             `
             : null}
-          <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached to</h4>
+          <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached To</h4>
           ${kept.length || added.length
             ? [...kept, ...added].map((/** @type {any} */ l) =>
               html`<div class="list-item"><div class="grow small">${

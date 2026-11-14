@@ -39,19 +39,19 @@ import { Attention, RowTool } from '../kit/state.js';
 const SECTIONS = /** @type {[string, string][]} */ ([
   ['general', 'General'],
   ['email', 'Email (SMTP)'],
-  ['sessions', 'Sign-in and sessions'],
-  ['signup', 'Sign-up'],
+  ['sessions', 'Sign-In and Sessions'],
+  ['signup', 'Sign-Up'],
   ['passwords', 'Passwords'],
   ['prices', 'Prices'],
   ['bitcoin', 'Bitcoin'],
-  ['links', 'Linked servers'],
+  ['links', 'Linked Servers'],
   ['connector', 'Connector'],
   ['imports', 'Imports'],
   ['receipts', 'Receipts'],
-  ['tax-tables', 'Tax tables'],
+  ['tax-tables', 'Tax Tables'],
   ['backups', 'Backups'],
   ['storage', 'Storage'],
-  ['keys', 'Key storage'],
+  ['keys', 'Key Storage'],
   ['network', 'Network'],
   ['alerts', 'Alerts'],
 ]);
@@ -189,7 +189,7 @@ function Plain({ section }) {
     return form(
       ['sessionIdleHours', 'sessionAbsoluteDays', 'lockoutFailures', 'lockoutMinutes'],
       html`
-        <h3>Sign-in and sessions</h3>
+        <h3>Sign-In and Sessions</h3>
         <div class="row">
           <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}
             hint="Signed out after this long without using MoolaKata.">
@@ -227,7 +227,7 @@ function Plain({ section }) {
     return form(
       ['signupEnabled', 'signupDomains'],
       html`
-        <h3>Sign-up</h3>
+        <h3>Sign-Up</h3>
         <${SwitchRow} label="Sign-up" on=${f.signupEnabled}
           onChange=${(/** @type {boolean} */ x) => setF({ ...f, signupEnabled: x })}
           hint="People can ask for an account from the sign-in screen; an admin approves or rejects each request. It needs email (SMTP) and the public URL." />
@@ -426,11 +426,11 @@ function Prices() {
       toast(/** @type {any} */ (e).message);
     }
   };
-  return html`<div class="card"><h3>Price sources<span class="spacer"></span><button type="button" class="btn sm"
+  return html`<div class="card"><h3>Price Sources<span class="spacer"></span><button type="button" class="btn sm"
     onClick=${() =>
     openDialog(AddSource, { sources: v }).then((x) =>
       x && res.reload()
-    )}><${Icon} name="plus" /> Add a source</button></h3>
+    )}><${Icon} name="plus" /> Add a Source</button></h3>
     <p class="small dim" style=${{
     marginTop: '-6px',
   }}>Free, daily closes. For each class, the first enabled source in the order is
@@ -446,7 +446,7 @@ function Prices() {
                 <th>Source</th>
                 <th>Serves</th>
                 <th>Key</th>
-                <th>Last run</th>
+                <th>Last Run</th>
                 <th class="num">Enabled</th>
                 <th></th>
               </tr>
@@ -471,7 +471,7 @@ function Prices() {
                     : html`<button type="button" class="btn sm" onClick=${() =>
                       openDialog(SetKey, { src }).then((x) =>
                         x && res.reload()
-                      )}>Set the key</button>`}</td>
+                      )}>Set the Key</button>`}</td>
                   <td class="small dim">${src.lastRunAt
                     ? ago(src.lastRunAt)
                     : 'not yet'}${src.lastError
@@ -511,7 +511,7 @@ function Prices() {
     api.post('/prices/refresh').then(
       () => toast('Refreshing prices: the header shows when it is done'),
       (e) => toast(e.message),
-    )}><${Icon} name="refresh" /> Refresh prices</button></div>
+    )}><${Icon} name="refresh" /> Refresh Prices</button></div>
   </div>`;
 }
 
@@ -535,11 +535,11 @@ function AddSource({ close, sources }) {
     toast(`${chosen.label} added${chosen.needsKey ? ': set its key to enable it' : ''}`);
   });
   return html`
-    <${Dialog} title="Add a price source" close=${close} onSubmit=${() =>
+    <${Dialog} title="Add a Price Source" close=${close} onSubmit=${() =>
       save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${
         save.busy || !chosen
-      }>Add the source</button>`}>
+      }>Add the Source</button>`}>
         ${options.length
           ? html`<${Field} label="Source"><${Select} value=${name} onChange=${setName}
       options=${
@@ -589,7 +589,7 @@ function RemoveCopy({ close, c }) {
   return html`
     <${Dialog} title=${`Remove ${c.name}`} close=${close} onSubmit=${() =>
       remove.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${remove.busy}>Remove it</button>`}>
+      footer=${html`<button class="btn primary" disabled=${remove.busy}>Remove It</button>`}>
       <p class="small" style=${{ marginTop: 0 }}>It can't be put back. The server's recovery phrase
         says it is you, as well as your password.</p>
       <${Field} label="Recovery phrase" error=${errAt(remove.error, 'phrase')}>
@@ -610,7 +610,7 @@ function VerifyKey({ close }) {
     close(await api.post('/settings/keys/verify', { phrase: words }));
   });
   return html`
-    <${Dialog} title="Verify key" close=${close} onSubmit=${() => check.run().catch(() => {})}
+    <${Dialog} title="Verify Key" close=${close} onSubmit=${() => check.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${check.busy}>Verify</button>`}>
       <p class="small" style=${{ marginTop: 0 }}>Type the 12 words from one copy of the recovery
         phrase. Nothing changes: MoolaKata checks that they open this server's key, and records the
@@ -632,8 +632,8 @@ function SetKey({ close, src }) {
   }, [src.id]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title=${`${src.label}'s key`} close=${close} what="This source"
-      label="Save the key" done=${`${src.label}'s key is set and the source is on`}>
+    <${DraftDialog} f=${f} title=${`${src.label}'s Key`} close=${close} what="This source"
+      label="Save the Key" done=${`${src.label}'s key is set and the source is on`}>
       ${rec
         ? html`
           <${Field} label="API key" error=${rec.error('apiKey')}
@@ -725,7 +725,7 @@ function TaxTables() {
         toast('Saved');
         res.reload();
       }}>
-      <h3>Tax tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
+      <h3>Tax Tables<span class="spacer"></span><select class="in" style=${{ maxWidth: '100px' }}
         aria-label="Year" id="f-year" value=${v.year} disabled=${draft.changed}
         title=${draft.changed ? 'Save or put back the changes first' : undefined}
         onChange=${(/** @type {any} */ ev) => setYear(Number(ev.currentTarget.value))}>${v.years
@@ -810,7 +810,7 @@ function ReadingQueue() {
       <p class="small dim">After an update with new models, read them all again: only empty fields, and
         those still holding what was read, are replaced.</p>
       <button type="button" class="btn" disabled=${reread.busy}
-        onClick=${() => reread.run().catch(() => {})}>Re-read all receipts</button>
+        onClick=${() => reread.run().catch(() => {})}>Re-read All Receipts</button>
     </div>
   `;
 }
@@ -852,7 +852,7 @@ function EmailSection() {
         html`
           <button type="button" class="btn" disabled=${test.busy ||
             !values.smtpHost}
-            onClick=${() => test.run().catch(() => {})}>Send a test email</button>
+            onClick=${() => test.run().catch(() => {})}>Send a Test Email</button>
         `}>
       <h3>Email (SMTP)</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>${values.smtpHost
@@ -1099,8 +1099,8 @@ function BitcoinSection() {
                               .certificateOffered ||
                               shown}</div><button type="button" class="btn sm mt"
                             disabled=${trust.busy} onClick=${() =>
-                              trust.run(v.certificateOffered || shown).catch(() => {})}>Trust this
-                            certificate</button></div>
+                              trust.run(v.certificateOffered || shown).catch(() => {})}>Trust This
+                            Certificate</button></div>
               </div>
             `
             : null
@@ -1149,7 +1149,7 @@ function CopiesKept({ close, v }) {
     );
   });
   return html`
-    <${Dialog} title="Copies kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="Copies Kept" close=${close} onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Save</button>`}>
       <${Field} label="Days of backups kept" error=${errAt(save.error, 'copies')}
         hint="Every backup of each of these most recent days is kept: 3 to 365.">
@@ -1193,7 +1193,7 @@ function Backups() {
               api.post('/settings/backups/run').then(() => {
                 toast('Backing up now');
                 res.reload(); // shows it running; the live stream says when it ends
-              }, (e) => toast(e.message))}><${Icon} name="refresh" /> Back up now</button>
+              }, (e) => toast(e.message))}><${Icon} name="refresh" /> Backup Now</button>
         `}>
       <h3>Backups</h3>
       <div class="row">
@@ -1230,7 +1230,7 @@ function Backups() {
                 <tr>
                   <th>Made</th>
                   <th class="num">Size</th>
-                  <th>Master key</th>
+                  <th>Master Key</th>
                 </tr>
               </thead>
               <tbody>${v.backups.map((/** @type {any} */ b) =>
@@ -1381,9 +1381,9 @@ function RotateKey({ close, copies }) {
   const back = /** @type {any} */ (rotate.error)?.code;
   if (step === 'start') {
     return html`
-      <${Dialog} title="Rotate the master key" close=${close} onSubmit=${() =>
+      <${Dialog} title="Rotate the Master Key" close=${close} onSubmit=${() =>
         show.run().catch(() => {})}
-        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the new phrase</button>`}>
+        footer=${html`<button class="btn primary" disabled=${show.busy}>Show the New Phrase</button>`}>
         <p class="small" style=${{ marginTop: 0 }}>A new master key and recovery phrase, and with
           them a new data key. MoolaKata then restarts; unlock it with the new phrase, and it
           re-encrypts everything before it serves, the copies below as you choose.</p>
@@ -1404,8 +1404,8 @@ function RotateKey({ close, copies }) {
           `}
         <div style=${{ marginBottom: '14px' }}><button type="button" class="btn sm"
           data-help="lost-phrase" onClick=${() => setLost(!lost)}>${lost
-            ? 'I have the phrase'
-            : 'The phrase is lost'}</button></div>
+            ? 'I Have the Phrase'
+            : 'The Phrase Is Lost'}</button></div>
         <${CopyChoices} copies=${copies} choices=${choices} set=${setChoices} />
         <${FormError} error=${show.error} />
         </${Dialog}>
@@ -1413,8 +1413,8 @@ function RotateKey({ close, copies }) {
   }
   if (step === 'phrase') {
     return html`
-      <${Dialog} title="The new recovery phrase" close=${close} onSubmit=${() => setStep('check')}
-        footer=${html`<button class="btn primary">I've written them down</button>`}>
+      <${Dialog} title="The New Recovery Phrase" close=${close} onSubmit=${() => setStep('check')}
+        footer=${html`<button class="btn primary">I've Written Them Down</button>`}>
         <p class="small" style=${{ marginTop: 0 }}>Write these 12 words on paper, in order. They're
           shown here once.</p>
         <ol class="phrase" aria-label="The new recovery phrase">${offer.words.map((
@@ -1431,7 +1431,7 @@ function RotateKey({ close, copies }) {
     `;
   }
   return html`
-    <${Dialog} title="Check what you wrote" close=${close} onSubmit=${() =>
+    <${Dialog} title="Check What You Wrote" close=${close} onSubmit=${() =>
       rotate.run().catch(() => {})}
       footer=${html`
         <button type="button" class="btn" onClick=${() =>
@@ -1440,7 +1440,7 @@ function RotateKey({ close, copies }) {
           )}>Back</button><span
           class="spacer"></span><button class="btn primary" disabled=${rotate.busy}>${rotate.busy
             ? 'Rotating…'
-            : 'Rotate and restart'}</button>
+            : 'Rotate and Restart'}</button>
       `}>
       <p class="small" style=${{ marginTop: 0 }}>Type three of the words from your sheet. Four
         letters of each are enough.</p>
@@ -1543,7 +1543,7 @@ function Keys() {
   const last = v.lastReencryption;
   const lastCopies = last ? Object.entries(last.copies) : [];
   return html`
-    <div class="card"><h3>Key storage<span class="spacer"></span>${test
+    <div class="card"><h3>Key Storage<span class="spacer"></span>${test
       ? test.ok
         ? html`<span class="pill ok"><${Icon} name="lock" /> everything opens</span>`
         : html`<span class="pill bad">a problem</span>`
@@ -1626,7 +1626,7 @@ function Keys() {
           ${confirmed
             ? html`<span class="pill ok"><${Icon} name="check" /> confirmed</span>`
             : html`<span class="pill warn">unchecked</span>`}<button type="button" class="btn sm" onClick=${() =>
-            verify().catch((e) => toast(e.message))}>Verify key</button></div>
+            verify().catch((e) => toast(e.message))}>Verify Key</button></div>
         ${last
           ? html`
             <div class="list-item" data-help="last-reencryption">
@@ -1705,7 +1705,7 @@ function Keys() {
           ${armed || v.scheduled ? null : html`
             <button type="button" class="btn" onClick=${rotate}>Rotate</button>
             <button type="button" class="btn" onClick=${() =>
-              setArmed(true)}>Re-encrypt now</button>
+              setArmed(true)}>Re-encrypt Now</button>
           `}<span
             class="small dim">Rotate gives a new phrase, for a leaked or lost one or the yearly
             reminder. Re-encrypt now keeps the phrase and makes a new data key, for when the data key
@@ -1727,7 +1727,7 @@ function Keys() {
               <${FormError} error=${reencrypt.error} />
               <div
                 class="toolbar"><button class="btn primary" disabled=${reencrypt
-                  .busy}>Re-encrypt and restart</button>
+                  .busy}>Re-encrypt and Restart</button>
                         <button type="button" class="btn" onClick=${() =>
                           setArmed(false)}>Cancel</button></div>
             </form>

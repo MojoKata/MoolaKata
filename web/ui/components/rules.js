@@ -103,8 +103,8 @@ export function NewRuleDialog({ close, fill }) {
   });
   const rec = /** @type {RuleRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="New rule" close=${close} what="This rule"
-      label="Add the rule" done="Rule added"
+    <${DraftDialog} f=${f} title="New Rule" close=${close} what="This rule"
+      label="Add the Rule" done="Rule added"
       extra=${() => html`<button type="button" class="btn" data-cancel>Cancel</button>`}>
       ${rec && f.draft ? html`<${RuleFields} rec=${rec} draft=${f.draft} />` : null}
     </${DraftDialog}>
@@ -165,7 +165,7 @@ export function RulesTab({ id }) {
           ${v?.uncategorised
             ? html`<${SavedFirst}><button type="button" class="btn"
               disabled=${changed || apply.busy} onClick=${() => apply.run().catch(() => {})}>
-              Apply to ${v.uncategorised} uncategorised</button></${SavedFirst}>`
+              Apply to ${v.uncategorised} Uncategorised</button></${SavedFirst}>`
             : null}
         </div>
         <p class="small dim" data-help="first-match">First match wins, top to bottom. Applied to
@@ -264,7 +264,7 @@ function RulePane({ rule, n, listed }) {
       extra=${() =>
         rule
           ? html`<button type="button" class="btn danger" onClick=${async () => {
-            if (!(await confirmAction({ title: 'Delete this rule?' }))) return;
+            if (!(await confirmAction({ title: 'Delete This Rule?' }))) return;
             try {
               await saveNow((d) => d.remove(d.load(RuleRec, rule)));
             } catch (e) {
@@ -275,7 +275,7 @@ function RulePane({ rule, n, listed }) {
             route(RULES, true);
           }}>Delete</button>`
           : null}>
-      <h3>${rule ? `Rule ${n}` : 'New rule'}</h3>
+      <h3>${rule ? `Rule ${n}` : 'New Rule'}</h3>
       ${rec && f.draft ? html`<${RuleFields} rec=${rec} draft=${f.draft} />` : null}
     </${DraftForm}>
   `;

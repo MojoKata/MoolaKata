@@ -41,7 +41,7 @@ to that day, budgets and returns included, and stays for history and taxes, mark
 
 Whether your totals include it.
 
-## Delete account
+## Delete Account
 
 Deletes it with its transactions, only by its owner. Deleting is for an account made by
 mistake: its transactions leave every past figure too, budgets, returns and taxes. To keep its
@@ -68,7 +68,7 @@ shows in Activity as by the connector and the connection.
 
 ## Connection
 
-One of your own sign-ins kept by the connector (Profile › Connections), or **New connection…**
+One of your own sign-ins kept by the connector (Profile › Connections), or **New Connection…**
 to start one here.
 
 ## Institution account

@@ -114,7 +114,7 @@ def test_rotate_restarts_the_server_and_it_opens_with_the_new_phrase(tmp_path, b
         page.get_by_text("Those words").or_(page.get_by_text("not this server")).first.wait_for()
         page.locator("#f-recovery-phrase").fill(" ".join(words))
         page.get_by_role("button", name="Unlock").click()
-        page.get_by_role("heading", name="Key storage", exact=True).wait_for(timeout=60000)
+        page.get_by_role("heading", name="Key Storage", exact=True).wait_for(timeout=60000)
         assert httpx.get(base + "/healthz").status_code == 200
         page.get_by_text("with a rotation").wait_for()
         # The wrong phrase above answered 403, as it should.

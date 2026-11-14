@@ -68,8 +68,8 @@ function PersonDialog({ close }) {
   });
   const rec = /** @type {Beneficiary | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Add a person" close=${close} what="This person"
-      label="Add the person" done="Person added">
+    <${DraftDialog} f=${f} title="Add a Person" close=${close} what="This person"
+      label="Add the Person" done="Person added">
       ${rec
         ? html`
           <${RecField} rec=${rec} name="name" label="Their name" />
@@ -150,7 +150,7 @@ export async function loadPlan(draft, accountId) {
 export function PlanCard({ rec }) {
   return html`
     <div class="card">
-      <h3>The plan</h3>
+      <h3>The Plan</h3>
       <${PlanFields} rec=${rec} />
     </div>
   `;
@@ -172,7 +172,7 @@ export function PlanFacts({ a }) {
   const r = v.rollover;
   return html`
     <div class="card facts">
-      <h3>The plan</h3>
+      <h3>The Plan</h3>
       <div class="list-item"><span class="grow dim">Beneficiary</span>${b
         ? html`${b.name}${
           b.birthYear ? html`<span class="small dim"> · born ${b.birthYear}</span>` : null
@@ -213,10 +213,10 @@ export function Contributions({ a }) {
     ${contributes ? html`<${AddContribution} a=${a} done=${again} />` : html`
       <div class="toolbar">
         <${Action} class="btn sm" why=${whyNotAdd('Txn', a)}><${Icon}
-              name="plus" /> Record a contribution</${Action}></div>
+              name="plus" /> Record a Contribution</${Action}></div>
     `}
     <div class="card mt" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Against the annual gift exclusion</h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Against the Annual Gift Exclusion</h3>
       ${v.years.length
         ? html`
           <div class="table-wrap">
@@ -293,7 +293,7 @@ export function Contributions({ a }) {
     </div>
     <div class="grid g2 mt">
       <div class="card facts">
-        <h3>State tax deduction</h3>
+        <h3>State Tax Deduction</h3>
         <p class="small dim" style=${{ marginTop: 0 }}>Typed by the owner: MoolaKata doesn't
           model state rules.</p>
         <div class="list-item"><span class="grow dim">Expected a year</span>${pl.stateDeduction
@@ -345,7 +345,7 @@ function AddContribution({ a, done }) {
         f.reload();
         done();
       }}>
-      <h3>Record a contribution</h3>
+      <h3>Record a Contribution</h3>
       ${rec
         ? html`
           <div class="row">
@@ -417,7 +417,7 @@ export function Withdrawals({ a }) {
   if (!v) return html`<${Loading} />`;
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Each year</h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Each Year</h3>
       ${v.years.length
         ? html`
           <div class="table-wrap">
@@ -427,8 +427,8 @@ export function Withdrawals({ a }) {
                 <tr>
                   <th>Year</th>
                   <th class="num">Distributions</th>
-                  <th class="num">Qualified expenses</th>
-                  <th class="num">Not covered</th>
+                  <th class="num">Qualified Expenses</th>
+                  <th class="num">Not Covered</th>
                 </tr>
               </thead>
               <tbody>${v.years.map((/** @type {any} */ y) =>
@@ -462,10 +462,10 @@ export function Withdrawals({ a }) {
       : html`
         <div class="toolbar mt">
           <${Action} class="btn sm" why=${whyNotAdd('QExpn', a)}><${Icon}
-                name="plus" /> Add a qualified expense</${Action}></div>
+                name="plus" /> Add a Qualified Expense</${Action}></div>
       `}
     ${v.expenses.length
-      ? html`<div class="card mt"><h3>Qualified expenses</h3>${
+      ? html`<div class="card mt"><h3>Qualified Expenses</h3>${
         v.expenses.map((
           /** @type {any} */ x,
         ) => html`<${Expense} x=${x} canWrite=${a.access.writable} done=${res.reload} />`)
@@ -497,7 +497,7 @@ function AddExpense({ a, kinds, done }) {
         f.reload();
         done();
       }}>
-      <h3>Add a qualified expense</h3>
+      <h3>Add a Qualified Expense</h3>
       ${rec
         ? html`
           <div class="row">
@@ -591,7 +591,7 @@ export function Goal({ a }) {
       <button type="button" class="btn primary" disabled=${start.busy}
         onClick=${() => start.run().catch(() => {})}><${Icon} name="plus" /> Project ${v.beneficiary
           .name}'s
-              education</button>
+              Education</button>
     `}>No education projection yet</${Empty}>`;
   }
   const r = x.result;
@@ -605,7 +605,7 @@ export function Goal({ a }) {
         : null}<span class="spacer"></span><a class="small" href=${`/ui/projections/${x.id}`}>Change it in Projections</a></div>
     <div class="grid g-main">
       <div class="card">
-        <h3>${ans.name}'s college fund<span class="spacer"></span><span
+        <h3>${ans.name}'s College Fund<span class="spacer"></span><span
         class=${'pill ' + (num(ans.funded) >= 100 ? 'ok' : 'warn')}>${Math.round(
           num(
             ans
@@ -623,7 +623,7 @@ export function Goal({ a }) {
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${EducationAnswer} a=${ans} />
-        <div class="card facts"><h3>Its years</h3>${ans.costs.map((
+        <div class="card facts"><h3>Its Years</h3>${ans.costs.map((
           /** @type {number} */ c,
           /** @type {number} */ i,
         ) =>

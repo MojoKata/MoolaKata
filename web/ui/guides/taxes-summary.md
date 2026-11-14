@@ -13,8 +13,8 @@ Add the people you claim: their ages feed the credits panel, and a student's 109
 
 ## Tax book
 
-The book shown: one tax year, for you alone or for you and your spouse filing jointly. **New tax
-book** starts the next one; **Share** lets someone help, such as a preparer with an account here or
+The book shown: one tax year, for you alone or for you and your spouse filing jointly. **New Tax
+Book** starts the next one; **Share** lets someone help, such as a preparer with an account here or
 a grown child.
 
 ## Exports
@@ -24,24 +24,24 @@ summary for a preparer. Each says what it covers and what it doesn't. TXF has no
 digital asset's box (G to L) or for the codes C (a collectable) and L (a personal-use loss), so
 those sales are left out of it, counted beside it, and entered from the CSV.
 
-## Accounts counted
+## Accounts Counted
 
-The filers' own accounts, each once even when they share them with each other. **Leave out** one
+The filers' own accounts, each once even when they share them with each other. **Leave Out** one
 that doesn't belong; the panels say what was left out.
 
-## Add an account
+## Add an Account
 
 An account you can see but don't own that belongs in this return, such as a custodial account in a
 child's name.
 
-## From last year
+## From Last Year
 
 What last year's filings carried forward: the AGI needed to sign this year's e-filed return,
 capital-loss and charitable carryovers, and the Form 8606 basis. Each is from the book its filer
 accepted last year, named with whose it was: after filing separately, a joint book shows both,
 and the Summary adds their carryovers and last year's total tax.
 
-## Your share of the joint carryover {#carryover-share}
+## Your Share of the Joint Carryover {#carryover-share}
 
 Filing separately after a joint return: splitting its capital-loss carryover between you is yours
 to decide, as your preparer reads it. None counts in the Summary until your share is typed, and an

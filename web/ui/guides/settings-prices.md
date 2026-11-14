@@ -4,12 +4,12 @@ Where daily closes come from. Prices are free and daily, never live.
 
 ![Settings: Prices](shots/settings-prices.png)
 
-## Price sources
+## Price Sources
 
 The sources added, each with the classes it serves. For each class the first enabled source is used,
 and the next one when it fails.
 
-## Add a source
+## Add a Source
 
 Every source MoolaKata ships. One that needs a key can't be enabled until its key is set.
 
@@ -21,7 +21,7 @@ Whether the source is used.
 
 A source's key is stored encrypted and never shown again: only that it is set, when and by whom.
 
-## Last run
+## Last Run
 
 When the source was last used, and its last error.
 
@@ -29,7 +29,7 @@ When the source was last used, and its last error.
 
 When the daily refresh runs, after the US market close. 6:00 PM Eastern by default.
 
-## Refresh prices
+## Refresh Prices
 
 Runs the daily refresh now.
 

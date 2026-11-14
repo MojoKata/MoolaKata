@@ -76,7 +76,7 @@ export default function SignIn() {
 
   if (mode === 'forgot') {
     return html`
-      <${AuthCard} title="Forgot password" guide="signin"
+      <${AuthCard} title="Forgot Password" guide="signin"
         sub="We'll email a link to choose a new password. It works once, for an hour.">
             ${sent
               ? html`
@@ -95,7 +95,7 @@ export default function SignIn() {
                     </${Field}>
                     <${FormError} error=${forgot.error} />
                     <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-                      disabled=${forgot.busy}>Send the link</button>
+                      disabled=${forgot.busy}>Send the Link</button>
                     <div
                       class="toolbar mt"><button type="button" class="linklike" onClick=${() =>
                         setMode('signin')}>Back to sign in</button></div>
@@ -110,7 +110,7 @@ export default function SignIn() {
       setForm({ ...form, [k]: v });
     const domains = signupOpen?.domains || [];
     return html`
-      <${AuthCard} title="Ask for an account" guide="signup"
+      <${AuthCard} title="Ask for an Account" guide="signup"
         sub="An admin approves each request. First, confirm your email from the link we send.">
         ${sent
           ? html`
@@ -168,7 +168,7 @@ export default function SignIn() {
                           width: '100%',
                           justifyContent: 'center',
                         }}
-                          disabled=${signUp.busy}>Ask for an account</button>
+                          disabled=${signUp.busy}>Ask for an Account</button>
                         </form>
           `}
         <div class="toolbar mt"><button type="button" class="linklike" onClick=${() => {
@@ -181,7 +181,7 @@ export default function SignIn() {
 
   if (mode === 'code') {
     return html`
-      <${AuthCard} title="Two-step sign-in" guide="signin"
+      <${AuthCard} title="Two-Step Sign-In" guide="signin"
         sub=${recovery
           ? 'Type one of your recovery codes. Each works once.'
           : 'Type the six-digit code your authenticator app shows for MoolaKata.'}>
@@ -199,7 +199,7 @@ export default function SignIn() {
             </${Field}>
             <${FormError} error=${second.error} shown=${['code']} />
             <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-              disabled=${second.busy}>Sign in</button>
+              disabled=${second.busy}>Sign In</button>
             </form>
             <div
               class="toolbar mt"><button type="button" class="linklike" onClick=${() => {
@@ -219,7 +219,7 @@ export default function SignIn() {
 
   if (mode === 'disabled') {
     return html`
-      <${AuthCard} title="This account is disabled" guide="signin"
+      <${AuthCard} title="This Account Is Disabled" guide="signin"
         sub="An admin switched it off. You can ask them to make it active again, once a week.">
             ${sent
               ? html`<div class="notice" role="status">If that is a disabled account here, the admins will
@@ -242,7 +242,7 @@ export default function SignIn() {
                         width: '100%',
                         justifyContent: 'center',
                       }}
-                        disabled=${reactivate.busy}>Ask to be made active again</button>
+                        disabled=${reactivate.busy}>Ask to Be Made Active Again</button>
                       </form>
               `}
             <div class="toolbar mt"><button type="button" class="linklike" onClick=${() => {
@@ -254,7 +254,7 @@ export default function SignIn() {
   }
 
   return html`
-    <${AuthCard} title="Sign in" guide="signin"
+    <${AuthCard} title="Sign In" guide="signin"
       sub=${(lostChanges.value ? "Changes you hadn't saved were lost. " : '') +
         (ended.value === 'expired'
           ? 'Your session ended. Sign in again.'
@@ -272,7 +272,7 @@ export default function SignIn() {
             </${Field}>
             <${FormError} error=${signIn.error} shown=${['login']} />
             <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-              disabled=${signIn.busy}>Sign in</button>
+              disabled=${signIn.busy}>Sign In</button>
             </form>
             <div
               class="toolbar mt"><button type="button" class="linklike" onClick=${() => {

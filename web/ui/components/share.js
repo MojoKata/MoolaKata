@@ -209,7 +209,7 @@ export function ShareDialog({ close, kind, id, name }) {
                         <div class="toolbar mt" style=${{ marginBottom: 0 }}>${pending.length
                           ? html`
                             <button type="button" class="btn sm primary" onClick=${accountsToo}
-                            >Share these accounts too</button>
+                            >Share These Accounts Too</button>
                             <span class="small dim">at Read, only accounts you own</span>
                           `
                           : html`<span class="small dim">Shared at Read when you save.</span>`}</div></div>

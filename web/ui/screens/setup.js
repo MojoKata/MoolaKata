@@ -31,7 +31,7 @@ export default function Setup() {
     );
   });
   return html`
-    <${AuthCard} title="Set up the admin account" guide="setup"
+    <${AuthCard} title="Set Up the Admin Account" guide="setup"
       sub=${first
         ? html`
           The key is made and MoolaKata is open. Now your account: you'll sign in as <b
@@ -66,7 +66,7 @@ export default function Setup() {
                 </${Field}>
                 <${FormError} error=${save.error} shown=${['email', 'password']} />
                 <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
-                  disabled=${save.busy}>Save and continue</button>
+                  disabled=${save.busy}>Save and Continue</button>
                 </form>
                 </${AuthCard}>
   `;

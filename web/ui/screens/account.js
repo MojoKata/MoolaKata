@@ -212,7 +212,7 @@ function Holdings({ a }) {
       why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(OptionTrade, { accountId: a.id }).then((x) =>
           x && res.reload()
-        )}>Record an option trade</${Action}></div>
+        )}>Record an Option Trade</${Action}></div>
   `;
   if (!h.holdings.length) {
     return html`${trade}<${Empty}>Nothing held yet</${Empty}>`;
@@ -230,7 +230,7 @@ function Holdings({ a }) {
               <th class="num">Quantity</th>
               <th class="num">Price</th>
               <th class="num">Value</th>
-              <th class="num">Cost basis</th>
+              <th class="num">Cost Basis</th>
               <th class="num">Gain</th>
             </tr>
           </thead>
@@ -279,7 +279,7 @@ function Holdings({ a }) {
                           <tr>
                             <th>Acquired</th>
                             <th class="num">Quantity</th>
-                            <th class="num">Cost basis</th>
+                            <th class="num">Cost Basis</th>
                             <th>Term</th>
                           </tr>
                         </thead>
@@ -436,7 +436,7 @@ function Reconcile({ a, all, reload }) {
             <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
               openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                 again,
-              )}>Import a file</${Action}></div>
+              )}>Import a File</${Action}></div>
         `
       )}
       ${v.overlaps.map((/** @type {string[]} */ o) =>
@@ -463,19 +463,19 @@ function Reconcile({ a, all, reload }) {
                 again,
               )}>Import</${Action}>
             <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
-              openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's
-              balance</${Action}>
+              openDialog(TypeBalance, { a }).then((x) => x && again())}>Type Today's
+              Balance</${Action}>
           `}>Statement overdue</${Attention}></div>
       `
       : null}
     <div class="card mt">
-      <h3>Balance checks<span class="spacer"></span>
+      <h3>Balance Checks<span class="spacer"></span>
       <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
-        openDialog(TypeBalance, { a }).then((x) => x && again())}>Type today's balance</${Action}>
+        openDialog(TypeBalance, { a }).then((x) => x && again())}>Type Today's Balance</${Action}>
       <${Action} class="btn sm" why=${whyNotAdd('Anchr', a)} onClick=${() =>
         openDialog(TickOff, { a }).then((x) =>
           x && again()
-        )}>Tick off against a statement</${Action}>
+        )}>Tick Off against a Statement</${Action}>
     </h3>
       ${v.checks.length
         ? html`
@@ -527,7 +527,7 @@ function Reconcile({ a, all, reload }) {
     ${bad ? html`<${Mismatch} a=${a} check=${bad} all=${all} again=${again} />` : null}
     <${StatementChecks} v=${v} />
     ${v.reconciliations.length
-      ? html`<div class="card mt"><h3>Statements ticked off</h3>${
+      ? html`<div class="card mt"><h3>Statements Ticked Off</h3>${
         v.reconciliations.map((/** @type {any} */ r) =>
           html`
             <div
@@ -568,7 +568,7 @@ function Mismatch({ a, check, all, again }) {
               <div class="grow"><b>Possible duplicate</b>: ${ids
                 .length} identical rows on one day.</div>
               <${Action} class="btn sm" why=${whyRead(a)} onClick=${() =>
-                both.run(ids[0])}>Both are real</${Action}>
+                both.run(ids[0])}>Both Are Real</${Action}>
                   <a class="btn sm" href=${`/ui/accounts/${a.id}/transactions`}>Remove one</a></div>
           `
         )}
@@ -595,7 +595,7 @@ function Mismatch({ a, check, all, again }) {
               <${Action} class="btn sm" why=${whyNotAdd('Txn', a)} onClick=${() =>
                 openDialog(ImportDialog, { accounts: all, accountId: a.id }).then(
                   again,
-                )}>Import a file</${Action}></div>
+                )}>Import a File</${Action}></div>
           `
         )}
         ${s.firstParting
@@ -611,7 +611,7 @@ function Mismatch({ a, check, all, again }) {
           why=${whyNotAdd('Txn', a)} onClick=${() =>
             openDialog(Adjust, { a, check }).then((x) =>
               x && again()
-            )}>Accept as an adjustment…</${Action}></div>
+            )}>Accept as an Adjustment…</${Action}></div>
       </div>
   `;
 }
@@ -632,7 +632,7 @@ function TypeBalance({ close, a }) {
   }, [a.id]);
   const rec = /** @type {AnchorRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Type today's balance" close=${close} what="This balance"
+    <${DraftDialog} f=${f} title="Type Today's Balance" close=${close} what="This balance"
       label="Check" done="Balance recorded and checked">
       <p class="small dim" style=${{ marginTop: 0 }}>Copy the balance from ${a.institution ||
         'the institution'}'s site or app.
@@ -664,8 +664,8 @@ function Adjust({ close, a, check }) {
   }, [a.id, check.date]);
   const rec = /** @type {Txn | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title="Accept as a balance adjustment" close=${close}
-      what="This adjustment" label="Record the adjustment"
+    <${DraftDialog} f=${f} title="Accept as a Balance Adjustment" close=${close}
+      what="This adjustment" label="Record the Adjustment"
       done="Recorded as a balance adjustment">
       <p class="small dim"
         style=${{ marginTop: 0 }}>A transaction of <${Amt} v=${check
@@ -721,11 +721,11 @@ function TickOff({ close, a }) {
   const rows =
     /** @type {any} */ (txns.data)?.items?.filter((/** @type {any} */ t) => !t.reconciled) || [];
   return html`
-    <${Dialog} title="Tick off against a statement" wide close=${close}
+    <${Dialog} title="Tick Off against a Statement" wide close=${close}
       onSubmit=${() => (rec ? finish.run().catch(() => {}) : start.run().catch(() => {}))}
       footer=${html`<button class="btn primary" disabled=${
         start.busy || finish.busy || (rec && !dec(rec.difference).isZero())
-      }>${rec ? 'Mark reconciled' : 'Start'}</button>`}>
+      }>${rec ? 'Mark Reconciled' : 'Start'}</button>`}>
       <div class="row">
         <${Field} label="Statement closing date" id="statement-date">
           <${TypedInput} kind="date" value=${day} onInput=${setDay}
@@ -800,7 +800,7 @@ function Sharing({ a, reload }) {
   if (!a.access.shareable) {
     return html`
       <div class="card">
-        <h3>Shared with you</h3>
+        <h3>Shared with You</h3>
         <div class="list-item">
           <div class="grow">
             ${a.ownerName} shares this account with you at <b>${a.access.writable
@@ -830,7 +830,7 @@ function Sharing({ a, reload }) {
     : [];
   return html`
     <div
-      class="card"><h3>Who has this account<span class="spacer"></span><button type="button" class="btn sm"
+      class="card"><h3>Who Has This Account<span class="spacer"></span><button type="button" class="btn sm"
         onClick=${() =>
           openDialog(ShareDialog, { kind: 'account', id: a.id, name: a.name }).then(() => {
             res.reload();
@@ -885,7 +885,7 @@ function Settings({ a, reload }) {
     if (a.access.mine) return null;
     return html`
       <div class="card content-narrow">
-        <h3>Your view of it</h3>
+        <h3>Your View of It</h3>
         <${SwitchRow} label="Count in my totals"
           hint="Off by default: a shared account counts in your net worth only if you say so."
           on=${a.counted} onChange=${(/** @type {boolean} */ v) => counted.run(v)} />
@@ -931,7 +931,7 @@ function Settings({ a, reload }) {
                 toast(`${a.name} deleted`);
                 route('/ui/accounts');
               } else if (r?.status !== 'asks') f.draft.unremove(rec);
-            }}>Delete account…</button>
+            }}>Delete Account…</button>
         `}>
       ${rec
         ? html`
@@ -977,7 +977,7 @@ function Settings({ a, reload }) {
               : physical
               ? html`
                 <div class="card">
-                  <h3>Keeping it current</h3>
+                  <h3>Keeping It Current</h3>
                   <p class="small dim">Its value is its items': add them, and their valuations,
                     on the Items tab.</p>
                 </div>
@@ -987,14 +987,14 @@ function Settings({ a, reload }) {
                 <div class="grid" style=${{ alignContent: 'start' }}>
                   <${PlanCard} rec=${plan} />
                   <div class="card">
-                    <h3>Keeping it current</h3>
+                    <h3>Keeping It Current</h3>
                     ${keeping(rec)}
                   </div>
                 </div>
               `
               : html`
                 <div class="card">
-                  <h3>Keeping it current</h3>
+                  <h3>Keeping It Current</h3>
                   ${keeping(rec)}
                   ${education
                     ? null
@@ -1074,7 +1074,7 @@ function StatementChecks({ v }) {
       ${v.valueChecks.length
         ? html`
           <div
-            class="card"><h3 data-help="value-checks">Statement values</h3>${v.valueChecks
+            class="card"><h3 data-help="value-checks">Statement Values</h3>${v.valueChecks
               .slice(-6)
               .reverse()
               .map((/** @type {any} */ c) =>
@@ -1150,9 +1150,9 @@ function TransferPairs({ a, reload }) {
               x.toDate,
             )}: one transfer? <button type="button" class="btn sm primary" disabled=${act.busy}
               onClick=${() =>
-                act.run(x, true).catch(() => {})}>Match them</button> <button type="button"
+                act.run(x, true).catch(() => {})}>Match Them</button> <button type="button"
               class="btn sm" disabled=${act.busy} onClick=${() =>
-                act.run(x, false).catch(() => {})}>Not a transfer</button></div>
+                act.run(x, false).catch(() => {})}>Not a Transfer</button></div>
         </div>
       `
     )

@@ -16,9 +16,9 @@ overpayment.
 The bank account it came from: its half of the transfer is recorded as well, or, when that account
 already holds the payment (imported first), paired with it rather than recorded again. **None**
 records it on the loan only: for a payment from an account MoolaKata doesn't hold, or one already
-in a bank account, which **Looks like a payment** then offers to pair.
+in a bank account, which **Looks like a Payment** then offers to pair.
 
-## Show the split
+## Show the Split
 
 How the schedule splits this amount on this day.
 

@@ -104,7 +104,7 @@ export default function Taxes({ tab }) {
         }).catch((/** @type {any} */ e) => toast(e.message || 'Not accepted'))}>Accept</button>
         <button class="btn sm" onClick=${async () => {
         const sure = await confirmAction({
-          title: `Decline the ${r.label} tax book?`,
+          title: `Decline the ${r.label} Tax Book?`,
           detail: 'You are taken off it; its owner is told. Your own book for the year is ' +
             'yours to make.',
         });
@@ -124,7 +124,7 @@ export default function Taxes({ tab }) {
             </${Field}>
         `
         : null}<span class="spacer"></span>
-      <button class="btn" onClick=${create}><${Icon} name="plus" /> New tax book</button>
+      <button class="btn" onClick=${create}><${Icon} name="plus" /> New Tax Book</button>
       ${chosen
         ? html`<${Action} why=${whyNot(chosen, 'shareable')} onClick=${() =>
           openDialog(ShareDialog, {
@@ -138,7 +138,7 @@ export default function Taxes({ tab }) {
       ? html`<${Book} key=${chosen.id} id=${chosen.id} tab=${current} />`
       : html`<${Empty} action=${html`
         <button class="btn primary"
-          onClick=${create}><${Icon} name="plus" /> New tax book</button>
+          onClick=${create}><${Icon} name="plus" /> New Tax Book</button>
       `}>No tax book yet</${Empty}>`}
   `;
 }
@@ -202,7 +202,7 @@ function Summary({ b, done }) {
           : 'one filer'}</div>
       </div>
       <div class="card kpi">
-        <div class="label">Accounts counted</div>
+        <div class="label">Accounts Counted</div>
         <div class="value">${b
           .accounts.length}</div>
         <div class="delta dim">${b.leftOut.length
@@ -225,7 +225,7 @@ function Summary({ b, done }) {
       </div>
     </div>
     <div class="grid g2 mt">
-      <div class="card"><h3 data-help="accounts-counted">Accounts counted</h3>${b.accounts.map((
+      <div class="card"><h3 data-help="accounts-counted">Accounts Counted</h3>${b.accounts.map((
         /** @type {any} */ a,
       ) =>
         html`
@@ -234,17 +234,17 @@ function Summary({ b, done }) {
             <div class="grow">${a.name}<div class="small dim">${a
               .ownerName}</div></div>
             <${Action} class="btn sm" why=${whyNot(b, 'configurable')}
-              onClick=${() => count.run(a, false).catch(() => {})}>Leave out</${Action}></div>
+              onClick=${() => count.run(a, false).catch(() => {})}>Leave Out</${Action}></div>
         `
       )}
         ${b.leftOut.length
           ? html`
-            <h4 style=${{ margin: '12px 0 6px' }}>Left out</h4>${b.leftOut.map((
+            <h4 style=${{ margin: '12px 0 6px' }}>Left Out</h4>${b.leftOut.map((
               /** @type {any} */ a,
             ) =>
               html`<div class="list-item"><span class="grow dim">${a.name}</span><${Action}
                 class="btn sm" why=${whyRead(b)} onClick=${() =>
-                count.run(a, null).catch(() => {})}>Count it</${Action}></div>`
+                count.run(a, null).catch(() => {})}>Count It</${Action}></div>`
             )}<p
               class="small dim">The panels leave these out, and say so.</p>
           `
@@ -253,7 +253,7 @@ function Summary({ b, done }) {
           ? html`
             <div class="mt">
               <${Action} class="btn sm" why=${whyNotAdd('TxBkA', b)}>Add an
-                        account</${Action}></div>
+                        Account</${Action}></div>
           `
           : b.addable.length
           ? html`
@@ -277,7 +277,7 @@ function Summary({ b, done }) {
           : null}
       </div>
       <div
-        class="card"><h3 data-help="from-last-year">From last year</h3>${b.lastYear.map((
+        class="card"><h3 data-help="from-last-year">From Last Year</h3>${b.lastYear.map((
           /** @type {any} */ l,
         ) =>
           html`<h4 style=${{ margin: '8px 0 4px' }}>${l.filing}<span class="small dim"
@@ -349,7 +349,7 @@ function Dependents({ b, done }) {
       class="card mt">
       <h3 data-help="dependents">Dependents<span class="spacer"></span><${Action}
         class="btn sm" why=${whyRead(b)} onClick=${() => open(null)}><${Icon} name="plus" /> Add
-        dependent</${Action}></h3>
+        Dependent</${Action}></h3>
       ${b.dependents.length
         ? b.dependents.map((/** @type {any} */ d) =>
           html`
@@ -430,7 +430,7 @@ function DependentDialog({ close, b, d, fromRow }) {
     rec?.set('accountIds', on ? [...ids, id] : ids.filter((x) => x !== id));
   return html`
     <${DraftDialog} f=${f} close=${close} what="This dependent" row=${fromRow ? DEPENDENT_ROW : []}
-      title=${d ? d.name : 'Add a dependent'}
+      title=${d ? d.name : 'Add a Dependent'}
       label=${d ? 'Save' : 'Add'} done=${rec?.removed
         ? 'Dependent removed'
         : d
@@ -443,7 +443,7 @@ function DependentDialog({ close, b, d, fromRow }) {
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
-                  title: 'Remove this dependent?',
+                  title: 'Remove This Dependent?',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);
@@ -522,7 +522,7 @@ function Filings({ b, done }) {
     <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
       of its own.</span><span class="spacer"></span><${Action} class="btn sm"
         why=${whyNotAdd('Filng', b)} onClick=${() => open(null)}><${Icon} name="plus" /> Add a
-        filing</${Action}></div>
+        Filing</${Action}></div>
     ${b.filings.length
       ? b.filings.map((/** @type {any} */ f) =>
         html`
@@ -583,7 +583,7 @@ function Documents({ b, done }) {
     <div
       class="toolbar"><h3 style=${{ margin: 0 }}>Received</h3><span class="spacer"></span><${Action}
         class="btn sm" why=${whyRead(b)} onClick=${() => add(null)}><${Icon} name="plus" /> Add a
-        document</${Action}></div>
+        Document</${Action}></div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
         <table class="t">
@@ -592,7 +592,7 @@ function Documents({ b, done }) {
             <tr>
               <th>Document</th>
               <th>From</th>
-              <th>Why expected</th>
+              <th>Why Expected</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -671,7 +671,7 @@ function Documents({ b, done }) {
           add({
             direction: 'filed',
             filingId: b.filings[0].id,
-          })}><${Icon} name="plus" /> Add a filed document</${Action}></div>
+          })}><${Icon} name="plus" /> Add a Filed Document</${Action}></div>
     ${filed.length
       ? html`<div class="card" style=${{ padding: '4px 8px' }}>${
         filed.map((/** @type {any} */ d) =>
@@ -718,8 +718,8 @@ function CarryoverShare({ b, done }) {
   }, [b.id, b.version]);
   const rec = /** @type {BookRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <h4 style=${{ margin: '12px 0 4px' }} data-help="carryover-share">Your share of the joint
-      carryover</h4>
+    <h4 style=${{ margin: '12px 0 4px' }} data-help="carryover-share">Your Share of the Joint
+      Carryover</h4>
     <p class="small dim" style=${{ marginTop: 0 }}>Splitting a joint return's carryover between
       its filers is yours to decide. None counts in the Summary until it is typed.</p>
     <${DraftForm} f=${f} what="Your share" saved=${() => {
@@ -768,7 +768,7 @@ function NewBook({ close, rows }) {
   const joint = !!spouse && (rec?.get('filers') || []).includes(spouse.id);
   const has = rows.some((r) => r.year === (rec?.get('year') ?? 0) - 1);
   return html`
-    <${DraftDialog} f=${f} title="New tax book" close=${close} what="This tax book"
+    <${DraftDialog} f=${f} title="New Tax Book" close=${close} what="This tax book"
       label="Create" saved=${(/** @type {any} */ o) => {
         const out = o.saved[0].record;
         toast(
@@ -918,7 +918,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
   const carried = rec?.get('carried') || {};
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This filing" row=${fromRow ? FILING_ROW : []}
-      title=${filing ? `${filing.label} · ${b.year}` : 'Add a filing'}
+      title=${filing ? `${filing.label} · ${b.year}` : 'Add a Filing'}
       done=${rec?.removed ? 'Filing deleted' : 'Filing saved'} saveWhy=${whyRead(b)}
       read=${!can}
       extra=${({ save }) =>
@@ -927,7 +927,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
             <${Action} class="btn danger" why=${whyRead(b)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !draft) return;
-                if (!(await confirmAction({ title: 'Delete this filing?' }))) return;
+                if (!(await confirmAction({ title: 'Delete This Filing?' }))) return;
                 draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'asks' && r?.status !== 'saved') draft.unremove(rec);
@@ -1013,7 +1013,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
                 draft?.add(PaymentRec, {
                   filingId: rec.id,
                   quarter: Math.min(4, payments.length + 1),
-                })}><${Icon} name="plus" /> Add a payment</${Action}></div>
+                })}><${Icon} name="plus" /> Add a Payment</${Action}></div>
           ${payments.map((p, i) =>
             html`
               <div class="row" key=${p.key}>
@@ -1039,8 +1039,8 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
                           </div>
             `
           )}
-          <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried forward to
-            next year</h4>
+          <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried Forward to
+            Next Year</h4>
           <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
             year's tax book shows them under <b>From last year</b>.</p>
           <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
@@ -1127,7 +1127,7 @@ function DocumentDialog({ close, b, start, doc, fromRow }) {
   const filed = rec?.get('direction') === 'filed';
   return html`
     <${DraftDialog} f=${f} close=${close} what="This document" row=${fromRow ? DOCUMENT_ROW : []}
-      title=${doc ? doc.form : filed ? 'Add a filed document' : 'Add a tax document'}
+      title=${doc ? doc.form : filed ? 'Add a Filed Document' : 'Add a Tax Document'}
       label=${doc ? 'Save' : 'Add'}
       done=${rec?.removed ? 'Document removed' : doc ? 'Document saved' : 'Document kept'}
       read=${whyRead(b) || false}
@@ -1138,7 +1138,7 @@ function DocumentDialog({ close, b, start, doc, fromRow }) {
               onClick=${async () => {
                 if (!rec || !f.draft) return;
                 const sure = await confirmAction({
-                  title: 'Remove this document?',
+                  title: 'Remove This Document?',
                 });
                 if (!sure) return;
                 f.draft.remove(rec);

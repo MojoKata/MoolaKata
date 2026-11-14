@@ -410,7 +410,7 @@ def test_two_step_sign_in_through_the_app(page):
     again.wait_for_selector("text=Two-step sign-in")
     again.get_by_role("button", name="Use a recovery code").click()
     again.fill("#f-recovery-code", codes[3])
-    again.get_by_role("button", name="Sign in", exact=True).click()
+    again.get_by_role("button", name="Sign In", exact=True).click()
     again.wait_for_selector(".side")
     assert again.problems == []
     again.context.close()
@@ -475,7 +475,7 @@ def test_sign_up_through_the_app(page):
     guest.goto(page.base + "/ui/signin")
     guest.fill("#f-username-or-email", "erin")
     guest.fill("#f-password", "a long passphrase for erin")
-    guest.get_by_role("button", name="Sign in", exact=True).click()
+    guest.get_by_role("button", name="Sign In", exact=True).click()
     guest.wait_for_selector(".side")
     ctx.close()
 

@@ -15,7 +15,7 @@ no weight.
 A loan's row is what is still owed on it, which counts against the total; an item's, what it is
 worth, from its valuations, spot or depreciation.
 
-## Cost basis
+## Cost Basis
 
 What you paid for what you hold, fees included.
 

@@ -19,7 +19,7 @@ enters the phrase on the locked screen or with `moolakata keys unlock` on the ho
 The master key written as 12 words. The welcome showed it once, when the server was new, and
 nothing shows it again: without it nothing here, no backup, and no restart of the server opens.
 
-## Verify key
+## Verify Key
 
 Type the 12 words from one of your copies: MoolaKata checks that they open this server's key,
 changes nothing, and records the check. Do it once a year for each copy, and whenever you make a
@@ -61,7 +61,7 @@ reminder. It asks for your password and the current phrase, or a break-glass cod
 when the phrase is lost, then shows the new phrase and takes three of its words back. MoolaKata
 restarts, and the unlock with the new phrase re-encrypts everything before it serves.
 
-## Re-encrypt now
+## Re-encrypt Now
 
 A new data key for the database, the receipt files and every secret, the phrase unchanged. It
 never runs while the server serves: MoolaKata restarts at once, locked, and the unlock runs it

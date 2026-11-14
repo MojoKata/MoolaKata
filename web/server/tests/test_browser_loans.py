@@ -170,7 +170,7 @@ def test_an_empty_plan_shows_the_schedule(browser, household, new_loan):
     assert month(r["plan"]["payoffDate"]) == month(r["schedule"]["payoffDate"])
     card = page.locator(RESULTS)
     assert card.locator(".legend").inner_text().split() == ["Schedule", "With", "your", "plan"]
-    assert flat(page.locator(SAVED).inner_text()).startswith("Saved plans No saved plans")
+    assert flat(page.locator(SAVED).inner_text()).startswith("Saved Plans No saved plans")
     # The plan's schedule, shown and hidden again: no extra on any row.
     page.get_by_role("button", name="Show the plan’s schedule").click()
     wait(page, PLAN_ROWS, problems)
@@ -809,7 +809,7 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     facts = '.card.facts:has(h3:has-text("Loan"))'
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", facts)
     row = page.locator(f'{facts} .list-item:has-text("Servicer\'s balance")')
-    assert flat(row.inner_text()) == "Servicer's balance not typed Type it"
+    assert flat(row.inner_text()) == "Servicer's balance not typed Type It"
     row.get_by_role("button", name="Type it").click()
     wait(page, ".dialog #f-owed", problems)
     dialog = page.locator(".dialog")

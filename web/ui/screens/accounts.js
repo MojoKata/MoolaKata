@@ -88,12 +88,12 @@ export default function Accounts() {
         onClick=${() =>
           openDialog(ImportDialog, { accounts: all })}><${Icon} name="upload" /> Import</${Action}>
       <button type="button" class="btn primary" onClick=${() => openDialog(NewAccount)}><${Icon}
-        name="plus" /> New account</button></div>
+        name="plus" /> New Account</button></div>
     ${!list.length
       ? html`<${Empty} action=${
         all.length ? null : html`
           <button type="button" class="btn primary"
-            onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New account</button>
+            onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New Account</button>
         `
       }>${all.length ? 'No accounts match this filter' : 'No accounts yet'}</${Empty}>`
       : null}
@@ -171,7 +171,7 @@ function LinkedHouseholds() {
   const res = useList('/linked', {}, ['share', 'links']);
   const rows = /** @type {any[]} */ (res.data) || [];
   if (!rows.length) return null;
-  return html`<section class="card mt" data-help="linked-households"><h3>Linked households</h3>
+  return html`<section class="card mt" data-help="linked-households"><h3>Linked Households</h3>
     <p class="small dim" style=${{ marginTop: '-6px' }}>What other households share with you
       opens in a window of its own, never mixed with yours.</p>
     ${

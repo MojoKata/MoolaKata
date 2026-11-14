@@ -183,7 +183,7 @@ export function ImportDialog({ close, accounts, accountId }) {
     const set = (/** @type {string} */ k) => (/** @type {string} */ v) =>
       setMapping({ ...mapping, mapping: { ...m, [k]: v || null } });
     return html`
-      <${Dialog} title="Which columns are which?" wide close=${close}
+      <${Dialog} title="Which Columns Are Which?" wide close=${close}
         onSubmit=${applyMapping} note="Saved for the next file from this institution."
         footer=${html`<button class="btn primary" disabled=${busy}>Import</button>`}>
         <p class="small dim" style=${{
@@ -239,7 +239,7 @@ export function ImportDialog({ close, accounts, accountId }) {
     ? error
     : null;
   return html`
-    <${Dialog} title=${keeping ? 'Keep a statement' : 'Import transactions'} close=${close}
+    <${Dialog} title=${keeping ? 'Keep a Statement' : 'Import Transactions'} close=${close}
       onSubmit=${start}
       note=${keeping
         ? 'Kept on the account as it is, named by its period. Its lines aren’t read.'
@@ -276,7 +276,7 @@ export function ImportDialog({ close, accounts, accountId }) {
                   periodEnd: empty.periodEnd,
                   read: true,
                   accountId: target,
-                })}>Keep it without reading</button></div>
+                })}>Keep It without Reading</button></div>
             </div>
           `
           : html`<${FormError} error=${error} />`}
@@ -322,8 +322,8 @@ function KeepReview({ kept, close }) {
     }
   };
   return html`
-    <${Dialog} title="Keep the statement" close=${close} onSubmit=${save}
-      footer=${html`<button class="btn primary" disabled=${busy}>Keep it</button>`}>
+    <${Dialog} title="Keep the Statement" close=${close} onSubmit=${save}
+      footer=${html`<button class="btn primary" disabled=${busy}>Keep It</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>${kept.fileName}${kept.institution
         ? ` · ${kept.institution}`
         : ''}</p>
@@ -519,7 +519,7 @@ function StatementReview({ review, setReview, close, done, part = null }) {
   return html`
     <${Dialog} title=${part
       ? `Part ${part.index + 1} of ${part.total}: account ending ${part.last4}`
-      : 'Check the statement'} wide close=${close} onSubmit=${() => save(false)}
+      : 'Check the Statement'} wide close=${close} onSubmit=${() => save(false)}
       note=${review.learned
         ? `Read with what was learned of ${review.institution || 'this institution'}'s statements.`
         : 'What you correct here is remembered for the next statement from this institution.'}
@@ -527,7 +527,7 @@ function StatementReview({ review, setReview, close, done, part = null }) {
         part
           ? html`
             <button type="button" class="btn" disabled=${busy}
-              onClick=${() => save(true)}>Leave this part out</button><span class="spacer"></span>
+              onClick=${() => save(true)}>Leave This Part Out</button><span class="spacer"></span>
           `
           : null
       }<button class="btn primary" disabled=${
@@ -709,12 +709,12 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
     sm[k] != null && read[k] != null && cents(sm[k]) !== cents(read[k])
   );
   return html`
-    <${Dialog} title="Check the statement" wide close=${close} onSubmit=${save}
+    <${Dialog} title="Check the Statement" wide close=${close} onSubmit=${save}
       note=${`What you ask to ignore is remembered for the next statement from ${
         review.institution || 'this institution'
       }.`}
       footer=${html`<button class="btn primary" disabled=${busy}>${
-        busy ? 'Saving…' : review.snapshot ? 'Save the holdings' : 'Save the anchor and check'
+        busy ? 'Saving…' : review.snapshot ? 'Save the Holdings' : 'Save the Anchor and Check'
       }</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>${review
         .fileName} · read from its text layer${review.institution
@@ -738,7 +738,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
       )}</h4>
       <div class="table-wrap"><table class="t">
         <thead><tr><th>Holding</th><th class="num">Statement</th><th class="num">MoolaKata</th><th
-          class="num">Market value</th><th></th></tr></thead>
+          class="num">Market Value</th><th></th></tr></thead>
         <tbody>${review.positions.map((/** @type {any} */ p) =>
           html`
             <tr>
@@ -769,7 +769,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           `
         )}</tbody>
       </table></div>
-      <h4 style=${{ margin: '12px 0 8px' }} data-help="cash-activity">Cash activity</h4>
+      <h4 style=${{ margin: '12px 0 8px' }} data-help="cash-activity">Cash Activity</h4>
       <div class="table-wrap"><table class="t">
         <thead><tr><th></th><th>Date</th><th>Description</th><th class="num">Amount</th><th
           ></th></tr></thead>

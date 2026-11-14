@@ -125,7 +125,7 @@ export function StorageSection() {
             count(
               v.expired.files,
             )
-          } files (${size(v.expired.bytes)})</button>`
+          } Files (${size(v.expired.bytes)})</button>`
           : null}</h3>
         <p class="small dim" style=${{ marginTop: '-6px' }}>Records are never removed. Receipt and
           statement files are kept as long as their category says, counted from when their record
@@ -146,7 +146,7 @@ export function StorageSection() {
           </${Field}>
           </${DraftForm}>
           <div
-            class="card"><h3 data-help="files">Receipt and statement files</h3><${Ring} parts=${[
+            class="card"><h3 data-help="files">Receipt and Statement Files</h3><${Ring} parts=${[
               {
                 name: 'Expired, can be pruned',
                 value: v.expired.bytes,
@@ -179,7 +179,7 @@ export function StorageSection() {
               : null}${v.pruned
               ? html`<p class="small dim">${count(v.pruned)} files pruned before.</p>`
               : null}</div>
-          <div class="card"><h3 data-help="what-expires-each-year">What expires each year</h3><p
+          <div class="card"><h3 data-help="what-expires-each-year">What Expires Each Year</h3><p
         class="small dim" style=${{ marginTop: '-6px' }}>By category, from the periods set now.
         Change a category's period and these move.</p>${v.byYear.length
           ? html`<${YearBars} years=${v.byYear} />`
@@ -205,7 +205,7 @@ function CategoryPeriods({ reload }) {
   const parent = (/** @type {any} */ c) => list.find((x) => x.id === c.parentId);
   return html`
     <div class="card">
-      <h3 data-help="keep-receipts-for">Keep receipts for</h3>
+      <h3 data-help="keep-receipts-for">Keep Receipts For</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Years after the record a receipt is
         attached to ended. A subcategory without its own takes its parent's.</p>
       <div class="table-wrap">
@@ -296,7 +296,7 @@ function PruneDialog({ close, v }) {
   const toggle = (/** @type {string} */ k) =>
     setTicked(ticked.includes(k) ? ticked.filter((x) => x !== k) : [...ticked, k]);
   return html`
-    <${Dialog} title=${`Prune ${count(files)} files`} close=${close}
+    <${Dialog} title=${`Prune ${count(files)} Files`} close=${close}
       onSubmit=${() => run.run().catch(() => {})}
       footer=${html`<button class="btn danger" disabled=${run.busy || !files}>Prune</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>These files have passed their retention. Their

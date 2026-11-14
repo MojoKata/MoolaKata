@@ -46,13 +46,13 @@ export default function NewServer({ refresh }) {
           offline, is the rule.</p>
         <${FormError} error=${show.error} />
         <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
-          onClick=${() => show.run().catch(() => {})}>Show my recovery phrase</button>
+          onClick=${() => show.run().catch(() => {})}>Show My Recovery Phrase</button>
         </${AuthCard}>
     `;
   }
   if (step === 'phrase') {
     return html`
-      <${AuthCard} title="Your recovery phrase" guide="new-server"
+      <${AuthCard} title="Your Recovery Phrase" guide="new-server"
         sub="Write these 12 words on paper, in order. They're shown here once.">
         <ol class="phrase" aria-label="The recovery phrase">${offer.words.map((
           /** @type {string} */ w,
@@ -65,13 +65,13 @@ export default function NewServer({ refresh }) {
           shows other words: only the ones you confirm next become the key.</div>
         </div>
         <button type="button" class="btn primary mt" style=${WIDE}
-          onClick=${() => setStep('check')}>I've written them down</button>
+          onClick=${() => setStep('check')}>I've Written Them Down</button>
         </${AuthCard}>
     `;
   }
   const gone = /** @type {any} */ (make.error)?.code === 'phrase-gone';
   return html`
-    <${AuthCard} title="Check what you wrote" guide="new-server"
+    <${AuthCard} title="Check What You Wrote" guide="new-server"
       sub="Type three of the words from your sheet.">
       <form onSubmit=${(/** @type {Event} */ e) => {
         e.preventDefault();
@@ -94,12 +94,12 @@ export default function NewServer({ refresh }) {
         ${gone
           ? html`
             <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
-              onClick=${() => show.run().catch(() => {})}>Show a new phrase</button>
+              onClick=${() => show.run().catch(() => {})}>Show a New Phrase</button>
           `
           : html`<div class="row"><button type="button" class="btn"
             onClick=${() => setStep('phrase')}>Back</button><span class="spacer"></span><button
             class="btn primary" disabled=${make.busy}>${
-            make.busy ? 'Making the key…' : 'Make the key'
+            make.busy ? 'Making the Key…' : 'Make the Key'
           }</button></div>`}
         </form>
       </${AuthCard}>

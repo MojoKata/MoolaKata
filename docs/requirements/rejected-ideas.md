@@ -9,7 +9,7 @@ reason.
    it runs. The phrase is held only during an unlock, and the data key in the server's memory
    (S15.4.3).
 2. **External key services** (HashiCorp Vault, cloud KMSs, HSMs, TPM sealing): another service
-   to run, back up and secure, for little gain over a phrase entered at each start with its
+   to run, secure and keep backups of, for little gain over a phrase entered at each start with its
    copies kept offline (S15.2).
 3. **Leaving the financial data unencrypted** and relying on disk encryption and encrypted
    backups. Backups leave the house, so the database and receipts are encrypted by MoolaKata

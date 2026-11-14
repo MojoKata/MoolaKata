@@ -40,7 +40,7 @@ ago.
 The sender emails show, such as `MoolaKata <money@example.com>`. Your provider may insist it matches
 the username.
 
-## Send a test email
+## Send a Test Email
 
 Sends one to your own address now, through the saved settings, and says what failed if it couldn't.
 

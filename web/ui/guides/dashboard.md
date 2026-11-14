@@ -4,7 +4,7 @@ Where you land after signing in: what you're worth, how it's moving, and what ne
 
 ![The Dashboard](shots/dashboard.png)
 
-## Net worth
+## Net Worth
 
 What your accounts are worth less what you owe on them: your own accounts that count in net worth,
 and accounts shared with you that you set to **Count in my totals**. The change below it is since
@@ -34,7 +34,7 @@ How far back the chart goes: a month, three months, this year, a year, five year
 
 Your accounts by group, with each group's total. A click opens Accounts.
 
-## New account
+## New Account
 
 Pick the type first: it decides the fields and the tax treatment.
 
@@ -44,7 +44,7 @@ Your active projections, and those shared with you that you chose to show: each 
 track, ahead or behind its baseline), its answer, and a small chart of the actual balance against
 the baseline.
 
-## Needs attention
+## Needs Attention
 
 Transactions to categorise, lots without a cost basis, accounts whose reported balance doesn't match
 or whose next statement is overdue, a return past its due date, a year whose realized gains changed

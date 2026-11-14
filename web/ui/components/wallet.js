@@ -115,7 +115,7 @@ export function WalletCard({ a, rec }) {
   }
   return html`
     <div class="card">
-      <h3>Keys and addresses</h3>
+      <h3>Keys and Addresses</h3>
       <${WalletFields} rec=${rec} readonly=${!owner} />
       <p class="small dim" data-help="watched">${v.watched} addresses watched, ${v.used} used${v
           .checkedAt
@@ -171,7 +171,7 @@ export function WalletCard({ a, rec }) {
       <${FormError} error=${check.error} />
       <div class="toolbar mt"><${Action} disabled=${check.busy} why=${owner
         ? v.keys.length ? null : 'Give it a key or an address first'
-        : READ_ONLY} onClick=${() => check.run().catch(() => {})}>Check now</${Action}></div>
+        : READ_ONLY} onClick=${() => check.run().catch(() => {})}>Check Now</${Action}></div>
     </div>
   `;
 }

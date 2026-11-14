@@ -18,7 +18,7 @@ The stock whose options were adjusted.
 
 The day the adjustment took effect.
 
-## New root {#new-root}
+## New Root {#new-root}
 
 The adjusted contract's root, such as _XYZ1_. It is listed under it in the underlying's chain, and
 its mark comes from there.

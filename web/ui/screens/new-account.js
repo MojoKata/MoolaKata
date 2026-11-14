@@ -38,7 +38,7 @@ export function NewAccount({ close }) {
   useDialogGuide(type ? 'dialog-account-form' : 'dialog-new-account');
   if (!type) {
     return html`
-      <${Dialog} title="New account" wide close=${close} footer=${null}>
+      <${Dialog} title="New Account" wide close=${close} footer=${null}>
         <p class="small dim" style=${{
           marginTop: 0,
         }}>Choose the type. It decides the fields, the tax
@@ -109,7 +109,7 @@ function AccountForm({ type, close, back }) {
     route(`/ui/accounts/${a.id}`);
   };
   return html`
-    <${DraftDialog} f=${d} title=${`New ${t.label} account`} close=${close} what="This account"
+    <${DraftDialog} f=${d} title=${`New ${t.label} Account`} close=${close} what="This account"
       label="Create" saved=${made}
       extra=${() => html`<button type="button" class="btn" onClick=${back}>Back</button>`}>
       ${acct

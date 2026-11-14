@@ -95,13 +95,13 @@ export default function Projections({ id }) {
           ? active.map(item)
           : html`<p class="small dim">None yet. Make a scenario active to follow it.</p>`}</div>
       <div class="card"><h3>Scenarios<span class="spacer"></span><button type="button"
-        class="btn sm" onClick=${create}><${Icon} name="plus" /> New projection</button></h3>
+        class="btn sm" onClick=${create}><${Icon} name="plus" /> New Projection</button></h3>
         ${scenarios.length ? scenarios.map(item) : html`<p class="small dim">None.</p>`}</div>
     </div>
     ${current
       ? html`<${Detail} key=${current.id} id=${current.id} reloadList=${list.reload} />`
       : html`<${Empty} action=${html`<button type="button" class="btn primary" onClick=${create}>
-          <${Icon} name="plus" /> New projection</button>`}>No projections yet</${Empty}>`}
+          <${Icon} name="plus" /> New Projection</button>`}>No projections yet</${Empty}>`}
   `;
 }
 
@@ -167,13 +167,13 @@ function Detail({ id, reloadList }) {
       ${!x.active
         ? html`
           <${Action} class="btn primary" why=${whyNot(x, 'configurable')}
-            onClick=${activate}>Make active</${Action}>
+            onClick=${activate}>Make Active</${Action}>
         `
         : html`<${Action} why=${whyNot(x, 'configurable')} onClick=${() =>
           api.post(`/projections/${x.id}/deactivate`).then(() => {
             toast('It is a scenario again');
             reload();
-          })}>Stop following</${Action}>`}
+          })}>Stop Following</${Action}>`}
     </div>
     ${x.tracking && x.tracking.status !== 'untracked'
       ? html`<${Tracking} x=${x} />`
@@ -183,8 +183,8 @@ function Detail({ id, reloadList }) {
       : null}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Projected value · ${r.scenarios && Object.keys(r.scenarios).length
-          ? 'bear, base and bull'
+        <h3>Projected Value · ${r.scenarios && Object.keys(r.scenarios).length
+          ? 'Bear, Base and Bull'
           : `Monte Carlo, ${r.runs.toLocaleString()} runs`}<span class="spacer"></span>
         <${Chips} label="Dollars" value=${real} onChange=${setReal}
           options=${[['nominal', 'Nominal'], ['real', "Today's dollars"]]} /></h3>
@@ -215,7 +215,7 @@ function Detail({ id, reloadList }) {
         ${a.kind === 'retirement'
           ? html`
             <div class="card kpi">
-              <div class="label">Chance the money lasts to ${a
+              <div class="label">Chance the Money Lasts to ${a
                 .horizonAge}</div>
               <div class=${'value ' + (num(a.chance) >= 0.9 ? 'up' : '')}>${pct(a.chance)}</div>
               <div class="delta dim">median at retirement (${a.retireYear}) ${dollars(
@@ -250,7 +250,7 @@ export function EducationAnswer({ a }) {
   const funded = Math.round(num(a.funded));
   return html`
     <div class="card kpi">
-      <div class="label">Funded for ${a.name}'s ${a.years} years of school</div>
+      <div class="label">Funded for ${a.name}'s ${a.years} Years of School</div>
       <div class=${'value ' + (funded >= 100 ? 'up' : '')}>${funded}%</div>
       <div
         class="delta dim">median ${dollars(a.atStart)} when school starts in ${a
@@ -608,7 +608,7 @@ function Rebaseline({ close, name }) {
     <${Dialog} title="Re-baseline?" close=${() => close(undefined)}
       footer=${html`
         <button type="button" class="btn" onClick=${() =>
-          close(false)}>Keep the baseline</button><button
+          close(false)}>Keep the Baseline</button><button
           type="button" class="btn primary"
           onClick=${() => close(true)}>Re-baseline</button>
       `}>
@@ -632,9 +632,9 @@ function MakeActive({ close, p }) {
     r.active && r.goal === p.goal && r.id !== p.id && r.access.mine
   );
   return html`
-    <${Dialog} title=${`Make “${p.name}” active?`} close=${close}
+    <${Dialog} title=${`Make “${p.name}” Active?`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${go.busy}>Make active</button>`}>
+      footer=${html`<button class="btn primary" disabled=${go.busy}>Make Active</button>`}>
       <p style=${{ marginTop: 0 }}>${others.length && p.goal === 'retirement'
         ? html`<b>${others[0].name}</b> stops being the active plan for the same people, if
           they are the same. Its tracking ends, and it stays as a scenario.`
@@ -692,7 +692,7 @@ function NewProjection({ close }) {
     close(out[0].record);
   });
   return html`
-    <${Dialog} title="New projection" close=${close} onSubmit=${() => save.run().catch(() => {})}
+    <${Dialog} title="New Projection" close=${close} onSubmit=${() => save.run().catch(() => {})}
       changed=${() => !!name || goal !== 'retirement' || built.kind !== 'typed' || !!child}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Create</button>`}>
       <div class="field" data-help="goal" id="x-goal"><label>Goal type</label>

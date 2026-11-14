@@ -170,7 +170,7 @@ function TransactionList() {
         setCleared((n) => n + 1);
         setTyping('');
         setPage(1);
-      }}>Clear the filters</button>
+      }}>Clear the Filters</button>
     </details>
     ${f.category === 'none' && d?.items.length
       ? html`

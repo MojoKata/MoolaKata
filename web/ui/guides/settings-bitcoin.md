@@ -51,7 +51,7 @@ Its password. Stored encrypted, never shown again: type a new one to replace it.
 ## Last checked {#checked}
 
 How many wallets there are and when they were last read. Wallets are read every hour, and each
-wallet's **Check now** reads it at once. A failure lasting longer than Settings › Alerts allows
+wallet's **Check Now** reads it at once. A failure lasting longer than Settings › Alerts allows
 alerts admins and each wallet's owner.
 
 ## Test

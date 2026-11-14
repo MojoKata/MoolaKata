@@ -62,7 +62,7 @@ export function Pager({ shown, page, total, onPage, size, newer = 0, onNewer, la
     </div>
     <span class="spacer"></span>${
     newer
-      ? html`<button type="button" class="pill new" onClick=${onNewer}>+${newer} new</button>`
+      ? html`<button type="button" class="pill new" onClick=${onNewer}>+${newer} New</button>`
       : null
   }
   </div>`;

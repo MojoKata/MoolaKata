@@ -16,7 +16,7 @@ Which budget's reserves and cards.
 Works the month's figures out again at once; they're kept once worked out, and worked out again
 on their own when anything they come from changes.
 
-## Keep as the account's own {#keep-own}
+## Keep as the Account's Own {#keep-own}
 
 A transfer into the account from the budget's accounts counts as money moved in for the reserves.
 When it's savings of the account's own instead, keep it as the account's own: it then doesn't count

@@ -40,7 +40,7 @@ export default function Dashboard() {
   return html`
     <div class="grid g4">
       <div class="card kpi" data-help="net-worth">
-        <div class="label">Net worth</div>
+        <div class="label">Net Worth</div>
         <div class="value">
           <${Amt} v=${d.netWorth} cents=${false} />
         </div>
@@ -94,13 +94,13 @@ export default function Dashboard() {
         `
         : html`
           <div class="card kpi">
-            <div class="label">Needs attention</div>
+            <div class="label">Needs Attention</div>
             <div class="value">${d.attention.length}</div>
             <div class="delta dim">${d.attention.length ? 'see below' : 'nothing right now'}</div>
           </div>
         `}
     </div>
-    <div class="card mt"><h3>Net worth<span class="spacer"></span><${Chips} label="Range"
+    <div class="card mt"><h3>Net Worth<span class="spacer"></span><${Chips} label="Range"
       value=${range} onChange=${setRange} options=${RANGES} /></h3>
       ${s
         ? html`<${TimeChart} label="Net worth over time, by account group" series=${
@@ -118,7 +118,7 @@ export default function Dashboard() {
     </div>
     <div class="grid g-main mt">
       <div class="card"><h3>Accounts<span class="spacer"></span><button type="button" class="btn sm"
-        onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New account</button></h3>
+        onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New Account</button></h3>
         ${d.groups.length
           ? d.groups.map((/** @type {any} */ g) =>
             html`<a class="list-item" href="/ui/accounts" style=${{ color: 'inherit' }}>
@@ -130,7 +130,7 @@ export default function Dashboard() {
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${Plans} />
-        <div class="card" data-help="needs-attention"><h3>Needs attention</h3>
+        <div class="card" data-help="needs-attention"><h3>Needs Attention</h3>
         ${d.attention.length
           ? d.attention.map((/** @type {any} */ a) =>
             html`

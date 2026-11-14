@@ -114,7 +114,7 @@ export function Items({ a }) {
     <div class=${'card' + (v.metals.length ? ' mt' : '')} style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>Items<span class="spacer"></span><${Action}
         class="btn sm" why=${whyNotAdd('Item', a)} onClick=${() => open(null)}><${Icon}
-        name="plus" /> Add an item</${Action}></h3>
+        name="plus" /> Add an Item</${Action}></h3>
       ${v.items.length
         ? html`
           <div class="table-wrap">
@@ -123,7 +123,7 @@ export function Items({ a }) {
               <thead>
                 <tr><th>Item</th>${metals
                   ? html`<th class="num">Fine oz</th>`
-                  : null}<th>Acquired</th><th class="num">Cost basis</th><th>Value</th>
+                  : null}<th>Acquired</th><th class="num">Cost Basis</th><th>Value</th>
                       <th class="num">Gain</th><th></th></tr>
               </thead>
               <tbody>${v.items.map((/** @type {any} */ i) =>
@@ -337,7 +337,7 @@ export function ItemDialog({ close, a, id }) {
   const spot = rec?.get('valuation') === 'spot';
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This item"
-      title=${it ? it.name : 'Add an item'} label=${it ? 'Save' : 'Add'}
+      title=${it ? it.name : 'Add an Item'} label=${it ? 'Save' : 'Add'}
       saveWhy=${canWrite ? null : READ_ONLY}
       saved=${(/** @type {any} */ o) => {
         toast(it ? 'Saved' : `${rec?.get('name')} added`);
@@ -530,7 +530,7 @@ function Valuations({ it, rec, draft }) {
       : html`<${Empty}>No valuations yet</${Empty}>`}
     ${!it.access.writable
       ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="plus" /> Add a
-        valuation</${Action}>`
+        Valuation</${Action}>`
       : html`
         <div class="row">
           <${Field} label="Value" help="valuations" id="valuation-value">
@@ -587,7 +587,7 @@ function Improvements({ it, rec, draft }) {
     )}
     ${!it.access.writable
       ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="plus" /> Add
-        improvement</${Action}>`
+        Improvement</${Action}>`
       : html`
         <${Field} label="What was done" help="improvements" id="improvement-description">
           <${Input} value=${f.description} placeholder="ex: Kitchen remodel"
@@ -605,7 +605,7 @@ function Improvements({ it, rec, draft }) {
                 </div>
                 <button type="button" class="btn sm" disabled=${!f
                   .description} onClick=${add}><${Icon}
-          name="plus" /> Add improvement</button>
+          name="plus" /> Add Improvement</button>
       `}
   `;
 }
@@ -634,7 +634,7 @@ function Documents({ it, rec }) {
     }
   };
   return html`
-    <h4 style=${{ margin: '14px 0 8px' }} data-help="photos-and-documents">Photos and documents</h4>
+    <h4 style=${{ margin: '14px 0 8px' }} data-help="photos-and-documents">Photos and Documents</h4>
     ${ids.length
       ? ids.map((id) =>
         html`
@@ -690,7 +690,7 @@ function SaleCard({ it, rec }) {
         rec.set('soldOn', null);
         rec.set('proceeds', null);
         rec.set('saleFees', null);
-      }}>Undo the sale</${Action}>
+      }}>Undo the Sale</${Action}>
     `;
   }
   if (!sold || !it.access.writable) {
@@ -699,7 +699,7 @@ function SaleCard({ it, rec }) {
         class="toolbar mt">${s
           ? html`<span class="small dim grow">The sale is undone when you save.</span>`
           : null}<${Action} class="btn sm" why=${whyRead(it)} onClick=${() =>
-          rec.set('soldOn', today())}>Record the sale…</${Action}></div>
+          rec.set('soldOn', today())}>Record the Sale…</${Action}></div>
     `;
   }
   return html`

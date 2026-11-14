@@ -67,12 +67,12 @@ The refund or the amount owed.
 
 The transaction that paid it or received it.
 
-## Estimated payments
+## Estimated Payments
 
 Each quarter's estimated payment for this jurisdiction: its due date, amount and the day it was
 paid. Last year's total tax shows beside them.
 
-## Carried forward to next year {#carried-forward}
+## Carried Forward to Next Year {#carried-forward}
 
 Figures typed from the return as filed, which next year needs: AGI (to sign next year's e-filed
 return), total tax, the overpayment applied, capital-loss carryovers, the Form 8606 basis, and

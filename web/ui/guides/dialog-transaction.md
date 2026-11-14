@@ -69,13 +69,13 @@ Who was paid, or who paid you.
 
 ## Category
 
-Where the money went, for budgets and taxes. **Make a rule** opens **New rule** over this dialog,
+Where the money went, for budgets and taxes. **Make a Rule** opens **New Rule** over this dialog,
 to file this payee the same way from now on, from what you import; this transaction stays as it
 is.
 
 ## New category…
 
-At the end of the list: opens **New category** over this dialog. The category it makes
+At the end of the list: opens **New Category** over this dialog. The category it makes
 is chosen here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Split {#split}
@@ -124,18 +124,18 @@ rest counts as spending again, in the month it was spent.
 
 Who pays it back, as you want to see it: _Acme Corp_, _Sam_.
 
-## Leave out {#leave-out}
+## Leave Out {#leave-out}
 
-Each budget counting this transaction, and what it counts as there. **Leave out** is that budget's
+Each budget counting this transaction, and what it counts as there. **Leave Out** is that budget's
 own, for a one-off such as a car bought outright: it then counts nowhere in that budget, and
 Activity records it. The category is the transaction's, the same in every budget.
 
 ## Receipts
 
-The receipts attached to it; each opens its file. **Add a receipt** uploads one or more and attaches
+The receipts attached to it; each opens its file. **Add a Receipt** uploads one or more and attaches
 them here when you save. Whoever can read this account can see its receipts.
 
-## Add a receipt {#add-receipt}
+## Add a Receipt {#add-receipt}
 
 Upload PDFs or photos; they are kept at once, in the inbox, and attached to this transaction when
 you save. ✕ leaves one in the inbox.

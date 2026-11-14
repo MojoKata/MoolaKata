@@ -20,6 +20,13 @@
    4. **What a guide holds**: a short paragraph on what the screen is for, a screenshot, and a
       heading for every field, switch and button (what it is for, what to enter, its default),
       with examples for anything typed in a language of its own (rules, patterns, mappings).
+      It holds every fixed word the screen leaves out (R3.12): a field's units, syntax, limits
+      and what its value implies, a choice's meaning (spelled out with the choice it goes with:
+      *For a split: …*), and what a dialog, a card or a section is for, in its opening
+      paragraph or the heading it belongs under. A heading reads as what it names reads on the
+      screen: a field's as its label (*Keep receipts for*), a button's, a tab's or a panel's as
+      the button, tab or panel (*Backup Now*, *Cash Flow*, *Price Sources*); a heading for a
+      topic with nothing of its own on the screen is in Sentence case (*Restoring*).
       Finance terms (cost basis, wash sale, RMD, TWR and IRR) get a short plain-language
       explanation in the guide of the screen where they appear. The Markdown is a subset:
       headings, paragraphs, lists, tables, code, quotes (shown as notes), images, links, bold,
@@ -27,9 +34,11 @@
    5. **Screenshots** come from the clickable mockup (`web/dev.sh help-shots`, dark theme,
       1280 px, PNG quantized to 256 colours) and are committed.
    6. **Checks**: a test fails when a screen has no guide, a guide's screenshot is missing,
-      a field's label finds no heading, the next field down the page sends the guide up, a
-      guide uses an acronym the terms (S12.7.7) don't explain, or it names a form the forms
-      (S12.7.8) don't list. Tickers and banks in examples and words everyone knows (PDF, URL)
+      a field's label finds no heading, a heading names its field or button in another case,
+      a field's hint or a dialog's or card's paragraph is fixed words (R3.12), a button,
+      header, title or tab isn't in Title Case (R3.13), the next field down the page sends the
+      guide up, a guide uses an acronym the terms (S12.7.7) don't explain, or it names a form
+      the forms (S12.7.8) don't list. Tickers and banks in examples and words everyone knows (PDF, URL)
       are listed as plain; a listed form's name (1099-DIV) is no acronym.
    7. **Terms**: an acronym in a guide (AGI, OFX, HELOC), or its plural, never in code or a
       link. Its first use under each heading has a dashed underline and is a tab stop; later

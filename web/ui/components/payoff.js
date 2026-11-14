@@ -188,7 +188,7 @@ function Planner({ a, canWrite, plans, reload, start }) {
   const className = classes.find(([k]) => k === f.investClass)?.[1] || f.investClass;
   return html`
     <div class="grid g-main">
-      <div class="card"><h3>Balance: the schedule against your plan</h3>
+      <div class="card"><h3>Balance: The Schedule against Your Plan</h3>
         ${res
           ? html`
             <${Results} r=${res} className=${className} rows=${rows}
@@ -200,7 +200,7 @@ function Planner({ a, canWrite, plans, reload, start }) {
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <div class="card">
-          <h3>Your plan</h3>
+          <h3>Your Plan</h3>
           <${Field} label="Extra each month" error=${errAt(err, 'monthly')}>
             <${TypedInput} kind="money" min=${0} value=${f.monthly} onInput=${set('monthly')}
               onCommit=${commit} placeholder="none" />
@@ -229,7 +229,7 @@ function Planner({ a, canWrite, plans, reload, start }) {
           <div class="toolbar"><b class="small" data-help="lump-sums">Lump sums</b><span
             class="spacer"></span><button type="button" class="btn sm" onClick=${() =>
               set('lumps', true)([...f.lumps, { date: '', amount: '' }])}>
-              <${Icon} name="plus" /> Add a lump sum</button></div>
+              <${Icon} name="plus" /> Add a Lump Sum</button></div>
           ${f.lumps.map((l, i) =>
             html`
               <div class="row">
@@ -350,10 +350,10 @@ function Results({ r, className, rows, showRows }) {
             <caption class="sr-only">Shortening the loan against recasting it</caption>
             <thead>
               <tr>
-                <th>After the lump sums</th>
+                <th>After the Lump Sums</th>
                 <th class="num">Payment</th>
-                <th>Paid off</th>
-                <th class="num">Interest saved</th>
+                <th>Paid Off</th>
+                <th class="num">Interest Saved</th>
               </tr>
             </thead>
             <tbody>
@@ -417,8 +417,8 @@ function Results({ r, className, rows, showRows }) {
       : null}
     <div class="toolbar mt"><span class="spacer"></span><button type="button" class="btn sm"
       onClick=${showRows}>${rows
-        ? 'Hide the plan’s schedule'
-        : 'Show the plan’s schedule'}</button></div>
+        ? 'Hide the Plan’s Schedule'
+        : 'Show the Plan’s Schedule'}</button></div>
     ${rows ? html`<${PlanRows} rows=${r.planRows} />` : null}
   `;
 }
@@ -503,7 +503,7 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
     reload();
   });
   return html`
-    <div class="card"><h3>Saved plans</h3>
+    <div class="card"><h3>Saved Plans</h3>
       ${plans.length
         ? plans.map((p) =>
           html`
@@ -530,7 +530,7 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
         ? html`
           <div class="toolbar mt">
             <${Action} class="btn primary" why=${READ_ONLY}>Save
-                    plan</${Action}></div>
+                    Plan</${Action}></div>
         `
         : html`
           <form class="row mt" onSubmit=${(/** @type {Event} */ ev) => {
@@ -540,7 +540,7 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
             <${Field} label="Plan name" error=${errAt(save.error, 'name')}><${Input} value=${name}
                     onInput=${setName} placeholder="ex: Extra $300 a month" required /></${Field}><button
                     class="btn primary" style=${{ alignSelf: 'end' }} disabled=${save
-                      .busy}>Save plan</button></form>
+                      .busy}>Save Plan</button></form>
         `}
     </div>
   `;

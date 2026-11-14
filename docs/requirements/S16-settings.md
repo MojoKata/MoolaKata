@@ -61,11 +61,11 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     physical assets).
 12. **Backups**: the time of day (02:30 by default) and the **copies kept**: the days of
     backups kept, every backup of each of the most recent days that have one (14 by default,
-    3 to 365, so one bad copy is never the only one); a second backup the same day, **Back up
-    now**, never pushes out an earlier day's. Fewer days than the backups there are deletes
+    3 to 365, so one bad copy is never the only one); a second backup the same day, **Backup
+    Now**, never pushes out an earlier day's. Fewer days than the backups there are deletes
     some at the next backup, so it asks for the password again and the recovery phrase, as
     **Remove** does (S16.13): an admin's session alone deletes no backup. Each backup is
-    listed with its size and the key it opens with, with **Back up now**; the backup
+    listed with its size and the key it opens with, with **Backup Now**; the backup
     directory is set on the host. The section says what a backup is: the
     database with its keyring, never the receipt files, which the host backs up with the
     data directory (S14.6).

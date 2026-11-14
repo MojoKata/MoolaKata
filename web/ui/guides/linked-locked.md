@@ -8,5 +8,5 @@ is locked; they are applied when it opens.
 
 The 12 words, separated by spaces. Once one person opens it, it stays open for everyone it shares
 with, each seeing only what names them, until it goes unused (an hour by default) or someone
-presses **Lock now**. Five wrong tries in a row make you wait 15 minutes. If the words are lost, an
+presses **Lock Now**. Five wrong tries in a row make you wait 15 minutes. If the words are lost, an
 admin can reset the copy: it is pulled again from the other household, where nothing was lost.

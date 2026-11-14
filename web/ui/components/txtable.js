@@ -150,7 +150,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                       onChanged && onChanged();
                     },
                   ).catch((/** @type {any} */ x) => toast(x.message));
-                }}>Keep it</button></div>`
+                }}>Keep It</button></div>`
                 : null
             }</td>
         <td>${

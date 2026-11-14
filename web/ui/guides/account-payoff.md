@@ -13,7 +13,7 @@ The planner needs the loan's terms, set in its Settings.
 The balance owed on the schedule (dashed), with your plan, and recast after the lump sums when you
 ask for it.
 
-## Paid off
+## Paid Off
 
 The payoff date with the plan, against the scheduled one. **Months saved**, **interest saved** and
 **interest still to pay** follow from it; **total paid** counts everything paid from now on, escrow
@@ -54,7 +54,7 @@ The month of the yearly extra.
 ## Lump sums
 
 One-time payments toward principal, each with the first payment due on or after its date. One
-missing its date or amount is left out while you fill it in; **Save plan** refuses it until it has
+missing its date or amount is left out while you fill it in; **Save Plan** refuses it until it has
 both, or is removed.
 
 ## Biweekly payments
@@ -79,7 +79,7 @@ What the servicer charges for each recast, often $250 to $500. Blank: none.
 
 The asset class for the comparison; its expected return is yours, from Profile › Assumptions.
 
-## Saved plans
+## Saved Plans
 
 Plans kept for this loan. **Show** puts one back in the form. **Follow** makes it the plan you're
 following: from that day, the loan's Overview shows whether what you've overpaid is ahead of it or

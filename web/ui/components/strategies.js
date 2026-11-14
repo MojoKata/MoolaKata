@@ -93,9 +93,9 @@ export function Strategies() {
                         of <b>${p.shape}</b> on ${p
                           .underlying} closed: a roll? <button type="button" class="btn sm
                         primary" disabled=${act.busy} onClick=${() =>
-                          roll(p, true)}>Keep it in the strategy</button> <button
+                          roll(p, true)}>Keep It in the Strategy</button> <button
                 type="button" class="btn sm"
-                disabled=${act.busy} onClick=${() => roll(p, false)}>Not a roll</button>
+                disabled=${act.busy} onClick=${() => roll(p, false)}>Not a Roll</button>
             `
             : html`
               ${p.legs.length} legs on ${p.underlying} ${p.kind === 'covered-call'
@@ -106,8 +106,8 @@ export function Strategies() {
                 ).join(', ')}. <button
                 type="button" class="btn sm primary" disabled=${act.busy}
                 onClick=${() =>
-                  group(p, false)}>Group them</button> <button type="button" class="btn sm"
-                disabled=${act.busy} onClick=${() => group(p, true)}>Not a strategy</button>
+                  group(p, false)}>Group Them</button> <button type="button" class="btn sm"
+                disabled=${act.busy} onClick=${() => group(p, true)}>Not a Strategy</button>
             `}</div>
         </div>
       `
@@ -119,8 +119,8 @@ export function Strategies() {
             <table class="t">
                 <caption class="sr-only">Strategies</caption>
                 <thead><tr><th>Strategy</th><th class="num">Credit</th><th class="num">P/L</th><th
-                  class="num">Max profit</th><th class="num">Max loss</th><th>Breakeven</th><th class="num"
-                  data-help="at-risk-now">At risk now</th><th class="num" data-help="at-open">At open</th><th
+                  class="num">Max Profit</th><th class="num">Max Loss</th><th>Breakeven</th><th class="num"
+                  data-help="at-risk-now">At Risk Now</th><th class="num" data-help="at-open">At Open</th><th
                   ></th></tr></thead>
                 <tbody>${[...open, ...closed].map((/** @type {any} */ x) =>
                   html`
@@ -199,8 +199,8 @@ export function Strategies() {
       lots, gains and wash sales. Capital at risk is the most the strategy can lose at expiry; for
       undefined risk, the margin you type.</span><span class="spacer"></span><button type="button"
       class="btn sm" onClick=${() =>
-        openDialog(AdjustDialog, {}).then((x) => x && res.reload())}>An underlying was
-      adjusted…</button></div>
+        openDialog(AdjustDialog, {}).then((x) => x && res.reload())}>An Underlying Was
+      Adjusted…</button></div>
   `;
 }
 
@@ -259,7 +259,7 @@ function AdjustDialog({ close }) {
   return html`
     <${Dialog} title=${g
       ? `Options on ${g.underlying} after a corporate action`
-      : 'Adjusted options'}
+      : 'Adjusted Options'}
       wide close=${close} onSubmit=${() => g && save.run().catch(() => {})}
       note=${g
         ? html`
@@ -270,7 +270,7 @@ function AdjustDialog({ close }) {
         `
         : null}
       footer=${g
-        ? html`<button class="btn primary" disabled=${save.busy}>${`Adjust ${g.contracts.length} contract${
+        ? html`<button class="btn primary" disabled=${save.busy}>${`Adjust ${g.contracts.length} Contract${
           g.contracts.length === 1 ? '' : 's'
         }`}</button>`
         : null}>
@@ -295,7 +295,7 @@ function AdjustDialog({ close }) {
                     <tr>
                       <th>Contract</th>
                       <th
-                        data-help="new-root">New root</th>
+                        data-help="new-root">New Root</th>
                       <th class="num">Strike</th>
                       <th
                         data-help="deliverable">Deliverable</th>
@@ -396,7 +396,7 @@ function StrategyDialog({ close, x }) {
               const draft = f.draft;
               if (!rec || !draft) return;
               const sure = await confirmAction({
-                title: 'Ungroup this strategy?',
+                title: 'Ungroup This Strategy?',
                 detail: 'Its legs stay, each on its own.',
               });
               if (!sure) return;
@@ -449,6 +449,6 @@ export function GroupButton({ rows, done }) {
     <button type="button" class="btn" disabled=${act.busy || !rows.length || !one}
       title=${one ? undefined : 'Legs in one account'}
       onClick=${() => act.run().catch((e) => toast(e.message))}><${Icon} name="plus" /> Group ${rows
-        .length} leg${rows.length === 1 ? '' : 's'}</button>
+        .length} Leg${rows.length === 1 ? '' : 's'}</button>
   `;
 }

@@ -8,5 +8,5 @@ the people this link's shares name can reach them.
 
 ## I have saved the 12 words {#words-saved}
 
-**Done** waits for this tick. If the words are ever lost, **Reset copy** makes new ones, and the
+**Done** waits for this tick. If the words are ever lost, **Reset Copy** makes new ones, and the
 copy is pulled again in full.

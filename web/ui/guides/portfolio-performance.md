@@ -32,7 +32,7 @@ How far back the chart goes.
 The same money put into the benchmark on the same days: VT (world stocks), SPY (US large companies)
 or a 60/40 mix of VT and BND.
 
-## Returns by period
+## Returns by Period
 
 The time-weighted return of each account and the portfolio. Three and five years are shown a year
 (annualised); a dash means the history doesn't go back that far.

@@ -63,10 +63,10 @@ Your password now.
 
 At least the minimum length, and not a common password. Changing it signs out your other sessions.
 
-## Two-step sign-in {#two-step}
+## Two-Step Sign-In {#two-step}
 
 After your password, a code from an authenticator app on your phone, so a stolen password alone
-can't sign in. **Turn on** shows a QR code to scan; **New recovery codes** replaces the ten codes
+can't sign in. **Turn On** shows a QR code to scan; **New Recovery Codes** replaces the ten codes
 that sign in when the phone is lost. Turning it on or off emails you.
 
 ## Your password {#two-step-password}
@@ -78,12 +78,12 @@ Asked again when you last gave it more than 10 minutes ago.
 Your sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with
 its driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the
 driver found, the accounts here it keeps current, and its state from the connector's last
-report. **New connection** starts one; **Sign in again** or **Change credentials** gives the
+report. **New Connection** starts one; **Sign In Again** or **Change Credentials** gives the
 connector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**
 (the click asks again) turns its accounts' sync off, and the connector deletes its credentials.
 A connection that needs a sign-in, as Schwab's does each week, alerts you.
 
-## Access tokens {#access-tokens}
+## Access Tokens {#access-tokens}
 
 Let an AI assistant, or another tool that speaks the Model Context Protocol, read your finances at
 the MCP endpoint shown. A token reads, never changes anything, and sees only what you can see, or
@@ -91,7 +91,7 @@ the accounts and portfolios you chose for it; never secrets, Settings or linked 
 shows what it can read, when it expires and when it was last used. **Revoke** stops it at once (the
 click asks again first). Its calls are recorded in Activity under its name.
 
-## Ignored statement lines {#ignored-statement-lines}
+## Ignored Statement Lines {#ignored-statement-lines}
 
 The starts of statement lines you asked to ignore, with **Remember…** when checking a statement,
 by institution. **Remove** reads them again from its next statement.

@@ -61,7 +61,7 @@ export function Connections() {
     <div class="card" id="connections">
       <h3 data-help="connections">Connections<span class="spacer"></span>${paired
         ? html`<button class="btn sm" onClick=${make}><${Icon} name="plus" /> New
-            connection</button>`
+            Connection</button>`
         : null}</h3>
       <p class="small dim" style=${{ marginTop: '-6px' }}>Your sign-ins at institutions, kept by
         the MoolaKata Connector, never by MoolaKata.</p>
@@ -88,12 +88,12 @@ export function Connections() {
                 : null}</div>${connectionState(c)}
               <button class="btn sm" onClick=${() =>
                 credentials(c)}>${c.state === 'needs-sign-in' || c.signInAddress
-                ? 'Sign in again'
-                : 'Change credentials'}</button>
+                ? 'Sign In Again'
+                : 'Change Credentials'}</button>
               <button class="btn sm danger" disabled=${remove.busy}
                 onClick=${async () => {
                   if (
-                    !(await confirmAction({ title: 'Remove this connection?' }))
+                    !(await confirmAction({ title: 'Remove This Connection?' }))
                   ) return;
                   remove.run(c).catch(() => {});
                 }}>Remove</button></div>
@@ -214,7 +214,7 @@ export function ConnectionDialog({ close, connection }) {
   const sealedOk = sealable !== false;
   if (made && f.how === 'host') {
     return html`
-      <${Dialog} title=${existing ? 'Change credentials' : 'New connection'} close=${close}
+      <${Dialog} title=${existing ? 'Change Credentials' : 'New Connection'} close=${close}
         onSubmit=${() => close(made.connection)}
         footer=${html`<button class="btn primary">Done</button>`}>
         <p class="small dim" style=${{ marginTop: 0 }}>An admin runs this on the connector's
@@ -231,12 +231,12 @@ export function ConnectionDialog({ close, connection }) {
     `;
   }
   return html`
-    <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New connection'}
+    <${Dialog} title=${existing ? `${existing.label}: credentials` : 'New Connection'}
       close=${() => close(made?.connection)} onSubmit=${() => save.run().catch(() => {})}
       changed=${() => JSON.stringify(f) !== start}
       note=${v.fingerprint ? `Sealed with the connector's key ${v.fingerprint}.` : ''}
       footer=${html`<button class="btn primary" disabled=${save.busy}>${
-        f.how === 'host' ? 'Show the command' : 'Seal and send'
+        f.how === 'host' ? 'Show the Command' : 'Seal and Send'
       }</button>`}>
       <p class="small dim" style=${{ marginTop: 0 }}>A sign-in at one institution, kept by the
         MoolaKata Connector. What you type here is encrypted in your browser for the connector

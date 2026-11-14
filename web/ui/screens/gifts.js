@@ -79,8 +79,8 @@ function Upcoming() {
     }).then(res.reload);
   const open = (/** @type {any} */ g) => openDialog(GiftDialog, { gift: g }).then(res.reload);
   return html`
-    <div class="card"><h3>Next 60 days<span class="spacer"></span><button class="btn sm"
-      onClick=${() => add(null)}><${Icon} name="plus" /> Add a gift</button></h3>
+    <div class="card"><h3>Next 60 Days<span class="spacer"></span><button class="btn sm"
+      onClick=${() => add(null)}><${Icon} name="plus" /> Add a Gift</button></h3>
       ${rows.length
         ? rows.map((u) =>
           html`
@@ -161,7 +161,7 @@ function People() {
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
       <h3 style=${{ padding: '8px 8px 0' }}>People<span class="spacer"></span><button class="btn sm"
-        onClick=${() => open(null)}><${Icon} name="plus" /> Add a gift plan</button></h3>
+        onClick=${() => open(null)}><${Icon} name="plus" /> Add a Gift Plan</button></h3>
       ${rows.length
         ? html`
           <div class="table-wrap">
@@ -172,8 +172,8 @@ function People() {
                   <th>Person</th>
                   <th>Next</th>
                   <th class="num">Budget</th>
-                  <th class="num">Spent this year</th>
-                  <th>Last gift</th>
+                  <th class="num">Spent This Year</th>
+                  <th>Last Gift</th>
                   <th></th>
                 </tr>
               </thead>
@@ -226,7 +226,7 @@ function GiftList() {
     <div class="toolbar"><${Chips} label="Show" value=${status} onChange=${setStatus}
       options=${[['', 'All'], ...STATUS]} /><span class="spacer"></span><button
       class="btn primary" onClick=${() =>
-        open(null)}><${Icon} name="plus" /> Add a gift</button></div>
+        open(null)}><${Icon} name="plus" /> Add a Gift</button></div>
     ${res.error ? html`<${Failed} error=${res.error} />` : !rows ? html`<${Loading} />` : rows
         .length
       ? html`
@@ -308,7 +308,7 @@ function Spending() {
       )
       : null}
     <div class="grid g-main mt">
-      <div class="card"><h3>By person, ${v.year}</h3>${v.byPerson.length
+      <div class="card"><h3>By Person, ${v.year}</h3>${v.byPerson.length
         ? v.byPerson.map((/** @type {any} */ p) => {
           const share = p.budget ? Math.min(100, (num(p.spent) / num(p.budget)) * 100) : 0;
           return html`
@@ -327,7 +327,7 @@ function Spending() {
         })
         : html`<p class="small dim">No people yet.</p>`}</div>
       <div class="grid" style=${{ alignContent: 'start' }}>
-        <div class="card"><h3>By occasion, ${v.year}</h3>${v.byOccasion.length
+        <div class="card"><h3>By Occasion, ${v.year}</h3>${v.byOccasion.length
           ? v.byOccasion.map((/** @type {any} */ o) =>
             html`
               <div
@@ -336,7 +336,7 @@ function Spending() {
             `
           )
           : html`<p class="small dim">Nothing bought or given yet.</p>`}</div>
-        <div class="card"><h3>By year</h3>${v.byYear.map((/** @type {any} */ y) =>
+        <div class="card"><h3>By Year</h3>${v.byYear.map((/** @type {any} */ y) =>
           html`
             <div
               class="list-item"><span class="small" style=${{ width: '48px' }}>${y
@@ -518,7 +518,7 @@ function PersonDialog({ close, row }) {
   const deleting = (plan?.removed && !using) ? (who?.removed ? 'person' : 'plan') : '';
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This gift plan"
-      title=${p ? `Gift plan for ${p.name}` : 'New gift plan'}
+      title=${p ? `Gift plan for ${p.name}` : 'New Gift Plan'}
       done=${deleting === 'person'
         ? `${p?.name} deleted`
         : deleting
@@ -553,14 +553,14 @@ function PersonDialog({ close, row }) {
           planRow
             ? html`
               <${Action} class="btn danger" why=${whyNot(planRow, 'deletable')}
-                disabled=${save.busy} onClick=${() => drop('plan')}>Delete plan</${Action}>
+                disabled=${save.busy} onClick=${() => drop('plan')}>Delete Plan</${Action}>
             `
             : null
         }${
           p && !p.userId
             ? html`
               <${Action} class="btn danger" why=${whyNot(p, 'deletable')} disabled=${save.busy}
-                onClick=${() => drop('person')}>Delete person</${Action}>
+                onClick=${() => drop('person')}>Delete Person</${Action}>
             `
             : null
         }<span class="spacer"></span>`;
@@ -572,7 +572,7 @@ function PersonDialog({ close, row }) {
               icon=${html`<${Icon} name="link" />`} actions=${html`
                 <button type="button" class="btn sm"
                   disabled=${join.busy} onClick=${() =>
-                    join.run(r).catch(() => {})}>Join them</button>
+                    join.run(r).catch(() => {})}>Join Them</button>
               `}>${r.name} on ${r.server} may be${' '}
                     ${p.name}</${Attention}></div>
         `
@@ -653,9 +653,9 @@ function PersonDialog({ close, row }) {
                     : html`
                       ${''}, kept private by ${clash.createdBy || 'someone'}. <button type="button"
                         class="btn sm" disabled=${ask.busy} onClick=${() =>
-                          ask.run().catch(() => {})}>Ask to share</button>
+                          ask.run().catch(() => {})}>Ask to Share</button>
                     `} <button type="button" class="btn sm" onClick=${() =>
-                    who.set('differentPerson', true)}>A different person</button>
+                    who.set('differentPerson', true)}>A Different Person</button>
                     ${who.get('differentPerson')
                       ? html`<div class="small">Give a birth year above that differs from theirs.</div>`
                       : null}</div>
@@ -694,7 +694,7 @@ function PersonDialog({ close, row }) {
                 dates</b><span class="spacer"></span><${Action} class="btn sm"
                 why=${canWrite ? null : READ_ONLY} onClick=${() =>
                   draft?.add(OccasionRec, { giftPlanId: plan.id, kind: 'anniversary' })}><${Icon}
-                name="plus" /> Add a date</${Action}></div>
+                name="plus" /> Add a Date</${Action}></div>
             ${dated.map((o, i) =>
               html`
                 <div class="row" key=${o.key}>
@@ -750,7 +750,7 @@ function History({ p }) {
   const res = useList('/gifts', { person: p.id, status: 'given' });
   const rows = /** @type {any[]} */ (res.data) || [];
   if (!rows.length) return null;
-  return html`<h4 style=${{ margin: '14px 0 8px' }} data-help="given-before">Given before</h4>
+  return html`<h4 style=${{ margin: '14px 0 8px' }} data-help="given-before">Given Before</h4>
     ${
     rows.map((g) =>
       html`<div class="list-item"><span class="grow">${g.description}<span class="small dim">
@@ -863,7 +863,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
   const onRow = !!fromRow && !canWrite;
   return html`
     <${DraftDialog} f=${f} close=${close} what="This gift" saveWhy=${canWrite ? null : READ_ONLY}
-      title=${gift ? gift.description : 'Add a gift'}
+      title=${gift ? gift.description : 'Add a Gift'}
       done=${rec?.removed ? 'Gift deleted' : 'Gift saved'}
       extra=${({ save }) =>
         gift
@@ -871,7 +871,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
             <${Action} class="btn danger" why=${whyRead(gift)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
-                if (!(await confirmAction({ title: 'Delete this gift?' }))) return;
+                if (!(await confirmAction({ title: 'Delete This Gift?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -955,7 +955,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
             ? html`
               <div class="toolbar">
                 <${Action} class="btn sm" why=${READ_ONLY}><${Icon}
-                            name="clip" /> Attach a receipt</${Action}></div>
+                            name="clip" /> Attach a Receipt</${Action}></div>
             `
             : gift
             ? html`

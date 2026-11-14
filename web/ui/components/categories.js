@@ -190,8 +190,8 @@ export function CategoryDialog({ close, cat, kind, parentId }) {
   const locked = !!cat && !cat.allowed.change;
   const hasKids = !!cat && cats.list.some((c) => c.parentId === cat.id);
   return html`
-    <${DraftDialog} f=${f} title=${cat ? `Edit ${cat.path}` : 'New category'} close=${close}
-      what="This category" label=${cat ? 'Save' : 'Add the category'}
+    <${DraftDialog} f=${f} title=${cat ? `Edit ${cat.path}` : 'New Category'} close=${close}
+      what="This category" label=${cat ? 'Save' : 'Add the Category'}
       done=${cat ? 'Category saved' : 'Category added'}
       saved=${(/** @type {any} */ o) => {
         toast(cat ? 'Category saved' : 'Category added');
@@ -269,7 +269,7 @@ function FindThem({ cat, close, leave }) {
     if (!(await leave())) return;
     close();
     startTour({ kind: 'uses', catId: cat.id });
-  }}>Find them</button>`;
+  }}>Find Them</button>`;
 }
 
 /**
@@ -344,7 +344,7 @@ export function MergeDialog({ close, cat }) {
         </${Field}>
         ${into && kids.length
           ? html`
-            <h4 data-help="merge-children">Its categories</h4>
+            <h4 data-help="merge-children">Its Categories</h4>
             ${kids.map((k) =>
               html`
                 <${Field} label=${k.name} id=${'merge-child-' + k.id} help="merge-children"
@@ -418,7 +418,7 @@ export function CategoriesTab() {
       <span class="small dim">One tree for the household: everyone files under the same
         categories, in every budget.</span><span class="spacer"></span>
       <button type="button" class="btn" onClick=${() => addCategory()}><${Icon}
-        name="plus" /> Add a category</button>
+        name="plus" /> Add a Category</button>
     </div>
     <div class="card" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
@@ -428,8 +428,8 @@ export function CategoriesTab() {
             <tr>
               <th>Category</th>
               <th>Kind</th>
-              <th>Tax tag</th>
-              <th>Added by</th>
+              <th>Tax Tag</th>
+              <th>Added By</th>
               <th></th>
             </tr>
           </thead>

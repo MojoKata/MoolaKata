@@ -10,7 +10,7 @@ Add the charities, churches and causes you give to, with their EIN, and any pled
 
 The year shown.
 
-## Add an organisation
+## Add an Organisation
 
 A charity, church, school or cause, with its EIN, whether gifts to it are deductible, its causes and
 any pledge.

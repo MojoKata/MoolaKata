@@ -14,12 +14,12 @@ added them or an admin. How they're related to you is worked out from relationsh
 someone who uses this server are never shown to them, even through a share.
 
 A user of a linked server is a person of their own here. When one has this person's name, the plan
-offers **Join them**: joined, that user is this person, which stays as private as it was.
+offers **Join Them**: joined, that user is this person, which stays as private as it was.
 
 ## Name
 
 One person, once: a name already here shows that person instead, to plan for them, or to ask whoever
-added them to share them. **A different person** with the same name is added once both have birth
+added them to share them. **A Different Person** with the same name is added once both have birth
 years, and they differ.
 
 ## Sex
@@ -65,15 +65,15 @@ How long before a date it shows on the Dashboard and raises an alert, until some
 
 Sizes, likes, what they already have.
 
-## Given before
+## Given Before
 
 What you gave them in past years, so it isn't given twice.
 
-## Delete plan
+## Delete Plan
 
 Deletes your gift plan for them; they stay among the household's people.
 
-## Delete person
+## Delete Person
 
 Deletes them for everyone, asking first. Gifts bought, given or received stay in the history as
 _Emma (deleted)_; ideas and planned gifts for them alone go with them. A user's own person isn't

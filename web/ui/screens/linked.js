@@ -158,7 +158,7 @@ function Frame({ id, st, reload, sub, subId, tab }) {
           (st.locksInSeconds || 0) / 60,
         )} min unused</span><span class="spacer"></span><button type="button" class="btn sm"
           disabled=${lock.busy} onClick=${() => lock.run().catch(() => {})}><${Icon}
-            name="lock" /> Lock now</button></div>
+            name="lock" /> Lock Now</button></div>
       ${items.error
         ? html`<${Failed} error=${items.error} />`
         : !items.data
@@ -328,8 +328,8 @@ function Dashboard({ base, rows }) {
       ? html`
         <div class="grid g4">
           <div class="card kpi">
-            <div class="label">Accounts shared with
-                  you</div>
+            <div class="label">Accounts Shared with
+                  You</div>
             <div class="value">
               <${Amt} v=${String(total)} cents=${false} />
             </div>
@@ -348,7 +348,7 @@ function Dashboard({ base, rows }) {
             : 's are'} shared with you by a newer MoolaKata, which this one can't show yet.</p>
       `
       : null}
-    <div class="card mt"><h3>Shared with you</h3>${rows.map((r) =>
+    <div class="card mt"><h3>Shared with You</h3>${rows.map((r) =>
       html`
         <div
           class="list-item"><div class="grow"><a href=${`${base}/${
@@ -405,7 +405,7 @@ function Accounts({ base, rows }) {
               <th>Account</th>
               <th>Owner</th>
               <th class="num">Balance</th>
-              <th class="num">30 days</th>
+              <th class="num">30 Days</th>
             </tr>
           </thead>
           <tbody>${rows.map((r) =>
@@ -628,7 +628,7 @@ function Portfolio({ pid }) {
     ${ret?.length
       ? html`
         <div class="card">
-          <h3>Returns by period</h3>
+          <h3>Returns by Period</h3>
           <div class="table-wrap">
             <table class="t">
               <caption class="sr-only">Returns</caption>
@@ -690,9 +690,9 @@ function Portfolio({ pid }) {
 function Budget({ base, bid, tab }) {
   useGuide('linked-budgets');
   const tabs = /** @type {[string, string][]} */ ([
-    ['month', 'This month'],
+    ['month', 'This Month'],
     ['trends', 'Trends'],
-    ['cash-flow', 'Cash flow'],
+    ['cash-flow', 'Cash Flow'],
     ['recurring', 'Recurring'],
   ]);
   return html`
@@ -1002,7 +1002,7 @@ function Gifts({ rows, people }) {
   useGuide('linked-gifts');
   return html`${
     people.length
-      ? html`<div class="card"><h3 data-help="people">People shared with you</h3>${
+      ? html`<div class="card"><h3 data-help="people">People Shared with You</h3>${
         people.map((p) => html`<${SharedPerson} person=${p} />`)
       }</div>`
       : null

@@ -13,7 +13,7 @@ sent to the old one stops working. Afterwards they change it themselves.
 
 Their groups.
 
-## Reset two-step
+## Reset Two-Step
 
 The last resort when someone has lost both their authenticator app and their recovery codes: it
 turns two-step sign-in off, so their password alone signs them in, and signs them out everywhere. Be

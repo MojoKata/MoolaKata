@@ -25,7 +25,7 @@ const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
   ['donations', 'Donations'],
   ['organisations', 'Organisations'],
-  ['fund', 'Donor-advised fund'],
+  ['fund', 'Donor-Advised Fund'],
 ]);
 const KINDS = /** @type {[string, string][]} */ ([
   ['cash', 'Cash (card, cheque, transfer)'],
@@ -81,7 +81,7 @@ function Overview({ v, reload }) {
   if (!plan) {
     return html`<${Empty} action=${html`
       <button type="button" class="btn primary"
-        onClick=${editPlan}>Set a target</button>
+        onClick=${editPlan}>Set a Target</button>
     `}>No giving plan for ${v.year} yet</${Empty}>
       ${
       num(v.given)
@@ -131,7 +131,7 @@ function Overview({ v, reload }) {
         }}></i></div>
       </div>
       <div class="card kpi" data-help="pace">
-        <div class="label">Pace to date</div>
+        <div class="label">Pace to Date</div>
         <div class="value">
           <${Amt} v=${v.pace} cents=${false} />
         </div>
@@ -142,7 +142,7 @@ function Overview({ v, reload }) {
           } cents=${false} /> ahead</span>`}</div>
       </div>
       <div class="card kpi" data-help="projected">
-        <div class="label">Projected year end</div>
+        <div class="label">Projected Year End</div>
         <div class="value">
           <${Amt} v=${v.projected} cents=${false} />
         </div>
@@ -169,8 +169,8 @@ function Overview({ v, reload }) {
     )}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Given against the target<span class="spacer"></span><button
-        class="btn sm primary" onClick=${record}><${Icon} name="plus" /> Record a donation</button></h3>
+        <h3>Given against the Target<span class="spacer"></span><button
+        class="btn sm primary" onClick=${record}><${Icon} name="plus" /> Record a Donation</button></h3>
         <${TimeChart} label=${`Given in ${v.year} against the target`} series=${[
           { name: 'Given', color: '--hue-giving', points: months },
           { name: 'Even pace to the target', color: '--fg-muted', dash: true, points: pace },
@@ -180,7 +180,7 @@ function Overview({ v, reload }) {
           : 'A donor-advised fund counts when it grants, not when it is funded.'}</p>
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
-        <div class="card"><h3>By cause</h3>${v.byCause.length
+        <div class="card"><h3>By Cause</h3>${v.byCause.length
           ? v.byCause.map((/** @type {any} */ c) =>
             html`<div class="list-item"><div class="grow"><div class="small">${c.label}</div><div
               class="bar" style=${{ marginTop: '6px' }}><i style=${{
@@ -190,7 +190,7 @@ function Overview({ v, reload }) {
               cents=${false} /></span></div>`
           )
           : html`<p class="small dim">Nothing given yet.</p>`}</div>
-        <div class="card"><h3>Percent of income</h3>${v.history.map((/** @type {any} */ h) =>
+        <div class="card"><h3>Percent of Income</h3>${v.history.map((/** @type {any} */ h) =>
           html`
             <div
               class="list-item"><span class="small" style=${{ width: '48px' }}>${h
@@ -203,7 +203,7 @@ function Overview({ v, reload }) {
                 : `${h.percent}%`}</span></div>
           `
         )}</div>
-        <div class="card"><h3>By organisation</h3>${v.byOrganisation.map((/** @type {any} */ o) =>
+        <div class="card"><h3>By Organisation</h3>${v.byOrganisation.map((/** @type {any} */ o) =>
           html`<div class="list-item"><span class="grow">${o.label}</span><${Amt} v=${o.amount}
             cents=${false} /></div>`
         )}</div>
@@ -229,7 +229,7 @@ function Donations({ year, reload }) {
   return html`
     <div class="toolbar"><span class="small dim">Donations come from transactions categorised
       Giving, or are recorded here.</span><span class="spacer"></span><button class="btn primary"
-      onClick=${() => record(null)}><${Icon} name="plus" /> Record a donation</button></div>
+      onClick=${() => record(null)}><${Icon} name="plus" /> Record a Donation</button></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -303,7 +303,7 @@ function Organisations() {
   return html`
     <div
       class="toolbar"><span class="spacer"></span><button class="btn primary" onClick=${() =>
-        open(null)}><${Icon} name="plus" /> Add an organisation</button></div>
+        open(null)}><${Icon} name="plus" /> Add an Organisation</button></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -318,7 +318,7 @@ function Organisations() {
                   <th>Deductible</th>
                   <th>Causes</th>
                   <th>Pledge</th>
-                  <th class="num">Given this year</th>
+                  <th class="num">Given This Year</th>
                   <th></th>
                 </tr>
               </thead>
@@ -455,7 +455,7 @@ function PlanDialog({ close, v }) {
   }, [v.plan?.id]);
   const rec = /** @type {GivingPlanRec | undefined} */ (f.draft?.records[0]);
   return html`
-    <${DraftDialog} f=${f} title=${`Giving plan ${v.year}`} close=${close} what="This plan"
+    <${DraftDialog} f=${f} title=${`Giving Plan ${v.year}`} close=${close} what="This plan"
       done="Giving plan saved">
       ${rec
         ? html`
@@ -579,7 +579,7 @@ function DonationDialog({ close, from }) {
     ? writable.filter((a) => ['ira', '401k', '403b', '457b'].includes(a.type))
     : writable.filter((a) => a.type !== 'daf' && (a.group === 'banking' || a.investing));
   return html`
-    <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a donation'}
+    <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a Donation'}
       close=${close} what="This donation" done="Donation recorded" before=${() => {
         // Shares come from a lot; money and goods from no lot.
         if (!shares && rec) rec.set('lotId', null);
@@ -691,7 +691,7 @@ function DonationView({ close, d }) {
             <${Action} class="btn danger" why=${whyRead(d)} disabled=${save.busy}
               onClick=${async () => {
                 if (!rec || !f.draft) return;
-                if (!(await confirmAction({ title: 'Delete this donation?' }))) return;
+                if (!(await confirmAction({ title: 'Delete This Donation?' }))) return;
                 f.draft.remove(rec);
                 const r = await save.run().catch(() => null);
                 if (r?.status !== 'saved') f.draft.unremove(rec);
@@ -728,7 +728,7 @@ function DonationView({ close, d }) {
         ? html`
           <div class="toolbar">
             <${Action} class="btn sm" why=${whyRead(d)}><${Icon}
-                    name="clip" /> Attach the acknowledgement</${Action}></div>
+                    name="clip" /> Attach the Acknowledgement</${Action}></div>
         `
         : html`
           <div
@@ -784,7 +784,7 @@ function OrganisationDialog({ close, o }) {
   const rec = /** @type {OrganisationRec | undefined} */ (f.draft?.records[0]);
   const canWrite = !o || o.access.writable;
   return html`
-    <${DraftDialog} f=${f} title=${o ? o.name : 'Add an organisation'} close=${close}
+    <${DraftDialog} f=${f} title=${o ? o.name : 'Add an Organisation'} close=${close}
       row=${o ? ORG_ROW : []}
       what="This organisation" done="Saved" read=${!canWrite}>
       ${rec

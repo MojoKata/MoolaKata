@@ -23,9 +23,9 @@ money put away; **transfer** never counts. Changing it changes every budget's pa
 Puts what's filed under it in Taxes › Deductions, for every tax book whose accounts use it, past
 years too. Most categories have none.
 
-## Find them
+## Find Them
 
 For a category in use: how many uses you can see, and how many you can't (a transaction counts
-once, whatever its parts). **Find them** opens the **Find uses** tour beside the page, listing each
+once, whatever its parts). **Find Them** opens the **Find uses** tour beside the page, listing each
 one you can see with a link to it; its counts fall as you give them another category, until you
 can delete it, or an admin merges it.

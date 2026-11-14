@@ -5,7 +5,7 @@ exclusion.
 
 ![A 529's Contributions](shots/account-contributions.png)
 
-## Record a contribution
+## Record a Contribution
 
 A deposit, with who it came from and, when it was paid from one of your bank accounts, that half of
 the transfer too.
@@ -32,7 +32,7 @@ bank side alone, for a deposit already imported there.
 Superfunding: up to five years of exclusions given at once. It counts a fifth against the exclusion
 in its year and each of the next four, and needs a gift-tax return (Form 709) to elect it.
 
-## Against the annual gift exclusion
+## Against the Annual Gift Exclusion
 
 What each contributor's gifts to the beneficiary come to each year, against that year's exclusion
 from the tax tables. Above it, a gift-tax return (Form 709) is needed, even when no tax is due.
@@ -45,7 +45,7 @@ Every deposit. An imported deposit counts as yours until you say who it was from
 
 Who a deposit came from; change it for an imported one.
 
-## State tax deduction
+## State Tax Deduction
 
 What you expect to deduct on your state return, typed in the plan's settings. State rules aren't
 modelled.
