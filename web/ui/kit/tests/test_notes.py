@@ -23,10 +23,18 @@ def blocks(page, demo: str) -> list[str]:
     return [b["type"] for b in doc["content"]] if doc else []
 
 
+def settle(page):
+    """The editor takes the browser's selection now, as it does when the browser reports a
+    change (an event that comes a moment later, later still on a busy machine)."""
+    page.evaluate("document.dispatchEvent(new Event('selectionchange'))")
+
+
 def paste(page, demo: str, data: dict[str, str]):
-    """A paste into the editor, with what the clipboard holds by type."""
+    """A paste into the editor, with what the clipboard holds by type, over the selection as
+    the browser has it."""
     editor(page, demo).evaluate(
         """(el, data) => {
+          document.dispatchEvent(new Event('selectionchange'));
           const dt = new DataTransfer();
           for (const [k, v] of Object.entries(data)) dt.setData(k, v);
           el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true,
@@ -152,7 +160,7 @@ def test_an_address_typed_becomes_a_link_and_the_popover_makes_changes_and_refus
           r.setStart(t, t.length - 4); r.setEnd(t, t.length); const s = getSelection();
           s.removeAllRanges(); s.addRange(r); }"""
     )
-    page.wait_for_timeout(100)
+    settle(page)
     page.keyboard.press("Control+k")
     field = page.locator(f"{d} .note-pop input")
     expect(field).to_be_focused()
@@ -189,8 +197,6 @@ def test_an_address_pasted_over_words_links_them_and_alone_comes_in_as_a_link(pa
     ed.click()
     page.keyboard.type("the guide")
     page.keyboard.press("Shift+Home")
-    # The editor takes the new selection when the browser says it changed.
-    page.wait_for_timeout(100)
     paste(page, "note-empty", {"text/plain": "https://example.com/guide"})
     page.keyboard.press("End")
     page.keyboard.type(" ")
@@ -308,7 +314,7 @@ def test_past_its_limit_the_count_shows_and_the_note_is_marked_when_left(page, k
     )
     # Any change clears the mark.
     editor(page, "note-long").click()
-    page.wait_for_timeout(100)
+    settle(page)
     page.keyboard.press("Backspace")
     expect(page.locator(f"{d} .note.bad")).to_have_count(0)
 
@@ -411,7 +417,7 @@ def test_a_link_at_the_caret_is_followed_changed_and_made_from_the_toolbar(page,
     tab.value.close()
     # With nothing selected, Link puts the address in as its own words; Escape leaves it be.
     ed.click()
-    page.wait_for_timeout(100)
+    settle(page)
     page.keyboard.press("Control+End")
     page.keyboard.press("Enter")
     page.locator(f"{d} button[aria-label='Link']").click()
