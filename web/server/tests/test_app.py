@@ -550,3 +550,35 @@ def test_a_credential_sealed_in_the_browser_opens_only_with_the_connectors_key(p
     with pytest.raises(Exception):  # noqa: B017 - another Connection's id: a different key
         sealed.open_box(box, key, "Conn_other")
     assert page.problems == []
+
+
+def test_the_navigation_keeps_its_foot_apart_until_it_must_scroll(page):
+    """S12.1.1: the household's money at the top, Activity, Alerts and the admin's screens at the
+    foot, the space between them closing before the navigation scrolls."""
+    size = page.viewport_size
+    visit(page, "/ui/")
+    nav = ".side nav"
+    labels = page.eval_on_selector_all(f"{nav} > *", "(es) => es.map((e) => e.className)")
+    gap = labels.index("nav-gap")
+    foot = page.eval_on_selector_all(
+        f"{nav} > .nav-gap ~ .nav-item .nav-label", "(es) => es.map((e) => e.textContent)"
+    )
+    assert foot[:2] == ["Activity", "Alerts"] and gap > 5
+    shape = """(sel) => { const n = document.querySelector(sel), g = n.querySelector('.nav-gap');
+        const last = n.lastElementChild.getBoundingClientRect(), box = n.getBoundingClientRect();
+        return { gap: g.getBoundingClientRect().height, scrolls: n.scrollHeight > n.clientHeight,
+                 footAtBottom: box.bottom - last.bottom < 16 }; }"""
+    try:
+        until(page, lambda: page.evaluate(shape, nav)["gap"] > 0, what="the space open")
+        tall = page.evaluate(shape, nav)
+        assert tall["footAtBottom"] and not tall["scrolls"], tall
+        page.set_viewport_size({"width": size["width"], "height": 420})
+        until(
+            page,
+            lambda: page.evaluate(shape, nav)["scrolls"],
+            what="the navigation scrolling",
+        )
+        short = page.evaluate(shape, nav)
+        assert short["gap"] == 0 and short["scrolls"], short
+    finally:
+        page.set_viewport_size(size)

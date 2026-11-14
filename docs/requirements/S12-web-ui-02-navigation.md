@@ -76,8 +76,8 @@
    11. **Receipts**: the inbox and every receipt, with a grid or list view and upload;
    12. **Watchlist** *(small)*: instruments the user follows without holding them;
    13. **Activity**: the changes of S10.8, newest first, filtered by account and person;
-   14. **Users and Groups**, **Settings** (admins);
-   15. **Alerts**: what needs the user's attention, with a live count on its badge (S12.11);
+   14. **Alerts**: what needs the user's attention, with a live count on its badge (S12.11);
+   15. **Users and Groups**, **Settings** (admins);
    16. the user tile opens **Profile** (name, sex, birthday, relationships (S10.10), email,
        avatar, password, two-step, alert emails, time zone (S14.9), assumptions for
        projections (S6.3), access tokens) and **Sign out**.

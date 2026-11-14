@@ -72,6 +72,10 @@ body.privacy .amt { filter: blur(7px); }
 .collapse-btn svg { width: 14px; height: 14px; }
 .app.collapsed .collapse-btn svg { transform: rotate(180deg); }
 nav { flex: 1; overflow-y: auto; padding: 6px 10px; }
+.side { min-height: 0; }
+.side nav { display: flex; flex-direction: column; min-height: 0; }
+.side nav > .nav-item { flex: none; }
+.nav-gap { flex: 1 1 0; min-height: 0; }
 .nav-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); padding: 12px 8px 4px; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--fg-dim); cursor: pointer; white-space: nowrap; }
 .nav-item:hover { background: var(--bg-3); color: var(--fg); text-decoration: none; }
@@ -845,8 +849,10 @@ const NAV = [
   ['dashboard', 'Dashboard', 'dashboard'], ['accounts', 'Accounts', 'bank'], ['transactions', 'Transactions', 'tx', 3],
   ['portfolios', 'Portfolios', 'pie'], ['positions', 'Positions', 'candles'], ['budgets', 'Budgets', 'target'],
   ['projections', 'Projections', 'trend'], ['gifts', 'Gifts', 'gift', 1], ['giving', 'Giving', 'heart'], ['taxes', 'Taxes', 'tax', 2], ['receipts', 'Receipts', 'receipt', 2],
-  ['watchlist', 'Watchlist', 'star'], ['activity', 'Activity', 'pulse'], ['alerts', 'Alerts', 'bell', 'alerts'],
+  ['watchlist', 'Watchlist', 'star'],
 ];
+// At the navigation's foot, below a space that closes before the navigation scrolls (S12.1.1).
+const FOOT_NAV = [['activity', 'Activity', 'pulse'], ['alerts', 'Alerts', 'bell', 'alerts']];
 const ADMIN_NAV = [['users', 'Users and Groups', 'users', 1], ['settings', 'Settings', 'sliders']];
 
 /* ---------- charts (hand-drawn SVG; the app uses the chosen library) ---------- */
@@ -3549,7 +3555,7 @@ function render() {
     <aside class="side">
       <div class="brand"><button class="logo hh" data-act="households" title="Linked households" aria-haspopup="menu">${HOUSEHOLD.initials}</button><div class="brand-text"><div class="brand-name">${HOUSEHOLD.name} <span class="pill-mock" data-act="mock" title="Mockup controls">MOCK</span></div><div class="brand-ver">MoolaKata 0.1.0-mock${state.update ? ' <span class="pill new" data-act="update" title="An update is available. Reload the page to update">update</span>' : ''}</div></div></div>
       <button class="collapse-btn" data-act="collapse" title="Collapse sidebar">${icon('chev')}</button>
-      <nav aria-label="Main">${NAV.map(item).join('')}${u.admin ? `<div class="nav-head">Admin</div>${ADMIN_NAV.map(item).join('')}` : ''}</nav>
+      <nav aria-label="Main">${NAV.map(item).join('')}<div class="nav-gap"></div>${FOOT_NAV.map(item).join('')}${u.admin ? ADMIN_NAV.map(item).join('') : ''}</nav>
       <div class="user-tile"><span class="avatar av-${u.username}">${u.initials}</span><div class="user-text" data-go="profile"><b>${u.name}</b><span>${u.admin ? 'admin' : u.username}</span></div><button class="icon-btn" data-act="theme" title="Theme: ${state.theme}">${icon(themeIcon)}</button></div>
     </aside>
     <main>

@@ -6,8 +6,11 @@
       (and a red **DEV** pill in dev mode), the navigation with count badges, and at its
       foot the signed-in user's
       tile with the **theme** button (crescent moon for dark, lightbulb for light, palette
-      for the system's; a click moves to the next). A round button on its edge collapses it
-      to icons and opens it again; the browser remembers which.
+      for the system's; a click moves to the next). The navigation has the household's money
+      at the top and what keeps it running at its foot (Activity, Alerts, then Users and
+      Groups and Settings for an admin, S12.2), with the space between them; when the window
+      is too short for both, the space closes first and the navigation then scrolls. A round
+      button on its edge collapses it to icons and opens it again; the browser remembers which.
    2. The **help pane** on the right (S12.7), and a **toast** area for confirmations: each
       slides up from the bottom, stays a moment and slides back down, so it is noticed (no
       movement with reduced motion).
