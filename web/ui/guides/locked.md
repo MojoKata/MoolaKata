@@ -23,11 +23,12 @@ until the eye shows it.
 When a re-encryption is due (scheduled in Settings › Key storage, brought by a rotation, or
 interrupted before), the unlock runs it before the server serves: a verified backup first,
 then the database, the secrets and the receipt files under a new data key, and the copies on
-the host as chosen. This screen shows how far it has come; sign-in opens when it is done.
+the host as chosen. This screen shows how far it has come; sign-in opens when it is done, and
+until then `/healthz` answers `re-encrypting`.
 
 ## Restarting
 
 After **Rotate** or **Re-encrypt Now** in Settings › Key storage, MoolaKata restarts itself and
-this page waits for it, then shows the locked screen: unlock it with the phrase (the new one,
-after a rotation), and the re-encryption runs first. If it hasn't come back within a minute,
-start it on the host (`docker compose up -d`).
+this page waits for it, then shows the locked screen as soon as the server answers: unlock it with the phrase (the new one,
+after a rotation), and the re-encryption runs first. If it hasn't come back within a minute, the page
+says so: start it on the host (`docker compose up -d`), then unlock it here.

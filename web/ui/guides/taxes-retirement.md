@@ -30,7 +30,7 @@ their traditional IRAs marked **Not deductible** in the transaction form. A cont
 ## Required Minimum Distributions {#rmds}
 
 For an owner at the RMD age: the account's value at the end of last year divided by the Uniform
-Lifetime Table's factor for their age.
+Lifetime Table's factor for their age. None is due until an owner reaches the RMD age.
 
 ## Roth Conversions {#conversions}
 

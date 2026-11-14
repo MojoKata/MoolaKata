@@ -11,7 +11,7 @@ check.
 
 ## Price
 
-The latest daily close. Hover it for its source and date: a close from a price source, the broker's
+The latest daily close, delayed. Hover it for its source and date: a close from a price source, the broker's
 statement value, a price the account's owner typed, or their last trade when nothing else is known.
 
 ## Stale

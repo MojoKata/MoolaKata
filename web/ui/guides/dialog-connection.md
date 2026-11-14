@@ -58,8 +58,8 @@ sign-in is.
 
 ## Sealed for {#sealed-for}
 
-The one host the connector will ever send this sign-in to: the OFX server's, from its address,
-or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
+The one host the connector will ever send this sign-in to: the OFX server's, from its address
+(shown once the address is given), or the institution's own (`api.schwabapi.com` for Schwab). It is sealed with the sign-in, so
 nothing MoolaKata or anyone else changes later can send it elsewhere.
 
 ## How you sign in {#how-you-sign-in}
@@ -75,8 +75,10 @@ for the connector with the sign-in, never seen by MoolaKata.
 
 ## The address you landed on {#landed}
 
-After signing in on the institution's own page, the address your browser lands on. It carries
-the sign-in for the connector; sealed here like a password. Schwab's lasts seven days.
+Schwab signs you in on its own page. Once the connector has the app key, it reports that page's
+address, and **Sign In Again** links to it: open it, sign in, then paste here the address your
+browser lands on. It carries the sign-in for the connector; sealed here like a password. Schwab's
+lasts seven days, so you'll be asked again each week.
 
 ## Username
 
@@ -89,3 +91,4 @@ Your password at the institution. Sealed for the connector, never seen by MoolaK
 ## Connect command {#connect-command}
 
 For the stricter way: an admin runs it on the connector's host and types the credentials there.
+MoolaKata never handles them.

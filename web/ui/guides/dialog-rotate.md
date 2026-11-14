@@ -8,7 +8,7 @@ phrase, or when the yearly reminder says it is time.
 ## Current recovery phrase
 
 The server's 12 words, as they are now, with your password: a session someone took over can't
-change the phrase the household holds. A wrong phrase counts like a wrong password.
+change the phrase the household holds. Four letters of each word are enough. A wrong phrase counts like a wrong password.
 
 ## The Phrase Is Lost {#lost-phrase}
 

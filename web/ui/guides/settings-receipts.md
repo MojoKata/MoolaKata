@@ -7,10 +7,13 @@ Reading runs without its file sandbox on a host that doesn't offer Landlock (Lin
 and a container that allows it): the reader could then open the data directory. It still has no
 network, and it still runs apart from the server. Admins have an alert while it lasts.
 
+## File types
+
+PDF, JPEG, PNG, WebP and HEIC, checked from each file's content, never its name.
+
 ## Largest file (MB) {#receipt-max-mb}
 
-The largest receipt that can be uploaded, 25 MB by default. The file types are PDF, JPEG, PNG, WebP
-and HEIC, checked from each file's content.
+The largest receipt that can be uploaded, 25 MB by default.
 
 ## Read receipts
 
@@ -22,7 +25,8 @@ host too small to run it: receipts still upload and can be filled in by hand.
 ## Jobs at a time {#receipt-read-jobs}
 
 How many receipts are read at once, each in its own process limited to 2 threads, a lower priority,
-1.5 GB of memory and 60 seconds a receipt. A batch of uploads works through the queue.
+1.5 GB of memory and 60 seconds a receipt. A batch of uploads works through the queue. 1 suits
+most hosts; more read a batch faster.
 
 ## Reading
 

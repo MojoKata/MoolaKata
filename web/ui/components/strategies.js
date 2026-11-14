@@ -195,9 +195,7 @@ export function Strategies() {
         </div>
       `
       : html`<${Empty}>No strategies yet</${Empty}>`}
-    <div class="toolbar mt"><span class="small dim">Grouping is a label: each leg keeps its own
-      lots, gains and wash sales. Capital at risk is the most the strategy can lose at expiry; for
-      undefined risk, the margin you type.</span><span class="spacer"></span><button type="button"
+    <div class="toolbar mt"><span class="spacer"></span><button type="button"
       class="btn sm" onClick=${() =>
         openDialog(AdjustDialog, {}).then((x) => x && res.reload())}>An Underlying Was
       Adjusted…</button></div>
@@ -274,12 +272,7 @@ function AdjustDialog({ close }) {
           g.contracts.length === 1 ? '' : 's'
         }`}</button>`
         : null}>
-      ${!g ? html`<p>No options are open in accounts you can change.</p>` : html`
-        <p class="small dim" style=${{ marginTop: 0 }}>A split that isn't a whole number, a
-          merger, a spin-off or a large special dividend changes each open contract's root and
-          deliverable, as the OCC's information memo says. The lots carry over: nothing is
-          sold. A whole-number split needs none of this, unless a contract delivers cash or another
-          company's shares.</p>
+      ${!g ? html`<${Empty}>No open options</${Empty}>` : html`
         <div class="row">
           <${Field} label="Underlying" id="adjust-underlying">
             <${Select} value=${g.underlyingId} onChange=${setUnder}
@@ -408,18 +401,14 @@ function StrategyDialog({ close, x }) {
       ${rec
         ? html`
           <${RecField} rec=${rec} name="name" label="Name" id="strategy-name"
-            hint=${`Empty: its shape, ${x.shape.toLowerCase()}.`} />
+            placeholder=${`its shape, ${x.shape.toLowerCase()}`} />
           ${shortPut
             ? html`
-              <${RecField} rec=${rec} name="cashSecured" label="Cash-secured"
-                hint="The cash to buy the shares is set aside." />
+              <${RecField} rec=${rec} name="cashSecured" label="Cash-secured" />
             `
             : null}
           <${RecField} rec=${rec} name="marginRequirement" label="Margin requirement"
-            id="margin-requirement" placeholder="unlimited"
-            hint="Your broker's, for a strategy whose loss has no limit: its capital at risk." />
-          <p class="small dim">Ungrouping leaves each leg as it is: its lots, gains and history
-            don't change.</p>
+            id="margin-requirement" placeholder="unlimited" />
         `
         : null}
     </${DraftDialog}>

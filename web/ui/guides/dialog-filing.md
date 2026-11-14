@@ -8,7 +8,7 @@ Federal, a state, or a locality.
 
 ## State {#place}
 
-Which state or locality.
+Which state or locality: Utah, New York City.
 
 ## Form
 
@@ -37,7 +37,7 @@ Not started, in progress, filed, accepted or rejected.
 
 ## Due date
 
-The federal date comes from Settings › Tax tables; type a state's or a locality's.
+Left blank, the federal date comes from Settings › Tax tables; type a state's or a locality's.
 
 ## Extension filed {#extension-filed-on}
 
@@ -65,7 +65,7 @@ The refund or the amount owed.
 
 ## Paid or received in {#result-transaction}
 
-The transaction that paid it or received it.
+The transaction that paid it or received it, matched with this result.
 
 ## Estimated Payments
 
@@ -77,4 +77,4 @@ paid. Last year's total tax shows beside them.
 Figures typed from the return as filed, which next year needs: AGI (to sign next year's e-filed
 return), total tax, the overpayment applied, capital-loss carryovers, the Form 8606 basis, and
 charitable carryovers. Form 8606 is each person's own: a joint return carries a basis for each
-filer, typed apart.
+filer, typed apart. Next year's tax book shows them under **From Last Year**.

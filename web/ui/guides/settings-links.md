@@ -54,7 +54,7 @@ What each link brings in is kept apart from this household's data, in its own en
 its own **access key**: 12 words. This server's master key can't open it, and backups leave it
 out. **Create the Access Key** once the link is active: MoolaKata shows the words once, for the
 household's password manager, where the people its shares name can reach them. Pulls into the copy
-begin then.
+begin then. A copy is kept for each active link, so there is none before the first.
 
 The first person its shares name who opens the household's window enters the words; the copy then
 stays unlocked for everyone it shares with, each seeing only what names them, until it goes unused.

@@ -269,7 +269,7 @@ export function ReceiptDialog({ close, id }) {
           ${f.draft
             ? html`
               <${TagsField} rec=${rec} draft=${f.draft} id="receipt-tags"
-                hint="Yours only." disabled=${!canEdit} />
+                disabled=${!canEdit} />
             `
             : null}
           <h4 class="small dim" data-help="attached-to" id="x-attached-to">Attached To</h4>
@@ -292,7 +292,7 @@ export function ReceiptDialog({ close, id }) {
             )
             : r.alsoKeptWith
             ? null
-            : html`<p class="small dim">Nothing yet: it waits in the inbox.</p>`}
+            : html`<${Empty}>Nothing yet</${Empty}>`}
           ${r.alsoKeptWith
             ? html`
               <p class="small dim"

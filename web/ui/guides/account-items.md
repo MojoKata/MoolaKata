@@ -13,8 +13,10 @@ spot and the gain. Sold items leave it.
 ## Items
 
 Each item with the day it was acquired and how long it's been held, its cost basis, its value and
-what that rests on (a valuation's source and date, spot, or depreciation), and the gain. A valuation
-over a year old is marked. Click an item to see or change it, add valuations and documents, or
+what that rests on (a valuation's source and date, spot, or depreciation), and the gain. An item
+whose latest valuation is over a year old is marked **over a year old**. Gold's spot is from `PAXG`,
+and silver's, platinum's and palladium's from their trusts' metal per share; gains on metals are
+taxed as collectables. Click an item to see or change it, add valuations and documents, or
 record its sale.
 
 ## Held now

@@ -19,7 +19,7 @@ import { book as bookPref } from '../store/prefs.js';
 import { Panel, PANEL_TABS, SummaryFigures } from '../components/taxpanels.js';
 import { Dec } from '../kit/dec.js';
 import { canAdd, Record as Rec, TYPES, whyNot, whyNotAdd, whyRead } from '../app/draft.js';
-import { Action, Attention, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import {
   DraftDialog,
@@ -245,8 +245,7 @@ function Summary({ b, done }) {
               html`<div class="list-item"><span class="grow dim">${a.name}</span><${Action}
                 class="btn sm" why=${whyRead(b)} onClick=${() =>
                 count.run(a, null).catch(() => {})}>Count It</${Action}></div>`
-            )}<p
-              class="small dim">The panels leave these out, and say so.</p>
+            )}
           `
           : null}
         ${!canAdd('TxBkA', b) && b.addable.length
@@ -258,8 +257,7 @@ function Summary({ b, done }) {
           : b.addable.length
           ? html`
             <div class="row mt">
-              <${Field} label="Add an account" id="add-account"
-                hint="One you can see, such as a custodial account in a child's name."><${Select}
+              <${Field} label="Add an account" id="add-account"><${Select}
                         value=${adding} onChange=${setAdding} options=${[
                           ['', 'Choose…'],
                           ...b.addable.map((
@@ -298,13 +296,9 @@ function Summary({ b, done }) {
           ? html`<${CarryoverShare} b=${b} done=${done} />`
           : null}${b.lastYear.length
           ? null
-          : html`<p class="small dim">Nothing carried forward: last year's filings, once typed in,
-          show here what this year needs (AGI to sign the e-filed return, carryovers, the 8606
-          basis).</p>`}</div>
+          : html`<${Empty}>Nothing carried forward</${Empty}>`}</div>
     </div>
     <${Dependents} b=${b} done=${done} />
-    <p class="small dim mt">MoolaKata gathers what a preparer or tax software needs. It never
-      computes the tax, chooses a filing status, or files.</p>
   `;
 }
 
@@ -317,6 +311,8 @@ const ageLine = (/** @type {any} */ d, /** @type {number} */ year) => {
 
 /** What a dependent's line shows: read from it, the dialog leaves them out (S12.18.6.5). */
 const DEPENDENT_ROW = ['personId', 'claimedAs', 'months', 'student'];
+/** What a filing's pill past its due date means (S12.19.3). */
+const OVERDUE_WHY = 'Not filed, and no extension is still running.';
 /** What a filing's card shows. */
 const FILING_ROW = [
   'jurisdiction',
@@ -336,8 +332,8 @@ const DOCUMENT_ROW = ['direction', 'form', 'issuer', 'receiptId'];
 /** A dependent claimed on another tax book of the year, said so beside them. @param {any} d */
 function elsewhere(d) {
   if (!d.claimedElsewhere) return null;
-  const tip = 'Claimed on another tax book for this year';
-  return html`${' '}<span class="pill warn" title=${tip}>also claimed elsewhere</span>`;
+  const why = 'Claimed on another tax book for this year.';
+  return html`${' '}<${StatePill} tone="warn" why=${why}>also claimed elsewhere</${StatePill}>`;
 }
 
 /** @param {{ b: any, done: (out: any) => void }} p */
@@ -456,8 +452,7 @@ function DependentDialog({ close, b, d, fromRow }) {
         ? html`
           ${onRow('personId') ? null : html`
             <div class="row">
-              <${Field} label="Person" id="person" error=${rec.error('personId')}
-                hint="From the household's people. Add someone new on the Gifts screen.">
+              <${Field} label="Person" id="person" error=${rec.error('personId')}>
                 <${Select} value=${rec.get('personId') || ''} onChange=${(
                   /** @type {string} */ x,
                 ) => {
@@ -471,8 +466,7 @@ function DependentDialog({ close, b, d, fromRow }) {
                   ]),
                 ]} />
                 </${Field}>
-                <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}
-                  hint="Suggested from the family tree. As you file it.">
+                <${Field} label="Claimed as" id="claimed-as" error=${rec.error('claimedAs')}>
                   <${Select} value=${rec.get('claimedAs')} onChange=${(/** @type {string} */ x) => {
                     setPicked(true);
                     rec.input('claimedAs', x);
@@ -487,11 +481,12 @@ function DependentDialog({ close, b, d, fromRow }) {
             <${RecField} rec=${rec} name="months" label="Months lived with you" id="months"
               spin=${true} min=${0} max=${12} />
             ${onRow('student') ? null : html`
-              <${SwitchRow} label="Full-time student" hint="This year, for at least five months."
-                on=${rec.get('student')} onChange=${(/** @type {boolean} */ on) => {
-                  rec.set('student', on);
-                  suggest(rec.get('personId'), on);
-                }} />
+              <${SwitchRow} label="Full-time student" on=${rec.get('student')} onChange=${(
+                /** @type {boolean} */ on,
+              ) => {
+                rec.set('student', on);
+                suggest(rec.get('personId'), on);
+              }} />
             `}
           </div>
           ${theirs.length
@@ -503,11 +498,8 @@ function DependentDialog({ close, b, d, fromRow }) {
                     on=${ids.includes(a.id)} onChange=${toggle(a.id)} />
                 `
               )
-            }<div class="hint">Such as a custodial account: its unearned income is checked
-                  against the Form 8615 threshold.</div></div>`
+            }</div>`
             : null}
-          <p class="small dim">Each dependent's age on Dec 31 shows in the panels: under 17, under
-            13, and who ages out this year. MoolaKata doesn't decide who qualifies.</p>
         `
         : null}
     </${DraftDialog}>
@@ -519,8 +511,7 @@ function Filings({ b, done }) {
   const open = (/** @type {any} */ f) =>
     openDialog(FilingDialog, { b, f, fromRow: !!f }).then(done);
   return html`
-    <div class="toolbar"><span class="small dim">One per return. An amended return is a filing
-      of its own.</span><span class="spacer"></span><${Action} class="btn sm"
+    <div class="toolbar"><span class="spacer"></span><${Action} class="btn sm"
         why=${whyNotAdd('Filng', b)} onClick=${() => open(null)}><${Icon} name="plus" /> Add a
         Filing</${Action}></div>
     ${b.filings.length
@@ -529,7 +520,7 @@ function Filings({ b, done }) {
           <div
             class="card mt"><h3>${f.label}<span class=${'pill ' + (TONE[f.progress] ||
               '')}>${PROGRESS.find(([k]) => k === f.progress)?.[1]}</span>${f.overdue
-              ? html`<span class="pill warn">past its due date</span>`
+              ? html`<${StatePill} tone="warn" why=${OVERDUE_WHY}>past its due date</${StatePill}>`
               : null}<span class="spacer"></span><${RowTool} name=${f.label}
               read=${!b.access.writable} onClick=${() => open(f)} /></h3>
                     <div class="grid g4">
@@ -692,8 +683,7 @@ function Documents({ b, done }) {
           `
         )
       }</div>`
-      : html`<p class="small dim">The return as filed, the e-file acknowledgement, and what the
-        tax authority sends. Next year's preparation often needs them.</p>`}
+      : html`<${Empty}>No filed documents yet</${Empty}>`}
   `;
 }
 
@@ -720,8 +710,6 @@ function CarryoverShare({ b, done }) {
   return html`
     <h4 style=${{ margin: '12px 0 4px' }} data-help="carryover-share">Your Share of the Joint
       Carryover</h4>
-    <p class="small dim" style=${{ marginTop: 0 }}>Splitting a joint return's carryover between
-      its filers is yours to decide. None counts in the Summary until it is typed.</p>
     <${DraftForm} f=${f} what="Your share" saved=${() => {
       toast('Saved');
       done();
@@ -785,17 +773,14 @@ function NewBook({ close, rows }) {
           <${RecField} rec=${rec} name="year" label="Year"
             options=${[year, year - 1, year - 2].map((y) => [String(y), String(y)])} />
           <${SwitchRow} label="Filing jointly" hint=${spouse
-            ? `With ${spouse.displayName}, who is asked to accept before their accounts count.`
+            ? `With ${spouse.displayName}`
             : 'Add your spouse among your relationships in Profile to file jointly.'}
             on=${joint} disabled=${!spouse} onChange=${(/** @type {boolean} */ on) =>
               rec.set('filers', on ? [p.id, spouse.id] : [p.id])} />
-          <${RecField} rec=${rec} name="fromLastYear" label="Start from last year" hint=${has
-            ? "Copies last year's accounts left out or added and its dependents; its received documents become this year's expected ones."
-            : 'No book for the year before.'} />
+          <${RecField} rec=${rec} name="fromLastYear" label="Start from last year"
+            hint=${has ? null : 'No book for the year before.'} />
           <${RecField} rec=${rec} name="bitcoinFees" label="Bitcoin network fees"
-            id="bitcoin-fees"
-            hint="On transfers between your own accounts. A sale of the fee's sats is the common reading."
-            options=${[
+            id="bitcoin-fees" options=${[
               ['sale', 'A sale, in Form 8949'],
               ['not-taxed', 'Not taxed, as my preparer reads them'],
             ]} />
@@ -943,9 +928,8 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
               ['local', 'A locality'],
             ]} />
             <${RecField} rec=${rec} name="place" id="place"
-              label=${where === 'state' ? 'State' : 'Locality'}
-              placeholder=${where === 'state' ? 'ex: Utah' : 'ex: New York City'} />
-            <${RecField} rec=${rec} name="form" label="Form" placeholder="ex: Form 1040, TC-40…" />
+              label=${where === 'state' ? 'State' : 'Locality'} />
+            <${RecField} rec=${rec} name="form" label="Form" />
             <${RecField} rec=${rec} name="amendsId" label="Amends" id="amends" options=${[
               ['', 'Nothing: an original return'],
               ...b.filings.filter((/** @type {any} */ x) => x.id !== filing?.id).map((
@@ -955,12 +939,11 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
           </div>
           <div class="row">
             <${RecField} rec=${rec} name="filingStatus" label="Filing status"
-              id="filing-status" hint="As filed. MoolaKata never chooses it." options=${[
+              id="filing-status" options=${[
                 ['', 'Not chosen yet'],
                 ...statuses.map((/** @type {string} */ x) => [x, x]),
               ]} />
-            <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by"
-              placeholder="yourself, software, a preparer" />
+            <${RecField} rec=${rec} name="preparedBy" label="Prepared by" id="prepared-by" />
             <${RecField} rec=${rec} name="sentBy" label="Sent by" id="sent-by" options=${[
               ['e-file', 'E-file'],
               ['paper', 'Paper'],
@@ -979,7 +962,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
             }</div>`}
           <div class="row">
             <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
-              hint=${where === 'federal' ? 'Blank: from the tax tables.' : ''} />
+              placeholder=${where === 'federal' ? 'from the tax tables' : undefined} />
             <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
               id="extension-filed-on" type="date" />
             <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
@@ -988,7 +971,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
               type="date" />
           </div>
           <${RecField} rec=${rec} name="confirmation" label="Confirmation number"
-            id="confirmation" placeholder="submission ID or mailing receipt" />
+            id="confirmation" />
           <div class="row">
             <${RecField} rec=${rec} name="resultKind" label="Result" id="result-kind"
               options=${[
@@ -999,7 +982,7 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
               ]} />
             <${RecField} rec=${rec} name="resultAmount" label="Amount" id="result-amount" />
             <${RecField} rec=${rec} name="resultTransactionId" label="Paid or received in"
-              id="result-transaction" hint="Match the transaction." options=${[
+              id="result-transaction" options=${[
                 ['', 'Not yet'],
                 ...items.map((/** @type {any} */ t) => [
                   t.id,
@@ -1041,8 +1024,6 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
           )}
           <h4 style=${{ margin: '10px 0 2px' }} data-help="carried-forward">Carried Forward to
             Next Year</h4>
-          <p class="small dim" style=${{ marginTop: 0 }}>Typed from the return as filed. Next
-            year's tax book shows them under <b>From last year</b>.</p>
           <div class="row" style=${{ flexWrap: 'wrap' }}>${CARRIED.map(([k, label]) =>
             k === 'basis8606'
               ? b.filers.map((/** @type {any} */ who) =>
@@ -1161,22 +1142,18 @@ function DocumentDialog({ close, b, start, doc, fromRow }) {
           <div class="row">
             <${RecField} rec=${rec} name="form" label="Document" id="form"
               options=${filed ? forms.filed : forms.received} />
-            <${RecField} rec=${rec} name="issuer" label="Issued by" id="issuer"
-              placeholder=${filed ? 'ex: IRS' : 'ex: Acme Corp'} />
+            <${RecField} rec=${rec} name="issuer" label="Issued by" id="issuer" />
           </div>
           <${RecField} rec=${rec} name="filingId" label="Filing" id="filing" options=${[
             ['', 'Choose…'],
             ...b.filings.map((/** @type {any} */ x) => [x.id, x.label]),
           ]} />
-          <${RecField} rec=${rec} name="accountId" label="Account" id="account"
-            hint="The account it reports on, if any." options=${[
-              ['', 'None'],
-              ...b.accounts.map((/** @type {any} */ a) => [a.id, a.name]),
-            ]} />
+          <${RecField} rec=${rec} name="accountId" label="Account" id="account" options=${[
+            ['', 'None'],
+            ...b.accounts.map((/** @type {any} */ a) => [a.id, a.name]),
+          ]} />
           <${Field} label="File" id="file" error=${rec.error('receiptId')}
-            hint=${file
-              ? `${file.name}, kept with your receipts.`
-              : 'The PDF or a photo, kept with your receipts.'}>
+            hint=${file ? file.name : null}>
             ${b.access.writable
               ? html`<input class="in" type="file" accept=${ACCEPT} onChange=${async (
                 /** @type {any} */ ev,

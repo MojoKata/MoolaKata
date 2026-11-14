@@ -10,7 +10,7 @@ by a date.
 
 ## Name
 
-Such as _Retire at 63_ or _House deposit_.
+Such as _Retire at 63_, _Emma's college_ or _House deposit_.
 
 ## Built on
 
@@ -22,7 +22,8 @@ The typed amount.
 
 ## For {#beneficiary}
 
-For an education goal: who it is for, from your list of people. Its 529 accounts are a good thing to
+For an education goal: who it is for, from your list of people; add them in a 529's settings or on
+Gifts. Its 529 accounts are a good thing to
 build it on.
 
 ## Who

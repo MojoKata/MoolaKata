@@ -10,7 +10,7 @@ import { Seg, Switch } from '../kit/fields.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftDialog, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Avatar, Loading } from '../kit/bits.js';
+import { Avatar, Empty, Loading } from '../kit/bits.js';
 import { Tile } from './groups.js';
 import { Icon } from '../kit/icon.js';
 
@@ -210,15 +210,13 @@ export function ShareDialog({ close, kind, id, name }) {
                           ? html`
                             <button type="button" class="btn sm primary" onClick=${accountsToo}
                             >Share These Accounts Too</button>
-                            <span class="small dim">at Read, only accounts you own</span>
                           `
                           : html`<span class="small dim">Shared at Read when you save.</span>`}</div></div>
               </div>
             `
             : null}
           <div class="share-list">
-            <h4>People</h4><div class="why">They see it in their lists. <b>Write</b> lets them change what
-              it holds; never delete it, re-share it or see its keys.</div>
+            <h4>People</h4>
             ${view.users.length
               ? view.users.map((/** @type {any} */ u) =>
                 html`
@@ -237,8 +235,8 @@ export function ShareDialog({ close, kind, id, name }) {
                   </div>
                 `
               )
-              : html`<p class="small dim">No one else uses this server yet.</p>`}
-            <h4>Groups</h4><div class="why">The same, for every member while they are in the group.</div>
+              : html`<${Empty}>No one else uses this server yet</${Empty}>`}
+            <h4>Groups</h4>
             ${view.groups.map((/** @type {any} */ g) =>
               html`
                 <div class="list-item">
@@ -255,8 +253,6 @@ export function ShareDialog({ close, kind, id, name }) {
                 <h4>On ${l.serverName}${l.householdName
                   ? html`${' '}<span class="small dim">${l.householdName}</span>`
                   : null}</h4>
-                <div class="why" data-help="linked-people">People on a linked server, as it
-                  names them: always Read, seen only in its window there.</div>
                 ${l.users.map((/** @type {any} */ u) =>
                   html`
                     <div class="list-item">

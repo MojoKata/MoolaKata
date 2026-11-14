@@ -1,7 +1,8 @@
 # A dependent
 
 Someone the filers claim for the year, from the household's people. MoolaKata doesn't decide who
-qualifies: what you enter here feeds the panels, the documents expected and a few flags.
+qualifies: what you enter here feeds the panels, the documents expected and a few flags. Each
+dependent's age on Dec 31 shows in the panels: under 17, under 13, and who ages out this year.
 
 ## Person {#person}
 

@@ -26,12 +26,13 @@ Chooses the words for the family tree: wife or husband, mother-in-law or father-
 
 ## Birthday
 
-For retirement contribution catch-up limits, required minimum distributions and your age in
-projections.
+Typed as `1979-04-12`. For retirement contribution catch-up limits, required minimum distributions
+and your age in projections.
 
 ## Alert emails
 
-Whether alerts reach you by email: each one, a daily summary, or none.
+Whether alerts reach you by email: each one, a daily summary, or none. Alerts always show in
+MoolaKata; this is only about email.
 
 ## Bitcoin in {#bitcoin-unit}
 
@@ -44,8 +45,10 @@ Your spouse, children, friends and colleagues, each from a date and, once over, 
 grandparents, cousins and in-laws are worked out from them. Your spouse on the day of a sale counts
 for **wash sales** (a loss sale with a purchase of the same thing within 30 days either side), and
 your spouse on the last day of a year for a joint tax book, once you have both confirmed the
-marriage: one your spouse entered shows **Confirm** here. Click one to change its dates, such as a
-divorce's, or to remove it.
+marriage: one your spouse entered shows **Confirm** here. A marriage is marked **confirmed by
+both** once it counts for those, or **waiting for** whoever is still to confirm it, when it counts
+for gifts only. Under **Worked out from these** are the relatives found through them. The pencil
+at a row's end changes its dates, such as a divorce's, or removes it.
 
 ## New email address
 
@@ -66,7 +69,7 @@ At least the minimum length, and not a common password. Changing it signs out yo
 ## Two-Step Sign-In {#two-step}
 
 After your password, a code from an authenticator app on your phone, so a stolen password alone
-can't sign in. **Turn On** shows a QR code to scan; **New Recovery Codes** replaces the ten codes
+can't sign in. While it is on, the card shows how many recovery codes are left. **Turn On** shows a QR code to scan; **New Recovery Codes** replaces the ten codes
 that sign in when the phone is lost. Turning it on or off emails you.
 
 ## Your password {#two-step-password}
@@ -81,7 +84,9 @@ driver found, the accounts here it keeps current, and its state from the connect
 report. **New Connection** starts one; **Sign In Again** or **Change Credentials** gives the
 connector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**
 (the click asks again) turns its accounts' sync off, and the connector deletes its credentials.
-A connection that needs a sign-in, as Schwab's does each week, alerts you.
+A connection that needs a sign-in, as Schwab's does each week, alerts you. *credentials sealed,
+waiting for the connector* marks new credentials the connector hasn't collected yet. With no
+connector paired, there are none: an admin pairs one under Settings › Connector.
 
 ## Access Tokens {#access-tokens}
 

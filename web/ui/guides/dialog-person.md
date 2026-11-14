@@ -11,7 +11,8 @@ this person here, who stays as private as now.
 Name, sex and birthday belong to the person, seen by the whole household unless whoever added them
 keeps them private. Once they sign in here, only they and an admin change them; until then, whoever
 added them or an admin. How they're related to you is worked out from relationships. Gifts for
-someone who uses this server are never shown to them, even through a share.
+someone who uses this server are never shown to them, even through a share. A person already here,
+chosen for a new plan, has their details changed once the plan is saved.
 
 A user of a linked server is a person of their own here. When one has this person's name, the plan
 offers **Join Them**: joined, that user is this person, which stays as private as it was.
@@ -28,7 +29,8 @@ Chooses the words for the family tree: mother or father, niece or nephew.
 
 ## Birthday
 
-Their birthday, with the year if you know it (for their age), or without it: 10-20.
+Their birthday as `YYYY-MM-DD`, with the year if you know it (for their age): 2018-10-20; or
+without it: 10-20.
 
 ## Died on {#died-on}
 
@@ -54,8 +56,9 @@ Mother's Day, and lunar or lunisolar ones like Diwali from shipped tables.
 
 ## Anniversaries and other dates {#dates}
 
-Any anniversary other than a wedding, a name day, any other date of their own, each with a budget of
-its own if you like. A wedding anniversary comes from their marriage.
+Any anniversary other than a wedding, a name day, any other date of their own, each with what it's
+called, its day (`YYYY-MM-DD`, or `MM-DD` without the year) and a budget of its own if you like. A
+wedding anniversary comes from their marriage.
 
 ## Remind me {#lead-days}
 

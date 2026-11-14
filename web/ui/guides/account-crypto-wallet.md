@@ -23,7 +23,8 @@ transactions stay as they are.
 
 ## Gap limit
 
-How many unused addresses past the last used one are watched on each chain. 20 suits most
+How many unused addresses past the last used one are derived and watched on each chain, from 1 to
+1,000. 20 suits most
 wallets.
 
 ## Watched {#watched}

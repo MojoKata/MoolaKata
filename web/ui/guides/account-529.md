@@ -17,7 +17,7 @@ expect.
 
 ## Plan state {#plan-state}
 
-The state that sponsors the plan, which may not be yours.
+The state that sponsors the plan, which may not be yours: Utah, Illinois.
 
 ## Plan name {#plan-name}
 
@@ -25,7 +25,7 @@ my529, Bright Start, and so on.
 
 ## Beneficiary
 
-Who it is for: one of the household's people. **Add a Person…** opens **Add a Person** over this: the one it adds is chosen here.
+Who it is for: one of the household's people. The 529 counts in your net worth, not theirs. **Add a Person…** opens **Add a Person** over this: the one it adds is chosen here.
 
 ## Opened {#opened-on}
 

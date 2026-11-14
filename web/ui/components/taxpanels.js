@@ -12,7 +12,7 @@ import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { Dec, dec, num } from '../kit/dec.js';
 import { whyRead } from '../app/draft.js';
-import { Action, Attention } from '../kit/state.js';
+import { Action, Attention, StatePill } from '../kit/state.js';
 
 export const PANEL_TABS = /** @type {[string, string][]} */ ([
   ['gains', 'Capital Gains (8949)'],
@@ -109,15 +109,12 @@ export function SummaryFigures({ b }) {
     </div>
     <div class="card mt">
       <h3 data-help="exports">Exports</h3>
-      <div class="list-item"><div class="grow">Form 8949 and Schedule D (CSV)<div
-        class="small dim">Every sale in the book's taxable accounts, by box</div></div><a
+      <div class="list-item"><div class="grow">Form 8949 and Schedule D (CSV)</div><a
         class="btn sm" href=${`${base}/8949.csv`} download><${Icon} name="download" /> CSV</a></div>
-      <div class="list-item"><div class="grow">TXF for tax software<div class="small dim">TurboTax,
-        H&R Block and others import it</div></div><a class="btn sm" href=${`${base}/moolakata.txf`}
-        download><${Icon} name="download" /> TXF</a></div>
+      <div class="list-item"><div class="grow">TXF for tax software</div><a class="btn sm"
+        href=${`${base}/moolakata.txf`} download><${Icon} name="download" /> TXF</a></div>
       ${txfLeftOut(p.txfLeftOut)}
-      <div class="list-item"><div class="grow">Summary for a preparer (PDF)<div class="small dim">What
-        each panel holds, with its sources</div></div><a class="btn sm"
+      <div class="list-item"><div class="grow">Summary for a preparer (PDF)</div><a class="btn sm"
         href=${`${base}/summary.pdf`} download><${Icon} name="download" /> PDF</a></div>
       <p class="small dim">${p.covers}</p>
     </div>
@@ -245,7 +242,9 @@ function Gains({ p }) {
               w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : ''
             }</div></div>${
               w.review
-                ? html`<span class="pill warn" title="An option on the same underlying">review</span>`
+                ? html`
+                  <${StatePill} tone="warn" why="An option on the same underlying.">review</${StatePill}>
+                `
                 : html`
                   <span
                     class="small"><span class="pill warn">W</span> <${Amt} v=${w
@@ -253,9 +252,7 @@ function Gains({ p }) {
                 `
             }</div>`
           )
-          : html`<p class="small dim">None found: no loss sale was replaced within 30 days.</p>`}
-          <p class="small dim">Same instrument, in any of the filers' accounts (IRAs included)
-            and a spouse's. Whether others are substantially identical is the preparer's call.</p>
+          : html`<${Empty}>None found</${Empty}>`}
         </div>
       </div>
     </div>
@@ -340,7 +337,7 @@ function Retirement({ p }) {
             </table>
           </div>
         `
-        : html`<p class="small dim">No retirement accounts in this book.</p>`}</div>
+        : html`<${Empty}>No retirement accounts in this book</${Empty}>`}</div>
     <div class="grid g2 mt">
       <div class="card"><h3>Distributions</h3>${r.distributions.length
         ? r.distributions.map((/** @type {any} */ x) =>
@@ -373,7 +370,7 @@ function Retirement({ p }) {
             </div>
           `
         )
-        : html`<p class="small dim">None due: no owner has reached the RMD age.</p>`}</div>
+        : html`<${Empty}>None due</${Empty}>`}</div>
     </div>
     <div class="grid g2 mt">
       <div class="card"><h3 data-help="conversions">Roth Conversions</h3>${r.conversions.length
@@ -434,38 +431,37 @@ function Deductions({ p }) {
               </table>
             </div>
           `
-          : html`<p class="small dim">No transactions in tax-tagged categories.</p>`}</div>
+          : html`<${Empty}>No transactions in tax-tagged categories</${Empty}>`}</div>
       <div class="card"><h3 data-help="estimated-payments">Estimated Payments</h3>${p.estimated
           .length
         ? p.estimated.map((/** @type {any} */ q) =>
           html`<div class="list-item"><span class="grow">${q.jurisdiction} · Q${q.quarter}</span><${Amt}
             v=${q.amount} /></div>`
         )
-        : html`<p class="small dim">None recorded in the filings.</p>`}
+        : html`<${Empty}>None recorded in the filings</${Empty}>`}
         ${p.lastYearTax
           ? html`<p class="small dim">Last year's total tax: <${Amt} v=${p.lastYearTax}
             cents=${false} />; paid in ${p.year} so far: ${money(total, { cents: false })}.</p>`
           : null}</div>
     </div>
-    <div class="card mt"><h3 data-help="dependents-ages">Dependents' Ages on Dec 31</h3>${p
-        .dependents.length
-      ? p.dependents.map((/** @type {any} */ d) =>
-        html`
-          <div
-            class="list-item"><div class="grow">${d.name}${d.relation
-              ? html`<span class="dim"> · ${d.relation}</span>`
-              : null}${d.agesOut.length
-              ? html`<div class="small dim">${d.agesOut.join('; ')}</div>`
-              : null}</div><span class="small">${d.age == null
-              ? 'age unknown'
-              : `${d.age}${d.under13 ? ' · under 13' : ''}${
-                d.under17 ? ' · under 17' : ''
-              }`}</span></div>
-        `
-      )
-      : html`<p class="small dim">No dependents in this book: add them on the Summary.</p>`}
-      <p class="small dim">Under 17 for the child tax credit, under 13 for the childcare credit.
-        Whether each one qualifies is the preparer's to decide.</p></div>
+    <div
+      class="card mt"><h3 data-help="dependents-ages">Dependents' Ages on Dec 31</h3>${p
+          .dependents.length
+        ? p.dependents.map((/** @type {any} */ d) =>
+          html`
+            <div
+              class="list-item"><div class="grow">${d.name}${d.relation
+                ? html`<span class="dim"> · ${d.relation}</span>`
+                : null}${d.agesOut.length
+                ? html`<div class="small dim">${d.agesOut.join('; ')}</div>`
+                : null}</div><span class="small">${d.age == null
+                ? 'age unknown'
+                : `${d.age}${d.under13 ? ' · under 13' : ''}${
+                  d.under17 ? ' · under 17' : ''
+                }`}</span></div>
+          `
+        )
+        : html`<${Empty}>No dependents in this book</${Empty}>`}</div>
   `;
 }
 
@@ -520,16 +516,13 @@ function Giving({ p }) {
       Deductible<span class="spacer"></span><${Amt} v=${g.deductibleTotal} /></h3>${g.deductible
           .length
         ? table(g.deductible)
-        : html`<p class="small dim">None.</p>`}</div>
+        : html`<${Empty}>None</${Empty}>`}</div>
     ${g.apart.length
       ? html`
         <div class="card mt"
           style=${{ padding: '4px 8px' }}><h3 style=${{
             padding: '8px 8px 0',
-          }}>Not Deducted</h3>${table(g.apart)}<p class="small dim" style=${{
-            padding: '0 8px',
-          }}>QCDs (excluded from income instead), grants from a donor-advised fund, and gifts to
-                organisations that aren't deductible.</p></div>
+          }}>Not Deducted</h3>${table(g.apart)}</div>
       `
       : null}
   `;
@@ -565,9 +558,7 @@ function Education({ p }) {
               : null
           }`
         )
-        : html`<p class="small dim">No 529 plans in this book.</p>`}
-        <p class="small dim">The earnings in what isn't covered may be taxable, with a 10%
-          additional tax; the preparer applies the rules with education credits.</p>
+        : html`<${Empty}>No 529 plans in this book</${Empty}>`}
         ${p.students.length
           ? html`<h4 style=${{ margin: '12px 0 4px' }}>Dependent Students</h4>${
             p.students.map((
@@ -593,7 +584,7 @@ function Education({ p }) {
             </div>
           `
         )
-        : html`<p class="small dim">No one received more than the annual exclusion.</p>`}
+        : html`<${Empty}>No one received more than the annual exclusion</${Empty}>`}
         ${p.elections.map((/** @type {string} */ x) => html`<p class="small dim">${x}</p>`)}</div>
     </div>
   `;
@@ -622,9 +613,7 @@ function Property({ p }) {
                           : null}
           `
         )
-        : html`<p class="small dim">No loans in this book.</p>`}
-        <p class="small dim">Computed from the payments' splits; compare with the 1098 when it
-          arrives.</p></div>
+        : html`<${Empty}>No loans in this book</${Empty}>`}</div>
       <div class="card"><h3>Physical Assets Sold</h3>${sold.length
         ? sold.map((/** @type {any} */ r) =>
           html`
@@ -675,6 +664,6 @@ function Issues({ p, b, reload }) {
               : null}</div>
         `
       )
-      : html`<p class="small dim">Nothing to look at: every sale has a lot and a basis.</p>`}</div>
+      : html`<${Empty}>Nothing to look at</${Empty}>`}</div>
   `;
 }

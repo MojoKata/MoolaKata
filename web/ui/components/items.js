@@ -20,7 +20,7 @@ import { Dec, dec, num } from '../kit/dec.js';
 import { READ_ONLY, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
-import { Action, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 
 export const METALS = /** @type {[string, string][]} */ ([
   ['gold', 'Gold'],
@@ -155,7 +155,9 @@ export function Items({ a }) {
                               .date,
                           )
                         } ${
-                          i.stale ? html`<span class="pill warn">over a year old</span>` : null
+                          i.stale
+                            ? html`<${StatePill} tone="warn" why=${STALE}>over a year old</${StatePill}>`
+                            : null
                         }</div>`
                         : html`<div class="small dim">${
                           VALUED_BY.find(([k]) => k === i.valuation)?.[1]
@@ -189,14 +191,14 @@ export function Items({ a }) {
           </div>
         `
         : html`<${Empty}>No items yet</${Empty}>`}
-      ${metals
-        ? html`<p class="small dim" style=${{ padding: '0 8px' }}>Gold spot from PAXG, and silver,
-          platinum and palladium from their trusts' metal per share. Gains on metals are taxed
-          as collectables.</p>`
-        : null}
     </div>
   `;
 }
+
+// What the pills on an item's row and its sale mean (S12.19.3).
+const STALE = 'Its latest valuation is over a year old: a newer one keeps its value true.';
+const COLLECTABLE = 'Taxed as a collectable, flagged on Form 8949.';
+const PERSONAL = "A loss on property you used yourself isn't deductible.";
 
 /** The summary on a physical-asset account's Overview. */
 /** @param {{ a: any }} p */
@@ -349,17 +351,11 @@ export function ItemDialog({ close, a, id }) {
           <div class="split" style=${{ alignItems: 'flex-start' }}>
             <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
               <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
-              <${RecField} rec=${rec} name="name" label="Name" placeholder=${{
-                'precious-metals': 'American Gold Eagle, 1 oz',
-                collectables: 'Rolex Submariner 124060',
-                'real-estate': 'Home',
-                vehicle: '2023 Subaru Outback',
-              }[t] || ''} />
+              <${RecField} rec=${rec} name="name" label="Name" />
               ${t === 'real-estate'
                 ? html`
                   <${RecField} rec=${rec} name="address" label="Address" />
-                  <${RecField} rec=${rec} name="primaryResidence" label="Primary residence"
-                    hint="Your main home: its sale may be partly tax-free." />
+                  <${RecField} rec=${rec} name="primaryResidence" label="Primary residence" />
                 `
                 : null}
               ${t === 'precious-metals'
@@ -391,7 +387,8 @@ export function ItemDialog({ close, a, id }) {
                       options=${UNITS} />
                   </div>
                   <div class="row">
-                    <${RecField} rec=${rec} name="purity" label="Purity" hint=".9999, .925, 22k" />
+                    <${RecField} rec=${rec} name="purity" label="Purity"
+                      placeholder="ex: .9999 or 22k" />
                     <${RecField} rec=${rec} name="quantity" label="Quantity" />
                   </div>
                 `
@@ -399,8 +396,7 @@ export function ItemDialog({ close, a, id }) {
               ${rec.get('valuation') === 'depreciation'
                 ? html`
                   <${RecField} rec=${rec} name="depreciationRate" label="Depreciation per year"
-                    id="depreciation-rate" placeholder="ex: 12"
-                    hint="A percentage of the value each year, until a valuation replaces it." />
+                    id="depreciation-rate" />
                 `
                 : null}
               <div class="row">
@@ -411,10 +407,7 @@ export function ItemDialog({ close, a, id }) {
               </div>
               <div class="row">
                 <${RecField} rec=${rec} name="costBasis" id="cost-basis"
-                  label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'}
-                  hint=${t === 'real-estate'
-                    ? 'Improvements add to it below.'
-                    : 'Price plus premium, fees and shipping.'} />
+                  label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'} />
                 ${t === 'real-estate'
                   ? html`<${RecField} rec=${rec} name="closingCosts" label="Closing costs" />`
                   : html`<${RecField} rec=${rec} name="insuredValue" label="Insured value" />`}
@@ -422,8 +415,7 @@ export function ItemDialog({ close, a, id }) {
               ${spot
                 ? html`
                   <${RecField} rec=${rec} name="sellPremium" label="Selling premium"
-                    id="sell-premium"
-                    hint="What you'd expect over spot when selling, in percent; below spot is negative." />
+                    id="sell-premium" />
                 `
                 : null}
               ${t === 'real-estate' ? null : html`
@@ -440,11 +432,10 @@ export function ItemDialog({ close, a, id }) {
               </div>
               ${t === 'vehicle' || t === 'other-asset' || t === 'collectables'
                 ? html`
-                  <${RecField} rec=${rec} name="personalUse" label="Used personally"
-                    hint="A loss when it's sold isn't deductible." />
+                  <${RecField} rec=${rec} name="personalUse" label="Used personally" />
                 `
                 : null}
-              <${RecField} rec=${rec} name="notes" label="Notes" hint="Markdown." rows=${3} />
+              <${RecField} rec=${rec} name="notes" label="Notes" rows=${3} />
             </${Reads}></div>
             ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
           </div>
@@ -590,7 +581,7 @@ function Improvements({ it, rec, draft }) {
         Improvement</${Action}>`
       : html`
         <${Field} label="What was done" help="improvements" id="improvement-description">
-          <${Input} value=${f.description} placeholder="ex: Kitchen remodel"
+          <${Input} value=${f.description}
             onInput=${(/** @type {string} */ x) => setF({ ...f, description: x })} />
           </${Field}>
           <div class="row">
@@ -646,7 +637,7 @@ function Documents({ it, rec }) {
               name="x" /></${Action}></div>
         `
       )
-      : html`<p class="small dim">The purchase receipt, an appraisal, a certificate, the title.</p>`}
+      : html`<${Empty}>No documents yet</${Empty}>`}
     ${rec.error('receiptIds') ? html`<div class="err">${rec.error('receiptIds')}</div>` : null}
     ${!it.access.writable
       ? html`<${Action} class="btn sm" why=${READ_ONLY}><${Icon} name="upload" /> Add</${Action}>`
@@ -680,11 +671,12 @@ function SaleCard({ it, rec }) {
         class="list-item"><span class="grow dim">${dec(s.gain).isNegative()
           ? 'Loss'
           : 'Gain'}</span><${Amt} v=${s.gain} signed /></div>
-      ${s.collectable
-        ? html`<p class="small dim">Taxed as a collectable, flagged on Form 8949.</p>`
-        : null}
-      ${!s.deductible
-        ? html`<p class="small dim">A loss on property you used yourself isn't deductible.</p>`
+      ${s.collectable || !s.deductible
+        ? html`<div class="toolbar">${
+          s.collectable ? html`<${StatePill} why=${COLLECTABLE}>collectable</${StatePill}>` : null
+        }${
+          !s.deductible ? html`<${StatePill} why=${PERSONAL}>used personally</${StatePill}>` : null
+        }</div>`
         : null}
       <${Action} class="btn sm" why=${whyRead(it)} onClick=${() => {
         rec.set('soldOn', null);
@@ -695,11 +687,11 @@ function SaleCard({ it, rec }) {
   }
   if (!sold || !it.access.writable) {
     return html`
+      ${s ? html`<${Attention}>The sale is undone when you save.</${Attention}>` : null}
       <div
-        class="toolbar mt">${s
-          ? html`<span class="small dim grow">The sale is undone when you save.</span>`
-          : null}<${Action} class="btn sm" why=${whyRead(it)} onClick=${() =>
-          rec.set('soldOn', today())}>Record the Sale…</${Action}></div>
+        class="toolbar mt">
+        <${Action} class="btn sm" why=${whyRead(it)}
+          onClick=${() => rec.set('soldOn', today())}>Record the Sale…</${Action}></div>
     `;
   }
   return html`
@@ -715,6 +707,5 @@ function SaleCard({ it, rec }) {
           <${Field} label="Fees" help="sale" id="sale-fees" error=${rec.error('saleFees')}>
             <${RecField} rec=${rec} name="saleFees" bare label="Fees" />
             </${Field}>
-            <p class="small dim">Recorded when you save.</p>
   `;
 }

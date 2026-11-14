@@ -25,13 +25,15 @@ is zero. The period is then reconciled, and editing a transaction inside it asks
 ## Balance Checks
 
 Every balance the institution reported (an OFX file's balance, a CSV's balance column, a statement,
-or a typed one), next to MoolaKata's for the same day.
+or a typed one), next to MoolaKata's for the same day. While the opening balance is worked out
+from the earliest one reported, standing in for history before the first import, it is marked
+**opening balance stand-in**.
 
 ## Mismatch
 
 When they differ, the window between the last matching balance and this one is searched for what's
 suspect: identical rows on one day, amounts that changed between imports, gaps, and the first row
-where a CSV's running balance parts from MoolaKata's.
+where a CSV's running balance parts from MoolaKata's: check the transactions around that row.
 
 ## Possible duplicate
 

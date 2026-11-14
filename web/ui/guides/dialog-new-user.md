@@ -21,4 +21,4 @@ Where the invitation goes.
 
 ## Groups
 
-Their groups. **Admins** makes them an admin.
+Their groups. **Admins** makes them an admin, who manages users, groups and Settings.

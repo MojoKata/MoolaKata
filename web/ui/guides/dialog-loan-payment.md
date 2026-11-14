@@ -20,7 +20,8 @@ in a bank account, which **Looks like a Payment** then offers to pair.
 
 ## Show the Split
 
-How the schedule splits this amount on this day.
+How the schedule splits this amount on this day: into principal, interest, escrow and PMI. Correct
+it from the servicer's statement if it differs.
 
 ## The split {#split}
 

@@ -80,7 +80,8 @@ says: split into interest, escrow, PMI and fees, with the principal as saved, or
 
 ## Moves
 
-The month's moves, each shown on both its rows and recorded in Activity. Delete one to undo it. A
+The month's moves, each shown on both its rows and recorded in Activity. A move covers one category
+from another for the month: an overspent row offers **Cover from…**. Delete one to undo it. A
 move in a past month changes that month and what carries after it.
 
 ## Left or Entered the Budget

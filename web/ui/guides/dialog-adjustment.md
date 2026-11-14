@@ -2,4 +2,5 @@
 
 ## Why {#note}
 
-Shown with the adjustment in the account and in Activity.
+Why the balances differ, such as a fee the bank refunded. Shown with the adjustment in the account
+and in Activity.

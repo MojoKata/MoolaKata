@@ -95,23 +95,23 @@ export function OptionTrade({ close, accountId, start }) {
             <${RecField} rec=${rec} name="date" label="Date" type="date" />
           </div>
           <div class="row">
-            <${RecField} rec=${rec} name="symbol" label="Underlying" placeholder="ex: MSFT" />
+            <${RecField} rec=${rec} name="symbol" label="Underlying" />
             <${RecField} rec=${rec} name="right" label="Call or put" id="right"
               options=${[['call', 'Call'], ['put', 'Put']]} />
-            <${RecField} rec=${rec} name="strike" label="Strike" placeholder="ex: 480" />
+            <${RecField} rec=${rec} name="strike" label="Strike" />
             <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
           </div>
           <div class="row">
-            <${RecField} rec=${rec} name="quantity" label="Contracts" hint="100 shares each." />
-            <${RecField} rec=${rec} name="price" label="Premium" hint="A share, as quoted." />
+            <${RecField} rec=${rec} name="quantity" label="Contracts" />
+            <${RecField} rec=${rec} name="price" label="Premium" />
             <${RecField} rec=${rec} name="fees" label="Fees and commission" id="fees"
               reset=${{ value: FEES, label: '$0.65' }} />
           </div>
-          <p class="small dim">${cash !== null && !dec(rec.get('price') || 0).isZero()
-            ? `${dec(cash).isNegative() ? 'Paid' : 'Received'}: ${money(String(dec(cash).abs()))}.`
-            : ''} ${rec.get('kind') === 'sell-to-open'
-            ? 'A short option is a negative lot: the credit is its basis, realized at close or expiry.'
-            : ''}</p>
+          ${cash !== null && !dec(rec.get('price') || 0).isZero()
+            ? html`<p class="small dim">${dec(cash).isNegative() ? 'Paid' : 'Received'}: ${
+              money(String(dec(cash).abs()))
+            }.</p>`
+            : null}
         `
         : null}
     </${DraftDialog}>
@@ -159,9 +159,6 @@ export function Settle({ close, row }) {
               noun="contracts" />
             </${Field}>
             </div>
-            <p class="small dim">${f.how === 'expired'
-              ? short ? 'The credit is kept as a gain.' : 'The premium paid is lost.'
-              : 'The shares are bought or sold at the strike, with the premium folded into their basis or proceeds.'}</p>
             <${FormError} error=${e} />
             </${Dialog}>
   `;
@@ -192,13 +189,10 @@ export function Mark({ close, row }) {
         </${Field}>
         ${rec
           ? html`
-            <${RecField} rec=${rec} name="close" label="Mark" id="mark-price"
-              hint="A share, as quoted." />
+            <${RecField} rec=${rec} name="close" label="Mark" id="mark-price" />
           `
           : null}
       </div>
-      <p class="small dim">Used until the price source has a close for it. Without either, an
-        option is marked at its intrinsic value.</p>
     </${DraftDialog}>
   `;
 }

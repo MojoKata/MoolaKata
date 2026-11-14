@@ -16,7 +16,7 @@ Which of their dates, and its year. With no date, it's an idea, kept on their li
 
 ## Description
 
-What it is.
+What it is: a watercolour set.
 
 ## Thank-you sent
 
@@ -29,12 +29,12 @@ purchase can pay for several gifts.
 
 ## Paid with {#paid-with}
 
-The purchase that paid for it, from the last 90 days. It's then categorised Gifts in budgets, unless
+The purchase that paid for it, from the last 90 days; one purchase can pay for several gifts. It's then categorised Gifts in budgets, unless
 it already had a category.
 
 ## Given in money
 
-Cash or a cheque. Money given to one person above the annual gift exclusion in a year is flagged for
+Cash or a cheque, counted against the annual gift exclusion. Money given to one person above the annual gift exclusion in a year is flagged for
 Form 709.
 
 ## Where bought {#store}

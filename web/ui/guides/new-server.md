@@ -7,9 +7,9 @@ it's lost.
 
 ## Show My Recovery Phrase
 
-Makes a new key and shows its 12 words. Every visit, and every browser, shows new words, and only
-the ones you confirm become the key: whoever only looked at a phrase knows nothing of the key the
-server keeps.
+Have paper and a pen ready. It makes a new key and shows its 12 words. Every visit, every reload
+and every browser shows new words, and only the ones you confirm become the key: whoever only
+looked at a phrase knows nothing of the key the server keeps.
 
 ## Your Recovery Phrase
 

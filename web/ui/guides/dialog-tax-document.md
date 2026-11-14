@@ -19,7 +19,8 @@ For a filed document: the filing it belongs to.
 
 ## Account
 
-For a received document: the account it reports on, which marks the expected one received.
+For a received document: the account it reports on, if any, which marks the expected one
+received.
 
 ## File
 

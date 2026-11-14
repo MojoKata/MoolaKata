@@ -5,7 +5,7 @@ A category of the household's tree. Everyone sees it, and a change to it shows i
 ## Name
 
 Up to 60 characters, without ›. Two categories under the same parent can't share a name, whatever
-its case. Anyone may rename a category.
+its case. Anyone may rename a category; everyone sees the new name.
 
 ## Under
 

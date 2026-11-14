@@ -144,6 +144,18 @@ def test_a_fixed_paragraph_is_found():
     ]
 
 
+# What S12.19.7 leaves as it is: the answer to an action just taken, beside what took it, and a
+# tour's steps. Each by its file and its words' start, so a new one is a choice made here.
+ANSWERS = {
+    ("kit/dialog.js", "What you changed in this dialog"),  # Save Your Changes?, on leaving
+    ("components/draft-form.js", "This needs your password again"),  # a save refused for it
+    ("components/reauth.js", "This needs your password"),  # an action refused for it
+    ("components/share.js", "Shared at Read when you save"),  # Share These Accounts Too, pressed
+    ("screens/signin.js", "If that is a disabled account here"),  # a request to be made active
+    ("components/tour.js", "The category is gone"),  # a tour's step (S12.17)
+}
+
+
 def test_no_paragraph_is_fixed_words():
     """What a dialog, a card or a section is for is in its guide, not on the screen (R3.12);
     the page's state draws with its own components (S12.19)."""
@@ -151,6 +163,7 @@ def test_no_paragraph_is_fixed_words():
         f"{name}:{line} {words[:90]!r}"
         for name, src in uitext.sources()
         for line, words in uitext.fixed_paragraphs(src)
+        if not any(n == name and words.startswith(w) for n, w in ANSWERS)
     ]
     assert not found, "fixed paragraphs (to the guide, or a state):\n" + "\n".join(found)
 
@@ -159,6 +172,9 @@ def field_labels() -> set[str]:
     out = set()
     for _, src in uitext.sources():
         out |= {m.group(1).lower() for m in re.finditer(r'\blabel="([^"$]+)"', src)}
+        # A label chosen by the record (label=${t === 'real-estate' ? 'Purchase price' : …}).
+        for m in re.finditer(r"\blabel=\$\{([^}]*)\}", src):
+            out |= {w.lower() for w in re.findall(r"'([^']+)'", m.group(1))}
     return out
 
 
@@ -184,3 +200,10 @@ def test_a_guide_heading_reads_as_the_button_tab_or_header_it_names():
             if want and want != h and h.lower() not in labels:
                 wrong.append(f"{g.name}:{n} {h!r} → {want!r}")
     assert not wrong, "guide headings in another case than their element:\n" + "\n".join(wrong)
+
+
+def test_each_answer_kept_is_still_there():
+    """Each answer named above is still drawn, so the list can't go stale."""
+    for name, words in ANSWERS:
+        src = (paths.UI / name).read_text()
+        assert any(w.startswith(words) for _, w in uitext.fixed_paragraphs(src)), (name, words)

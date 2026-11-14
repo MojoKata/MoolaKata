@@ -298,7 +298,6 @@ function ThisMonth({ b, month, reloadList }) {
           <div class="card kpi">
             <div class="label">Saved</div>
             <div class="value amt">${money(v.saved, { cents: false })}</div>
-            <div class="delta dim">put away: investing, savings, a loan's principal</div>
           </div>
         </div>
       `}
@@ -424,16 +423,13 @@ function ThisMonth({ b, month, reloadList }) {
                     </div>
               `
             )
-            : html`<p class="small dim">None this month. A move covers one category from another
-              for the month: an overspent row offers <b>Cover from…</b>.</p>`}
+            : html`<${Empty}>None this month</${Empty}>`}
         </div>
       `
       : null}
     ${v.moved.length
       ? html`
-        <div class="card mt"><h3>Left or Entered the Budget<span class="spacer"></span><span
-          class="small dim" style=${{ fontWeight: 400 }}>transfers with no category count
-            nowhere until sorted</span></h3>
+        <div class="card mt"><h3>Left or Entered the Budget</h3>
           ${v.moved.map((/** @type {any} */ m) =>
             html`
               <div class="list-item">
@@ -658,15 +654,11 @@ function BudgetList({ budgets, reload }) {
     `;
   return html`
     <div class="grid g2">
-      <div class="card"><h3>Active<span class="spacer"></span><span class="small dim"
-        style=${{ fontWeight: 400 }}>the budget you follow</span></h3>
-        ${active ? item(active) : html`<p class="small dim">None: make one active.</p>`}</div>
-      <div class="card"><h3>Scenarios<span class="spacer"></span><span class="small dim"
-        style=${{ fontWeight: 400 }}>to try another method or plan</span></h3>
+      <div class="card"><h3>Active</h3>
+        ${active ? item(active) : html`<${Empty}>None</${Empty}>`}</div>
+      <div class="card"><h3>Scenarios</h3>
         ${budgets.filter((x) => !x.active).map(item)}
-        ${budgets.some((x) => !x.active)
-          ? null
-          : html`<p class="small dim">None yet: <b>Copy as scenario…</b> starts one.</p>`}</div>
+        ${budgets.some((x) => !x.active) ? null : html`<${Empty}>None yet</${Empty}>`}</div>
     </div>
   `;
 }
@@ -699,8 +691,6 @@ function MakeActiveDialog({ close, b, from }) {
       <p style=${{ marginTop: 0 }}><b>${b.name}</b> becomes the budget you follow${from
         ? html`, in place of <b>${from.name}</b>, which stays as a scenario`
         : ''}.</p>
-      <p class="small dim">Nothing is rewritten: each keeps its months, moves and leave-outs. From
-        now on the Dashboard, budget alerts and what to move follow it.</p>
       <${FormError} error=${save.error} />
       </${Dialog}>
   `;
@@ -730,13 +720,10 @@ function CopyDialog({ close, b }) {
       <${Field} label="Name" error=${errAt(save.error, 'name')}>
         <${Input} value=${name} onInput=${setName} required />
         </${Field}>
-        <${Field} label="Method" error=${errAt(save.error, 'method')}
-          hint="Each plan line becomes the same amount, planned or assigned each month.">
+        <${Field} label="Method" error=${errAt(save.error, 'method')}>
           <${Select} value=${method} onChange=${setMethod} options=${METHODS} />
           </${Field}>
           <${SwitchRow} label="Bring this month's moves" on=${withMoves} onChange=${setWithMoves} />
-          <p class="small dim">The same accounts and plan, from this month. The budget you follow
-        doesn't change.</p>
           <${FormError} error=${save.error} shown=${['name', 'method']} />
           </${Dialog}>
   `;
@@ -1038,17 +1025,18 @@ function WhereMoneyIs({ b, month }) {
             )
             : null}
           ${!w.sayToMove
-            ? html`<p class="small dim">This scenario's own figures; only the active budget says what
-              to move.</p>`
+            ? html`
+              <div class="mt">
+                <${StatePill} why="Only the active budget says what to move."
+                >this scenario's own figures</${StatePill}></div>
+            `
             : dec(h.toMove).isZero() && h.between.length
             ? null
             : dec(h.toMove).isZero()
             ? html`
-              <div class="notice mt">
-                <${Icon} name="check" />
-                <div><b>Backed</b>: the reserves'
-                            money is here.</div>
-              </div>
+              <div class="mt">
+                <${StatePill} tone="ok" why="The reserves' money is here."
+                >backed</${StatePill}></div>
             `
             : html`
               <div class="notice warn mt">
@@ -1057,15 +1045,12 @@ function WhereMoneyIs({ b, month }) {
                   dec(h.toMove).abs(),
                 )} to move</b> ${dec(h.toMove).gt(0)
                   ? `from ${h.movedFromName || 'checking'} to ${h.accountName}`
-                  : `from ${h.accountName} back to ${
-                    h.movedFromName || 'checking'
-                  }`}. It reads backed once
-                            the transfer is imported and paired, whichever of the budget's accounts it involves.${h
-                                .overLimit
-                              ? html`${' '}<b>This would be withdrawal ${
-                                h.withdrawals + 1
-                              } from ${h.accountName} this month; it allows ${h.limit}.</b>`
-                              : null}</div>
+                  : `from ${h.accountName} back to ${h.movedFromName || 'checking'}`}.${h
+                    .overLimit
+                  ? html`${' '}<b>This would be withdrawal ${
+                    h.withdrawals + 1
+                  } from ${h.accountName} this month; it allows ${h.limit}.</b>`
+                  : null}</div>
               </div>
             `}
         </div>
@@ -1086,8 +1071,6 @@ function WhereMoneyIs({ b, month }) {
             ? html`<div class="list-item"><span class="grow dim">Interest and fees</span><span
               class="amt">${money(c.charges)}</span></div>`
             : null}
-          <p class="small dim">Spending counts when charged; paying the card moves nothing in a tracking
-            budget.</p>
         </div>
       `
     )}</div>
@@ -1211,9 +1194,8 @@ function CashFlow({ b, month }) {
           <${FlowChart} label=${`Cash flow, ${monthLabel(month)}`} sources=${f.sources}
             uses=${f.uses} />
         `
-        : html`<p class="small dim">No categorised income or spending this month.</p>`}
-      <p class="small dim">In ${money(f.income)} · out ${money(f.spending)}. Transfers between your
-        accounts aren't counted.</p>
+        : html`<${Empty}>No categorised income or spending this month</${Empty}>`}
+      <p class="small dim">In ${money(f.income)} · out ${money(f.spending)}</p>
     </div>
   `;
 }
@@ -1316,8 +1298,7 @@ function Reimbursements({ b }) {
     openDialog(PairDialog, { item: r }).then((x) => x && res.reload());
   return html`
     <div class="card" style=${{ padding: '4px 8px' }}>
-      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting Reimbursement<span class="spacer"></span><span
-        class="small dim" style=${{ fontWeight: 400 }}>not counted while awaited</span></h3>
+      <h3 style=${{ padding: '8px 8px 0' }}>Awaiting Reimbursement</h3>
       <table class="t">
         <thead>
           <tr>
@@ -1407,8 +1388,7 @@ function PairDialog({ close, item }) {
               ? html`<div class="err">${rec.error('paybackId')}</div>`
               : null}
           </fieldset>
-          <${RecField} rec=${rec} name="amount" label="Pays back"
-            hint="All of it, or part; one deposit can pay back several." />
+          <${RecField} rec=${rec} name="amount" label="Pays back" />
         `
         : null}
     </${DraftDialog}>
@@ -1492,19 +1472,14 @@ function BudgetDialog({ close }) {
       }}>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Name" placeholder="ex: Household" />
-          <${RecField} rec=${rec} name="method" label="Method" options=${METHODS}
-            hint="It keeps its method; copy it as a scenario to try the other." />
-          <${RecField} rec=${rec} name="reserves" label="Reserves"
-            hint="Save toward a target in a category, month by month." />
+          <${RecField} rec=${rec} name="name" label="Name" />
+          <${RecField} rec=${rec} name="method" label="Method" options=${METHODS} />
+          <${RecField} rec=${rec} name="reserves" label="Reserves" />
           <${RecField} rec=${rec} name="moves" label="Moves" disabled=${rec.get('method') ===
-            'envelope'} hint=${rec.get('method') === 'envelope'
-            ? 'Always on in an envelope budget.'
-            : 'Cover one category from another for a month.'} />
+            'envelope'} />
           <${AccountsPicker} ids=${new Set(counted.map((r) => r.get('accountId')))}
             setIds=${setIds} error=${counted.map((r) => r.error('accountId')).find(Boolean)} />
-          <${Field} label="Estimate from history"
-            hint="A plan line per category from its average; you keep, change or drop each.">
+          <${Field} label="Estimate from history">
             <${Select} value=${estimate} onChange=${setEstimate} options=${[
               ['0', "Don't estimate"],
               ['3', 'The last 3 months'],
@@ -1633,12 +1608,8 @@ function BudgetSettingsDialog({ close, b }) {
       ${rec
         ? html`
           <${RecField} rec=${rec} name="name" label="Name" />
-          <${RecField} rec=${rec} name="reserves" label="Reserves"
-            hint="Save toward a target in a category, month by month." />
-          <${RecField} rec=${rec} name="moves" label="Moves" disabled=${b.method === 'envelope'}
-            hint=${b.method === 'envelope'
-              ? 'Always on in an envelope budget.'
-              : 'Cover one category from another for a month.'} />
+          <${RecField} rec=${rec} name="reserves" label="Reserves" />
+          <${RecField} rec=${rec} name="moves" label="Moves" disabled=${b.method === 'envelope'} />
           ${owner
             ? html`
               <${AccountsPicker} ids=${ids} setIds=${(/** @type {Set<string>} */ v) => {
@@ -1649,8 +1620,7 @@ function BudgetSettingsDialog({ close, b }) {
               )} />
               ${changedAccounts
                 ? html`
-                  <${Field} label="The change counts from"
-                    hint="Months before it keep the accounts they had.">
+                  <${Field} label="The change counts from">
                     <${Select} value=${from} options=${fromChoices(thisMonth)}
                       data-help="counts-from" onChange=${(/** @type {string} */ v) => {
                         setFrom(v);
@@ -1669,12 +1639,12 @@ function BudgetSettingsDialog({ close, b }) {
               ...inBudget.filter((a) => a.type !== 'credit-card'),
             ].map((a) =>
               a.type === 'credit-card'
-                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
+                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim k"
                   >paid from</div></span><${Select} value=${open(a.id)?.get('paidFromId') || ''}
                   onChange=${set(a.id, 'paidFromId')} options=${choices(a, 'paidFromId')}
                   aria-label=${`${a.name}: paid from`} data-help="paid-from" /></div>`
                 : ['savings', 'money-market'].includes(a.type)
-                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim"
+                ? html`<div class="list-item"><span class="grow">${a.name}<div class="small dim k"
                   >money for its reserves moves from</div></span><${Select}
                   value=${open(a.id)?.get('movedFromId') || ''} onChange=${
                   set(
@@ -1870,7 +1840,7 @@ function EstimateDialog({ close, b, month, months }) {
         : !res.data
         ? html`<${Loading} lines=${4} />`
         : !found.length
-        ? html`<p class="small dim">Nothing to go by yet: no categorised spending in those months.</p>`
+        ? html`<${Empty}>Nothing to go by yet</${Empty}>`
         : html`
           <table class="t plan">
             <thead>
@@ -1960,7 +1930,7 @@ function PlanDialog({ close, b, month }) {
   return html`
     <${DraftDialog} f=${p.f} title=${`Plan from ${monthLabel(month)}`} wide close=${close}
       before=${before} what="The plan" done="Plan saved"
-      note="Earlier months keep the plan they had. $0 pauses a line and keeps what it holds; ✕ takes it out.">
+      note="Earlier months keep the plan they had.">
       <table class="t plan">
         <thead>
           <tr>

@@ -10,6 +10,8 @@ account's open options with it, contracts times the ratio and strike divided by 
 already adjusted to deliver cash or another company's shares is the exception: those don't split,
 so it waits for the OCC's memo and is typed here.
 
+It lists the options open in accounts you can change; with none, there is nothing to adjust.
+
 ## Underlying {#adjust-underlying}
 
 The stock whose options were adjusted.

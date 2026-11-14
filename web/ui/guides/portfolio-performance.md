@@ -10,18 +10,23 @@ What the portfolio's accounts you can see are worth now.
 
 ## Time-weighted return
 
-How the investments themselves did over the range, whatever you put in or took out and when: each
+What the investments themselves did over the range, whatever you put in or took out and when: each
 day's growth chained together. Use it to compare with a benchmark or a fund.
 
 ## Money-weighted return (IRR) {#money-weighted-return}
 
-Your own return, a year, counting when your money went in: money added before a rise earns more of
-it. It differs from the time-weighted return when you added or took money out.
+Your own return, a year (annualised), for your timing: it counts when your money went in, so money
+added before a rise earns more of it. It differs from the time-weighted return when you added or took money out.
 
 ## Contributed
 
 What went in less what came out over the range. **Growth** is the change in value that wasn't
 contributed.
+
+## Value over Time
+
+The portfolio's value, its net contributions and the benchmark. The benchmark is given the same
+money at the same times, so the lines compare what the investments did, not when money came in.
 
 ## Range
 

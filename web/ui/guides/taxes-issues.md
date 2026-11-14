@@ -12,7 +12,8 @@ out.
 ## Issues
 
 Sales without a matching lot, lots and sales without a basis, shares received from another person's
-account (which keep the giver's basis), and accounts left out of the book.
+account (which keep the giver's basis), and accounts left out of the book. With none of these,
+there is nothing to look at.
 
 A change made anyway to a year whose federal return is filed is listed first, with how far it
 moved the realized gains and in which accounts: an edit, a trade in another account or a spouse's

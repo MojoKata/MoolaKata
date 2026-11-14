@@ -33,7 +33,10 @@ Per share or unit.
 
 ## Amount
 
-The cash effect on the account: − for money out (a buy), + for money in (a sale), after fees. Typed from the cents, as a cash register takes it: `4250` is $42.50, and `-` makes it money out.
+The cash effect on the account: − for money out (a buy), + for money in (a sale), after fees.
+For coins received as income: no cash moves, so 0; the coins are income at the day's price, and
+that value is their basis. For foreign tax: what the fund paid abroad, as money out (1099-DIV box
+7). Typed from the cents, as a cash register takes it: `4250` is $42.50, and `-` makes it money out.
 
 ## Fees
 
@@ -51,18 +54,15 @@ takes from both parts.
 
 How many shares of that lot the sale takes; no more than the lot holds.
 
-## Cost basis
-
-For shares transferred in: what they cost. Without it the lot is marked **basis missing**.
-
-
 ## Lots, as bought {#transfer-lots}
 
 For shares moved in from another broker: each lot as it was bought, its day, how many and what it
 cost, adding up to the shares moved in, so a sale's term and gain are counted from the day bought.
 None typed, they arrive as one lot whose day bought is missing: its term shows as unknown, and the
-tax book lists it until you add it. Shares moved between two of your own accounts are offered as a
-pair instead, and carry their lots with them.
+tax book lists it until you add it. A lot without its cost is marked **basis missing** until you
+add it, and the dialog says so while one is blank. Shares moved between two of your own accounts
+are offered as a pair instead, and carry their lots with them.
+
 ## Payee
 
 Who was paid, or who paid you.
@@ -128,7 +128,8 @@ Who pays it back, as you want to see it: _Acme Corp_, _Sam_.
 
 Each budget counting this transaction, and what it counts as there. **Leave Out** is that budget's
 own, for a one-off such as a car bought outright: it then counts nowhere in that budget, and
-Activity records it. The category is the transaction's, the same in every budget.
+Activity records it. The category is the transaction's, the same in every budget: changing it changes every budget that
+counts it.
 
 ## Receipts
 

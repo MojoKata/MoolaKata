@@ -172,8 +172,6 @@ function LinkedHouseholds() {
   const rows = /** @type {any[]} */ (res.data) || [];
   if (!rows.length) return null;
   return html`<section class="card mt" data-help="linked-households"><h3>Linked Households</h3>
-    <p class="small dim" style=${{ marginTop: '-6px' }}>What other households share with you
-      opens in a window of its own, never mixed with yours.</p>
     ${
     rows.map((h) =>
       html`

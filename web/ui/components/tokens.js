@@ -12,6 +12,7 @@ import { Record } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { Icon } from '../kit/icon.js';
+import { Attention, Empty } from '../kit/state.js';
 import { toast } from '../kit/toast.js';
 
 const endpoint = () => `${location.origin}/mcp`;
@@ -41,7 +42,7 @@ export function AccessTokens() {
         : !rows
         ? html`<${Loading} lines=${2} />`
         : !rows.length
-        ? html`<p class="small dim">None yet.</p>`
+        ? html`<${Empty}>No access tokens yet</${Empty}>`
         : rows.map((t) =>
           html`
             <div
@@ -111,13 +112,10 @@ function NewToken({ close }) {
         const { secret, ...token } = o.saved[0].record;
         close({ token, secret });
       }}>
-      <p class="small dim" style=${{ marginTop: 0 }}>For an AI assistant or another tool that
-        speaks MCP. It can read, never change, and only what you choose here.</p>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Token name" placeholder="ex: Claude on my laptop" />
-          <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}
-            hint="Never secrets, Settings or linked households.">
+          <${RecField} rec=${rec} name="name" label="Token name" />
+          <${Field} label="Can read" error=${rec.error('scope') || rec.error('items')}>
             <${Select} value=${rec.get('scope')} onChange=${(/** @type {string} */ v) =>
               rec.set('scope', v)} options=${[
               ['all', 'Everything I can see'],
@@ -158,11 +156,9 @@ function TokenShown({ close, made }) {
           navigator.clipboard?.writeText(made.secret).then(() => toast('Copied'))}>Copy</button>
         <button class="btn primary">Done</button>
       `}>
-      <div class="notice" style=${{ marginBottom: '12px' }}>
-        <${Icon} name="alert" />
-        <div>Copy it
-        now. Anyone with it can read what it can until it expires or you revoke it.</div>
-      </div>
+      <div style=${{ marginBottom: '12px' }}>
+        <${Attention} icon=${html`<${Icon} name="alert" />`}
+        >Copy it now</${Attention}></div>
       <div class="field"
         data-help="token"><label>Token</label><code class="mono" style=${{
           display: 'block',

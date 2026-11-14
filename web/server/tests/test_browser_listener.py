@@ -6,6 +6,7 @@ own self-signed one is drawn by the generated mockup's server.)"""
 import pytest
 from browser import PASSWORD, client, made, open_page, stop, unlocked, wait
 
+from moolakata import paths
 from moolakata.listener import self_signed
 
 pytestmark = pytest.mark.browser
@@ -34,7 +35,7 @@ def rows(browser, base: str) -> str:
 @pytest.mark.parametrize(
     ("config", "said", "not_said"),
     [
-        ({}, ["proxy mode", "Trusted proxies none", "the proxy's own address"], ["Certificate"]),
+        ({}, ["proxy mode", "Trusted proxies none"], ["Certificate"]),
         (
             {"server": 'trusted_proxies = ["127.0.0.2", "fd00:37::7"]'},
             ["Trusted proxies 127.0.0.2, fd00:37::7"],
@@ -42,7 +43,7 @@ def rows(browser, base: str) -> str:
         ),
         (
             {"mode": "tls", "more": "given"},
-            ["tls mode", "Certificate given in moolakata.toml", "renewed certificate"],
+            ["tls mode", "Certificate given in moolakata.toml"],
             ["for testing", "Trusted proxies"],
         ),
     ],
@@ -61,3 +62,10 @@ def test_the_listener_rows_say_how_it_runs(browser, tmp_path, config, said, not_
         assert text in shown, shown
     for text in not_said:
         assert text not in shown, shown
+
+
+def test_the_listener_explains_itself_in_the_guide():
+    """What the rows leave out is in Settings › Network's guide (R3.12)."""
+    guide = (paths.UI / "guides" / "settings-network.md").read_text()
+    for text in ["each proxy's own address, never a whole range", "A renewed certificate"]:
+        assert text in " ".join(guide.split()), text

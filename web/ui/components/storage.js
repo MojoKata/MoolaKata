@@ -16,7 +16,7 @@ import { Record } from '../app/draft.js';
 import { DraftDialog, DraftForm, RecField, useDraft } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
 import { FIELDS } from '../api/fields.js';
-import { RowTool } from '../kit/state.js';
+import { Attention, Empty, RowTool } from '../kit/state.js';
 
 const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 
@@ -127,9 +127,6 @@ export function StorageSection() {
             )
           } Files (${size(v.expired.bytes)})</button>`
           : null}</h3>
-        <p class="small dim" style=${{ marginTop: '-6px' }}>Records are never removed. Receipt and
-          statement files are kept as long as their category says, counted from when their record
-          ended, and for ever by default. Files are never pruned on their own.</p>
         <div class="list-item"><span class="grow">Database</span><b>${size(
           v.databaseBytes,
         )}</b></div>
@@ -137,8 +134,7 @@ export function StorageSection() {
           v.receiptsBytes,
         )}</b></div>
         <${Field} label="Keep statements for" id="keep-statements-years"
-          error=${rec.error('keepStatementsYears')}
-          hint="Years after each statement's period. Empty keeps them for ever.">
+          error=${rec.error('keepStatementsYears')}>
           <${SpinInput} value=${years ?? ''} min=${1} max=${100} onInput=${(
             /** @type {string} */ x,
           ) => rec.set('keepStatementsYears', x.trim() ? Number(x) : null)}
@@ -166,25 +162,26 @@ export function StorageSection() {
                 note: `${count(v.forever.files)} · ${size(v.forever.bytes)}`,
               },
             ]} />${v.orphans.files
-              ? html`<div class="list-item"><span class="grow">${
-                count(v.orphans.files)
-              } files no record names
-                  <div class="small dim">Left behind when an older database was restored under files written later.</div></span>${
-                size(v.orphans.bytes)
-              } <button type="button" class="btn sm" onClick=${() =>
-                withReauth(() => api.post('/settings/storage/orphans/remove')).then((out) => {
-                  toast(`${count(out.files)} files removed, ${size(out.bytes)} freed`);
-                  res.reload();
-                }, (e) => toast(e.message))}>Remove</button></div>`
+              ? html`
+                <div
+                  class="list-item"><span class="grow">${count(
+                    v.orphans.files,
+                  )} files no record names</span>${size(
+                    v.orphans.bytes,
+                  )} <button type="button" class="btn sm" onClick=${() =>
+                    withReauth(() => api.post('/settings/storage/orphans/remove')).then((out) => {
+                      toast(`${count(out.files)} files removed, ${size(out.bytes)} freed`);
+                      res.reload();
+                    }, (e) => toast(e.message))}>Remove</button></div>
+              `
               : null}${v.pruned
               ? html`<p class="small dim">${count(v.pruned)} files pruned before.</p>`
               : null}</div>
-          <div class="card"><h3 data-help="what-expires-each-year">What Expires Each Year</h3><p
-        class="small dim" style=${{ marginTop: '-6px' }}>By category, from the periods set now.
-        Change a category's period and these move.</p>${v.byYear.length
-          ? html`<${YearBars} years=${v.byYear} />`
-          : html`<p class="small dim">Nothing expires: every file is kept for ever or while its
-          record is open.</p>`}</div>
+          <div
+            class="card"><h3 data-help="what-expires-each-year">What Expires Each Year</h3>${v
+                .byYear.length
+              ? html`<${YearBars} years=${v.byYear} />`
+              : html`<${Empty}>Nothing expires</${Empty}>`}</div>
           <${CategoryPeriods} reload=${res.reload} />
           </div>
   `;
@@ -206,8 +203,6 @@ function CategoryPeriods({ reload }) {
   return html`
     <div class="card">
       <h3 data-help="keep-receipts-for">Keep Receipts For</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Years after the record a receipt is
-        attached to ended. A subcategory without its own takes its parent's.</p>
       <div class="table-wrap">
         <table class="t">
           <tbody>${list.filter((c) => c.kind !== 'transfer')
@@ -244,22 +239,26 @@ class CategoryRec extends Record {
 }
 
 /** @param {{ close: (v?: any) => void, c: any, cats: any[] }} p */
-function CategoryDialog({ close, c }) {
+function CategoryDialog({ close, c, cats }) {
   useDialogGuide('dialog-category');
   const f = useDraft((draft) => {
     draft.load(CategoryRec, c);
   }, [c.id]);
   const rec = /** @type {CategoryRec | undefined} */ (f.draft?.records[0]);
   const years = rec?.get('keepReceiptsYears');
+  // A blank takes the parent's period, when the parent has one (S14.10.1.1).
+  const from = c.parentId ? cats.find((x) => x.id === c.parentId)?.keepReceiptsYears : null;
   return html`
     <${DraftDialog} f=${f} title=${c.path} close=${close} what="This category" done="Saved">
       ${rec
         ? html`
           <${RecField} rec=${rec} name="keepReceiptsYears" label="Keep receipts for"
-            id="keep-receipts-years" placeholder="for ever" spin=${true} min=${1}
+            id="keep-receipts-years" placeholder=${from != null
+              ? `its parent's (${from} years)`
+              : 'for ever'} spin=${true} min=${1}
             hint=${years != null && years < 7
-              ? html`<b>Under 7 years:</b> 7 covers every IRS audit window.`
-              : 'Years after the record a receipt is attached to ended. Empty keeps them for ever, or as its parent says.'} />
+              ? 'Under 7 years: shorter than some IRS audit windows.'
+              : null} />
         `
         : null}
     </${DraftDialog}>
@@ -299,24 +298,20 @@ function PruneDialog({ close, v }) {
     <${Dialog} title=${`Prune ${count(files)} Files`} close=${close}
       onSubmit=${() => run.run().catch(() => {})}
       footer=${html`<button class="btn danger" disabled=${run.busy || !files}>Prune</button>`}>
-      <p class="small dim" style=${{ marginTop: 0 }}>These files have passed their retention. Their
-        records stay, with amounts, dates and links, marked <i>File pruned</i>.</p>
       ${v.expiredBy.map((/** @type {any} */ x) =>
         html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
           checked=${ticked.includes(x.category)} onChange=${() => toggle(x.category)} /> <span
           class="grow">${x.category}</span>${count(x.files)} files · ${size(x.bytes)}</label>`
       )}
       <div class="list-item"><span class="grow"><b>Space freed</b></span><b>${size(bytes)}</b></div>
-      <div class="notice mt" role="note"><div>No backup is made first: a backup holds no files.
-        A pruned file survives only in the host's own backups of the data directory.</div></div>
+      <div class="mt"><${Attention}>No backup is made first.</${Attention}></div>
       <${Field} label=${`Type ${files} to confirm`} id="prune-count"
         error=${errAt(run.error, 'count')}>
         <${TypedInput} kind="count" value=${typed} onInput=${setTyped} required />
       </${Field}>
       ${needPassword
         ? html`
-          <${Field} label="Your password" id="reauth-password"
-            hint="Asked again: it was over 10 minutes ago.">
+          <${Field} label="Your password" id="reauth-password">
             <${Input} type="password" value=${password} onInput=${setPassword}
               autocomplete="current-password" required />
             </${Field}>

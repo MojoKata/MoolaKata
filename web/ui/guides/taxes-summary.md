@@ -19,8 +19,9 @@ a grown child.
 
 ## Exports
 
-Form 8949 and Schedule D as CSV, a TXF file that TurboTax, H&R Block and others import, and a PDF
-summary for a preparer. Each says what it covers and what it doesn't. TXF has no place for a
+Form 8949 and Schedule D as CSV, every sale in the book's taxable accounts by box; a TXF file that
+TurboTax, H&R Block and others import; and a PDF summary for a preparer of what each panel holds,
+with its sources. Each says what it covers and what it doesn't. TXF has no place for a
 digital asset's box (G to L) or for the codes C (a collectable) and L (a personal-use loss), so
 those sales are left out of it, counted beside it, and entered from the CSV.
 
@@ -39,7 +40,8 @@ child's name.
 What last year's filings carried forward: the AGI needed to sign this year's e-filed return,
 capital-loss and charitable carryovers, and the Form 8606 basis. Each is from the book its filer
 accepted last year, named with whose it was: after filing separately, a joint book shows both,
-and the Summary adds their carryovers and last year's total tax.
+and the Summary adds their carryovers and last year's total tax. Until last year's filings are
+typed in, nothing is carried forward.
 
 ## Your Share of the Joint Carryover {#carryover-share}
 

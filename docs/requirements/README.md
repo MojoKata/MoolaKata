@@ -366,7 +366,7 @@ The rulings the rest of the requirements apply.
     (S12.19), and a warning of what an action will do, cut to its consequence (*No backup is
     made first.*). A warning that matters as the person acts shows by its field only while it
     applies: *A written acknowledgement is needed* once a single gift is $250 or more, *Marked
-    basis missing until you add it* while a purchase's cost is blank.
+    basis missing until you add it* while a lot moved in has no cost.
 13. **Text case.** Title Case for buttons, column, panel and card headers, page headings,
     dialog titles, tabs, the navigation, Settings sections, menu items and links that stand
     alone; Sentence case for field labels, switch and checkbox labels, a list's choices,

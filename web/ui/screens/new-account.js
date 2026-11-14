@@ -22,9 +22,6 @@ export const LOT_METHODS = /** @type {[string, string][]} */ ([
   ['specific', 'Specific identification'],
   ['average', 'Average cost'],
 ]);
-/** The lot method's note (S2.3): average cost is for fund shares and coins. */
-export const LOT_HINT = 'How sales pick lots: average cost is for funds and coins, a share ' +
-  'going oldest first. The method in force at a sale is recorded with it.';
 // Imports are files and statements alike (S1.3): the choice sets only whether statements are
 // expected; whether positions are holdings is told by the account's trades.
 export const KEPT_BY = /** @type {[string, string][]} */ ([
@@ -39,10 +36,6 @@ export function NewAccount({ close }) {
   if (!type) {
     return html`
       <${Dialog} title="New Account" wide close=${close} footer=${null}>
-        <p class="small dim" style=${{
-          marginTop: 0,
-        }}>Choose the type. It decides the fields, the tax
-              treatment and how the account can be kept current.</p>
         <div class="type-grid">${TYPES.map((t) =>
           html`<button type="button" class="type-card" onClick=${() => setType(t.type)}>
           <${Tile} group=${t.group} icon=${t.icon} /><div style=${{
@@ -114,37 +107,27 @@ function AccountForm({ type, close, back }) {
       extra=${() => html`<button type="button" class="btn" onClick=${back}>Back</button>`}>
       ${acct
         ? html`
-          <${RecField} rec=${acct} name="name" label="Name" placeholder=${t.investing
-            ? 'Individual brokerage'
-            : t.loan
-            ? t.label
-            : 'Everyday checking'} />
+          <${RecField} rec=${acct} name="name" label="Name" />
           <div class="row">
-            <${RecField} rec=${acct} name="institution" label="Institution"
-              placeholder="The bank or broker" />
-            <${RecField} rec=${acct} name="mask" label="Last 4" id="mask"
-              placeholder="ex: 4821" />
+            <${RecField} rec=${acct} name="institution" label="Institution" />
+            <${RecField} rec=${acct} name="mask" label="Last 4" id="mask" />
           </div>
           ${t.education && plan && draft ? html`<${PlanFields} rec=${plan} />` : null}
           ${t.wallet
             ? html`
-              <p class="small dim">Bitcoin. Other coins come later.</p>
               <${WalletFields} rec=${acct} />
-              <${RecField} rec=${acct} name="lotMethod" label="Lot method" options=${LOT_METHODS}
-                hint=${LOT_HINT} />
+              <${RecField} rec=${acct} name="lotMethod" label="Lot method" options=${LOT_METHODS} />
             `
             : t.loan && loan
             ? html`<${TermsFields} rec=${loan} type=${type} />`
             : t.physical
-            ? html`<p class="small dim">Add the items after making the account, each with its
-              purchase date, cost basis, notes and documents.</p>`
+            ? null
             : html`
               <${KeptBy} rec=${acct} />
               ${t.investing
                 ? html`
                   <${RecField} rec=${acct} name="lotMethod" label="Lot method"
-                    options=${LOT_METHODS}
-                    hint=${LOT_HINT} />
+                    options=${LOT_METHODS} />
                 `
                 : null}
               <div class="row">

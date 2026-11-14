@@ -32,7 +32,8 @@ How far back the chart goes: a month, three months, this year, a year, five year
 
 ## Accounts
 
-Your accounts by group, with each group's total. A click opens Accounts.
+Your accounts by group, with each group's total. A click opens Accounts. With none yet, make one
+with **New Account**, then import its files.
 
 ## New Account
 

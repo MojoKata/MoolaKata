@@ -20,8 +20,8 @@ The fund it went into, or that made the grant.
 
 ## From account {#from-account}
 
-Where the money or shares came from: its side is recorded too. Leave it for a gift already in an
-imported account.
+Where the money or shares came from: its side is recorded too. For cash, its withdrawal is
+recorded, categorised Giving. Leave it for a gift already in an imported account.
 
 ## From lot {#lot}
 
@@ -33,8 +33,9 @@ How many shares were given.
 
 ## Amount
 
-What was given: the cash, the goods' fair market value, or the shares' market value on the day. For
-shares held a year or less, the deduction is their basis.
+What was given: the cash, the goods' fair market value, or the shares' market value on the day
+given. No gain is realized on donated shares: held over a year, the deduction is their market
+value; held a year or less, it is their basis.
 
 ## What was given {#description}
 
@@ -47,7 +48,8 @@ A grant from a donor-advised fund is pending until the fund pays it.
 
 ## Acknowledgement received
 
-The organisation's written acknowledgement, needed for any single gift of $250 or more.
+The organisation's written acknowledgement, needed for any single gift of $250 or more: the dialog
+says so once the amount reaches $250.
 
 ## Acknowledgement
 

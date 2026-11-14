@@ -98,18 +98,13 @@ export function CorporateAction({ close, accountId }) {
               <${RecField} rec=${rec} name="kind" label="Action" options=${KINDS} />
               <${RecField} rec=${rec} name="date" label="Date" type="date" />
             </div>
-            <${RecField} rec=${rec} name="newSymbol" label="New symbol" placeholder="ex: META"
-              hint=${rec.get('kind') === 'merger' ? 'Empty for a merger paid all in cash.' : ''} />
-            <${RecField} rec=${rec} name="ratio" label="New shares for each held"
-              hint=${rec.get('kind') === 'split'
-                ? '2 for a 2-for-1 split, 0.1 for a 1-for-10 reverse.'
-                : ''} />
-            <${RecField} rec=${rec} name="basisShare" label="Basis to the new shares"
-              hint="In percent, from the company's Form 8937." placeholder="ex: 13.65" />
+            <${RecField} rec=${rec} name="newSymbol" label="New symbol"
+              placeholder=${rec.get('kind') === 'merger' ? 'none: paid all in cash' : null} />
+            <${RecField} rec=${rec} name="ratio" label="New shares for each held" />
+            <${RecField} rec=${rec} name="basisShare" label="Basis to the new shares" />
             <${RecField} rec=${rec} name="cashPerShare" label="Cash for each share held"
               min="0.00" format=${money} />
-            <${RecField} rec=${rec} name="newPrice" label="A new share's price that day"
-              hint="The cash is a gain only as far as the gain goes, and this tells the gain." />
+            <${RecField} rec=${rec} name="newPrice" label="A new share's price that day" />
         `
         : null}
     </${DraftDialog}>

@@ -223,7 +223,7 @@ function NewUser({ close, groups }) {
   const rec = /** @type {UserRec | undefined} */ (f.draft?.records[0]);
   return html`
     <${DraftDialog} f=${f} title="New User" close=${close} what="This user"
-      label="Send the Invitation" note="They choose their own password from the invitation."
+      label="Send the Invitation"
       saved=${(/** @type {any} */ o) => {
         const u = o.saved[0].record;
         toast(`Invitation sent to ${u.email}`);
@@ -327,11 +327,9 @@ function EditUser({ close, user, groups }) {
         <p>This turns off two-step sign-in for ${user.displayName}, so their password alone signs
           them in, and signs them out everywhere. Do it only when they have lost both their app and
           their recovery codes, and you know it is them asking.</p>
-        <p class="small dim">They get an email saying so, and can turn it on again in Profile.</p>
         ${needPassword
           ? html`
-            <${Field} label="Your password" id="reauth-password"
-              hint="Asked again: it was over 10 minutes ago.">
+            <${Field} label="Your password" id="reauth-password">
               <${Input} type="password" value=${password} onInput=${setPassword}
                 autocomplete="current-password" required />
               </${Field}>
@@ -366,9 +364,7 @@ function EditUser({ close, user, groups }) {
         ? html`
           <${RecField} rec=${rec} name="displayName" label="Name" id="display-name" />
           <${RecField} rec=${rec} name="email" label="Email address" id="email" type="email"
-            disabled=${!user.invited} hint=${user.invited
-              ? 'Fix it before they join; the invitation then goes to the new address.'
-              : 'Once a user has joined, they change it themselves.'} />
+            disabled=${!user.invited} />
           <${GroupPicker} groups=${groups} ids=${rec.get('groupIds')} setIds=${(
             /** @type {string[]} */ v,
           ) => rec.set('groupIds', v)} error=${rec.error('groupIds') || rec.error('memberIds')} />
@@ -387,11 +383,7 @@ function GroupPicker({ groups, ids, setIds, error }) {
       html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
       checked=${ids.includes(g.id)} onChange=${() =>
         setIds(ids.includes(g.id) ? ids.filter((x) => x !== g.id) : [...ids, g.id])} />
-      <span class="grow">${g.name}${
-        g.builtIn
-          ? html`${' '}<span class="small dim">· manages users, groups and Settings</span>`
-          : null
-      }</span></label>`
+      <span class="grow">${g.name}</span></label>`
     )
   }
     ${error ? html`<div class="err">${error}</div>` : null}</fieldset>`;
@@ -414,8 +406,7 @@ function GroupDialog({ close, users, group }) {
           <${RecField} rec=${rec} name="name" label="Name" disabled=${group?.builtIn} />
           ${group && !group.builtIn
             ? html`
-              <${RecField} rec=${rec} name="active" label="Active"
-                hint="An inactive group's shares give its members nothing." />
+              <${RecField} rec=${rec} name="active" label="Active" />
             `
             : null}
           <fieldset class="field" style=${{

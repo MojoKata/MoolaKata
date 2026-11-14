@@ -20,6 +20,12 @@ Select rows with their boxes, choose a category, and **Categorise** them togethe
 
 Change one transaction's category in place. A split shows its parts in the transaction itself.
 
+## Keep It
+
+A row is marked **amount changed in a later import** when a file imported since gave it another
+amount: check which is right. A crypto wallet's transaction that two reads of the chain in a row
+didn't find is marked **no longer on the chain**: **Keep It** keeps it for good, or delete it.
+
 ## Transfers
 
 Money moving between two of your accounts is matched (the same amount the other way, within a few

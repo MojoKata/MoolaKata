@@ -7,7 +7,7 @@ import { ago } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
-import { Chips, Failed, Loading } from '../kit/bits.js';
+import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { GROUP_LABELS, Tile } from '../components/groups.js';
 import { Icon } from '../kit/icon.js';
 import { RANGES, TimeChart } from '../charts/chart.js';
@@ -126,7 +126,13 @@ export default function Dashboard() {
               <div class="small dim">${g.accounts.join(' · ')}</div></div>
               <div class="num"><b><${Amt} v=${g.total} /></b></div></a>`
           )
-          : html`<p class="small dim">No accounts yet. Make one, then import its files.</p>`}
+          : html`
+            <${Empty} action=${html`
+              <button type="button" class="btn primary"
+                onClick=${() => openDialog(NewAccount)}><${Icon} name="plus" /> New Account</button>
+            `}
+            >No accounts yet</${Empty}>
+          `}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <${Plans} />
@@ -141,7 +147,7 @@ export default function Dashboard() {
                   .link}>See</a></div>
             `
           )
-          : html`<p class="small dim">Nothing needs you right now.</p>`}
+          : html`<${Empty}>Nothing needs you right now</${Empty}>`}
       </div>
       </div>
     </div>

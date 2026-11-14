@@ -1,7 +1,8 @@
 # Positions: Strategies
 
 Legs held together, such as a covered call, a vertical spread or an iron condor, shown as one.
-Grouping is a label: each leg keeps its own lots, gains and wash sales.
+Grouping is a label: each leg keeps its own lots, gains and wash sales. Capital at risk is the most
+the strategy can lose at expiry; for a loss with no limit, the margin you type.
 
 ![Strategies](shots/positions-strategies.png)
 

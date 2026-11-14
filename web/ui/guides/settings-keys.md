@@ -14,10 +14,17 @@ A short name for the key that reveals nothing about it, such as `mk-3f9a…c21e`
 When the phrase was last entered. The server locks again at every restart, until someone
 enters the phrase on the locked screen or with `moolakata keys unlock` on the host.
 
+## Encrypted under it
+
+The database, the receipt files and the secrets MoolaKata keeps, with their sizes and counts.
+Passwords are hashed, not encrypted.
+
 ## Recovery phrase
 
 The master key written as 12 words. The welcome showed it once, when the server was new, and
-nothing shows it again: without it nothing here, no backup, and no restart of the server opens.
+nothing shows it again: without it nothing here, no backup, and no restart of the server opens, and
+the server cannot even start serving. Keep the phrase in two places, one offline. Every unlock
+confirms it; check each copy once a year with **Verify Key**.
 
 ## Verify Key
 
@@ -69,6 +76,12 @@ first, after a verified backup, with the phrase given there wrapping the new key
 on the locked screen. It asks for your password again. Once asked for, it runs at that unlock;
 a second waits until it has. A rotation re-encrypts too.
 
+For when the data key may have been read: a memory dump or a debugging session on the live server,
+or a master key or recovery phrase that leaked while any copy of the data directory or a backup
+could have been taken with it. It closes nothing made before it: every earlier copy still opens
+with the key it was made under, so a leak also means deleting those copies wherever they are. It
+doesn't change the master key, which **Rotate** does.
+
 ## Scheduled {#scheduled}
 
 A re-encryption waiting for the restart: the unlock runs it before the server serves.
@@ -92,8 +105,3 @@ under the new data key, after the main job; **Delete** removes it; **Leave as it
 under its old data key, which this phrase still opens. A copy under an earlier phrase cannot be
 rewritten: leave it or delete it. A backup made after the choices, the re-encryption's own
 first one among them, is re-encrypted, the first one last.
-For when the data key may have been read: a memory dump or a debugging session on the live server,
-or a master key or recovery phrase that leaked while any copy of the data directory or a backup
-could have been taken with it. It closes nothing made before it: every earlier copy still opens
-with the key it was made under, so a leak also means deleting those copies wherever they are. It
-doesn't change the master key, which **Rotate** does.

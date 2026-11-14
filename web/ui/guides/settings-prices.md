@@ -6,8 +6,11 @@ Where daily closes come from. Prices are free and daily, never live.
 
 ## Price Sources
 
-The sources added, each with the classes it serves. For each class the first enabled source is used,
-and the next one when it fails.
+The sources added, each with the classes it serves. For each class the first enabled source in the
+order is used, and the next one when it fails. Every price shows its source and date.
+
+Until a source is added, prices are off: holdings are valued from the brokers' files and the last
+trade.
 
 ## Add a Source
 
@@ -27,7 +30,8 @@ When the source was last used, and its last error.
 
 ## Daily refresh at
 
-When the daily refresh runs, after the US market close. 6:00 PM Eastern by default.
+When the daily refresh runs, in the time zone the field names, after the US market close. 6:00 PM
+Eastern by default.
 
 ## Refresh Prices
 

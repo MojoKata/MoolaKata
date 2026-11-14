@@ -26,8 +26,7 @@ export default function Reset() {
         e.preventDefault();
         save.run().catch(() => {});
       }}>
-        <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}
-          hint="At least 12 characters; not a common password.">
+        <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}>
           <${Input} type="password"
             value=${password} onInput=${setPassword} autocomplete="new-password" required />
           </${Field}>

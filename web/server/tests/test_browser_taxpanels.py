@@ -463,7 +463,7 @@ def test_the_giving_panel_shows_acknowledgements_and_what_is_apart(browser, worl
     ]
     apart = _text(page, '.card:has(h3:text("Not deducted"))')
     assert "Oct 2, 2021 St. Mark's Parish QCD from an IRA $1,000.00 —" in apart
-    assert "QCDs (excluded from income instead)" in apart
+    assert "excluded from income" not in apart, "what the card holds is in its guide (R3.12)"
     assert problems == []
     page.close()
 
@@ -680,7 +680,7 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
     assert page.input_value("#f-form") == "Return as filed"
     first = world.book(YEAR)["filings"][0]["id"]
     assert page.input_value("#f-filing") == first
-    assert page.get_attribute("#f-issuer", "placeholder") == "ex: IRS"
+    assert page.get_attribute("#f-issuer", "placeholder") is None, "a name is no placeholder"
     assert page.locator("#f-account").count() == 0, "a filed document reports on no account"
     _close_dialog(page, problems)
     assert problems == []
@@ -688,21 +688,21 @@ def test_add_a_filed_document_starts_on_the_first_filing(browser, world):
 
 
 EMPTY_STATES = {
-    "gains": ["No sales in 2020", "None found: no loss sale was replaced within 30 days."],
+    "gains": ["No sales in 2020", "None found"],
     "income": ["No interest in 2020", "None in 2020", "No staking or rewards in 2020"],
     "retirement": [
-        "No retirement accounts in this book.",
+        "No retirement accounts in this book",
         "None in 2020",
-        "None due: no owner has reached the RMD age.",
+        "None due",
     ],
     "deductions": [
-        "No transactions in tax-tagged categories.",
-        "None recorded in the filings.",
-        "No dependents in this book: add them on the Summary.",
+        "No transactions in tax-tagged categories",
+        "None recorded in the filings",
+        "No dependents in this book",
     ],
-    "giving": ["Deductible $0.00", "None."],
-    "education": ["No 529 plans in this book.", "No one received more than the annual exclusion."],
-    "property": ["No loans in this book.", "Nothing sold in 2020"],
+    "giving": ["Deductible $0.00", "None"],
+    "education": ["No 529 plans in this book", "No one received more than the annual exclusion"],
+    "property": ["No loans in this book", "Nothing sold in 2020"],
     "summary": ["Net capital gain or loss $0", "0 payers", "deductible", "Nothing carried forward"],
 }
 
@@ -787,7 +787,7 @@ def test_new_tax_book_makes_this_years_book(browser, world):
         dialog = _text(page, ".dialog")
         assert "Add your spouse among your relationships in Profile to file jointly." in dialog
         page.select_option("#f-year", str(year))
-        wait(page, '.dialog :text("Copies last year\'s accounts left out or added")', problems)
+        wait(page, '.dialog :text("No book for the year before.")', problems, state="detached")
         assert page.input_value("#f-bitcoin-fees") == "sale"
         page.click(".dialog footer button.primary")
         wait(page, ".dialog", problems, state="detached")

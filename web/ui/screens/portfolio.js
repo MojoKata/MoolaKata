@@ -84,12 +84,10 @@ function Performance({ p }) {
       <div class="card kpi" data-help="time-weighted-return">
         <div class="label">Time-Weighted Return (${range})</div>
         <div class="value">${s ? html`<${Pct} v=${s.twr} />` : '…'}</div>
-        <div class="delta dim">what the investments did</div>
       </div>
       <div class="card kpi" data-help="money-weighted-return">
         <div class="label">Money-Weighted (IRR)</div>
         <div class="value">${s ? html`<${Pct} v=${s.irr} />` : '…'}</div>
-        <div class="delta dim">a year, for your timing</div>
       </div>
       <div class="card kpi">
         <div class="label">Contributed (${range})</div>
@@ -124,9 +122,7 @@ function Performance({ p }) {
             points: s.points.map((/** @type {any} */ x) => [x.date, x.contributions]),
           },
         ]} />`
-        : html`<${Loading} lines=${4} />`}
-      <p class="small dim">The benchmark is given the same money at the same times, so the lines compare what the
-        investments did, not when money came in.</p></div>
+        : html`<${Loading} lines=${4} />`}</div>
     <div class="card mt"><h3>Returns by Period</h3>
       ${!rows ? html`<${Loading} />` : html`
         <div class="table-wrap">

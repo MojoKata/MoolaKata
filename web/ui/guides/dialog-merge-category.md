@@ -6,8 +6,8 @@ admin's, and it can't be undone, though Activity records what went where.
 
 ## Into {#merge-into}
 
-Another category of the same kind. A category with categories of its own merges into another
-top-level one.
+Another category of the same kind, which the line under it names. A category with categories of
+its own merges into another top-level one.
 
 ## Its Categories {#merge-children}
 

@@ -146,14 +146,12 @@ export default function SignIn() {
                     )} autocomplete="email"
                       required />
                     </${Field}>
-                    <${Field} label="Username" error=${errAt(signUp.error, 'username')}
-                      hint="What you'll sign in with: lowercase letters, digits, dots, dashes or underscores.">
+                    <${Field} label="Username" error=${errAt(signUp.error, 'username')}>
                       <${Input} value=${form.username} onInput=${set(
                         'username',
                       )} autocomplete="username" required />
                       </${Field}>
-                      <${Field} label="Password" error=${errAt(signUp.error, 'password')}
-                        hint="At least 12 characters; not a common password.">
+                      <${Field} label="Password" error=${errAt(signUp.error, 'password')}>
                         <${Input} type="password" value=${form.password} onInput=${set('password')}
                           autocomplete="new-password" required />
                         </${Field}>

@@ -13,6 +13,8 @@ import pytest
 from browser import made, months_back, signed_in, wait
 from edits import loan_payment, make, remove, saved, terms
 
+from moolakata import paths
+
 pytestmark = pytest.mark.browser
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -191,7 +193,7 @@ def test_an_empty_plan_asks_for_an_overpayment(browser, household, new_loan):
     card = page.locator(RESULTS)
     try:
         assert "Investing the same" not in card.inner_text()
-        assert "Add an overpayment to see what it saves." in card.inner_text()
+        assert "No overpayment in the plan" in card.inner_text()
         assert problems == []
     finally:
         page.close()
@@ -718,15 +720,15 @@ def test_resets_and_recasts_are_typed_in_the_terms(browser, household, new_loan)
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}/settings", form)
     resets = page.locator('.mt:has(> .toolbar b:text("Rate resets"))')
     recasts = page.locator('.mt:has(> .toolbar b:text("Recasts"))')
-    assert "An adjustable rate's new rate from a date" in resets.inner_text()
-    assert "The servicer re-amortizes the balance" in recasts.inner_text()
+    assert "No rate resets" in resets.inner_text()
+    assert "No recasts" in recasts.inner_text()
     page.get_by_role("button", name="Add a reset").click()
     page.fill("#x-rate-date-0", "2029-01-01")
     page.fill("#x-rate-0", "7.25%")
     page.get_by_role("button", name="Add a recast").click()
     page.fill("#x-fee-date-0", "2027-06-01")
     page.fill("#x-fee-0", "$250")
-    assert "An adjustable rate's new rate" not in resets.inner_text()
+    assert "No rate resets" not in resets.inner_text()
     page.click(f"{form} button.primary:enabled")
     wait(page, '.toast:has-text("Saved")', problems)
     t = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["terms"]
@@ -813,7 +815,9 @@ def test_the_servicers_balance_is_typed_and_checked(browser, household, new_loan
     row.get_by_role("button", name="Type it").click()
     wait(page, ".dialog #f-owed", problems)
     dialog = page.locator(".dialog")
-    assert "The principal still owed, from the servicer's statement" in dialog.inner_text()
+    assert "The principal still owed" not in dialog.inner_text(), "it is in the guide (R3.12)"
+    guide = " ".join((paths.UI / "guides" / "dialog-servicer-balance.md").read_text().split())
+    assert "The principal still owed, typed from the servicer's statement" in guide
     earlier = f"{months_back(1)}-15"
     page.fill("#f-as-of", earlier)
     page.fill("#f-owed", "300,000")
@@ -851,14 +855,9 @@ def test_a_payments_split_is_corrected_before_it_is_recorded(browser, household,
                                'button:has-text("Record a payment")')  # fmt: skip
     page.click('button:has-text("Record a payment")')
     wait(page, ".dialog #f-from-account", problems)
-    hint = page.locator('.dialog .toolbar:has(button:text("Show the split")) .small')
-    assert hint.inner_text() == "The schedule splits it into principal, interest, escrow and PMI."
     wait(page, '.dialog button:text("Show the split"):enabled', problems)
     page.click('.dialog button:text("Show the split")')
     wait(page, "#x-part-principal", problems)
-    assert hint.inner_text() == (
-        "Split by the schedule. Correct it from the servicer’s statement if it differs."
-    )
     principal = value(page, "#x-part-principal")
     interest = value(page, "#x-part-interest")
     assert principal + interest == Decimal(str(due["total"]))

@@ -1,7 +1,7 @@
 # Check a brokerage statement
 
 A brokerage or plan statement's PDF, read from its text layer: its summary, its positions on the
-last day and its cash activity, checked here before anything is saved. A photo or scan isn't read,
+last day and its cash activity, checked here before anything is saved. The PDF is kept on the account. A photo or scan isn't read,
 since its tables don't survive OCR reliably: keep it on the account instead.
 
 ## Summary {#summary}

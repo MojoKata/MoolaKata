@@ -10,4 +10,5 @@ The balance it ends with.
 
 ## Cleared
 
-Tick each transaction the statement shows, until the difference is zero.
+Tick each transaction the statement shows, until the difference is zero. The period is then marked
+reconciled, and editing a transaction inside it asks first.

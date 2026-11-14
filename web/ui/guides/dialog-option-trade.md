@@ -2,8 +2,8 @@
 
 ## Trade {#action}
 
-**Buy to open** a long call or put; **sell to open** writes one, a short position whose credit is
-its basis; **buy to close** and **sell to close** end them. Expiry, assignment and exercise are
+**Buy to open** a long call or put; **sell to open** writes one, a short position: a negative lot
+whose credit is its basis, realized at close or expiry; **buy to close** and **sell to close** end them. Expiry, assignment and exercise are
 recorded on their own.
 
 ## Account
@@ -24,7 +24,7 @@ A call is the right to buy at the strike; a put, the right to sell.
 
 ## Strike
 
-The price per share the contract is for.
+The price per share the contract is for: 480.
 
 ## Expiry
 
@@ -36,7 +36,8 @@ How many: each covers 100 shares.
 
 ## Premium
 
-The price per share, as quoted: a contract costs 100 times it.
+The price per share, as quoted: a contract costs 100 times it. Once it is typed, the dialog shows
+the cash paid or received, fees included.
 
 ## Fees and commission {#fees}
 

@@ -10,6 +10,7 @@ import { loadSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { errAt, Field, FormError, Input } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
+import { Attention } from '../kit/state.js';
 
 const WIDE = { width: '100%', justifyContent: 'center' };
 
@@ -38,12 +39,6 @@ export default function NewServer({ refresh }) {
     return html`
       <${AuthCard} title="Welcome to MoolaKata" guide="new-server"
         sub="This server is new. Two steps make it yours: its master key, then your account.">
-        <p class="small" style=${{ marginTop: 0 }}>Everything MoolaKata keeps is encrypted under one
-          <b> master key</b>, which is a <b>recovery phrase</b> of 12 words. You write it down;
-          nothing keeps it for you. MoolaKata asks for it after every restart, and nobody can
-          recover it if it's lost.</p>
-        <p class="small dim">Have paper and a pen ready. Two copies in two places, one of them
-          offline, is the rule.</p>
         <${FormError} error=${show.error} />
         <button type="button" class="btn primary" style=${WIDE} disabled=${show.busy}
           onClick=${() => show.run().catch(() => {})}>Show My Recovery Phrase</button>
@@ -59,11 +54,9 @@ export default function NewServer({ refresh }) {
         ) => html`<li><b>${w}</b></li>`)}</ol>
         <div class="small dim">Fingerprint <code>${offer.fingerprint}</code> · ${offer
           .serverName} · ${date(offer.made)}</div>
-        <div class="notice small mt">
-          <${Icon} name="alert" />
-          <div>A reload, or another browser,
-          shows other words: only the ones you confirm next become the key.</div>
-        </div>
+        <div class="mt">
+          <${Attention} icon=${html`<${Icon} name="alert" />`}>A reload shows other
+          words</${Attention}></div>
         <button type="button" class="btn primary mt" style=${WIDE}
           onClick=${() => setStep('check')}>I've Written Them Down</button>
         </${AuthCard}>
@@ -87,7 +80,6 @@ export default function NewServer({ refresh }) {
               </${Field}>
           `
         )}
-        <p class="small dim" style=${{ marginTop: 0 }}>Four letters of each are enough.</p>
         <${FormError} error=${make.error} shown=${offer.check.map((/** @type {number} */ n) =>
           `word${n}`
         )} />

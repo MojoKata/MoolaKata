@@ -21,6 +21,10 @@ How many days of backups stay: every backup of each of the most recent days that
 by default, never fewer than 3. Older days' are deleted. **Change** sets it; fewer days than
 the backups there are asks for the recovery phrase too.
 
+## Directory
+
+Where backups are written: set on the host, outside the data directory.
+
 ## Backup Now
 
 Makes a backup now.
@@ -30,4 +34,4 @@ Makes a backup now.
 Backups are encrypted as the data is, and open with the recovery phrase of their day; each
 carries its own keyring, and a rotation re-encrypts it when told to. A restore puts the database
 and keyring back and leaves the receipt files where they are, re-wrapped to the backup's key when
-a re-encryption came between. The directory is set on the host, outside the data directory.
+a re-encryption came between.

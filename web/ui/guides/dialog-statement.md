@@ -21,8 +21,8 @@ As the statement shows it. The transactions must add up from the opening balance
 
 ## Include
 
-Untick a line that isn't a transaction (a subtotal, a daily balance). A line already in the account
-is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
+Untick a line that isn't a transaction (a subtotal, a daily balance). A line marked **already in the
+account** is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
 
 ## Remember… {#remember}
 
@@ -36,7 +36,8 @@ The payee as the statement words it; payee rules tidy it after.
 
 ## Amount
 
-Money in is positive, money out negative. A line whose sign was guessed says so: check it. Once the
+Money in is positive, money out negative. A line whose sign the reader wasn't sure of is marked
+**its sign was guessed**: check it. Once the
 transactions add up, **Adds up** says yes.
 
 ## Accept difference {#accept-difference}

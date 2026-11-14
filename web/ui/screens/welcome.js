@@ -34,8 +34,7 @@ export default function Welcome() {
         accept.run().catch(() => {});
       }}>
         <input type="text" hidden autocomplete="username" value=${who.username} />
-        <${Field} label="Choose a password" id="password" error=${errAt(accept.error, 'password')}
-          hint="At least 12 characters; not a common password.">
+        <${Field} label="Choose a password" id="password" error=${errAt(accept.error, 'password')}>
           <${Input} type="password"
             value=${password} onInput=${setPassword} autocomplete="new-password" required />
           </${Field}>

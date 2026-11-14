@@ -8,7 +8,7 @@ then kept once, on each account it filled.
 ## Account {#part-account}
 
 The account this part goes to: the one whose last four digits its header shows, or one you choose
-when none or several match.
+when none or several match. When no account ends in them, choose one, or leave this part out.
 
 ## Period from {#period-start}
 

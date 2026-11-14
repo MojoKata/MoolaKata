@@ -11,6 +11,7 @@ import { loadSession, lostChanges, restarting } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
 import { Field, FormError, Input } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
+import { Attention } from '../kit/state.js';
 import NewServer from './new-server.js';
 
 const STAGES = /** @type {Record<string, string>} */ ({
@@ -83,15 +84,9 @@ export default function Locked() {
       <${AuthCard} title="MoolaKata Is Restarting" guide="locked"
         sub="It starts again locked, so the re-encryption runs at the unlock, with the phrase entered there, before the server serves.">
         ${late
-          ? html`
-            <div class="notice small bad" role="status">
-              <${Icon} name="alert" />
-              <div>It
-                          hasn't come back. Start it on the host (<code>docker compose up -d</code>), then
-                          unlock it here.</div>
-            </div>
-          `
-          : html`<p class="small dim">This page shows the locked screen as soon as it answers.</p>`}
+          ? html`<${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>It hasn't come
+            back</${Attention}>`
+          : null}
         </${AuthCard}>
     `;
   }
@@ -115,8 +110,6 @@ export default function Locked() {
           }}>
           <div style=${{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}></div>
         </div>
-        <p class="small dim" style=${{ marginTop: '12px' }}>Sign-in opens when it is done; <code
-          >/healthz</code> answers <code>re-encrypting</code> meanwhile.</p>
         </${AuthCard}>
     `;
   }
@@ -128,8 +121,7 @@ export default function Locked() {
         e.preventDefault();
         unlock.run().catch(() => {});
       }}>
-        <${Field} label="Recovery phrase" id="recovery-phrase"
-          hint="The 12 words from the recovery sheet, in order. Four letters of each are enough.">
+        <${Field} label="Recovery phrase" id="recovery-phrase">
           <${Input} type="secret" value=${words} onInput=${setWords} required
             autocorrect="off" />
           </${Field}>
@@ -140,9 +132,6 @@ export default function Locked() {
           <${FormError} error=${unlock.error} />
           <button class="btn primary" style=${{ width: '100%', justifyContent: 'center' }}
             disabled=${unlock.busy}>${unlock.busy ? 'Opening…' : 'Unlock'}</button>
-          <p class="small dim" style=${{ marginTop: '12px' }}>Or on the host: <code
-            >docker compose exec moolakata moolakata keys unlock</code>. The server locks
-            again at every restart; nothing of the phrase is kept.</p>
           </form>
           </${AuthCard}>
   `;

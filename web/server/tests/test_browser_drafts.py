@@ -829,7 +829,7 @@ def test_a_receipt_is_attached_and_detached_with_save(browser, household):
     page.click(card)
     wait(page, '.dialog button:has-text("Detach")', problems)
     page.click('.dialog button:has-text("Detach")')
-    wait(page, "text=Nothing yet: it waits in the inbox.", problems)
+    wait(page, ".dialog .empty:has-text('Nothing yet')", problems)
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     assert links() == []

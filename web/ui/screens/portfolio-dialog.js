@@ -68,8 +68,7 @@ export function PortfolioDialog({ close, portfolio }) {
               </fieldset>
             `
             : null}
-          <${RecField} rec=${rec} name="benchmark" label="Benchmark" options=${BENCHMARKS}
-            hint="What Performance compares it with, given the same money at the same times." />
+          <${RecField} rec=${rec} name="benchmark" label="Benchmark" options=${BENCHMARKS} />
         `
         : null}
     </${DraftDialog}>

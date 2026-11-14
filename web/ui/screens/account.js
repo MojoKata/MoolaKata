@@ -46,7 +46,7 @@ import { RANGES, TimeChart } from '../charts/chart.js';
 import { BY_TYPE } from '../account-types/index.js';
 import { ShareMarks } from './accounts.js';
 import { ImportDialog } from './import.js';
-import { AcctRec, KEPT_BY, KeptBy, LOT_HINT, LOT_METHODS } from './new-account.js';
+import { AcctRec, KEPT_BY, KeptBy, LOT_METHODS } from './new-account.js';
 import {
   DraftDialog,
   DraftForm,
@@ -61,7 +61,7 @@ import { FIELDS } from '../api/fields.js';
 import { offsetOf, Pager } from '../kit/pager.js';
 import { pageSize } from '../store/prefs.js';
 import { Dec, dec } from '../kit/dec.js';
-import { Action, Attention } from '../kit/state.js';
+import { Action, Attention, StatePill } from '../kit/state.js';
 
 /** @param {{ id: string, tab?: string }} p */
 export default function Account({ id, tab }) {
@@ -338,7 +338,6 @@ function Holdings({ a }) {
             thing${h.problems.length === 1 ? '' : 's'} to check</${Attention}></div>
         `
         : null}
-      <p class="small dim">Prices are daily closes, delayed; hover a price for its source and date.</p>
   `;
 }
 
@@ -451,7 +450,7 @@ function Reconcile({ a, all, reload }) {
         `
       )}
       ${segs.length && !v.gaps.length && !v.overlaps.length
-        ? html`<p class="small dim mt" style=${{ marginBottom: 0 }}>No gaps or overlaps.</p>`
+        ? html`<${Empty}>No gaps or overlaps</${Empty}>`
         : null}
     </div>
     ${v.needsAnchor
@@ -516,11 +515,13 @@ function Reconcile({ a, all, reload }) {
             </table>
           </div>
         `
-        : html`<p class="small dim">No balance from the institution yet.</p>`}
+        : html`<${Empty}>No balance from the institution yet</${Empty}>`}
       ${v.openingStandIn
         ? html`
-          <p
-            class="small dim">The opening balance stands in for history before the first import; it is worked out from the earliest reported balance.</p>
+          <div class="mt">
+            <${StatePill}
+              why="Worked out from the earliest balance the institution reported, standing in for history before the first import."
+            >opening balance stand-in</${StatePill}></div>
         `
         : null}
     </div>
@@ -603,7 +604,7 @@ function Mismatch({ a, check, all, again }) {
             <div class="list-item">
               <${Icon} name="info" />
               <div
-                class="grow small">The file's running balance parts from MoolaKata's at one row; check the transactions around it.</div>
+                class="grow small">The file's running balance parts from MoolaKata's at one row.</div>
             </div>
           `
           : null}
@@ -634,9 +635,6 @@ function TypeBalance({ close, a }) {
   return html`
     <${DraftDialog} f=${f} title="Type Today's Balance" close=${close} what="This balance"
       label="Check" done="Balance recorded and checked">
-      <p class="small dim" style=${{ marginTop: 0 }}>Copy the balance from ${a.institution ||
-        'the institution'}'s site or app.
-          MoolaKata checks it against its own for the same day.</p>
       ${rec
         ? html`
           <div class="row">
@@ -673,8 +671,7 @@ function Adjust({ close, a, check }) {
           marked as an adjustment, in the account and in Activity.</p>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="memo" label="Why" id="note"
-            placeholder="ex: A fee the bank refunded" />
+          <${RecField} rec=${rec} name="memo" label="Why" id="note" />
         `
         : null}
     </${DraftDialog}>
@@ -783,9 +780,6 @@ function TickOff({ close, a }) {
                 </div>
               </div>
             </div>
-            <p
-              class="small dim">Tick until the difference is zero; the period is then marked reconciled, and editing a
-                    transaction inside it asks first.</p>
           `
           : null}
         <${FormError} error=${start.error || finish.error} shown=${['statementBalance']} />
@@ -845,7 +839,7 @@ function Sharing({ a, reload }) {
               x.allow === 'write' ? 'pencil' : 'eye'
             } /> ${x.allow}</span></div>`
           )
-          : html`<p class="small dim">Only you. A new account is shared with no one.</p>`}</div>
+          : html`<${Empty}>Only you</${Empty}>`}</div>
   `;
 }
 
@@ -886,9 +880,9 @@ function Settings({ a, reload }) {
     return html`
       <div class="card content-narrow">
         <h3>Your View of It</h3>
-        <${SwitchRow} label="Count in my totals"
-          hint="Off by default: a shared account counts in your net worth only if you say so."
-          on=${a.counted} onChange=${(/** @type {boolean} */ v) => counted.run(v)} />
+        <${SwitchRow} label="Count in my totals" on=${a.counted} onChange=${(
+          /** @type {boolean} */ v,
+        ) => counted.run(v)} />
       </div>
     `;
   }
@@ -946,8 +940,7 @@ function Settings({ a, reload }) {
               ${a.investing
                 ? html`
                   <${RecField} rec=${rec} name="lotMethod" label="Lot method"
-                    options=${LOT_METHODS}
-                    hint=${LOT_HINT} />
+                    options=${LOT_METHODS} />
                 `
                 : null}
               ${loan || physical || wallet ? null : html`
@@ -958,9 +951,8 @@ function Settings({ a, reload }) {
                 </div>
               `}
               <${RecField} rec=${rec} name="closedOn" label="Closed on" type="date"
-                hint="Empty while open. A closed account counts up to this day and stays for history and taxes; to remove one made by mistake, delete it." />
-              <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth"
-                hint="Your totals include it." />
+                placeholder="still open" />
+              <${RecField} rec=${rec} name="countInNetWorth" label="Count in net worth" />
             </div>
             ${loan && terms
               ? html`
@@ -977,9 +969,8 @@ function Settings({ a, reload }) {
               : physical
               ? html`
                 <div class="card">
-                  <h3>Keeping It Current</h3>
-                  <p class="small dim">Its value is its items': add them, and their valuations,
-                    on the Items tab.</p>
+                  <h3>Keeping It Current<span class="spacer"></span><a class="btn sm"
+                    href=${`/ui/accounts/${a.id}/items`}>Items</a></h3>
                 </div>
               `
               : education && plan && f.draft
@@ -996,22 +987,16 @@ function Settings({ a, reload }) {
                 <div class="card">
                   <h3>Keeping It Current</h3>
                   ${keeping(rec)}
-                  ${education
-                    ? null
-                    : html`<p class="small dim">Import OFX, QFX or CSV files from the Transactions
-                      tab. A CSV's columns are asked once per institution and remembered.</p>`}
                   ${['savings', 'money-market'].includes(a.type)
                     ? html`
                       <${RecField} rec=${rec} name="withdrawalsAMonth"
                         label="Withdrawals allowed a month" id="withdrawals-a-month"
-                        placeholder="no limit"
-                        hint="The bank's limit, empty for none. Budgets sum the moves back within it." />
+                        placeholder="no limit" />
                     `
                     : null}
                   ${a.type === 'hsa'
                     ? html`
                       <${RecField} rec=${rec} name="hsaCoverage" label="Coverage" id="hsa-coverage"
-                        hint="Self-only or family: the year's contribution limit is the one it says."
                         options=${[['', 'Not set'], ['self', 'Self-only'], ['family', 'Family']]} />
                     `
                     : null}
@@ -1043,7 +1028,6 @@ function StatementsExpected({ a, rec }) {
   return html`
     <${RecField} rec=${rec} name="statementInterval" label="Statements expected"
       id="statements-expected"
-      hint="An alert asks for a statement once it is overdue: the interval and a grace period after it."
       options=${[
         ['', `As the type: ${label(a.statementIntervalDefault).toLowerCase()}`],
         ...INTERVALS,
@@ -1085,8 +1069,7 @@ function StatementChecks({ v }) {
                     ? html`<span class="pill ok">matches</span>`
                     : html`<span class="pill warn"><${Amt} v=${c.difference} signed /></span>`
                 }</div>`
-              )}<p class="small dim">Cash and holdings together, at that day's prices: within half a
-                      percent counts as a match.</p></div>
+              )}</div>
         `
         : null}
       ${v.holdingChecks.length

@@ -10,7 +10,7 @@ savings target by a date.
 
 ## Active
 
-The plans you follow. At most one per subject: one retirement plan for the same people, one per
+The plans you follow; make a scenario active to follow it. At most one per subject: one retirement plan for the same people, one per
 savings target. Making one active stores its median path and its 10th–90th percentile band as of
 that day: its **baseline**.
 
@@ -22,10 +22,12 @@ $500 more a month. **New Projection** starts one.
 ## Tracking
 
 For an active projection, the actual balance of what it is built on against its baseline: **on
-track** inside the band, **ahead** above it, **behind** below it. Falling behind raises an alert,
-checked at each month's end. In a projection shared with you, you see the status, and the balance
-of only the accounts that are shared with you too; when some aren't, there is no band to show it
-against.
+track** inside the baseline's 10th–90th percentile band, **ahead** above it, **behind** below it.
+Falling behind raises an alert, checked at each month's end. Tracking starts from the baseline, and
+the chart fills in as days pass. One built on a typed amount is **untracked**: there is no balance
+to track it against. In a projection shared with you, you see the status, and the balance of only
+the accounts that are shared with you too; when some aren't, it is marked **partly shared with
+you**, and there is no band to show it against.
 
 ## Show on my Dashboard {#show-on-dashboard}
 
@@ -84,7 +86,8 @@ Taken from each year's balance.
 
 ## Other income {#other-income}
 
-Social Security or a pension, from an age, a month. It covers part of each withdrawal.
+Social Security or a pension, from an age, a month, rising with inflation. It covers part of each
+withdrawal.
 
 ## For {#beneficiary}
 

@@ -195,7 +195,7 @@ function Planner({ a, canWrite, plans, reload, start }) {
               showRows=${() => setRows(!rows)} />
           `
           : err
-          ? html`<p class="small dim">Correct the plan to see what it does.</p>`
+          ? html`<${Empty}>Correct the plan to see what it does</${Empty}>`
           : html`<${Loading} lines=${6} />`}
       </div>
       <div class="grid" style=${{ alignContent: 'start' }}>
@@ -251,16 +251,16 @@ function Planner({ a, canWrite, plans, reload, start }) {
                     </div>
             `
           )}
-          <${SwitchRow} label="Biweekly payments"
-            hint="Half a payment every two weeks: one extra payment a year." on=${f.biweekly}
+          <${SwitchRow} label="Biweekly payments" on=${f.biweekly}
             onChange=${set('biweekly', true)} />
           <${Field} label="Round each payment up to" id="round-to" error=${errAt(err, 'roundTo')}>
             <${TypedInput} kind="money" min=${0} value=${f.roundTo} onInput=${set('roundTo')}
               onCommit=${commit} placeholder="none" />
           </${Field}>
-          <${SwitchRow} label="Recast after the lump sums"
-            hint="Also shows keeping the term and lowering the payment, instead of paying off sooner."
-            on=${f.recast} onChange=${set('recast', true)} />
+          <${SwitchRow} label="Recast after the lump sums" on=${f.recast} onChange=${set(
+            'recast',
+            true,
+          )} />
           ${f.recast
             ? html`
               <${Field} label="Recast fee" error=${errAt(err, 'recastFee')}>
@@ -269,8 +269,10 @@ function Planner({ a, canWrite, plans, reload, start }) {
                 </${Field}>
             `
             : null}
-          <${Field} label="Invest the extra in" id="invest-class" error=${errAt(err, 'investClass')}
-            hint="For the comparison: at your expected return for it (Profile › Assumptions).">
+          <${Field} label="Invest the extra in" id="invest-class" error=${errAt(
+            err,
+            'investClass',
+          )}>
             <${Select} value=${f.investClass} onChange=${set('investClass', true)}
               options=${classes} /></${Field}>
           <${FormError} error=${err} shown=${[
@@ -402,7 +404,7 @@ function Results({ r, className, rows, showRows }) {
           ]}</div>
         </div>
       `
-      : html`<p class="small dim mt">Add an overpayment to see what it saves.</p>`}
+      : html`<${Empty}>No overpayment in the plan</${Empty}>`}
     ${r.assumedRates.length
       ? html`
         <div class="notice warn mt">
@@ -538,7 +540,7 @@ function Saved({ a, canWrite, f, plans, reload, load, refused }) {
             save.run().catch(() => {});
           }}>
             <${Field} label="Plan name" error=${errAt(save.error, 'name')}><${Input} value=${name}
-                    onInput=${setName} placeholder="ex: Extra $300 a month" required /></${Field}><button
+                    onInput=${setName} required /></${Field}><button
                     class="btn primary" style=${{ alignSelf: 'end' }} disabled=${save
                       .busy}>Save Plan</button></form>
         `}

@@ -16,10 +16,14 @@ import { ACCEPT, uploadAll } from '../components/receipt.js';
 import { TimeChart } from '../charts/chart.js';
 import { Dec, dec, num } from '../kit/dec.js';
 import { canAdd, Record as Rec, whyRead } from '../app/draft.js';
-import { Action, Attention, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
+
+/** What a grant's pill and a missing acknowledgement's pill mean (S12.19.3). */
+const GRANT_WHY = 'Its money was deducted when it went into the fund.';
+const ACK_WHY = 'A single gift of $250 or more needs a written acknowledgement.';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['overview', 'Overview'],
@@ -227,8 +231,7 @@ function Donations({ year, reload }) {
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} />`;
   return html`
-    <div class="toolbar"><span class="small dim">Donations come from transactions categorised
-      Giving, or are recorded here.</span><span class="spacer"></span><button class="btn primary"
+    <div class="toolbar"><span class="spacer"></span><button class="btn primary"
       onClick=${() => record(null)}><${Icon} name="plus" /> Record a Donation</button></div>
     ${rows.length
       ? html`
@@ -264,14 +267,18 @@ function Donations({ year, reload }) {
                       <${Amt} v=${d.amount} />
                     </td>
                     <td>${d.kind === 'daf-grant'
-                      ? html`<span class="small dim">a grant · not deducted again</span>`
+                      ? html`
+                        <${StatePill} why=${GRANT_WHY}>a grant · not deducted again</${StatePill}>
+                      `
                       : d.deductible
                       ? html`<${Icon} name="check" label="Deductible" />`
                       : html`<span class="pill">no</span>`}</td>
                     <td>${d.acknowledged
                       ? html`<span class="small"><${Icon} name="clip" /> received</span>`
                       : d.needsAck
-                      ? html`<span class="pill warn">missing · needed at $250+</span>`
+                      ? html`
+                        <${StatePill} tone="warn" why=${ACK_WHY}>missing · needed at $250+</${StatePill}>
+                      `
                       : html`<span class="dim">—</span>`}</td>
                     <td class="tool">
                       ${!d.id || d.access.writable || d.description || d.granted != null
@@ -478,13 +485,11 @@ function PlanDialog({ close, v }) {
                   ]} />
               </div>
               <${RecField} rec=${rec} name="income" id="income"
-                label=${rec.get('incomeBasis') === 'gross' ? 'Gross income' : 'AGI estimate'}
-                hint="From your W-2, pay stubs or last return." />
+                label=${rec.get('incomeBasis') === 'gross' ? 'Gross income' : 'AGI estimate'} />
             `
             : html`<${RecField} rec=${rec} name="amount" label="Target amount" id="amount" />`}
           <${RecField} rec=${rec} name="dafCounted" label="Count the donor-advised fund"
-            id="daf-counted" hint="Either way, a dollar through the fund counts once."
-            options=${[
+            id="daf-counted" options=${[
               ['funded', 'When it is funded'],
               ['granted', 'When it grants'],
             ]} />
@@ -492,6 +497,14 @@ function PlanDialog({ close, v }) {
         : null}
     </${DraftDialog}>
   `;
+}
+
+/**
+ * Whether a single gift of this amount needs a written acknowledgement: $250 or more (S8.9).
+ * @param {any} amount
+ */
+function ackNeeded(amount) {
+  return amount != null && !dec(amount).lt(Dec.of(250));
 }
 
 /** A donation (S7.9.2): recorded whole, then changed after the fact. */
@@ -604,9 +617,7 @@ function DonationDialog({ close, from }) {
             ]} />
           ${from || kind === 'goods' || kind === 'daf-grant' ? null : html`
             <${RecField} rec=${rec} name="fromAccountId" label="From account" id="from-account"
-              hint=${kind === 'cash'
-                ? 'Its withdrawal is recorded, categorised Giving. Leave it for one already imported.'
-                : ''} options=${[
+              options=${[
                 ['', kind === 'cash' ? 'Not recorded here' : 'Choose…'],
                 ...sources.map((a) => [a.id, a.name]),
               ]} />
@@ -630,23 +641,16 @@ function DonationDialog({ close, from }) {
                         rec.set('amount', dec(price).mul(Dec.of(q)).round(2), 'quantity');
                       }
                     }} />
-                  <${RecField} rec=${rec} name="amount" label="Market value" id="amount"
-                    hint="On the day given." />
-                </div>
-                <div class="notice" style=${{ marginBottom: '12px' }}>
-                  <${Icon} name="info" />
-                  <div>No gain is realized on donated shares. Held over a year, the deduction is
-                  the market value; otherwise it is the basis.</div>
+                  <${RecField} rec=${rec} name="amount" label="Market value" id="amount" />
                 </div>
             `
             : html`
               <${RecField} rec=${rec} name="amount" id="amount"
                 label=${kind === 'goods' ? 'Fair market value' : 'Amount'} />
             `}
-          <${RecField} rec=${rec} name="description" label="What was given" id="description"
-            placeholder="ex: Two bags of clothes" />
+          <${RecField} rec=${rec} name="description" label="What was given" id="description" />
           <${RecField} rec=${rec} name="acknowledged" label="Acknowledgement received"
-            hint="A written acknowledgement is needed for any single gift of $250 or more." />
+            hint=${ackNeeded(rec.get('amount')) ? 'A written acknowledgement is needed.' : null} />
         `
         : null}
     </${DraftDialog}>
@@ -789,16 +793,12 @@ function OrganisationDialog({ close, o }) {
       what="This organisation" done="Saved" read=${!canWrite}>
       ${rec
         ? html`
-          <${RecField} rec=${rec} name="name" label="Name"
-            placeholder="ex: Greater Chicago Food Depository" />
-          <${RecField} rec=${rec} name="ein" label="EIN" hint="Optional: 36-3136294." />
-          <${RecField} rec=${rec} name="deductible" label="Deductible"
-            hint="A 501(c)(3) charity. Not a political campaign or a person." />
-          <${RecField} rec=${rec} name="causes" label="Causes"
-            hint="Separated by commas: Hunger, Local." />
+          <${RecField} rec=${rec} name="name" label="Name" />
+          <${RecField} rec=${rec} name="ein" label="EIN" placeholder="none" />
+          <${RecField} rec=${rec} name="deductible" label="Deductible" />
+          <${RecField} rec=${rec} name="causes" label="Causes" />
           <div class="row">
-            <${RecField} rec=${rec} name="pledge" label="Pledge"
-              hint="Shown as expected donations." />
+            <${RecField} rec=${rec} name="pledge" label="Pledge" />
             <${RecField} rec=${rec} name="pledgeEvery" label="Every" id="pledge-every"
               options=${[['month', 'Month'], ['year', 'Year']]} />
           </div>

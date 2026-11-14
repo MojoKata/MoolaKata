@@ -2,7 +2,8 @@
 
 How much the database and the files take, and how long receipt and statement files are kept.
 Records are never removed: only files whose retention has run out, and only when an admin prunes
-them here. Sizes and counts only, never what the files hold.
+them here. Receipt and statement files are kept as long as their category says, counted from when
+their record ended, and for ever by default. Sizes and counts only, never what the files hold.
 
 ![Storage](shots/settings-storage.png)
 
@@ -28,7 +29,8 @@ and those kept for ever.
 
 ## What Expires Each Year {#what-expires-each-year}
 
-By category, from the periods set now: change a category's period and these move.
+By category, from the periods set now: change a category's period and these move. *Nothing
+expires* when every file is kept for ever or while its record is open.
 
 ## Keep Receipts For {#keep-receipts-for}
 

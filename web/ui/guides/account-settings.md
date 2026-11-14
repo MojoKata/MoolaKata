@@ -35,7 +35,8 @@ The day the opening balance applies to.
 ## Closed on
 
 The day the account closed; empty while it is open. A closed account counts in your figures up
-to that day, budgets and returns included, and stays for history and taxes, marked closed.
+to that day, budgets and returns included, and stays for history and taxes, marked closed. To
+remove one made by mistake, delete it instead.
 
 ## Count in net worth
 
@@ -49,22 +50,23 @@ history, close it instead. The click asks again first.
 
 ## Count in my totals
 
-On an account shared with you: whether your net worth includes it. Off by default, so a spouse's
-accounts count once.
+On an account shared with you: whether your net worth includes it. Off by default: a shared
+account counts only if you say so, so a spouse's accounts count once.
 
 {{account-type settings}}
 
 ## Method {#kept-by}
 
 How the account is kept current: by imports (files and statements alike), or by hand. It sets only
-whether statements are expected.
+whether statements are expected. Files are OFX, QFX or CSV, imported from the Transactions tab; a
+CSV's columns are asked once per institution and remembered.
 
 ## Sync using MoolaKata Connector {#sync-using-moolakata-connector}
 
 The connector fetches this account from its institution with one of your connections and
-imports what it fetches as an upload would. Only the account's owner turns it on; an account
-shared with write can't be. **Save** keeps the choice with the rest of the settings. Each post
-shows in Activity as by the connector and the connection.
+imports what it fetches as an upload would; the sign-in stays yours. Only the account's owner
+turns it on; an account shared with write can't be. **Save** keeps the choice with the rest of the
+settings. Each post shows in Activity as by the connector and the connection.
 
 ## Connection
 

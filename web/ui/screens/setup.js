@@ -42,8 +42,7 @@ export default function Setup() {
         e.preventDefault();
         save.run().catch(() => {});
       }}>
-        <${Field} label="Your name" hint="Shown to the people you share with."
-          error=${errAt(save.error, 'displayName')}>
+        <${Field} label="Your name" error=${errAt(save.error, 'displayName')}>
           <${Input}
             value=${displayName} onInput=${setName} autocomplete="name" required=${first} />
           </${Field}>
@@ -59,8 +58,7 @@ export default function Setup() {
               <${Input} type="email"
                 value=${email} onInput=${setEmail} autocomplete="email" required />
               </${Field}>
-              <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}
-                hint="At least 12 characters, and not a common password.">
+              <${Field} label="New password" id="password" error=${errAt(save.error, 'password')}>
                 <${Input} type="password" value=${password} onInput=${setPassword}
                   autocomplete="new-password" required />
                 </${Field}>

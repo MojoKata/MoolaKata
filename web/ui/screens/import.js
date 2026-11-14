@@ -13,6 +13,7 @@ import { useDialogGuide } from '../components/help.js';
 import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
+import { StatePill } from '../kit/state.js';
 
 /**
  * Wait for a job to finish: the live stream says when, and a slow poll covers a lost event.
@@ -29,20 +30,20 @@ async function finished(id) {
 
 // The columns a mapping names; the last five, a trade history's, only for an account that holds
 // instruments (S1.3.2).
-const COLUMNS = /** @type {[string, string, string, boolean?][]} */ ([
-  ['date', 'Date column', 'The posting or trade date.'],
-  ['payee', 'Description column', 'The payee, merchant or description.'],
-  ['amount', 'Amount column', 'One column with + for money in and − for money out.'],
-  ['debit', 'Debit column', 'If money out has its own column.'],
-  ['credit', 'Credit column', 'If money in has its own column.'],
-  ['balance', 'Running balance column', 'Optional: every row then checks the balance.'],
-  ['memo', 'Memo column', 'Optional.'],
-  ['id', 'Transaction id column', "Optional: the institution's own id for each row."],
-  ['action', 'Action column', 'What each row is: a buy, a sale, a dividend, a transfer.', true],
-  ['symbol', 'Symbol column', 'The ticker, fund symbol or coin traded.', true],
-  ['quantity', 'Quantity column', 'Shares or coins.', true],
-  ['price', 'Price column', 'Optional: the price per share or coin.', true],
-  ['fees', 'Fees column', 'Optional: commission, fees or spread.', true],
+const COLUMNS = /** @type {[string, string, boolean?][]} */ ([
+  ['date', 'Date column'],
+  ['payee', 'Description column'],
+  ['amount', 'Amount column'],
+  ['debit', 'Debit column'],
+  ['credit', 'Credit column'],
+  ['balance', 'Running balance column'],
+  ['memo', 'Memo column'],
+  ['id', 'Transaction id column'],
+  ['action', 'Action column', true],
+  ['symbol', 'Symbol column', true],
+  ['quantity', 'Quantity column', true],
+  ['price', 'Price column', true],
+  ['fees', 'Fees column', true],
 ]);
 
 /** @param {{ close: (v?: any) => void, accounts: any[], accountId?: string }} p */
@@ -143,10 +144,7 @@ export function ImportDialog({ close, accounts, accountId }) {
         <div><div class="k">Changed since last time</div><div class="v">${result.changed}</div></div>
         <div><div class="k">Transfers matched</div><div class="v">${result.transfers}</div></div>
       </div>
-      <p class="small dim">Covers ${date(result.coveredFrom)} to ${
-      date(result.coveredTo)
-    }. Importing the
-        same file again adds nothing.</p>
+      <p class="small dim">Covers ${date(result.coveredFrom)} to ${date(result.coveredTo)}.</p>
       ${result.warnings.map((/** @type {string} */ w) => html`<div class="notice warn">${w}</div>`)}
     </${Dialog}>`;
   }
@@ -186,27 +184,22 @@ export function ImportDialog({ close, accounts, accountId }) {
       <${Dialog} title="Which Columns Are Which?" wide close=${close}
         onSubmit=${applyMapping} note="Saved for the next file from this institution."
         footer=${html`<button class="btn primary" disabled=${busy}>Import</button>`}>
-        <p class="small dim" style=${{
-          marginTop: 0,
-        }}>A CSV from this institution for the first time.
-              Check the columns MoolaKata guessed.</p>
         <div class="split-form">
-              ${COLUMNS.filter(([, , , trade]) => !trade || mapping.trades).map((
-                [k, label, hint],
+              ${COLUMNS.filter(([, , trade]) => !trade || mapping.trades).map((
+                [k, label],
               ) =>
                 html`
-                  <${Field} label=${label} id=${'map-' + k} hint=${hint}
+                  <${Field} label=${label} id=${'map-' + k}
                     error=${errAt(error, 'mapping.' + k)}>
                     <${Select} value=${m[k] || ''} onChange=${set(k)}
                       options=${headers} />
                     </${Field}>
                 `
               )}
-              <${Field} label="Date format" id="map-date-format" hint="As the file writes its dates."
+              <${Field} label="Date format" id="map-date-format"
                 error=${errAt(error, 'mapping.dateFormat')}><${Input} value=${m.dateFormat || ''}
                 onInput=${set('dateFormat')} placeholder="%m/%d/%Y" /></${Field}>
-              <${Field} label="Spending is positive" id="map-negate"
-                hint="Card exports often show purchases as positive amounts."><${Select}
+              <${Field} label="Spending is positive" id="map-negate"><${Select}
                 value=${m.negateAmounts ? 'yes' : 'no'} onChange=${(/** @type {string} */ v) =>
                   setMapping({ ...mapping, mapping: { ...m, negateAmounts: v === 'yes' } })}
                 options=${[['no', 'No'], ['yes', 'Yes: flip the signs']]} /></${Field}>
@@ -251,8 +244,7 @@ export function ImportDialog({ close, accounts, accountId }) {
         <${Select} value=${target} onChange=${setTarget}
           options=${writable.map((a) => [a.id, a.name])} />
         </${Field}>
-        <${Field} label="File"
-          hint="Downloaded from your bank or broker, or a statement: its PDF, or a photo."><input class="in" type="file"
+        <${Field} label="File"><input class="in" type="file"
           accept=".ofx,.qfx,.csv,.txt,.pdf,.jpg,.jpeg,.png,.webp,.heic" onChange=${(
             /** @type {any} */ e,
           ) => setFile(e.currentTarget.files?.[0] || null)} /></${Field}>
@@ -287,8 +279,7 @@ export function ImportDialog({ close, accounts, accountId }) {
             ) => {
               e.preventDefault();
               setKeeping(true);
-            }}>Keep a statement without reading it</a>: for the record, such as one from an
-                      account kept current from OFX.</p>
+            }}>Keep a statement without reading it</a></p>
         `}
       </${Dialog}>
   `;
@@ -338,8 +329,6 @@ function KeepReview({ kept, close }) {
               setF({ ...f, periodEnd: v })} required />
             </${Field}>
             </div>
-            <p class="small dim">Its lines aren't added. It counts as the account's statement for the
-        period, so no alert asks for it.</p>
             <${FormError} error=${error} shown=${['periodStart', 'periodEnd', 'accountId']} />
             </${Dialog}>
   `;
@@ -400,7 +389,13 @@ function ignoring(/** @type {any[]} */ rows) {
  * @param {{ r: any, set: (v: any) => void, fresh: any }} p
  */
 function LineState({ r, set, fresh }) {
-  if (r.present) return html`<span class="pill">already in the account</span>`;
+  if (r.present) {
+    return html`
+      <${StatePill}
+        why="It is in the account already: it counts towards the closing balance and isn't added again."
+      >already in the account</${StatePill}>
+    `;
+  }
   if (r.ignored && !r.stop) {
     return html`<span class="small dim">Ignored (starts with “${r.ignored}”) · <a href="#"
       onClick=${(/** @type {Event} */ e) => {
@@ -541,7 +536,7 @@ function StatementReview({ review, setReview, close, done, part = null }) {
           <${Field} label="Account" id="part-account" error=${errAt(error, 'accountId')}
             hint=${part.accountId
               ? `Its header shows ${part.header}.`
-              : `No account here ends in ${part.last4}: choose one, or leave this part out.`}>
+              : `No account here ends in ${part.last4}.`}>
             <${Select} value=${review.accountId} onChange=${set('accountId')} options=${[
               ['', 'Choose…'],
               ...part.candidates.map((/** @type {any} */ a) => [
@@ -597,7 +592,11 @@ function StatementReview({ review, setReview, close, done, part = null }) {
                 .description} aria-label="Description" data-help="description"
                           onInput=${(/** @type {any} */ e) =>
                             setRow(i, 'description', e.currentTarget.value)} />${r.confidence < 80
-                            ? html`<div class="small ocr"><${Icon} name="info" /> its sign was guessed · check it</div>`
+                            ? html`
+                              <div class="small">
+                                <${StatePill} tone="info"
+                                  why="The reader wasn't sure of its sign: check it.">its sign was guessed</${StatePill}></div>
+                            `
                             : null}</td>
               <td class="num"><input class="in num" value=${r.amount} aria-label="Amount"
                           data-help="amount" style=${{ maxWidth: '120px' }}
@@ -816,9 +815,6 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
           </div>
         `
         : null}
-      <p class="small dim">Lines already in the account are counted and never added twice.
-        Trades aren't read: each opens the trade dialog with its figures. The PDF is kept on
-        the account.</p>
       <${FormError} error=${error} />
     </${Dialog}>
   `;

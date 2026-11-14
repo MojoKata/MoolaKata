@@ -17,7 +17,8 @@ ask for it.
 
 The payoff date with the plan, against the scheduled one. **Months saved**, **interest saved** and
 **interest still to pay** follow from it; **total paid** counts everything paid from now on, escrow
-and fees included.
+and fees included. Until the plan has an overpayment there is nothing saved to show, and while a
+field is marked nothing shows until it is corrected.
 
 ## Shorten or recast
 
@@ -69,7 +70,8 @@ principal: 100 makes $2,154 into $2,200. Blank: none.
 
 ## Recast after the lump sums
 
-Also works out the loan recast after each lump sum, beside it shortened.
+Also works out the loan recast after each lump sum, beside it shortened: the term kept and the
+payment lowered, instead of paying off sooner.
 
 ## Recast fee
 

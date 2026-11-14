@@ -9,5 +9,6 @@ Occasions come from the people on the People tab: their birthdays, anniversaries
 
 ## Next 60 Days
 
-Each date with how far off it is. One inside its person's reminder time, with nothing bought, also
-shows on the Dashboard and raises an alert. **Add** plans a gift for it; a gift's chip opens it.
+Each date with how far off it is. One closer than the reminder time on its person's gift plan is
+marked *inside the reminder time*; with nothing bought, it also shows on the Dashboard and raises
+an alert. **Add** plans a gift for it; a gift's chip opens it.

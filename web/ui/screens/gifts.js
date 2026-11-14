@@ -21,8 +21,11 @@ import { READ_ONLY, Record as Rec, whyNot, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, useDraft } from '../components/draft-form.js';
 import { confirmAction } from '../kit/confirm.js';
-import { Action, Attention, RowTool } from '../kit/state.js';
+import { Action, Attention, RowTool, StatePill } from '../kit/state.js';
 import { TagInput } from '../kit/tags.js';
+
+/** What an occasion's pill inside its reminder time means (S12.19.3). */
+const LEAD_WHY = 'Closer than the reminder time on their gift plan.';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['upcoming', 'Upcoming'],
@@ -96,8 +99,10 @@ function Upcoming() {
                           <div class="small dim">${date(u.date)} · ${u.days === 0
                             ? 'today'
                             : `in ${u.days} day${u.days === 1 ? '' : 's'}`}${u.inLead
-                            ? html`${' '}· <span class="pill warn">inside the reminder
-                              time</span>`
+                            ? html`
+                              ${' '}· <${StatePill} tone="warn"
+                                why=${LEAD_WHY}>inside the reminder time</${StatePill}>
+                            `
                             : null}</div>
                           <div class="toolbar" style=${{
                             margin: '6px 0 0',
@@ -210,9 +215,6 @@ function People() {
         `
         : html`<${Empty}>No people yet</${Empty}>`}
     </div>
-    <p class="small dim">People are the household's; your gift plans and gifts are yours alone,
-      unless you share a plan. A gift for someone who is a user here is never shown to them, even
-      through a share.</p>
   `;
 }
 
@@ -325,7 +327,7 @@ function Spending() {
             </div>
           `;
         })
-        : html`<p class="small dim">No people yet.</p>`}</div>
+        : html`<${Empty}>No people yet</${Empty}>`}</div>
       <div class="grid" style=${{ alignContent: 'start' }}>
         <div class="card"><h3>By Occasion, ${v.year}</h3>${v.byOccasion.length
           ? v.byOccasion.map((/** @type {any} */ o) =>
@@ -335,7 +337,7 @@ function Spending() {
                   .amount} cents=${false} /></div>
             `
           )
-          : html`<p class="small dim">Nothing bought or given yet.</p>`}</div>
+          : html`<${Empty}>Nothing bought or given yet</${Empty}>`}</div>
         <div class="card"><h3>By Year</h3>${v.byYear.map((/** @type {any} */ y) =>
           html`
             <div
@@ -585,7 +587,7 @@ function PersonDialog({ close, row }) {
               : !ownPerson
               ? 'Only its owner changes the person'
               : using
-              ? 'Already here: changed on their own plan'
+              ? 'Already here: change their details once this plan is saved'
               : false}>
               <div class="card" style=${{
                 margin: '0 0 12px',
@@ -596,8 +598,7 @@ function PersonDialog({ close, row }) {
                   ? ' (private: only those it is shared with)'
                   : ''}</div>
                 <div class="row">
-                  <${RecField} rec=${who} name="name" label="Name" placeholder="ex: Emma Griffin"
-                    onEdit=${unuse} />
+                  <${RecField} rec=${who} name="name" label="Name" onEdit=${unuse} />
                   <${RecField} rec=${who} name="sex" label="Sex" options=${[
                     ['', 'Choose…'],
                     ['female', 'Female'],
@@ -605,7 +606,9 @@ function PersonDialog({ close, row }) {
                   ]} />
                   <${Field} label="Birthday" error=${who.error('birthday') ||
                     who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
-                    hint="2018-10-20, or 10-20 without the year.">
+                    hint=${clash && !using && who.get('differentPerson')
+                      ? 'A birth year that differs from theirs.'
+                      : null}>
                   <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
                     /** @type {string} */ v,
                   ) =>
@@ -620,12 +623,10 @@ function PersonDialog({ close, row }) {
                 </${Field}>
               </div>
               <div class="row">
-                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date"
-                  hint="Ends a marriage on that day; their gifts stay in the history." />
+                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date" />
                 ${!p || p.canMakePrivate
                   ? html`
-                    <${RecField} rec=${who} name="private" label="Private"
-                      hint="Seen only by you and whoever you share them with." />
+                    <${RecField} rec=${who} name="private" label="Private" />
                   `
                   : null}
               </div>
@@ -655,10 +656,7 @@ function PersonDialog({ close, row }) {
                         class="btn sm" disabled=${ask.busy} onClick=${() =>
                           ask.run().catch(() => {})}>Ask to Share</button>
                     `} <button type="button" class="btn sm" onClick=${() =>
-                    who.set('differentPerson', true)}>A Different Person</button>
-                    ${who.get('differentPerson')
-                      ? html`<div class="small">Give a birth year above that differs from theirs.</div>`
-                      : null}</div>
+                    who.set('differentPerson', true)}>A Different Person</button></div>
                 </div>
               `
               : using
@@ -706,10 +704,7 @@ function PersonDialog({ close, row }) {
                     </${Field}>
                     <${Field} label="Called" help="dates" id=${'date-name-' + i}
                       error=${o.error('name')}>
-                      <${RecField} rec=${o} name="name" bare label="Called"
-                        placeholder=${o.get('kind') === 'anniversary'
-                          ? 'ex: Wedding'
-                          : 'ex: Name day'} />
+                      <${RecField} rec=${o} name="name" bare label="Called" />
                       </${Field}>
                       <${Field} label="On" help="dates" id=${'date-on-' + i}
                         error=${o.error('on') || o.error('month')}>
@@ -734,8 +729,7 @@ function PersonDialog({ close, row }) {
               ['14', '14 days before'],
               ['30', '30 days before'],
             ]} />
-            <${RecField} rec=${plan} name="notes" label="Notes" rows=${3}
-              hint="Sizes, likes, what they already have." />
+            <${RecField} rec=${plan} name="notes" label="Notes" rows=${3} />
           </${Reads}>
         `
         : null}
@@ -888,8 +882,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
                 /** @type {string} */ v,
               ) => rec.set('status', v)} options=${STATUS} /></div>`}
             ${onRow ? null : html`
-              <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}
-                hint=${received ? '' : 'One or more of your people.'}>
+              <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}>
                 <${TagInput} value=${who} items=${list.map((p) => ({ key: p.id, label: p.name }))}
                   onChange=${(/** @type {string[]} */ keys) => rec.set('people', keys)}
                   noun=${['person', 'people']} readonly=${!canWrite} />
@@ -904,15 +897,13 @@ function GiftDialog({ close, gift, start, fromRow }) {
                 }} options=${occasions} />
                 </${Field}>
             `}
-            <${RecField} rec=${rec} name="description" label="Description"
-              placeholder="ex: Watercolour set" />
+            <${RecField} rec=${rec} name="description" label="Description" />
             ${received
               ? html`<${RecField} rec=${rec} name="thankYou" label="Thank-you sent" />`
               : html`
                 <div class="row">
                   <${RecField} rec=${rec} name="cost" label="Cost" />
-                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}
-                    hint="Its transaction; one purchase can pay for several gifts.">
+                  <${Field} label="Paid with" id="paid-with" error=${rec.error('transactionId')}>
                     <${Select} value=${rec.get('transactionId') || ''} onChange=${(
                       /** @type {string} */ x,
                     ) => {
@@ -941,8 +932,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
                     ]} />
                     </${Field}>
                     </div>
-                    <${RecField} rec=${rec} name="cash" label="Given in money"
-                      hint="Cash or a cheque: counted against the annual gift exclusion." />
+                    <${RecField} rec=${rec} name="cash" label="Given in money" />
                     <div class="row">
                       <${RecField} rec=${rec} name="store" label="Where bought" id="store" />
                       <${RecField} rec=${rec} name="link" label="Link" kind="url"

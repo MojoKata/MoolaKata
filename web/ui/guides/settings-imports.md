@@ -1,5 +1,8 @@
 # Settings: Imports
 
+Accounts are kept current from the files people bring (OFX, QFX and CSV downloads, and
+statements) and by the MoolaKata Connector for accounts whose sync is on.
+
 ![Settings: Imports](shots/settings-imports.png)
 
 ## File types

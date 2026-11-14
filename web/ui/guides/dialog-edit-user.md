@@ -7,11 +7,12 @@ As others see it.
 ## Email address {#email}
 
 Fixed here only before they join: the invitation then goes to the new address, and the link
-sent to the old one stops working. Afterwards they change it themselves.
+sent to the old one stops working. Once they have joined, they change it themselves, and the
+field is shown off.
 
 ## Groups
 
-Their groups.
+Their groups. **Admins** manages users, groups and Settings.
 
 ## Reset Two-Step
 

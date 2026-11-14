@@ -28,7 +28,7 @@ import { num } from '../kit/dec.js';
 import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
-import { Action } from '../kit/state.js';
+import { Action, StatePill } from '../kit/state.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -89,14 +89,11 @@ export default function Projections({ id }) {
     `;
   return html`
     <div class="grid g2">
-      <div class="card"><h3>Active<span class="spacer"></span><span class="small dim"
-        style=${{ fontWeight: 400 }}>the plans being followed</span></h3>
-        ${active.length
-          ? active.map(item)
-          : html`<p class="small dim">None yet. Make a scenario active to follow it.</p>`}</div>
+      <div class="card"><h3>Active</h3>
+        ${active.length ? active.map(item) : html`<${Empty}>None yet</${Empty}>`}</div>
       <div class="card"><h3>Scenarios<span class="spacer"></span><button type="button"
         class="btn sm" onClick=${create}><${Icon} name="plus" /> New Projection</button></h3>
-        ${scenarios.length ? scenarios.map(item) : html`<p class="small dim">None.</p>`}</div>
+        ${scenarios.length ? scenarios.map(item) : html`<${Empty}>None</${Empty}>`}</div>
     </div>
     ${current
       ? html`<${Detail} key=${current.id} id=${current.id} reloadList=${list.reload} />`
@@ -178,8 +175,12 @@ function Detail({ id, reloadList }) {
     ${x.tracking && x.tracking.status !== 'untracked'
       ? html`<${Tracking} x=${x} />`
       : x.active
-      ? html`<p class="small dim">Built on a typed amount: there is no balance to track it
-          against.</p>`
+      ? html`
+        <div class="mt">
+          <${StatePill}
+            why="Built on a typed amount: there is no balance to track it against."
+          >untracked</${StatePill}></div>
+      `
       : null}
     <div class="grid g-main mt">
       <div class="card">
@@ -283,12 +284,13 @@ function Tracking({ x }) {
     t.band.map((/** @type {any[]} */ b) => [b[0], String(b[k])]);
   return html`
     <div class="card mt"><h3>Tracking since ${date(t.since)}<span class="spacer"></span><span
-      class=${'pill ' + (TONE[t.status] || '')}>${t.status}</span></h3>
-      ${t.partial
-        ? html`<p class="small dim">Some of the accounts it is built on
-            aren't shared with you: the status is the whole projection's, the balance only that of
-            the accounts you can see.</p>`
-        : null}
+      class=${'pill ' + (TONE[t.status] || '')}>${t.status}</span>${t.partial
+        ? html`
+          ${' '}<${StatePill}
+            why="Some of the accounts it is built on aren't shared with you: the status is the whole projection's, the balance only that of the accounts you can see."
+          >partly shared with you</${StatePill}>
+        `
+        : null}</h3>
       ${t.points.length > 1
         ? html`<${TimeChart} label=${
           t.partial
@@ -302,9 +304,7 @@ function Tracking({ x }) {
             { name: '90th percentile', color: '--border-strong', dash: true, points: at(3) },
           ]),
         ]} />`
-        : html`<p class="small dim">Tracking starts from the baseline; the chart fills in as days pass.</p>`}
-      <p class="small dim">On track inside the baseline's 10th–90th percentile band, ahead above
-        it, behind below it. Falling behind raises an alert, checked at each month's end.</p>
+        : html`<${Empty}>Nothing to chart yet</${Empty}>`}
     </div>
   `;
 }
@@ -455,7 +455,7 @@ function Inputs({ x, reload }) {
               <div class="row">
                 <${Field} label=${`${inc.label || 'Other income'} a month`} id=${'income-' + i}
                   help="other-income"
-                  hint=${`From age ${inc.fromAge}, rising with inflation`}>
+                  hint=${`From age ${inc.fromAge}`}>
                   <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
                   ) => {
@@ -539,8 +539,7 @@ function EducationInputs({ f, set, setF, e }) {
             )} />
             </${Field}>
             </div>
-            <${Field} label="Cost per year" id="cost-basis" error=${errAt(e, 'inputs.costBasis')}
-              hint="Tuition, fees, room and board, in today's dollars; it rises with education inflation.">
+            <${Field} label="Cost per year" id="cost-basis" error=${errAt(e, 'inputs.costBasis')}>
       <${Select} value=${f.costBasis || 'public'} onChange=${set('costBasis', false)}
         options=${COST_BASIS} />
     </${Field}>
@@ -614,8 +613,6 @@ function Rebaseline({ close, name }) {
       `}>
       <p style=${{ marginTop: 0 }}>${name} is active. Its tracking compares the actual balance
         with the plan as it was made active.</p>
-      <p class="small dim">Re-baseline to compare against these new inputs from today, or keep
-        comparing against the plan as it was.</p>
       </${Dialog}>
   `;
 }
@@ -639,8 +636,6 @@ function MakeActive({ close, p }) {
         ? html`<b>${others[0].name}</b> stops being the active plan for the same people, if
           they are the same. Its tracking ends, and it stays as a scenario.`
         : 'It becomes an active plan.'}</p>
-      <p class="small dim">Its median path and 10th–90th percentile band as of today become the
-        baseline it is tracked against.</p>
       <${FormError} error=${go.error} />
       </${Dialog}>
   `;
@@ -702,12 +697,7 @@ function NewProjection({ close }) {
             'Education',
           ]]} /></div>
       <${Field} label="Name" error=${errAt(save.error, 'name')}>
-        <${Input} value=${name} onInput=${setName}
-          placeholder=${goal === 'retirement'
-            ? 'Retire at 63'
-            : goal === 'education'
-            ? "Emma's college"
-            : 'House deposit'} required />
+        <${Input} value=${name} onInput=${setName} required />
       </${Field}>
       <${BuiltOn} value=${built} onChange=${setBuilt} error=${errAt(save.error, 'builtOn')} />
       ${goal === 'education'
@@ -715,8 +705,7 @@ function NewProjection({ close }) {
           <${Field} label="For" id="beneficiary" error=${errAt(
             save.error,
             'inputs.beneficiary',
-          )}
-            hint="Someone on your list of people; add them in a 529's settings or on Gifts.">
+          )}>
             <${Select} value=${child} onChange=${setChild} options=${[
               ['', 'Choose…'],
               ...(/** @type {any[]} */ (people.data) || []).map((p) => [p.id, p.name]),
@@ -734,8 +723,6 @@ function NewProjection({ close }) {
             </${Field}>
         `
         : null}
-      <p class="small dim">It starts as a scenario, with figures to change. Make it active to
-        follow it.</p>
       <${FormError} error=${save.error} shown=${['name', 'builtOn', 'inputs.beneficiary']} />
     </${Dialog}>
   `;

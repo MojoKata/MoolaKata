@@ -263,15 +263,15 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
 
 
 @pytest.mark.parametrize(
-    ("how", "action", "right", "strike", "said", "after"),
+    ("how", "action", "right", "strike", "after"),
     [
-        ("expired", "buy-to-open", "put", "50", "The premium paid is lost.", "expired"),
-        ("assigned", "sell-to-open", "put", "120", "The shares are bought or sold", "assigned"),
-        ("exercised", "buy-to-open", "call", "80", "The shares are bought or sold", "exercised"),
+        ("expired", "buy-to-open", "put", "50", "expired"),
+        ("assigned", "sell-to-open", "put", "120", "assigned"),
+        ("exercised", "buy-to-open", "call", "80", "exercised"),
     ],
 )
 def test_an_options_end_is_recorded_as_it_happened(
-    browser, household, how, action, right, strike, said, after
+    browser, household, how, action, right, strike, after
 ):
     # S3.4, S3.6: out of the money it starts as expired, in it as assigned (short) or
     # exercised (long); All fills in the contracts held; the end closes the option as it was.
@@ -288,11 +288,6 @@ def test_an_options_end_is_recorded_as_it_happened(
     checked = page.locator('.dialog [role="radio"][aria-checked="true"]').inner_text()
     assert checked == {"expired": "Expired worthless", "assigned": "Assigned",
                        "exercised": "Exercised"}[how]  # fmt: skip
-    assert said in page.locator(".dialog").inner_text()
-    if how == "assigned":
-        page.get_by_role("radio", name="Expired worthless").click()
-        assert "The credit is kept as a gain." in page.locator(".dialog").inner_text()
-        page.get_by_role("radio", name="Assigned").click()
     page.get_by_role("button", name="All: 2 contracts").click()
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
@@ -523,7 +518,7 @@ def test_a_strategy_named_cash_secured_and_given_a_margin(browser, household):
     page, problems = signed_in(browser, h, "/ui/positions/strategies", "text=Wheel desk")
     row(page, "Wheel desk").locator(".row-tool").click()
     wait(page, "#f-strategy-name", problems)
-    assert "Empty: its shape, short put." in page.locator(".dialog").inner_text()
+    assert page.get_attribute("#f-strategy-name", "placeholder") == "its shape, short put"
     page.fill("#f-strategy-name", "The wheel")
     page.get_by_role("switch", name="Cash-secured").click()
     page.fill("#f-margin-requirement", "2500")

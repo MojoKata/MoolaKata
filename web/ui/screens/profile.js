@@ -7,7 +7,6 @@ import { date } from '../kit/format.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { Avatar, Failed, Loading } from '../kit/bits.js';
-import { Icon } from '../kit/icon.js';
 import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
 import { toast } from '../kit/toast.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
@@ -23,7 +22,7 @@ import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form
 import { asFields, DAY } from './gifts.js';
 import { FIELDS } from '../api/fields.js';
 import { confirmAction } from '../kit/confirm.js';
-import { RowTool, StatePill } from '../kit/state.js';
+import { Attention, Empty, RowTool, StatePill } from '../kit/state.js';
 
 /** The user's own assumptions (S6.3), as their form's draft edits them. */
 class AsmRec extends Rec {
@@ -108,7 +107,7 @@ export default function Profile() {
               : null}</div>
           ${rec.error('avatar') ? html`<div class="err">${rec.error('avatar')}</div>` : null}
           <${RecField} rec=${rec} name="displayName" label="Display name" />
-          <${RecField} rec=${rec} name="timeZone" label="Time zone" hint="Times show in it."
+          <${RecField} rec=${rec} name="timeZone" label="Time zone"
             options=${[[
               'auto',
               `Auto: the server's (${z?.server || '…'})`,
@@ -123,19 +122,16 @@ export default function Profile() {
               'Male',
             ]]} />
             <${Field} label="Birthday" error=${rec.error('birthday') || rec.error('birthDay') ||
-              rec.error('birthMonth') || rec.error('birthYear')}
-              hint="1979-04-12. For catch-up limits, RMDs and your age in projections."><${Input}
+              rec.error('birthMonth') || rec.error('birthYear')}><${Input}
               value=${birthday} placeholder="YYYY-MM-DD" onInput=${(/** @type {string} */ v) =>
                 rec.inputAs('birthday', v, readBirthday)} /></${Field}>
           </div>
-          <${RecField} rec=${rec} name="alertEmails" label="Alert emails"
-            hint="Alerts always show in MoolaKata; this is only about email." options=${[
-              ['each', 'Each alert'],
-              ['daily', 'A daily summary'],
-              ['none', 'None'],
-            ]} />
+          <${RecField} rec=${rec} name="alertEmails" label="Alert emails" options=${[
+            ['each', 'Each alert'],
+            ['daily', 'A daily summary'],
+            ['none', 'None'],
+          ]} />
           <${RecField} rec=${rec} name="bitcoinUnit" label="Bitcoin in" id="bitcoin-unit"
-            hint="How amounts of bitcoin are shown; they are kept to the sat either way."
             options=${[
               ['btc', 'BTC: 0.12345678 BTC'],
               ['sats', 'Sats: 12,345,678 sats'],
@@ -192,13 +188,9 @@ function Relations({ p, reload }) {
         ? rows.map((/** @type {any} */ r) =>
           html`
             <div class="list-item">
-              <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r) ||
-                  r.confirmed !== null
-                ? html`<div class="small dim">${
-                  [relDates(r), confirmation(r)].filter(Boolean)
-                    .join(' · ')
-                }</div>`
-                : null}</div>
+              <div class="grow"><b>${name(r)}</b> · ${word(r)}${relDates(r)
+                ? html`<div class="small dim">${relDates(r)}</div>`
+                : null}${confirmation(r)}</div>
               ${r.canConfirm
                 ? html`<button type="button" class="btn sm primary" onClick=${(
                   /** @type {Event} */ ev,
@@ -213,9 +205,9 @@ function Relations({ p, reload }) {
             </div>
           `
         )
-        : html`<p class="small dim">None yet.</p>`}
+        : html`<${Empty}>None yet</${Empty}>`}
       ${worked.length
-        ? html`<div class="small dim" style=${{ margin: '10px 0 4px' }}>Worked out from these</div>
+        ? html`<h4 style=${{ margin: '10px 0 4px' }}>Worked Out from These</h4>
           ${
           worked.map((/** @type {any} */ r) =>
             html`
@@ -230,12 +222,21 @@ function Relations({ p, reload }) {
   `;
 }
 
-/** A marriage's confirmations: by both, or whom it waits for. */
+/** A marriage's confirmations, as a pill (S12.19.3): by both, or whom it waits for. */
 const confirmation = (/** @type {any} */ r) => {
-  if (r.confirmed === null || r.confirmed === undefined) return '';
-  if (r.confirmed) return 'confirmed by both · used for wash sales and joint tax books';
+  if (r.confirmed === null || r.confirmed === undefined) return null;
+  if (r.confirmed) {
+    return html`
+      <div>
+        <${StatePill} tone="ok" why="Used for wash sales and joint tax books.">confirmed by
+        both</${StatePill}></div>
+    `;
+  }
   const who = r.waitingFor.map((/** @type {any} */ x) => x.name).join(' and ');
-  return `waiting for ${who} to confirm · counts for gifts only until then`;
+  return html`
+    <div>
+      <${StatePill} why="It counts for gifts only until then.">${`waiting for ${who} to confirm`}</${StatePill}></div>
+  `;
 };
 
 /** "since Jun 14, 2009", "Jun 14, 2009 – Mar 2, 2015", or how a marriage ended. */
@@ -353,12 +354,9 @@ function RelationshipDialog({ close, me, r }) {
           `
           : null
       }<button class="btn primary" disabled=${save.busy}>${r ? 'Save' : 'Add'}</button>`}>
-      <p class="small dim" style=${{ marginTop: 0 }}>Mothers, grandparents, cousins and in-laws
-        are worked out from these. A divorce is the marriage's end date.</p>
       ${admin
         ? html`
           <${Field} label="Person" id="person"
-            hint="An admin adds anyone's relationships; others add their own."
             error=${errAt(e, 'person1Id')}>
             <${Select} value=${f.who} onChange=${set('who')} options=${all.map((
               /** @type {any} */ x,
@@ -383,25 +381,14 @@ function RelationshipDialog({ close, me, r }) {
         <${Field} label="From" id="from-date" error=${errAt(e, 'fromDate')}>
           <${TypedInput} kind="date" value=${f.fromDate} onInput=${set('fromDate')} />
         </${Field}>
-        <${Field} label="To" id="to-date" error=${errAt(e, 'toDate')}
-          hint="Empty while it holds. A death ends a marriage by itself.">
-          <${TypedInput} kind="date" value=${f.toDate} onInput=${set('toDate')} />
+        <${Field} label="To" id="to-date" error=${errAt(e, 'toDate')}>
+          <${TypedInput} kind="date" value=${f.toDate} onInput=${set('toDate')}
+            placeholder="still holds" />
         </${Field}>
-        <${Field} label="Label" error=${errAt(e, 'label')} hint="For family: godmother.">
+        <${Field} label="Label" error=${errAt(e, 'label')}>
           <${Input} value=${f.label} onInput=${set('label')} />
         </${Field}>
       </div>
-      ${f.relation === 'spouse'
-        ? html`
-          <div class="notice">
-            <${Icon} name="info" />
-            <div>A spouse is used for wash sales on
-                    the date of each sale, and for a joint tax book on the last day of its year, once both
-                    people have confirmed it: the other confirms from their own Profile. Until then the
-                    marriage counts for gifts only.</div>
-          </div>
-        `
-        : null}
       <${FormError} error=${e} shown=${[
         'relation',
         'person1Id',
@@ -444,13 +431,11 @@ function Email({ p, reload }) {
       <p class="small" style=${{ marginTop: 0 }}>${p.email}${p.pendingEmail
         ? html`<span class="dim"> · waiting for ${p.pendingEmail} to be confirmed</span>`
         : null}</p>
-      <${Field} label="New email address" error=${errAt(save.error, 'email')}
-        hint="It takes effect when you open the link sent to it.">
+      <${Field} label="New email address" error=${errAt(save.error, 'email')}>
           <${Input} type="email" value=${email} onInput=${setEmail} autocomplete="email" required /></${Field}>
         ${needPassword
           ? html`
-            <${Field} label="Your password" id="reauth-password"
-              hint="Asked again: it was over 10 minutes ago.">
+            <${Field} label="Your password" id="reauth-password">
               <${Input}
                 type="password" value=${password} onInput=${setPassword} autocomplete="current-password"
                 required />
@@ -481,8 +466,7 @@ function Password() {
         <${Input} type="password" value=${current}
           onInput=${setCurrent} autocomplete="current-password" required />
         </${Field}>
-        <${Field} label="New password" error=${errAt(save.error, 'newPassword')}
-          hint="At least 12 characters; not a common password.">
+        <${Field} label="New password" error=${errAt(save.error, 'newPassword')}>
           <${Input} type="password" value=${next} onInput=${setNext} autocomplete="new-password" required /></${Field}>
         <${FormError} error=${save.error} shown=${['currentPassword', 'newPassword']} />
         <button class="btn" disabled=${save.busy}>Change Password</button></form>
@@ -534,10 +518,10 @@ function TwoStep({ p, reload }) {
       <h3>Two-Step Sign-In ${ts.on
         ? html`<span class="pill ok">on</span>`
         : html`<span class="pill">off</span>`}</h3>
-      <p class="small dim" style=${{ marginTop: 0 }}>${ts.on
-        ? html`A code from your authenticator app after your password. ${ts.recoveryCodesLeft} recovery
-          code${ts.recoveryCodesLeft === 1 ? '' : 's'} left.`
-        : 'Ask for a code from an authenticator app on your phone after your password.'}</p>
+      ${ts.on
+        ? html`<p class="small dim" style=${{ marginTop: 0 }}>${ts.recoveryCodesLeft} recovery
+          code${ts.recoveryCodesLeft === 1 ? '' : 's'} left.</p>`
+        : null}
       ${ts.on && ts.recoveryCodesLeft <= 3
         ? html`
           <${StatePill} tone="warn"
@@ -549,8 +533,7 @@ function TwoStep({ p, reload }) {
         : null}
       ${needPassword
         ? html`
-          <${Field} label="Your password" id="two-step-password"
-            hint="Asked again: it was over 10 minutes ago.">
+          <${Field} label="Your password" id="two-step-password">
             <${Input} type="password" value=${password} onInput=${setPassword}
               autocomplete="current-password" required />
             </${Field}>
@@ -591,11 +574,6 @@ function TwoStepSetup({ close, setup }) {
     <${Dialog} title="Turn On Two-Step Sign-In" close=${close}
       onSubmit=${() => save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Turn On</button>`}>
-      <ol class="steps small">
-        <li>Open your authenticator app (any app that reads TOTP codes) and add an account.</li>
-        <li>Scan this code, or type the key below it.</li>
-        <li>Type the six-digit code the app shows.</li>
-      </ol>
       <div class="qr"><img src=${setup.qrImage} width="180" height="180"
         alt="QR code for your authenticator app" /></div>
       <p class="small center"><span class="dim">Key:</span> <code class="key">${key}</code></p>
@@ -626,8 +604,7 @@ function RecoveryCodes({ close, codes, fresh }) {
           href=${'data:text/plain;charset=utf-8,' + encodeURIComponent(text)}>Download</a>
         <button class="btn primary">I've Saved Them</button>
       `}>
-      <p class="small">Keep these somewhere safe, away from your phone. Each one signs you in once
-        in place of a code from the app${fresh ? ', and the old ones no longer work' : ''}.</p>
+      ${fresh ? html`<${Attention}>The old ones no longer work.</${Attention}>` : null}
       <ul class="codes">${codes.map((c) => html`<li><code>${c}</code></li>`)}</ul>
       </${Dialog}>
   `;
@@ -667,9 +644,7 @@ function Assumptions() {
       }} extra=${() =>
         html`<button type="button" class="linklike" onClick=${() =>
           openDialog(BitcoinModels, {})}>Compare models</button>`}>
-      <h3>Assumptions<span class="spacer"></span><span class="small dim" style=${{
-        fontWeight: 400,
-      }}>used by all your projections</span></h3>
+      <h3>Assumptions</h3>
       <table class="t">
         <thead>
           <tr>
@@ -720,8 +695,7 @@ function Assumptions() {
             ) => setF({ ...f, educationInflation: Number(x) })} />
             </${Field}>
             </div>
-            <${Field} label="Bitcoin model" id="bitcoin-model"
-              hint="For the bitcoin in your projections; other coins use the crypto row.">
+            <${Field} label="Bitcoin model" id="bitcoin-model">
               <${Select} value=${f.bitcoinModel} onChange=${(/** @type {string} */ x) =>
                 setF({ ...f, bitcoinModel: x })} options=${v.bitcoinModels} />
               </${Field}>
@@ -755,11 +729,11 @@ function BitcoinModels({ close }) {
     `}>
       ${v
         ? html`
-          <p class="small dim"
-            style=${{ marginTop: 0 }}>Each model's median path from today's price${v.price
-              ? ` (${fmt(v.price)})`
-              : ''}, on a log scale. These are models other people publish, shown so you can compare them,
-            not MoolaKata's view or advice.</p>
+          ${v.price
+            ? html`<p class="small dim" style=${{ marginTop: 0 }}>Today's price: ${
+              fmt(v.price)
+            }</p>`
+            : null}
           <${ModelsChart} rows=${v.rows} names=${MODEL_NAMES} />
           <div class="table-wrap mt">
             <table class="t">
@@ -779,9 +753,7 @@ function BitcoinModels({ close }) {
               )}</tbody>
             </table>
           </div>
-          <p
-            class="small dim">Their figures ship with MoolaKata, dated, in Settings › Tax tables (${v
-              .figuresYear}).</p>
+          <p class="small dim">Figures of ${v.figuresYear}</p>
         `
         : html`<p class="dim">Loading…</p>`}
     </${Dialog}>
@@ -819,8 +791,7 @@ function IgnoredLines() {
               onClick=${() => remove(x)}>Remove</button></div>
           `
         )
-        : html`<p class="small dim">None. When you leave a statement's line
-          out, <b>Remember…</b> ignores lines that start like it from then on.</p>`}
+        : html`<${Empty}>None</${Empty}>`}
     </div>
   `;
 }

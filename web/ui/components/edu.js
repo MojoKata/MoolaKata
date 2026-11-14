@@ -79,8 +79,7 @@ function PersonDialog({ close }) {
               ['female', 'Female'],
               ['male', 'Male'],
             ]} />
-            <${RecField} rec=${rec} name="birthYear" label="Year of birth"
-              hint="When school starts, for the Goal tab." />
+            <${RecField} rec=${rec} name="birthYear" label="Year of birth" />
           </div>
         `
         : null}
@@ -110,13 +109,10 @@ export function PlanFields({ rec }) {
   };
   return html`
     <div class="row">
-      <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state"
-        placeholder="ex: Utah" />
-      <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name"
-        placeholder="ex: my529" />
+      <${RecField} rec=${rec} name="planState" label="Plan state" id="plan-state" />
+      <${RecField} rec=${rec} name="planName" label="Plan name" id="plan-name" />
     </div>
-    <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}
-      hint="One of the household's people. The 529 counts in your net worth, not theirs.">
+    <${Field} label="Beneficiary" error=${rec.error('beneficiaryId')}>
       <${Select} value=${making ? 'new' : rec.get('beneficiaryId') || ''} onChange=${pick}
         options=${[
           ['', 'Choose…'],
@@ -125,10 +121,9 @@ export function PlanFields({ rec }) {
         ]} />
       </${Field}>
       <div class="row">
-        <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date"
-          hint="A Roth IRA rollover is possible 15 years on." />
+        <${RecField} rec=${rec} name="openedOn" label="Opened" id="opened-on" type="date" />
         <${RecField} rec=${rec} name="stateDeduction" label="State tax deduction a year"
-          id="state-deduction" hint="What you expect, typed." />
+          id="state-deduction" />
       </div>
   `;
 }
@@ -294,8 +289,6 @@ export function Contributions({ a }) {
     <div class="grid g2 mt">
       <div class="card facts">
         <h3>State Tax Deduction</h3>
-        <p class="small dim" style=${{ marginTop: 0 }}>Typed by the owner: MoolaKata doesn't
-          model state rules.</p>
         <div class="list-item"><span class="grow dim">Expected a year</span>${pl.stateDeduction
           ? html`<${Amt} v=${pl.stateDeduction} cents=${false} />`
           : '—'}</div>
@@ -310,8 +303,6 @@ export function Contributions({ a }) {
             cents=${false} /></span></span></div>
         <div class="list-item"><span class="grow dim">Could still roll over</span><${Amt}
           v=${r.available} cents=${false} /></div>
-        <p class="small dim">Contributions of the last five years, and their earnings, can't
-          roll over; each year's rollover is also held to the IRA limit.</p>
       </div>
     </div>
   `;
@@ -361,8 +352,7 @@ function AddContribution({ a, done }) {
             <${RecField} rec=${rec} name="fromAccountId" label="Paid from" id="from-account"
               options=${[['', 'Not recorded here'], ...banks.map((b) => [b.id, b.name])]} />
           </div>
-          <${RecField} rec=${rec} name="fiveYear" label="Five-year election"
-            hint="Superfunding: counted as a fifth in each of five years against the gift exclusion." />
+          <${RecField} rec=${rec} name="fiveYear" label="Five-year election" />
         `
         : null}
     </${DraftForm}>
@@ -451,9 +441,6 @@ export function Withdrawals({ a }) {
               )}</tbody>
             </table>
           </div>
-          <p class="small dim" style=${{ padding: '0 8px' }}>Distributions are what was taken
-                      out (Form 1099-Q). The earnings in what isn't covered by qualified expenses may be
-                      taxable, with a 10% additional tax; your preparer applies the rules.</p>
         `
         : html`<${Empty}>No withdrawals yet</${Empty}>`}
     </div>
@@ -505,8 +492,7 @@ function AddExpense({ a, kinds, done }) {
             <${RecField} rec=${rec} name="kind" label="Kind" options=${kinds} />
             <${RecField} rec=${rec} name="amount" label="Amount" />
           </div>
-          <${RecField} rec=${rec} name="description" label="Description"
-            placeholder="ex: Fall tuition, State University" />
+          <${RecField} rec=${rec} name="description" label="Description" />
         `
         : null}
     </${DraftForm}>

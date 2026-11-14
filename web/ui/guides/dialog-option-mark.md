@@ -1,6 +1,6 @@
 # Marking an option
 
-A price for an option the price source doesn't serve, until it does. Without a typed mark or a
+A price for an option the price source doesn't serve, used until the source has a close for it. Without a typed mark or a
 close, an option is valued at its intrinsic value: what it would be worth exercised now.
 
 ## On {#mark-date}

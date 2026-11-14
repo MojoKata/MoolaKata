@@ -36,7 +36,7 @@ PHRASAL = {
     ("take", "out"), ("put", "back"), ("move", "in"), ("move", "out"), ("try", "out"),
     ("fill", "in"), ("break", "down"), ("open", "up"), ("sort", "out"), ("left", "out"),
     ("paid", "off"), ("ticked", "off"), ("come", "in"), ("go", "out"), ("mark", "off"),
-    ("clean", "up"), ("back", "up"), ("give", "back"),
+    ("clean", "up"), ("back", "up"), ("give", "back"), ("work", "out"), ("worked", "out"),
 }  # fmt: skip
 # Words written as they are, whatever their place (units, a product's own spelling).
 AS_WRITTEN = {"sats", "sat", "e.g", "i.e", "vs", "oz"}
@@ -305,7 +305,8 @@ def headed_texts(src: str):
     i = 0
     while (i := src.find("html`", i)) >= 0:
         i += len("html`")
-        stack: list[tuple[str, list | None]] = []  # open elements; None: text not read
+        # Open elements: (name, words or None when not read, what to call it).
+        stack: list[tuple] = []
         for tok in _tokens(src, i):
             if tok[0] == "tag":
                 kind, name, a, b = tok[1:]
@@ -313,25 +314,25 @@ def headed_texts(src: str):
                 attrs = src[a:b]
                 if kind == "open":
                     if name in INLINE and stack:
-                        stack.append((name, stack[-1][1]))  # its words are its parent's
+                        stack.append((name, stack[-1][1], name))  # its words are its parent's
                     elif (name in ELEMENTS or comp in COMPONENTS) and not LINKLIKE.search(attrs):
-                        stack.append((name, []))
+                        stack.append((name, [], comp))
                     elif CARD_LABEL.search(attrs):
-                        stack.append(("card label", []))
+                        stack.append((name, [], "card label"))
                     else:
-                        stack.append((name, None))
+                        stack.append((name, None, name))
                 elif kind == "close":
                     # Up to the element it closes (a component closes with </${X}> or <//>).
                     while stack:
-                        what, frags = stack.pop()
-                        if what == name or name in ("", "/") or what == "card label":
+                        tag, frags, what = stack.pop()
+                        if tag == name or name in ("", "/"):
                             break
                     else:
                         continue
-                    if frags is not None and what not in INLINE:
+                    if frags is not None and tag not in INLINE:
                         for each in expand(frags):
                             if cleaned := _clean(each):
-                                yield src.count("\n", 0, a) + 1, what.strip("${}"), cleaned
+                                yield src.count("\n", 0, a) + 1, what, cleaned
                 if kind in ("open", "self"):
                     line = src.count("\n", 0, a) + 1
                     if TITLED.match(name):
@@ -425,6 +426,8 @@ PARAGRAPHS = {"p", "div", "span", "small", "li"}
 STATE = {"Empty", "Attention", "StatePill", "Action", "SaveButton", "Tip"}
 HOLDERS = {"label", "button", "th", "td", "option", "h1", "h2", "h3", "h4", "a", "legend"}
 FEWEST = 4  # words: fewer is a label or a state's word, not an explanation
+# A label of a value: a stat's (label), a row's name (grow), a key of a key and value list (k).
+LABELLED = re.compile(r'class="(?:[^"]*\s)?(?:label|grow|k)(?:\s[^"]*)?"')
 
 
 def fixed_paragraphs(src: str):
@@ -433,23 +436,23 @@ def fixed_paragraphs(src: str):
     i = 0
     while (i := src.find("html`", i)) >= 0:
         i += len("html`")
-        stack: list[list] = []  # [name, parts, start]
+        stack: list[list] = []  # [name, parts, start, a label]
         for tok in _tokens(src, i):
             if tok[0] == "tag":
                 kind, name, a, b = tok[1:]
                 if kind == "open":
-                    stack.append(["label" if CARD_LABEL.search(src[a:b]) else name, [], a])
+                    stack.append([name, [], a, bool(LABELLED.search(src[a:b]))])
                 elif kind == "self" and name.startswith("${") and stack:
                     if not DECORATION.search(name):
                         stack[-1][1].append(None)
                 elif kind == "close":
                     while stack:
                         e = stack.pop()
-                        if e[0] == name or name in ("", "/") or e[0] == "label":
+                        if e[0] == name or name in ("", "/"):
                             break
                     else:
                         continue
-                    held = any(s[0] in HOLDERS or s[0].strip("${}") in STATE for s in stack)
+                    held = e[3] or any(s[0] in HOLDERS or s[0].strip("${}") in STATE for s in stack)
                     if e[0] in PARAGRAPHS and not held and None not in e[1]:
                         words = re.sub(r"\s+", " ", "".join(e[1])).strip()
                         if len(words.split()) >= FEWEST:

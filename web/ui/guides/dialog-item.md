@@ -6,7 +6,8 @@ Without a valuation, an item counts at its cost basis, depreciated when it depre
 
 ## Name
 
-What the item is called in the list.
+What the item is called in the list: *American Gold Eagle, 1 oz*, *Rolex Submariner 124060*,
+*Home*, *2023 Subaru Outback*.
 
 ## Address
 
@@ -44,7 +45,7 @@ Troy ounces, grams or kilograms. A troy ounce is 31.1 grams.
 
 ## Purity
 
-The share of the weight that is the metal: .9999 for most gold coins and bars, .999 for silver, .925
+The share of the weight that is the metal, as a fraction or in karats: .9999 for most gold coins and bars, .999 for silver, .925
 for sterling, 22k (.9167) for a Krugerrand. Fine weight is weight × purity × quantity.
 
 ## Quantity
@@ -67,7 +68,8 @@ at death.
 ## Cost basis {#cost-basis}
 
 What it cost: the price plus premium, fees and shipping, or for a property the purchase price. A
-gift's carried-over basis, or an inherited item's value at death.
+gift's carried-over basis, or an inherited item's value at death. For a property, its improvements
+add to it (Improvements, beside the fields).
 
 ## Closing costs
 
@@ -79,7 +81,7 @@ What it's insured for, to compare with what it's worth.
 
 ## Selling premium {#sell-premium}
 
-What you'd expect over spot (or under it, as a negative) when selling. 0% by default.
+What you'd expect over spot when selling, in percent; under spot is a negative. 0% by default.
 
 ## Where it's kept {#location}
 
@@ -122,5 +124,7 @@ this server.
 
 ## Sale
 
-The day it was sold, the proceeds and the fees. The gain or loss is realized and shown in Taxes;
-metals and collectables are flagged as collectables for Form 8949.
+The day it was sold, the proceeds and the fees, recorded when you save the item; **Undo the Sale**
+takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of
+metals or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One
+of property you used yourself is marked **used personally**: a loss on it isn't deductible.

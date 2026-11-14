@@ -8,7 +8,7 @@ import { refreshBadges } from '../app/stream.js';
 import { moment } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
-import { Failed, Loading } from '../kit/bits.js';
+import { Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
 
@@ -52,14 +52,13 @@ export default function Alerts() {
       </div>
     `;
   return html`
-    <div class="card"><h3>Open<span class="spacer"></span><span class="small dim"
-      style=${{ fontWeight: 400 }}>Each resolves by itself when its cause clears.</span></h3>
-      ${d.open.length ? d.open.map(row) : html`<p class="small dim">Nothing needs you.</p>`}</div>
+    <div class="card"><h3>Open</h3>
+      ${d.open.length ? d.open.map(row) : html`<${Empty}>Nothing needs you</${Empty}>`}</div>
     <div class="card mt"><h3>Resolved<span class="spacer"></span><span class="small dim"
       style=${{ fontWeight: 400 }}>kept 90 days</span></h3>
       ${d.resolved.length
         ? d.resolved.map(row)
-        : html`<p class="small dim">None in the last 90 days.</p>`}</div>
+        : html`<${Empty}>None in the last 90 days</${Empty}>`}</div>
     <p class="small dim">Emails: ${EMAILS[d.emails] || d.emails} · change it in <a
       href="/ui/profile">Profile</a>.</p>
   `;

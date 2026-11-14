@@ -16,7 +16,7 @@ import { toast } from '../kit/toast.js';
 import { confirmAction } from '../kit/confirm.js';
 import { DraftForm } from './draft-form.js';
 import { useSettingsDraft } from './settings-draft.js';
-import { Attention, StatePill } from '../kit/state.js';
+import { Attention, Empty, StatePill } from '../kit/state.js';
 
 export const DRIVERS = /** @type {Record<string, string>} */ ({
   folder: 'Folder',
@@ -70,9 +70,6 @@ export function ConnectorSection() {
     <div class="card">
       <h3>MoolaKata Connector<span class="spacer"></span><span class=${'pill ' + tone}><${Icon}
           name=${paired && !v.locked ? 'check' : 'lock'} /> ${status}</span></h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>A second service that holds
-        institutions' credentials, fetches with its drivers and pushes into imports.
-        MoolaKata can't reach it or read its vault: it only hears its signed reports.</p>
       ${paired
         ? html`
           <div class="list-item"><span class="grow dim">Connector</span><code
@@ -83,7 +80,7 @@ export function ConnectorSection() {
             ? html`
               <div class="list-item" data-help="its-page"><span class="grow dim">Its page</span><a
                   class="mono small" href=${v.page} target="_blank" rel="noopener noreferrer"
-                >${v.page}</a><span class="small dim">· unlock, pair and lock it there</span></div>
+                >${v.page}</a></div>
             `
             : null}
           ${v.confirmedAt
@@ -91,9 +88,7 @@ export function ConnectorSection() {
               <div
                 class="list-item"><span class="grow dim">Confirmed</span>${moment(
                   v.confirmedAt,
-                )}${v.confirmedBy
-                  ? ` by ${v.confirmedBy}`
-                  : ''} <span class="small dim">· the fingerprints were compared</span></div>
+                )}${v.confirmedBy ? ` by ${v.confirmedBy}` : ''}</div>
             `
             : html`<${Attention} icon=${html`<${Icon} name="alert" />`} actions=${html`
               <button
@@ -145,18 +140,17 @@ export function ConnectorSection() {
           s.reload();
         }}>
         <${Field} label="The connector reaches MoolaKata at" id="connector-address"
-          error=${rec.error('connectorAddress')}
-          hint=${`The address a pairing code carries: on the connector's network, often this server's own. Empty: the public URL${
-            values.publicUrl ? ` (${values.publicUrl})` : ', which is not set'
-          }.`}>
+          error=${rec.error('connectorAddress')}>
           <${Input} value=${rec.get('connectorAddress') || ''} onInput=${(
             /** @type {string} */ x,
-          ) => rec.set('connectorAddress', x || null)} placeholder="the public URL" />
+          ) => rec.set('connectorAddress', x || null)} placeholder=${values.publicUrl
+            ? `the public URL (${values.publicUrl})`
+            : 'the public URL, which is not set'} />
         </${Field}>
       </${DraftForm}>
       <div class="toolbar mt">
         <button class="btn" onClick=${() =>
-          openDialog(PairDialog, {}).then(() => res.reload())}>${paired
+          openDialog(PairDialog, { paired }).then(() => res.reload())}>${paired
           ? 'Pair a Replacement…'
           : 'Pair…'}</button>
         <span class="spacer"></span>${paired || v.state === 'pairing'
@@ -173,8 +167,6 @@ export function ConnectorSection() {
     </div>
     <div class="card">
       <h3>Connections</h3>
-      <p class="small dim" style=${{ marginTop: '-6px' }}>Each person's sign-ins, kept by the
-        connector. Their credentials are never shown here.</p>
       ${v.connections.length
         ? html`
           <div class="table-wrap">
@@ -203,7 +195,12 @@ export function ConnectorSection() {
                     <td class="mono small">${c.host ||
                       html`<span class="dim">not set</span>`}</td>
                     <td>${connectionState(c)}${c.credentialWaiting
-                      ? html`<div class="small dim">credentials waiting for the connector</div>`
+                      ? html`
+                        <div>
+                          <${StatePill} tone="info"
+                            why="Sealed by their owner; MoolaKata holds them until the connector collects them at its next report."
+                          >credentials waiting for the connector</${StatePill}></div>
+                      `
                       : null}</td>
                   </tr>
                 `
@@ -211,14 +208,13 @@ export function ConnectorSection() {
             </table>
           </div>
         `
-        : html`<p class="small dim">None yet. Each person starts their own under Profile ›
-            Connections once a connector is paired.</p>`}
+        : html`<${Empty}>No connections yet</${Empty}>`}
     </div>
   `;
 }
 
-/** @param {{ close: (v?: any) => void }} p */
-function PairDialog({ close }) {
+/** @param {{ close: (v?: any) => void, paired?: boolean }} p */
+function PairDialog({ close, paired }) {
   useDialogGuide('dialog-connector-pair');
   const [made, setMade] = useState(/** @type {any} */ (null));
   const make = useSubmit(async () => {
@@ -236,10 +232,6 @@ function PairDialog({ close }) {
           Code</button>
         <button class="btn primary">Done</button>
       `}>
-      <p class="small dim" style=${{ marginTop: 0 }}>Paste this code into <b>Pair</b> on the
-        connector's page, with its words. It holds this server's address and key fingerprint;
-        the connector then introduces itself, and both sides show its fingerprint for you to
-        compare.</p>
       ${make.error ? html`<${FormError} error=${make.error} />` : made
         ? html`
           <div class="field"
@@ -255,9 +247,13 @@ function PairDialog({ close }) {
               class="mono">${made.command}</code></p>
         `
         : html`<${Loading} lines=${2} />`}
-      <div class="notice mt"><${Icon} name="info" /><div>Pairing another connector replaces
-        the one paired: its Connections stop and their accounts' sync turns off, as Unpair
-        does.</div></div>
+      ${paired
+        ? html`
+          <div class="mt">
+            <${Attention} icon=${html`<${Icon} name="alert" />`}>Pairing replaces the connector
+              paired now: its Connections stop</${Attention}></div>
+        `
+        : null}
     </${Dialog}>
   `;
 }
