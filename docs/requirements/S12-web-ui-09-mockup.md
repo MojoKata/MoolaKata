@@ -7,7 +7,16 @@
    1. **`docs/mockups/MoolaKata-mock.html`**, hand-written: the design reference for every
       screen. A change to what users see updates it in the same change. CI keeps each run's
       copy as its artifact (linked from its summary), so a pull request's design opens from
-      it, and publishes main's on the Pages site.
+      it, and publishes main's on the Pages site. Its MOCK pill opens and closes a pane of a
+      fixed width at the left, beside the app (which moves over, never covered): every
+      screen, Settings section, dialog, user and state, grouped by the navigation's sections
+      in their order, then by what has none (Profile, the linked households, signing in, a
+      new server, a locked server, the connector's page, who is signed in, states),
+      alphabetical within a group, with a filter at its top. Each is an address that opens
+      it when typed into the address bar, so one can be shared: a screen `#/budgets`, a
+      section `#/settings/keys`, a dialog over its screen `#/settings?dialog=prune`, a user
+      `?as=bob`, states `?on=stale,privacy`. What only happens (a new alert arriving) is a
+      button.
    2. **`MoolaKata-app.html`**, generated: `web/ui/mockup/build.py` inlines the app and an
       in-page fake backend, for the screens built so far, the linked household window among
       them. Not committed: CI builds and opens it each run, keeps it as the run's artifact

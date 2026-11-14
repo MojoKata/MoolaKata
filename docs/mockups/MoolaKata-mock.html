@@ -449,6 +449,18 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
 .type-card .sub { font-size: 11.5px; color: var(--fg-muted); }
 .share-list h4 { margin: 14px 0 2px; font-size: 13px; }
 .share-list .why { font-size: 12px; color: var(--fg-muted); margin-bottom: 6px; }
+.mock-pane { position: fixed; left: 0; top: 0; bottom: 0; width: 300px; z-index: 70; overflow-y: auto; background: var(--bg-2); border-right: 1px solid var(--mock); padding: 0 0 24px; font-size: 13px; }
+.mock-pane[hidden] { display: none; }
+body.mock-open #root { margin-left: 300px; }
+body.mock-open .scrim:not(.prompt) { left: 300px; }
+.mock-pane .mp-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.mock-pane .mp-head input { flex: 1; min-width: 0; }
+.mock-pane h4 { margin: 14px 12px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mock); }
+.mock-pane a, .mock-pane button.mp-item { display: flex; width: 100%; box-sizing: border-box; gap: 8px; align-items: baseline; padding: 4px 12px 4px 16px; color: var(--fg); text-align: left; border: 0; background: transparent; font: inherit; cursor: pointer; text-decoration: none; }
+.mock-pane a:hover, .mock-pane button.mp-item:hover { background: var(--bg-4); }
+.mock-pane a[aria-current] { background: var(--mock-bg); }
+.mock-pane .mp-kind { margin-left: auto; flex: none; font-size: 10px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .04em; }
+.mock-pane .mp-on::before { content: '✓ '; color: var(--accent); }
 .menu { position: fixed; z-index: 60; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px; min-width: 230px; max-height: calc(80vh / var(--zoom)); overflow-y: auto; }
 .menu .mh { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); padding: 8px 10px 4px; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
@@ -546,6 +558,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"/></symbol>
   <symbol id="i-sync" viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/><path d="M10 13l2-2 2 2M12 11v5"/></symbol>
 </svg>
+<aside id="mock-pane" class="mock-pane" aria-label="Mockup" hidden></aside>
 <div id="root"></div>
 <div class="tip" id="tip"></div>
 <div class="toasts" id="toasts"></div>
@@ -805,7 +818,8 @@ const CONTRIB = PORT_VALUE.map((_, i) => 210000 + i * 3900);
 
 /* ---------- state & routing ---------- */
 const state = {
-  user: 'alice', privacy: false, collapsed: false, stale: false,
+  user: 'alice', privacy: false, collapsed: false, stale: false, paneFilter: '',
+  pane: (() => { try { return localStorage.getItem('mk-pane') === '1'; } catch { return false; } })(),
   help: (() => { try { return localStorage.getItem('mk-help') !== '0'; } catch { return true; } })(),
   theme: (() => { try { return localStorage.getItem('mk-theme') || 'dark'; } catch { return 'dark'; } })(),
   tabs: {}, filters: {}, newItems: 3, update: false, range: '1Y', year: 2026, taxBook: 'tb26', settings: 'general', scenario: 0, proj: 'ret62', showShared: false, signedOut: false, locked: true, unlockedBy: 'Alice', peerHue: { alice: 'teal', bob: 'violet', carol: 'amber' },
@@ -815,7 +829,11 @@ function applyTheme() {
   const t = state.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : state.theme;
   document.documentElement.dataset.theme = t;
 }
-function route() { const h = location.hash.replace(/^#\/?/, '') || 'dashboard'; const [screen, param] = h.split('/'); return { screen, param }; }
+// The address: #/<screen>/<param>…, then the MOCK pane's own part after a ?: as=<user>,
+// on=<state>,<state> and dialog=<name> (S12.9), so anything the pane opens can be shared.
+function addrPath() { return location.hash.replace(/^#\/?/, '').split('?')[0]; }
+function addrQuery() { return new URLSearchParams(location.hash.split('?')[1] || ''); }
+function route() { const h = addrPath() || 'dashboard'; const [screen, param] = h.split('/'); return { screen, param }; }
 function go(path) { location.hash = '#/' + path; }
 
 const NAV = [
@@ -2116,7 +2134,7 @@ DIALOGS.share = (d) => {
   const users = Object.values(USERS).filter((u) => u.username !== state.user && !(tb && taxBook().filers.includes(u.username)));
   const lvl = tb ? { dave: 'Write' } : { bob: 'Read', dave: 'Read' };
   const pf = d.kind === 'portfolio';
-  return { title: `Share “${d.name || 'Individual Brokerage'}”`, body: `${pf ? `<div class="notice" style="margin-bottom:12px">${icon('alert')}<div><b>Bob Griffin</b> and <b>Margaret Griffin</b> can’t see 2 accounts in this portfolio: <b>Rollover IRA</b> and <b>HSA</b>.<div class="toolbar mt" style="margin-bottom:0"><button class="btn sm primary" data-act="toast" data-v="Rollover IRA and HSA shared with Bob and Margaret (read)">Share These Accounts Too</button><button class="btn sm" data-act="toast" data-v="They stay hidden from Bob and Margaret">Keep Them Hidden</button></div></div></div>` : ''}<div class="share-list">
+  return { title: `Share “${d.name || 'Individual Brokerage'}”`, note: 'When someone loses access, it ends on their next request.', body: `${pf ? `<div class="notice" style="margin-bottom:12px">${icon('alert')}<div><b>Bob Griffin</b> and <b>Margaret Griffin</b> can’t see 2 accounts in this portfolio: <b>Rollover IRA</b> and <b>HSA</b>.<div class="toolbar mt" style="margin-bottom:0"><button class="btn sm primary" data-act="toast" data-v="Rollover IRA and HSA shared with Bob and Margaret (read)">Share These Accounts Too</button><button class="btn sm" data-act="toast" data-v="They stay hidden from Bob and Margaret">Keep Them Hidden</button></div></div></div>` : ''}<div class="share-list">
     <h4>People</h4>
     ${users.map((u) => `<div class="list-item"><span class="avatar av-${u.username}">${u.initials}</span><div class="grow">${u.name}<div class="small dim">${u.username}</div></div>${segLevel(lvl[u.username] || 'None')}</div>`).join('')}
     <h4>Groups</h4>
@@ -2185,7 +2203,7 @@ DIALOGS.import = () => ({ title: 'Import Transactions', wide: true, body: `<div 
 DIALOGS.csvMapping = () => {
   const cols = ['Timestamp', 'Transaction Type', 'Asset', 'Quantity Transacted', 'Spot Price at Transaction', 'Subtotal', 'Total (inclusive of fees and/or spread)', 'Fees and/or Spread', 'Notes'];
   const pick = (label, v) => field(label, sel(['(none)', ...cols], v || '(none)'));
-  return { title: 'Which Columns Are Which?', wide: true, body: `<p class="small dim" style="margin-top:0">A CSV from Coinbase, into Coinbase · Exchange</p>
+  return { title: 'Which Columns Are Which?', wide: true, note: 'Saved for the next file from this institution.', body: `<p class="small dim" style="margin-top:0">A CSV from Coinbase, into Coinbase · Exchange</p>
   <div class="split-form">${pick('Date column', 'Timestamp')}${pick('Description column', 'Notes')}${pick('Amount column', 'Total (inclusive of fees and/or spread)')}${pick('Debit column', '')}${pick('Credit column', '')}${pick('Running balance column', '')}${pick('Memo column', '')}${pick('Transaction id column', '')}${pick('Action column', 'Transaction Type')}${pick('Symbol column', 'Asset')}${pick('Quantity column', 'Quantity Transacted')}${pick('Price column', 'Spot Price at Transaction')}${pick('Fees column', 'Fees and/or Spread')}${field('Date format', inp('%Y-%m-%dT%H:%M:%SZ'))}${field('Spending is positive', sel(['No', 'Yes: flip the signs'], 'No'))}</div>
   <p class="small dim">2 lines below the rows were left out: notes, not rows.</p>
   <div class="table-wrap"><table class="t"><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>
@@ -2253,7 +2271,7 @@ DIALOGS.connectionCreds = () => ({ title: 'Credit union: Credentials', body: `${
   <p class="small" data-help="sealed-for" style="margin:0 0 12px">Sealed for <b class="mono">ofx.cu.example</b> only</p>
   ${field('How you sign in', sel(['Here, sealed for the connector', 'An admin types it on the connector’s host'], 'Here, sealed for the connector'))}
   <div class="row">${field('Username', inp('alice.griffin'))}${field('Password', inp('', '', 'secret'))}</div>`, ok: 'Seal and Send', note: 'Sealed for the connector c2f1 08aa 5e7d 91b3, whose key’s signature was checked, with the host it goes to.' });
-DIALOGS.connectorPair = () => ({ title: 'Pair a Connector', body: `<pre class="mono small" style="white-space:pre-wrap;word-break:break-all;background:var(--bg-3);padding:10px;border-radius:8px">mkp1.eyJhIjoiaHR0cHM6Ly9tb25leS5ncmlmZmluLmhvbWUiLCJmIjoiM2Y5YTIxYzA5YjdlZDRlNSIsInMiOiI3UTJLOUY0RFhXM004MVRaIn0</pre>
+DIALOGS.connectorPair = () => ({ title: 'Pair a Connector', note: 'The code works once, for 24 hours.', body: `<pre class="mono small" style="white-space:pre-wrap;word-break:break-all;background:var(--bg-3);padding:10px;border-radius:8px">mkp1.eyJhIjoiaHR0cHM6Ly9tb25leS5ncmlmZmluLmhvbWUiLCJmIjoiM2Y5YTIxYzA5YjdlZDRlNSIsInMiOiI3UTJLOUY0RFhXM004MVRaIn0</pre>
   <div class="list-item mt"><span class="grow dim">This server’s fingerprint</span><span class="mono small">3f9a 21c0 9b7e d4e5</span></div>`, ok: '' });
 const fromReceipt = (pctv) => `<span class="ocr">${icon('info')} read from the receipt · ${pctv}%</span>`;
 DIALOGS.upload = () => ({ title: 'Add Receipts', body: `<div class="drop">${icon('upload')}<div><b>Drop files</b> or <a>choose</a></div></div>
@@ -2300,7 +2318,7 @@ DIALOGS.newProjection = () => ({ title: 'New Projection', body: `<div class="fie
 DIALOGS.makeActive = (d) => { const x = PROJ.find((p) => p.id === d.p) || PROJ[1]; const cur = PROJ.find((p) => p.active && p.subject === x.subject && p.type === x.type); return { title: `Make “${x.name}” Active?`, body: `<p style="margin-top:0">${cur ? `<b>${cur.name}</b> stops being the active ${x.type === 'savings' ? 'plan' : x.type + ' plan'} for ${x.subject}. Its tracking ends, and it stays as a scenario.` : `It becomes the active plan for ${x.subject}.`}</p>`, ok: 'Make Active' }; };
 DIALOGS.twoStepSetup = () => ({ title: 'Turn On Two-Step Sign-In', body: `<div class="qr"><svg class="code" viewBox="0 0 21 21" role="img" aria-label="QR code for your authenticator app" shape-rendering="crispEdges"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="8" y="0" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="14" y="0" width="1" height="1"/><rect x="15" y="0" width="1" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="17" y="0" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="4" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="9" y="1" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="14" y="1" width="1" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="19" y="1" width="1" height="1"/><rect x="20" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="15" y="2" width="1" height="1"/><rect x="16" y="2" width="1" height="1"/><rect x="17" y="2" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="17" y="3" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/><rect x="17" y="4" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="19" y="4" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="13" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="15" y="5" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="20" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="16" y="6" width="1" height="1"/><rect x="17" y="6" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="16" y="7" width="1" height="1"/><rect x="20" y="7" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="14" y="9" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="0" y="10" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="13" y="10" width="1" height="1"/><rect x="15" y="10" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="20" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="11" y="11" width="1" height="1"/><rect x="14" y="11" width="1" height="1"/><rect x="16" y="11" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="0" y="12" width="1" height="1"/><rect x="1" y="12" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="11" y="12" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="16" y="12" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="6" y="14" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="18" y="14" width="1" height="1"/><rect x="19" y="14" width="1" height="1"/><rect x="0" y="15" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="8" y="15" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="20" y="15" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="1" y="16" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="6" y="16" width="1" height="1"/><rect x="9" y="16" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="16" y="16" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="0" y="17" width="1" height="1"/><rect x="1" y="17" width="1" height="1"/><rect x="2" y="17" width="1" height="1"/><rect x="3" y="17" width="1" height="1"/><rect x="4" y="17" width="1" height="1"/><rect x="5" y="17" width="1" height="1"/><rect x="6" y="17" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="15" y="17" width="1" height="1"/><rect x="16" y="17" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="3" y="19" width="1" height="1"/><rect x="4" y="19" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="8" y="19" width="1" height="1"/><rect x="9" y="19" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="18" y="19" width="1" height="1"/><rect x="19" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="1" y="20" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="5" y="20" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/></svg></div>
   <p class="small center"><span class="dim">Key:</span> <code class="key">JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP</code></p>${field('Code from the app', inp('', 'ex: 123 456'))}`, ok: 'Turn On' });
-DIALOGS.recoveryCodes = () => ({ title: 'New Recovery Codes', body: `${attention('They won’t be shown again, and the old ones no longer work.')}
+DIALOGS.recoveryCodes = () => ({ title: 'New Recovery Codes', note: 'They won’t be shown again.', body: `${attention('The old ones no longer work.')}
   <ul class="codes">${['k7m2-px9r-ta4c-hwnq', '2vbe-zt8f-ym3n-ka6r', 'pqdw-2hcu-n9eb-xt4k', 'zmf3-ucyh-8pra-v2qm', 'te7w-ndy5-dkab-9fxs', 'u8nz-cr3q-hph4-twek', '6myb-j2vn-x8qd-ra5t', 'c9wh-ek4p-mz7u-bn3f', 'q5ry-hd8t-wa2n-kx6v', 'm3pz-cb7e-ty9f-rn4h'].map((c) => `<li><code>${c}</code></li>`).join('')}</ul>
   <div class="toolbar mt"><button class="btn sm" data-act="toast" data-v="Copied">Copy</button><button class="btn sm" data-act="toast" data-v="Saved moolakata-recovery-codes.txt">Download</button></div>`, ok: 'I’ve Saved Them' });
 DIALOGS.verifyKey = () => ({ title: 'Verify Key', body: `${field('Recovery phrase', `<span class="pw"><input class="in veiled" type="text" data-secret data-1p-ignore="true" placeholder="twelve words, in order" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="icon-btn" aria-label="Show the phrase" aria-pressed="false" data-act="reveal">${icon('eye')}</button></span>`)}`, ok: 'Verify' });
@@ -2360,8 +2378,8 @@ DIALOGS.budgetSettings = () => ({ title: 'Household: Settings', wide: true, note
   <div class="field"><label>Accounts</label>${['Joint Household', 'Everyday Checking', 'High-Yield Savings', 'Blue Cash Preferred', 'Freedom Unlimited (Bob’s, shared with you)', 'Cash'].map((a, i) => `<label class="list-item" style="cursor:pointer"><input type="checkbox" ${i < 5 ? 'checked' : ''}> <span class="grow">${a}</span></label>`).join('')}</div>
   ${field('The change counts from', sel(['October 2026 (this month)', 'September 2026', 'August 2026', 'Since the budget began'], 'October 2026 (this month)'))}
   <div class="field"><label>Where money comes from</label><div class="list-item"><span class="grow">Blue Cash Preferred<div class="small dim">paid from</div></span>${sel(['As its history says: Everyday Checking', 'Joint Household', 'Everyday Checking', 'High-Yield Savings'], 'As its history says: Everyday Checking').replace('class="in"', 'class="in" style="max-width:300px"')}</div><div class="list-item"><span class="grow">Freedom Unlimited<div class="small dim">paid from</div></span>${sel(['As its history says: Joint Household', 'Joint Household', 'Everyday Checking'], 'As its history says: Joint Household').replace('class="in"', 'class="in" style="max-width:300px"')}</div><div class="list-item"><span class="grow">High-Yield Savings<div class="small dim">money for its reserves moves from</div></span>${sel(['As its history says: Joint Household', 'Joint Household', 'Everyday Checking'], 'As its history says: Joint Household').replace('class="in"', 'class="in" style="max-width:300px"')}</div></div>`, ok: 'Save' });
-DIALOGS.estimatePlan = () => ({ title: 'Plan from History: The Last 6 Months', wide: true, body: `<table class="t plan"><thead><tr><th></th><th>Category</th><th class="num">Average</th><th>Every</th><th>From</th></tr></thead><tbody>${[['Housing', 3194, 'Month', 'spent every month'], ['Food', 1088, 'Month', 'spent every month'], ['Health', 286, 'Month', 'spent 5 of 6 months'], ['Car insurance', 1140, 'Year', 'recurring: Geico, yearly · a reserve'], ['Streaming', 27, 'Month', 'recurring: Netflix, Spotify'], ['Travel', 2350, 'Year', 'spent 2 of 6 months']].map(([c, a, e, f]) => `<tr><td><input type="checkbox" checked aria-label="Keep ${c}"></td><td>${c}</td><td class="num"><input class="in" value="${nf0.format(a)}" aria-label="Amount" style="max-width:110px;text-align:right"></td><td>${e}</td><td class="small dim">${f}</td></tr>`).join('')}</tbody></table>`, ok: 'Save the Plan' });
-DIALOGS.editPlan = () => ({ title: 'Plan from October 2026', wide: true, body: `<table class="t plan"><thead><tr><th>Category</th><th class="num">Amount</th><th>Every</th><th>Rollover</th><th class="num">Target</th><th>Held In</th><th></th></tr></thead><tbody>${[['Housing', 3200, 'Month', false], ['Food', 1100, 'Month', false], ['Kids', 350, 'Month', true], ['Travel', 2400, 'Year', false], ['Auto › Repair', 100, 'Month', true, 5000, 'High-Yield Savings'], ['Home › Roof', 150, 'Month', true, 12000, 'High-Yield Savings'], ['Income › Salary', 9640, 'Month', false]].map(([c, a, e, r, tg, h]) => `<tr><td>${sel([c], c).replace('class="in"', 'class="in" aria-label="Category" style="min-width:130px"')}</td><td class="num"><input class="in" value="${nf0.format(a)}" aria-label="Amount" style="width:80px;text-align:right"></td><td>${sel(['Month', 'Year'], e).replace('class="in"', 'class="in" aria-label="Every" style="min-width:88px"')}</td><td>${sw(r)}</td><td class="num"><input class="in" value="${tg ? nf0.format(tg) : ''}" placeholder="none" aria-label="Target" style="width:80px;text-align:right"></td><td>${sel(['—', 'High-Yield Savings', 'Joint Household'], h || '—').replace('class="in"', 'class="in" aria-label="Held in" style="min-width:140px;max-width:160px"')}</td><td><button class="icon-btn" aria-label="Remove">${icon('x')}</button></td></tr>`).join('')}</tbody></table><div class="toolbar mt"><button class="btn sm">${icon('plus')} Add a Category</button><button class="btn sm" data-act="dlg" data-v="estimatePlan">Estimate from History…</button></div>`, ok: 'Save' });
+DIALOGS.estimatePlan = () => ({ title: 'Plan from History: The Last 6 Months', wide: true, note: 'Nothing is saved until you save.', body: `<table class="t plan"><thead><tr><th></th><th>Category</th><th class="num">Average</th><th>Every</th><th>From</th></tr></thead><tbody>${[['Housing', 3194, 'Month', 'spent every month'], ['Food', 1088, 'Month', 'spent every month'], ['Health', 286, 'Month', 'spent 5 of 6 months'], ['Car insurance', 1140, 'Year', 'recurring: Geico, yearly · a reserve'], ['Streaming', 27, 'Month', 'recurring: Netflix, Spotify'], ['Travel', 2350, 'Year', 'spent 2 of 6 months']].map(([c, a, e, f]) => `<tr><td><input type="checkbox" checked aria-label="Keep ${c}"></td><td>${c}</td><td class="num"><input class="in" value="${nf0.format(a)}" aria-label="Amount" style="max-width:110px;text-align:right"></td><td>${e}</td><td class="small dim">${f}</td></tr>`).join('')}</tbody></table>`, ok: 'Save the Plan' });
+DIALOGS.editPlan = () => ({ title: 'Plan from October 2026', wide: true, note: 'Earlier months keep the plan they had.', body: `<table class="t plan"><thead><tr><th>Category</th><th class="num">Amount</th><th>Every</th><th>Rollover</th><th class="num">Target</th><th>Held In</th><th></th></tr></thead><tbody>${[['Housing', 3200, 'Month', false], ['Food', 1100, 'Month', false], ['Kids', 350, 'Month', true], ['Travel', 2400, 'Year', false], ['Auto › Repair', 100, 'Month', true, 5000, 'High-Yield Savings'], ['Home › Roof', 150, 'Month', true, 12000, 'High-Yield Savings'], ['Income › Salary', 9640, 'Month', false]].map(([c, a, e, r, tg, h]) => `<tr><td>${sel([c], c).replace('class="in"', 'class="in" aria-label="Category" style="min-width:130px"')}</td><td class="num"><input class="in" value="${nf0.format(a)}" aria-label="Amount" style="width:80px;text-align:right"></td><td>${sel(['Month', 'Year'], e).replace('class="in"', 'class="in" aria-label="Every" style="min-width:88px"')}</td><td>${sw(r)}</td><td class="num"><input class="in" value="${tg ? nf0.format(tg) : ''}" placeholder="none" aria-label="Target" style="width:80px;text-align:right"></td><td>${sel(['—', 'High-Yield Savings', 'Joint Household'], h || '—').replace('class="in"', 'class="in" aria-label="Held in" style="min-width:140px;max-width:160px"')}</td><td><button class="icon-btn" aria-label="Remove">${icon('x')}</button></td></tr>`).join('')}</tbody></table><div class="toolbar mt"><button class="btn sm">${icon('plus')} Add a Category</button><button class="btn sm" data-act="dlg" data-v="estimatePlan">Estimate from History…</button></div>`, ok: 'Save' });
 DIALOGS.coverFrom = () => ({ title: 'Move Money: October 2026', body: `<div class="row">${field('From', sel(['Shopping: $166.29 left', 'Savings › Emergency fund (reserve): $8,200.00', 'Entertainment: $38.51 left', 'Kids: $308.00 left', 'To Budget: $412.00'], 'Shopping: $166.29 left'))}${field('To', sel(['Health: $40.00 over', 'Food', 'Auto › Repair', 'Blue Cash Preferred’s payment: $310.12 not backed (envelope)'], 'Health: $40.00 over'))}</div>${field('Amount to move', inp('40.00'))}${field('Note', inp(''))}`, ok: 'Move' });
 DIALOGS.assignLanded = () => ({ title: 'Assign Landed Money', body: `<p style="margin-top:0">${money(41.2)} interest landed in High-Yield Savings on Oct 1.</p><div class="field" data-help="reserve"><label>A line for each reserve held here</label><table class="t"><tbody>${[['Savings › Emergency fund', '27.47'], ['Home › Roof', '9.16'], ['Auto › Repair', '4.57']].map(([l, v]) => `<tr><td>${l}</td><td class="num"><input class="in" aria-label="${l}" value="${v}" inputmode="decimal" style="max-width:120px"></td></tr>`).join('')}</tbody></table></div>${field('Kept as the account’s own', inp('0.00'))}<div class="toolbar"><span class="small dim">${money(41.2)} of ${money(41.2)} given; the rest stays unassigned.</span><span class="spacer"></span><button type="button" class="btn sm">Spread by Balance</button></div>`, ok: 'Assign' });
 DIALOGS.makeBudgetActive = () => ({ title: 'Make This Budget Active?', body: `<p style="margin-top:0"><b>Household, envelope</b> becomes the budget you follow, in place of <b>Household</b>, which stays as a scenario.</p>`, ok: 'Make Active' });
@@ -2369,10 +2387,10 @@ DIALOGS.copyScenario = () => ({ title: 'Copy as Scenario', body: `${field('Name'
 DIALOGS.reimbursePair = () => ({ title: 'Pair a Payback', body: `<p style="margin-top:0">Delta Air Lines, Sep 18 · Travel · ${money(412.6)} awaited from Acme Corp.</p><div class="field"><label>Deposits that may pay it back</label>${[['ACME CORP EXPENSE RPT', 'Oct 9 · Everyday Checking', 412.6, true], ['ACME CORP PAYROLL', 'Oct 15 · Everyday Checking', 4820, false]].map(([p, w, a, c]) => `<label class="list-item" style="cursor:pointer"><input type="radio" name="payback" ${c ? 'checked' : ''}> <span class="grow">${p}<div class="small dim">${w}</div></span>${money(a)}</label>`).join('')}</div>${field('Pays back', inp('412.60'))}`, ok: 'Pair' });
 DIALOGS.sharePortfolio = () => DIALOGS.share({ name: 'Retirement', kind: 'portfolio' });
 DIALOGS.newToken = () => ({ title: 'New Access Token', body: `${field('Token name', inp(''))}${field('Can read', sel(['Everything I can see', 'Chosen items…'], 'Everything I can see'))}${field('Expires', sel(['In 30 days', 'In 90 days', 'In a year'], 'In 90 days'))}`, ok: 'Create Token' });
-DIALOGS.tokenShown = () => ({ title: 'Your New Access Token', body: `${attention('It is shown once and can’t be shown again.')}<div class="field"><label>Token</label><code style="display:block;padding:10px 12px;background:var(--bg-3);border-radius:8px;word-break:break-all">mkt_01k7ab4vstfggspkjt3my8wzr2.Yb3QnR8xT2vL0pW6sK9dF4hJ7mZ1cA5e</code></div><div class="list-item"><span class="grow dim">MCP endpoint</span><code>https://money.griffin.ts.net/mcp</code></div>`, ok: null });
+DIALOGS.tokenShown = () => ({ title: 'Your New Access Token', note: 'It is shown once and can’t be shown again.', body: `<div class="field"><label>Token</label><code style="display:block;padding:10px 12px;background:var(--bg-3);border-radius:8px;word-break:break-all">mkt_01k7ab4vstfggspkjt3my8wzr2.Yb3QnR8xT2vL0pW6sK9dF4hJ7mZ1cA5e</code></div><div class="list-item"><span class="grow dim">MCP endpoint</span><code>https://money.griffin.ts.net/mcp</code></div>`, ok: null });
 DIALOGS.copyKey = (d) => {
   const link = d.link || 'ortiz-cpa';
-  return { title: `Access Key for ${link}`, body: `<div class="notice" style="margin-bottom:12px">${icon('link')}<div><b>${link}</b> has shared something with people here. <b>The words are shown once.</b></div></div>
+  return { title: `Access Key for ${link}`, note: 'They are shown once.', body: `<div class="notice" style="margin-bottom:12px">${icon('link')}<div><b>${link}</b> has shared something with people here. <b>The words are shown once.</b></div></div>
   <div class="words">${COPY_WORDS.map((w, i) => `<div class="word"><span>${i + 1}</span><b>${w}</b></div>`).join('')}</div>
   <label class="list-item" style="cursor:pointer"><input type="checkbox"> <span class="grow">I have saved the 12 words</span></label>`, ok: 'Done, Words Saved' };
 };
@@ -2473,7 +2491,7 @@ DIALOGS.taxDoc = (d) => {
 };
 // S8.16: a document kept, opened to change it or remove it.
 DIALOGS.taxDocEdit = () => { const d = DIALOGS.taxDoc({}); return { ...d, title: '1099-INT', body: d.body.replace('<option selected>W-2</option>', '<option >W-2</option>').replace('<option >1099-INT</option>', '<option selected>1099-INT</option>').replace('value="Acme Corp"', 'value="Ally Bank"').replace('<b>Drop the PDF</b> or a photo', '<b>1099-INT-ally.pdf</b> · drop another to replace it'), ok: 'Save', note: '<button class="btn danger" data-act="confirm" data-v="Remove this document?||Document removed (mock)">Remove</button>' }; };
-DIALOGS.linkInvite = () => ({ title: 'Invite a Server to Link', body: `<div class="code-box" style="word-break:break-all">mkl1.eyJhIjoiaHR0cHM6Ly9tb25leS5ncmlmZmluLnRzLm5ldCIsImYiOiIzZjlhMjFjMDliN2VkNGU1…</div>
+DIALOGS.linkInvite = () => ({ title: 'Invite a Server to Link', note: 'It works once, for 24 hours.', body: `<div class="code-box" style="word-break:break-all">mkl1.eyJhIjoiaHR0cHM6Ly9tb25leS5ncmlmZmluLnRzLm5ldCIsImYiOiIzZjlhMjFjMDliN2VkNGU1…</div>
   `, ok: 'Done' });
 DIALOGS.linkAccept = () => ({ title: 'Enter a Link Code', body: `${field('Link code', '<textarea class="in" rows="3" placeholder="ex: mkl1.…"></textarea>')}`, ok: 'Connect' });
 DIALOGS.holding = (d) => ({ title: `${d.sym || 'AAPL'} · Holding`, wide: true, body: `${lineChart({ labels: MONTHS.slice(-24), series: [{ name: d.sym || 'AAPL', color: 'var(--c1)', values: walk(24, 238.5, 0.09, 0.01, 3), tipfmt: (v) => '$' + nf.format(v) }], h: 220, yfmt: (v) => '$' + v.toFixed(0) })}
@@ -2506,7 +2524,7 @@ function ruleThen(r) {
 }
 // The address past the screen: transactions/rules/<n | new | sorted>/<changed | leaving>; the
 // last two parts are the MOCK pill's states, not addresses of the app.
-function hashNow() { return location.hash.replace(/^#\/?/, ''); }
+function hashNow() { return addrPath(); }
 function rulesTab() {
   const [, , pick = '', how = ''] = hashNow().split('/');
   const isNew = pick === 'new', i = isNew ? RULES.length : +pick - 1;
@@ -2688,6 +2706,7 @@ function closeDialog() {
   openDialog = dialogStack.pop() || null;
   if (openDialog) park(openDialog, false);
   maskContent(); helpFor(openDialog ? openDialog.dataset.name : null);
+  if (!openDialog) dropAddressDialog();
 }
 function closeAllDialogs() { while (openDialog) closeDialog(); }
 // The dialog beneath gives up its ids while one is over it, so a label or the guide finds the top one's.
@@ -3560,7 +3579,7 @@ const PEER_SCREENS = {
   receipts: () => `<div class="card"><p class="small dim" style="margin-top:0">Margaret includes receipts with Joint Checking.</p>${[['2026-10-09', 'Kroger', 142.18, true], ['2026-10-06', 'St. Mark’s Parish', 250], ['2026-10-03', 'Duke Energy', 188.4]].map((r) => `<div class="list-item">${icon('receipt')}<div class="grow">${r[1]}<div class="small dim">${r[0]}${r[3] ? '' : ' · PDF'}</div></div>${money(r[2])}${r[3] ? ' ' + statePill('not arrived', 'Asked for again at the next exchange.', 'warn') : ''}</div>`).join('')}</div>`,
 };
 function renderLinked() {
-  const parts = location.hash.replace(/^#\/?/, '').split('/');
+  const parts = addrPath().split('/');
   const P = PEERS[parts[1]] || PEERS['griffin-parents'], sub = parts[2] || 'dashboard', sp = parts[3];
   const u = USERS[state.user], themeIcon = { dark: 'moon', light: 'bulb', system: 'palette' }[state.theme];
   const navActive = sub === 'account' ? 'accounts' : sub;
@@ -3602,21 +3621,111 @@ function householdsMenu(anchor) {
   const first = m.querySelector('a'); if (first) first.focus();
 }
 
-/* ---------- mock menu ---------- */
-function mockMenu(anchor) {
-  closeMenu();
-  const m = document.createElement('div'); m.className = 'menu'; m.id = 'menu';
-  const screens = MOCK_SCREENS;
-  const dialogs = MOCK_DIALOGS;
-  m.innerHTML = `<div class="mh">Signed in as</div>${Object.values(USERS).slice(0, 2).map((u) => `<button data-act="as" data-v="${u.username}" class="${state.user === u.username ? 'on' : ''}"><span class="avatar sm av-${u.username}">${u.initials}</span>${u.name} ${u.admin ? '(admin)' : ''}</button>`).join('')}
-    <div class="mh">State</div><button data-act="tourstart" class="${state.tour ? 'on' : ''}">Tour: Find uses of Pet › Dog</button><button data-act="mtourdone" class="${state.tourDone ? 'on' : ''}">Tour: every use you can see cleared</button><button data-act="mbelow" class="${state.txFilters === 'below' ? 'on' : ''}">Transactions: At most under At least</button><button data-act="stale" class="${state.stale ? 'on' : ''}">Prices stale</button><button data-act="privacy" class="${state.privacy ? 'on' : ''}">Privacy mode</button><button data-act="mupdate" class="${state.update ? 'on' : ''}">Update available</button><button data-act="mnew">3 new rows arrive</button><button data-act="malert">A new alert arrives (live)</button><button data-act="mupload">Upload a receipt (reads it)</button><button data-act="mlock" class="${state.locked ? 'on' : ''}">Linked data locked</button><button data-act="mspouse" class="${state.spouseWaiting ? 'on' : ''}">A marriage waiting to be confirmed</button><button data-act="mjoin" class="${state.joinable ? 'on' : ''}">A linked user may be a person here</button><button data-act="mlinkcert" class="${state.linkCert ? 'on' : ''}">A linked server’s certificate changed</button><button data-act="mlinkbroken" class="${state.linkBroken ? 'on' : ''}">A link broken (the other side has none)</button><button data-act="mconnmoved" class="${state.connectorMoved ? 'on' : ''}">The connector reports from a new address</button><button data-act="mlandlock" class="${state.noLandlock ? 'on' : ''}">A host without Landlock</button><button data-act="munlimited" class="${state.unlimitedRisk ? 'on' : ''}">A strategy with unlimited risk</button><button data-act="mbtcunsaved" class="${state.btcUnsaved ? 'on' : ''}">Bitcoin not saved yet (Settings › Bitcoin)</button><button data-act="mtlsown" class="${state.tlsOwn ? 'on' : ''}">The listener on its own certificate (Settings › Network)</button><button data-act="mnosaving" class="${state.noSaving ? 'on' : ''}">A target no saving reaches (savings and education answers)</button><button data-act="mnotpriced" class="${state.notPriced ? 'on' : ''}">A strategy not priced (a takeover’s shares)</button><button data-act="mreencrypt" class="${state.reencryptScheduled ? 'on' : ''}">A re-encryption waits for the restart</button><button data-act="mrestored" class="${state.restored ? 'on' : ''}">After a restore</button>
-    <div class="mh">Dialogs</div>${dialogs.map(([k, l]) => `<button data-act="dlg" data-v="${k}">${l}</button>`).join('')}
-    <div class="mh">Screens</div>${screens.map(([k, l]) => `<button data-go="${k}">${l}</button>`).join('')}`;
-  document.body.append(m);
-  const r = anchor.getBoundingClientRect();
-  const Z = zoomOf();
-  m.style.left = Math.min(r.left / Z, innerWidth / Z - 250) + 'px'; m.style.top = Math.min(r.bottom / Z + 6, innerHeight / Z - 200) + 'px';
+/* ---------- the MOCK pane (S12.9) ---------- */
+// Everything the mockup shows, grouped by the navigation's sections in their order, then by
+// what has no section; alphabetical within a group. Each is an address (#/…), so it can be
+// shared; the few that only happen (a row arriving) are buttons.
+const NAV_GROUPS = ['Dashboard', 'Accounts', 'Transactions', 'Portfolios', 'Positions', 'Budgets', 'Projections', 'Gifts', 'Giving', 'Taxes', 'Receipts', 'Watchlist', 'Activity', 'Alerts', 'Users and Groups', 'Settings'];
+const MORE_GROUPS = ['Profile', 'Linked Households', 'Signing In', 'New Server', 'Server Locked', 'Connector Page', 'Signed In As', 'States'];
+const SCREEN_GROUP = { dashboard: 'Dashboard', accounts: 'Accounts', account: 'Accounts', transactions: 'Transactions', portfolios: 'Portfolios', positions: 'Positions', budgets: 'Budgets', projections: 'Projections', gifts: 'Gifts', giving: 'Giving', taxes: 'Taxes', receipts: 'Receipts', watchlist: 'Watchlist', activity: 'Activity', alerts: 'Alerts', users: 'Users and Groups', settings: 'Settings', profile: 'Profile', linked: 'Linked Households', locked: 'Server Locked', restarting: 'Server Locked', 'locked-reencrypting': 'Server Locked', signin: 'Signing In', 'two-step': 'Signing In', signup: 'Signing In', 'signup-confirm': 'Signing In', forgot: 'Signing In', welcome: 'Signing In', reset: 'Signing In', 'confirm-email': 'Signing In', disabled: 'Signing In', 'new-server': 'New Server', 'new-server-phrase': 'New Server', 'new-server-check': 'New Server', setup: 'New Server' };
+function screenGroup(path) { const k = path.split('/')[0]; return SCREEN_GROUP[k] || (k.startsWith('connector-') ? 'Connector Page' : 'States'); }
+// A dialog's group, by the guide it shows; it opens over its group's screen.
+const GUIDE_GROUP = { account: 'Accounts', accounts: 'Accounts', share: 'Accounts', csvMapping: 'Accounts', transactions: 'Transactions', editTx: 'Transactions', rules: 'Transactions', portfolios: 'Portfolios', positions: 'Positions', corporateAction: 'Positions', budgets: 'Budgets', categoryEdit: 'Budgets', categoryMerge: 'Budgets', projections: 'Projections', gifts: 'Gifts', giving: 'Giving', taxes: 'Taxes', receipts: 'Receipts', users: 'Users and Groups', settings: 'Settings', profile: 'Profile', linked: 'Linked Households' };
+const GROUP_SCREEN = { Dashboard: 'dashboard', Accounts: 'accounts', Transactions: 'transactions', Portfolios: 'portfolios', Positions: 'positions', Budgets: 'budgets', Projections: 'projections', Gifts: 'gifts', Giving: 'giving', Taxes: 'taxes', Receipts: 'receipts', 'Users and Groups': 'users', Settings: 'settings', Profile: 'profile', 'Linked Households': 'accounts' };
+function dialogGroup(name) { return GUIDE_GROUP[HELP_ALIAS[name] || name] || 'Dashboard'; }
+// The states the address carries (on=…), each off by default: [key, label, group, get, set].
+const MOCK_STATES = [
+  ['stale', 'Prices stale', 'States', () => state.stale, (v) => { state.stale = v; }],
+  ['privacy', 'Privacy mode', 'States', () => state.privacy, (v) => { state.privacy = v; }],
+  ['update', 'Update available', 'States', () => state.update, (v) => { state.update = v; }],
+  ['tour', 'Tour: Find uses of Pet › Dog', 'Budgets', () => !!state.tour, (v) => { state.tour = v ? 'uses' : null; }],
+  ['tour-done', 'Tour: every use you can see cleared', 'Budgets', () => !!state.tourDone, (v) => { state.tourDone = v; if (v) state.tour = 'uses'; }],
+  ['below', 'Transactions: At most under At least', 'Transactions', () => state.txFilters === 'below', (v) => { state.txFilters = v ? 'below' : null; }],
+  ['unlocked', 'Linked data unlocked', 'Linked Households', () => !state.locked, (v) => { state.locked = !v; }],
+  ['spouse', 'A marriage waiting to be confirmed', 'Profile', () => !!state.spouseWaiting, (v) => { state.spouseWaiting = v; }],
+  ['join', 'A linked user may be a person here', 'Gifts', () => !!state.joinable, (v) => { state.joinable = v; }],
+  ['link-cert', 'A linked server’s certificate changed', 'Settings', () => !!state.linkCert, (v) => { state.linkCert = v; }],
+  ['link-broken', 'A link broken (the other side has none)', 'Settings', () => !!state.linkBroken, (v) => { state.linkBroken = v; }],
+  ['connector-moved', 'The connector reports from a new address', 'Settings', () => !!state.connectorMoved, (v) => { state.connectorMoved = v; }],
+  ['no-landlock', 'A host without Landlock', 'Settings', () => !!state.noLandlock, (v) => { state.noLandlock = v; }],
+  ['unlimited', 'A strategy with unlimited risk', 'Positions', () => !!state.unlimitedRisk, (v) => { state.unlimitedRisk = v; }],
+  ['btc-unsaved', 'Bitcoin not saved yet (Settings › Bitcoin)', 'Settings', () => !!state.btcUnsaved, (v) => { state.btcUnsaved = v; }],
+  ['tls-own', 'The listener on its own certificate (Settings › Network)', 'Settings', () => !!state.tlsOwn, (v) => { state.tlsOwn = v; }],
+  ['no-saving', 'A target no saving reaches (savings and education answers)', 'Projections', () => !!state.noSaving, (v) => { state.noSaving = v; }],
+  ['not-priced', 'A strategy not priced (a takeover’s shares)', 'Positions', () => !!state.notPriced, (v) => { state.notPriced = v; }],
+  ['reencrypt', 'A re-encryption waits for the restart', 'Settings', () => !!state.reencryptScheduled, (v) => { state.reencryptScheduled = v; }],
+  ['restored', 'After a restore', 'Settings', () => !!state.restored, (v) => { state.restored = v; }],
+];
+// What only happens, never stays: [data-act, label, group].
+const MOCK_EVENTS = [['mnew', '3 new rows arrive', 'Transactions'], ['malert', 'A new alert arrives (live)', 'Alerts'], ['mupload', 'Upload a receipt (reads it)', 'Receipts']];
+function flagsOn() { return MOCK_STATES.filter((x) => x[3]()).map((x) => x[0]); }
+function queryText(q) { return q.toString().replace(/%2C/g, ','); }
+// An address with the pane's part: the user and the states as they are now, then `extra`.
+function mockHref(path, extra = {}) {
+  const q = new URLSearchParams();
+  if (state.user !== 'alice') q.set('as', state.user);
+  const on = flagsOn(); if (on.length) q.set('on', on.join(','));
+  for (const [k, v] of Object.entries(extra)) q.set(k, v);
+  const qs = queryText(q);
+  return '#/' + path + (qs ? '?' + qs : '');
 }
+// What the address says, applied to the mockup's state (a screen's part is read by route()).
+let addressing = false;
+function applyAddress() {
+  const q = addrQuery();
+  if (USERS[q.get('as')]) { state.user = q.get('as'); state.signedOut = false; }
+  if (q.has('on')) { const on = new Set(q.get('on').split(',')); for (const x of MOCK_STATES) x[4](on.has(x[0])); }
+  const { screen, param } = route();
+  if (screen === 'settings' && SETTINGS_SECS.some(([k]) => k === param)) state.settings = param;
+}
+function openAddressDialog() { const d = addrQuery().get('dialog'); if (d && DIALOGS[d]) showDialog(d, {}); }
+// A dialog the address opened leaves the address when it closes.
+function dropAddressDialog() {
+  if (addressing) return;
+  const q = addrQuery(); if (!q.has('dialog')) return;
+  q.delete('dialog');
+  const qs = queryText(q);
+  history.replaceState(null, '', '#/' + addrPath() + (qs ? '?' + qs : ''));
+  renderPane();
+}
+function paneItems() {
+  const here = addrPath() || 'dashboard';
+  const out = [];
+  for (const [k, l] of MOCK_SCREENS) out.push({ group: screenGroup(k), label: l, kind: 'screen', href: mockHref(k) });
+  for (const [k, l] of SETTINGS_SECS) out.push({ group: 'Settings', label: `Settings › ${l}`, kind: 'section', href: mockHref('settings/' + k) });
+  for (const [k, l] of MOCK_DIALOGS) { const g = dialogGroup(k); out.push({ group: g, label: l, kind: 'dialog', href: mockHref(GROUP_SCREEN[g] || 'dashboard', { dialog: k }) }); }
+  for (const u of Object.values(USERS).slice(0, 2)) out.push({ group: 'Signed In As', label: `${u.name}${u.admin ? ' (admin)' : ''}`, kind: 'user', href: mockHref(here, { as: u.username }), on: state.user === u.username });
+  for (const [k, l, g, get] of MOCK_STATES) {
+    const on = new Set(flagsOn()); if (on.has(k)) on.delete(k); else on.add(k);
+    out.push({ group: g, label: l, kind: 'state', href: mockHref(here, { on: [...on].join(',') }), on: get() });
+  }
+  for (const [a, l, g] of MOCK_EVENTS) out.push({ group: g, label: l, kind: 'event', act: a });
+  return out;
+}
+function renderPaneList() {
+  const list = $('#mock-pane .mp-list'); if (!list) return;
+  const f = (state.paneFilter || '').toLowerCase();
+  const items = paneItems().filter((x) => !f || `${x.group} ${x.label} ${x.kind}`.toLowerCase().includes(f));
+  const here = location.hash || '#/dashboard';
+  list.innerHTML = [...NAV_GROUPS, ...MORE_GROUPS].map((g) => {
+    const own = items.filter((x) => x.group === g).sort((a, b) => a.label.localeCompare(b.label));
+    if (!own.length) return '';
+    return `<h4>${g}</h4>${own.map((x) => x.act
+      ? `<button type="button" class="mp-item" data-act="${x.act}">${esc(x.label)}<span class="mp-kind">${x.kind}</span></button>`
+      : `<a href="${esc(x.href)}" ${x.href === here ? 'aria-current="page"' : ''}><span class="${x.on ? 'mp-on' : ''}">${esc(x.label)}</span><span class="mp-kind">${x.kind}</span></a>`).join('')}`;
+  }).join('') || '<p class="small dim" style="padding:0 12px">Nothing matches.</p>';
+}
+function renderPane() {
+  const pane = $('#mock-pane'); if (!pane) return;
+  pane.hidden = !state.pane;
+  document.body.classList.toggle('mock-open', !!state.pane);
+  if (!state.pane) return;
+  if (!pane.querySelector('.mp-list')) {
+    pane.innerHTML = `<div class="mp-head"><span class="pill-mock">MOCK</span><input class="in sm" type="search" placeholder="filter" aria-label="Filter the mockup’s screens, dialogs and states" data-pane-filter value="${esc(state.paneFilter || '')}"><button type="button" class="icon-btn" data-act="mock" title="Close the pane" aria-label="Close the pane">${icon('x')}</button></div><nav class="mp-list"></nav>`;
+  }
+  renderPaneList();
+}
+document.addEventListener('input', (e) => { if (e.target.matches('[data-pane-filter]')) { state.paneFilter = e.target.value; renderPaneList(); } });
 function closeMenu() { const m = $('#menu'); if (m) m.remove(); }
 
 /* ---------- events ---------- */
@@ -3635,7 +3744,7 @@ document.addEventListener('click', (e) => {
   const a = t.dataset.act, v = t.dataset.v;
   if (a !== 'mock') closeMenu();
   switch (a) {
-    case 'mock': e.stopPropagation(); $('#menu') ? closeMenu() : mockMenu(t); break;
+    case 'mock': e.stopPropagation(); state.pane = !state.pane; try { localStorage.setItem('mk-pane', state.pane ? '1' : '0'); } catch { /* private window */ } renderPane(); break;
     case 'calendar': openCalendar(t); break;
     case 'times': openTimes(t); break;
     case 'time-pick': { const at = t.closest('.date-in'), f = at.querySelector('input'); f.value = v; at.querySelector('.time-pop').remove(); f.focus(); break; }
@@ -3667,7 +3776,7 @@ document.addEventListener('click', (e) => {
     case 'rulediscard': { const [, , pick] = hashNow().split('/'); ruleGoNow(pick === 'new' ? 'transactions/rules' : `transactions/rules/${pick}`); break; }
     case 'rulesave': { const to = ruleSave(); if (to) ruleGoNow(to); break; }
     case 'ruleleave': { t.closest('.rule-leave').remove(); if (v === 'keep') break; if (v === 'save' && !ruleSave()) break; ruleGoNow(state.ruleTarget || 'transactions/rules/2'); break; }
-    case 'settings': state.settings = v; render(); break;
+    case 'settings': state.settings = v; if (route().screen === 'settings') history.replaceState(null, '', mockHref('settings/' + v)); render(); renderPane(); break;
     case 'scenario': state.scenario = +v; render(); break;
     case 'switch': t.classList.toggle('on'); t.setAttribute('aria-checked', t.classList.contains('on')); break;
     case 'seg': $$('button', t.parentElement).forEach((b) => b.classList.toggle('on', b === t)); break;
@@ -3804,9 +3913,12 @@ document.addEventListener('keydown', (e) => {
   const all = el instanceof HTMLTextAreaElement && (e.ctrlKey || e.metaKey);
   getSelection().modify(e.shiftKey ? 'extend' : 'move', e.key === 'Home' ? 'backward' : 'forward', all ? 'documentboundary' : 'lineboundary');
 });
-addEventListener('hashchange', () => { closeAllDialogs(); render(); helpFor(null); });
+addEventListener('hashchange', () => {
+  addressing = true; closeAllDialogs(); addressing = false;
+  applyAddress(); render(); helpFor(null); openAddressDialog(); renderPane();
+});
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
-render(); helpFor(null);
+applyAddress(); render(); helpFor(null); openAddressDialog(); renderPane();
 </script>
 </body>
 </html>
