@@ -377,6 +377,6 @@ The rulings the rest of the requirements apply.
     of a hyphenated word follows the rule but after a prefix (*Two-Step Sign-In*,
     *Re-encrypt Now*); acronyms and names stay as written (*MoolaKata*, *IRA*). Words are
     changed to the case and no further: a header that reads as a phrase keeps its words. A list
-    row's name stands out from the row's other parts (a medium weight, the text's full colour)
-    but never as strongly as its card's heading, and its details are dimmed; one style in the
-    kit draws every such row.
+    row's name is in the text's own weight and full colour, standing out only from the row's
+    other parts, which are dimmed, never competing with its card's heading; one style in the kit
+    draws every such row.
