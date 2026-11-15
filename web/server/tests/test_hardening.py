@@ -1,52 +1,80 @@
-"""The hardening page (requirements S17.5.8.6): a review's findings by area, the mutation runs'
-records against the code as it is, and the path's steps, done when their pull request merges."""
+"""The hardening page (requirements S17.5.8.6): the sweep's issues by area, the mutation runs'
+records against the code as it is, and the path's steps, done when their issue is closed."""
 
+import io
 import json
-import tomllib
 
-from moolakata import paths
 from moolakata.dev import coverage, hardening, mutate
 
-REVIEW = """# Review
-
-| Id | Req | Sev | Conf | Status | Description |
-|---|---|---|---|---|---|
-| [CR3-1](#cr3-1) | S7.1 | Med | 2 | fixed `abc1234` (#16) | A budget's plan |
-| [CR3-2](#cr3-2) | S7.9.1 | Low | 1 | open | A giving plan's receiver |
-| [CR3-3](#cr3-3) | R3.7 | Low | 1 | question | A rule of no section |
-| [CR3-4](#cr3-4) | S13.7 | Med | 1 | fixed `def5678`, `0123abc` (#32) | A row without its last bar
-| [CR3-5](#cr3-5) | S4.3 | Low | 1 | rejected | Found not to hold |
-
-### CR3-1: a budget's plan
-
-- **Kind:** bug.
-- **Code:** `web/server/src/moolakata/ui/budgets.py:10-20`, and `ledger/post.py`.
-
-### CR3-2: a giving plan's receiver
-
-- **Where:** the requirements only.
-
-### CR3-3: a rule
-
-Nothing named.
-
-### CR3-4: a row
-
-- **Code:** `web/ui/screens/account.js:53`.
-"""
+API = "https://api.github.com/repos/MojoKata/MoolaKata/issues/"
 
 
-def test_a_finding_counts_in_the_area_of_its_code_or_else_of_its_section():
-    got = {f["id"]: f for f in hardening.findings(REVIEW)}
-    assert sorted(got) == [1, 2, 3, 4, 5]
-    assert got[1] | {} == {"id": 1, "sev": "Med", "desc": "A budget's plan", "state": "fixed",
-                           "pr": 16, "area": "server/budgets"}  # fmt: skip
-    assert got[2]["area"] == "server/giving" and got[2]["state"] == "open"
-    assert got[3]["area"] == hardening.OTHER and got[3]["state"] == "question"
-    # A row missing its last bar still ends at its line; its code names the browser's screens.
-    assert got[4]["desc"] == "A row without its last bar" and got[4]["pr"] == 32
-    assert got[4]["area"] == "browser/screens"
-    assert got[5]["state"] == "closed" and got[5]["area"] == "server/prices"
+def issue(n, title, *labels, parent=None, state="open", reason=None, body=""):
+    """An issue as GitHub's API gives it."""
+    return {"number": n, "url": API + str(n), "title": title, "body": body, "state": state,
+            "state_reason": reason, "labels": [{"name": x} for x in labels],
+            "parent_issue_url": parent and API + str(parent)}  # fmt: skip
+
+
+ISSUES = [
+    issue(1, "H1.5 Med bugs in the server", "hardening", state="closed", reason="completed",
+          body="Step 5 of the first hardening sweep (H1): done by #44."),
+    issue(2, "H1.5-1 A budget's plan (CR3-25)", "hardening", "area:server/budgets", parent=1,
+          state="closed", reason="completed", body="From review 3, severity Med. Fixed by #44."),
+    issue(3, "H1.1 Values: the first mutation runs", "hardening", "area:server/prices",
+          state="closed", reason="completed",
+          body="done by #32.\n\n**Coverage gains it reported** (in points): prices +8.5 / +14.0."),
+    issue(4, "H1.8 Sweep server/taxes", "hardening", "area:server/taxes"),
+    issue(5, "H1.8-1 A tax rule (CR3-95)", "hardening", "area:server/taxes", parent=4,
+          body="From code review 3 (**CR3-95**), severity Low."),
+    issue(6, "H1.8-2 Who decides (CR3-367)", "hardening", "area:server/taxes", "question",
+          parent=4),
+    issue(7, "H1.8-3 Not a bug (CR3-345)", "hardening", "area:server/taxes", parent=4,
+          state="closed", reason="not_planned"),
+    issue(8, "H1.25 Dev tooling", "hardening", body="**Pull request:** #70"),
+    issue(9, "H1.25-1 A finding named by its issue alone", "hardening", parent=8),
+    issue(10, "Something else", "hardening"),
+]  # fmt: skip
+
+
+def test_a_sweep_s_steps_and_findings_come_from_its_issues():
+    path, found = hardening.from_issues(ISSUES)
+    assert [(s["n"], s["issue"], s["kind"], s["done"], s["pr"]) for s in path] == [
+        (1, 3, "before", True, 32), (5, 1, "med", True, 44), (8, 4, "sweep", False, None),
+        (25, 8, "tooling", False, 70)]  # fmt: skip
+    assert path[0]["gains"] == "prices +8.5 / +14.0" and path[0]["areas"] == ["server/prices"]
+    # A step with no area of its own covers its findings' areas.
+    assert path[1]["areas"] == ["server/budgets"] and path[1]["findings"] == [2]
+    assert path[2]["findings"] == [5, 6, 7] and path[3]["areas"] == [hardening.OTHER]
+    got = {f["id"]: f for f in found}
+    assert got[2] == {"id": 2, "cr": "CR3-25", "sev": "Med", "desc": "A budget's plan",
+                      "state": "fixed", "pr": 44, "area": "server/budgets"}  # fmt: skip
+    assert [got[n]["state"] for n in (5, 6, 7, 9)] == ["open", "question", "closed", "open"]
+    assert got[5]["sev"] == got[6]["sev"] == "Low" and got[9]["cr"] is None
+    assert got[9]["area"] == hardening.OTHER and 10 not in got
+
+
+def test_the_issues_are_read_page_by_page(monkeypatch):
+    pages = [[issue(n, f"H1.8-{n} x") for n in range(100)], [issue(100, "H1.8 Sweep")],
+             [{"number": 101, "title": "a pull request", "pull_request": {}}]]  # fmt: skip
+    asked = []
+
+    def urlopen(req, timeout):
+        asked.append((req.full_url, req.get_header("Authorization")))
+        return io.BytesIO(json.dumps(pages[len(asked) - 1]).encode())
+
+    monkeypatch.setattr(hardening.urllib.request, "urlopen", urlopen)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    got = hardening.fetch_issues("MojoKata/MoolaKata")
+    assert len(got) == 101 and len(asked) == 2
+    assert "labels=hardening&state=all" in asked[0][0] and asked[1][0].endswith("page=2")
+    assert asked[0][1] == "Bearer t"
+
+
+def test_a_mutation_run_s_bugs_are_named_by_review_number_or_issue():
+    found = hardening.from_issues(ISSUES)[1]
+    recs = [{"found": ["CR3-95", "#9", "CR3-999"]}, {}]
+    assert hardening.bug_ids(recs, found) == {5, 9}
 
 
 def file_row(path, lines):
@@ -97,55 +125,38 @@ def test_a_baseline_module_reads_changed_once_its_content_is_not_what_the_baseli
     assert hardening.baseline_runs(recs, blobs) == {rules: "current", users: "changed"}
 
 
-def test_a_step_is_done_when_its_pull_request_has_merged(monkeypatch):
-    monkeypatch.setattr(hardening, "merged", lambda history: {h["pr"] for h in history})
-    plan = {"step": [
-        {"kind": "med", "findings": [1, 2], "pr": 40, "what": "Two bugs"},
-        {"kind": "sweep", "areas": ["server/taxes"], "pr": 41},
-        {"kind": "sweep", "areas": ["server/loans"]},
-    ]}  # fmt: skip
-    found = [{"id": 1, "area": "server/budgets"}, {"id": 2, "area": "server/taxes"}]
+def test_a_step_is_done_when_its_issue_is_closed():
+    path = [{"n": 5, "done": True, "pr": 40, "areas": ["server/taxes"]},
+            {"n": 8, "done": True, "pr": 41, "areas": ["server/taxes"]},
+            {"n": 9, "done": False, "pr": None, "areas": ["server/loans"]}]  # fmt: skip
 
     def point(pr, lines, fixed, current):
         return {"pr": pr, "areas": {"server/taxes": {"lines": lines, "branches": 80.0}},
                 "hardening": {"server/taxes": {"fixed": fixed, "current": current}}}  # fmt: skip
 
     history = [point(39, 90.0, 3, 0), point(40, 90.5, 4, 0), point(41, 92.0, 9, 500)]
-    got = hardening.steps(plan, found, history)
-    assert [s["done"] for s in got] == [True, True, False]
-    assert got[0]["areas"] == ["server/budgets", "server/taxes"] and got[2]["what"] == "Sweep"
+    got = hardening.steps(path, history)
+    assert [s["done"] for s in got] == [True, True, False] and got[2]["result"] is None
     assert got[1]["result"] == {"server/taxes": {"fixed": 5, "mutated": 500, "lines": 1.5,
                                                  "branches": 0.0}}  # fmt: skip
     # A merge before the page kept its figures has no result to show.
     assert hardening.result({"pr": 39, "areas": ["server/taxes"]}, history) is None
 
 
-def test_the_path_names_areas_and_findings_that_exist():
-    plan = tomllib.loads(hardening.PATH.read_text())
-    found = {f["id"] for f in hardening.findings((paths.ROOT / plan["review"]).read_text())}
-    areas = {coverage.area_of(p.relative_to(paths.ROOT).as_posix())
-             for p in coverage.SERVER.rglob("*.py")} | {hardening.OTHER, "connector"}  # fmt: skip
-    areas |= {f"browser/{d}" for d in coverage.BROWSER_DIRS}
-    for n, step in enumerate(plan["step"], 1):
-        assert step["kind"] in ("before", "tracker", "tooling", "med", "sweep"), n
-        assert set(step.get("areas", [])) <= areas, (n, step.get("areas"))
-        assert set(step.get("findings", [])) <= found, (n, step.get("findings"))
-        assert step["kind"] != "med" or step["findings"], n
-
-
-def test_the_page_carries_its_figures(monkeypatch):
-    monkeypatch.setattr(hardening, "merged", lambda history: {32, 38})
+def test_the_page_carries_its_figures():
     files = [file_row("web/server/src/moolakata/taxes/dates.py", 100)]
     areas = {"server/taxes": coverage.counted(1, 100, 100, 0, 0)}
     last = {"commit": "f" * 40, "pr": 50, "date": "2026-11-09T06:00:00-06:00", "subject": "x (#50)",
-            "areas": areas, "hardening": hardening.entry_figures(areas, files)}  # fmt: skip
-    text = hardening.page([last], files, "https://github.com/MojoKata/MoolaKata")
+            "areas": areas, "hardening": hardening.entry_figures(areas, files, ISSUES)}  # fmt: skip
+    text = hardening.page([last], files, "https://github.com/MojoKata/MoolaKata", ISSUES)
     assert "/*DATA*/" not in text
     data = json.loads(text.split('type="application/json">', 1)[1].split("</script>", 1)[0])
-    assert [s["done"] for s in data["path"][:3]] == [True, True, False]
+    assert [s["done"] for s in data["path"]] == [True, True, False, False]
+    assert data["issues"].endswith("/issues?q=label%3Ahardening+no%3Aparent-issue")
     assert {r["name"] for r in data["runs"]} >= {"taxes", "values"}
     taxes = next(a for a in data["areas"] if a["area"] == "server/taxes")
-    assert taxes["hardening"]["statements"] == 100 and taxes["findings"]
+    assert taxes["hardening"]["statements"] == 100 and taxes["hardening"]["open"] == 2
+    assert [f["id"] for f in taxes["findings"]] == [5, 6, 7]
     assert len(mutate.COUNTED) == 5
 
 

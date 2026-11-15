@@ -16,7 +16,7 @@ before this process and keep their names and ids. Review 3 is the first run this
 
 ## 1. The choices a review makes
 
-Each review makes three choices before it starts, and its header records them (§10).
+Each review makes three choices before it starts, and its summary issue records them (§10).
 
 1. **Scope**:
    - **Full**: all the code is read whole against its sections.
@@ -52,14 +52,15 @@ needed before it, **Low** can follow it.
 
 ## 2. The files
 
-| Path | What |
+| Where | What |
 |---|---|
-| `docs/reviews/code-review-<nnnn>-<date>.md` | the review: `<nnnn>` its number in four digits, `<date>` the day it starts (`code-review-0003-2026-10-24.md`) |
-| `docs/reviews/code-review-<nnnn>-<date>/` | its work pad, beside it, committed with it |
+| GitHub issues and a project | the review's outcome: one issue per finding, under its area's step (§10) |
+| `review/<nnnn>/` on the review's branch | its work pad: `<nnnn>` the review's number in four digits |
 | `docs/reviews/check_docs.py` | the mechanical checks of Phase 0 (§4.1) |
 
-The work pad holds everything a session needs from earlier ones, and everything a later
-reviewer would want to retrace a claim:
+The work pad holds everything a session needs from earlier ones while the review runs. It
+lives on the review's branch only, and is never merged: what outlives the review is in its
+issues, each standing on its own, and in the requirements.
 
 | File | Written by | What |
 |---|---|---|
@@ -73,7 +74,8 @@ reviewer would want to retrace a claim:
 | `sweep.md` | the sweep | the verdicts on what was found while checking (§8) |
 
 The ids in the work pad are its own: `D1-4` for the fourth claim of Phase 1's first block,
-`U07-12` for unit 7's twelfth. Review ids are given only at assembly (§10).
+`U07-12` for unit 7's twelfth. A finding's lasting id is its issue's number, given when it is
+filed (§10).
 
 **The commit.** A review reads one commit, recorded in `log.md` when Phase 0 starts. Nothing
 merges to `main` while it runs; if something must, the units still read the review's commit
@@ -81,32 +83,24 @@ merges to `main` while it runs; if something must, the units still read the revi
 
 **Read only.** A review changes no code, documents or requirements but its own files, except
 the decisions taken at the gate (§6). Nothing is fixed along the way, however small: the
-review describes the commit it read. Fixes come after assembly (§11).
+review describes the commit it read. Fixes come after filing (§11).
 
-**The branch.** A review has its own branch, `code-review-<nnnn>`, from `main` at the
-review's commit. Each session ends by committing its work-pad files and pushing the branch,
-so nothing lives only on this machine; `withheld.md` (below) is never committed. The pull
-request opens at assembly. The fixes are usually made on the same branch after it, each
-commit naming the claims it fixes, and the branch merges when the user says: after the
-walk-through, or before it, the walk-through's answers then coming in later changes, each
-updating the review's tables and decisions.
+**The branch.** A review has its own branch, `code-review-<nnnn>`, on the fork, from `main` at
+the review's commit. Each session ends by committing its work-pad files and pushing the
+branch, so nothing lives only on this machine; `withheld.md` (below) is never committed. The
+branch is never merged: the fixes are made on their steps' branches, each pull request naming
+the issues it closes.
 
 **Withheld claims.** The repository is public, and households run its releases. A
 **security** or **privacy** claim rated High or Med, written down, tells anyone how to attack
 a server that runs the release. From the moment it is made, its details go into the work
 pad's `withheld.md`, which `.gitignore` keeps out of git; the unit's file names only
-its work-pad id. Before the push that would publish such a claim (at the latest, the
-assembly's), the reviewer stops and asks the user whether its fixes will go with it:
-
-1. **With the fixes**: the push waits until the fixes are committed, and the claim's details
-   go into the review in the same push.
-2. **Alone**: the claim keeps its row in its severity's summary table with its id, Req,
-   severity, confirmations and status, and the description *Withheld until fixed*; its section
-   says the same and nothing more. The details are written in when the fix is pushed.
+its work-pad id. It is filed not as an issue but as a draft security advisory on the
+repository, private to its maintainers, and published with its fix.
 
 **While no household relies on a server**, the user may set withholding aside, as they did
 for review 3: every claim is then published as it is written, `withheld.md` isn't used, and a
-review's header says so. A review asks the user at Phase 0 which holds.
+review's summary issue says so. A review asks the user at Phase 0 which holds.
 
 ## 3. A session's habits
 
@@ -172,8 +166,8 @@ cuts the code into **units** of about 10,000 lines of code each, with their sect
 3. code that cites no section and serves none is listed as **untraced**, with the unit it
    sits beside; that unit's session judges it (§7).
 
-Units are numbered in requirement order, so the units' openers (§10) follow the requirements,
-and claims alike in severity and confirmations take their ids in that order. The map records, per unit, its sections, paths, tests and line counts.
+Units are numbered in requirement order, so a step's findings are filed (§10) in the
+requirements' order. The map records, per unit, its sections, paths, tests and line counts.
 
 ### 4.3 The delta
 
@@ -289,77 +283,39 @@ A claim's **confirmations** count the independent contexts that found it holds:
 - **+1** for each confirmation by an agent or session that did not make it and has not
   confirmed it before, by a test that reproduces it, or by the user;
 - a **corrected** verdict counts as a confirmation of the corrected claim;
-- **plausible** adds nothing: the claim's status is a question until it is answered;
-- **rejected** sets its status to rejected.
+- **plausible** adds nothing: the claim is a question until it is answered;
+- **rejected** drops it.
 
-A claim's **status** is one of: **open**; **question** (or **Q<n>** once it is recorded as
-an open question); **decided** (the review's decisions say how); **fixed** `<commit>` (#<n>), the commit and
-the pull request it came in (a squash merge keeps the pull request, not the commit, on `main`);
-**later** `L<n>`; **rejected** (found not to hold after it had an id, with the reason in its
-section).
+A filed finding's **status** is its issue's: **open**; open with the `question` label, a
+choice for the user; **closed as completed**, fixed, its body or closing comment naming the
+pull request ("Fixed by #44"); **closed as not planned**, with the reason (found not to hold,
+or decided to leave as it is). Confirmations after filing are comments on its issue.
 
-Severity, confirmations and status live **only in the review's summary tables**, one per
-severity (§10). The claims' sections never repeat them, so there is one place to update and
-nothing to drift.
+## 10. Filing
 
-## 10. Assembly
+One session files the review from the work pad, into the sweep's GitHub project ("Hardening
+Sweep <n> (H<n>)"):
 
-The `CR3-…` ids in this section (`CR3-1`, `CR3-14`, …) only illustrate the format: they are not
-claims of review 3, and need no change when its ids do.
+1. **A summary issue**, "H<n> Code review <n>: summary", closed once filed: the commit read,
+   the last review's commit it is measured from, scope, checking, serial or parallel (and, if
+   parallel, that the user asked for it), the verdict in one line, a few lines on what matters
+   most, *checked and sound* (what was looked at closely and found right, so the next review
+   need not repeat it) and *where things stand* (what was left unread or read lightly, and
+   where to start).
+2. **A step issue per area to sweep**, "H<n>.<step> Sweep <areas>", in the order they are to
+   be done, labelled `hardening` and with each area's `area:` label; one more for the
+   requirement and document findings, and one for the tooling's.
+3. **A sub-issue per finding** under its area's step, "H<n>.<step>-<k> <description>": one
+   sentence, at most a line; a finding that needs more is two. Labelled `hardening`, its
+   area's `area:` label, and `question` when it is a choice for the user. Its body starts with
+   its severity ("severity Med", which the hardening page reads) and holds all of it: kind,
+   requirements, code with the quoted lines, what goes wrong, how it was run, remedy,
+   alternatives. Nothing it needs is left in the work pad.
+4. **The project's fields**, Step, Kind (Sweep, Tooling, Finding, Question) and Area, set on
+   each issue as it is filed.
 
-One session writes the review from the work pad. Its parts, in order:
-
-1. **The header**: the review's number, the commit it read, the last review's commit it is
-   measured from, scope, checking, serial or parallel (and, if parallel, that the user asked
-   for it for this review), and how its paths are written: code paths relative to
-   `web/server/src/moolakata/`, `mkc/` for `connector/moolakata_connector/`, and others from
-   the repository's root.
-2. **The summary**: the verdict in one line (*Ready to release: no. 4 High open:
-   CR3-1, CR3-2, …*), kept current as the tables change, and a few lines on what matters most.
-3. **One part per severity**, High, then Med, then Low, headed `## Summary - High Severity`,
-   `## Summary - Medium Severity` and `## Summary - Low Severity`. Each opens with its count of
-   claims by confirmations, then **its table**, one row per claim, in id order:
-
-   | Id | Req | Sev | Conf | Status | Description |
-   |---|---|---|---|---|---|
-   | [CR3-14](#cr3-14) | S7.10.5 | High | 1 | open | A transfer kept as the account's own still counts as spending in the month's review |
-
-   **Id** links to the claim's section. **Req** is the main requirement it is about (`—` for
-   untraced code). The **description** is one sentence of at most three lines; a claim that
-   needs more is two claims.
-
-   Then its claims, in id order, each under its id as a heading (`### CR3-14: a transfer kept
-   as the account's own …`), with its work-pad id and file: kind, requirements, code with the
-   quoted lines, what goes wrong, remedy, alternatives. Not severity, confirmations or status
-   (§9). Longer working notes stay in the work pad, and the section links them.
-4. **The documents and units read**: a section for the documents (Phase 1), with one for each
-   block, then one per unit in the map's order: its sections, paths, what was read and run,
-   and a link to its work-pad file.
-5. **Checked and sound**: what was looked at closely and found right, so the next review
-   need not repeat it.
-6. **Decisions**: what the user decided on the claims, as they are walked through.
-7. **Where things stand**: for the next reviewer, what was left unread or read lightly, and
-   where to start.
-8. **Work-pad ids**: each claim's work-pad id against its review id.
-
-Review 3's work pad has `extract.py` and `render.py`, which build the table and the sections
-from the blocks' and units' files mechanically (`render.py` lays them out one section per unit,
-in the map's order, and review 3 was reordered by severity afterwards; the next review's render
-orders them as above); the assembly session then writes the parts that need judgement (the
-header, the summary, the openers, *checked and sound*, *where things stand*) and reads every
-committed file for hints at withheld claims (§3.10).
-
-**Ids** are `CR<n>-<m>`: the review's number unpadded and the claim's number, given at
-assembly in the order of the tables: by severity (High, Med, Low), then by confirmations, most
-first, then in the order the claims were found (the documents first, then the units in the
-map's order). So `CR3-1` is the most severe claim with the most confirmations.
-
-A review checked later (§11.4) renumbers once, when its checks and sweep are in, as the checks
-change confirmations and severities: the claims confirmed after assembly join the others, and
-the last part gains a table of the assembly ids against the new ones, for the commits and the
-log that cite them. After that, ids are never renumbered or reused. A claim whose severity
-changes later (§11.3) moves, with its id, to its new severity's part. Other documents cite
-them as ids (`CR3-14`), as the requirements cite theirs.
+A finding's area is that of the first code it names, else its section's. The issues are filed
+by a script from the work pad's files, safe to run again, after a dry run the user reads.
 
 ## 11. After the review
 
@@ -370,10 +326,10 @@ them as ids (`CR3-14`), as the requirements cite theirs.
 2. **Walk through** the plausible claims and the ones that need a choice, one at a time, with
    options and a recommendation. Answers go into the requirements and the decisions; a
    question left open takes the next Q id.
-3. **Each change updates the tables**, and nothing else in the review: a confirmation, a
-   status, a severity changed by a decision (the claim's row and section move to its new
-   severity's part, keeping its id). The commit that fixes a claim names its id, and its
-   status becomes fixed with that commit and its pull request.
+3. **Each change goes on its issue**: a confirmation or a decision as a comment, a severity
+   changed by a decision in its body. The pull request that fixes a finding closes it
+   ("Closes #212"); code cites the requirements, never the issue, unless a comment needs more
+   than it can hold (CLAUDE.md, *Code comments*).
 4. **A quick review can be checked later**: a checking pass over its claims (§8) raises their
    confirmations, and its header then reads "quick, checked later".
 5. **What a review recommends but no one takes up** goes to the gaps, the questions or later
@@ -383,11 +339,14 @@ them as ids (`CR3-14`), as the requirements cite theirs.
    carries crossed with what can happen to it, the dimensions the generated worlds leave out)
    and a mutation run over its modules (S17.5.12, `mutation-testing.md`), until every
    surviving change is caught by a fast test or marked with its reason. What it finds is
-   fixed there, with review ids; only what belongs to another area goes to an issue.
-7. **The path keeps the sweep in view** (S17.5.8.6): `docs/hardening/path.toml` lists every step
-   to the end of the review's sweep, and the hardening page checks each one off as its pull
-   request merges. Opening a step's pull request adds its number to the step; its first and
-   settling mutation runs are recorded (`web/dev.sh mutate record`) and committed with it.
+   fixed there and filed as a closed sub-issue of its step; what belongs to another area
+   goes to that area's step.
+7. **The path keeps the sweep in view** (S17.5.8.6): the step issues are the path to the end
+   of the sweep, and the hardening page checks each one off as its issue is closed. Opening a
+   step's pull request adds "**Pull request:** #<n>" to its issue's body; when it merges, the
+   issue is closed with "done by #<n>" in its body. Its first and settling mutation runs are
+   recorded (`web/dev.sh mutate record`, naming the findings they found by issue, `--found
+   '#412'`) and committed with it.
    Before a step is signed off, its last CI run's times are checked (`web/dev.sh ci-times`): a
    job past the budget (6 minutes), or a family of parts more uneven than 1.4 to 1 whose slowest
    part is the run's slowest job, is split further in that step (more parts, or the parts' times
@@ -428,7 +387,7 @@ header records it; the next review asks again. When asked:
    session that started it, so a long one is cut by phase.
 
 Everything else is the same: the briefs, the work-pad files, the rule that only an
-independent context confirms a claim, and the assembly. Parallel only changes how long it
+independent context confirms a claim, and the filing. Parallel only changes how long it
 takes.
 
 **Wall time.** Review 3 (full, quick, about 102,000 lines of code in 12 units) ran as serial
@@ -439,7 +398,7 @@ estimates from it:
 |---|---|---|---|
 | Phases 0 and 1 | 1 h 5 min | ~45 min | ~30 min |
 | Phase 2, quick | 3 h 22 min (13–19 min a unit) | ~1 h 15 min | ~45 min |
-| Assembly | 25 min (scripted, §10) | 25 min | 25 min |
+| Filing | 25 min (scripted, §10) | 25 min | 25 min |
 | Checking after assembly, and the sweep | 1 h 48 min (4–14 min a piece) | ~40 min | ~20 min |
 
 Review 3 took about 5.9M tokens: 1.0M for Phase 1, 4.4M for the units (about 370k each), and
@@ -456,7 +415,7 @@ Each session starts with the same kind of prompt, naming the review, its piece a
 document:
 
 ```
-Code review 3 (docs/reviews/code-review-0003-2026-10-24/), following docs/REVIEW.md:
+Code review 4 (review/0004/ on the code-review-0004 branch), following docs/REVIEW.md:
 run unit 07 (§7, then §8). Start from log.md and the unit's brief.
 ```
 
@@ -467,7 +426,7 @@ short.
 
 Each piece runs on the model and effort below, passed to the subagent that runs it. Review 3
 measured them on one unit (S7's code, new since review 2) run three ways from the same brief;
-the record is `reviews/code-review-0003-2026-10-24/model-experiment.md`:
+the record was review 3's `model-experiment.md`, in git's history:
 
 | Run of unit 05 | True High and Med found (16 in all) | False | Tokens | Time | Cost at API prices |
 |---|---|---|---|---|---|
@@ -491,9 +450,9 @@ missed; two runs together found all 16, or 15. Hence:
    discovery run's, and the run that reproduced the most. It rates higher than Opus, so a
    severity it raises is a correction like any other, and Med or High privacy and security
    claims it raises go to `withheld.md`.
-6. **Assembly**: the scripts (§10), then Opus 5.5 at default effort for the parts that need
+6. **Filing**: the scripts (§10), then Opus 5.5 at default effort for the parts that need
    judgement and for the withholding.
 
-One unit is one sample, and no Phase 1 block, checker or assembly was compared. Review 4
+One unit is one sample, and no Phase 1 block, checker or filing was compared. Review 4
 measures again on a Phase 1 block and a security unit, and this section changes with what it
 finds.

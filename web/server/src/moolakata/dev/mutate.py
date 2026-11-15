@@ -4,7 +4,7 @@
                                      [--only-file FILE]
     web/dev.sh mutate summary
     web/dev.sh mutate check <change> <test file>
-    web/dev.sh mutate record <name> --first | --pr N [--found CR3-n...] [--equivalent N]
+    web/dev.sh mutate record <name> --first | --pr N [--found '#n'...] [--equivalent N]
                                     [--from DIR...]
     web/dev.sh mutate testrun | testmap | plan [--rest <run>...] | export <dir> | gather <run>
                                                                          (the CI baseline)
@@ -448,6 +448,12 @@ def blob(path: Path) -> str:
     return r.stdout.strip()
 
 
+def found_order(name: str) -> tuple[int, int]:
+    """A found bug's place in a record: a review's ids ("CR3-412") first, then issues ("#412"),
+    each by number."""
+    return (1, int(name[1:])) if name.startswith("#") else (0, int(name.split("-")[1]))
+
+
 def recorded(
     record: dict, by_file: dict[str, Counter], first: bool, args, content: dict | None = None
 ) -> dict:
@@ -463,9 +469,7 @@ def recorded(
         return out
     out["last"] = counts(by_file)
     out["pr"] = args.pr
-    out["found"] = sorted(
-        {*out.get("found", []), *(args.found or [])}, key=lambda i: int(i.split("-")[1])
-    )
+    out["found"] = sorted({*out.get("found", []), *(args.found or [])}, key=found_order)
     if args.equivalent is not None:
         out["equivalent"] = args.equivalent
     out["content"] = {
@@ -1022,7 +1026,7 @@ def main(argv: list[str] | None = None) -> int:
     k.add_argument("name", help="the run's name, such as taxes or routes-trades")
     k.add_argument("--first", action="store_true", help="the area's first run")
     k.add_argument("--pr", type=int, help="the pull request the run is settled in")
-    k.add_argument("--found", nargs="*", help="review ids of the bugs its survivors showed")
+    k.add_argument("--found", nargs="*", help="issues of the bugs its survivors showed: '#412'")
     k.add_argument("--equivalent", type=int, help="survivors left as equivalents")
     k.add_argument("--from", dest="from_", nargs="*", help="directories `export` wrote")
     sub.add_parser("testrun", help="the fast tests under coverage, a context per test file")

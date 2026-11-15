@@ -182,12 +182,17 @@
             anywhere else, the build is a preview of what publishing that commit would show,
             and publishes nothing.
       6. **The hardening page** (`hardening.html` on the coverage site, linked from its
-         page): how far a review's sweep has come, area by area, and the path to its end.
+         page): how far a hardening sweep has come, area by area, and the path to its end. Its
+         findings and steps are the sweep's GitHub issues, labelled `hardening`, read from
+         GitHub's API at each build (with CI's token; a build in CI fails when they can't be
+         read, a preview goes on without them): each step an issue titled "H<n>.<step> …",
+         each finding a sub-issue of its step, in the area its `area:` label names, its
+         severity in its body, open (a question with the `question` label), fixed when closed
+         as completed, else closed.
          1. **By area**, the coverage page's areas and one for the findings that name no
             code: its line and branch coverage with their change since the first merge the
-            page measured; the review's findings (closed of all, open, and each open Med one
-            by its number), each counted in the area of the first code it names, else its
-            section's; the share of its statements a settled mutation run covers, and the
+            page measured; its findings (closed of all, open, and each open Med one by its
+            issue's number); the share of its statements a settled mutation run covers, and the
             share whose module has changed since (S17.5.12's records), the first run's
             catch, the bugs its runs found and the pull requests that worked on it; and the
             path's steps that cover it, and whether it is swept (its findings closed, its
@@ -195,10 +200,9 @@
             files, each with its coverage and its mutation run: settled, or the baseline's
             alone (S17.10.4), marked as changed since when its content is no longer what that
             run mutated.
-         2. **The path** (`docs/hardening/path.toml`): every step to the end of the sweep, in
-            order, each a pull request's work (findings named by number, or an area's sweep).
-            A step is checked once its pull request has merged to `main`, and shows what
-            changed in its areas at that merge (coverage, findings closed, statements
+         2. **The path**: every step to the end of the sweep, in order, each a pull request's
+            work (its findings, or an area's sweep). A step is checked once its issue is
+            closed, and shows what changed in its areas at its pull request's merge (coverage, findings closed, statements
             mutation-tested); above it, the steps done, the areas swept, the findings left
             and the statements left to mutate.
          3. **The mutation runs**, each as recorded: its pull request, modules, changes,

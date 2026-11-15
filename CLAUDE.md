@@ -75,10 +75,16 @@ in its prefix table, kept sorted by prefix, in the same change. A new table decl
 seen (`seen=`, schema.md §7), and gets its access view written if it is a rule of its own, in
 the same change.
 
+## Code comments
+
+A comment says *why* the code is as it is, concisely. It cites the living documents
+(requirement ids: `S9.8.7`), never a review or other document that goes away. When the why
+needs more than a comment holds, add the issue after the words: `(See GH #242)`.
+
 ## Reviews
 
-Code reviews follow `docs/REVIEW.md`: its phases, work pad, claim format and `CR<n>-<m>`
-ids. Scope (full or incremental) and checking (checked or quick) are recommended from the
+Code reviews follow `docs/REVIEW.md`: its phases and work pad, and its findings filed as
+GitHub issues under the sweep's steps. Scope (full or incremental) and checking (checked or quick) are recommended from the
 measured delta and confirmed with the user. A review runs in serial sessions unless the
 user asks, for that review, for parallel agents or a workflow; that is never assumed or
 carried over from an earlier one.

@@ -387,6 +387,10 @@ jobs:
       (needs.ui-kit.result == 'success' || needs.ui-kit.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # The hardening page reads the sweep's issues (S17.5.8.6).
+    permissions:
+      contents: read
+      issues: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -430,6 +434,8 @@ jobs:
       # history the published site holds; the coverage site job publishes it.
       - name: coverage site
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           WEB="$PWD/web" && . web/uv-path
           cd web/server && uv run --frozen --quiet python -m moolakata.dev.coverage site
