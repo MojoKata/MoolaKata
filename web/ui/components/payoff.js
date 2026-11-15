@@ -306,7 +306,8 @@ function Results({ r, className, rows, showRows }) {
   const rc = r.recast;
   const line = (/** @type {any} */ o) =>
     o.balances.map((/** @type {any} */ x) => /** @type {[string, string]} */ ([x.date, x.balance]));
-  const changed = p.payoffDate !== s.payoffDate || !dec(p.interest).eq(s.interest); // exact (CR3-411)
+  // By value: `!==` reads two equal amounts as different, so every plan would read as changed.
+  const changed = p.payoffDate !== s.payoffDate || !dec(p.interest).eq(s.interest);
   return html`
     <${TimeChart} label="The loan's balance: the schedule against your plan" series=${[
       { name: 'Schedule', color: '--fg-muted', dash: true, points: line(s) },

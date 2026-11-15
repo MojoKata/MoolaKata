@@ -566,7 +566,7 @@ function Filings({ b, done }) {
 /** @param {{ b: any, done: (out: any) => void }} p */
 function Documents({ b, done }) {
   const add = (/** @type {any} */ start) => openDialog(DocumentDialog, { b, start }).then(done);
-  // A document kept opens to change or remove it (CR3-36).
+  // A document kept opens to change or remove it.
   const open = (/** @type {any} */ doc) =>
     openDialog(DocumentDialog, { b, doc, fromRow: true }).then(done);
   const filed = b.filings.flatMap((/** @type {any} */ f) =>
@@ -1079,7 +1079,7 @@ class DocumentRec extends Rec {
 
 /**
  * A tax document kept, or one to keep: `doc` opens a kept one to change its form, issuer,
- * account, notes or file, or to remove it (CR3-36); `start` fills a new one.
+ * account, notes or file, or to remove it; `start` fills a new one.
  * @param {{ close: (v?: any) => void, b: any, start?: any, doc?: any, fromRow?: boolean }} p
  */
 function DocumentDialog({ close, b, start, doc, fromRow }) {

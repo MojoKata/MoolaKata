@@ -871,7 +871,7 @@ function TaxBook({ id, base, bid, tab }) {
 }
 
 /**
- * A linked tax book's documents (S11.5.1, CR3-10): each with its file to open when the book
+ * A linked tax book's documents (S11.5.1): each with its file to open when the book
  * was shared with Include receipts and the file has arrived.
  * @param {{ id: string, bid: string }} p
  */

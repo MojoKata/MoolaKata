@@ -883,7 +883,7 @@ function BitcoinSection() {
   const v = /** @type {any} */ (res.data);
   // The password is a key of the draft too, written and never read back (S14.4).
   // The source is written by the first Save even at the suggested default: saving the section
-  // is what turns wallet reading on (S16.7, CR3-62).
+  // is what turns wallet reading on (S16.7).
   const fd = useSettingsDraft(s.data, [...BITCOIN_KEYS, 'bitcoinPassword'], {
     required: ['bitcoinSource'],
   });

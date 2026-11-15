@@ -124,7 +124,7 @@ def accepted(job: Job) -> JSONResponse:
 def _hold(data: bytes, account_id: str, user_id: str, name: str, **extra) -> str:
     """Kept in memory while it waits for its mapping or its check. What a user's held uploads
     hold counts against their uploads in flight (S13.7.6): past it, their oldest held one is
-    let go, and its dialog asks for the file again (CR3-172)."""
+    let go, and its dialog asks for the file again."""
     from ..middleware import IN_FLIGHT
 
     key = "Upl_" + secrets.token_urlsafe(18)
@@ -188,7 +188,7 @@ def _run(
             parsed = parsing.read_csv(data, mapping)
         with srv.db.tx(user=user_id) as s:
             # Read in the background: no one is there to ask, so a move of a filed year is
-            # kept and listed on its tax book (S2.8, the filed tax years walk's decision 1.1).
+            # kept and listed on its tax book (S2.8).
             closed.unasked(s)
             account, _ = access.account(s, user_id, account_id, "write")
             if mapping is not None and save_mapping and parsed.format == "csv":

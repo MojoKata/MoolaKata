@@ -108,7 +108,7 @@ def _recompute(s: Session, user_id: str) -> int:
     # it again: the losses are found on the replay with the wash sales so far applied, again
     # and again, until nothing changes (S3.8.3, S3.8.4).
     now = clock.now()
-    # Each sale's day and making, so a replacement settles right after its sale (CR3-388).
+    # Each sale's day and making, so a replacement settles right after its sale.
     sale_at = {t.id: (t.date, t.createdAt) for led in ledgers for t in led.transactions}
     for led in ledgers:
         led.sale_at = sale_at
@@ -150,7 +150,7 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
                 losses.append((led.account, d))
     # Sales in the order made; a sale's shares in the order they were acquired, the earliest
     # first, so a buy of fewer shares than were sold replaces the oldest (Treas. Reg.
-    # §1.1091-1(c), S3.8.2, CR3-390).
+    # §1.1091-1(c), S3.8.2).
     losses.sort(key=lambda x: (x[1].soldOn, x[1].saleId, x[1].acquiredOn))
     remaining = {id(b): b.remaining for group in buys.values() for b in group}
     out = []

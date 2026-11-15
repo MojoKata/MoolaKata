@@ -107,7 +107,7 @@ def _long_term(acquired: dt.date, day: dt.date) -> bool:
 
 def _term(flags: list[bool | None]) -> str:
     if any(f is None for f in flags):
-        return "unknown"  # a lot whose day bought is missing (CR3-73, CR3-415)
+        return "unknown"  # a lot whose day bought is missing
     if all(flags):
         return "long"
     if not any(flags):
@@ -231,7 +231,7 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
                     side="short" if any((d.basis or ZERO) < 0 for d in ds) else "long",
                     quantity=sum((d.quantity for d in ds), ZERO),
                     # A part without its day bought leaves the day opened unknown, as its
-                    # term is, never the sale's own day (CR3-435).
+                    # term is, never the sale's own day.
                     opened=None if unknown else min(d.acquiredOn for d in ds),
                     closed=ds[0].soldOn,
                     how=_how(t),
@@ -240,7 +240,7 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
                     realized=(sum((d.gain for d in ds), ZERO) if cost is not None else None),
                     washDisallowed=sum((d.adjustment for d in ds), ZERO),
                     # A sale without a lot to match has no day bought, as shares moved in
-                    # without one: its term is unknown (CR3-415).
+                    # without one: its term is unknown.
                     term=_term(
                         [None if d.acquiredMissing or d.lotMissing else d.longTerm for d in ds]
                     ),

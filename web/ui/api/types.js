@@ -3129,7 +3129,7 @@
 
 /**
  * A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so
- * each keeps its id, and the gifts planned for it stay with it (CR3-43).
+ * each keeps its id, and the gifts planned for it stay with it.
  * @typedef {Object} PlanRecord
  * @property {string} personId
  * @property {(import('../kit/dec.js').Dec | null)} [giftBudget]
@@ -4397,7 +4397,7 @@
  */
 
 /**
- * One lot shares moved in arrive as (S2.2, CR3-73): when it was bought, and its basis.
+ * One lot shares moved in arrive as (S2.2): when it was bought, and its basis.
  * @typedef {Object} TransferLot
  * @property {string} acquiredOn
  * @property {import('../kit/dec.js').Dec} quantity

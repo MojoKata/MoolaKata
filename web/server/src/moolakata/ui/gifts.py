@@ -713,7 +713,7 @@ def get_spending(request: Request, year: int | None = None, c: Caller = Depends(
 
 class PlanRecord(Model):
     """A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so
-    each keeps its id, and the gifts planned for it stay with it (CR3-43)."""
+    each keeps its id, and the gifts planned for it stay with it."""
 
     personId: IdOf("Persn")  # type: ignore[valid-type]
     giftBudget: Money | None = None
@@ -831,7 +831,7 @@ def _occasion_current(ctx, o: Occasion) -> dict:
 
 
 def _occasion_update(ctx, o: Occasion, body: OccasionRecord) -> None:
-    """In place: the gifts planned for it keep it (S7.8.1, CR3-43)."""
+    """In place: the gifts planned for it keep it (S7.8.1)."""
     if body.giftPlanId != o.giftPlanId:
         raise refuse("giftPlanId", "occasion-fixed", "An occasion stays with its plan.")
     for k, v in _occasion_values(body).items():

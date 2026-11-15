@@ -477,7 +477,7 @@ def flows(
     s: Session, ledger, investing: bool, first: dt.date, last: dt.date
 ) -> dict[dt.date, Decimal]:
     """The money that came into the account from outside (+) or left it (−), per day from
-    `first` (after it) to `last`, valued as `series` values the account (CR3-28): cash in and
+    `first` (after it) to `last`, valued as `series` values the account: cash in and
     out; shares moved in or out at the price the series takes for them that day; an item
     added at its worth then, one sold at what its sale brought; a loan's opening
     balance owed and its draws as money out, its payments as money in. So a day with only a

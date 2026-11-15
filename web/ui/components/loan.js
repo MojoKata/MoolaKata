@@ -506,7 +506,7 @@ export function PaymentDialog({ close, a, v }) {
       gone = true;
     };
   }, [day, amount]);
-  // The bank's half already there, when the payment was imported first (S1.7, CR3-22): the
+  // The bank's half already there, when the payment was imported first (S1.7): the
   // payment pairs with it rather than recording it again.
   const [half, setHalf] = useState(/** @type {any} */ (null));
   useEffect(() => {

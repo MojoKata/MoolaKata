@@ -1763,7 +1763,7 @@ class PlanLine extends Record {
 
 /**
  * The plan in force in a month, read as stored into a draft (never the month's figures, which
- * carry remainders and moves: CR3-2), with the categories for its rules and labels.
+ * carry remainders and moves), with the categories for its rules and labels.
  * @param {any} b @param {string} month
  */
 function usePlanDraft(b, month) {
@@ -1899,7 +1899,7 @@ function EstimateDialog({ close, b, month, months }) {
 /**
  * The plan from the month shown on: a line per category, monthly or yearly, rolling over or
  * not. Earlier months keep the plan they had. Edited as a draft of the lines as stored, so a
- * dialog saved unchanged changes nothing (S12.15, CR3-2).
+ * dialog saved unchanged changes nothing (S12.15).
  * @param {{ close: (v?: any) => void, b: any, month: string }} p
  */
 function PlanDialog({ close, b, month }) {

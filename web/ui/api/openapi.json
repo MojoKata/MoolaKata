@@ -17979,7 +17979,7 @@
       },
       "PlanRecord": {
         "additionalProperties": false,
-        "description": "A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so\neach keeps its id, and the gifts planned for it stay with it (CR3-43).",
+        "description": "A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so\neach keeps its id, and the gifts planned for it stay with it.",
         "properties": {
           "giftBudget": {
             "anyOf": [
@@ -25576,7 +25576,7 @@
       },
       "TransferLot": {
         "additionalProperties": false,
-        "description": "One lot shares moved in arrive as (S2.2, CR3-73): when it was bought, and its basis.",
+        "description": "One lot shares moved in arrive as (S2.2): when it was bought, and its basis.",
         "properties": {
           "acquiredOn": {
             "format": "date",
@@ -30266,7 +30266,7 @@
     },
     "/ui/api/accounts/{account_id}/loan/halves": {
       "get": {
-        "description": "The bank transactions already in `account` that a payment of `amount` on `date` from\nit would be the other half of, by S1.7's rule (the same amount out, within days, not yet a\ntransfer): the payment dialog pairs with one rather than recording it again (CR3-22).",
+        "description": "The bank transactions already in `account` that a payment of `amount` on `date` from\nit would be the other half of, by S1.7's rule (the same amount out, within days, not yet a\ntransfer): the payment dialog pairs with one rather than recording it again.",
         "operationId": "halves_ui_api_accounts__account_id__loan_halves_get",
         "parameters": [
           {
@@ -37114,7 +37114,7 @@
     },
     "/ui/api/settings/keys/reencrypt": {
       "post": {
-        "description": "Re-encrypt now (S15.7.2): scheduled with each copy's choice, and the server restarts at\nonce; the unlock that follows runs it before the server serves, with the phrase given\nthere. It never runs while the server serves, and once scheduled it is not withdrawn\n(CR3-61). The password again (S13.7.2).",
+        "description": "Re-encrypt now (S15.7.2): scheduled with each copy's choice, and the server restarts at\nonce; the unlock that follows runs it before the server serves, with the phrase given\nthere. It never runs while the server serves, and once scheduled it is not withdrawn.\nThe password again (S13.7.2).",
         "operationId": "key_reencrypt_ui_api_settings_keys_reencrypt_post",
         "requestBody": {
           "content": {

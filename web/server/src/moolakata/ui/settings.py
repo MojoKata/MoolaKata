@@ -921,8 +921,8 @@ def _copies_choices(srv, chosen: dict[str, str]) -> dict[str, str]:
 def key_reencrypt(body: ReencryptIn, request: Request, c: Caller = Depends(admin)):
     """Re-encrypt now (S15.7.2): scheduled with each copy's choice, and the server restarts at
     once; the unlock that follows runs it before the server serves, with the phrase given
-    there. It never runs while the server serves, and once scheduled it is not withdrawn
-    (CR3-61). The password again (S13.7.2)."""
+    there. It never runs while the server serves, and once scheduled it is not withdrawn.
+    The password again (S13.7.2)."""
     from .. import runtime
     from ..config import RefuseStart
     from ..keys import master
@@ -1214,8 +1214,7 @@ def backups(request: Request, c: Caller = Depends(admin)):
 
 def _fewer_copies(srv, was: int, value: int) -> None:
     """Fewer days of backups than are kept now deletes some at the next backup: that takes
-    the recovery phrase, as Remove does, so an admin's session alone deletes no backup
-    (CR3-63)."""
+    the recovery phrase, as Remove does, so an admin's session alone deletes no backup."""
     from ..store import maintenance
 
     if value < was and value < maintenance.backup_days(srv.config):

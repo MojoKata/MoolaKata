@@ -202,7 +202,7 @@ function SaveButton({ outcome, busy, ready, label, confirm, reload, disabled }) 
 /**
  * @typedef {string | ((draft: any) => string)} Done
  * What a save says once done: words, or words worked out from what was saved, at that moment
- * (Ungroup removes the strategy in the click that saves it, CR3-407).
+ * (Ungroup removes the strategy in the click that saves it).
  */
 
 /** Why a form that reads saves nothing (S12.19.1). @param {boolean | string | undefined} read */

@@ -62,7 +62,7 @@ def csv_8949(rows: list[Row], year: int, bitcoin_fees: str) -> str:
                 r.box,
                 "long" if r.longTerm else "short",
                 r.description,
-                # Blank when sold without a lot to match: no day to write (CR3-415).
+                # Blank when sold without a lot to match: no day to write.
                 r.acquired.isoformat() if r.acquired else "" if r.lotMissing else "VARIOUS",
                 r.sold.isoformat(),
                 _money(r.proceeds),
@@ -83,7 +83,7 @@ def _txf_date(d: dt.date | None) -> str:
 def in_txf(r: Row) -> bool:
     """TXF (V042) carries boxes A to F and the wash-sale adjustment, nothing else, and only a
     row with its day bought and its basis: TXF has no way to say one is missing, and a basis
-    written as 0 would tax the whole proceeds (CR3-415, CR3-416)."""
+    written as 0 would tax the whole proceeds."""
     return r.box in TXF_CODE and r.code in ("", "W") and not r.lotMissing and r.basis is not None
 
 
