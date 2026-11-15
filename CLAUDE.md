@@ -16,9 +16,8 @@ Before calling a change done:
    a screenshot of each to `shots/` (it needs Playwright for Python and its Chromium).
 2. Look at screenshots of what changed.
 
-The mockup's `html` element carries `zoom: 2`. Viewport units, breakpoints and pointer
-positions in it account for that, so check and screenshot at 2880×1800 (what a 1440×900
-window shows).
+The mockup draws at the browser's own scale; check and screenshot it as a 1440×900 window
+(`check.py` takes its screenshots at twice the pixels).
 
 The web app and its mockup are for desktop browsers. Phone layouts are not checked or fixed:
 phones will get a separate, focused PWA later (requirements S12.8).

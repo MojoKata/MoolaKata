@@ -45,9 +45,6 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-/* The page is drawn at twice its size. Viewport units, media queries and pointer positions
-   below are divided by --zoom (or the breakpoints multiplied by it) so the layout works in CSS pixels. */
-html { --zoom: 2; zoom: 2; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--info); text-decoration: none; }
@@ -59,7 +56,7 @@ body.privacy .amt { filter: blur(7px); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* frame */
-.app { display: grid; grid-template-columns: auto 1fr auto; height: calc(100vh / var(--zoom)); }
+.app { display: grid; grid-template-columns: auto 1fr auto; height: 100vh; }
 .side { width: 232px; background: var(--bg-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: relative; transition: width .2s; }
 .app.collapsed .side { width: 62px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; }
@@ -420,7 +417,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
 .rule-row:hover { background: var(--bg-3); border-radius: 8px; }
 .rule-pane [hidden] { display: none !important; }
 .rule-move:disabled, .rule-apply:disabled { opacity: .35; cursor: not-allowed; }
-.auth { min-height: calc(100vh / var(--zoom)); display: grid; place-items: center; padding: 20px; }
+.auth { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
 .auth .card { width: 380px; max-width: 100%; padding: 28px; }
 .auth h2 { margin: 14px 0 4px; }
 .code-box { font-family: var(--mono); font-size: 20px; letter-spacing: .12em; background: var(--inset); border: 1px solid var(--border-strong); border-radius: 8px; padding: 12px; text-align: center; }
@@ -439,7 +436,7 @@ code.key { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; use
 
 /* dialogs, menus, toasts */
 .scrim { position: fixed; inset: 0; background: var(--scrim); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; z-index: 50; padding: 16px; }
-.dialog { background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: 14px; width: 560px; max-width: 100%; max-height: calc(90vh / var(--zoom)); display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.dialog { background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: 14px; width: 560px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow); }
 .dialog.wide { width: 760px; }
 .dialog header { padding: 18px 22px 8px; display: flex; align-items: center; gap: 10px; }
 .dialog header h2 { margin: 0; font-size: 17px; flex: 1; }
@@ -471,7 +468,7 @@ body.mock-open .scrim:not(.prompt) { left: 300px; }
 .mock-pane a[aria-current] { background: var(--mock-bg); }
 .mock-pane .mp-kind { margin-left: auto; flex: none; font-size: 10px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .04em; }
 .mock-pane .mp-on::before { content: '✓ '; color: var(--accent); }
-.menu { position: fixed; z-index: 60; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px; min-width: 230px; max-height: calc(80vh / var(--zoom)); overflow-y: auto; }
+.menu { position: fixed; z-index: 60; background: var(--bg-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow); padding: 6px; min-width: 230px; max-height: 80vh; overflow-y: auto; }
 .menu .mh { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); padding: 8px 10px 4px; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
 .menu button:hover { background: var(--bg-4); }
@@ -497,8 +494,8 @@ body.mock-open .scrim:not(.prompt) { left: 300px; }
 }
 @media (prefers-reduced-motion: reduce) { .toast, .toast.leaving { animation: none; } .seg button, .chip, .tab, .jump button { transition: none; } }
 
-@media (max-width: 2200px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g-main { grid-template-columns: 1fr; } .help { width: 300px; } }
-@media (max-width: 1520px) {
+@media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g-main { grid-template-columns: 1fr; } .help { width: 300px; } }
+@media (max-width: 760px) {
   .row { flex-wrap: wrap; } .row > * { flex: 1 1 140px; }
   .app { grid-template-columns: 1fr; }
   .side { position: fixed; bottom: 0; left: 0; right: 0; width: auto !important; height: 58px; flex-direction: row; z-index: 20; border-right: 0; border-top: 1px solid var(--border); }
@@ -580,7 +577,6 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const icon = (n, cls = '') => `<svg class="i ${cls}"><use href="#i-${n}"/></svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const zoomOf = () => parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
 const slug = (s) => String(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function walk(n, end, vol, drift, seed) {
@@ -966,8 +962,8 @@ function chartHover(e) {
   const line = svg.querySelector('.hover-line'); line.style.display = ''; line.setAttribute('x1', c.x(i)); line.setAttribute('x2', c.x(i));
   tip.innerHTML = `<b>${c.labels[i]}</b>` + c.series.map((s) => `<div><span style="color:${s.color}">●</span> ${esc(s.name)}: <span class="amt">${s.values[i] == null ? '—' : s.tipfmt ? s.tipfmt(s.values[i]) : '$' + nf0.format(s.values[i])}</span></div>`).join('');
   tip.style.display = 'block';
-  const Z = zoomOf(), left = Math.min(e.clientX / Z + 14, innerWidth / Z - tip.offsetWidth - 10);
-  tip.style.position = 'fixed'; tip.style.left = left + 'px'; tip.style.top = e.clientY / Z + 14 + 'px';
+  const left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 10);
+  tip.style.position = 'fixed'; tip.style.left = left + 'px'; tip.style.top = e.clientY + 14 + 'px';
 }
 function rangeSlice(arr) { const n = { '1M': 2, '3M': 4, YTD: 10, '1Y': 13, '5Y': 60, All: 60 }[state.range]; return arr.slice(-n); }
 function rangeChips() { return `<div class="chips">${['1M', '3M', 'YTD', '1Y', '5Y', 'All'].map((r) => `<button class="chip ${state.range === r ? 'on' : ''}" data-act="range" data-v="${r}">${r}</button>`).join('')}</div>`; }
@@ -3495,12 +3491,12 @@ function showTerm(wrap) {
 }
 // Below the term, or above it when there's no room; false once the term is out of sight.
 function placeTerm() {
-  const tip = termOpen.querySelector('.term-tip'), at = termOpen.firstElementChild, Z = zoomOf();
+  const tip = termOpen.querySelector('.term-tip'), at = termOpen.firstElementChild;
   const r = at.getBoundingClientRect(), view = at.closest('.help')?.getBoundingClientRect();
   if (view && (r.bottom < view.top || r.top > view.bottom)) return false;
-  const h = tip.offsetHeight, below = r.bottom / Z + 6;
-  tip.style.left = Math.max(8, Math.min(r.left / Z, innerWidth / Z - tip.offsetWidth - 8)) + 'px';
-  tip.style.top = (below + h <= innerHeight / Z - 8 ? below : Math.max(8, r.top / Z - 6 - h)) + 'px';
+  const h = tip.offsetHeight, below = r.bottom + 6;
+  tip.style.left = Math.max(8, Math.min(r.left, innerWidth - tip.offsetWidth - 8)) + 'px';
+  tip.style.top = (below + h <= innerHeight - 8 ? below : Math.max(8, r.top - 6 - h)) + 'px';
   return true;
 }
 // A moment's grace, so the pointer can cross from the term to its card.
@@ -3644,8 +3640,8 @@ function householdsMenu(anchor) {
   const m = document.createElement('div'); m.className = 'menu'; m.id = 'menu'; m.setAttribute('role', 'menu');
   m.innerHTML = Object.values(PEERS).map((P) => `<a class="hh-item" role="menuitem" href="#/linked/${P.id}" target="mk-linked-${P.id}">${hhAv(P)}<span><b>${P.name}</b><div class="small dim">${P.items} items shared with you · synced 41 min ago</div></span></a>`).join('');
   document.body.append(m);
-  const r = anchor.getBoundingClientRect(), Z = zoomOf();
-  m.style.left = r.left / Z + 'px'; m.style.top = r.bottom / Z + 6 + 'px';
+  const r = anchor.getBoundingClientRect();
+  m.style.left = r.left + 'px'; m.style.top = r.bottom + 6 + 'px';
   const first = m.querySelector('a'); if (first) first.focus();
 }
 
@@ -3920,12 +3916,12 @@ document.addEventListener('focusout', (e) => {
 });
 document.addEventListener('mousemove', chartHover);
 // The tour's width (S12.17.1): its left edge drags, up to half the window, and moves with the arrow keys.
-const tourWidth = (w) => { state.tourW = Math.round(Math.max(260, Math.min(innerWidth / zoomOf() / 2, w))); $('.tour').style.width = state.tourW + 'px'; };
+const tourWidth = (w) => { state.tourW = Math.round(Math.max(260, Math.min(innerWidth / 2, w))); $('.tour').style.width = state.tourW + 'px'; };
 document.addEventListener('pointerdown', (e) => {
   if (!e.target.classList?.contains('tour-split')) return;
   e.preventDefault();
-  const x0 = e.clientX, w0 = $('.tour').offsetWidth, Z = zoomOf();
-  const move = (m) => tourWidth(w0 + (x0 - m.clientX) / Z);
+  const x0 = e.clientX, w0 = $('.tour').offsetWidth;
+  const move = (m) => tourWidth(w0 + (x0 - m.clientX));
   const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
   addEventListener('pointermove', move); addEventListener('pointerup', up);
 });
