@@ -87,7 +87,7 @@ export default function Profile() {
   const birthday = rec.typed('birthday') ??
     DAY.show(rec.get('birthYear'), rec.get('birthMonth'), rec.get('birthDay'));
   return html`
-    <div class="grid g2">
+    <div class="grid g2" style=${{ alignItems: 'start' }}>
       <${DraftForm} f=${fd} class="card" where="Profile" what="Your profile"
         saved=${() => {
           theme.value = rec.get('theme');

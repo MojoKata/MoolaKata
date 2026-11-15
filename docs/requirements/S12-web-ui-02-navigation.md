@@ -78,6 +78,8 @@
    13. **Activity**: the changes of S10.8, newest first, filtered by account and person;
    14. **Alerts**: what needs the user's attention, with a live count on its badge (S12.11);
    15. **Users and Groups**, **Settings** (admins);
-   16. the user tile opens **Profile** (name, sex, birthday, relationships (S10.10), email,
-       avatar, password, two-step, alert emails, time zone (S14.9), assumptions for
-       projections (S6.3), access tokens) and **Sign out**.
+   16. the user tile's avatar and name are an entry of the navigation like the others (no
+       menu, no underline), opening **Profile** (name, sex, birthday, relationships (S10.10),
+       email, avatar, password, two-step, alert emails, time zone (S14.9), assumptions for
+       projections (S6.3), access tokens). Profile's top bar holds **Sign Out**, where every
+       other screen shows the prices' age.

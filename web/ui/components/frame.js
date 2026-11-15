@@ -124,11 +124,7 @@ export function Frame({ children, onSignOut }) {
     document.body.classList.toggle('privacy', privacy.value);
   }, [privacy.value]);
 
-  const userMenu = (/** @type {MouseEvent} */ e) =>
-    openMenu(e, [
-      { label: 'Profile', onSelect: () => route('/ui/profile') },
-      { label: 'Sign Out', onSelect: onSignOut },
-    ]);
+  const onProfile = /^\/ui\/profile\b/.test(path);
 
   /** One entry of the navigation, with its count. @param {(typeof NAV)[number]} n */
   const navItem = (n) => {
@@ -195,12 +191,11 @@ export function Frame({ children, onSignOut }) {
         onClick=${() => (collapsed.value = !collapsed.value)}><${Icon} name="chev" /></button>
       <nav>${NAV.map(navItem)}<div class="nav-gap"></div>${foot.map(navItem)}</nav>
       <div class="user-tile">
-        <${Avatar} name=${me.displayName} image=${me.avatar} id=${me.id} />
-        <button type="button" class="user-text linklike" style=${{
-    color: 'inherit',
-    textAlign: 'left',
-  }}
-          aria-haspopup="menu" onClick=${userMenu}><b>${me.displayName}</b><span>${me.username}</span></button>
+        <a class=${'nav-item user-link' + (onProfile ? ' active' : '')} href="/ui/profile"
+          aria-current=${onProfile ? 'page' : undefined} data-tip=${
+    collapsed.value ? 'Profile' : undefined
+  }><${Avatar} name=${me.displayName} image=${me.avatar} id=${me.id} /><span
+            class="user-text"><b>${me.displayName}</b><span>${me.username}</span></span></a>
         <button type="button" class="icon-btn" aria-label=${themeNow.label} data-tip=${themeNow.label}
           onClick=${() => {
     theme.value = /** @type {any} */ (themeNow.next);
@@ -217,7 +212,11 @@ export function Frame({ children, onSignOut }) {
       html`<a class="crumb" href=${href}>${l}</a><span class="crumb" aria-hidden="true">›</span>`
     )
   }<span>${t.text}</span></h1>
-        <${PriceStatus} />
+        ${
+    onProfile
+      ? html`<button type="button" class="btn" onClick=${onSignOut}>Sign Out</button>`
+      : html`<${PriceStatus} />`
+  }
         <button type="button" class="icon-btn" aria-pressed=${privacy.value ? 'true' : 'false'}
           aria-label=${privacy.value ? 'Show amounts' : 'Hide amounts (privacy mode)'}
           data-tip=${privacy.value ? 'Show amounts' : 'Hide amounts'}

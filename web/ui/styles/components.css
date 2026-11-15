@@ -160,10 +160,15 @@
   .av-mom {
     background: var(--av-5);
   }
+  /* The avatar and name open Profile: a navigation entry like the others. */
+  .user-link {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+  }
   .user-text {
     flex: 1;
     min-width: 0;
-    cursor: pointer;
   }
   .user-text b {
     display: block;
