@@ -121,7 +121,7 @@ def test_a_card_statement_is_turned_to_the_accounts_side():
 
 
 def test_a_cards_cr_and_dr_are_the_accounts_side_already():
-    # B20: a payment marked CR is money in, turned once, never twice.
+    # A payment marked CR is money in, turned once, never twice.
     st = parse(
         CARD.replace("PAYMENT THANK YOU -1,203.11", "PAYMENT THANK YOU 1,203.11 CR"), card=True
     )

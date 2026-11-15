@@ -303,7 +303,7 @@ def test_a_changed_server_address_sends_nothing_and_asks_for_the_credentials_aga
 
 
 def test_a_driver_run_reaches_its_own_hosts_and_no_other(tmp_path):
-    # N17: each run is held to its driver's declared hosts; another driver's, or MoolaKata's,
+    # Each run is held to its driver's declared hosts; another driver's, or MoolaKata's,
     # is refused (S18.1.2).
     from urllib.parse import urlsplit
 
@@ -352,7 +352,7 @@ def test_a_driver_run_reaches_its_own_hosts_and_no_other(tmp_path):
 
 
 def test_moolakata_down_at_start_is_waited_for_with_a_growing_wait(tmp_path):
-    # B30: the connector starts, its socket can open and it can be unlocked, while MoolaKata
+    # The connector starts, its socket can open and it can be unlocked, while MoolaKata
     # is down; each failed try waits longer, up to the report's five minutes.
     from moolakata_connector import core as core_mod
     from moolakata_connector.core import Core
@@ -502,7 +502,7 @@ def test_the_terminal_opens_on_a_real_one():
 
 
 def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
-    # K24: loopback, link-local (cloud metadata) and multicast, as MoolaKata's guard (S13.5).
+    # Loopback, link-local (cloud metadata) and multicast, as MoolaKata's guard (S13.5).
     import socket as socket_mod
 
     def resolving(ip):
@@ -528,7 +528,7 @@ def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
 
 
 def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_path):
-    # K20: MoolaKata unpaired after a lost host; the connector keeps nothing for it (S18.4.4).
+    # MoolaKata unpaired after a lost host; the connector keeps nothing for it (S18.4.4).
     from moolakata_connector.core import Core
 
     class Gone:
@@ -553,7 +553,7 @@ def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_pat
 
 
 def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
-    # K24: the time sealed into each box; an older one handed over again changes nothing.
+    # The time sealed into each box; an older one handed over again changes nothing.
     import json as json_mod
 
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey

@@ -49,7 +49,7 @@ def test_ofx_brokerage_trades_positions_and_securities():
 
 
 def test_ofx_option_trades_and_their_ends():
-    # B5: OPTBUYTYPE and OPTSELLTYPE give the four option trades, CLOSUREOPT the option's end;
+    # OPTBUYTYPE and OPTSELLTYPE give the four option trades, CLOSUREOPT the option's end;
     # a contract is named by its OCC ticker, or by the terms OPTINFO gives.
     p = ofx.read((FIX / "options.ofx").read_bytes())
     assert p.securities["AAPL260918P150"].symbol == "AAPL260918P00150000"
@@ -98,7 +98,7 @@ Posted Date,Description,Debit,Credit,Balance
 
 
 def test_a_newest_first_csv_is_read_oldest_first():
-    # B18: each day's last running balance is its latest row's, not its first in the file.
+    # Each day's last running balance is its latest row's, not its first in the file.
     from moolakata.ledger import balances
 
     data = (
@@ -186,7 +186,7 @@ def test_bad_rows_name_their_row():
 
 
 def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
-    # B3, S2.5: a dividend row carries the income; the buy carries none, so the income panel
+    # S2.5: a dividend row carries the income; the buy carries none, so the income panel
     # counts $100 as $100 of 1099-DIV, never $200.
     p = ofx.read((FIX / "reinvest.ofx").read_bytes())
     got = [(r.kind, r.amount, r.dividendType) for r in p.rows]

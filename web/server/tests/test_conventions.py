@@ -103,7 +103,7 @@ def test_every_list_is_paged(store, keyed_config):
 
 
 def test_the_document_lists_the_problems_and_their_codes():
-    # N16: the problem document and its stable codes are in the OpenAPI document (S13.8.3).
+    # The problem document and its stable codes are in the OpenAPI document (S13.8.3).
     from moolakata import contract
 
     doc = contract.openapi_document()
@@ -172,7 +172,7 @@ def test_a_201_without_its_own_location_is_given_one():
 
 
 def test_every_problem_code_and_every_422_is_in_the_openapi_document():
-    # S13.8.3, N16: the codes the error handlers answer are listed too, a field's own codes by
+    # S13.8.3: the codes the error handlers answer are listed too, a field's own codes by
     # their pattern, and a 422 is a problem document, never FastAPI's shape.
     from moolakata import contract
 

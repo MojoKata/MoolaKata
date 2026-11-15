@@ -231,7 +231,7 @@ def test_a_sync_records_each_transaction_once_and_extends_the_gap(server, jane, 
 
 
 def test_a_coinjoins_fee_is_the_wallets_share_never_the_whole(server, jane):
-    # B13: others' inputs paid most of the 12,000-sat fee; the wallet put in 1,500 net, so its
+    # Others' inputs paid most of the 12,000-sat fee; the wallet put in 1,500 net, so its
     # share is 1,500, and nothing else left it.
     from moolakata.store.entities.accounts import Transaction
 
@@ -598,7 +598,7 @@ def test_saving_the_suggested_source_turns_reading_on(server, admin_client):
 
 
 def test_a_wallets_keys_are_bounded(jane):
-    # B37: the text and the number of keys and addresses are capped, so no wallet stalls the
+    # The text and the number of keys and addresses are capped, so no wallet stalls the
     # server (S1.6.1).
     w = new_account(jane, name="Huge", type="crypto-wallet")
     r = wallet(jane, w["id"], "x" * 200_001)

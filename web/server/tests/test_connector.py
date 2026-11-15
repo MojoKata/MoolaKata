@@ -781,7 +781,7 @@ def activity_rows(server):
 
 
 def test_a_sealing_key_its_identity_key_didnt_sign_is_refused(server, admin, client):
-    # K24: browsers seal only to the key of the connector an admin confirmed (S18.4.5).
+    # Browsers seal only to the key of the connector an admin confirmed (S18.4.5).
     fake = FakeConnector(server, client)
     r = fake.pair(pair_code(admin), signed=False)
     assert r.status_code == 403 and r.json()["code"] == "sealing-unsigned"
@@ -789,7 +789,7 @@ def test_a_sealing_key_its_identity_key_didnt_sign_is_refused(server, admin, cli
 
 
 def test_unpair_ends_the_pairing_and_any_code_still_out(server, admin, client, paired):
-    # K20: after Pair, then Unpair, no connector stays paired and the code can't be used.
+    # After Pair, then Unpair, no connector stays paired and the code can't be used.
     code = pair_code(admin)
     assert admin.post("/ui/api/settings/connector/unpair").status_code == 200
     assert admin.get("/ui/api/settings/connector").json()["state"] in (None, "ended", "none")
@@ -799,7 +799,7 @@ def test_unpair_ends_the_pairing_and_any_code_still_out(server, admin, client, p
 
 
 def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, paired):
-    # K20: the genuine connector reporting again from its own address doesn't clear a
+    # The genuine connector reporting again from its own address doesn't clear a
     # thief's (S18.5.4).
     from moolakata import alerts
     from moolakata.connector import manage

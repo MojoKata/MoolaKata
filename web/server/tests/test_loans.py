@@ -41,7 +41,7 @@ def test_the_level_payment_and_its_first_split():
 
 
 def test_pmi_ends_at_78_percent_of_the_original_value():
-    # B21: not charged to payoff; the schedule drops it once the balance is 78% of the value.
+    # Not charged to payoff; the schedule drops it once the balance is 78% of the value.
     t = mortgage_terms(pmi=D(90), originalValue=D(360000))  # 78% is 280,800
     rows = L.schedule(t, [], [], dt.date(2025, 1, 15))
     charged = [r for r in rows if r.pmi]
@@ -52,7 +52,7 @@ def test_pmi_ends_at_78_percent_of_the_original_value():
 
 
 def test_a_payment_typed_in_the_loans_account_is_split_by_the_schedule(server, frozen):
-    # B21: not wholly principal; and its interest counts as the loan's interest on Taxes.
+    # Not wholly principal; and its interest counts as the loan's interest on Taxes.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
@@ -184,7 +184,7 @@ def test_terms_are_checked(server, frozen):
 
 
 def test_a_rate_as_the_note_states_it(server, frozen):
-    # B6: three places for the rate (6.875%), four for an ARM's reset; more are refused.
+    # Three places for the rate (6.875%), four for an ARM's reset; more are refused.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
@@ -319,7 +319,7 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
 
 
 def test_rounding_up_counts_pmi_only_while_it_is_due():
-    # B21, S1.9.5: once PMI ends, the rounded payment rounds what is paid without it.
+    # S1.9.5: once PMI ends, the rounded payment rounds what is paid without it.
     t = mortgage_terms(escrowTax=D(300), pmi=D(90), originalValue=D(360000))
     r = P.plan_outcomes(t, [], [], dt.date(2025, 1, 15), P.Plan(roundTo=D(100)), 7.0)
     ahead = [x for x in r.plan.rows if not x.past]

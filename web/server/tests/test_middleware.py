@@ -96,7 +96,7 @@ def test_an_outbound_client_always_verifies_tls():
 
 
 def test_uploads_in_flight_are_capped_per_caller(server, monkeypatch):
-    # N9: at most 100 MB arriving at once for one caller (S13.7.6), here a smaller cap.
+    # At most 100 MB arriving at once for one caller (S13.7.6), here a smaller cap.
     from conftest import make_user, sign_in
 
     from moolakata import middleware

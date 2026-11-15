@@ -1141,7 +1141,7 @@ def forget_previous_key(fingerprint: str, request: Request, c: Caller = Depends(
 
     recent_auth(c)
     srv = server(request)
-    # The keyring is written under the maintenance lock, never beside a rotation (K5).
+    # The keyring is written under the maintenance lock, never beside a rotation.
     with srv.maintenance_lock:
         if not copies.forget_previous(srv.config, fingerprint):
             raise Problem(404, "not-found", "No such previous key.")

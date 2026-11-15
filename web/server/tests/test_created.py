@@ -1,4 +1,4 @@
-"""Every 201 of the API, walked on a seeded server (requirements S13.8.4, B38): each route that
+"""Every 201 of the API, walked on a seeded server (requirements S13.8.4): each route that
 makes something is called, and the `Location` it answers, if any, reads what was made."""
 
 import pytest

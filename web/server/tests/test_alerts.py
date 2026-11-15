@@ -183,7 +183,7 @@ def test_the_phrase_check_comes_due_after_a_year(server, admin_client, frozen):
 
 
 def test_the_rotation_reminder_follows_its_setting(server, admin_client, frozen):
-    # N15: due after the period Settings › Key Storage sets (S15.8.4); off, never.
+    # Due after the period Settings › Key Storage sets (S15.8.4); off, never.
     created = server.store.keys.ring.master_created
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "keyReminderMonths", 6, None)
@@ -195,7 +195,7 @@ def test_the_rotation_reminder_follows_its_setting(server, admin_client, frozen)
 
 
 def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
-    # N15: to the account's owner, and to the organisation's (S12.11.1.3, S7.9.5).
+    # To the account's owner, and to the organisation's (S12.11.1.3, S7.9.5).
     from test_accounts import new_account
     from test_options import opt
 

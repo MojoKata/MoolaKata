@@ -945,7 +945,7 @@ def test_an_offline_backup_needs_the_server_stopped_and_changes_nothing(
 
 
 def test_0017_writes_money_in_cents_and_leaves_the_premium_to_the_replay(tmp_path):
-    """B23 and B12: decimal text becomes integer cents; a stock trade settled before keeps the
+    """Decimal text becomes integer cents; a stock trade settled before keeps the
     strike's cash, its premium worked out at replay; a sale made before records its method."""
     from alembic import command
 
@@ -1138,7 +1138,7 @@ def test_two_backups_in_one_second_take_two_names(store, keyed_config, master_ke
 
 
 def test_a_backup_renamed_to_another_time_is_refused(store, keyed_config, master_key):
-    # K25: verify-backup and restore go by the manifest's own time, so a backup renamed to a
+    # Verify-backup and restore go by the manifest's own time, so a backup renamed to a
     # newer one's name passes for nothing.
     made = maintenance.backup(keyed_config, store)
     assert maintenance.made_of(made).replace(microsecond=0).strftime("%Y%m%d-%H%M%S") in made.name

@@ -127,7 +127,7 @@ def test_a_recovery_code_works_once(server, frozen):
     with server.db.read(unscoped="test") as s:
         assert len(s.scalars(select(RecoveryCode)).all()) == 9
     assert "signin.recovery-code" in kinds(server)
-    # N12: the sign-in with a recovery code is emailed, with how many are left.
+    # The sign-in with a recovery code is emailed, with how many are left.
     [m] = [m for m in mails(server) if "recovery code" in m["Subject"]]
     assert "9 are left" in m.get_content()
 
@@ -221,7 +221,7 @@ def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_
 
 
 def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):
-    # N12: the second step notes the address as a password-only sign-in does (S10.1.9).
+    # The second step notes the address as a password-only sign-in does (S10.1.9).
     from moolakata.store.entities.users import User
 
     make_user(server, "jane")

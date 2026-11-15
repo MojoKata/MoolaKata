@@ -171,7 +171,7 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     assert joined.json()["fingerprint"] == links_of(ca)["fingerprint"]
     req = links_of(ca)["links"][0]
     assert req["state"] == "requested" and req["fingerprint"] == links_of(cb)["fingerprint"]
-    # Nothing of either household crosses before the approval (S10.10.1, P5).
+    # Nothing of either household crosses before the approval (S10.10.1).
     assert req["users"] == [] and links_of(cb)["links"][0]["users"] == []
     with a.db.read(unscoped="test") as s:
         assert s.query(Person).filter(Person.name == "Bart").count() == 0
@@ -605,7 +605,7 @@ def test_a_large_change_arrives_in_parts_oldest_first(admins, monkeypatch):
 
 
 def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins):
-    """S10.10.1 (P5): a linked server's user never takes over a person here by its name; one
+    """S10.10.1: a linked server's user never takes over a person here by its name; one
     who may change that person joins them, and its privacy stays as it was."""
     from moolakata.store.entities.education import Person
     from moolakata.store.entities.users import User
@@ -766,7 +766,7 @@ def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins):
 
 
 def test_calls_no_known_key_signs_are_limited_by_address(server):
-    # N9: 60 a minute, counted before a body is read (S13.7.5.4).
+    # 60 a minute, counted before a body is read (S13.7.5.4).
     from conftest import new_client
 
     with new_client(server) as c:
@@ -854,7 +854,7 @@ def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admi
 
 
 def test_a_released_copys_key_opens_nothing_more():
-    # K25: the copy's database key is overwritten at the release, and no new connection opens.
+    # The copy's database key is overwritten at the release, and no new connection opens.
     from moolakata.store.db import HeldKey, WrongKey
 
     k = HeldKey(bytes(range(32)))

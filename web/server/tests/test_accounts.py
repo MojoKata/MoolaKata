@@ -313,7 +313,7 @@ def test_ofx_import_is_idempotent_and_reconciles(server):
 
 
 def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
-    # B19: a file's sub-cent digits change nothing; a row with a FITID matches one typed by
+    # A file's sub-cent digits change nothing; a row with a FITID matches one typed by
     # hand; a FITID the file repeats is two rows, flagged as duplicate suspects.
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -375,7 +375,7 @@ def test_brokerage_ofx_makes_holdings(server):
 
 
 def test_option_trades_and_an_assignment_from_a_brokers_file(server):
-    # B5: OFX option trades are the four option trades, and an assignment is settled with the
+    # OFX option trades are the four option trades, and an assignment is settled with the
     # broker's own stock trade, its premium in the shares' basis; a re-import adds nothing.
     from moolakata.store.entities.accounts import Account, Instrument, Transaction
     from moolakata.store.repos import ledger as repo
@@ -407,7 +407,7 @@ def test_option_trades_and_an_assignment_from_a_brokers_file(server):
 
 
 def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
-    # B7: an imported sale records the account's method; changing the method later applies to
+    # An imported sale records the account's method; changing the method later applies to
     # the sales after it, never rewriting the ones before.
     from moolakata.store.entities.accounts import Transaction
 
@@ -431,7 +431,7 @@ def test_a_sale_keeps_the_lot_method_in_force_when_it_was_made(server):
 
 
 def test_a_files_positions_are_a_check_on_reconcile(server):
-    # B9: positions the trades don't explain show as a difference; the lots stay as they are.
+    # Positions the trades don't explain show as a difference; the lots stay as they are.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage", institution="Example Brokerage")
@@ -519,7 +519,7 @@ def test_uploads_are_checked_from_their_content(server):
 
 
 def test_an_edited_transfer_in_moves_its_holding(server):
-    # Shares moved in from another broker, then corrected (B37).
+    # Shares moved in from another broker, then corrected: the edit reaches the holding.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, name="Brokerage", type="brokerage")

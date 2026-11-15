@@ -216,7 +216,7 @@ def test_money_given_above_the_exclusion_is_flagged(jane):
 
 
 def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(jane):
-    # B16: the beneficiary has no gift plan; the owner's five-year election of 100,000 in 2024
+    # The beneficiary has no gift plan; the owner's five-year election of 100,000 in 2024
     # is 20,000 in each of 2024-2028, over the 2026 exclusion.
     leo = person(jane, name="Leo Doe", sex="male")
     acct = new_account(jane, name="Leo's 529", type="529")
@@ -271,7 +271,7 @@ def test_received_gifts_and_thank_yous(jane):
 
 
 def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(jane):
-    # N13: not in the Inbox while kept with the gift; detached, it is again.
+    # Not in the Inbox while kept with the gift; detached, it is again.
     lisa = person(jane)
     g = gift(jane, people=[lisa["id"]], status="given", cost="40.00")
     up = jane.post(

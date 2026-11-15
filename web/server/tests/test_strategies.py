@@ -148,7 +148,7 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(jane):
     st = r.json()
     assert len(st["legs"]) == 3 and st["realized"] == 100, "the closed leg's P/L stays with it"
     # Each leg's trade takes the strategy's capital at risk at open, as it was at open (the
-    # 540/530 spread, not the rolled one: B12), its return exact.
+    # 540/530 spread, not the rolled one), its return exact.
     assert st["capitalAtRiskAtOpen"] == 920
     r = jane.get("/ui/api/positions/option-trades")
     assert r.status_code == 200, r.text
@@ -194,7 +194,7 @@ def test_a_short_call_against_shares_is_proposed_as_a_covered_call(jane):
 
 
 def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(jane):
-    # B12: a short straddle with no margin typed risks an unlimited amount, and the account
+    # A short straddle with no margin typed risks an unlimited amount, and the account
     # says so; assigned, its last leg closes it.
     a = new_account(jane, type="brokerage")["id"]
     for right, premium in (("call", "3.00"), ("put", "2.50")):

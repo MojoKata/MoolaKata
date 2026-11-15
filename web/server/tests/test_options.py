@@ -144,7 +144,7 @@ def test_a_short_put_assigned_folds_the_credit_into_the_stock_basis(jane):
 
 
 def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(server, jane):
-    # B12: the premium is folded in at replay, so a change to the opening trade (a re-import
+    # The premium is folded in at replay, so a change to the opening trade (a re-import
     # with a corrected amount) follows through; deleting the assignment deletes its stock trade.
     from moolakata.store.entities.accounts import Transaction
 
@@ -279,7 +279,7 @@ def test_each_option_trade_has_its_premium_pl_and_return(jane):
 
 
 def test_assigned_a_call_with_no_shares_opens_a_short_stock_lot(jane):
-    # N7: a short sale at the strike, not a sale without a lot; buying the shares closes it.
+    # A short sale at the strike, not a sale without a lot; buying the shares closes it.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "10000.00", "2026-09-01", kind="deposit")
     opt(jane, brk["id"], "sell-to-open", "2026-09-02", "6.40", right="call", fees="0")
@@ -309,7 +309,7 @@ def test_assigned_a_call_with_no_shares_opens_a_short_stock_lot(jane):
 
 
 def test_only_the_expiry_days_close_decides_an_expiry(server, jane):
-    # S3.6, A26: a close from before the expiry day decides nothing; the user is asked.
+    # S3.6: a close from before the expiry day decides nothing; the user is asked.
     from moolakata import options
     from moolakata.prices import refresh as pricing
     from moolakata.store.entities.accounts import Instrument

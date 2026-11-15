@@ -118,7 +118,7 @@ def test_attach_suggest_and_share_through_the_transaction(server, jane):
     assert not held["writable"] and not held["mine"]
     assert john.get(f"/ui/api/receipts/{rid}/file").status_code == 200
     assert drop(john, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 403
-    # A read share shows it and attaches it nowhere: not to John's own transaction (S9.6, P3).
+    # A read share shows it and attaches it nowhere: not to John's own transaction (S9.6).
     his = add(john, new_account(john, name="John's")["id"], "-42.18", "2026-10-02")
     r = attach(john, rid, his["id"])
     assert r.status_code == 403 and r.json()["errors"][0]["code"] == "receipt-read-only"

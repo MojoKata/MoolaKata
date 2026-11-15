@@ -125,7 +125,7 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
 
 
 def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
-    # B22: the past keeps it (R3.10); from its closing on it counts nothing, and its leaving
+    # The past keeps it (R3.10); from its closing on it counts nothing, and its leaving
     # is no loss.
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -144,7 +144,7 @@ def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
 
 
 def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
-    # B22: an account's gain before it closed stays in the portfolio's returns (R3.10).
+    # An account's gain before it closed stays in the portfolio's returns (R3.10).
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2026-06-30")

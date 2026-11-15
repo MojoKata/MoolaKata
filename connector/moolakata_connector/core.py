@@ -87,7 +87,7 @@ class Core:
         self.retry = 0.0  # the wait before trying MoolaKata again; none while it answers
         if self.pairing:
             # Reached from the loop, once the socket is open: MoolaKata may be down or locked
-            # at the connector's start, and an admin must still be able to unlock it (B30).
+            # at the connector's start, and an admin must still be able to unlock it.
             self.egress.allow(_host(self.pairing.address))
 
     # ----- pairing -----

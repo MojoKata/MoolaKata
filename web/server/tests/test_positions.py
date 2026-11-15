@@ -144,7 +144,7 @@ def _txns(c, acct):
 
 
 def test_changing_the_lot_method_works_the_wash_sales_out_again(server, jane):
-    # B7: a change of the account's method reruns the household's wash sales (S2.3), and the
+    # A change of the account's method reruns the household's wash sales (S2.3), and the
     # rerun takes each sale by the method recorded on it, not the account's new one.
     from sqlalchemy import delete
 
@@ -175,7 +175,7 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, jane):
         assert s.query(WashSale).filter_by(saleId=sale.id).count() == 1
 
 
-# ---- Corporate actions (S2.4, N4) ----
+# ---- Corporate actions (S2.4) ----
 
 
 def _ca(c, acct, inst_id, **body):

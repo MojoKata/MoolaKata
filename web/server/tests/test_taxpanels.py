@@ -234,7 +234,7 @@ def test_deductions_loans_and_issues(jane):
 
 
 def test_an_ira_limit_holds_across_a_persons_accounts(jane):
-    # B15, S8.6: two IRAs of one person share one limit: each under it, both together over.
+    # S8.6: two IRAs of one person share one limit: each under it, both together over.
     one = new_account(jane, name="IRA at Fidelity", type="ira")
     two = new_account(jane, name="IRA at Vanguard", type="roth-ira")
     add(jane, one["id"], "5000.00", "2026-02-01", kind="deposit")
@@ -247,7 +247,7 @@ def test_an_ira_limit_holds_across_a_persons_accounts(jane):
 
 
 def test_a_split_counts_toward_its_tag_as_a_whole_transaction_would(jane):
-    # B4: a split part takes its transaction's sign: $60 of a $100 pharmacy run is $60 of
+    # A split part takes its transaction's sign: $60 of a $100 pharmacy run is $60 of
     # medical, not $-60, and the rest counts nowhere.
     card = new_account(jane, name="Card", type="credit-card")
     cats = {x["name"]: x["id"] for x in jane.get("/ui/api/categories").json()["items"]}
@@ -280,7 +280,7 @@ def test_a_replacement_covers_only_its_own_shares(jane):
 
 
 def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(jane):
-    # B8: the loss isn't washed by shares an assignment bought; the preparer is asked to look.
+    # The loss isn't washed by shares an assignment bought; the preparer is asked to look.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(jane, brk["id"], "2026-08-03", "buy", "100", "500", "MSFT")

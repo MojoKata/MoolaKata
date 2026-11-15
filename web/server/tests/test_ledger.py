@@ -153,7 +153,7 @@ def test_splits_return_of_capital_and_problems():
 
 
 def test_return_of_capital_over_every_lot_and_its_excess_a_gain():
-    # B10: a lot without a basis keeps its share; what exceeds a lot's basis is a gain, held
+    # A lot without a basis keeps its share; what exceeds a lot's basis is a gain, held
     # as long as the lot.
     b1, l1 = buy(d(2024, 1, 5), 10, 100)
     t2 = Txn(d(2025, 3, 5), "transfer-in", D(0), "VTI", D(10))
@@ -171,7 +171,7 @@ def test_return_of_capital_over_every_lot_and_its_excess_a_gain():
 
 
 def test_a_snapshot_is_the_holdings_only_of_an_account_kept_by_snapshots():
-    # B9: in an account with trades of its own, a file's positions are a check and change no
+    # In an account with trades of its own, a file's positions are a check and change no
     # lot; an account with none is kept by its snapshots, which stand in for its history.
     txns, lots_ = book()
     r = replay("fifo", txns, lots_, [], [Snap("VTI", d(2025, 9, 30), D(45))])

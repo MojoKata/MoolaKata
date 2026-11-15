@@ -71,7 +71,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     view = admin.get("/ui/api/settings/connector").json()
     assert view["state"] == "paired" and view["fingerprint"] == shown
     assert "sealingPublic" in (tmp_path / "data" / "pairing.json").read_text()
-    # B31: a pairing MoolaKata refuses (the code is used) leaves the working one as it was.
+    # A pairing MoolaKata refuses (the code is used) leaves the working one as it was.
     before = (tmp_path / "data" / "pairing.json").read_bytes()
     with pytest.raises(client.ServerError):
         core.pair(code)
@@ -205,7 +205,7 @@ def test_a_server_that_isnt_the_one_paired_with_gets_nothing(money, tmp_path):
 def test_a_hello_naming_the_right_fingerprint_with_another_key_gets_nothing(
     money, tmp_path, monkeypatch
 ):
-    # C23, S18.4.2: the key hello gives must itself hash to the code's fingerprint; a relay
+    # S18.4.2: the key hello gives must itself hash to the code's fingerprint; a relay
     # repeating the fingerprint with a key of its own is refused before anything is sent.
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat

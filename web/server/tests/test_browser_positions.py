@@ -435,7 +435,7 @@ def test_a_strategys_figures_open_and_closed(browser, household):
 
 
 def test_a_strategy_without_a_limit_risks_an_unlimited_amount(browser, household):
-    # S3.5.5, B12: a short straddle with no margin typed: its capital at risk, and so the
+    # S3.5.5: a short straddle with no margin typed: its capital at risk, and so the
     # open strategies' total, is unlimited, never left out.
     h = household
     acct = brokerage(h, "Straddled")

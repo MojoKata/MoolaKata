@@ -489,7 +489,7 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
     for pid in body.people:
         people.get(s, c.id, pid)
     if body.transactionId and body.transactionId != current:
-        # Linking a purchase may recategorise it under Gifts: write on its account (P7).
+        # Linking a purchase may recategorise it under Gifts: write on its account.
         t = s.get(Transaction, body.transactionId)
         if t is None or t.deleted:
             raise refuse("transactionId", "not-found", "No such transaction.")

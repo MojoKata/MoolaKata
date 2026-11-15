@@ -320,7 +320,7 @@ def test_next_years_book_copies_dependents_a_year_older(server, couple):
 
 
 def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adder(server, couple):
-    """S8.14.1, S8.14.2, S8.14.4 (P1): a book naming John shows nothing of his year before, and
+    """S8.14.1, S8.14.2, S8.14.4: a book naming John shows nothing of his year before, and
     copies nothing from it, until he accepts; an account he added counts while he sees it."""
     jane, john, a_id, b_id = couple
     kid = new_account(jane, name="Lisa's custodial", type="brokerage")
@@ -347,7 +347,7 @@ def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adde
 
 
 def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
-    """S8.14.3 (P7): write lets a helper edit filings, not add accounts; any filer shares it."""
+    """S8.14.3: write lets a helper edit filings, not add accounts; any filer shares it."""
     jane, john, a_id, b_id = couple
     make_user(server, "gail")
     gail = sign_in(server, "gail")
@@ -365,7 +365,7 @@ def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
 
 
 def test_a_due_date_skips_weekends_and_legal_holidays():
-    # B22: Emancipation Day (April 16, as observed) moves the return's due date, as in 2017,
+    # Emancipation Day (April 16, as observed) moves the return's due date, as in 2017,
     # 2018, 2022 and 2023.
     import datetime as dt
 
@@ -382,7 +382,7 @@ def test_a_due_date_skips_weekends_and_legal_holidays():
 
 
 def test_an_edit_that_moves_a_filed_years_gains_asks_first(server, couple):
-    # N5: once 2025's federal return is filed, an edit that changes 2025's realized gains is
+    # Once 2025's federal return is filed, an edit that changes 2025's realized gains is
     # refused, naming the year, until confirmed.
     from test_accounts import add, new_account
 
@@ -510,7 +510,7 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
 
 
 def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
-    # N13: a co-filer opens the file through the book; it isn't in the uploader's Inbox, and
+    # A co-filer opens the file through the book; it isn't in the uploader's Inbox, and
     # can't be deleted while the document keeps it.
     jane, john, a_id, b_id = couple
     b = book(jane, 2026, [a_id, b_id])

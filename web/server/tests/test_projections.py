@@ -250,7 +250,7 @@ def test_engine_withdrawals_run_the_money_out():
 
 
 def test_a_bitcoin_model_drives_the_bitcoin_only():
-    # B14: of the crypto, the model drives the bitcoin's part; other coins keep the crypto
+    # Of the crypto, the model drives the bitcoin's part; other coins keep the crypto
     # assumption.
     base = dict(
         start=100_000.0,
@@ -269,7 +269,7 @@ def test_a_bitcoin_model_drives_the_bitcoin_only():
 
 
 def test_every_year_a_book_may_cover_has_its_own_figures(admin_client):
-    # B17: a book ten years back takes that year's figures, never 2025's; a past year lists
+    # A book ten years back takes that year's figures, never 2025's; a past year lists
     # its tax figures only.
     t = admin_client.get("/ui/api/settings/tax-tables", params={"year": 2016}).json()
     assert t["year"] == 2016 and 2016 in t["years"]
@@ -283,7 +283,7 @@ def test_every_year_a_book_may_cover_has_its_own_figures(admin_client):
 
 
 def test_the_tracking_floor_is_a_minimum_width():
-    # B22: a narrow band widens to 2% of its median; a wide one is left as it is.
+    # A narrow band widens to 2% of its median; a wide one is left as it is.
     from moolakata.projections import widened
 
     D = Decimal
