@@ -58,10 +58,12 @@ def test_a_record_keeps_the_first_run_then_the_settling_one_with_each_files_cont
     meta(tmp_path, "moolakata/money.py", [1, 1, 1])
     last, _, _ = mutate.outcomes(tmp_path)
     done = mutate.recorded(
-        record, last, False, args(pr=40, found=["CR3-460", "CR3-452"], equivalent=0)
+        record, last, False, args(pr=40, found=["#97", "CR3-460", "#212", "CR3-452"], equivalent=0)
     )
     assert done["first"]["survived"] == 2 and done["last"]["killed"] == 3
-    assert (done["pr"], done["found"], done["equivalent"]) == (40, ["CR3-452", "CR3-460"], 0)
+    # A review's ids first, then issues, each by number.
+    assert (done["pr"], done["equivalent"]) == (40, 0)
+    assert done["found"] == ["CR3-452", "CR3-460", "#97", "#212"]
     # The content as git names it: what the checkout's HEAD would show for the same file.
     file = mutate.SERVER / "src" / "moolakata" / "money.py"
     named = subprocess.run(["git", "hash-object", str(file)], capture_output=True, text=True)

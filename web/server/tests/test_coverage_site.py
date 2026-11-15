@@ -7,8 +7,14 @@ import subprocess
 
 import pytest
 
-from moolakata.dev import coverage
+from moolakata.dev import coverage, hardening
 from moolakata.dev import coverage_site as cs
+
+
+@pytest.fixture(autouse=True)
+def no_issues(monkeypatch):
+    """The hardening issues, never fetched from GitHub here: none, unless a test says."""
+    monkeypatch.setattr(hardening, "fetch_issues", lambda repo: [])
 
 
 def area(lines, branches, count=100):
@@ -186,6 +192,29 @@ def test_ci_fails_when_the_history_cannot_be_read(monkeypatch, tmp_path):
     monkeypatch.delenv("GITHUB_ACTIONS")
     assert cs.build() == 0
     assert len(json.loads((tmp_path / "site" / "history.json").read_text())) == 1
+
+
+def test_ci_fails_when_the_hardening_issues_cannot_be_read(monkeypatch, tmp_path):
+    """S17.5.8.6: CI never publishes a hardening page without its findings; a preview does."""
+    (tmp_path / "totals.json").write_text("{}")
+    monkeypatch.setattr(coverage, "OUT", tmp_path)
+    monkeypatch.setattr(cs, "SITE", tmp_path / "site")
+    monkeypatch.setattr(cs, "get", site({"history.json": b"[]"}))
+    monkeypatch.setattr(cs, "MOCKUPS", tmp_path / "no-mockups")
+    asked = []
+
+    def fail(repo):
+        asked.append(repo)
+        raise OSError("unreachable")
+
+    monkeypatch.setattr(hardening, "fetch_issues", fail)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "MojoKata/MoolaKata")
+    with pytest.raises(OSError):
+        cs.build()
+    assert asked == ["MojoKata/MoolaKata"]
+    monkeypatch.delenv("GITHUB_ACTIONS")
+    assert cs.build() == 0 and (tmp_path / "site" / "hardening.html").exists()
 
 
 def test_the_site_is_the_repositorys_own_pages(monkeypatch):

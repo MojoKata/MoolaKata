@@ -167,7 +167,7 @@ and files.
   <span><b>Findings:</b></span>
   <span><i class="sw fixed"></i>fixed</span><span><i class="sw med"></i>Med open</span>
   <span><i class="sw lowsev"></i>Low open</span><span><i class="sw q"></i>question</span>
-  <span><span class="chip med">25</span>a Med finding still open, by its review number</span>
+  <span><span class="chip med">25</span>a Med finding still open, by its issue number</span>
   <span><b>Mutation:</b></span>
   <span><i class="sw settled"></i>tested and settled</span><span><i class="sw stale"></i>changed since its run</span>
   <span><b>Coverage:</b></span>
@@ -207,8 +207,9 @@ and files.
 </div>
 
 <h2>The path</h2>
-<p>Every step to the end of the sweep, in order (<code>docs/hardening/path.toml</code>). A row is
-checked when its pull request merges, and shows what changed in its areas at that merge. In the
+<p>Every step to the end of the sweep, in order, each an issue whose findings are its
+sub-issues. A row is checked when its issue is closed, and shows what changed in its areas at
+its pull request's merge. In the
 table above, <b>Step</b> gives each area's steps, and <b>Swept</b> whether its findings are
 closed (F), its mutation runs are current (M) and its sweep has merged (S).</p>
 <div class="banner" id="pathbanner"></div>
@@ -236,7 +237,7 @@ const commit = c => `<a href="${REPO}/commit/${c}"><code>${esc(c.slice(0, 7))}</
 const isOpen = f => f.state === 'open' || f.state === 'question';
 const PATH = D.path;
 
-$('#asof').innerHTML = `As of ${commit(D.head.commit)}${D.head.pr ? ` (${prLink(D.head.pr)})` : ''}, ${esc((D.head.date || '').slice(0, 10))}: ${esc(D.head.subject || '')}. Findings from <code>${esc(D.review)}</code>.`
+$('#asof').innerHTML = `As of ${commit(D.head.commit)}${D.head.pr ? ` (${prLink(D.head.pr)})` : ''}, ${esc((D.head.date || '').slice(0, 10))}: ${esc(D.head.subject || '')}. Findings from <a href="${esc(D.issues)}">the sweep's issues</a>.`
   + (D.base ? ` Changes are since ${commit(D.base.commit)}${D.base.pr ? ` (#${D.base.pr})` : ''}, the first merge this page measured.` : '');
 $('#covhead').textContent = D.base ? 'Coverage, with its change' : 'Coverage';
 
@@ -289,7 +290,7 @@ function ticks(r) {
 function detail(r) {
   const order = { High: 0, Med: 1, Low: 2 };
   const fl = [...r.F].sort((x, y) => (!isOpen(x)) - (!isOpen(y)) || order[x.sev] - order[y.sev] || x.id - y.id);
-  const li = f => `<li class="${isOpen(f) ? '' : 'fixed'}"><span>${f.id}</span><span class="sev ${f.sev}">${f.sev}</span><span class="desc">${esc(f.desc)}${f.state === 'question' ? ' <span class="chip">question</span>' : ''}${f.mut ? ' <span class="chip mutf">found by mutation</span>' : ''}</span><span>${f.pr ? prLink(f.pr) : ''}</span></li>`;
+  const li = f => `<li class="${isOpen(f) ? '' : 'fixed'}"><span><a href="${esc(D.repo)}/issues/${f.id}" title="${esc(f.cr || '')}">#${f.id}</a></span><span class="sev ${f.sev}">${f.sev}</span><span class="desc">${esc(f.desc)}${f.state === 'question' ? ' <span class="chip">question</span>' : ''}${f.mut ? ' <span class="chip mutf">found by mutation</span>' : ''}</span><span>${f.pr ? prLink(f.pr) : ''}</span></li>`;
   const openF = fl.filter(isOpen), doneF = fl.filter(f => !isOpen(f));
   const files = r.a.files.slice().sort((x, y) => (pct(...x.lines) ?? 101) - (pct(...y.lines) ?? 101));
   const ft = files.length ? `<table class="files"><thead><tr><th>File</th><th>Lines</th><th>Branches</th><th class="m">Mutation</th></tr></thead><tbody>${files.map(f => {
@@ -306,7 +307,7 @@ const bodies = rows.map(r => {
   tb.innerHTML = `<tr class="head" tabindex="0"><th><span class="caret"></span>${esc(r.name)}</th><td>${stepCell(r)}</td><td class="m">${ticks(r)}</td>
     ${covCell(r.lines, r.linesB, true)}${covCell(r.branches, r.branchesB)}
     <td class="m sep">${findBar(r)}</td><td>${r.open || '<span class="na">0</span>'}</td>
-    <td class="m">${r.medOpen.map(f => `<span class="chip med" title="CR3-${f.id}: ${esc(f.desc)}">${f.id}</span>`).join('')}</td>
+    <td class="m">${r.medOpen.map(f => `<span class="chip med" title="#${f.id}: ${esc(f.desc)}">${f.id}</span>`).join('')}</td>
     <td class="m sep">${mutBar(r)}</td><td>${r.first == null ? '<span class="na">—</span>' : r.first.toFixed(0) + '%'}</td>
     <td>${r.found || '<span class="na">0</span>'}</td><td class="m sep">${r.prs.map(prLink).join('')}</td></tr>
     <tr class="detail"><td colspan="12">${detail(r)}</td></tr>`;
@@ -314,7 +315,7 @@ const bodies = rows.map(r => {
   const toggle = () => tb.classList.toggle('open');
   head.addEventListener('click', e => { if (!e.target.closest('a')) toggle(); });
   head.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
-  tb._r = r; tb._text = (r.name + ' ' + r.a.files.map(f => f.path).join(' ') + ' ' + r.F.map(f => `CR3-${f.id} ${f.id} ${f.desc}`).join(' ')).toLowerCase();
+  tb._r = r; tb._text = (r.name + ' ' + r.a.files.map(f => f.path).join(' ') + ' ' + r.F.map(f => `#${f.id} ${f.cr || ''} ${f.desc}`).join(' ')).toLowerCase();
   table.insertBefore(tb, $('#foot'));
   return tb;
 });
@@ -348,7 +349,7 @@ $('#banner').innerHTML = `
     <span class="meter"><b class="settled" style="width:${mutPct}%"></b><b class="stale" style="width:${stalePct}%"></b></span>
     <div class="sub">${(py.settled + py.stale).toLocaleString()} of ${py.st.toLocaleString()} statements (server and connector), in ${D.runs.filter(r => r.pr).length} runs</div></div>
   <div><div class="label">Bugs mutation testing found</div><div class="big mut">${all.found}</div>
-    <div class="sub">review ids given to survivors that showed a wrong answer</div></div>
+    <div class="sub">findings filed for survivors that showed a wrong answer</div></div>
   <div><div class="label">Server coverage, lines / branches</div><div class="big cov">${f1(pct(srv.a[0], srv.a[1]))} <small>/ ${f1(pct(srv.a[2], srv.a[3]))}</small></div>
     <div class="sub">${srv.hasB ? `was ${f1(pct(srv.b[0], srv.b[1]))} / ${f1(pct(srv.b[2], srv.b[3]))} at ${esc(D.base.commit.slice(0, 7))}` : 'the first merge this page measured'}</div></div>`;
 
@@ -376,13 +377,11 @@ render();
 // the path
 const rowOf = Object.fromEntries(rows.map(r => [r.name, r]));
 const allF = rows.flatMap(r => r.F);
-const MED_IDS = new Set(PATH.flatMap(p => p.findings));
 const nextStep = PATH.find(p => !p.done);
 const signed = v => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
 const pathRows = PATH.map(p => {
   const sc = p.areas.map(a => rowOf[a]).filter(Boolean);
-  const open = p.kind === 'med' ? p.findings.filter(id => allF.some(f => f.id === id && isOpen(f))).length
-    : p.kind === 'sweep' ? sc.reduce((t, r) => t + r.F.filter(f => isOpen(f) && !MED_IDS.has(f.id)).length, 0) : null;
+  const open = p.findings.filter(id => allF.some(f => f.id === id && isOpen(f))).length;
   const pyRows = sc.filter(r => !r.browser && r.st);
   const toMut = p.kind === 'sweep' && pyRows.length ? pyRows.reduce((t, r) => t + r.st - r.settled, 0) : null;
   const c = sc.reduce((t, r) => { const n = r.a.now; if (n) { t[0] += n.linesReached; t[1] += n.lineCount; t[2] += n.branchesReached; t[3] += n.branchCount; } return t; }, [0, 0, 0, 0]);
@@ -396,11 +395,11 @@ const pathRows = PATH.map(p => {
     res = `<div class="res"><b>${fx}</b> findings fixed, <b>${bugs}</b> bugs found by mutation; ${rn.length} runs settled (first catch ${rn.map(r => pct(...r.catch).toFixed(0) + '%').join(', ')}).<br>Coverage gains, lines / branches: ${esc(p.gains)}.</div>`;
   }
   const areas = p.areas.length ? `<div class="areas">${p.areas.map(a => `<code>${esc(a)}</code>`).join('')}</div>` : '';
-  const ids = p.findings.length ? `<div>${p.findings.map(id => `<span class="chip med" title="CR3-${id}">${id}</span>`).join('')}</div>` : '';
+  const ids = p.kind === 'med' && p.findings.length ? `<div>${p.findings.map(id => `<span class="chip med" title="#${id}">${id}</span>`).join('')}</div>` : '';
   const cls = p.done ? 'done' : p === nextStep ? 'next' : '';
   const toMutCell = p.done ? '<span class="na">done</span>' : toMut != null ? toMut.toLocaleString() : (p.kind === 'sweep' && sc.some(r => r.browser) ? '<span class="na">no tool yet</span>' : '<span class="na">—</span>');
   return `<tr class="${cls}"><td><input type="checkbox" disabled ${p.done ? 'checked' : ''} aria-label="Step ${p.n} ${p.done ? 'done' : 'to do'}"></td>
-    <th class="n">${p.n}</th><td>${p.pr ? prLink(p.pr) : '<span class="na">—</span>'}</td>
+    <th class="n"><a href="${esc(D.repo)}/issues/${p.issue}">${p.n}</a></th><td>${p.pr ? prLink(p.pr) : '<span class="na">—</span>'}</td>
     <td class="l"><div>${esc(p.what)}</div>${areas}${ids}${res}</td>
     <td>${p.done ? '<span class="na">done</span>' : open == null ? '<span class="na">—</span>' : open}</td>
     <td>${toMutCell}</td>

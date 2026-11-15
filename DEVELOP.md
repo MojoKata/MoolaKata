@@ -23,9 +23,11 @@ is in git's history.
 **Coverage:** [mojokata.github.io/MoolaKata](https://mojokata.github.io/MoolaKata/) shows
 what the tests reach on `main`, by area and by file, and how it has moved over the merges
 (S17.5.8.5). Each `check` run's summary in Actions has the same table for its own commit.
-Its [hardening page](https://mojokata.github.io/MoolaKata/hardening.html) follows review 3's
-sweep by area: findings closed, coverage, mutation runs, and the path's steps done and left
-(S17.5.8.6, [`docs/hardening/path.toml`](docs/hardening/path.toml)).
+Its [hardening page](https://mojokata.github.io/MoolaKata/hardening.html) follows the
+hardening sweep by area: findings closed, coverage, mutation runs, and the path's steps done
+and left (S17.5.8.6). The sweep's steps and findings are
+[issues](https://github.com/MojoKata/MoolaKata/issues?q=label%3Ahardening+no%3Aparent-issue),
+grouped in the [Hardening Sweep 1 (H1)](https://github.com/orgs/MojoKata/projects/1) project.
 
 ## Conventions
 

@@ -660,8 +660,16 @@ def build() -> int:
         history = []
     files_file = coverage.OUT / "files.json"
     files = json.loads(files_file.read_text()) if files_file.exists() else []
+    repo = repo_url()
+    try:
+        issues = hardening.fetch_issues(repo.removeprefix("https://github.com/"))
+    except (OSError, ValueError) as e:
+        if in_ci():
+            raise
+        print(f"the hardening issues couldn't be read ({e}); the preview has none")
+        issues = []
     this = entry(areas)
-    this["hardening"] = hardening.entry_figures(areas, files)
+    this["hardening"] = hardening.entry_figures(areas, files, issues)
     history = add(history, this)
     shutil.rmtree(SITE, ignore_errors=True)
     SITE.mkdir(parents=True)
@@ -677,7 +685,7 @@ def build() -> int:
     for name in ("MoolaKata-mock.html", "MoolaKata-app.html"):
         if (MOCKUPS / name).exists():
             shutil.copy(MOCKUPS / name, SITE / "mockup" / name)
-    (SITE / "index.html").write_text(page(history, coverage.floors(), files, base, repo_url()))
-    (SITE / "hardening.html").write_text(hardening.page(history, files, repo_url()))
+    (SITE / "index.html").write_text(page(history, coverage.floors(), files, base, repo))
+    (SITE / "hardening.html").write_text(hardening.page(history, files, repo, issues))
     print(f"{SITE / 'index.html'}: {len(history)} merges" + ("" if in_ci() else ", a preview"))
     return 0
