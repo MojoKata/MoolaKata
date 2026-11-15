@@ -2,9 +2,9 @@
 
 How an area's tests are measured by mutation (requirements S17.5.12), and what to do with what
 it finds. Coverage says a line ran; a mutation run says whether any test would notice if the
-line were wrong. In the values, taxes and options walk (review 3) it found gaps behind 98%
-covered files, four bugs among them (CR3-398, CR3-399, CR3-404, CR3-405), and test data that
-hid a change by giving the same answer either way.
+line were wrong. Its first runs found gaps behind 98% covered files, four bugs among them
+(#368, #369, #374, #375), and test data that hid a change by giving the same answer either
+way.
 
 ## The outcomes, by example
 
@@ -300,7 +300,7 @@ Read every survivor, by function and line, and settle it one of three ways:
 2. **A change to the code.** A survivor on code that can't matter (a line never reached, a
    parameter never read, a guard that restates another) is a reason to remove the code, not
    to mark it. A survivor in a data shape nothing makes is a reason to make the shape
-   impossible (CR3-405: a lot without its transaction).
+   impossible (#375: a lot without its transaction).
 3. **A mark**, only when no output can differ, said on the line above:
 
    ```python
@@ -314,8 +314,8 @@ Read every survivor, by function and line, and settle it one of three ways:
    too: where a statement's other changes are caught, leave it unmarked and list its
    equivalents with the area's results instead.
 
-A survivor that shows a wrong answer is a bug: it gets its review id, and a test that fails on
-the code as it was.
+A survivor that shows a wrong answer is a bug: it gets its issue, and a test that fails on the
+code as it was.
 
 ## The record
 
@@ -324,7 +324,7 @@ Each area's runs are kept in `docs/hardening/mutation/<name>.json`, for the hard
 
 ```sh
 web/dev.sh mutate record taxes --first                           # after the area's first run
-web/dev.sh mutate record taxes --pr 38 --found CR3-441 --equivalent 3   # after the settling run
+web/dev.sh mutate record taxes --pr 38 --found '#411' --equivalent 3   # after the settling run
 ```
 
 `--from <dir>...` reads the run from directories `export` wrote (a CI job's artifacts)
