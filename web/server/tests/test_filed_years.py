@@ -330,7 +330,7 @@ def test_a_route_outside_the_save_refuses_until_its_request_confirms(server):
 
 
 def test_the_check_works_out_only_the_closed_books_a_write_can_move(world, monkeypatch):
-    # Snappy: a write that moves no gains (a memo, a bank payment)
+    # Kept quick: a write that moves no gains (a memo, a bank payment)
     # works out no book; one in a household with a closed book works out that book twice (as
     # committed and as written), and no other.
     from moolakata.taxes import closed

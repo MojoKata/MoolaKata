@@ -631,7 +631,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                             book.became(st.underlyingId)[-1],
                             day,
                             [(iid, None)],
-                            named(st, shape_of(book, st)),  # as its view shows it
+                            named(st, shape_of(book, st)),  # as Strategies names it
                             st.id,
                         )
                     )

@@ -192,7 +192,7 @@ PLANTS = [
             "a single leg's risk its strike",
             "moolakata.options.strategies:risk_of_account",
             _single_leg_strike_risk,
-            "S3.5.5: a leg risks what its shape does",
+            "S3.5.6: an option alone risks what its shape does",
         ),
         (0,),
     ),

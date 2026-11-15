@@ -74,7 +74,7 @@ def typed(s: Session, owner: str, instrument_ids: list[str], first: dt.date | No
 # typed; failing those, a value the owner's own statement reported; failing that, the owner's
 # last trade. Worked out once, over a range of days (`_effective`): a day's price (`prices`)
 # is the last point of the range ending that day (`price_points`), so a figure for one day and
-# a chart's agree (13.1). Another user's typed prices, statements and trades never count.
+# a chart's agree. Another user's typed prices, statements and trades never count.
 _RANK = {"fixed": 0, "close": 0, "manual": 1, "statement": 2, "trade": 3}
 
 

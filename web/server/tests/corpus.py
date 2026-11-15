@@ -27,7 +27,7 @@ class Entry:
     mapping: str | dict = "proposed"
     result: dict = field(default_factory=dict)
     expect: dict = field(default_factory=dict)
-    xfail: dict = field(default_factory=dict)  # a section or an invariant: the claim it waits on
+    xfail: dict = field(default_factory=dict)  # a section or an invariant: the issue it waits on
 
     @property
     def kind(self) -> str:

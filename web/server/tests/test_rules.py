@@ -245,9 +245,9 @@ def test_a_receipts_merchant_is_renamed_by_the_rules(server, jane):
 
 
 def test_user_text_reaches_a_regular_expression_only_through_a_rule():
-    """The kind of bug: a pattern a user typed, run by a backtracking engine. Python's `re` is
-    called only with patterns written in the code; the rest are named here with what they are built
-    from, never a user's text. A user's pattern goes through `compile_pattern`."""
+    """Every case of one kind of bug: a pattern a user typed, run by a backtracking engine. Python's
+    `re` is called only with patterns written in the code; the rest are named here with what they
+    are built from, never a user's text. A user's pattern goes through `compile_pattern`."""
     import ast
     from pathlib import Path
 

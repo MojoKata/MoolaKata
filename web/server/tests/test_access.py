@@ -375,7 +375,7 @@ HOLDS = [
 
 
 def test_who_holds_what(household):
-    """Every rule, on the household built to reach them."""
+    """Every rule, on a household built to reach each one."""
     srv, n = household
     wrong = []
     with srv.db.read(unscoped="test") as s:

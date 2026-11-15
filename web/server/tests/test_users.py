@@ -370,9 +370,9 @@ def test_a_new_address_ends_only_its_own_users_links(client, server):
 
 
 def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():
-    """The kind of bug: a link outliving the address it was mailed to. A user's address is assigned
-    in one place, `_set_email`, which ends them; a linked server's users, mirrored, have no password
-    and so no link."""
+    """Every case of one kind of bug: a link outliving the address it was mailed to. A user's
+    address is assigned in one place, `_set_email`, which ends them; a linked server's users,
+    mirrored, have no password and so no link."""
     import ast
     from pathlib import Path
 
