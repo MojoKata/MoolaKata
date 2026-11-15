@@ -138,7 +138,7 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
     status, _, text = call(running, "POST", "/lock", {"words": "abandon " * 11 + "about"})
     assert status == 403 and "not this vault" in text and not core.vault.locked
     assert "wrong words on its page from 127.0.0.1" in caplog.text
-    # CR3-328: a slip in one of the real words is shown to the person typing, never logged.
+    # A slip in one of the real words is shown to the person typing, never logged.
     slipped = phrase.split()
     slipped[6] = slipped[6][:3] + "zq"
     status, _, text = call(running, "POST", "/lock", {"words": " ".join(slipped)})
@@ -173,7 +173,7 @@ def test_every_action_takes_the_words_and_wrong_ones_are_logged(running, caplog)
         {"token": token, **{f"word{n}": shown[n - 1] for n in picks}},
     )
     assert core.vault.fingerprint() == page.fingerprint(words.from_words(shown)) != before
-    # CR3-373: five tries a minute from one address on the page, and no wait for anyone else:
+    # Five tries a minute from one address on the page, and no wait for anyone else:
     # the host's unlock, over the socket, opens it at once (S18.3.3).
     phrase = " ".join(shown)
     page_ = running[0]
@@ -269,7 +269,7 @@ def test_the_certificate_names_what_browsers_use_and_follows_them(tmp_path):
     assert cert.read_bytes() == again  # the same names keep it
     page.certificate(tmp_path, page.Settings(names=("money.lan",)))
     assert cert.read_bytes() != again  # other names make it again
-    # CR3-335: a key left from a remake cut short (written, its certificate not) doesn't match
+    # A key left from a remake cut short (written, its certificate not) doesn't match
     # the certificate kept: the next start makes the pair again rather than failing to serve.
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec

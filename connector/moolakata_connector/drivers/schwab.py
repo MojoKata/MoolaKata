@@ -92,7 +92,7 @@ def _num(v) -> Decimal:
 
 
 def _x(text) -> str:
-    """Text as SGML carries it (CR3-332): `&`, `<` and `>` escaped."""
+    """Text as SGML carries it: `&`, `<` and `>` escaped."""
     return str(text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 

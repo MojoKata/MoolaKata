@@ -194,7 +194,7 @@ def scheduled_payment(t: Terms) -> Decimal:
         return t.payment
     if t.drawMonths:
         # Repaid from the draw period's end, its first repayment day, to the term's last
-        # payment day, both counted (CR3-418).
+        # payment day, both counted.
         return level_payment(t.principal, t.rate, t.months - t.drawMonths + 1)
     return level_payment(t.principal, t.rate, t.months)
 
@@ -563,7 +563,7 @@ def split_for(
     """How the schedule splits a payment of this amount on this day. It pays the payment day it
     goes with (`_days_paid`; `catch_up`, recorded here): that day's interest, escrow and PMI,
     less what earlier payments toward the day paid of them, and the rest to principal. The
-    interest is due once per payment day (CR3-417): a month's, on what was owed before the
+    interest is due once per payment day: a month's, on what was owed before the
     day's first payment; on a daily-interest loan, the days since the last payment. Principal
     beyond the schedule's for the day is an overpayment."""
     prior = sorted((p for p in payments if p.date <= day), key=lambda p: p.date)
@@ -659,7 +659,7 @@ def _effects(t: Terms, draws=()) -> list[dt.date]:
 def _level_at(t: Terms, day: dt.date, owed: Decimal) -> Decimal:
     """The level principal and interest set on a day that works it out again: what pays `owed`
     (owed before the day) off at that day's rate by the term's last payment day, the payments
-    left counted with this one, so the end stays (CR3-418)."""
+    left counted with this one, so the end stays."""
     left = t.months - _months_between(t.start, day) + 1
     return level_payment(owed, t.rate_on(day), max(1, left))
 
@@ -668,7 +668,7 @@ def _level_on(t: Terms, day: dt.date, owed_on: Callable[[dt.date], Decimal], dra
     """Principal and interest due on a payment day: the scheduled payment, until a day that
     works it out again (a recast, a reset, a HELOC's repayment starting); from the latest such
     day on or before this one, the level set then from what was owed then (`owed_on`), which
-    stays until the next (CR3-419)."""
+    stays until the next."""
     e = max((x for x in _effects(t, draws) if x <= day), default=None)
     if e is None:
         return scheduled_payment(t)
@@ -836,7 +836,7 @@ def summary(
     t: Terms, payments: list[Payment], draws, today: dt.date, mode: str = ASSUMED
 ) -> tuple[Summary, list[Row]]:
     """The loan's figures today. What is due next is the schedule's next row, the one source
-    the screen, the payment dialog and the bank transactions offered all read (CR3-21): in a
+    the screen, the payment dialog and the bank transactions offered all read: in a
     HELOC's draw period its interest alone, on a daily-interest loan that month's days, and at
     the end what rounding left. Assumed as scheduled, the payments assumed count as made."""
     until = assumed_before(t, payments, today, mode)

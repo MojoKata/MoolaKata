@@ -273,7 +273,7 @@ _d("receiptReadJobs", "receipts", 1, _int(1, 4))
 _d("keepStatementsYears", "storage", None, _optional_int(1, 100))
 # Backups (S16.12, S14.6)
 _d("backupTime", "backups", "02:30", _time)
-# Days of backups kept: at least 3, so one bad copy is never the only one (CR3-63)
+# Days of backups kept: at least 3, so one bad copy is never the only one
 _d("backupCopies", "backups", 14, _int(3, 365))
 # Alerts (S16.16, S12.11): how long a source may fail first, and the daily summary's time
 _d("alertSourceHours", "alerts", 48, _int(1, 24 * 14))

@@ -32,7 +32,7 @@ def _shell(args) -> int:
 
     config = configured(args.config)
     # Run as its container's first process (`docker compose run`), what it shows goes to
-    # Docker's log; under `exec` it doesn't (CR3-369). Asked first, not refused: `run` is the
+    # Docker's log; under `exec` it doesn't. Asked first, not refused: `run` is the
     # way in when the server won't start.
     if os.getpid() == 1:
         answer = input(

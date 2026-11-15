@@ -133,7 +133,7 @@ class Server:
             return (settings.get(s, "importMaxMb") + 1) * 1024 * 1024
 
     def session_user(self, token: str) -> str | None:
-        """Whose live session a token is, read before an upload's body is (CR3-56)."""
+        """Whose live session a token is, read before an upload's body is."""
         from .auth import sessions
 
         if self.store is None:

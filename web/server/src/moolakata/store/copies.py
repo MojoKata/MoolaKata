@@ -113,7 +113,7 @@ def copies(config: Config) -> list[Copy]:
                     "what a restore replaced",
                 )
             )
-    # Listed so it can be removed like any copy (CR3-299): it holds a data key, wrapped.
+    # Listed so it can be removed like any copy: it holds a data key, wrapped.
     for p in sorted(config.data_dir.glob(SET_ASIDE_RING + "*")):
         if p.is_file():
             out.append(

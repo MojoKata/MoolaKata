@@ -249,7 +249,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
 
 def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:
     """Each recorded transaction of the read linked to the keys whose addresses it touched:
-    when it is recorded, and when a key added since sees it too (CR3-20)."""
+    when it is recorded, and when a key added since sees it too."""
     key_of = {r.address: r.keyId for r in wallet.addresses_of(s, account_id)}
     by_fit = {f"btc:{t.txid}": t for t in txs}
     rows = s.execute(
@@ -276,7 +276,7 @@ def mark_gone(s, account_id: str, txs: list[sources.Tx]) -> None:
     read, is marked *no longer on the chain* once two reads in a row miss it, never deleted
     (S1.6.2.7); one back on it is unmarked, and one its owner kept stays kept. Only one that
     a key still in the wallet brought is judged: a key taken out stops its addresses being
-    read, which is no sign of the chain (S1.6.1.3, CR3-20); one typed in again is read again.
+    read, which is no sign of the chain (S1.6.1.3); one typed in again is read again.
     One with no key at all is judged, so a link missed never hides one the chain dropped."""
     seen = {f"btc:{t.txid}" for t in txs}
     # By the key as entered: one taken out and typed in again is read again.

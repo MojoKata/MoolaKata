@@ -354,7 +354,7 @@ class WashSale:
     disallowed: Decimal
     heldFrom: dt.date
     createdAt: dt.datetime
-    lotId: str | None = None  # the sold lot whose loss it disallows (CR3-390)
+    lotId: str | None = None  # the sold lot whose loss it disallows
 
 
 @dataclass(kw_only=True, eq=False)
@@ -369,7 +369,7 @@ class WalletKey(Record):
 
 @dataclass(kw_only=True, eq=False)
 class TransactionWalletKey(SoftDeleted):
-    """A wallet key whose addresses a recorded bitcoin transaction touched (CR3-20)."""
+    """A wallet key whose addresses a recorded bitcoin transaction touched."""
 
     transactionId: str
     walletKeyId: str

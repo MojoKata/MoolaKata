@@ -12,7 +12,7 @@ import re2
 MAX_PATTERN = 200
 MAX_TAGS = 10
 # RE2 matches in time linear in the payee, whatever the pattern: no pattern a user saves can
-# hold the server (CR3-25). It has no back-references or look-arounds, which need backtracking.
+# hold the server. It has no back-references or look-arounds, which need backtracking.
 _OPTIONS = re2.Options()
 _OPTIONS.case_sensitive = False
 _OPTIONS.log_errors = False

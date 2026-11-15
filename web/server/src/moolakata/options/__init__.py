@@ -103,7 +103,7 @@ def settle(s: Session, user_id: str, account, inst, how: str, day: dt.date, cont
     if not held:
         raise refuse("instrumentId", "nothing-open", "Nothing of it is open in this account.")
     # All of them only when the caller says nothing (an automatic expiry); a count given is
-    # 1 to those held, a whole number, and 0 is refused, not taken for all (CR3-403).
+    # 1 to those held, a whole number, and 0 is refused, not taken for all.
     n = abs(held) if contracts is None else Decimal(contracts)
     if n <= 0 or n > abs(held) or n != n.to_integral_value():
         raise refuse("contracts", "contracts-invalid", f"Up to {abs(held)} contracts.")
@@ -244,7 +244,7 @@ def expire_due(s: Session, today: dt.date) -> int:
 
 def market_close(s: Session, c: OptionContract, day: dt.date):
     """What a contract delivers, per share of its multiplier, at the market's stored closes of
-    the day alone, and the oldest close used: what decides an automatic expiry (S3.6, CR3-24).
+    the day alone, and the oldest close used: what decides an automatic expiry (S3.6).
     No one's typed price, statement or trade. None without closes."""
     from .. import valuation
 

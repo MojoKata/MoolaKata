@@ -327,7 +327,7 @@ def receipt_files(srv, account_id: str) -> list[dict]:
 
 
 def document_files(srv, book_id: str) -> list[dict]:
-    """A tax book's document files as they cross with Include receipts (S11.5.1, CR3-10): each
+    """A tax book's document files as they cross with Include receipts (S11.5.1): each
     named by its form and issuer, with the length and hash of the file, fetched on its own."""
     import base64
 

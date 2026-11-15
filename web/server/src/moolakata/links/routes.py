@@ -67,7 +67,7 @@ def link_in(name: str):
 @contextlib.contextmanager
 def answering(link_id: str):
     """The peer's exchange, part or change for a link this server is itself pulling: refused
-    `busy`, never waited for (CR3-376); the peer asks again at its next exchange."""
+    `busy`, never waited for; the peer asks again at its next exchange."""
     from .client import LinkError
     from .manage import PULLS
 

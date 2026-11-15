@@ -171,7 +171,7 @@ def _media(name: str, data: bytes) -> str:
 
 @contextmanager
 def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared]:
-    """Everything slow about keeping a file, before the transaction that records it (CR3-48):
+    """Everything slow about keeping a file, before the transaction that records it:
     the database's write lock is never held while the reader's worker draws a thumbnail or the
     file is written. The file is kept from the orphan sweep until the block ends; `record`
     holds it on until its row is committed, and a row that never commits leaves the file to

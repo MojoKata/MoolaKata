@@ -151,7 +151,7 @@ def test_the_connector_pairs_reports_collects_and_posts(money, tmp_path):
     core.tick()
     assert state.backlog == []
 
-    # CR3-70, S18.7.3: the credit union moves its server. Jane changes the address in the
+    # S18.7.3: the credit union moves its server. Jane changes the address in the
     # credentials dialog, which saves it first, then seals the sign-in for the new host; the
     # connector files it bound there, and runs against the new server alone.
     conn = c.get("/ui/api/profile/connections").json()["items"][0]

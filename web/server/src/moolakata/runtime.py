@@ -193,7 +193,7 @@ def build(server: Server, master_key: bytes) -> None:
     """Open the store with the phrase's key and make the server whole (S15.4.3), carrying any
     re-encryption pending to its end first, before anything is served (S15.7.2). The master
     key is used here and not kept. A failure part-way leaves the server locked, as it was,
-    with nothing it did half kept (CR3-298)."""
+    with nothing it did half kept."""
     from .store import reencrypt
 
     config = server.config
@@ -211,7 +211,7 @@ def build(server: Server, master_key: bytes) -> None:
 
 def relock(server: Server) -> None:
     """Back to locked after an unlock that failed part-way: the store closed, the tasks
-    registered or started dropped (CR3-298)."""
+    registered or started dropped."""
     store, server.store, server.ready = server.store, None, False
     server.tasks.stop()
     server.tasks = Tasks()
@@ -455,7 +455,7 @@ async def start(config: Config, seed: bool = False) -> int:
     from .store.maintenance import lock_data_dir
 
     lock = lock_data_dir(config, "only one server may use a data directory")  # noqa: F841 - held while running
-    maintenance.clear_parts(config)  # a backup a stop cut off (CR3-299)
+    maintenance.clear_parts(config)  # a backup a stop cut off
     # No keyring: the server starts uninitialised and its page makes the key (S15.4.4). One
     # it can't read, or a database without one, refuses the start (S15.4.5).
     master.refuse_a_database_without_its_keyring(config)

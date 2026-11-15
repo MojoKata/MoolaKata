@@ -45,14 +45,14 @@ class Ledger:
     anchors: list[Anchor]
     imports: list[Import]
     washes: list = field(default_factory=list)  # wash sales touching its trades (S3.8)
-    # The instruments average cost can apply to, funds and coins (S2.3, CR3-387): a share in an
+    # The instruments average cost can apply to, funds and coins (S2.3): a share in an
     # account set to average cost goes first in.
     averaged: frozenset = frozenset()
     # Each wash sale's loss sale, by id: its day and making, so its replacement settles right
-    # after it (CR3-388).
+    # after it.
     sale_at: dict = field(default_factory=dict)
     # A transfer in paired with a transfer out of another account: the lots that one took, by
-    # the transfer in's id, carried whole (CR3-73).
+    # the transfer in's id, carried whole.
     carried_in: dict = field(default_factory=dict)
 
     def opening(self) -> balances.Opening:
@@ -63,7 +63,7 @@ class Ledger:
         return balances.balance_on(day, self.opening(), self.transactions)
 
     def replay(self, day: dt.date | None = None) -> lots.Replay:
-        """The account's lots replayed; with a day, as they stood at its end (CR3-394): the
+        """The account's lots replayed; with a day, as they stood at its end: the
         trades, lots and snapshots up to it, the wash sales whose loss sale had happened."""
         if day is None:
             return lots.replay(
@@ -188,7 +188,7 @@ def _load(s: Session, account: Account, raw: bool, _depth: int) -> Ledger:
 
 def _carried_in(s: Session, txns, raw: bool, depth: int) -> dict:
     """For each transfer in paired with a transfer out of the same instrument in another
-    account, the lots that one took, worked out by replaying its account (CR3-73): days held,
+    account, the lots that one took, worked out by replaying its account: days held,
     basis and wash-sale adjustments go with the shares, as bitcoin's pairs and corporate
     actions carry them. Chains of pairs are followed a few accounts deep."""
     ins = {t.transferId: t for t in txns if t.kind == "transfer-in" and t.transferId}
@@ -250,7 +250,7 @@ def ensure_categories(s: Session) -> int:
 # ---------- instruments ----------
 
 # A US fund's symbol is five letters ending in X (FXAIX, VTSAX, SWVXX); any other ticker is a
-# listed share, an ETF among them, which the price sources fetch the same way (CR3-14).
+# listed share, an ETF among them, which the price sources fetch the same way.
 FUND_SYMBOL = re.compile(r"[A-Z]{4}X")
 TICKER = re.compile(r"[A-Z][A-Z0-9]{0,4}(?:[.-][A-Z])?")
 
@@ -265,8 +265,8 @@ def class_by_symbol(symbol: str | None) -> str:
 
 
 def class_named(symbol: str, account_type: str) -> str:
-    """The class of a security named by its symbol alone, typed or on a statement (S2.1,
-    CR3-386): a coin in an exchange's or a wallet's account, else by the symbol's shape."""
+    """The class of a security named by its symbol alone, typed or on a statement (S2.1): a
+    coin in an exchange's or a wallet's account, else by the symbol's shape."""
     if atypes.GROUPS.get(account_type) == "crypto":
         return "crypto"
     return class_by_symbol(symbol)
@@ -570,7 +570,7 @@ def _apply_import(
             loose.setdefault(_loose_key(x.date, x.amount, x.payeeRaw), []).append(x)
     # A transfer's half typed by hand (a loan payment recorded from this account, a move to
     # savings) is the row the bank's file brings later, under the bank's payee and its own
-    # day: the same amount within S1.7's days (CR3-395).
+    # day: the same amount within S1.7's days.
     typed_halves = [x for x in existing if not x.fitId and not x.deleted and x.transferId]
 
     # An option's end in the file is settled after the trades that opened it, and the stock
@@ -698,7 +698,7 @@ def _apply_import(
 
         s.flush()
         washes.recompute(s, account.ownerId)
-    # Shares or coins it moved between the owner's accounts, offered as pairs (CR3-73).
+    # Shares or coins it moved between the owner's accounts, offered as pairs.
     from ...bitcoin import transfers as pairs
 
     pairs.propose(s, account.ownerId)
@@ -751,7 +751,7 @@ def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst)
                 quantity=row.quantity,
                 costBasis=basis,
                 basisMissing=basis is None,
-                # A file's shares moved in say nothing of when they were bought (CR3-73).
+                # A file's shares moved in say nothing of when they were bought.
                 acquiredMissing=row.kind == "transfer-in",
             )
         )
@@ -853,7 +853,7 @@ def txns_made(s: Session, import_id: str) -> list[Transaction]:
 
 
 def _typed_half(halves: list[Transaction], row) -> Transaction | None:
-    """The transfer half typed by hand that a file's row is (CR3-395): the same amount in
+    """The transfer half typed by hand that a file's row is: the same amount in
     cents, within S1.7's days, the closest; none when two are as close."""
     cents = money.to_cents(row.amount)
     near = sorted(
