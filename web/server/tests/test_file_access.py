@@ -1,10 +1,9 @@
-"""Who opens a receipt's file, kind by kind and reader by reader (requirements S9.6; the values,
-taxes and options walk, 10.1): one table of what S9.6 says, every cell asked of the server. A
-file is seen by whoever can read what it is attached to: a transaction, an account (a statement,
-a loan), an item, a 529 expense, a gift through its gift plan, a donation through its giving
-plan, and a tax document through its book; an unattached one is its owner's alone. Attaching
-to something needs write on it. Across a link, *Include receipts* decides (test_links).
-"""
+"""Who opens a receipt's file, kind by kind and reader by reader (requirements S9.6): one table of
+what S9.6 says, every cell asked of the server. A file is seen by whoever can read what it is
+attached to: a transaction, an account (a statement, a loan), an item, a 529 expense, a gift through
+its gift plan, a donation through its giving plan, and a tax document through its book; an
+unattached one is its owner's alone. Attaching to something needs write on it. Across a link,
+*Include receipts* decides (test_links)."""
 
 from conftest import make_user, sign_in
 from edits import attach, change, giving_plan, make, saved, share

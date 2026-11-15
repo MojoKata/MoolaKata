@@ -22,8 +22,8 @@ The rules for each (REVIEW.md §11.8, *Each survivor* below):
    longer than the tests take unchanged, and a bug like it would hang the tests in CI.
 2. **A survivor that is a gap** gets a fast test, named for the rule it pins, with data that
    tells the change apart. A test that only catches the survivor, changing nothing the code
-   does, is written without asking. One that shows the code is wrong is a bug: it gets a
-   review id and goes to the area's walk, as does a test that would be slow.
+   does, is written without asking. One that shows the code is wrong is a bug: it gets an
+   issue and goes to the area's walk, as does a test that would be slow.
 3. **An equivalent** is marked `# pragma: no mutate` with its reason on the line above, only
    when every change on its statement is equivalent, since a mark silences them all.
    Otherwise it stays unmarked and is listed with the area's results (`record --equivalent`).
@@ -339,4 +339,4 @@ mutation counts as needing another. The records are committed with the area's wo
 
 The area's pull request also carries the run: the outcomes by file, the survivors by function
 with what was done about each, a table of what is done and what is left (nothing, at the end),
-and the equivalents left unmarked. The walk's Applied section names the commits.
+and the equivalents left unmarked. Each issue it closes names its commit.
