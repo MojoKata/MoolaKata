@@ -22,7 +22,7 @@ export function keptUnderSeven(years) {
 }
 
 /**
- * The line under the lots moved in (S2.2, CR3-73): none typed, they arrive as one lot whose day
+ * The line under the lots moved in (S2.2): none typed, they arrive as one lot whose day
  * bought is missing; a lot without a cost basis is marked missing until it has one; every lot
  * costed, nothing.
  * @param {{ costBasis?: Dec | string | null, [k: string]: unknown }[]} rows

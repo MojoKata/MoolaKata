@@ -1,7 +1,7 @@
-"""A tax book someone else named you on, in the browser app (requirements S8.14.1; the filed
-tax years walk, decision 2): Accept counts it among your books, Decline takes you off it and
-its owner is told. John makes the books on the seeded dev server; Jane answers them in her
-page. The books are for years nothing else reads, and are taken away after.
+"""A tax book someone else named you on, in the browser app (requirements S8.14.1): Accept counts it
+among your books, Decline takes you off it and its owner is told. John makes the books on the seeded
+dev server; Jane answers them in her page. The books are for years nothing else reads, and are taken
+away after.
 """
 
 import httpx

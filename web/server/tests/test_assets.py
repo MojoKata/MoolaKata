@@ -1022,7 +1022,7 @@ def test_an_item_changed_by_someone_it_is_shared_with_is_told_to_its_owner(serve
 
 def test_an_items_row_takes_its_basis_on_the_day_its_value_is_taken(jane):
     """An improvement dated after the day shown (made today, the clock read a day back) is in
-    neither the basis nor the value: the gain stays what it was (CR3-433)."""
+    neither the basis nor the value: the gain stays what it was."""
     homes = new_account(jane, name="Home", type="real-estate")
     home = item(jane, homes["id"], name="Home", acquiredOn="2025-01-02", costBasis="1000")
     r = make(jane, "Imprv", itemId=home["id"], date=TODAY, description="Roof", amount="300")
@@ -1033,7 +1033,7 @@ def test_an_items_row_takes_its_basis_on_the_day_its_value_is_taken(jane):
 
 
 def test_pmi_without_an_original_value_reads_the_homes_basis_when_the_loan_was_made(jane):
-    """An improvement made after the loan doesn't raise the value it started from (CR3-434)."""
+    """An improvement made after the loan doesn't raise the value it started from."""
     homes = new_account(jane, name="Home", type="real-estate")
     home = item(jane, homes["id"], name="Home", acquiredOn="2025-01-02", costBasis="500000")
     loan = new_account(jane, name="Mortgage", type="mortgage")
@@ -1052,7 +1052,7 @@ def test_pmi_without_an_original_value_reads_the_homes_basis_when_the_loan_was_m
 
 
 def test_a_mortgage_without_an_original_value_stops_pmi_when_its_screen_says(jane):
-    """S1.9.5, CR3-439: the schedule's PMI ends at 78% of the original value, the home's basis
+    """S1.9.5: the schedule's PMI ends at 78% of the original value, the home's basis
     when the loan was made unless one is typed, the day the screen names; a value typed
     stands."""
     homes = new_account(jane, name="Home", type="real-estate")

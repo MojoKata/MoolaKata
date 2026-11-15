@@ -109,7 +109,7 @@ def write(path: Path, chunks: Iterable[bytes], recipient: X25519PublicKey, name:
             f.flush()
             os.fsync(f.fileno())
     except BaseException:
-        # A source that fails part-way (a damaged file being re-encrypted, CR3-59) leaves no
+        # A source that fails part-way (a damaged file being re-encrypted) leaves no
         # half-written file behind.
         tmp.unlink(missing_ok=True)
         raise

@@ -4,14 +4,13 @@ being prepared for it. A write that moves such a year's realized gains asks firs
 anyway is kept on each tax book that closed the year (S2.8.3) until an amended federal return,
 or No amendment needed, settles it (S8.15).
 
-One check, run by every write before it commits (`check`, registered with
-`store.commit_checks`; the filed tax years walk, decision 1): every write notes the households
-it touches (`_track`); for each closed book of theirs, the book's gains by account as committed
-and as written are compared. A move is asked of the person who wrote it: the save's question,
-or a route's 409 `closed-year`, confirmed by the request's header
-(`commit_checks.HEADER`). Work no one is there to answer (the server's own, or a file read in
-the background, `unasked`) keeps the write and records it. No route makes a guard of its own,
-so a new way of writing is checked as it is."""
+One check, run by every write before it commits (`check`, registered with `store.commit_checks`,
+S2.8.2): every write notes the households it touches (`_track`); for each closed book of theirs, the
+book's gains by account as committed and as written are compared. A move is asked of the person who
+wrote it: the save's question, or a route's 409 `closed-year`, confirmed by the request's header
+(`commit_checks.HEADER`). Work no one is there to answer (the server's own, or a file read in the
+background, `unasked`) keeps the write and records it. No route makes a guard of its own, so a new
+way of writing is checked as it is."""
 
 import json
 from decimal import Decimal

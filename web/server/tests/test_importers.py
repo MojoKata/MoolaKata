@@ -49,7 +49,7 @@ def test_ofx_brokerage_trades_positions_and_securities():
 
 
 def test_ofx_option_trades_and_their_ends():
-    # B5: OPTBUYTYPE and OPTSELLTYPE give the four option trades, CLOSUREOPT the option's end;
+    # OPTBUYTYPE and OPTSELLTYPE give the four option trades, CLOSUREOPT the option's end;
     # a contract is named by its OCC ticker, or by the terms OPTINFO gives.
     p = ofx.read((FIX / "options.ofx").read_bytes())
     assert p.securities["AAPL260918P150"].symbol == "AAPL260918P00150000"
@@ -98,7 +98,7 @@ Posted Date,Description,Debit,Credit,Balance
 
 
 def test_a_newest_first_csv_is_read_oldest_first():
-    # B18: each day's last running balance is its latest row's, not its first in the file.
+    # Each day's last running balance is its latest row's, not its first in the file.
     from moolakata.ledger import balances
 
     data = (
@@ -186,7 +186,7 @@ def test_bad_rows_name_their_row():
 
 
 def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
-    # B3, S2.5: a dividend row carries the income; the buy carries none, so the income panel
+    # S2.5: a dividend row carries the income; the buy carries none, so the income panel
     # counts $100 as $100 of 1099-DIV, never $200.
     p = ofx.read((FIX / "reinvest.ofx").read_bytes())
     got = [(r.kind, r.amount, r.dividendType) for r in p.rows]
@@ -207,7 +207,7 @@ def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
     ],
 )
 def test_a_csv_security_is_classed_by_its_symbols_shape(symbol, cls):
-    """CR3-14: five letters ending in X is a fund; any other ticker a listed share, which the
+    """Five letters ending in X is a fund; any other ticker a listed share, which the
     price sources fetch; anything else isn't known."""
     from moolakata.store.repos.ledger import class_by_symbol
 
@@ -215,7 +215,7 @@ def test_a_csv_security_is_classed_by_its_symbols_shape(symbol, cls):
 
 
 def test_a_trades_cash_follows_its_action():
-    """CR3-19: a buy's cash goes out and a sale's comes in, whatever sign the file writes;
+    """A buy's cash goes out and a sale's comes in, whatever sign the file writes;
     shares moved in or out move no cash; the account's own currency is cash."""
     data = (
         b"Date,Action,Symbol,Quantity,Amount\n"
@@ -237,7 +237,7 @@ def test_a_trades_cash_follows_its_action():
 
 
 def test_notes_below_a_csvs_rows_are_left_out():
-    """Walk item 13: the rows end at the first blank line after them; a blank line between the
+    """The rows end at the first blank line after them; a blank line between the
     header and the first row doesn't end them."""
     data = (
         b"Date,Description,Amount\n\n2026-09-01,Pay,100.00\n2026-09-02,Shop,-10.00\n\n"
@@ -250,7 +250,7 @@ def test_notes_below_a_csvs_rows_are_left_out():
 
 
 def test_a_single_days_rows_keep_their_order_when_the_balances_dont_tell():
-    """CR3-171: rows that chain neither way, or have no balances, stay in the file's order."""
+    """Rows that chain neither way, or have no balances, stay in the file's order."""
     data = (
         b"Date,Description,Amount,Balance\n2026-09-01,One,-1.00,50.00\n2026-09-01,Two,-2.00,70.00\n"
     )

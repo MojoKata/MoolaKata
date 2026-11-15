@@ -3,7 +3,7 @@ browser's import dialog imports it, and the account compared with what the file'
 the invariants every import keeps, run over every file; the sequences that carry one import into
 the next; and the browser offering what the server takes.
 
-A part that waits on a review claim is an expected failure named by the claim (`[xfail]` in a
+A part that waits on a fix is an expected failure named by its issue, `"#237"` (`[xfail]` in a
 file's `.toml`, `KNOWN` here): strict, so the fix that makes it pass must take the mark away."""
 
 import re
@@ -26,7 +26,7 @@ SECTIONS = (
     "instruments",
     "unpriced",
 )
-# Invariants every file waits on, by the claim that breaks them.
+# Invariants every file waits on, by the issue whose fix they wait on.
 KNOWN: dict[str, str] = {}
 UI = Path(__file__).parents[2] / "ui"
 

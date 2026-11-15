@@ -52,8 +52,8 @@ def _transfer(c, frm, to, amount, day):
 
 
 def test_spending_paid_from_the_held_in_account_is_the_reserves_own(server, frozen):
-    """The claim (CR3-39): $1,000 moved in, then the roofer paid $700 from Ally: Ally holds
-    $300, the reserve $300, so the account is backed, not $700 to move back."""
+    """S7.10.4: $1,000 moved in, then the roofer paid $700 from Ally: Ally holds $300, the reserve
+    $300, so the account is backed, not $700 to move back."""
     c, a, cat, b = _setup(server, "Ally")
     roof = cat["Housing › Maintenance"]
     _ok(save_plan(c, b, "2026-11-01", [{"categoryId": roof, "amount": "500", "target": "5000",
@@ -66,8 +66,8 @@ def test_spending_paid_from_the_held_in_account_is_the_reserves_own(server, froz
 
 
 def test_a_refund_in_a_reserves_category_is_its_own_never_landed(server, frozen):
-    """Found while walking: the roofer's $100 refund into Ally is the reserve's own, so it
-    is never offered as landed money to give, which would count it twice."""
+    """S7.10.5: the roofer's $100 refund into Ally is the reserve's own, so it is never offered as
+    landed money to give, which would count it twice."""
     c, a, cat, b = _setup(server, "Ally")
     roof = cat["Housing › Maintenance"]
     _ok(save_plan(c, b, "2026-12-01", [{"categoryId": roof, "amount": "500", "target": "5000",
@@ -82,8 +82,8 @@ def test_a_refund_in_a_reserves_category_is_its_own_never_landed(server, frozen)
 
 
 def test_a_cross_payment_is_moved_straight_between_the_two_accounts(server, frozen):
-    """1.1 of the walk: Ally pays $200 of a repair whose reserve Marcus holds: $200 to move
-    from Marcus to Ally, and nothing with Checking. Once moved, both read backed."""
+    """S7.10.4: Ally pays $200 of a repair whose reserve Marcus holds: $200 to move from Marcus to
+    Ally, and nothing with Checking. Once moved, both read backed."""
     c, a, cat, b = _setup(server, "Ally", "Marcus")
     roof, repair = cat["Housing › Maintenance"], cat["Transportation › Car maintenance"]
     _ok(save_plan(c, b, "2026-12-01", [

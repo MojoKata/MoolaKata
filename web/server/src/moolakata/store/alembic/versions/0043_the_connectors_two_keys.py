@@ -1,4 +1,4 @@
-"""The connector's two keys (requirements S18.4.2, review 3's CR3-65): the key that signs its
+"""The connector's two keys (requirements S18.4.2): the key that signs its
 calls is its action key, kept in its vault, and a status key, kept beside the vault, signs only
 a report that it is locked and `unpaired`. MoolaKata holds both public halves.
 

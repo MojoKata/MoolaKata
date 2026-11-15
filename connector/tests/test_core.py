@@ -53,7 +53,7 @@ def test_the_vault_opens_only_with_its_words_and_makes_no_one_wait(tmp_path):
     # The file holds no credential in clear.
     v.put("Conn_2", {"password": "hunter2-secret"})
     assert "hunter2" not in (tmp_path / "vault.json").read_text()
-    # CR3-373: wrong words make no one wait (S18.3.3): the right ones open it at once after any.
+    # Wrong words make no one wait (S18.3.3): the right ones open it at once after any.
     v.lock()
     for _ in range(20):
         with pytest.raises(vault.VaultError):
@@ -303,7 +303,7 @@ def test_a_changed_server_address_sends_nothing_and_asks_for_the_credentials_aga
 
 
 def test_a_driver_run_reaches_its_own_hosts_and_no_other(tmp_path):
-    # N17: each run is held to its driver's declared hosts; another driver's, or MoolaKata's,
+    # Each run is held to its driver's declared hosts; another driver's, or MoolaKata's,
     # is refused (S18.1.2).
     from urllib.parse import urlsplit
 
@@ -352,7 +352,7 @@ def test_a_driver_run_reaches_its_own_hosts_and_no_other(tmp_path):
 
 
 def test_moolakata_down_at_start_is_waited_for_with_a_growing_wait(tmp_path):
-    # B30: the connector starts, its socket can open and it can be unlocked, while MoolaKata
+    # The connector starts, its socket can open and it can be unlocked, while MoolaKata
     # is down; each failed try waits longer, up to the report's five minutes.
     from moolakata_connector import core as core_mod
     from moolakata_connector.core import Core
@@ -427,7 +427,7 @@ def test_init_and_reset_show_the_words_on_the_terminal_only(tmp_path, monkeypatc
             return "RESET\n"
 
     monkeypatch.setattr(main, "DATA", tmp_path)
-    # CR3-336: no vault exists while the words are on screen, and none if they never come back.
+    # No vault exists while the words are on screen, and none if they never come back.
     seen = []
 
     class Gone(Tty):
@@ -502,14 +502,14 @@ def test_the_terminal_opens_on_a_real_one():
 
 
 def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
-    # K24: loopback, link-local (cloud metadata) and multicast, as MoolaKata's guard (S13.5).
+    # Loopback, link-local (cloud metadata) and multicast, as MoolaKata's guard (S13.5).
     import socket as socket_mod
 
     def resolving(ip):
         family = socket_mod.AF_INET6 if ":" in ip else socket_mod.AF_INET
         return lambda *a, **k: [(family, socket_mod.SOCK_STREAM, 6, "", (ip, 443))]
 
-    # CR3-337: each of MoolaKata's metadata addresses, AWS's IPv6 one among them; reserved too.
+    # Each of MoolaKata's metadata addresses, AWS's IPv6 one among them; reserved too.
     for ip in (
         "169.254.169.254",
         "fd00:ec2::254",
@@ -528,7 +528,7 @@ def test_an_address_the_connector_never_calls_is_refused(monkeypatch):
 
 
 def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_path):
-    # K20: MoolaKata unpaired after a lost host; the connector keeps nothing for it (S18.4.4).
+    # MoolaKata unpaired after a lost host; the connector keeps nothing for it (S18.4.4).
     from moolakata_connector.core import Core
 
     class Gone:
@@ -553,7 +553,7 @@ def test_a_signed_not_paired_forgets_the_credentials_and_the_sealing_key(tmp_pat
 
 
 def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
-    # K24: the time sealed into each box; an older one handed over again changes nothing.
+    # The time sealed into each box; an older one handed over again changes nothing.
     import json as json_mod
 
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -587,7 +587,7 @@ def test_a_box_older_than_the_credential_held_is_refused(tmp_path):
     core._collect(c, box(3000, host="evil.example"), "t3")
     assert core.vault.get("Conn_1") == {"appSecret": "s2000"} and "another server" in c.message
     assert len(taken) == 1, "MoolaKata isn't told a refused box was taken"
-    # CR3-331: the box filed but whose `taken` failed comes back with the same time: it is
+    # The box filed but whose `taken` failed comes back with the same time: it is
     # acknowledged again, nothing else changes, and a failing call stops nothing.
     failing = [True]
 
@@ -633,7 +633,7 @@ def _seal(plain: bytes, public: bytes, connection_id: str) -> str:
 def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_another(
     tmp_path, monkeypatch
 ):
-    # CR3-326: the two sides' fingerprints are two workings; the connector never shows the
+    # The two sides' fingerprints are two workings; the connector never shows the
     # one MoolaKata's answer names (S18.4.2).
     from moolakata_connector import core as core_mod
     from moolakata_connector.core import Core
@@ -662,7 +662,7 @@ def test_pair_shows_the_fingerprint_it_works_out_and_refuses_an_answer_naming_an
 
 
 def test_status_answers_while_a_round_holds_the_loop(tmp_path):
-    # CR3-329: a run or a post may take minutes; `status`, the health check and the page
+    # A run or a post may take minutes; `status`, the health check and the page
     # answer at once all the same (S18.3.2).
     import threading
 
@@ -728,7 +728,7 @@ def _tls_server(tmp_path, answer):
 
 
 def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path, monkeypatch):
-    # CR3-330: the 60 seconds bound the whole call, not each read (S18.2.2).
+    # The 60 seconds bound the whole call, not each read (S18.2.2).
     monkeypatch.setattr(client, "LOOPBACK_OK", True)
     monkeypatch.setattr(client, "DEADLINE", 1.5)
 
@@ -764,7 +764,7 @@ def test_a_call_ends_at_its_deadline_however_slowly_the_answer_trickles(tmp_path
 
 
 def test_locked_it_reports_with_its_status_key_and_says_nothing_else(tmp_path):
-    # CR3-65, S18.4.2: the status key, beside the vault, signs a report that says *locked*;
+    # S18.4.2: the status key, beside the vault, signs a report that says *locked*;
     # every other call is the action key's, which only the open vault holds.
     from moolakata_connector.core import Core
 
@@ -802,7 +802,7 @@ def test_locked_it_reports_with_its_status_key_and_says_nothing_else(tmp_path):
 
 
 def test_a_call_names_its_body_hash_and_an_unsigned_answer_is_read_only_for_three_refusals():
-    # CR3-138, protocol §3.1, §7: MoolaKata's refusals before it reads a call are unsigned;
+    # Protocol §3.1, §7: MoolaKata's refusals before it reads a call are unsigned;
     # the connector acts on `locked`, `uploads-in-flight` and `too-large` and on nothing else.
     import hashlib
 
@@ -842,7 +842,7 @@ def test_a_call_names_its_body_hash_and_an_unsigned_answer_is_read_only_for_thre
 
 
 def test_each_file_is_posted_on_its_own_and_the_report_always_follows(tmp_path):
-    # CR3-69, CR3-357, S18.8: a file MoolaKata can't take now waits; one it refuses is dropped
+    # S18.8: a file MoolaKata can't take now waits; one it refuses is dropped
     # and named; neither stops the next file, the next Connection, or the after-run report.
     from moolakata_connector.core import ConnectionState, Core
     from moolakata_connector.drivers import Driver, File, Result
@@ -906,7 +906,7 @@ def test_each_file_is_posted_on_its_own_and_the_report_always_follows(tmp_path):
 
 
 def test_unpaired_while_locked_the_vault_is_cleared_at_its_next_unlock(tmp_path):
-    # CR3-327, S18.4.4: a locked vault can't be changed, so a mark beside it has the next unlock
+    # S18.4.4: a locked vault can't be changed, so a mark beside it has the next unlock
     # delete what it held for the unpaired server; the host's `unpair` takes the words to do it
     # at once; a signed `not-paired` while locked marks it too.
     from moolakata_connector.core import FORGET, Core
@@ -960,7 +960,7 @@ def test_unpaired_while_locked_the_vault_is_cleared_at_its_next_unlock(tmp_path)
 
 
 def test_reset_tells_moolakata_with_the_status_key(tmp_path):
-    # CR3-334, S18.3.4: lost words leave only the status key, which may say `unpaired`.
+    # S18.3.4: lost words leave only the status key, which may say `unpaired`.
     from moolakata_connector.core import Core
 
     told = []

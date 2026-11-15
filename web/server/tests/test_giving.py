@@ -220,7 +220,7 @@ def test_qcds_goods_and_what_they_need(jane):
 
 
 def test_a_shared_plan_counts_its_owners_accounts_only(server, jane):
-    """S7.9.1 (P2): sharing her plan with John shows it to him, and never reads his money."""
+    """S7.9.1: sharing her plan with John shows it to him, and never reads his money."""
     make_user(server, "john")
     john = sign_in(server, "john")
     b_id = john.get("/ui/api/session").json()["user"]["id"]
@@ -240,7 +240,7 @@ def test_a_shared_plan_counts_its_owners_accounts_only(server, jane):
 
 
 def test_a_donated_replacement_is_held_from_the_sold_shares_purchase(jane):
-    # B22, S3.8.3: a wash sale's replacement carries the sold shares' days, so given away
+    # S3.8.3: a wash sale's replacement carries the sold shares' days, so given away
     # within a year of its own purchase it can still be long term.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "10000.00", "2025-01-02", kind="deposit")

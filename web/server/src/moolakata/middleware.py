@@ -224,7 +224,7 @@ class OriginCheck:
 # Uploads arriving at once, per user (S13.7.6): 100 MB, and never less than one receipt of the
 # largest size a linked server may deliver, sealed; and for the whole server, 256 MB.
 IN_FLIGHT = max(100 * 1024 * 1024, max_receipt())
-IN_FLIGHT_ALL = max(256 * 1024 * 1024, IN_FLIGHT)  # every caller together (CR3-56)
+IN_FLIGHT_ALL = max(256 * 1024 * 1024, IN_FLIGHT)  # every caller together
 # A body past this to /ui/api is an upload's: its session is checked before it is read.
 SIGNED_IN_PAST = 64 * 1024
 
@@ -280,7 +280,7 @@ class BodyLimit:
 
     def _caller(self, scope, headers: dict) -> str | None:
         """Whom an upload counts against: a signed-in user (their session checked on the
-        headers, before a byte of the body is read: None when there is none, CR3-56), a linked
+        headers, before a byte of the body is read: None when there is none), a linked
         server's key or the connector, else an address."""
         if scope["path"].startswith("/ui/api/"):
             token = self._token(headers)
@@ -309,7 +309,7 @@ class BodyLimit:
             return
         upload = limit != JSON_LIMIT and limit != LINK_LIMIT
         # A request with neither a length nor a chunked body has none (RFC 9112 §6.3), as a
-        # bodiless POST from curl is (CR3-396): only a body of unknown or large size is an
+        # bodiless POST from curl is: only a body of unknown or large size is an
         # upload's, its session checked first.
         chunked = "chunked" in headers.get(b"transfer-encoding", "").lower()
         big = scope["path"].startswith("/ui/api/") and (

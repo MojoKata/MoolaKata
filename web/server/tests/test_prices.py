@@ -399,8 +399,8 @@ def test_cboe_prices_listed_stocks_and_waits_for_the_close():
 
 
 def test_an_options_underlying_is_priced_held_or_not(server):
-    """CR3-23: a short put on a stock the account doesn't hold has the stock priced, from the
-    option's first trade, so its expiry has a close to decide it."""
+    """A short put on a stock the account doesn't hold has the stock priced, from the option's first
+    trade, so its expiry has a close to decide it."""
     from edits import option_trade
     from test_accounts import new_account
 
@@ -419,9 +419,9 @@ def test_an_options_underlying_is_priced_held_or_not(server):
 
 
 def test_a_days_price_is_its_ranges_last_point_and_never_another_users(server):
-    """13.1, CR3-24: for every instrument and day, the day's price is the last point of the
-    range ending that day, by one order of sources; a second user's trades, statement values
-    and typed prices, on the same instruments and days, never price the first's."""
+    """For every instrument and day, the day's price is the last point of the range ending that day,
+    by one order of sources; a second user's trades, statement values and typed prices, on the same
+    instruments and days, never price the first's."""
     import inspect
 
     from moolakata.store.entities.accounts import Holding, Instrument, Transaction

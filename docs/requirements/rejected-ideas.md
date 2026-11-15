@@ -94,7 +94,7 @@ reason.
     records it holds ([`schema.md`](schema.md) §7).
 25. **Visibility checked per route in Python**, each route asking a level function before
     it reads: every route had to remember, and one that read a related record without asking
-    (a receipt's other links, CR3-47) leaked it. Every read and write goes through the
+    (a receipt's other links) leaked it. Every read and write goes through the
     tables' access views instead ([`schema.md`](schema.md) §7).
 26. **A component library taken whole** for the controls: Web Awesome (Lit web components), Tom
     Select, or preact-components as its package. Web Awesome is 17 MB unpacked with thirteen

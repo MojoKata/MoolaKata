@@ -1,7 +1,7 @@
-"""Generated loan-payment sequences (requirements S1.7, S1.9.3, CR3-22): one payment reaching
-MoolaKata from both sides, in either order and by every path, drawn from a seed.
-`test_halves_world` makes each sequence through the API and holds it to one rule: one real
-payment is one loan row and one bank row, paired.
+"""Generated loan-payment sequences (requirements S1.7, S1.9.3): one payment reaching MoolaKata from
+both sides, in either order and by every path, drawn from a seed. `test_halves_world` makes each
+sequence through the API and holds it to one rule: one real payment is one loan row and one bank
+row, paired.
 
 A **sequence**: the bank's half arrives by an imported statement or typed in the bank account;
 the loan's by the payment dialog with *From account: None*, with *From account* the bank (which

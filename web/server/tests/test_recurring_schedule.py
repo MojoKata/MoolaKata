@@ -107,8 +107,8 @@ def _series(txns, today):
 
 
 def test_a_weekly_payment_counts_every_week_before_payday():
-    """The claim (CR3-44): $700 on the 2nd, payday the 15th, daycare $400 every week (the 4th
-    and the 11th): the account dips below zero on the 11th."""
+    """S7.6.1: $700 on the 2nd, payday the 15th, daycare $400 every week (the 4th and the 11th): the
+    account dips below zero on the 11th."""
     today = d(2026, 11, 2)
     txns = [_t(d(2026, m, 15), "3000.00", "Payroll") for m in range(6, 11)]
     txns += [_t(d(2026, 10, 7) - dt.timedelta(days=7 * i), "-400.00", "Daycare") for i in range(8)]

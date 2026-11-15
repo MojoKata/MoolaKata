@@ -110,7 +110,7 @@ def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
     part = next(x for x in t["splits"] if x["reimbursable"])
     saved(change(c, "Split", part, reimbursable="50.00"))
     assert month(c, b, "2026-10")["spent"] == "125.00"
-    # The part changed in place keeps its payback (CR3-29): nothing more is awaited.
+    # The part changed in place keeps its payback: nothing more is awaited.
     assert awaiting(c, b) == []
     t = c.get(f"/ui/api/transactions/{bill['id']}").json()
     assert [x["id"] for x in t["splits"]] == [x["id"] for x in bill["splits"]]

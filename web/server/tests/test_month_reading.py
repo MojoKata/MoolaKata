@@ -35,8 +35,8 @@ def _compare(c, b, other, m):
 
 
 def test_a_range_counts_a_carry_once(server, frozen):
-    """The claim (CR3-40): $100 a month with rollover, nothing spent, January to March: $300
-    was made available, not 100 + 200 + 300."""
+    """S7.12.3: $100 a month with rollover, nothing spent, January to March: $300 was made
+    available, not 100 + 200 + 300."""
     c, acct, cat, b = setup_budget(server)
     other = make(c, "Bdgt", name="Other", accountIds=[acct["id"]]).json()
     fun = cat["Entertainment"]

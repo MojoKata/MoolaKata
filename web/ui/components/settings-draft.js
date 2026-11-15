@@ -45,7 +45,7 @@ function byKey(recs) {
  * password among them starts empty. A key not saved yet is written only if it is changed,
  * except a `required` one, which the first Save writes even at its default: a choice whose
  * saving is what turns something on (S16.7: no wallet is read until Settings › Bitcoin is
- * saved, CR3-62).
+ * saved).
  * @param {any} v  the settings as read
  * @param {string[]} keys
  * @param {{ required?: string[] }} [o]

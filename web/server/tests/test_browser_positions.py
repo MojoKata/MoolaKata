@@ -68,7 +68,7 @@ def toast(page, text: str, problems: list) -> None:
 
 
 def test_an_open_holdings_lots_show_their_terms_one_moved_in_unknown(browser, household):
-    # S3.1, CR3-73: a lot bought years ago is long term, a newer one short; shares moved in
+    # S3.1: a lot bought years ago is long term, a newer one short; shares moved in
     # without the day bought are a lot whose term is unknown and whose basis is missing, so the
     # row's cost is missing and its term unknown. Enter on its symbol opens its lots.
     h = household
@@ -241,8 +241,8 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     assert "Paid:" not in page.locator(".dialog").inner_text()
     page.fill("#f-premium", "1.25")
     wait(page, '.dialog :text("Paid: $250.65.")', problems)
-    # Fees cleared are refused, never read as none; default puts the $0.65 back (R3.11,
-    # CR3-437), greyed while the field holds it.
+    # Fees cleared are refused, never read as none; default puts the $0.65 back (R3.11),
+    # greyed while the field holds it.
     reset = page.get_by_role("button", name="Use the default: $0.65")
     assert reset.is_disabled()
     page.fill("#f-fees", "")
@@ -435,7 +435,7 @@ def test_a_strategys_figures_open_and_closed(browser, household):
 
 
 def test_a_strategy_without_a_limit_risks_an_unlimited_amount(browser, household):
-    # S3.5.5, B12: a short straddle with no margin typed: its capital at risk, and so the
+    # S3.5.5: a short straddle with no margin typed: its capital at risk, and so the
     # open strategies' total, is unlimited, never left out.
     h = household
     acct = brokerage(h, "Straddled")
@@ -461,8 +461,7 @@ def test_a_roll_is_proposed_and_kept_or_left_on_its_own(browser, household, keep
     acct = brokerage(h, f"Rolled {sym}")
     option(h, acct, OPENED, "sell-to-open", sym, "put", "540", premium="2.00")
     option(h, acct, OPENED, "buy-to-open", sym, "put", "530", premium="1.20")
-    # Named, or not: a roll names the strategy as it is shown, by its shape without a name
-    # (CR3-408).
+    # Named, or not: a roll names the strategy as it is shown, by its shape without a name.
     name = {"name": f"Spread {sym}"} if keep else {}
     saved(create(h.c, "Strat", accountId=acct, legs=legs_of(h, acct), **name))
     option(h, acct, CLOSED, "buy-to-close", sym, "put", "540", premium="1.00")
@@ -549,7 +548,8 @@ def test_a_strategy_ungrouped_leaves_its_legs(browser, household):
     page.get_by_role("button", name="Ungroup").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Yes", exact=True).click()
     wait(page, ".dialog", problems, state="detached")
-    toast(page, "Ungrouped: the legs stand on their own", problems)  # CR3-407
+    # The toast says what the save did, never a bare Saved.
+    toast(page, "Ungrouped: the legs stand on their own", problems)
     wait(page, 'main tbody tr:has-text("Ungrouped desk")', problems, state="detached")
     assert strategies_of(h, acct) == []
     assert len(open_rows(h, acct)) == 1
@@ -712,7 +712,7 @@ def test_the_portfolios_list_and_a_new_portfolio(browser, household):
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
     toast(page, "Saved", problems)
-    # Saved, the new portfolio opens, and stays open (CR3-406).
+    # Saved, the new portfolio opens, and stays open.
     page.wait_for_url(re.compile(r"/ui/portfolios/Portf_"))
     idle(1.5, page=page, why="it stays open: a late history.back() would land in this time")
     assert re.search(r"/ui/portfolios/Portf_", page.url), page.url

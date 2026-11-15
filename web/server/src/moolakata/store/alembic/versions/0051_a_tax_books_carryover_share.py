@@ -1,8 +1,7 @@
 """A tax book keeps whether it starts from last year apart from the copy still to do, and a
-filer's share of a joint return's capital-loss carryover (requirements S8.14.4, S8.17, S8.18;
-the filed tax years walk, decision 2): `fromLastYear` is the choice made, `copyPending` the
-copy waiting for every filer to accept, `carryoverShareShort`/`Long` the share typed. A book
-whose copy is waiting keeps waiting.
+filer's share of a joint return's capital-loss carryover (requirements S8.14.4, S8.17, S8.18):
+`fromLastYear` is the choice made, `copyPending` the copy waiting for every filer to accept,
+`carryoverShareShort`/`Long` the share typed. A book whose copy is waiting keeps waiting.
 
 Revision: 0051
 Follows: 0050

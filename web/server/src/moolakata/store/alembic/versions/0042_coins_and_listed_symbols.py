@@ -1,5 +1,5 @@
 """A coin and a listed share may share a ticker (SOL, LINK, COMP): an instrument's symbol is
-unique among the coins and among the rest, not across both (requirements S2.1, CR3-174).
+unique among the coins and among the rest, not across both (requirements S2.1).
 
 Revision: 0042
 Follows: 0041

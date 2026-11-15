@@ -1,6 +1,6 @@
-"""Every refusal of a tax book's records, through the save (requirements S8.14–S8.16; the filed
-tax years walk, decision 3.7): each field a book, a filing, an estimated payment or a
-dependent checks, sent wrong, answered with its own code and nothing saved.
+"""Every refusal of a tax book's records, through the save (requirements S8.14–S8.16): each field a
+book, a filing, an estimated payment or a dependent checks, sent wrong, answered with its own code
+and nothing saved.
 """
 
 import datetime as dt

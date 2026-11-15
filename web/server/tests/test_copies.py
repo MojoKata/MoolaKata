@@ -128,7 +128,7 @@ def test_an_unused_copy_locks_and_reset_starts_again(server, setup):
 
 
 def test_files_no_row_names_are_swept_once_old_enough(server, setup):
-    # N11: a crash's leftovers go; a file still arriving, or delivered for a change to come,
+    # A crash's leftovers go; a file still arriving, or delivered for a change to come,
     # stays (S11.9.6.6).
     import os
     import time
@@ -154,7 +154,7 @@ def test_files_no_row_names_are_swept_once_old_enough(server, setup):
 
 
 def test_who_viewed_linked_data_is_recorded_once_an_hour(server, setup):
-    # N11: the receiving side records who viewed linked data (S11.8).
+    # The receiving side records who viewed linked data (S11.8).
     from moolakata.ui import linked
 
     link_id, admin, jane, _ = setup

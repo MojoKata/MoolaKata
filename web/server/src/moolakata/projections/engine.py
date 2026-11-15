@@ -215,7 +215,7 @@ PRECISION = 1.0  # a year's saving, to the dollar
 def needed_saving(plan: Plan, target: float, at_index: int, chance: float = 0.9) -> float | None:
     """The yearly saving that reaches the target by its date with this chance, to the dollar,
     on a smaller number of runs from the same seed; None when no saving does: a date of today,
-    or more than the search goes to (CR3-31). The bound is doubled until it is enough, then
+    or more than the search goes to. The bound is doubled until it is enough, then
     halved toward the least that is: a bound assumed enough was wrong for a date under a
     year away, where a year's saving counts only its part."""
     if at_index < 1:

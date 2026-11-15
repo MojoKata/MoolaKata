@@ -239,7 +239,7 @@ def _sale(a: Account, it: Item, d: assets.Detail) -> Sale | None:
 
 def _row(a: Account, it: Item, d: assets.Detail, spot, secured, today) -> ItemRow:
     value = assets.value_on(it, d, today, spot)
-    basis = assets.basis(it, d, today)  # the day the value is taken on (CR3-433)
+    basis = assets.basis(it, d, today)  # the day the value is taken on
     latest = assets.latest_valuation(d, today)
     end = it.soldOn or today
     sale = _sale(a, it, d)

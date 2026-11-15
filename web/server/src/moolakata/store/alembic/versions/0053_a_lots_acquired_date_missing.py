@@ -1,6 +1,6 @@
-"""A lot of shares moved in whose day bought isn't known yet (requirements S2.2; the values,
-taxes and options walk, decision 9): `Lot.acquiredMissing`, its term unknown until the day is
-typed. Lots made before are known as they were.
+"""A lot of shares moved in whose day bought isn't known yet (requirements S2.2):
+`Lot.acquiredMissing`, its term unknown until the day is typed. Lots made before are known as
+they were.
 
 Revision: 0053
 Follows: 0052

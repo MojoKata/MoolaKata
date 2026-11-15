@@ -269,8 +269,8 @@ def _link_works(server, token: str) -> bool:
 def test_correcting_an_invited_address_ends_the_old_link_and_sends_one_to_the_new(
     admin_client, server
 ):
-    """CR3-49: the link mailed to the mistyped address stops working, and one invitation goes
-    to the corrected one, recorded as a correction and a resend (S10.1.3)."""
+    """The link mailed to the mistyped address stops working, and one invitation goes to the
+    corrected one, recorded as a correction and a resend (S10.1.3)."""
     eve, old = _invite_eve(admin_client, server)
     sent = len(mails(server))
     eve = saved(change(admin_client, "User", eve, email="eve@home.lan"))
@@ -335,8 +335,8 @@ def test_a_correction_with_no_public_url_ends_the_old_link_and_sends_none(admin_
 
 
 def test_a_confirmed_new_address_ends_a_reset_link_sent_to_the_old_one(client, server):
-    """CR3-452: whoever holds the old mailbox can't reset the password from a link mailed
-    there before the change (S10.1.5)."""
+    """Whoever holds the old mailbox can't reset the password from a link mailed there before the
+    change (S10.1.5)."""
     set_public_url(server)
     make_user(server, "hal")
     c = sign_in(server, "hal")
@@ -370,9 +370,9 @@ def test_a_new_address_ends_only_its_own_users_links(client, server):
 
 
 def test_an_address_is_set_only_where_the_links_mailed_to_the_old_one_end():
-    """CR3-452's category: a link outliving the address it was mailed to. A user's address is
-    assigned in one place, `_set_email`, which ends them; a linked server's users, mirrored,
-    have no password and so no link."""
+    """Every case of one kind of bug: a link outliving the address it was mailed to. A user's
+    address is assigned in one place, `_set_email`, which ends them; a linked server's users,
+    mirrored, have no password and so no link."""
     import ast
     from pathlib import Path
 
@@ -409,10 +409,9 @@ def test_every_purpose_a_link_has_is_judged_here():
 
 @pytest.mark.parametrize("new", ["fay@new.lan", "fay@home.lan", None])
 def test_a_new_address_ends_the_links_mailed_to_the_old_one_and_only_those(server, new):
-    """CR3-49, CR3-452, every purpose against each kind of change: an invitation or a reset
-    was mailed to the old address and ends with it; a pending change's link went to the new
-    address it names, and a two-step sign-in is the user's own, so both stay. The same
-    address ends nothing."""
+    """Every purpose against each kind of change: an invitation or a reset was mailed to the old
+    address and ends with it; a pending change's link went to the new address it names, and a
+    two-step sign-in is the user's own, so both stay. The same address ends nothing."""
     from moolakata.store.entities.users import OneTimeToken
 
     fay = make_user(server, "fay", email="fay@home.lan")

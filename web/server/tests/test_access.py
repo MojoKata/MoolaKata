@@ -304,7 +304,7 @@ def test_every_view_has_one_row_per_record_and_user(household):
 
 def test_a_child_is_searched_by_its_index_never_scanned(household):
     """Joined as a caller joins it, a child's view adds no scan of the child table to a query
-    by its id or its parent's key (decision 2.4)."""
+    by its id or its parent's key."""
     srv, _ = household
 
     def scans(s, t, sql):
@@ -328,7 +328,7 @@ def test_a_child_is_searched_by_its_index_never_scanned(household):
                 assert len(after) <= len(before), f"{t.name} ({where}): {plan}"
 
 
-# ---- Who holds what, written out (decision 7.2: the parity test's household, kept) ----
+# ---- Who holds what, written out ----
 
 R, W, D, S, C = "read", "writable", "deletable", "shareable", "configurable"
 EVERY = (W, D, S, C)
@@ -338,8 +338,8 @@ HOLDS = [
     ("Account", "unshared", "jane", EVERY),
     ("Account", "unshared", "john", None),
     ("Account", "shared", "john", (R,)),  # through the Household group
-    ("Account", "shared", "bart", None),  # inactive (4.1)
-    ("Account", "shared", "jeremy", (R,)),  # a linked server's user reads, never more (4.3)
+    ("Account", "shared", "bart", None),  # inactive
+    ("Account", "shared", "jeremy", (R,)),  # a linked server's user reads, never more
     ("Account", "barts", "bart", None),  # an inactive user holds nothing, not even theirs
     ("TaxBook", "book", "jane", EVERY),
     ("TaxBook", "book", "dave", (R,)),  # an active group's share
@@ -348,24 +348,24 @@ HOLDS = [
     ("Budget", "budget", "dave", None),  # an inactive group's share gives nothing
     ("GiftPlan", "plan", "john", (R,)),
     ("Gift", "gift", "jane", (W, D)),
-    ("Gift", "gift", "john", None),  # the person it is for (1d.3)
+    ("Gift", "gift", "john", None),  # the person it is for
     ("Receipt", "receipt", "jane", (W, D)),
     ("Receipt", "receipt", "john", (R,)),  # through the shared account
-    ("Receipt", "receipt", "jeremy", None),  # without Include receipts (4.4)
+    ("Receipt", "receipt", "jeremy", None),  # without Include receipts
     ("Receipt", "receipt", "ann", (R,)),  # with it
     ("ReceiptLink", "shared link", "john", (R,)),
-    ("ReceiptLink", "unshared link", "john", None),  # CR3-47: never the other account's
+    ("ReceiptLink", "unshared link", "john", None),  # never the other account's
     ("ReceiptLink", "gift link", "john", None),
     ("ReceiptLink", "unshared link", "jane", (W, D)),
     ("Reimbursement", "reimbursement", "jane", (W, D)),
-    ("Reimbursement", "reimbursement", "john", (R,)),  # from the side he reads (1e.3)
+    ("Reimbursement", "reimbursement", "john", (R,)),  # from the side he reads
     ("TransferMatch", "match", "jane", (W, D)),
-    ("TransferMatch", "match", "john", None),  # its owner's alone (1e.4)
+    ("TransferMatch", "match", "john", None),  # its owner's alone
     ("WashSale", "wash", "jane", (R,)),  # a cache: read with its sale, never changed
     ("WashSale", "wash", "john", None),
     ("Person", "johns person", "erin", (R,)),  # every local user, as he is not private
     ("Person", "johns person", "john", EVERY),
-    ("Person", "johns person", "admin", EVERY),  # admins hold every person (1b.3)
+    ("Person", "johns person", "admin", EVERY),  # admins hold every person
     ("User", "bart", "admin", (W, D)),  # admins read inactive users too
     ("User", "bart", "john", None),
     ("User", "jeremy", "jeremy", (R,)),  # one's own row; changed only by a local user
@@ -375,7 +375,7 @@ HOLDS = [
 
 
 def test_who_holds_what(household):
-    """Each rule as the decisions say, on the household built to reach them."""
+    """Every rule, on a household built to reach each one."""
     srv, n = household
     wrong = []
     with srv.db.read(unscoped="test") as s:
@@ -392,7 +392,7 @@ def test_who_holds_what(household):
     assert not wrong, wrong
 
 
-# (table, record, user, whether it is theirs): decision 7 of the mine walk.
+# (table, record, user, whether it is theirs).
 MINE = [
     ("Account", "unshared", "jane", 1),
     ("Account", "shared", "john", 0),  # shared with him
@@ -440,7 +440,7 @@ OWNED_OTHERWISE = {"TaxBook", "Person", "Activity"}
 
 
 def test_mine_is_the_owners_row_and_a_childs_its_parents(household):
-    """`mine` is a fact of the row (decision 7): the owner's row and no other for a record
+    """`mine` is a fact of the row: the owner's row and no other for a record
     with an owner; for a child, its parent's; never a grantee's row of a share."""
     srv, _ = household
     with srv.db.read(unscoped="test") as s:
@@ -472,7 +472,7 @@ def test_mine_is_the_owners_row_and_a_childs_its_parents(household):
                 assert off == 0, f"{view}: mine is not its parent's"
 
 
-# ---- Who may make a record (the mine walk, decision 2) ----
+# ---- Who may make a record ----
 
 
 def _parent_rules(table):
@@ -516,9 +516,9 @@ def _candidate(s, n, sql: str) -> tuple[str, str] | None:
 
 def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
     """For every kind the save takes whose rule names a parent: one the user can't read
-    answers 404, one they read without the permission 403, before the kind's own code (the
-    mine walk, decision 2.4). The 403 names the key and why (a reader: `share-read-only`),
-    never the session's `write-refused` from the flush."""
+    answers 404, one they read without the permission 403, before the kind's own code. The
+    403 names the key and why (a reader: `share-read-only`), never the session's
+    `write-refused` from the flush."""
     from types import SimpleNamespace
 
     from sqlalchemy import inspect
@@ -560,7 +560,7 @@ def test_each_kind_is_made_only_with_what_its_parent_must_hold(household):
     assert untried == UNTRIED
 
 
-# ---- Scoped sessions (decision 5) ----
+# ---- Scoped sessions ----
 
 
 def test_a_users_session_reads_only_what_their_views_give(household):
@@ -606,7 +606,7 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
         shared = s.scalars(select(Account).where(Account.name == "Everyday checking")).one()
         got, p = access.need(s, Account, shared.id, n["john"])
         assert got.id == shared.id and p == access.READ
-        with pytest.raises(ValueError):  # nothing is allowed by `mine` (mine walk, decision 7)
+        with pytest.raises(ValueError):  # nothing is allowed by `mine`: it is no permission
             access.need(s, Account, shared.id, n["john"], "mine")
         with pytest.raises(Problem) as e:
             access.need(s, Account, shared.id, n["john"], "writable", "account")
@@ -621,7 +621,7 @@ def test_need_answers_404_unread_and_403_without_the_permission(household):
         assert held[n["jane"]] == access.OWNER and n["john"] in held
 
 
-# ---- The write check at flush (decision 5.4) ----
+# ---- The write check at flush ----
 
 
 def test_a_users_session_writes_only_what_their_views_allow(household):

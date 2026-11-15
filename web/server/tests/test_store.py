@@ -258,7 +258,7 @@ def test_backup_is_verified_restorable_and_pruned(store, keyed_config, tmp_path,
         maintenance.check_backup(b, key)
         # The database and its keyring only: the host backs up the files (S14.6).
         assert sorted(p.name for p in b.iterdir()) == ["keyring", "manifest.json", "moolakata.db"]
-    # Kept by day, never fewer than three (CR3-63): a second backup the same day, Backup Now,
+    # Kept by day, never fewer than three: a second backup the same day, Backup Now,
     # pushes out no earlier day's.
     again = maintenance.backup(keyed_config, store, t0 + dt.timedelta(days=4, hours=6))
     assert maintenance.prune(keyed_config, 1) == made[:2]
@@ -367,9 +367,9 @@ def test_a_file_or_secret_under_neither_key_is_set_aside_not_fatal(store, keyed_
 def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
     store, keyed_config, monkeypatch, master_key, step
 ):
-    """CR3-58, CR3-307: each step is taken, then recorded; a stop between the two (a crash, a
-    power cut) is carried on at the next unlock with the data under the one new data key the
-    journal names, never a third."""
+    """Each step is taken, then recorded; a stop between the two (a crash, a power cut) is carried
+    on at the next unlock with the data under the one new data key the journal names, never a
+    third."""
     from moolakata.keys import files
     from moolakata.store import reencrypt as journaled
 
@@ -419,8 +419,8 @@ def test_a_reencryption_stopped_after_any_step_and_before_its_record_resumes(
 def test_a_receipt_damaged_past_its_first_part_is_set_aside_with_no_half_file(
     store, keyed_config, master_key
 ):
-    """CR3-59: its first chunk opens under the old key, a later one doesn't: the file is set
-    aside as damaged and the run goes on, leaving no `.tmp`."""
+    """Its first chunk opens under the old key, a later one doesn't: the file is set aside as
+    damaged and the run goes on, leaving no `.tmp`."""
     from moolakata.keys import files
     from moolakata.store import reencrypt as journaled
 
@@ -441,8 +441,8 @@ def test_a_receipt_damaged_past_its_first_part_is_set_aside_with_no_half_file(
 def test_copies_the_choices_dont_name_are_reencrypted_the_first_backup_last(
     store, keyed_config, monkeypatch, master_key
 ):
-    """CR3-60: a backup made after the choices (a daily one, the run's own first) holds the
-    data key being replaced: it takes the default, re-encrypt, and the run's own goes last."""
+    """A backup made after the choices (a daily one, the run's own first) holds the data key being
+    replaced: it takes the default, re-encrypt, and the run's own goes last."""
     from moolakata.store import copies
     from moolakata.store import reencrypt as journaled
 
@@ -471,7 +471,7 @@ def test_copies_the_choices_dont_name_are_reencrypted_the_first_backup_last(
 def test_a_backup_cut_off_part_way_is_removed_and_a_set_aside_keyring_listed(
     store, keyed_config, master_key
 ):
-    """CR3-299: a `.part` folder never stays, and a keyring set aside is a copy to remove."""
+    """A `.part` folder never stays, and a keyring set aside is a copy to remove."""
     from moolakata.store import copies
 
     keyed_config.backup_dir.mkdir(parents=True)
@@ -794,7 +794,7 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
 
     # The next unlock, with the new phrase: everything under a new data key, the backup
     # rewritten under it and the new phrase, the copy chosen deleted, the pre-upgrade copy
-    # left under the old one, and the run's own first backup rewritten last (CR3-60).
+    # left under the old one, and the run's own first backup rewritten last.
     store2.db.dispose()
     store3 = maintenance.open_store(keyed_config, new_key)
     assert store3.keys.ring.data_key_id != store.keys.ring.data_key_id
@@ -945,7 +945,7 @@ def test_an_offline_backup_needs_the_server_stopped_and_changes_nothing(
 
 
 def test_0017_writes_money_in_cents_and_leaves_the_premium_to_the_replay(tmp_path):
-    """B23 and B12: decimal text becomes integer cents; a stock trade settled before keeps the
+    """Decimal text becomes integer cents; a stock trade settled before keeps the
     strike's cash, its premium worked out at replay; a sale made before records its method."""
     from alembic import command
 
@@ -1138,7 +1138,7 @@ def test_two_backups_in_one_second_take_two_names(store, keyed_config, master_ke
 
 
 def test_a_backup_renamed_to_another_time_is_refused(store, keyed_config, master_key):
-    # K25: verify-backup and restore go by the manifest's own time, so a backup renamed to a
+    # Verify-backup and restore go by the manifest's own time, so a backup renamed to a
     # newer one's name passes for nothing.
     made = maintenance.backup(keyed_config, store)
     assert maintenance.made_of(made).replace(microsecond=0).strftime("%Y%m%d-%H%M%S") in made.name

@@ -115,7 +115,7 @@ def add_receipt(jane, acct_id: str, payee: str = "Blue Bottle") -> bytes:
     return image
 
 
-# ---------- a linked copy's receipts (CR3-54)
+# ---------- a linked copy's receipts
 
 
 def test_the_sweep_during_an_unlocks_apply(admins, monkeypatch):  # noqa: F811
@@ -181,8 +181,8 @@ def test_the_sweep_while_a_receipt_is_delivered(admins, monkeypatch):  # noqa: F
 
 
 def test_a_receipt_whose_file_is_gone_by_the_unlock_is_asked_for_again(admins):  # noqa: F811
-    """Decision 4's second line: whatever took the file, the receipt is one not yet arrived,
-    and the next exchange fetches it, never a row naming a missing file."""
+    """Whatever took the file, the receipt is one not yet arrived, and the next exchange fetches it,
+    never a row naming a missing file."""
     a, b, ca, cb, _ = admins
     make_user(b, "bart")
     _jane, words, b_id, image = _shared_receipt(a, ca, cb)
@@ -197,7 +197,7 @@ def test_a_receipt_whose_file_is_gone_by_the_unlock_is_asked_for_again(admins): 
     opened(bart, b_id, image)
 
 
-# ---------- the main receipts folder (CR3-375)
+# ---------- the main receipts folder
 
 
 def test_remove_orphans_during_an_upload(server, monkeypatch):
@@ -214,7 +214,7 @@ def test_remove_orphans_during_an_upload(server, monkeypatch):
     removed = []
 
     def remove():
-        # Read only: the upload holds the write lock today (CR3-48); the rule, not the lock,
+        # Read only: the upload holds the write lock today; the rule, not the lock,
         # is what keeps its file once the thumbnail is drawn outside it.
         age(folder)
         with server.db.read(unscoped="test") as s:
@@ -269,9 +269,9 @@ def test_a_prune_while_an_upload_reuses_the_file(server, monkeypatch):
 
 
 def test_the_hourly_pull_and_pull_now_on_one_link(admins, monkeypatch):  # noqa: F811
-    """CR3-376: the hourly task's pull and an admin's Pull now on the same link at once. The
-    second, started while the first is between its call and its rows, waits its turn: the link
-    comes out as two pulls in a row leave it, nothing asked for again in full."""
+    """The hourly task's pull and an admin's Pull now on the same link at once. The second, started
+    while the first is between its call and its rows, waits its turn: the link comes out as two
+    pulls in a row leave it, nothing asked for again in full."""
     from moolakata.store.entities.links import Link
 
     a, b, ca, cb, _ = admins
@@ -307,8 +307,8 @@ def test_the_hourly_pull_and_pull_now_on_one_link(admins, monkeypatch):  # noqa:
 
 
 def test_two_servers_pulling_each_other_at_once(admins, monkeypatch):  # noqa: F811
-    """CR3-376: while B pulls from A, A's pull from B is refused `busy` at once, never kept
-    waiting (both waiting would hold both); it is no failure, and A's next pull goes through."""
+    """While B pulls from A, A's pull from B is refused `busy` at once, never kept waiting (both
+    waiting would hold both); it is no failure, and A's next pull goes through."""
     from moolakata.links.client import LinkError
 
     a, b, ca, cb, _ = admins

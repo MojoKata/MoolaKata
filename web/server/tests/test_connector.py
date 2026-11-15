@@ -267,7 +267,7 @@ def test_a_pairing_whose_keys_dont_sign_each_other_is_refused(server, admin, cli
 
 
 def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, admin):
-    """CR3-65, S18.4.2, S18.2.4.4: the status key, kept outside the vault, reports *locked*
+    """S18.4.2, S18.2.4.4: the status key, kept outside the vault, reports *locked*
     and is answered with nothing about a Connection; its report sets no page, state or
     sign-in address; every other call but `unpaired` is refused under it."""
     jane = make_user(server, "jane")
@@ -364,7 +364,7 @@ def test_calls_are_signed_and_answers_are_signed_back(server, paired, client):
 
 
 def test_a_call_is_refused_before_its_body_is_read(server, paired, client, monkeypatch):
-    """CR3-71, protocol §3.2: the signature, against the hash the call names, and the key, the
+    """Protocol §3.2: the signature, against the hash the call names, and the key, the
     paired connector's, are checked before a byte of the body is read."""
     from starlette.requests import Request
 
@@ -501,7 +501,7 @@ def test_a_report_updates_connections_and_answers_with_the_work_waiting(server, 
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
     r = paired.call(f"/connector/v1/connections/{cid}/sign-in", {"address": "http://x"})
     assert r.status_code == 403 and r.json()["code"] == "address-invalid"
-    # CR3-64: a report is held to the same page; one naming another keeps no address.
+    # A report is held to the same page; one naming another keeps no address.
     for address, kept in (("https://api.schwabapi.com.example/v1/oauth/authorize", None),
                           ("https://evil.example/schwab-login", None), (page, page)):  # fmt: skip
         rep = {"id": cid, "state": "needs-sign-in", "signInAddress": address}
@@ -567,7 +567,7 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.status_code == 403 and r.json()["code"] == "mapping-missing"
-    # CR3-68: a file the reader can't make out is refused, signed (paired.call checks the
+    # A file the reader can't make out is refused, signed (paired.call checks the
     # signature), with the reader's words, never an unsigned 500.
     broken = OFX.replace(b"<TRNAMT>-42.37", b"<TRNAMT>lots")
     body, ctype = _multipart(broken, {"connectionId": cid})
@@ -575,7 +575,7 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
         f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
     )
     assert r.status_code == 403 and r.json()["code"] == "file-refused" and r.json()["message"]
-    # CR3-333: a file over Settings › Imports' size is `too-large`, signed.
+    # A file over Settings › Imports' size is `too-large`, signed.
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "importMaxMb", 1, None)
     body, ctype = _multipart(OFX + b" " * (1024 * 1024), {"connectionId": cid})
@@ -586,7 +586,7 @@ def test_a_posted_file_goes_through_the_import_once(server, paired):
 
 
 def test_a_fault_in_a_connector_route_is_answered_signed(server, paired, monkeypatch):
-    """CR3-68, protocol §7: whatever fails in a route, the answer is a signed `server-error`,
+    """Protocol §7: whatever fails in a route, the answer is a signed `server-error`,
     which the connector can tell from a forgery."""
     from moolakata.connector import manage as mk_manage
 
@@ -781,7 +781,7 @@ def activity_rows(server):
 
 
 def test_a_sealing_key_its_identity_key_didnt_sign_is_refused(server, admin, client):
-    # K24: browsers seal only to the key of the connector an admin confirmed (S18.4.5).
+    # Browsers seal only to the key of the connector an admin confirmed (S18.4.5).
     fake = FakeConnector(server, client)
     r = fake.pair(pair_code(admin), signed=False)
     assert r.status_code == 403 and r.json()["code"] == "sealing-unsigned"
@@ -789,7 +789,7 @@ def test_a_sealing_key_its_identity_key_didnt_sign_is_refused(server, admin, cli
 
 
 def test_unpair_ends_the_pairing_and_any_code_still_out(server, admin, client, paired):
-    # K20: after Pair, then Unpair, no connector stays paired and the code can't be used.
+    # After Pair, then Unpair, no connector stays paired and the code can't be used.
     code = pair_code(admin)
     assert admin.post("/ui/api/settings/connector/unpair").status_code == 200
     assert admin.get("/ui/api/settings/connector").json()["state"] in (None, "ended", "none")
@@ -799,7 +799,7 @@ def test_unpair_ends_the_pairing_and_any_code_still_out(server, admin, client, p
 
 
 def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, paired):
-    # K20: the genuine connector reporting again from its own address doesn't clear a
+    # The genuine connector reporting again from its own address doesn't clear a
     # thief's (S18.5.4).
     from moolakata import alerts
     from moolakata.connector import manage
@@ -831,7 +831,7 @@ def test_a_new_address_stays_alerted_until_an_admin_accepts_it(server, admin, pa
 
 
 def test_the_pairing_code_carries_the_connectors_own_address_else_the_public_url(server, admin):
-    """CR3-372, CR3-141, S18.4.1: Settings › Connector's address, else the public URL, and never
+    """S18.4.1: Settings › Connector's address, else the public URL, and never
     the link address, whose proxy may pass only /link/."""
 
     def carried() -> str:

@@ -206,7 +206,7 @@ class Candidate(Model):
     amount: Money
     payee: str | None
     # A payment recorded on the loan alone that this transaction answers: linking pairs the
-    # two, making no second payment (CR3-22).
+    # two, making no second payment.
     pairWith: PairWith | None = None
 
 
@@ -324,8 +324,7 @@ def _equity(s, row: Loan, terms, owed, rows, today) -> Equity | None:
     owed_all = owed + sum(
         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
     )
-    # The one the schedule's PMI reads: typed, else the home's basis when the loan was made
-    # (CR3-434, CR3-439).
+    # The one the schedule's PMI reads: typed, else the home's basis when the loan was made.
     original = terms.originalValue
     request = ends = None
     if terms.pmi and original:
@@ -552,7 +551,7 @@ def halves(
 ):
     """The bank transactions already in `account` that a payment of `amount` on `date` from
     it would be the other half of, by S1.7's rule (the same amount out, within days, not yet a
-    transfer): the payment dialog pairs with one rather than recording it again (CR3-22)."""
+    transfer): the payment dialog pairs with one rather than recording it again."""
     with server(request).db.read(user=c.id) as s:
         _account(s, c, account_id)
         bank, held = access.account(s, c.id, account)

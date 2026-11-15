@@ -125,7 +125,7 @@ def test_key_storage_and_backups_for_admins(admin_client, server):
 
 
 def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
-    # B22: the past keeps it (R3.10); from its closing on it counts nothing, and its leaving
+    # The past keeps it (R3.10); from its closing on it counts nothing, and its leaving
     # is no loss.
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -144,7 +144,7 @@ def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
 
 
 def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
-    # B22: an account's gain before it closed stays in the portfolio's returns (R3.10).
+    # An account's gain before it closed stays in the portfolio's returns (R3.10).
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2026-06-30")
@@ -175,7 +175,7 @@ def test_a_deleted_account_leaves_a_portfolios_past(server):
     assert by_day["2026-08-01"] == "1000.00"
 
 
-# ---------- one breakdown of an account (CR3-30, CR3-32, CR3-394) ----------
+# ---------- one breakdown of an account ----------
 
 
 def _checking_and_mortgage(server):
@@ -195,7 +195,7 @@ def _checking_and_mortgage(server):
 
 
 def test_holdings_count_a_loan_at_what_is_owed(server):
-    """CR3-30: a loan's payments aren't cash; it counts minus what is owed, on a row of its
+    """A loan's payments aren't cash; it counts minus what is owed, on a row of its
     own, and the Holdings total is the portfolio's value."""
     c, p, loan = _checking_and_mortgage(server)
     owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
@@ -210,7 +210,7 @@ def test_holdings_count_a_loan_at_what_is_owed(server):
 
 
 def test_a_projection_leaves_a_loan_out_and_names_it(server):
-    """CR3-32: a projection on checking and a mortgage starts from the cash, all of it cash,
+    """A projection on checking and a mortgage starts from the cash, all of it cash,
     and names the mortgage it leaves out; start + left out = the portfolio's value."""
     c, p, loan = _checking_and_mortgage(server)
     owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
@@ -225,7 +225,7 @@ def test_a_projection_leaves_a_loan_out_and_names_it(server):
 
 
 def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
-    """CR3-394: a past day's value counts the shares held that day, not today's."""
+    """A past day's value counts the shares held that day, not today's."""
     from moolakata import valuation
     from moolakata.store.entities.accounts import Account
     from moolakata.store.repos import ledger as repo
@@ -246,7 +246,7 @@ def test_an_accounts_value_on_a_past_day_holds_what_it_held_then(server):
 
 
 def test_shares_moved_in_are_money_in_not_growth(server):
-    """CR3-28: shares transferred in from another broker count as contributed, at the price the
+    """Shares transferred in from another broker count as contributed, at the price the
     series values them; the time-weighted return takes none of them as performance."""
     clock.fix(dt.datetime(2026, 10, 13, 15, 0, tzinfo=dt.UTC))
     try:

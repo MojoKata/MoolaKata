@@ -61,7 +61,7 @@ def test_parts_that_dont_add_up_save_nothing(server, frozen):
 
 
 def test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks(server, frozen):
-    """CR3-29: a part changed in place keeps its id, so a payback paired with it stays."""
+    """A part changed in place keeps its id, so a payback paired with it stays."""
     c, acct, cat, b = setup_budget(server)
     owing = {"reimbursable": "20.00", "owedBy": "Acme"}
     r, txn = made(c, acct, cat, [("-50.00", {}), ("-30.00", {}), ("-20.00", owing)])

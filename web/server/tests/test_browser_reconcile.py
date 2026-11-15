@@ -1,8 +1,7 @@
-"""The Reconcile tab as the account page shows it, in headless Chromium (requirements S1.11,
-CR3-17): every account kept from files or statements has one, retirement, plan and exchange
-accounts among them, and a plan's statement values and holdings are checked there; cash on
-hand and a loan have none. The tab follows the account's own `reconcilable`, as the server
-sends it."""
+"""The Reconcile tab as the account page shows it, in headless Chromium (requirements S1.11):
+every account kept from files or statements has one, retirement, plan and exchange accounts
+among them, and a plan's statement values and holdings are checked there; cash on hand and a
+loan have none. The tab follows the account's own `reconcilable`, as the server sends it."""
 
 import pytest
 from browser import Household, made, signed_in

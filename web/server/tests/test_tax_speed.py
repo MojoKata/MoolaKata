@@ -1,8 +1,7 @@
-"""A tax book reads in the same number of queries however many trades it counts (the filed tax
-years walk, decision 3.6): no query a row. (Found by it: the wash sales were read one query a
-wash sale, 358 queries for 600 trades.) The trades are written straight to the database, so
-a household of hundreds of them is made in a moment; the time each read takes is printed, never
-asserted (a slow machine is no failure).
+"""A tax book reads in the same number of queries however many trades it counts: no query a row.
+(Found by it: the wash sales were read one query a wash sale, 358 queries for 600 trades.) The
+trades are written straight to the database, so a household of hundreds of them is made in a moment;
+the time each read takes is printed, never asserted (a slow machine is no failure).
 """
 
 import datetime as dt

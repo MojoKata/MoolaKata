@@ -168,7 +168,7 @@ class LotRow(Model):
     basis: Money | None
     basisMissing: bool
     standIn: bool
-    longTerm: bool | None  # None: the day bought is missing, the term unknown (CR3-73)
+    longTerm: bool | None  # None: the day bought is missing, the term unknown
     acquiredMissing: bool = False
 
 

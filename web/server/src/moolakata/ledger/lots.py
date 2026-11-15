@@ -23,7 +23,7 @@ class OpenLot:
     # only; the lot is still acquired, and taken in order, by the day it was bought.
     heldFrom: dt.date | None = None
     # Shares moved in whose day bought isn't known: `acquiredOn` is the day they arrived, the
-    # term unknown until the day is typed (S2.2, CR3-73).
+    # term unknown until the day is typed (S2.2).
     acquiredMissing: bool = False
 
     @property
@@ -50,10 +50,10 @@ class Disposal:
     heldFrom: dt.date | None = None  # a replacement's tacked holding period (S3.8.4)
     written: bool = False  # a written option closed: short-term whatever its days (S3.3)
     standIn: bool = False  # from a lot a snapshot stood in for: when it was bought is unknown
-    # From shares moved in whose day bought isn't known: its term is unknown (S2.2, CR3-399).
+    # From shares moved in whose day bought isn't known: its term is unknown (S2.2).
     acquiredMissing: bool = False
     # Sold without a lot to match (S8.4): when it was bought is missing, as its basis is; its
-    # acquiredOn is the sale's day only to place it, never written on a form (CR3-415).
+    # acquiredOn is the sale's day only to place it, never written on a form.
     lotMissing: bool = False
 
     @property
@@ -212,7 +212,7 @@ def replay(
         events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
     for h in snapshots:
         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
-    # A wash sale settles on its replacement right after the loss sale (CR3-388): a replacement
+    # A wash sale settles on its replacement right after the loss sale: a replacement
     # bought before it is a plain lot until then, so the sale never picks its own lots by the
     # loss it is about to have disallowed. `sale_at` is each sale's day and making, from any
     # account; a sale not in it settles at the buy.
@@ -246,7 +246,7 @@ def replay(
             if lot is not None:
                 _settle(lot, obj, basis_added)
         elif carried_in and obj.kind == "transfer-in" and obj.id in carried_in:
-            # A pair from another account: the lots its transfer out took, whole (CR3-73).
+            # A pair from another account: the lots its transfer out took, whole.
             for lot in carried_in[obj.id]:
                 out.open.append(replace(lot, lotId=None, instrumentId=obj.instrumentId))
         else:
@@ -318,9 +318,9 @@ def _settle(lot: OpenLot, row, basis_added: bool) -> None:
 
 
 def _disallow(out: Replay, washes) -> None:
-    """A loss sale's disallowed part, on the disposals of the sold lot whose loss it is
-    (CR3-390): spread by loss over that lot's losing parts (a lot a wash sale split may sell
-    in two), or over the sale's when the wash sale names no lot."""
+    """A loss sale's disallowed part, on the disposals of the sold lot whose loss it is:
+    spread by loss over that lot's losing parts (a lot a wash sale split may sell in two), or
+    over the sale's when the wash sale names no lot."""
     by: dict[tuple[str, str | None], Decimal] = {}
     for w in washes:
         key = (w.saleId, getattr(w, "lotId", None))
@@ -670,8 +670,8 @@ def _consume(
     total, left = qty, qty
     plan: list[tuple[OpenLot, Decimal]] = []
     if method == "specific" and picks:
-        # A picked lot is every part of it: one a wash sale split takes from its parts in turn
-        # (CR3-26), never from another lot.
+        # A picked lot is every part of it: one a wash sale split takes from its parts in turn,
+        # never from another lot.
         for p in picks:
             want = p.quantity
             for lot in (x for x in held if x.lotId == p.lotId):
@@ -714,7 +714,7 @@ def _consume(
         basis = _take(lot, take)
         if not realize:
             # What a transfer out takes, whole: its day, basis, holding period and whether it
-            # stood in for a snapshot, so its pair carries them (CR3-73).
+            # stood in for a snapshot, so its pair carries them.
             out.moved.setdefault(t.id, []).append(
                 replace(lot, lotId=None, quantity=take, basis=basis)
             )

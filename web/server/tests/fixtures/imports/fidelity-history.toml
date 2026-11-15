@@ -17,5 +17,5 @@ transactions = [
 ]
 holdings = ["VTI 10"]
 cash = "2080.40"
-# By their symbols' shape (CR3-14): a listed share, and a fund (five letters ending in X).
+# By their symbols' shape: a listed share, and a fund (five letters ending in X).
 instruments = { FXAIX = "mutual-fund", VTI = "equity" }

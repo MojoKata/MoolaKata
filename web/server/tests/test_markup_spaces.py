@@ -1,4 +1,4 @@
-"""No word loses its space where a template breaks a line (CR3-409, CR3-410).
+"""No word loses its space where a template breaks a line.
 
 The browser's templates (htm) drop whitespace that holds a line break, where a page would show
 one space: `of\\n  <b>${name}</b>` reads "ofSpread", `${date}\\n  <span>paid</span>` "Sep 1,

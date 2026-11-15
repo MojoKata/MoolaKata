@@ -56,7 +56,7 @@ def test_a_joint_book_counts_a_filer_once_they_accept(server, couple):
     assert [a["name"] for a in d["accounts"]] == ["Jane's brokerage"]
     listed = john.get("/ui/api/tax-books").json()
     assert listed["books"] == [] and listed["waiting"][0]["id"] == b["id"]
-    assert "access" not in listed["waiting"][0]  # an invitation, read of nothing (decision 5)
+    assert "access" not in listed["waiting"][0]  # an invitation, read of nothing
     assert john.get(f"/ui/api/tax-books/{b['id']}").status_code == 404
     held = john.post(f"/ui/api/tax-books/{b['id']}/accept").json()["access"]
     assert held == {
@@ -320,7 +320,7 @@ def test_next_years_book_copies_dependents_a_year_older(server, couple):
 
 
 def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adder(server, couple):
-    """S8.14.1, S8.14.2, S8.14.4 (P1): a book naming John shows nothing of his year before, and
+    """S8.14.1, S8.14.2, S8.14.4: a book naming John shows nothing of his year before, and
     copies nothing from it, until he accepts; an account he added counts while he sees it."""
     jane, john, a_id, b_id = couple
     kid = new_account(jane, name="Lisa's custodial", type="brokerage")
@@ -347,7 +347,7 @@ def test_last_years_book_waits_for_every_filer_and_an_added_account_for_its_adde
 
 
 def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
-    """S8.14.3 (P7): write lets a helper edit filings, not add accounts; any filer shares it."""
+    """S8.14.3: write lets a helper edit filings, not add accounts; any filer shares it."""
     jane, john, a_id, b_id = couple
     make_user(server, "gail")
     gail = sign_in(server, "gail")
@@ -365,7 +365,7 @@ def test_a_helper_edits_but_never_changes_what_the_book_counts(server, couple):
 
 
 def test_a_due_date_skips_weekends_and_legal_holidays():
-    # B22: Emancipation Day (April 16, as observed) moves the return's due date, as in 2017,
+    # Emancipation Day (April 16, as observed) moves the return's due date, as in 2017,
     # 2018, 2022 and 2023.
     import datetime as dt
 
@@ -382,7 +382,7 @@ def test_a_due_date_skips_weekends_and_legal_holidays():
 
 
 def test_an_edit_that_moves_a_filed_years_gains_asks_first(server, couple):
-    # N5: once 2025's federal return is filed, an edit that changes 2025's realized gains is
+    # Once 2025's federal return is filed, an edit that changes 2025's realized gains is
     # refused, naming the year, until confirmed.
     from test_accounts import add, new_account
 
@@ -495,7 +495,7 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
     assert issues() == [
         "Realized gains changed by -$10.00 after the federal return was filed: Brokerage, 1 edit"
     ]
-    # The amended return accepted later settles nothing it never had in (CR3-35).
+    # The amended return accepted later settles nothing it never had in.
     filings = jane.get(f"/ui/api/tax-books/{b['id']}").json()["filings"]
     amended = next(f for f in filings if f["form"] == "1040-X")
     saved(change(jane, "Filng", amended, progress="accepted", confirmation="X-2026-0611"))
@@ -510,7 +510,7 @@ def test_an_edit_made_anyway_stays_on_the_book_until_amended_or_waved(server, co
 
 
 def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
-    # N13: a co-filer opens the file through the book; it isn't in the uploader's Inbox, and
+    # A co-filer opens the file through the book; it isn't in the uploader's Inbox, and
     # can't be deleted while the document keeps it.
     jane, john, a_id, b_id = couple
     b = book(jane, 2026, [a_id, b_id])
@@ -530,8 +530,8 @@ def test_a_tax_documents_file_opens_for_the_books_filers(server, couple):
 
 
 def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):
-    """CR3-36: a document's form, notes and file change, and it goes, through the save; a
-    co-filer changes one the other filer attached a file to, the file left as it was."""
+    """A document's form, notes and file change, and it goes, through the save; a co-filer changes
+    one the other filer attached a file to, the file left as it was."""
     jane, john, a_id, b_id = couple
     b = book(jane, 2026, [a_id, b_id])
     assert john.post(f"/ui/api/tax-books/{b['id']}/accept").status_code == 200
@@ -558,7 +558,7 @@ def test_a_document_changed_removed_and_given_its_file_by_a_co_filer(couple):
 
 
 def test_a_childs_reinvested_dividends_and_gains_count_toward_form_8615(server, couple):
-    # CR3-392's sibling: a child's reinvested dividend is unearned income, typed or not, and so
+    # A child's reinvested dividend is unearned income, typed or not, and so
     # is a gain sold in their account; a dependent's accounts change as the book's draft says.
     jane, _, a_id, _ = couple
     kid = person(jane, "Bart Doe", "male", birthYear=2012)
@@ -606,8 +606,8 @@ def test_childcare_paid_in_a_split_expects_the_providers_statement(server, coupl
 
 
 def test_a_tax_documents_file_goes_with_the_book_to_its_helpers(server, couple):
-    """CR3-9, CR3-74: a preparer the book is shared with at write opens the W-2 a filer
-    attached, as a read share does; a stranger still can't."""
+    """A preparer the book is shared with at write opens the W-2 a filer attached, as a read share
+    does; a stranger still can't."""
     from edits import share
 
     jane, _john, a_id, _b_id = couple

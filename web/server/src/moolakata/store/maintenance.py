@@ -139,7 +139,7 @@ def queue_host_event(config: Config, kind: str, detail: dict) -> None:
     phrase to open the database with, so the running server takes the queue at its next
     unlock and every quarter hour (`take_host_events`). The line is appended under the file's
     lock, to the file still at the queue's name: one the server took meanwhile is left for a
-    new one (CR3-305)."""
+    new one."""
     config.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     line = json.dumps({"kind": kind, "at": clock.now().isoformat(), "detail": detail})
     path = config.data_dir / HOST_EVENTS
@@ -160,8 +160,8 @@ def queue_host_event(config: Config, kind: str, detail: dict) -> None:
 
 def take_host_events(config: Config) -> list[dict]:
     """The queued host events, moved aside under a private name first, so a line appended
-    meanwhile starts a new queue (CR3-305). The moved file stays until `host_events_taken`,
-    once the events are recorded, so a failed record loses none (CR3-355); a file left from
+    meanwhile starts a new queue. The moved file stays until `host_events_taken`,
+    once the events are recorded, so a failed record loses none; a file left from
     such a failure is taken again first."""
     path = config.data_dir / HOST_EVENTS
     taking = config.data_dir / (HOST_EVENTS + ".taking")
@@ -240,7 +240,7 @@ def backup(config: Config, store: Store, now: dt.datetime | None = None) -> Path
 
 def clear_parts(config: Config) -> None:
     """A backup cut off part-way (a stop, a full disk) is removed: at the next backup and at
-    the server's start, never listed nor kept under an old key (CR3-299). Only one process
+    the server's start, never listed nor kept under an old key. Only one process
     makes backups at a time, under the data directory's lock or the maintenance lock."""
     if not config.backup_dir.is_dir():
         return
@@ -274,7 +274,7 @@ def backup_days(config: Config) -> int:
 def prune(config: Config, keep: int) -> list[Path]:
     """Every backup of the `keep` most recent days that have one is kept, and the rest go
     (S14.6): a second backup the same day, *Backup Now*, never pushes out an earlier day's,
-    and never fewer than three days are kept (CR3-63)."""
+    and never fewer than three days are kept."""
     found = backups(config)
     days = sorted({_day(p) for p in found})[-max(keep, KEEP_AT_LEAST) :]
     gone = [p for p in found if _day(p) not in days]
@@ -486,7 +486,7 @@ def _rewrap_restored(config: Config, aside: Path, master_key: bytes, ask) -> lis
 
 def after_restore(config: Config) -> dict | None:
     """At the unlock after a restore: what it left to do (`restored.json`), kept until
-    `restore_checked` says it is done, so a failed unlock does it again (CR3-298)."""
+    `restore_checked` says it is done, so a failed unlock does it again."""
     try:
         return json.loads((config.data_dir / RESTORED_MARK).read_text())
     except FileNotFoundError, ValueError:
@@ -557,7 +557,7 @@ def rotate_running(
     """Rotation (S15.7.1) in the running server, which holds the data key, so the current
     phrase is not needed to wrap it. The journal comes first, naming the new master key and
     each copy's choice (re-encrypt by default), then the keyring wrapped under the new key
-    with the old one recorded (CR3-296); the server then restarts, and the unlock with the new
+    with the old one recorded; the server then restarts, and the unlock with the new
     phrase re-encrypts and carries out the copies' choices (S15.7.2). Returns the store under
     the new keyring, and what each copy will meet there."""
     from . import copies, reencrypt

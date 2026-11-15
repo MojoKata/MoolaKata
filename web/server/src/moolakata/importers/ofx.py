@@ -65,9 +65,9 @@ def _raw(text: str | None) -> dt.date | None:
 
 class RawDates:
     """Every date in the file as the institution wrote it: ofxtools converts them to UTC,
-    which moves an evening's date to the next day (S14.9.3, CR3-170). A transaction's is found
-    by its FITID and its place among the rows with that FITID, since a file may repeat one
-    (CR3-175); the statement's own (its period, its balance's day) by where it sits."""
+    which moves an evening's date to the next day (S14.9.3). A transaction's is found
+    by its FITID and its place among the rows with that FITID, since a file may repeat one;
+    the statement's own (its period, its balance's day) by where it sits."""
 
     def __init__(self, root) -> None:
         self.root = root

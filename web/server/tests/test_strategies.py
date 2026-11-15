@@ -137,7 +137,7 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(jane):
     v = jane.get("/ui/api/positions/strategies").json()
     [roll] = v["proposals"]
     assert (roll["kind"], roll["strategyId"]) == ("roll", st["id"])
-    # An unnamed strategy is named in the roll as it is shown: by its shape (CR3-408).
+    # An unnamed strategy is named in the roll as it is shown: by its shape.
     [shown] = [x for x in v["strategies"] if x["id"] == st["id"]]
     assert roll["shape"] == shown["name"] != ""
     r = jane.post(
@@ -148,7 +148,7 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(jane):
     st = r.json()
     assert len(st["legs"]) == 3 and st["realized"] == 100, "the closed leg's P/L stays with it"
     # Each leg's trade takes the strategy's capital at risk at open, as it was at open (the
-    # 540/530 spread, not the rolled one: B12), its return exact.
+    # 540/530 spread, not the rolled one), its return exact.
     assert st["capitalAtRiskAtOpen"] == 920
     r = jane.get("/ui/api/positions/option-trades")
     assert r.status_code == 200, r.text
@@ -194,7 +194,7 @@ def test_a_short_call_against_shares_is_proposed_as_a_covered_call(jane):
 
 
 def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(jane):
-    # B12: a short straddle with no margin typed risks an unlimited amount, and the account
+    # A short straddle with no margin typed risks an unlimited amount, and the account
     # says so; assigned, its last leg closes it.
     a = new_account(jane, type="brokerage")["id"]
     for right, premium in (("call", "3.00"), ("put", "2.50")):
@@ -226,9 +226,8 @@ def _risk(jane, a):
 
 
 def test_an_option_on_its_own_risks_what_its_shape_does(jane):
-    """CR3-6: grouped or not, one leg counts the same capital at risk: a short put its strike
-    less its premium, an uncovered short call no limit, one the account's shares cover a
-    covered call's."""
+    """Grouped or not, one leg counts the same capital at risk: a short put its strike less its
+    premium, an uncovered short call no limit, one the account's shares cover a covered call's."""
     a = new_account(jane, type="brokerage")["id"]
     assert option(jane, a, "sell-to-open", "2026-10-02", "2.00", fees="0").status_code == 200
     alone = _risk(jane, a)
@@ -668,14 +667,14 @@ def test_shares_cover_calls_in_turn_and_only_shares_no_strategy_holds(world):
     assert risk_of_account(two.s, LEDGER, two)[1] is None, "the strategy's shares are its own"
     unpriced = Book(open={"C1": (-1, -412), "U": (100, 40000)})
     world.strategies = []
-    # Unpriced, the shares count at what they cost, as a strategy's do (CR3-429): never at 0.
+    # Unpriced, the shares count at what they cost, as a strategy's do: never at 0.
     assert risk_of_account(unpriced.s, LEDGER, unpriced)[1] == D("39588.00")
     half = Book(open={"C1": (-1, -412), "U": (200, 80000)})
     assert risk_of_account(half.s, LEDGER, half)[1] == D("39588.00"), "the shares used, pro rata"
 
 
 def test_one_share_covers_a_contract_that_delivers_one(world):
-    """CR3-400: coverage counts what a contract delivers: an adjusted one delivering a share."""
+    """Coverage counts what a contract delivers: an adjusted one delivering a share."""
     world.contracts["C"] = contract("call", 5, deliverable='[{"instrumentId": "U", "shares": 1}]')
     book = Book(open={"C": (-1, -4), "U": (1, 400)}, prices={("U", None): D(400)})
     assert risk_of_account(book.s, LEDGER, book)[1] == D("396.00")
@@ -784,7 +783,7 @@ def test_a_leg_opened_the_day_another_closed_is_proposed_as_its_roll(world):
     world.legs |= {"First": [LegRow("X1", D0, None), LegRow("X0", D0, None),
                              LegRow("X2", D0, None)],
                    "Second": [LegRow("Y2", D0, None)]}  # fmt: skip
-    # The first is named as it is shown: by its shape, the owner's tick in it (CR3-408).
+    # The first is named as it is shown: by its shape, the owner's tick in it.
     world.strategies = [strategy("First", D0, cash_secured=True),
                         strategy("Second", D0, name="Wheel")]  # fmt: skip
     book = Book(open={"X1": (-1, -200), "N4": (-1, -150), "N1": (-1, -100), "N3": (-1, -50)},
@@ -870,8 +869,8 @@ def test_a_books_prices_are_asked_once_each_for_the_day_and_owner(monkeypatch):
 
 
 def test_a_leg_follows_its_contract_through_each_adjustment_and_back(monkeypatch):
-    """S3.10, CR3-401: the contract it became, its quantity times each ratio; adjusted back to
-    a contract already passed, it stops there."""
+    """S3.10: the contract it became, its quantity times each ratio; adjusted back to a contract
+    already passed, it stops there."""
     rows = [NS(instrumentId="A", addedOn=D1, quantity=D(2)),
             NS(instrumentId="U", addedOn=D1, quantity=None),
             NS(instrumentId="C", addedOn=D2, quantity=D(2)),

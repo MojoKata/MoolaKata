@@ -1,8 +1,8 @@
-"""The screens built on an account's parts (the values, taxes and options walk, 4.3): a
-portfolio's Holdings shows a loan and an item on rows of their own and totals the portfolio's
-value; a projection names what it leaves out; a loan's screen offers to pair a bank debit with
-a payment already recorded, and its payment dialog finds the bank's half already there. The
-records made are taken away again, so the shared household's other figures stay as they were.
+"""The screens built on an account's parts: a portfolio's Holdings shows a loan and an item on
+rows of their own and totals the portfolio's value; a projection names what it leaves out; a
+loan's screen offers to pair a bank debit with a payment already recorded, and its payment
+dialog finds the bank's half already there. The records made are taken away again, so the
+shared household's other figures stay as they were.
 """
 
 import datetime as dt
@@ -115,7 +115,7 @@ def test_a_loans_screen_pairs_and_its_dialog_finds_the_bank_half(browser, househ
 
 
 def test_an_uncovered_call_on_its_own_risks_without_limit(browser, household):
-    """CR3-6: an option outside a strategy counts as its shape: an uncovered short call makes
+    """An option outside a strategy counts as its shape: an uncovered short call makes
     the account's capital at risk unlimited; the trade's return is on its capital required."""
     from edits import option_trade
 

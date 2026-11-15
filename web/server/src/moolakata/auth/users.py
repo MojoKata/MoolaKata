@@ -307,7 +307,7 @@ def _issue(s: Db, user: User, purpose: str, lifetime: dt.timedelta, data: str | 
 
 
 # The links mailed to a user's address. A new address ends them: whoever holds the old mailbox
-# can no longer use one (CR3-49, CR3-452). An email change's own link went to the new address.
+# can no longer use one. An email change's own link went to the new address.
 MAILED = ("invitation", "reset")
 
 
@@ -693,7 +693,7 @@ def update_user(
 ) -> list[str]:
     """An admin's edit. An email is fixed directly only while the invitation is pending;
     afterwards it changes by the user's own confirmed request. A fixed address ends the
-    invitation sent to the old one and sends one to the new (S10.1.3, CR3-49); with no public
+    invitation sent to the old one and sends one to the new (S10.1.3); with no public
     URL to build it from, none is sent, and the admin resends it once there is."""
     fields = []
     if display_name is not None and display_name.strip() != user.displayName:

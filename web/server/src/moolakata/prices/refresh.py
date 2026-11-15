@@ -208,7 +208,7 @@ def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
     ):
         if iid in holding:
             firsts[iid] = min(day, firsts.get(iid, day))
-    # What an open option needs priced (S4.4's "watched", CR3-23): its underlying, or an
+    # What an open option needs priced (S4.4's "watched"): its underlying, or an
     # adjusted contract's deliverable parts, from the option's first trade, so its expiry is
     # decided by a close and its intrinsic value has one, held or not.
     for c in s.scalars(

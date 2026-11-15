@@ -171,7 +171,7 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     assert joined.json()["fingerprint"] == links_of(ca)["fingerprint"]
     req = links_of(ca)["links"][0]
     assert req["state"] == "requested" and req["fingerprint"] == links_of(cb)["fingerprint"]
-    # Nothing of either household crosses before the approval (S10.10.1, P5).
+    # Nothing of either household crosses before the approval (S10.10.1).
     assert req["users"] == [] and links_of(cb)["links"][0]["users"] == []
     with a.db.read(unscoped="test") as s:
         assert s.query(Person).filter(Person.name == "Bart").count() == 0
@@ -605,7 +605,7 @@ def test_a_large_change_arrives_in_parts_oldest_first(admins, monkeypatch):
 
 
 def test_a_remote_user_is_a_person_of_their_own_until_someone_joins_them(admins):
-    """S10.10.1 (P5): a linked server's user never takes over a person here by its name; one
+    """S10.10.1: a linked server's user never takes over a person here by its name; one
     who may change that person joins them, and its privacy stays as it was."""
     from moolakata.store.entities.education import Person
     from moolakata.store.entities.users import User
@@ -766,7 +766,7 @@ def test_a_peers_own_certificate_is_pinned_announced_and_accepted(admins):
 
 
 def test_calls_no_known_key_signs_are_limited_by_address(server):
-    # N9: 60 a minute, counted before a body is read (S13.7.5.4).
+    # 60 a minute, counted before a body is read (S13.7.5.4).
     from conftest import new_client
 
     with new_client(server) as c:
@@ -854,7 +854,7 @@ def test_a_change_put_back_in_the_inbox_is_refused_and_everything_asked_for(admi
 
 
 def test_a_released_copys_key_opens_nothing_more():
-    # K25: the copy's database key is overwritten at the release, and no new connection opens.
+    # The copy's database key is overwritten at the release, and no new connection opens.
     from moolakata.store.db import HeldKey, WrongKey
 
     k = HeldKey(bytes(range(32)))
@@ -882,7 +882,7 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
         assert e.value.code == code
 
 
-# ---------- one receipt never holds a change back (S11.4, CR3-4)
+# ---------- one receipt never holds a change back (S11.4)
 
 
 def _shared_receipt(a, ca, cb):
@@ -984,8 +984,8 @@ def test_a_failure_after_the_exchange_call_is_recorded_on_the_link(admins):
 
 def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     """S17.5: the largest receipt Settings allows fits every path it takes across a link: a
-    `deliver` body and a `file` answer are bounded by it sealed, and the uploads in flight hold
-    one. (Statements against uploads in flight are CR3-121, not covered here yet.)"""
+    `deliver` body and a `file` answer are bounded by it sealed, and the uploads in flight hold one.
+    Statements against the uploads in flight are not covered here yet (See GH #237)."""
     from moolakata import middleware, net, settings
     from moolakata.links import sealed
 
@@ -1022,9 +1022,8 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
 
 
 def test_a_locked_copys_inbox_names_no_one(admins):
-    """CR3-55, S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry
-    beside it too: no owner's name, item id or user id in the clear; the unlock still checks
-    and applies it."""
+    """S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry beside it too:
+    no owner's name, item id or user id in the clear; the unlock still checks and applies it."""
     from moolakata.store.entities.users import User
 
     a, b, ca, cb, _ = admins
@@ -1049,8 +1048,8 @@ def test_a_locked_copys_inbox_names_no_one(admins):
 
 
 def test_a_tax_books_document_files_cross_when_included(admins):
-    """CR3-10: a tax book shared with Include receipts sends its documents' files, each named
-    by its form and issuer; without the tick they stay home (S11.5.1)."""
+    """A tax book shared with Include receipts sends its documents' files, each named by its form
+    and issuer; without the tick they stay home (S11.5.1)."""
     from test_receipts import png
 
     a, b, ca, cb, _ = admins

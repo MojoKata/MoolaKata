@@ -121,7 +121,7 @@ def test_a_card_statement_is_turned_to_the_accounts_side():
 
 
 def test_a_cards_cr_and_dr_are_the_accounts_side_already():
-    # B20: a payment marked CR is money in, turned once, never twice.
+    # A payment marked CR is money in, turned once, never twice.
     st = parse(
         CARD.replace("PAYMENT THANK YOU -1,203.11", "PAYMENT THANK YOU 1,203.11 CR"), card=True
     )
@@ -170,8 +170,8 @@ Fee Detail
 
 
 def test_a_line_left_out_teaches_no_skip():
-    """CR3-16: a line is ignored next time only when the person asks (Remember…), never because
-    they left it out, or because it was already in the account."""
+    """A line is ignored next time only when the person asks (Remember…), never because they left it
+    out, or because it was already in the account."""
     row = statements.StatementRow
     day = dt.date(2026, 9, 3)
     kept = [row(day, "DEBIT CARD PURCHASE KROGER 123", Decimal("-40.00"))]
@@ -258,9 +258,9 @@ Withdrawals and Other Debits
 
 
 def test_correcting_a_line_then_importing_the_next_statement_keeps_its_lines(server):
-    """CR3-1, CR3-16 (S1.3.3.3, S1.3.3.4), end to end: the person renames one line, leaves
-    the waived fee out and asks to ignore lines like it; the next statement from the bank keeps
-    every card purchase and shows the fee, ignored, left out."""
+    """S1.3.3.3, S1.3.3.4, end to end: the person renames one line, leaves the waived fee out and
+    asks to ignore lines like it; the next statement from the bank keeps every card purchase and
+    shows the fee, ignored, left out."""
     from conftest import make_user, sign_in
     from test_accounts import new_account
     from test_reading import text_pdf

@@ -79,7 +79,7 @@ TXN_KINDS = (
     "symbol-change",
     "spin-off",
     "merger",
-    # Income kinds (S8.5, CR3-38): foreign tax a fund paid, and crypto received as income.
+    # Income kinds (S8.5): foreign tax a fund paid, and crypto received as income.
     "foreign-tax",
     "reward",
 )
@@ -436,7 +436,7 @@ Lot = record(
     Column("costBasis", Cents),
     Column("basisMissing", Boolean, nullable=False, server_default=text("0")),
     # Shares moved in whose day bought isn't known yet: `acquiredOn` is the day they arrived,
-    # their term unknown until it is typed (S2.2, CR3-73).
+    # their term unknown until it is typed (S2.2).
     Column("acquiredMissing", Boolean, nullable=False, server_default=text("0")),
     Index("ix_Lot_account_instrument", "accountId", "instrumentId"),
     seen=Seen.child("accountId"),

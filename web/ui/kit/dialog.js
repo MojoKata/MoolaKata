@@ -89,7 +89,7 @@ function closeOne(d, value) {
   const gone = stack.value.slice(at);
   stack.value = stack.value.slice(0, at);
   // Once the dialog is gone and so is its history entry: a caller that goes somewhere next
-  // isn't sent back by the entry's late `history.back()` (CR3-406).
+  // isn't sent back by the entry's late `history.back()`.
   setTimeout(() => {
     leaving.then(() => {
       for (const x of gone.reverse()) x.resolve(x === d ? value : undefined);

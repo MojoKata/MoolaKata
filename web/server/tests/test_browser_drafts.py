@@ -64,14 +64,14 @@ def holding(h: Household) -> tuple:
 
 
 def gift_plan(h: Household) -> tuple:
-    """Lisa's plan as read, and the gifts with their occasions (CR3-43)."""
+    """Lisa's plan as read, and the gifts with their occasions."""
     plan = h.c.get(f"/ui/api/gift-plans/{h.extra['lisa']['id']}").json()
     gifts = h.c.get("/ui/api/gifts").json()["items"]
     return plan, [(g["description"], g["occasion"], g["occasionLabel"]) for g in gifts]
 
 
 def filings(h: Household) -> list:
-    """The book's filings as read, payments and carried figures with them (CR3-35)."""
+    """The book's filings as read, payments and carried figures with them."""
     return h.c.get(f"/ui/api/tax-books/{h.extra['book']['id']}").json()["filings"]
 
 
@@ -169,7 +169,7 @@ FORMS = [
         budget_of,
     ),
     Form(
-        "a transaction split, a part paid back (CR3-29)",
+        "a transaction split, a part paid back",
         lambda h: f"/ui/accounts/{h.checking['id']}/transactions",
         'tr:has-text("Grand Hotel") .row-tool',
         'tr:has-text("Grand Hotel") .row-tool',
@@ -215,7 +215,7 @@ FORMS = [
         lambda h: h.c.get(f"/ui/api/shares/portfolio/{h.extra['portfolio']['id']}").json(),
     ),
     Form(
-        "a gift plan with a graduation and a gift for it (CR3-43)",
+        "a gift plan with a graduation and a gift for it",
         lambda h: "/ui/gifts/people",
         'tr:has-text("Lisa Doe") .row-tool',
         'tr:has-text("Lisa Doe") .row-tool',
@@ -278,7 +278,7 @@ FORMS = [
         book_of,
     ),
     Form(
-        "a W-2 kept with its file and notes (CR3-36)",
+        "a W-2 kept with its file and notes",
         lambda h: "/ui/taxes/documents",
         'tr:has-text("Acme Corp") .row-tool',
         'tr:has-text("Acme Corp") .row-tool',
@@ -337,7 +337,7 @@ FORMS = [
         'form.card:has-text("From address")',
         "/settings/email",
     ),
-    # Settings › Bitcoin's untouched save writes its source the first time (CR3-62): its own
+    # Settings › Bitcoin's untouched save writes its source the first time: its own
     # test below, on a server of its own, so no wallet of the household is ever read.
     settings_form("Settings › Prices' refresh time", "prices", 'form:has-text("Daily refresh")'),
     settings_form(
@@ -357,7 +357,7 @@ FORMS = [
 
 @pytest.mark.parametrize("form", FORMS, ids=[f.name for f in FORMS])
 def test_saved_unchanged_a_form_changes_nothing(browser, household, form):
-    """CR3-2 and its kind: what a form shows (moves, carried remainders, a reserve's balance, a
+    """What a form shows (moves, carried remainders, a reserve's balance, a
     yearly line) never flows back into its records when it is saved untouched."""
     h = household
     before = form.reads(h)
@@ -376,7 +376,7 @@ def test_saved_unchanged_a_form_changes_nothing(browser, household, form):
 
 
 def test_a_plan_from_history_leaves_the_lines_it_doesnt_propose(browser, household):
-    """CR3-2's fourth case: the estimate keeps the reserve it doesn't propose, target and all."""
+    """An estimate from history keeps the reserve it doesn't propose, target and all."""
     h = household
     b = fresh_budget(h, "Estimated")
     before = {x["categoryId"]: x for x in plan_of(h, b)}
@@ -561,7 +561,7 @@ def test_a_record_changed_meanwhile_saves_nothing_and_reloads(browser, household
 
 
 def test_an_edited_split_transaction_keeps_its_parts_and_their_payback(browser, household):
-    """CR3-29: a memo added in the dialog leaves the parts as they were, ids and all, so the
+    """A memo added in the dialog leaves the parts as they were, ids and all, so the
     part paid back stays paid back."""
     h = household
     before, _ = paid_back(h)
@@ -634,7 +634,7 @@ def test_an_add_dialog_left_untouched_closes_without_asking(browser, household):
 
 
 def test_a_gift_plan_changed_keeps_its_gifts_occasions(browser, household):
-    """CR3-43: a holiday added and the notes changed; the graduation keeps its id, and the
+    """A holiday added and the notes changed; the graduation keeps its id, and the
     watch planned for it keeps the graduation."""
     h = household
     before, gifts = gift_plan(h)
@@ -945,7 +945,7 @@ def test_a_delete_asks_first_and_no_leaves_everything_as_it_was(browser, househo
 
 
 def test_a_kept_document_opens_to_change_it_and_to_remove_it(browser, household):
-    """CR3-36: a document kept is changed, then removed, from its row."""
+    """A document kept is changed, then removed, from its row."""
     h = household
     b = h.extra["book"]["id"]
     make(h.c, "TxDoc", bookId=b, form="1098", issuer="Rocket")
@@ -1319,7 +1319,7 @@ def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser
 
 
 def test_a_sale_picks_its_lots_in_the_dialog(browser, household):
-    # CR3-389, S2.3: a sale lists the lots held on its day; the quantity typed against one is
+    # S2.3: a sale lists the lots held on its day; the quantity typed against one is
     # a pick, saved as a record of the sale, and the rest goes oldest first.
     h = household
     acct = made(make(h.c, "Acct", name="Picked", type="brokerage"))
@@ -1424,7 +1424,7 @@ def test_bitcoin_is_typed_in_sats_when_the_person_counts_in_sats(browser, househ
 
 
 def test_an_options_end_takes_a_count_from_1_to_those_held(browser, household):
-    # CR3-403, R3.11: the settle dialog's Contracts starts empty; 0 is marked when the field is
+    # R3.11: the settle dialog's Contracts starts empty; 0 is marked when the field is
     # left (and refused if saved); All fills in the contracts held and greys out; Record settles
     # them.
     h = household

@@ -339,7 +339,7 @@ def test_a_relationship_is_changed_and_removed_with_its_version(two):
 
 
 def test_a_person_who_becomes_a_user_is_theirs_to_change(server, two):
-    """S10.10.2 (P5): whoever made a person before they were invited no longer changes them."""
+    """S10.10.2: whoever made a person before they were invited no longer changes them."""
     from moolakata.auth import users as accounts
     from moolakata.store.entities.users import User
 

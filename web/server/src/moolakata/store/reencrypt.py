@@ -6,7 +6,7 @@ choices among them; the new data key's keyring is written beside the keyring as
 `keyring.next`, and the old one kept as `keyring.old` until the store has opened under the new
 one (`tidy`). Every step is safe to take again, so an interrupted run carries on from the journal
 at the next unlock, with the phrase given then, redoing nothing; once the journal names the new
-data key, no other is ever made (CR3-58). A receipt that opens under neither key, or is damaged
+data key, no other is ever made. A receipt that opens under neither key, or is damaged
 past its first chunk, goes to `receipts-set-aside/`, a secret that opens under neither stays as
 it is, and both are reported, never fatal. A `keyring.next` the journal doesn't explain is set
 aside, never deleted.
@@ -95,7 +95,7 @@ def schedule(
     copy's choice; the server restarts for it at once (S15.7.2). The phrase is the one given
     at that unlock. `to`, for a rotation, is the new master key's id, so a run that finds the
     keyring still under the old one says the rotation didn't finish. One already pending is
-    never replaced (CR3-61)."""
+    never replaced."""
     if any(v not in CHOICES for v in choices.values()):
         raise ValueError("each copy: reencrypt, delete or leave")
     if pending(config):
@@ -115,7 +115,7 @@ def schedule(
 
 def tidy(config: Config) -> None:
     """Once the store has opened under the new data key with no run pending, the old keyring
-    kept for a resume goes (CR3-58)."""
+    kept for a resume goes."""
     if not _path(config).exists():
         (config.data_dir / OLD).unlink(missing_ok=True)
 
@@ -144,7 +144,7 @@ def opens(path: Path, key, name: str) -> bool:
 
 def rewrap_files(folder: Path, old_key, new_key, progress: Progress | None = None) -> list[str]:
     """Each receipt file under the new receipts key: one already under it is left, one under
-    the old key rewritten, and one under neither, or damaged past its first chunk (CR3-59),
+    the old key rewritten, and one under neither, or damaged past its first chunk,
     moved to `receipts-set-aside/`. Returns the names set aside. Safe to run again after an
     interruption."""
     aside: list[str] = []
@@ -245,12 +245,12 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
     steps = j["steps"]
     old_ring_path = config.data_dir / OLD
     if j.get("to") and "unrotated" not in steps:
-        # A rotation whose keyring never reached the new phrase (CR3-296): the run
+        # A rotation whose keyring never reached the new phrase: the run
         # re-encrypts under the phrase given, and the report says the rotation didn't finish.
         _step(config, j, "unrotated", None if ring.master_id == j["to"] else ring.master_id)
     if not steps.get("keyring") and steps.get("next") and ring.data_key_id == steps["next"]:
-        # The keyring was put in place and the run stopped before the journal said so
-        # (CR3-58): the step is done, and keyring.old holds the key it replaced.
+        # The keyring was put in place and the run stopped before the journal said so:
+        # the step is done, and keyring.old holds the key it replaced.
         if not old_ring_path.exists():
             raise RefuseStart(
                 f"{config.keyring_path} holds the re-encryption's new data key but "
@@ -298,7 +298,7 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
     if new_ring is None:
         if steps.get("next"):
             # Never a second new data key: the database or receipts may already be under the
-            # one the journal names (CR3-58).
+            # one the journal names.
             raise RefuseStart(
                 f"the re-encryption's new keyring {nxt.name} is missing, and {JOURNAL} names its "
                 f"data key: set {JOURNAL} aside and restore the backup "
@@ -352,7 +352,7 @@ def run(config: Config, master_key: bytes, progress: Progress | None = None) -> 
             continue
         # A copy the choices don't name (the run's first backup, a daily one made since)
         # takes the default when it holds the data key being replaced, or already the new
-        # one after a stop part-way (CR3-60).
+        # one after a stop part-way.
         choice = j["copies"].get(c.name) or (
             "reencrypt" if c.ring is not None and c.ring.data_key_id in ours else "leave"
         )

@@ -1,7 +1,7 @@
-"""Settings › Network's Listener rows as an admin sees them (requirements S16.14, CR3-12,
-CR3-308), in headless Chromium, on servers of their own in each way the listener runs: behind a
-proxy with none trusted yet or with one, and serving HTTPS with a certificate given to it. (Its
-own self-signed one is drawn by the generated mockup's server.)"""
+"""Settings › Network's Listener rows as an admin sees them (requirements S16.14), in headless
+Chromium, on servers of their own in each way the listener runs: behind a proxy with none
+trusted yet or with one, and serving HTTPS with a certificate given to it. (Its own self-signed
+one is drawn by the generated mockup's server.)"""
 
 import pytest
 from browser import PASSWORD, client, made, open_page, stop, unlocked, wait

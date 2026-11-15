@@ -1,5 +1,5 @@
-"""What each movement of money into or out of a retirement account is (requirements S8.6;
-CR3-37), worked out once for every reader: a contribution (the owner's or their employer's), a
+"""What each movement of money into or out of a retirement account is (requirements S8.6),
+worked out once for every reader: a contribution (the owner's or their employer's), a
 rollover (between accounts of the same tax treatment, a trustee-to-trustee move too), a
 conversion (pre-tax to Roth), or a distribution. A matched transfer tells it by its other
 half's account; a source the user set on the transaction says it where none does."""

@@ -208,7 +208,7 @@ def test_a_written_invitation_stays_a_week_and_the_rest_a_day(server):
 
 
 def test_a_reset_email_goes_when_its_link_stops_working(client, server):
-    # S16.2, C9: a reset link works an hour, so its written email is kept an hour, not a day.
+    # S16.2: a reset link works an hour, so its written email is kept an hour, not a day.
     import datetime as dt
 
     from moolakata.mail import expire_written

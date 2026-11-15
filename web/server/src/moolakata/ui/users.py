@@ -29,7 +29,7 @@ class UserRow(Model):
     admin: bool
     invited: bool
     # An invitation link that still works: none once it expired, or when a corrected address
-    # had no public URL to build one from (CR3-49).
+    # had no public URL to build one from.
     invitationLive: bool
     twoStep: bool
     groupIds: list[str]

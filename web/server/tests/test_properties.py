@@ -56,8 +56,8 @@ def loans(draw):
 @PROPERTIES
 @given(loans())
 def test_a_loans_payment_is_its_schedules_next_row_and_the_rows_pay_what_is_owed(case):
-    """The summary's payment is the next row's (CR3-21); no balance goes below zero; the rows
-    ahead pay off exactly what is owed today."""
+    """The summary's payment is the next row's; no balance goes below zero; the rows ahead pay off
+    exactly what is owed today."""
     t, payments, draws, today = case
     sm, rows = L.summary(t, payments, draws, today)
     ahead = [r for r in rows if not r.past]
@@ -83,8 +83,8 @@ def test_a_loans_payment_is_its_schedules_next_row_and_the_rows_pay_what_is_owed
 def test_one_payment_days_dues_are_paid_once_however_the_payment_is_split(
     principal, rate, escrow, first, later, extra
 ):
-    """CR3-417: a payment day's interest and escrow are due once: paying it in two parts within
-    its grace pays the same interest, escrow and principal as paying it in one."""
+    """A payment day's interest and escrow are due once: paying it in two parts within its grace
+    pays the same interest, escrow and principal as paying it in one."""
     t = L.Terms(principal=principal, start=dt.date(2026, 1, 1), months=360, rate=rate,
                 escrowTax=escrow)  # fmt: skip
     day = dt.date(2026, 2, 1)
@@ -106,8 +106,8 @@ def test_one_payment_days_dues_are_paid_once_however_the_payment_is_split(
     drawn=st.integers(min_value=1_000, max_value=500_000).map(D),
 )
 def test_a_helocs_repayment_ends_on_its_terms_last_payment_day(months, share, rate, drawn):
-    """CR3-418: drawn in its draw period and repaid as scheduled, a HELOC's last payment falls
-    on the term's end, its repayment level to the last."""
+    """Drawn in its draw period and repaid as scheduled, a HELOC's last payment falls on the term's
+    end, its repayment level to the last."""
     draw_months = max(1, months * share // 100)
     t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=months, rate=rate,
                 drawMonths=draw_months)  # fmt: skip
@@ -130,9 +130,8 @@ def test_a_helocs_repayment_ends_on_its_terms_last_payment_day(months, share, ra
 def test_the_level_payment_holds_between_the_days_that_change_it(
     start, rate, reset_after, new_rate, recast
 ):
-    """CR3-419, S1.9.2: assumed as scheduled, every row from the first payment day after a
-    reset or recast to the last but one pays the same principal and interest, the rows passed
-    and those ahead alike."""
+    """S1.9.2: assumed as scheduled, every row from the first payment day after a reset or recast to
+    the last but one pays the same principal and interest, the rows passed and those ahead alike."""
     when = start + dt.timedelta(days=30 * reset_after + 10)
     t = L.Terms(principal=D(250000), start=start, months=360, rate=rate)
     if recast:
@@ -211,8 +210,8 @@ def histories(draw):
 @PROPERTIES
 @given(histories())
 def test_shares_moved_out_carry_their_lots_whole(case):
-    """CR3-73: what a transfer out takes, its pair opens: the same shares, the same basis, on
-    the days they were bought; nothing is lost or made between the two accounts."""
+    """What a transfer out takes, its pair opens: the same shares, the same basis, on the days they
+    were bought; nothing is lost or made between the two accounts."""
     from test_ledger import Txn, replay
 
     txns, made, out, moved = case
@@ -238,8 +237,8 @@ def test_shares_moved_out_carry_their_lots_whole(case):
     st.integers(min_value=1_000_00, max_value=100_000_00),
 )
 def test_money_moved_alone_is_no_return(moves, start):
-    """CR3-28: a value that changes only by money moved in or out has a time-weighted return
-    of nothing, however the moves fall."""
+    """A value that changes only by money moved in or out has a time-weighted return of nothing,
+    however the moves fall."""
     from moolakata.ledger import performance as perf
 
     day = dt.date(2026, 1, 1)
@@ -296,9 +295,9 @@ def lot_histories(draw):
 @PROPERTIES
 @given(lot_histories())
 def test_what_is_known_of_a_lot_is_never_lost_or_made_up(case):
-    """S2.2, CR3-398/399: whatever happens to a lot, every lot and sale part that comes of it
-    carries what was known of the lot it came from, and nothing else; and the shares held are
-    what a plain count says (a split multiplies, a sale or move takes what is there)."""
+    """S2.2: whatever happens to a lot, every lot and sale part that comes of it carries what was
+    known of the lot it came from, and nothing else; and the shares held are what a plain count says
+    (a split multiplies, a sale or move takes what is there)."""
     from test_ledger import replay
     from test_lot_rules import T, at
 

@@ -1,5 +1,5 @@
-"""A budget's plan edited through a dialog's draft (requirements S7.1.2, S12.15, S13.8.11):
-the lines read as stored, and saved from a month on, earlier months keeping theirs (CR3-2)."""
+"""A budget's plan edited through a dialog's draft (requirements S7.1.2, S12.15, S13.8.11): the
+lines read as stored, and saved from a month on, earlier months keeping theirs."""
 
 import datetime as dt
 
@@ -38,7 +38,7 @@ def update(line, **fields):
 
 
 def test_the_plan_is_read_as_stored_not_as_the_months_figures(server, frozen):
-    """CR3-2: a move and a carried remainder change the month's figures, never the plan."""
+    """A move and a carried remainder change the month's figures, never the plan."""
     c, acct, cat, b = setup_budget(server)
     dining, fun = cat["Food › Dining out"], cat["Entertainment"]
     plan(c, b, "2026-11-01", [{"categoryId": dining, "amount": "300.00", "rollover": True},
@@ -104,7 +104,7 @@ def test_a_line_changed_from_a_month_planned_meanwhile_is_stale(server, frozen):
 
 
 def test_a_yearly_line_saved_unchanged_but_its_month_stays_yearly(server, frozen):
-    """CR3-2's envelope case: a yearly line is a year's amount, not a twelfth."""
+    """In an envelope budget, a yearly line is a year's amount, not a twelfth."""
     c, acct, cat, _ = setup_budget(server)
     r = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[acct["id"]])
     b = r.json()

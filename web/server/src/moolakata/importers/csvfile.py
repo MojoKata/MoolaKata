@@ -366,7 +366,7 @@ def read(data: bytes, mapping: dict) -> ParsedFile:
 
 def _newest_first(rows: list[Row]) -> bool:
     """Whether the running balances chain only from the bottom up: each row's balance, less its
-    amount, is the next row's (CR3-171)."""
+    amount, is the next row's."""
     pairs = [
         (a, b)
         for a, b in pairwise(rows)

@@ -74,7 +74,7 @@ def typed(s: Session, owner: str, instrument_ids: list[str], first: dt.date | No
 # typed; failing those, a value the owner's own statement reported; failing that, the owner's
 # last trade. Worked out once, over a range of days (`_effective`): a day's price (`prices`)
 # is the last point of the range ending that day (`price_points`), so a figure for one day and
-# a chart's agree (13.1). Another user's typed prices, statements and trades never count.
+# a chart's agree. Another user's typed prices, statements and trades never count.
 _RANK = {"fixed": 0, "close": 0, "manual": 1, "statement": 2, "trade": 3}
 
 
@@ -477,7 +477,7 @@ def flows(
     s: Session, ledger, investing: bool, first: dt.date, last: dt.date
 ) -> dict[dt.date, Decimal]:
     """The money that came into the account from outside (+) or left it (−), per day from
-    `first` (after it) to `last`, valued as `series` values the account (CR3-28): cash in and
+    `first` (after it) to `last`, valued as `series` values the account: cash in and
     out; shares moved in or out at the price the series takes for them that day; an item
     added at its worth then, one sold at what its sale brought; a loan's opening
     balance owed and its draws as money out, its payments as money in. So a day with only a

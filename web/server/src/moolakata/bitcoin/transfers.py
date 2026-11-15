@@ -31,7 +31,7 @@ def _taken(s: Session, owner_id: str) -> set[str]:
 
 def propose(s: Session, owner_id: str) -> int:
     """Shares, funds or coins that left one of the owner's accounts and arrived in another,
-    the same quantity within days, proposed as a pair (S1.7.1, CR3-73): confirmed, they carry
+    the same quantity within days, proposed as a pair (S1.7.1): confirmed, they carry
     the lots they left with."""
     accounts = {
         a.id: a

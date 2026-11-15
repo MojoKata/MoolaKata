@@ -1,4 +1,4 @@
-"""Bitcoin network fees in Form 8949 (requirements S8.19; the filed tax years walk, decision 3):
+"""Bitcoin network fees in Form 8949 (requirements S8.19):
 every case of where the coins went (to someone else, or to the owner's own wallet) by how the
 book reads fees (a sale, or not taxed) by how long the coins were held.
 

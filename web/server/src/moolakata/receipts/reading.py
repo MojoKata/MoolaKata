@@ -266,7 +266,7 @@ class Reader:
         try:
             data = whole(srv, file)
             outcome = worker.read(data, media)
-            if not drawn:  # one the upload couldn't draw is tried again (CR3-48)
+            if not drawn:  # one the upload couldn't draw is tried again
                 thumb = parsing.thumbnail(data, media)
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")

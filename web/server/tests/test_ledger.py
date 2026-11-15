@@ -135,7 +135,7 @@ def test_specific_identification_and_average_cost():
     r = replay("average", [*txns, sell(15, 3750)], lots_, [], [], averaged=frozenset({"VTI"}))
     assert sum(x.basis for x in r.disposals) == D(3000)  # $200 average
     assert sum(x.basis for x in r.open) == D(3000)
-    # Average cost is for funds and coins (S2.3, CR3-387): a share goes first in.
+    # Average cost is for funds and coins (S2.3): a share goes first in.
     r = replay("average", [*txns, sell(15, 3750)], lots_, [], [])
     assert [x.method for x in r.disposals] == ["fifo", "fifo"]
 
@@ -153,7 +153,7 @@ def test_splits_return_of_capital_and_problems():
 
 
 def test_return_of_capital_over_every_lot_and_its_excess_a_gain():
-    # B10: a lot without a basis keeps its share; what exceeds a lot's basis is a gain, held
+    # A lot without a basis keeps its share; what exceeds a lot's basis is a gain, held
     # as long as the lot.
     b1, l1 = buy(d(2024, 1, 5), 10, 100)
     t2 = Txn(d(2025, 3, 5), "transfer-in", D(0), "VTI", D(10))
@@ -171,7 +171,7 @@ def test_return_of_capital_over_every_lot_and_its_excess_a_gain():
 
 
 def test_a_snapshot_is_the_holdings_only_of_an_account_kept_by_snapshots():
-    # B9: in an account with trades of its own, a file's positions are a check and change no
+    # In an account with trades of its own, a file's positions are a check and change no
     # lot; an account with none is kept by its snapshots, which stand in for its history.
     txns, lots_ = book()
     r = replay("fifo", txns, lots_, [], [Snap("VTI", d(2025, 9, 30), D(45))])
@@ -192,7 +192,7 @@ def test_a_snapshot_is_the_holdings_only_of_an_account_kept_by_snapshots():
 
 
 def test_income_on_a_holding_is_not_a_trade():
-    """CR3-15: a cash dividend, interest or a fee naming the holding leaves the account kept by
+    """A cash dividend, interest or a fee naming the holding leaves the account kept by
     its snapshots; a buy, a reinvestment or shares moved in end it (R3.2)."""
     snap = [Snap("VTI", d(2025, 9, 30), D(100))]
     for kind in ("dividend", "interest", "fee", "return-of-capital", "split"):

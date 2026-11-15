@@ -2,8 +2,7 @@
 invariant (requirements S7): pairwise coverage of the data shapes, asserted, and each world's
 figures checked month by month for its viewer.
 
-The invariants, each from the budgets walk (`docs/reviews/code-review-0003-2026-10-24/
-budgets-walk.md`):
+The invariants:
 
 1. One reading of a line's month (S7.3.11): every row, every month (`test_budgets.month`).
 2. Each transaction counts against one line at most (S7.1.2): the rows' spending and the

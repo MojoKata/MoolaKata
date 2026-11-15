@@ -266,8 +266,8 @@ def shape(
     out = []
     for t in rows:
         other = accounts.get(other_acct.get(t.transferId, ""))
-        # The other half is named only to someone who reads its account (decision 1c.4 of
-        # the access-views walk): neither its id nor its account's name, else.
+        # The other half is named only to someone who reads its account: neither its id nor its
+        # account's name, else.
         if other is not None and access.perms(s, Account, other.id, user_id) is None:
             other = None
         out.append(
@@ -494,7 +494,7 @@ def _check(
                     "The parts must add up to the transaction's amount.",
                 )
             )
-    # A trade's fees are typed with it, 0 for none: a blank is refused (R3.11, CR3-437).
+    # A trade's fees are typed with it, 0 for none: a blank is refused (R3.11).
     fees = getattr(body, "fees", None)
     if (fees_sent and kind in lots.FEE_KINDS and fees is None) or (fees is not None and fees < 0):
         errors.append(FieldError("fees", "fees-invalid", "Zero or more."))
@@ -584,7 +584,7 @@ def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
 
 
 def _transfer_lots(s: Session, t: Transaction, a: Account, inst_id: str, body) -> None:
-    """The lots shares moved in arrive as (S2.2, CR3-73): those typed, each with the day it was
+    """The lots shares moved in arrive as (S2.2): those typed, each with the day it was
     bought and its basis, adding up to the shares; none typed, one lot of the day they arrived,
     marked as not knowing when they were bought (its term unknown until it is)."""
     lots_in = getattr(body, "transferLots", None)
@@ -693,7 +693,7 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
             )
         )
     if inst_id and body.kind in ("transfer-in", "transfer-out"):
-        # Shares or coins moved between the owner's accounts, offered as a pair (CR3-73).
+        # Shares or coins moved between the owner's accounts, offered as a pair.
         from ..bitcoin import transfers as pairs
 
         s.flush()
@@ -804,7 +804,7 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
                 lot.basisMissing = body.costBasis is None
                 changed.append("costBasis")
     if t.kind == "transfer-in" and "transferLots" in sent:
-        # Its lots typed again, each with the day it was bought (S2.2, CR3-73).
+        # Its lots typed again, each with the day it was bought (S2.2).
         for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id, Lot.deleted == false())):
             lot.mark_deleted(c.id)
         s.flush()
@@ -815,7 +815,7 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
         changed.append("transferLots")
     elif t.kind == "transfer-in" and {"quantity", "date"} & set(changed):
         # A lot whose day bought is known keeps it; one still missing it follows the day the
-        # shares arrived (CR3-73).
+        # shares arrived.
         for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
             if lot.acquiredMissing:
                 lot.quantity, lot.acquiredOn = abs(t.quantity), t.date
@@ -991,7 +991,7 @@ def _set_of():
 
 
 class TransferLot(Model):
-    """One lot shares moved in arrive as (S2.2, CR3-73): when it was bought, and its basis."""
+    """One lot shares moved in arrive as (S2.2): when it was bought, and its basis."""
 
     acquiredOn: dt.date
     quantity: Quantity
@@ -1020,7 +1020,7 @@ class TxnRecord(Model):
     contributionSource: str | None = None
     costBasis: Money | None = None
     # Shares moved in, lot by lot, each with the day it was bought (S2.2); none given, one lot
-    # whose day bought is missing until it is (CR3-73).
+    # whose day bought is missing until it is.
     transferLots: list[TransferLot] | None = None
     reimbursable: Money | None = None
     owedBy: str | None = None
@@ -1336,7 +1336,7 @@ def _split_current(ctx, sp: Split) -> dict:
 
 
 def _split_update(ctx, sp: Split, body: SplitRecord) -> None:
-    """In place, so what pays the part back stays paired with it (S2.9, CR3-29)."""
+    """In place, so what pays the part back stays paired with it (S2.9)."""
     if body.transactionId != sp.transactionId:
         raise refuse("transactionId", "split-fixed", "A part stays with its transaction.")
     t, _ = _split_checked(ctx, body)

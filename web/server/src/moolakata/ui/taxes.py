@@ -595,8 +595,7 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
 
 def detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
     """A book the caller reads, in full: its accounts, documents and dependents are the
-    book's, worked out as the server over every filer's accounts (S8.14.2, decision 8.1 of
-    the access-views walk)."""
+    book's, worked out as the server over every filer's accounts (S8.14.2)."""
     with scoping.as_server(s, "a tax book in full, for one who reads it") as srv:
         return _detail(srv, c, srv.get(TaxBook, b.id), held)
 
@@ -920,7 +919,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
 
 def _amending(s, c: Caller, b: TaxBook, f: Filing) -> None:
     """A filing made an amended federal return settles the edits made anyway before it
-    (S8.15); one changed afterwards settles nothing more (CR3-35)."""
+    (S8.15); one changed afterwards settles nothing more."""
     if f.jurisdiction == "federal" and f.amendsId:
         closed.settle(s, b, c.id, "amended")
 
@@ -1285,7 +1284,7 @@ DOC_FIELDS = ("direction", "form", "issuer", "accountId", "filingId", "receiptId
 
 def _doc_update(ctx, d: TaxDocument, body: DocumentRecord) -> None:
     """Its form, issuer, account, notes and file; a file is checked as one to attach only
-    when it is newly given, so a co-filer changes a document the other filer filed (CR3-36)."""
+    when it is newly given, so a co-filer changes a document the other filer filed."""
     s, c = ctx.s, ctx.caller
     if body.bookId != d.bookId:
         raise refuse("bookId", "document-fixed", "A document stays in its book.")

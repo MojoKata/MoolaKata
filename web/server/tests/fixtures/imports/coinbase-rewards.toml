@@ -1,5 +1,5 @@
 about = """An exchange's history with staking and rewards income: coins received, valued at the
-day's spot price, read as rewards (S8.5, CR3-38): no cash, and each a lot whose basis is its value
+day's spot price, read as rewards (S8.5): no cash, and each a lot whose basis is its value
 then, which the Income panel counts as ordinary income."""
 account = { type = "crypto-exchange", institution = "Coinbase" }
 mapping = { payee = "Notes" }

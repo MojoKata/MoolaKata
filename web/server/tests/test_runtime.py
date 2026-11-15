@@ -33,8 +33,8 @@ def test_build_registers_every_background_task(keyed_config, master_key):
 def test_a_failure_after_the_store_opens_leaves_the_server_locked(
     keyed_config, master_key, monkeypatch
 ):
-    """CR3-298: the server is locked again, not half open, and a restore's follow-up is kept
-    for the next unlock."""
+    """The server is locked again, not half open, and a restore's follow-up is kept for the next
+    unlock."""
     (keyed_config.data_dir / maintenance.RESTORED_MARK).write_text('{"at": null}')
 
     def fail(*a):

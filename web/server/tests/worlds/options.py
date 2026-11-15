@@ -112,7 +112,7 @@ class Option:
             return STRIKE * 100 * n - credit
         if self.shares == "held" and self.adjusted == "no":
             return D(100) * 100 * n - credit  # the shares at their trade's $100, less it
-        return None  # uncovered, or 100 shares held against 125 delivered (CR3-400)
+        return None  # uncovered, or 100 shares held against 125 delivered
 
 
 @dataclass
@@ -148,7 +148,7 @@ def world(seed: int) -> World:
 
 
 def _any_price_decides(s, c, day):
-    """CR3-24 put back: the expiry decided by any price on the day, anyone's."""
+    """The expiry decided by any price on the day, anyone's."""
     from moolakata.options import per_share
     from moolakata.store.entities.accounts import Account, Transaction
 
@@ -162,8 +162,7 @@ def _any_price_decides(s, c, day):
 
 
 def _single_leg_strike_risk(s, ledger, book=None):
-    """CR3-6 put back: an option on its own risks the strike on its shares, whatever its
-    shape (S3.9.2's figure)."""
+    """An option on its own risks the strike on its shares, whatever its shape (S3.9.2's figure)."""
     from moolakata.options import contract_of
     from moolakata.options import strategies as strat
 
@@ -184,7 +183,7 @@ PLANTS = [
             "an expiry decided by any price",
             "moolakata.options:market_close",
             _any_price_decides,
-            "CR3-24",
+            "S3.6: by the underlying's close",
         ),
         (0, 1),
     ),
@@ -193,7 +192,7 @@ PLANTS = [
             "a single leg's risk its strike",
             "moolakata.options.strategies:risk_of_account",
             _single_leg_strike_risk,
-            "CR3-6",
+            "S3.5.6: an option alone risks what its shape does",
         ),
         (0,),
     ),

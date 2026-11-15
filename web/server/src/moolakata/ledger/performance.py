@@ -78,7 +78,7 @@ def irr(
 
     lo, hi = Decimal("-0.99"), Decimal("10")
     f_lo, f_hi = npv(lo), npv(hi)
-    # A bound that is the rate itself is the answer: -99% exactly, a 99% loss (CR3-404).
+    # A bound that is the rate itself is the answer: -99% exactly, a 99% loss.
     if f_lo == 0:
         return lo
     if f_hi == 0:

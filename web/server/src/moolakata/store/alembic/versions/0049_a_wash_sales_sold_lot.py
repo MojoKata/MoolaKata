@@ -1,4 +1,4 @@
-"""A wash sale names the sold lot whose loss it disallows (requirements S3.8.2, CR3-390): the
+"""A wash sale names the sold lot whose loss it disallows (requirements S3.8.2): the
 W adjustment goes on that lot's row of Form 8949, never spread over the sale's other lots, so a
 sale of a long-term and a short-term lot keeps each term's figure. Rows worked out before name
 none, and are spread as before until the household's wash sales are next worked out.

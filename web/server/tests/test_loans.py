@@ -41,7 +41,7 @@ def test_the_level_payment_and_its_first_split():
 
 
 def test_pmi_ends_at_78_percent_of_the_original_value():
-    # B21: not charged to payoff; the schedule drops it once the balance is 78% of the value.
+    # Not charged to payoff; the schedule drops it once the balance is 78% of the value.
     t = mortgage_terms(pmi=D(90), originalValue=D(360000))  # 78% is 280,800
     rows = L.schedule(t, [], [], dt.date(2025, 1, 15))
     charged = [r for r in rows if r.pmi]
@@ -52,7 +52,7 @@ def test_pmi_ends_at_78_percent_of_the_original_value():
 
 
 def test_a_payment_typed_in_the_loans_account_is_split_by_the_schedule(server, frozen):
-    # B21: not wholly principal; and its interest counts as the loan's interest on Taxes.
+    # Not wholly principal; and its interest counts as the loan's interest on Taxes.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
@@ -184,7 +184,7 @@ def test_terms_are_checked(server, frozen):
 
 
 def test_a_rate_as_the_note_states_it(server, frozen):
-    # B6: three places for the rate (6.875%), four for an ARM's reset; more are refused.
+    # Three places for the rate (6.875%), four for an ARM's reset; more are refused.
     make_user(server, "jane")
     c = sign_in(server, "jane")
     loan = new_account(c, name="Home", type="mortgage")
@@ -319,7 +319,7 @@ def test_the_planner_and_plans_through_the_api(server, frozen):
 
 
 def test_rounding_up_counts_pmi_only_while_it_is_due():
-    # B21, S1.9.5: once PMI ends, the rounded payment rounds what is paid without it.
+    # S1.9.5: once PMI ends, the rounded payment rounds what is paid without it.
     t = mortgage_terms(escrowTax=D(300), pmi=D(90), originalValue=D(360000))
     r = P.plan_outcomes(t, [], [], dt.date(2025, 1, 15), P.Plan(roundTo=D(100)), 7.0)
     ahead = [x for x in r.plan.rows if not x.past]
@@ -351,8 +351,8 @@ def test_a_loan_borrowed_something_but_a_heloc_may_open_at_zero(server, kind, pr
 
 
 def test_a_helocs_payment_while_drawing_is_the_interest_due(server, frozen):
-    """CR3-21: in the draw period the payment is the schedule's next row, interest alone, so
-    the screen, the dialog and the bank transactions offered read $200, not $0."""
+    """In the draw period the payment is the schedule's next row, interest alone, so the screen, the
+    dialog and the bank transactions offered read $200, not $0."""
     make_user(server, "jane")
     c = sign_in(server, "jane")
     bank = new_account(c, name="Checking")
@@ -371,8 +371,8 @@ def test_a_helocs_payment_while_drawing_is_the_interest_due(server, frozen):
 
 
 def test_the_payment_is_the_schedules_next_row_for_every_shape():
-    """CR3-21: whatever the terms, the summary's payment is the next row's principal and
-    interest, and its total the row's payment."""
+    """Whatever the terms, the summary's payment is the next row's principal and interest, and its
+    total the row's payment."""
     today = dt.date(2026, 10, 13)
     shapes = [
         mortgage_terms(
@@ -422,8 +422,8 @@ def _rows(c, account_id):
 
 
 def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, frozen):
-    """CR3-22: a payment recorded with *None*, then its bank debit: *Looks like a payment*
-    offers to pair the two, and pairing makes no second payment."""
+    """A payment recorded with *None*, then its bank debit: *Looks like a payment* offers to pair
+    the two, and pairing makes no second payment."""
     c, bank, loan = _a_loan_and_checking(server)
     r = loan_payment(c, loan["id"], "2026-10-01", "1798.65")
     assert r.status_code == 200, r.text
@@ -449,8 +449,8 @@ def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, f
 
 
 def test_a_debit_beside_a_payment_of_another_amount_isnt_offered(server, frozen):
-    """CR3-22: a debit within days of an unpaired payment of a different amount is most likely
-    that payment; linking it would count it twice."""
+    """A debit within days of an unpaired payment of a different amount is most likely that payment;
+    linking it would count it twice."""
     c, bank, loan = _a_loan_and_checking(server)
     assert loan_payment(c, loan["id"], "2026-10-01", "1798.65").status_code == 200
     add(c, bank["id"], "-1800.00", "2026-10-03", payee="ROCKET MORTGAGE")
@@ -461,8 +461,8 @@ def test_a_debit_beside_a_payment_of_another_amount_isnt_offered(server, frozen)
 
 
 def test_recording_from_an_account_that_holds_the_debit_finds_it(server, frozen):
-    """CR3-22: the dialog's *From account* when the bank's half was imported first: the
-    halves lookup finds it, and the payment pairs with it, making no second bank row."""
+    """The dialog's *From account* when the bank's half was imported first: the halves lookup finds
+    it, and the payment pairs with it, making no second bank row."""
     c, bank, loan = _a_loan_and_checking(server)
     debit = add(c, bank["id"], "-1798.65", "2026-10-01", payee="ROCKET MORTGAGE")
     found = c.get(f"/ui/api/accounts/{loan['id']}/loan/halves",
@@ -478,8 +478,8 @@ def test_recording_from_an_account_that_holds_the_debit_finds_it(server, frozen)
 
 
 def test_a_statement_after_a_payment_recorded_from_checking_adds_nothing(server, frozen):
-    """CR3-395: the bank's file brings the half the payment dialog made, under its own payee
-    and a day later: matched, not added again."""
+    """The bank's file brings the half the payment dialog made, under its own payee and a day later:
+    matched, not added again."""
     from test_accounts import upload
     from worlds import halves
 
@@ -534,8 +534,8 @@ def _monthly_pays(t, upto: int, skip=(), amount=None):
 
 
 def test_assumed_a_loan_with_no_payments_follows_its_schedule_to_the_end():
-    """CR3-413: a 2024 loan with none recorded no longer owes what it borrowed and ends with a
-    balloon; each day passed counts as paid as the schedule says, and it pays off on time."""
+    """A 2024 loan with none recorded no longer owes what it borrowed and ends with a balloon; each
+    day passed counts as paid as the schedule says, and it pays off on time."""
     t = mortgage_terms(start=dt.date(2024, 3, 1), escrowTax=D(300))
     today = dt.date(2026, 10, 13)
     sm, rows = L.summary(t, [], [], today, "assumed")
@@ -575,9 +575,9 @@ def test_recorded_here_a_day_is_missed_once_its_grace_has_passed():
 
 
 def test_missed_months_no_longer_vanish_and_their_payments_are_overdue():
-    """CR3-413: recorded here, the months after the last payment are each a missed row with
-    what was due, and the schedule ahead starts from the next payment day, not a month after
-    the last payment with one month's interest."""
+    """Recorded here, the months after the last payment are each a missed row with what was due, and
+    the schedule ahead starts from the next payment day, not a month after the last payment with one
+    month's interest."""
     t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300), pmi=D(90))
     pays = _monthly_pays(t, 3)  # Feb, Mar, Apr
     sm, rows = L.summary(t, pays, [], dt.date(2026, 10, 13), "recorded")
@@ -730,8 +730,8 @@ def test_a_heloc_not_yet_drawn_has_nothing_a_late_payment_goes_back_to():
 
 
 def test_interest_is_due_once_per_payment_day():
-    """CR3-417: a second payment toward the same payment day pays no second month's interest,
-    escrow or PMI; it is all principal, an overpayment."""
+    """A second payment toward the same payment day pays no second month's interest, escrow or PMI;
+    it is all principal, an overpayment."""
     t = mortgage_terms(start=dt.date(2026, 1, 1), escrowTax=D(300), pmi=D(90))
     first = L.split_for(t, [], [], dt.date(2026, 2, 1), D("2188.65"))
     assert (first.interest, first.escrowTax, first.pmi) == (D("1500.00"), D(300), D(90))
@@ -751,9 +751,9 @@ def test_interest_is_due_once_per_payment_day():
 
 
 def test_after_a_missed_day_two_payments_in_one_grace_pay_two_days():
-    """CR3-417, S1.9.3: recorded here, a payment after a missed day pays the oldest one first,
-    so a second in the same grace pays its own day, with its own month's interest; assumed as
-    scheduled, the second pays no more interest."""
+    """S1.9.3: recorded here, a payment after a missed day pays the oldest one first, so a second in
+    the same grace pays its own day, with its own month's interest; assumed as scheduled, the second
+    pays no more interest."""
     t = mortgage_terms(start=dt.date(2026, 1, 1))
     pi = L.scheduled_payment(t)
     feb = L.split_for(t, [], [], dt.date(2026, 2, 1), pi, catch_up=True)
@@ -779,8 +779,8 @@ def test_a_daily_interest_loans_second_payment_pays_the_days_since_the_first():
 
 
 def test_a_helocs_repayment_ends_on_its_last_payment_day():
-    """CR3-418: repaid from the draw period's end, payment day 120, to the term's last, 240:
-    121 payments, the last on the term's end, not one before it."""
+    """Repaid from the draw period's end, payment day 120, to the term's last, 240: 121 payments,
+    the last on the term's end, not one before it."""
     t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
     draws = [(dt.date(2026, 2, 1), D(30000))]
     _, rows = L.summary(t, [], draws, dt.date(2026, 3, 15))
@@ -809,9 +809,8 @@ def test_a_heloc_draw_in_its_repayment_period_sets_the_payment_again():
 
 
 def test_after_a_reset_the_payment_stays_level_until_the_next_change():
-    """CR3-419, S1.9.2: the rows passed, assumed as scheduled, keep the level set on the first
-    payment day after the reset, as the rows ahead do; it is worked out again only after the
-    next change."""
+    """S1.9.2: the rows passed, assumed as scheduled, keep the level set on the first payment day
+    after the reset, as the rows ahead do; it is worked out again only after the next change."""
     t = mortgage_terms(
         start=dt.date(2016, 1, 1),
         resets=[(dt.date(2021, 1, 15), D("8.125")), (dt.date(2024, 1, 15), D("5.5"))],

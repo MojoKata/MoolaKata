@@ -1108,8 +1108,8 @@ function StatementChecks({ v }) {
 }
 
 /**
- * Shares, funds or coins moved between the owner's accounts, proposed as pairs (S1.7.1,
- * CR3-73): confirmed, they arrive with the lots they left with.
+ * Shares, funds or coins moved between the owner's accounts, proposed as pairs (S1.7.1):
+ * confirmed, they arrive with the lots they left with.
  * @param {{ a: any, reload: () => void }} p
  */
 function TransferPairs({ a, reload }) {

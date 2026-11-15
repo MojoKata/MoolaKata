@@ -458,7 +458,7 @@ def set_state(
 
 
 class Pulls:
-    """One pull of a link at a time (S11.4, CR3-376): this server's own pulls of a link wait
+    """One pull of a link at a time (S11.4): this server's own pulls of a link wait
     their turn; answering the peer's, a server never waits, and refuses `busy` while its own
     pull of that link runs, so two servers pulling each other at once can't wait on each other."""
 

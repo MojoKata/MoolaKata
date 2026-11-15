@@ -346,10 +346,9 @@ def _parts(s: Session, ids: list[str]) -> dict[str, list[tuple[str | None, Decim
 
 
 def _pair(held: list[HeldIn], flows_of: dict[str, list[Flow]]) -> None:
-    """A cross payment (1.1 of the budgets walk, S7.10.4): money paid from one account reserves
-    are held in for a reserve held in another leaves the payer short and the holder ahead. The
-    holder gives it straight to the payer, net of what it has given since, and never more than
-    either is out."""
+    """A cross payment (S7.10.4): money paid from one account reserves are held in for a reserve
+    held in another leaves the payer short and the holder ahead. The holder gives it straight to
+    the payer, net of what it has given since, and never more than either is out."""
     by_id = {h.accountId: h for h in held}
     for payer, flows in flows_of.items():
         paid: dict[str, Decimal] = defaultdict(lambda: ZERO)

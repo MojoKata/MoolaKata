@@ -294,7 +294,7 @@ def _follow(
 
 def legs_of(s: Session, st: Strategy) -> list[LegRow]:
     """A strategy's legs as they are now: an option the OCC adjusted is followed to its
-    adjusted contract, the contracts times the ratio (S3.10, CR3-401), and shares through a
+    adjusted contract, the contracts times the ratio (S3.10), and shares through a
     symbol change or a merger to the new shares, times its ratio. Nothing stored changes, so
     deleting the split or the action brings the leg back."""
     rows = list(
@@ -631,7 +631,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
                             book.became(st.underlyingId)[-1],
                             day,
                             [(iid, None)],
-                            named(st, shape_of(book, st)),  # CR3-408
+                            named(st, shape_of(book, st)),  # as Strategies names it
                             st.id,
                         )
                     )
@@ -667,7 +667,7 @@ def proposals(s: Session, account, book: Book) -> list[Proposal]:
         qty, _ = book.open[iid]
         held, per, _, others = book.delivers(oc)
         shares, _ = book.open.get(held, (ZERO, ZERO))
-        # What it delivers (CR3-400), 50 shares a contract after a merger at half a share; a
+        # What it delivers, 50 shares a contract after a merger at half a share; a
         # long call's is below zero, and one delivering cash alone none.
         need = -qty * (oc.multiplier if per is None else per)
         if held in grouped or others or shares < need or need <= 0:
@@ -708,7 +708,7 @@ def risk_of_account(
         if v.closedOn is None:
             risk = None if risk is None or v.riskNow is None else risk + v.riskNow
     # An option outside a strategy counts as a strategy of its own shape, through the same
-    # payoff (S3.5.6, CR3-6): a long one risks its premium, a short put its strike less its
+    # payoff (S3.5.6): a long one risks its premium, a short put its strike less its
     # premium, a short call the account's shares cover is a covered call, an uncovered one has
     # no limit. Shares go to the calls in turn, and only shares no strategy holds (a long
     # option among them is never a call's underlying).
@@ -735,7 +735,7 @@ def risk_of_account(
                 risk = None
                 continue
             if spare.get(held):
-                # Shares cover what the contract delivers, not its multiplier (CR3-400): its
+                # Shares cover what the contract delivers, not its multiplier: its
                 # underlying's, or those it became (S3.10).
                 covered = min(spare[held], -qty * legs[0].per)
                 spare[held] -= covered
@@ -743,8 +743,8 @@ def risk_of_account(
                 if price is not None:
                     cost = (price * covered).quantize(CENT)
                 else:
-                    # Without a price, what the shares cost, as a strategy's shares leg reads
-                    # (CR3-429): never nothing, which would understate the risk.
+                    # Without a price, what the shares cost, as a strategy's shares leg reads:
+                    # never nothing, which would understate the risk.
                     q, b = book.open[held]
                     cost = (b * covered / q).quantize(CENT)
                 legs.append(Leg(held, "", "stock", covered, cost, None))

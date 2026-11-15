@@ -64,7 +64,7 @@ def test_the_ofx_request_names_the_account_and_signs_in():
 
 
 def test_the_ofx_request_escapes_what_it_carries_and_alters_nothing():
-    # CR3-332: SGML values escape &, < and >; a character Windows-1252 can't hold is refused
+    # SGML values escape &, < and >; a character Windows-1252 can't hold is refused
     # with a message, never sent as "?".
     settings = {"url": "https://ofx.cu.example/ofx", "org": "A&B <CU>", "accountId": "1204"}
     body = request(settings, {"username": "al<ice", "password": "p<ss&word>€"}, dt.date(2026, 9, 1))
@@ -268,7 +268,7 @@ def test_every_driver_is_registered_with_its_limits():
 
 
 def test_a_schwab_run_names_what_it_left_out(monkeypatch):
-    # CR3-67, S18.9.2: a transaction the driver can't write whole is named in the Connection's
+    # S18.9.2: a transaction the driver can't write whole is named in the Connection's
     # message, never dropped unsaid (the connector corpus has the rest).
     import test_drivers as here
 

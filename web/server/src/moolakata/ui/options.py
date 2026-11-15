@@ -41,7 +41,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
         e.append(FieldError("quantity", "contracts-invalid", "A whole number of contracts."))
     if body.price is None or body.price < 0:
         e.append(FieldError("price", "premium-invalid", "Zero or more, a share."))
-    # A blank is refused, never read as no fees (R3.11, CR3-437): 0 is typed.
+    # A blank is refused, never read as no fees (R3.11): 0 is typed.
     fees = body.fees
     if fees is None or fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
@@ -108,7 +108,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
 class Settle(Model):
     how: str  # expired, assign, exercise
     date: dt.date
-    contracts: Quantity  # 1 to those held; never blank for all (CR3-403)
+    contracts: Quantity  # 1 to those held; never blank for all
 
 
 @router.post(

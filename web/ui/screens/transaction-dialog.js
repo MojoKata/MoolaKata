@@ -697,7 +697,7 @@ function TxnReceipts({ txn, draft, canWrite }) {
 }
 
 /**
- * Shares moved in, lot by lot (S2.2, CR3-73): when each was bought, how many, and what it
+ * Shares moved in, lot by lot (S2.2): when each was bought, how many, and what it
  * cost. None typed, they arrive as one lot whose day bought is missing until it is. Bitcoin's
  * are typed in the person's unit (`btc`).
  * @param {{ t: Txn, btc: boolean }} p

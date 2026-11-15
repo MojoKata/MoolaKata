@@ -1,5 +1,5 @@
 """Generated loan-payment sequences (`worlds.halves`), made through the API (requirements S1.7,
-S1.9.3, CR3-22): whatever the path and the order, one real payment is one loan row and one bank
+S1.9.3): whatever the path and the order, one real payment is one loan row and one bank
 row, paired; two payments are never more than their rows."""
 
 import datetime as dt

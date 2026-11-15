@@ -114,7 +114,7 @@ def decks(rnd: random.Random, axes: dict[str, tuple], n: int, skip: tuple = ()) 
 @dataclass
 class Plant:
     """A bug put back: `target` ("module.path:attribute") replaced by `replacement` while a
-    world runs. `why` names the claim or rule it stands for."""
+    world runs. `why` names the rule it stands for."""
 
     name: str
     target: str

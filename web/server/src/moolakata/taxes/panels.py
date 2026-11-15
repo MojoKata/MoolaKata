@@ -173,7 +173,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
                 if d.method == "return-of-capital"
                 else f"{_qty(d.quantity)} {inst.symbol}",
                 # VARIOUS when not known: a stand-in's, or shares moved in without it (S2.2)
-                # Missing when sold without a lot to match (CR3-415).
+                # Missing when sold without a lot to match.
                 acquired=None if d.standIn or d.acquiredMissing or d.lotMissing else d.acquiredOn,
                 sold=d.soldOn,
                 proceeds=proceeds,
@@ -218,9 +218,9 @@ def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
 def _stored_washes(
     s: Session, book: TaxBook, losses: dict[str, Decimal], counted: set[str]
 ) -> list[Wash]:
-    """The book's wash sales: of the sales in the accounts it counts (CR3-393), an added
-    account's too, whoever owns it (S8.14.2), read together (one query for each kind of
-    record, however many there are: the walk's decision 3.6)."""
+    """The book's wash sales: of the sales in the accounts it counts, an added account's
+    too, whoever owns it (S8.14.2), read together (one query for each kind of record, however
+    many there are)."""
     from .. import washes
 
     first, last = _span(book.year)
@@ -435,7 +435,7 @@ class Income:
     returnOfCapital: Decimal
     byPayer: list[tuple[str, Decimal]]  # dividends by payer
     # Foreign tax paid by payer (1099-DIV box 7), and crypto received as income, at its value
-    # when received, by account (S8.5, CR3-38).
+    # when received, by account (S8.5).
     foreignTax: list[tuple[str, Decimal]]
     crypto: list[tuple[str, Decimal]]
 
@@ -484,10 +484,10 @@ def income(s: Session, book: TaxBook) -> Income:
                 divs["capital-gain"] += t.amount
                 by_payer[payer] += t.amount
             elif t.kind == "return-of-capital":
-                # 1099-DIV box 3: off the basis, not a dividend on Schedule B (CR3-402).
+                # 1099-DIV box 3: off the basis, not a dividend on Schedule B.
                 divs["return-of-capital"] += abs(t.amount)
             elif t.kind in ("dividend", "reinvest"):
-                # A reinvested dividend is a dividend too, ordinary unless typed (CR3-392).
+                # A reinvested dividend is a dividend too, ordinary unless typed.
                 amount = t.amount if t.kind == "dividend" else -t.amount
                 divs[t.dividendType or "ordinary"] += amount
                 by_payer[payer] += amount
@@ -600,8 +600,8 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
         owner = s.get(User, a.ownerId)
         born = people.birth_year(s, a.ownerId)
         age = y - born if born else None
-        # Each movement classified once (CR3-37): what counts against a limit is a
-        # contribution, never a rollover or a conversion.
+        # Each movement classified once: what counts against a limit is a contribution, never
+        # a rollover or a conversion.
         put = employer = taken = ZERO
         # A trade, a dividend, a fee: no cash moved, which `classify` tells (None).
         for t in s.scalars(

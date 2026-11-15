@@ -1,6 +1,6 @@
 """A filed year's gains move only when asked and recorded (requirements S2.8, S8.15): every way
 of writing that can move realized gains, against every state a tax book's federal return can
-be in, through the API (the filed tax years walk, decision 1, and its tests, decision 1.7).
+be in, through the API.
 
 Each case makes a small household (Jane and John, married since 2009, a 2025 book they file
 jointly) whose 2025 sales gain $250 in all, puts the book's federal return in a state, and
@@ -157,7 +157,7 @@ def _add(w: World, confirm: bool):
 
 
 def _ira_wash(w: World, confirm: bool):
-    # CR3-27: a buy in the IRA within 30 days washes December's loss.
+    # A buy in the IRA within 30 days washes December's loss.
     return make(w.a, "Txn", confirm=confirm, accountId=w.acct["IRA"]["id"], date="2026-01-05",
                 kind="buy", symbol="AAPL", quantity="10", price="82", amount="-820.00")  # fmt: skip
 
@@ -330,7 +330,7 @@ def test_a_route_outside_the_save_refuses_until_its_request_confirms(server):
 
 
 def test_the_check_works_out_only_the_closed_books_a_write_can_move(world, monkeypatch):
-    # Snappy (the walk's decision 1.7): a write that moves no gains (a memo, a bank payment)
+    # Kept quick: a write that moves no gains (a memo, a bank payment)
     # works out no book; one in a household with a closed book works out that book twice (as
     # committed and as written), and no other.
     from moolakata.taxes import closed

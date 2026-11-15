@@ -53,7 +53,7 @@ def test_a_person_already_here_is_named_for_the_dialog(jane):
 
 
 def test_an_occasion_changed_keeps_its_gifts(jane):
-    """CR3-43: the plan's notes, or an occasion's budget, changed: the gifts planned for its
+    """The plan's notes, or an occasion's budget, changed: the gifts planned for its
     anniversaries and other occasions keep them."""
     p = person(jane, occasions=[{"kind": "custom", "name": "Graduation", "month": 11, "day": 1}])
     (grad,) = p["plan"]["occasions"]

@@ -183,9 +183,9 @@ def test_a_scheduled_reencryption_runs_at_the_unlock_before_the_server_serves(lo
 
 
 def test_reencrypt_now_schedules_it_and_restarts_never_running_while_serving(server, admin_client):
-    """S15.7.2: Settings › Key Storage's Re-encrypt now, after the password again, schedules it
-    and restarts the server; the unlock that follows runs it. Once scheduled it is neither
-    withdrawn nor replaced (CR3-61)."""
+    """S15.7.2: Settings › Key Storage's Re-encrypt now, after the password again, schedules it and
+    restarts the server; the unlock that follows runs it. Once scheduled it is neither withdrawn nor
+    replaced."""
     from conftest import stale
 
     from moolakata.store import reencrypt
@@ -281,8 +281,8 @@ def test_removing_a_copy_asks_for_the_phrase_too(server, admin_client, master_ke
 
 
 def test_fewer_backup_days_than_are_kept_takes_the_phrase(server, admin_client, master_key):
-    """CR3-63: *Copies kept* lowered below the days of backups there are deletes some at the
-    next backup, so it takes the password again and the recovery phrase; never below 3."""
+    """*Copies kept* lowered below the days of backups there are deletes some at the next backup, so
+    it takes the password again and the recovery phrase; never below 3."""
     import datetime as dt
 
     from edits import save_settings

@@ -411,9 +411,9 @@ def _receipt() -> str:
         'JOIN "ReceiptTarget" AS t ON t."receiptId" = r.id AND t.carried\n'
         'WHERE NOT r."effectiveDeleted"'
     )
-    # A tax document's file goes with its book (CR3-9, CR3-74): read by whoever reads the
+    # A tax document's file goes with its book: read by whoever reads the
     # document (filers, helpers, read shares), changed by whoever may change it; across a link
-    # only with the book's *Include receipts* (S11.5.1, CR3-10).
+    # only with the book's *Include receipts* (S11.5.1).
     documents = (
         f"SELECT {_cols('r.id', 'a."userId"', 'a.writable', '0', '0', '0', '0')}\n"
         'FROM "ReceiptEffective" AS r\n'

@@ -41,7 +41,7 @@ export function installGuard() {
     if (asking) return;
     asking = true;
     // No longer asking once answered, not once the question's dialog has gone: Back pressed
-    // just after Keep editing asks again (CR3-420).
+    // just after Keep editing asks again.
     form.ask(form.where, () => (asking = false)).then((goOn) => {
       if (!goOn) return;
       guarded.clear();

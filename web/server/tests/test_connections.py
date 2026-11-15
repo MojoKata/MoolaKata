@@ -209,7 +209,7 @@ def test_a_connection_needs_a_paired_connector(server, admin_client):
 
 
 def test_an_ofx_connection_may_name_how_many_days_back_each_run_asks_for(server, paired):
-    """CR3-140: `days` is one of OFX Direct Connect's settings (protocol §6, S18.9.1)."""
+    """`days` is one of OFX Direct Connect's settings (protocol §6, S18.9.1)."""
     make_user(server, "jane")
     c = sign_in(server, "jane")
     base = {

@@ -34,7 +34,7 @@ SEEN = ("seen", "unseen")
 AGES = ("new", "old")
 ROUNDING = ("whole", "fractional")
 MOVES = ("none", "in", "out")
-# Calendar edges (16.4): opened on a month's last day, on a leap day, or valued over a weekend
+# Calendar edges: opened on a month's last day, on a leap day, or valued over a weekend
 # (the last close a Friday's, carried forward).
 EDGES = ("plain", "month-end", "leap-day", "weekend")
 VIEWERS = ("owner", "viewer")
@@ -475,16 +475,15 @@ def _scheduled(loan: Loan, k: int, bal: D, interest: D, paid: list[tuple[dt.date
 
 
 def loan_payments(loan: Loan, txns: list[Txn], today: dt.date = TODAY) -> list[tuple[dt.date, D]]:
-    """Each payment's day and principal, in date order, as the loan's Payments setting reads
-    them today (S1.9.3). The world sets none: Automatic, which is *Recorded here* once a
-    payment is recorded, else *Assumed as scheduled*. Recorded here, the record starts at the
-    first payment recorded: every payment day before that payment's own day counts as paid as
-    scheduled; a day after it with nothing recorded is missed, which leaves the balance as it
-    was. A recorded payment pays the payment day it goes with, or, made after a day missed, the
-    oldest missed first (as a servicer applies a late one). Interest is due once per payment
-    day (CR3-417): a month's on what was owed before the day's first payment, less what earlier
-    payments toward it paid; on a daily-interest loan, the days since the last payment. The
-    rest is principal."""
+    """Each payment's day and principal, in date order, as the loan's Payments setting reads them
+    today (S1.9.3). The world sets none: Automatic, which is *Recorded here* once a payment is
+    recorded, else *Assumed as scheduled*. Recorded here, the record starts at the first payment
+    recorded: every payment day before that payment's own day counts as paid as scheduled; a day
+    after it with nothing recorded is missed, which leaves the balance as it was. A recorded payment
+    pays the payment day it goes with, or, made after a day missed, the oldest missed first (as a
+    servicer applies a late one). Interest is due once per payment day: a month's on what was owed
+    before the day's first payment, less what earlier payments toward it paid; on a daily-interest
+    loan, the days since the last payment. The rest is principal."""
     draws = [(t.day, -t.amount) for t in txns if t.amount < 0]
     made = sorted((t for t in txns if t.amount > 0), key=lambda t: t.day)
     until = pay_day(loan, goes_with(loan, made[0].day)) if made else today
@@ -619,9 +618,9 @@ def left_out(w: World, accounts: list[Account]) -> list[tuple[str, D]]:
 
 
 def flows(w: World, a: Account, first: dt.date, last: dt.date) -> D:
-    """The money that came into an account from outside after `first` up to `last` (S5.2.1,
-    CR3-28): cash in and out; for a loan, its opening balance owed and its draws out, its
-    payments in; for items, one added at its worth then and one sold at what it brought."""
+    """The money that came into an account from outside after `first` up to `last` (S5.2.1): cash in
+    and out; for a loan, its opening balance owed and its draws out, its payments in; for items, one
+    added at its worth then and one sold at what it brought."""
 
     def within(d: dt.date) -> bool:
         return first < d <= last
@@ -649,8 +648,8 @@ def flows(w: World, a: Account, first: dt.date, last: dt.date) -> D:
 
 
 def _ledger_balance_parts(s, ledger, investing, day=None):
-    """CR3-30, CR3-32 put back: every account's parts are its ledger's cash and holdings, a
-    loan's payments counted as cash and items left out."""
+    """Every account's parts are its ledger's cash and holdings, a loan's payments counted as cash
+    and items left out."""
     from moolakata import valuation
 
     out = [valuation.Part("cash", ledger.account.name, ledger.balance(day))]
@@ -661,8 +660,8 @@ def _ledger_balance_parts(s, ledger, investing, day=None):
 
 
 def _cash_flows_alone(s, ledger, investing, first, last):
-    """CR3-28 put back: the ledger's cash in and out the only flows; shares, items and a
-    loan's opening moved in count as growth."""
+    """The ledger's cash in and out the only flows; shares, items and a loan's opening moved in
+    count as growth."""
     from moolakata.ledger import performance as perf
 
     return {d: v for d, v in perf.flows(ledger.transactions).items() if first < d <= last}
@@ -674,7 +673,7 @@ PLANTS = [
             "loans and items valued by the ledger",
             "moolakata.valuation:parts",
             _ledger_balance_parts,
-            "CR3-30, CR3-32",
+            "S5.2.3: each loan and item on a row of its own",
         ),
         (0,),
     ),
@@ -683,7 +682,7 @@ PLANTS = [
             "flows from the ledger's cash alone",
             "moolakata.valuation:flows",
             _cash_flows_alone,
-            "CR3-28",
+            "S5.2.1: shares, items and loans moved in are contributions",
         ),
         (2,),
     ),

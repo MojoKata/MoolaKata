@@ -1,6 +1,6 @@
-"""No answer names a record its reader can't read (decision 5.5 of the access-views walk):
-every GET route, called by each user of a household with partial access, is read for ids,
-and each id of a table with an access view must be in that user's view."""
+"""No answer names a record its reader can't read: every GET route, called by each user of a
+household with partial access, is read for ids, and each id of a table with an access view must be
+in that user's view."""
 
 import re
 
@@ -144,8 +144,8 @@ KNOWN: dict[tuple[str, str], str] = {
 
 
 def test_raw_sql_outside_the_store_reads_no_table_with_a_view():
-    """Raw SQL is never scoped (schema.md §7.6): outside store/, no `text()` or
-    `exec_driver_sql()` names a table with an access view (decision 5.5)."""
+    """Raw SQL is never scoped (schema.md §7.6): outside store/, no `text()` or `exec_driver_sql()`
+    names a table with an access view."""
     import ast
     from pathlib import Path
 

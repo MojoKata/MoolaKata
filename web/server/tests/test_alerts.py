@@ -183,7 +183,7 @@ def test_the_phrase_check_comes_due_after_a_year(server, admin_client, frozen):
 
 
 def test_the_rotation_reminder_follows_its_setting(server, admin_client, frozen):
-    # N15: due after the period Settings › Key Storage sets (S15.8.4); off, never.
+    # Due after the period Settings › Key Storage sets (S15.8.4); off, never.
     created = server.store.keys.ring.master_created
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "keyReminderMonths", 6, None)
@@ -195,7 +195,7 @@ def test_the_rotation_reminder_follows_its_setting(server, admin_client, frozen)
 
 
 def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
-    # N15: to the account's owner, and to the organisation's (S12.11.1.3, S7.9.5).
+    # To the account's owner, and to the organisation's (S12.11.1.3, S7.9.5).
     from test_accounts import new_account
     from test_options import opt
 
@@ -346,7 +346,7 @@ def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen
 
 
 def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen):
-    # S4.3, S12.11.1.2, CR3-8: a statement's value is stale once the statement after it is
+    # S4.3, S12.11.1.2: a statement's value is stale once the statement after it is
     # overdue (S1.11.7.3), and alerts only when that statement's own alert isn't already up: a
     # plan whose next statement is late gets the overdue alert alone, and a newer import that
     # doesn't value the holding leaves it stale and alerting. An account expecting no

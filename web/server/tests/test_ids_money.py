@@ -60,7 +60,7 @@ def test_cents_round_half_even():
 @pytest.mark.parametrize("d", ["-0", "-0.00", "-0.004", "-0.005", "0", "0.004"])
 def test_an_amount_that_rounds_to_zero_is_written_without_a_sign(d):
     """A short option worth nothing is worth 0.00, never -0.00: in the API, the exports and
-    every sentence or printed form (CR3-436)."""
+    every sentence or printed form."""
     from moolakata import exactjson
     from moolakata.taxes import exports
     from moolakata.ui import conventions

@@ -91,8 +91,8 @@ def test_irr_at_the_top_of_its_bracket_is_that_rate_exactly():
 
 
 def test_irr_at_the_bottom_of_its_bracket_is_found():
-    """CR3-404: -99% a year is inside the range searched: 100 that becomes
-    100 x 0.01^4 in four years is -99% a year."""
+    """-99% a year is inside the range searched: 100 that becomes 100 x 0.01^4 in four years is -99%
+    a year."""
     start, end = d(2024, 1, 1), d(2028, 1, 1)
     rate = perf.irr(start, D(100), {}, end, D(100) * D("0.01") ** 4)
     assert abs(rate - D("-0.99")) < D("1e-8")

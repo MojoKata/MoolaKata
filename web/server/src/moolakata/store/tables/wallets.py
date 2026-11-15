@@ -62,7 +62,7 @@ Index("ix_WalletAddress_key", WalletAddress.c.keyId, WalletAddress.c.chain, Wall
 
 # The keys whose addresses a recorded bitcoin transaction touched, kept when a key is taken out
 # of the wallet (a key is only marked deleted): a transaction none of whose keys is still in the
-# wallet is no longer checked against the chain (S1.6.1.3, S1.6.2.7, CR3-20). Filled when the
+# wallet is no longer checked against the chain (S1.6.1.3, S1.6.2.7). Filled when the
 # transaction is recorded, and when a read sees it through a key added since.
 TransactionWalletKeys = pairs(
     "TransactionWalletKeys",

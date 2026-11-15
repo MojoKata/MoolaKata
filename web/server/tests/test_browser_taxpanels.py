@@ -100,8 +100,7 @@ def build(h) -> World:
     w.txn(brk, f"{y}-06-01", "25.00", kind="capital-gain", symbol="VXUS")
     w.txn(brk, f"{y}-07-01", "100.00", kind="return-of-capital", symbol="VXUS")
     w.txn(brk, f"{y}-06-30", "-12.34", kind="foreign-tax", symbol="VXUS")
-    # A return of capital past its basis: a row of its own kind, never a physical item sold
-    # (CR3-414).
+    # A return of capital past its basis: a row of its own kind, never a physical item sold.
     w.trade(brk, f"{y}-01-06", "buy", "SCHD", 1, "10")
     w.txn(brk, f"{y}-07-01", "30.00", kind="return-of-capital", symbol="SCHD")
     sav = w.acct("savings", "TP savings", "savings", institution="TP Ally")
@@ -309,7 +308,8 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
     assert rows["5 FSKAX"][0] == "E" and rows["0.5 ETH"][0] == "C"
     assert rows["2 VTI"][2] == "Various" and rows["2 VTI"][5] == "$160.00"
     msft = rows["3 MSFT"]
-    assert (msft[2], msft[5], msft[8]) == ("missing", "missing", "—")  # CR3-415
+    # Sold with no lot to match: its day bought is missing, never its sale day.
+    assert (msft[2], msft[5], msft[8]) == ("missing", "missing", "—")
     coin, car = rows["TP coin"], rows["TP car"]
     assert (coin[0], coin[1], coin[6], coin[8]) == ("F", "TP coin TP collectables · collectable",
                                                     "C", "+$2,000.00")  # fmt: skip

@@ -28,8 +28,8 @@ def _ok(r):
 
 
 def test_a_reserve_set_to_put_in_nothing_keeps_its_balance(server, frozen):
-    """The claim (CR3-46): Emergency fund at $500 a month since August holds $2,000; set to $0
-    in December to pause it, it stays, holds its $2,000, and nothing is asked."""
+    """S7.10.3: Emergency fund at $500 a month since August holds $2,000; set to $0 in December to
+    pause it, it stays, holds its $2,000, and nothing is asked."""
     c, _, cat, b = setup_budget(server)
     saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
     fund = cat["Savings › Emergency fund"]
