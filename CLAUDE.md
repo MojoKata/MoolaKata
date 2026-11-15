@@ -88,3 +88,27 @@ GitHub issues under the sweep's steps. Scope (full or incremental) and checking 
 measured delta and confirmed with the user. A review runs in serial sessions unless the
 user asks, for that review, for parallel agents or a workflow; that is never assumed or
 carried over from an earlier one.
+
+## Relay sessions
+
+For work too large for one session's context (hundreds of similar edits across the repo), a
+**relay**: a clean session coordinates, and agents do the work one after another, each on a
+fixed batch. The goal is the least total cost for consistent work: ramp-up paid as few times as
+possible, no agent run close to its context limit (late steps cost the most and slip first),
+and the user's attention on the final diff only.
+
+1. **The brief**, written once and given to every agent: the goal, the rule to apply, the
+   files of its batch, what it may and may not change, and how to report.
+2. **Fixed batches**, about 40 files or one folder each, never "as far as it can": no agent
+   can see its own context, so a set size keeps every agent well inside it.
+3. **Handoff through the branch**: each agent commits its batch to the work branch and appends
+   to a progress file there (files done, edits made, doubts for the coordinator), deleted
+   before the pull request. The next agent reads the brief and that file, never the earlier
+   conversation.
+4. **Oversight is mostly mechanical**: after each batch the coordinator runs the checks that
+   prove it (nothing left to change in those files, linters and formatters, the touched tests)
+   and skims a sample; doubts are settled before the next batch starts.
+5. **One full review**, of the whole diff, before the pull request opens.
+
+A relay runs only when the user asks for it for that piece of work; choices that are the
+user's (a walk's questions) stay with the coordinator, never an agent.
