@@ -146,13 +146,13 @@ def _short_adjusted_call(c, held: str, deliverable: list[dict]):
 )  # fmt: skip
 def test_an_adjusted_short_call_is_covered_by_what_it_delivers(jane, held, deliverable, risk,
                                                                proposed):  # fmt: skip
-    """CR3-400, S3.10.2: the multiplier stays 100, so coverage counts the shares the contract
+    """S3.10.2: the multiplier stays 100, so coverage counts the shares the contract
     delivers, all of them, and only of its underlying."""
     assert _short_adjusted_call(jane, held, deliverable) == (risk, proposed)
 
 
 def test_a_strategys_leg_follows_its_contract_when_adjusted(jane):
-    """CR3-401, S3.10: a whole split adjusts a grouped short put; the strategy holds the new
+    """S3.10: a whole split adjusts a grouped short put; the strategy holds the new
     contract, its contracts doubled, and deleting the split brings the leg back."""
     from edits import create
 
@@ -222,7 +222,7 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, jane):
     [
         ("sell-to-open", "exercise", "2", "short-exercise"),
         ("buy-to-open", "assign", "2", "long-assign"),
-        # From 1 to those held, whole: nothing else means all (CR3-403).
+        # From 1 to those held, whole: nothing else means all.
         ("sell-to-open", "assign", "3", "contracts-invalid"),
         ("sell-to-open", "assign", "0", "contracts-invalid"),
         ("sell-to-open", "assign", "-1", "contracts-invalid"),
@@ -554,7 +554,7 @@ def _split_msft(c, a, day="2026-10-01"):
 
 
 def test_an_option_trade_runs_through_its_contracts_adjustment(jane):
-    """S3.9.1, S3.10.4, CR3-438: an adjustment sells nothing, so the trade goes on under the
+    """S3.9.1, S3.10.4: an adjustment sells nothing, so the trade goes on under the
     adjusted contract with its opening day and premium, its contracts times the ratio, noting
     the change; a short one requires the larger of its capital before and after."""
     a = new_account(jane, type="brokerage")["id"]

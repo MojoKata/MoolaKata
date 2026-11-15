@@ -1,6 +1,6 @@
 about = """A broker's history with a dividend from an international fund and the foreign tax it paid,
 on its own line beside it (1099-DIV box 7): read as a foreign-tax line of the fund, money out,
-not a fee or a withdrawal (S8.5, CR3-38)."""
+not a fee or a withdrawal (S8.5)."""
 account = { type = "brokerage", institution = "Fidelity" }
 mapping = { amount = "Amount ($)" }
 

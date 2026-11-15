@@ -29,3 +29,26 @@
   walk's decision 1.1)" → "(S2.8)"). `moolakata.contract check` passes.
 - **Doubts**: `web/server/src/moolakata/ui/save.py:355` (not in this batch) also cites "tax
   years walk's decision 1"; left for the batch that holds it, or the coordinator.
+
+## Batch 3 of 4
+
+- Files done: 45
+- Citations removed: 91 CR3 ids (88 in the tests and fixtures, 3 in `durations.json`'s keys,
+  changed to match the three renamed `test_saved_unchanged_a_form_changes_nothing` ids in
+  `test_browser_drafts.py` exactly), and 23 references to walks and their decisions
+- GH links added: none
+- Notes: most were beside a requirement id or a docstring's leading label with the why after
+  it, and were dropped (the label's next word capitalised). One requirement id added in place
+  of a CR3 id: `test_budget_history.py:34` "The claim (CR3-45):" → "R3.10:" (History reads as
+  it was; the finding's own item, and what the test pins). "The claim" in `test_budget_lines`
+  went too. Two bare markers got a why, each as a comment line above its assert:
+  `test_browser_positions.py:552` (CR3-407: the toast says what the save did, never a bare
+  Saved) and `test_browser_taxpanels.py:312` (CR3-415: sold with no lot to match, its day
+  bought is missing, never its sale day). `test_browser_drafts.py`: "CR3-2 and its kind" and
+  "CR3-2's fourth case" rewritten to stand alone. Walk references the brief's grep doesn't
+  match went too: `test_access.py`'s access-views and mine walk decision numbers ("(decision
+  5)", "(decision 7.2: …)", and the bare "(4.1)", "(1d.3)", "(1e.3)" … beside `HOLDS`; "as
+  the decisions say"), `test_browser_figures.py:1` ("the values, taxes and options walk,
+  4.3"), and `test_importers.py:240` ("Walk item 13:"). Fixtures: only their `about` text and
+  a comment changed; no test reads `about` or compares it.
+- **Doubts**: none.

@@ -31,7 +31,7 @@ def _figures(c, b, m):
 
 
 def test_a_transfer_out_keeps_counting_when_the_other_account_is_deleted(server, frozen):
-    """The claim (CR3-45): October's $300 to Ally, filed as savings, stays saved once Ally is
+    """R3.10: October's $300 to Ally, filed as savings, stays saved once Ally is
     deleted: the half in Checking is real, money left the budget."""
     c, acct, cat, b = setup_budget(server)
     ally = new_account(c, name="Ally", type="savings", mask="2222")

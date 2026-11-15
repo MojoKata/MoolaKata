@@ -346,7 +346,7 @@ def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen
 
 
 def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen):
-    # S4.3, S12.11.1.2, CR3-8: a statement's value is stale once the statement after it is
+    # S4.3, S12.11.1.2: a statement's value is stale once the statement after it is
     # overdue (S1.11.7.3), and alerts only when that statement's own alert isn't already up: a
     # plan whose next statement is late gets the overdue alert alone, and a newer import that
     # doesn't value the holding leaves it stale and alerting. An account expecting no

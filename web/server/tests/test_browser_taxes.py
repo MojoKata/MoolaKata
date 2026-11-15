@@ -1,7 +1,6 @@
-"""The tax panels show the API's figures (requirements S8.1–S8.13; the filed tax years walk,
-decision 3.5): a book of sales of several shapes, each panel opened, its figures held to what
-the API answers. The account and book are taken away again, so the shared household's other
-figures stay as they were.
+"""The tax panels show the API's figures (requirements S8.1–S8.13): a book of sales of several
+shapes, each panel opened, its figures held to what the API answers. The account and book are
+taken away again, so the shared household's other figures stay as they were.
 """
 
 import re
@@ -82,7 +81,7 @@ def test_the_tax_panels_show_the_apis_figures(browser, household):
 
 
 def test_the_retirement_and_income_panels_show_moves_and_new_kinds(browser, household):
-    """CR3-37, CR3-38: a conversion and a rollover listed apart from the contributions, an
+    """A conversion and a rollover listed apart from the contributions, an
     HSA's coverage in its limit's note; foreign tax and crypto income on the Income panel."""
     h = household
     year = int(months_back(0)[:4]) - 3
@@ -136,7 +135,7 @@ def test_the_retirement_and_income_panels_show_moves_and_new_kinds(browser, hous
 
 
 def test_a_transfer_in_takes_its_lots_as_bought(browser, household):
-    """CR3-73: the transaction dialog's shares moved in take their lots, each with its day
+    """The transaction dialog's shares moved in take their lots, each with its day
     bought, and the saved lot keeps it."""
     h = household
     a = made(make(h.c, "Acct", name="Lots broker", type="brokerage"))

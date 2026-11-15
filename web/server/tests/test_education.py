@@ -252,7 +252,7 @@ def _prepared(server, jane, today: dt.date, first_year: int):
 def test_school_starts_on_sep_1_and_saving_counts_until_then(
     server, jane, today, first_year, index, part
 ):
-    """S6.2.2, CR3-31: saving goes on until Sep 1 of school's first year, its last year counting
+    """S6.2.2: saving goes on until Sep 1 of school's first year, its last year counting
     the part before then; a projection runs at most 100 years on, school's 4 among them."""
     if part == "span":  # the days to Sep 1, in years, less the whole years before
         part = (dt.date(first_year, 9, 1) - today).days / 365.25 - (index - 1)

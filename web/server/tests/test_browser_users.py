@@ -1,4 +1,4 @@
-"""Edit user's Save, as the dialog says what came of it (requirements S10.1.3, CR3-49), in
+"""Edit user's Save, as the dialog says what came of it (requirements S10.1.3), in
 headless Chromium: a corrected address on an invited user sends the invitation again and says
 where; any other change says Saved. With no public URL the toast says no invitation went (the
 server's tests hold that case, which needs a server without one)."""

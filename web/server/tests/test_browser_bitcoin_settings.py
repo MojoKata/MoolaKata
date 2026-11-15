@@ -1,4 +1,4 @@
-"""Settings › Bitcoin in headless Chromium (requirements S16.7, CR3-62): no wallet is read
+"""Settings › Bitcoin in headless Chromium (requirements S16.7): no wallet is read
 until an admin saves the section, so its first Save writes the source even at the suggested
 default, and until then the section says it isn't saved. A server of its own, with no wallet,
 so nothing is ever read from an explorer."""
@@ -60,7 +60,7 @@ def test_the_first_save_writes_the_source_and_a_saved_section_saves_nothing(tmp_
         wait(page, f'{FORM} .notice.attention:has-text("wallet")', problems)
         assert page.locator(UNSAVED).count() == 0
 
-        # Saved, then saved untouched again: nothing changes (CR3-2).
+        # Saved, then saved untouched again: nothing changes.
         save_untouched()
         assert settings() == after
 
@@ -95,7 +95,7 @@ OWN_NODES = [
 
 
 def test_the_first_save_of_an_own_node_writes_its_source_and_address(tmp_path, browser):
-    """CR3-62 across the sources: whichever own node is chosen, the section's first Save
+    """Across the sources: whichever own node is chosen, the section's first Save
     writes the source with its address, and the section stops saying it isn't saved."""
     base, proc = unlocked(tmp_path)
     try:

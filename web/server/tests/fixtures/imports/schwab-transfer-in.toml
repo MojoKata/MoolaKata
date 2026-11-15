@@ -1,6 +1,6 @@
 about = """A broker's OFX with shares moved in from another broker (an ACATS transfer): read as a
 transfer in of 100 shares, no cash, and a lot whose day bought the file doesn't say, marked
-missing until it is typed (S2.2, CR3-73)."""
+missing until it is typed (S2.2)."""
 account = { type = "brokerage", institution = "Charles Schwab" }
 
 [result]

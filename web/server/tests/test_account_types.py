@@ -2,7 +2,7 @@
 
 The New account dialog needs a type's flags before any account exists, so each module in
 `ui/account-types/` carries them. The server decides the same things; a flag the two disagree
-on shows a tab or a field the server won't serve, as a Reconcile tab once did (CR3-17). What
+on shows a tab or a field the server won't serve, as a Reconcile tab once did. What
 only the account's own row can say (its Reconcile tab) comes from the row, not a module."""
 
 import re

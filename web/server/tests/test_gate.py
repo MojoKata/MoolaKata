@@ -239,7 +239,7 @@ def test_a_call_that_fails_the_gate_leaves_no_trace(side, kind, how, reads):
 
 @pytest.mark.parametrize(("side", "kind"), KINDS, indirect=["side"])
 def test_a_body_that_takes_longer_than_the_clocks_allow_is_taken(side, kind, monkeypatch):
-    """CR3-53: the call's time is checked when its headers arrive; its body may then take as
+    """The call's time is checked when its headers arrive; its body may then take as
     long as the line needs. Here each piece of it moves the server's clock 30 seconds."""
     if (side.protocol, kind) not in KINDS:
         pytest.skip("not a body this protocol sends")
@@ -312,7 +312,7 @@ def test_a_forged_call_naming_a_real_key_leaves_no_trace_on_any_route(protocol, 
 
 @pytest.mark.parametrize("protocol", ["link", "connector"])
 def test_a_routes_work_never_holds_the_event_loop(protocol, request, monkeypatch):
-    """CR3-51, S13: while one call's work runs (here held until the test lets it go), the
+    """S13: while one call's work runs (here held until the test lets it go), the
     server answers others. Two calls in flight at once, in the process; the test waits on
     events, never on a clock."""
     import asyncio

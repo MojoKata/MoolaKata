@@ -1,4 +1,4 @@
-"""Dependents by age (requirements S8.14.5; the filed tax years walk, decision 3): every age
+"""Dependents by age (requirements S8.14.5): every age
 about the lines the credits and a qualifying child draw (13, 17, 19, 24), student or not, a
 child or grandchild or not, held to the rules as IRS Pub. 501 and 503 state them; and a child
 both separate books claimed copied once into the joint book after them.

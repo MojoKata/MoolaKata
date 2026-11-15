@@ -1,4 +1,4 @@
-"""No exact decimal is compared with `===` or `!==` (CR3-411).
+"""No exact decimal is compared with `===` or `!==`.
 
 The browser holds money and quantities as `Dec`, an exact decimal (S12.12). It refuses `<` and
 `>`, but `===` and `!==` compare objects, and two equal amounts are two objects: the payoff tab

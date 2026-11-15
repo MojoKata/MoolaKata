@@ -1,4 +1,4 @@
-"""Last year's books (requirements S8.14, S8.17; the filed tax years walk, decision 2): every
+"""Last year's books (requirements S8.14, S8.17): every
 pair of a couple's arrangements over two years, through the API.
 
 Jane and John, married since 2009. In 2025 they filed one of the arrangements of `LAST`; each

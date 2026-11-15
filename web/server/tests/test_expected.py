@@ -56,7 +56,7 @@ def test_overdue_after_the_interval_and_its_grace():
 
 
 def test_a_statements_value_is_stale_when_the_next_is_overdue():
-    # S4.3, CR3-8: on the day the statement after it is overdue, not at a fixed 90 days; an
+    # S4.3: on the day the statement after it is overdue, not at a fixed 90 days; an
     # account expecting none counts as yearly.
     cases = [
         ("monthly", dt.date(2026, 8, 31), dt.date(2026, 10, 15)),
@@ -88,7 +88,7 @@ def _months_on(day: dt.date, months: int) -> dt.date:
 
 
 def test_every_end_date_and_interval_goes_stale_when_the_next_is_overdue():
-    """CR3-8, every statement end over a common year and a leap year, for every interval:
+    """Every statement end over a common year and a leap year, for every interval:
     stale on the day the overdue alert's statement is due and not the day before; that day is
     the interval on by the oracle, plus the grace; a later statement never goes stale sooner;
     and none counts as yearly."""

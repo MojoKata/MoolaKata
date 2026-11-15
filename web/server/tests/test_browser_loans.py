@@ -440,7 +440,7 @@ def test_a_plan_saved_followed_shown_again_and_deleted(browser, household, new_l
     since = flat(item.locator(".small").inner_text())
     assert since.startswith(f"the plan you're following, since {day(kept['followingSince'])} ·")
     # With the help pane open, the plan's words keep their width and its buttons go
-    # below them (CR3-412), never one word to a line.
+    # below them, never one word to a line.
     if page.locator(".help .guide").count() == 0:
         page.get_by_role("button", name="Show help (F1)").click()
     wait(page, ".help .guide", problems)

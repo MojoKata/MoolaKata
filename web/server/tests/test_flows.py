@@ -1,4 +1,4 @@
-"""The money that came into an account from outside or left it, day by day (CR3-28): what the
+"""The money that came into an account from outside or left it, day by day: what the
 series, returns and benchmark read as contributed. Each kind of account is checked on its own
 days and amounts, and the window's edges: `first` is left out, `last` is counted."""
 

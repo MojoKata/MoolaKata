@@ -89,8 +89,8 @@ def test_host_commands_queue_what_they_did_for_activity(keyed_config):
     assert [e["kind"] for e in taken] == ["key.verified", "key.rotated"]
     assert taken[1]["detail"] == {"from": "mk-1", "to": "mk-2"} and taken[0]["at"]
     assert not queued.exists()
-    # Until they are recorded the taken events stay, and are taken again (CR3-355); a line
-    # appended meanwhile starts a new queue (CR3-305).
+    # Until they are recorded the taken events stay, and are taken again; a line
+    # appended meanwhile starts a new queue.
     maintenance.queue_host_event(keyed_config, "db.backup", {"name": "b"})
     assert [e["kind"] for e in maintenance.take_host_events(keyed_config)] == [
         "key.verified",
@@ -160,7 +160,7 @@ def test_a_break_glass_code_works_once_for_fifteen_minutes(monkeypatch):
 
 
 def test_db_shell_under_run_asks_before_it_shows_anything(keyed_config, monkeypatch):
-    """CR3-369: as its container's first process, Docker's log keeps what it prints."""
+    """As its container's first process, Docker's log keeps what it prints."""
     import argparse
 
     from moolakata.store import cli as db_cli

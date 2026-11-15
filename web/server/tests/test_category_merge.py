@@ -498,7 +498,7 @@ def test_only_an_admin_merges_and_a_stale_one_is_refused(people):
 
 
 def test_a_merge_in_a_large_household_takes_moments(people, server):
-    """Round 9 of the categories walk: a merge runs in the request, in one transaction, which
+    """A merge runs in the request, in one transaction, which
     holds only while a large household's merge stays quick."""
     admin = people["admin"]
     pet, pets = new(admin, "Pet"), new(admin, "Pets")

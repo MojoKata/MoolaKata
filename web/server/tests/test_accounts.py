@@ -214,7 +214,7 @@ def test_idempotency_key_returns_the_first_answer(server):
 @pytest.mark.parametrize("kind", ["buy", "sell", "reinvest", "transfer-in", "transfer-out",
                                   "reward"])  # fmt: skip
 def test_a_trades_fees_are_typed_a_blank_or_less_than_none_refused(server, kind):
-    """R3.11, CR3-437: a trade's fees are zero or more, typed; a blank is refused, never read as
+    """R3.11: a trade's fees are zero or more, typed; a blank is refused, never read as
     none, made or changed. Money that isn't a trade has no fees to type."""
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -485,7 +485,7 @@ def test_csv_import_asks_for_a_mapping_once(server):
 
 
 def test_held_uploads_count_against_the_users_uploads_in_flight(server, monkeypatch):
-    """CR3-172: an upload waiting for its mapping counts; past the limit the user's oldest is
+    """An upload waiting for its mapping counts; past the limit the user's oldest is
     let go, and a dialog closed lets its own go at once."""
     from moolakata import middleware
 
@@ -556,7 +556,7 @@ def test_an_account_closes_on_a_day_and_opens_again(server):
 
 
 def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
-    """CR3-73: shares moved in by a broker's file say nothing of when they were bought: the lot
+    """Shares moved in by a broker's file say nothing of when they were bought: the lot
     is marked so, its term unknown, until the day is typed."""
     make_user(server, "jane")
     c = sign_in(server, "jane")

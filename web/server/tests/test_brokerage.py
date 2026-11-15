@@ -142,7 +142,7 @@ def test_an_empower_plan_statement_names_its_funds():
 
 
 def test_a_line_asked_to_be_ignored_is_shown_ignored_next_time():
-    """CR3-16: only what the person asks (Remember…); the line is shown, marked, not dropped."""
+    """Only what the person asks (Remember…) is learned; the line is shown, marked, not dropped."""
     layout = brokerage.learn(None, ["Withdrawal Check"])
     again = brokerage.parse(FIDELITY.splitlines(), TODAY, layout)
     assert [(a.kind, a.ignored) for a in again.activity] == [

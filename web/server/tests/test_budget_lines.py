@@ -37,7 +37,7 @@ def _envelopes(server, accounts=("checking",)):
 
 
 def test_an_envelope_parent_and_child_both_planned_take_spending_once(server, frozen):
-    """The claim (CR3-41): Food $300 and Food › Groceries $200 planned; a $150 Kroger charge
+    """Food $300 and Food › Groceries $200 planned; a $150 Kroger charge
     comes out of Groceries alone, and To Budget doesn't move."""
     c, acct, cat, b = _envelopes(server)
     add(c, acct["checking"]["id"], "1000.00", "2026-10-01", payee="Payroll",

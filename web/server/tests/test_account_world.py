@@ -258,7 +258,7 @@ def _the_portfolio_adds_up(made):
 
 def _contributions_are_the_money_moved(made):
     """What the portfolio's chart counts contributed over its last month is the money that
-    came in or left from outside, valued as the reference values it (CR3-28)."""
+    came in or left from outside, valued as the reference values it."""
     c, w = made.viewer, made.w
     series = c.get(f"/ui/api/portfolios/{made.portfolio}/series", params={"range": "1M"}).json()
     first = aw.TODAY - dt.timedelta(days=31)
