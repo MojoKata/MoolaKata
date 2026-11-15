@@ -38,12 +38,14 @@ BROWSER_DIRS = ("kit", "app", "api", "store", "screens", "components", "charts",
 NOT_CODE = {"api/types.js"}
 # The ui-kit's tests and pages drive its code; they aren't code of the app.
 NOT_CODE_DIRS = ("kit/tests/", "kit/pages/")
-KIT_AREA = "browser/kit"
+# The ui-kit is an area of its own, outside the browser app's: its tests run in a job of their own,
+# skipped on a pull request that leaves it alone (S17.10.1).
+KIT_AREA = "kit"
 ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine largest gaps
 # The lines or branches an area's measure may move by between runs: a count, not points, since
 # one branch is a point of a one-file area. The server's and the connector's tests measure the
 # same each run; the browser's move 10 or more lines and branches with their timing.
-SLACK = {"server": 3, "connector": 3, "browser": 40}
+SLACK = {"server": 3, "connector": 3, "browser": 40, "kit": 40}
 BAR = 10  # the job summary's bars, in characters
 # How well an area is tested, whatever its floor: the usual three bands (green from 80%, red
 # under 60%), each with its dot in the job summary and its colour on the site.
@@ -87,7 +89,7 @@ class File:
 
 def area_of(rel: str) -> str | None:
     """The area a repository path counts in: a server package (with the routes that serve it),
-    the server's top-level modules, a directory of the browser app, or the connector."""
+    the server's top-level modules, a directory of the browser app, the ui-kit, or the connector."""
     parts = rel.split("/")
     if rel.startswith("web/server/src/moolakata/"):
         inner = parts[4:]
@@ -105,7 +107,7 @@ def area_of(rel: str) -> str | None:
     if rel.startswith("web/ui/") and len(parts) > 3 and parts[2] in BROWSER_DIRS:
         if rel.removeprefix("web/ui/").startswith(NOT_CODE_DIRS):
             return None
-        return f"browser/{parts[2]}"
+        return KIT_AREA if parts[2] == "kit" else f"browser/{parts[2]}"
     return None
 
 
@@ -281,9 +283,16 @@ def totals(files: dict[str, File]) -> dict[str, dict]:
     return out
 
 
+def in_sum(area: str, prefix: str) -> bool:
+    """Whether `area` counts under `prefix`: every area under "", those under "server/", or the
+    one area a prefix with no slash names (the kit)."""
+    return area.startswith(prefix) if prefix.endswith("/") or not prefix else area == prefix
+
+
 def total(areas: dict, prefix: str = "") -> dict:
-    """The areas under `prefix` (all of them by default) as one, summed from their counts."""
-    rows = [t for a, t in areas.items() if a.startswith(prefix)]
+    """The areas under `prefix` (all of them by default) as one, summed from their counts; a
+    prefix with no slash is that one area."""
+    rows = [t for a, t in areas.items() if in_sum(a, prefix)]
     return counted(
         *(
             sum(t[k] for t in rows)
@@ -392,7 +401,11 @@ def reached(t: dict, kind: str) -> str:
     return f"{got:,} of {count:,}" if count else "—"
 
 
-def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: list) -> str:
+def summary(
+    areas: dict, floors: dict, d: dict | None, base: str | None, below: list, kit: bool = True
+) -> str:
+    """The table by area and the sums; `kit` False when the ui-kit's tests didn't run, whose
+    sums are then shown as not run rather than measured from the app's use of the kit alone."""
     out = ["## Coverage", ""]
     if d is not None and d["lines"]:
         out.append(
@@ -418,7 +431,10 @@ def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: 
         floor = f"{show(fl.get('lines'))} / {show(fl.get('branches'))}" if fl else "—"
         out.append(row(area + (" ⚠" if area in below else ""), t, floor))
     for name, prefix in SUMS:
-        out.append(row(f"**{name}**", total(areas, prefix), ""))
+        if kit or name not in WITH_KIT:
+            out.append(row(f"**{name}**", total(areas, prefix), ""))
+        else:
+            out.append(f"| **{name}** | — | {NOT_RUN} | — | — | — | |")
     if d and d["gaps"]:
         out += ["", "**Changed lines no test reaches:**", ""]
         out += [f"- `{rel}`: {a}" + (f"–{b}" if b > a else "") for rel, a, b in d["gaps"]]
@@ -427,8 +443,12 @@ def summary(areas: dict, floors: dict, d: dict | None, base: str | None, below: 
     return "\n".join(out) + "\n"
 
 
-# The rows that sum areas, last in each table: each side, then everything (the connector too).
-SUMS = (("Server", "server/"), ("Browser", "browser/"), ("Overall", ""))
+# The rows that sum areas, last in each table, the same four on every run: the server's areas,
+# the browser app's, the ui-kit, and everything (the connector too).
+SUMS = (("Server", "server/"), ("Browser", "browser/"), ("Kit", KIT_AREA), ("Overall", ""))
+# The sums the ui-kit counts in, not shown on a run that skipped its tests.
+WITH_KIT = ("Kit", "Overall")
+NOT_RUN = "not run (kit unchanged)"
 
 
 def overall(areas: dict, kind: str, prefix: str) -> float | None:
@@ -439,8 +459,10 @@ def overall(areas: dict, kind: str, prefix: str) -> float | None:
 def annotate(areas: dict, d: dict | None) -> None:
     """GitHub's workflow commands: a notice with the headline, and one on each of the largest
     stretches of changed lines no test reaches, shown on those lines in the pull request."""
-    server, browser = (show(overall(areas, "lines", p)) for p in ("server", "browser"))
+    server, browser = (show(overall(areas, "lines", p)) for p in ("server/", "browser/"))
     head = f"server {server} of lines, browser {browser}"
+    if KIT_AREA in areas:
+        head += f", kit {show(areas[KIT_AREA]['lines'])}"
     if d is not None and d["lines"]:
         head += f"; changed lines {d['covered']} of {d['lines']} reached"
     print(f"::notice title=Coverage::{head}")
@@ -479,14 +501,18 @@ def cmd_report(check: bool) -> int:
         print("nothing measured: run web/check or web/dev.sh coverage first")
         return 1
     fl = floors()
-    if os.environ.get("MK_KIT_TESTED") == "0":
+    kit = os.environ.get("MK_KIT_TESTED") != "0"
+    if not kit:
         # A pull request that leaves the ui-kit alone skips its own tests (S17.10.1): the app's
-        # tests reach the kit only as far as it uses it, so its floor isn't held this run.
+        # tests reach the kit only as far as they use it, so it isn't measured this run, its
+        # floor isn't held, and the sums it counts in aren't shown.
+        files = {rel: f for rel, f in files.items() if f.area != KIT_AREA}
+        areas = totals(files)
         fl = {area: f for area, f in fl.items() if area != KIT_AREA}
     base = base_ref()
     d = diff(files, changed_lines(base)) if base else None
     below = under(areas, fl)
-    text = summary(areas, fl, d, base, below)
+    text = summary(areas, fl, d, base, below, kit)
     (OUT / "summary.md").write_text(text)
     (OUT / "totals.json").write_text(json.dumps(areas, indent=2) + "\n")
     (OUT / "files.json").write_text(json.dumps(file_rows(files), indent=1) + "\n")

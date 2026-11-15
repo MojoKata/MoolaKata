@@ -113,7 +113,8 @@
       together by `deno coverage`; a file no test loads counts as not reached.
       `python -m moolakata.dev.coverage report` then gives:
       1. **By area**: line and branch coverage of each server package (its top-level modules
-         as one), each directory of the browser app, and the connector. A route module of
+         as one), each directory of the browser app, the ui-kit (`kit`, an area of its own,
+         not the browser app's), and the connector. A route module of
          `ui/` counts in the package it serves (`ui/budgets.py` with `budgets/`,
          `ui/positions.py` with `options/`); the routes that serve no package are `server/ui`. A browser file's
          branches count only where its code ran. Each figure falls in a band of how well it
@@ -132,8 +133,12 @@
          merge to `main`, the coverage site. The terminal's and the job summary's table gives
          each area's files, its lines and branches as its band's dot, a bar of ten characters
          (each a tenth) and the percentage, the counts reached, and its floor, marking an area below its
-         floor; its last rows are the server's areas together, the browser's, and every area
-         as one (the connector's too), each summed from their counts. `files.json` keeps each
+         floor; its last rows are the same four sums on every run, each summed from their
+         counts: **Server** (the server's areas), **Browser** (the browser app's, without the
+         ui-kit), **Kit** (the ui-kit) and **Overall** (every area, the connector's too). A
+         pull request that leaves the ui-kit alone skips its tests (S17.10.1), so the kit is
+         measured only as far as the app's tests use it: the kit's area, files and floor are
+         left out, and Kit and Overall are shown as not run, never as a drop. `files.json` keeps each
          file's counts, and where its line-by-line report is.
       4. **The floor**: `web/coverage-floor.json` holds each area's line and branch floor; an
          area below its floor fails the check. `python -m moolakata.dev.coverage floor`
@@ -141,14 +146,15 @@
          not points: one branch is a point of a one-file area), as a percentage rounded down
          to a tenth, and never lowers one: a lower floor is written by hand, with its reason
          in the commit. The slack is 3 for the server's and the connector's areas, whose
-         tests measure the same each run, and 40 for the browser app's, whose figures move
+         tests measure the same each run, and 40 for the browser app's and the ui-kit's, whose figures move
          with the browser tests' timing (its components by as much as 32 lines from one run to
          the next with nothing changed). `totals.json` keeps each area's counts for it.
       5. **The coverage site**: the repository's GitHub Pages site
          (`https://mojokata.github.io/MoolaKata/`) holds the HTML reports of the last merge
          to `main` and the history of every merge since the site began. Its page shows:
          1. **The headline**: line and branch coverage of every area as one, with the counts
-            behind them, each side's line coverage, and the number of files.
+            behind them, the line coverage of each side (the server, the browser app, the
+            ui-kit and the connector), and the number of files.
          2. **By area**: each area's lines and branches as a bar in its band's colour with a
             tick at its floor (striped below it), with a key to both, the percentage, the change since the merge before and the counts
             reached; its files and floor; and, last, the rows that sum the areas as the
@@ -157,14 +163,16 @@
             and their files by it (name, lines, lines reached, branches, branches taken; a
             count sorts by size), lowest lines first to start. A filter keeps the files
             whose path holds what is typed, opening each area that has one.
-         3. **Over the merges**: a chart of each area, and of the server's and the browser's
-            areas as one, with each merge's figures on hover; and every merge in a table.
+         3. **Over the merges**: a chart of each of the four sums, then of each area, with
+            each merge's figures on hover; and every merge in a table, with the four sums' line
+            and branch coverage.
 
          `python -m moolakata.dev.coverage site` builds it into `web/.dev/coverage/site/`,
          with `files.json` beside the page:
          4. **The history** is the site's `history.json`, one entry per merge: its commit,
             date, subject, pull request (from the squash merge's subject) and totals by
-            area. It lives on the site alone. Each build reads it back from the published
+            area. It lives on the site alone. An area measured under an earlier name
+            (`browser/kit`) is read under its name of now, so its chart runs on. Each build reads it back from the published
             site and adds its own entry last; a run done again for the same commit replaces
             that commit's entry.
          5. **Never started over**: a site that answers with no `history.json` starts an

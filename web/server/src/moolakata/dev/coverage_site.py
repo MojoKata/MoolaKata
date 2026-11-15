@@ -101,10 +101,27 @@ def add(history: list[dict], e: dict) -> list[dict]:
     return [h for h in history if h["commit"] != e["commit"]] + [e]
 
 
+# The sums by the names the charts and the merges' table know them by: server, browser, kit,
+# overall.
+SUMS = {name.lower(): prefix for name, prefix in coverage.SUMS}
+# Areas measured under another name before: an entry's figures are read under the name of now,
+# so an area's chart runs on across the rename.
+RENAMED = {"browser/kit": coverage.KIT_AREA}
+
+
+def renamed(h: dict) -> dict:
+    """An entry with its areas (and their hardening figures) under the names of now."""
+    out = dict(h)
+    for key in ("areas", "hardening"):
+        if key in h:
+            out[key] = {RENAMED.get(a, a): v for a, v in h[key].items()}
+    return out
+
+
 def figure(h: dict, area: str, kind: str) -> float | None:
-    """An entry's figure for an area, or for the server's or browser's areas as one."""
-    if area in ("server", "browser"):
-        return coverage.overall(h["areas"], kind, area + "/")
+    """An entry's figure for an area, or for one of the sums (server, browser, kit, overall)."""
+    if area in SUMS:
+        return coverage.overall(h["areas"], kind, SUMS[area])
     return (h["areas"].get(area) or {}).get(kind)
 
 
@@ -239,13 +256,14 @@ def area_group(area: str, t: dict, floor: dict | None, was: dict | None, files: 
 
 
 def banner(areas: dict) -> str:
-    """The headline: everything as one, and each side."""
+    """The headline: everything as one, and each side (the ui-kit as one of its own)."""
     t = coverage.total(areas)
     sides = " · ".join(
         f"{name} <b>{pct(coverage.total(areas, prefix)['lines'])}</b>"
         for name, prefix in (
             ("Server", "server/"),
             ("Browser", "browser/"),
+            ("Kit", coverage.KIT_AREA),
             ("Connector", "connector"),
         )
     )
@@ -263,7 +281,8 @@ def banner(areas: dict) -> str:
 def page(history: list[dict], floors: dict, files: list[dict], base: str, repo: str) -> str:
     last = history[-1]
     before = history[-2] if len(history) > 1 else None
-    areas = ["server", "browser", *last["areas"]]
+    # The four sums' charts first, then each area's (the kit's is its sum's).
+    areas = [*SUMS, *(a for a in last["areas"] if a not in SUMS)]
     commit = html.escape(last["commit"][:7])
     pr = f' (<a href="{repo}/pull/{last["pr"]}">#{last["pr"]}</a>)' if last["pr"] else ""
 
@@ -297,7 +316,7 @@ def page(history: list[dict], floors: dict, files: list[dict], base: str, repo: 
         link = f'<a href="{repo}/commit/{h["commit"]}">{html.escape(h["commit"][:7])}</a>'
         pr_cell = f'<a href="{repo}/pull/{h["pr"]}">#{h["pr"]}</a>' if h["pr"] else ""
         figs = "".join(
-            f"<td>{pct(figure(h, a, k))}</td>" for a in ("server", "browser") for k, _ in SERIES
+            f"<td>{' / '.join(pct(figure(h, a, k)) for k, _ in SERIES)}</td>" for a in SUMS
         )
         merges.append(
             f"<tr><td>{html.escape(h['date'][:10])}</td><td>{pr_cell}</td><td>{link}</td>{figs}"
@@ -360,7 +379,7 @@ p {{ margin: 4px 0; color: var(--text-2); }}
 table {{ border-collapse: collapse; font-variant-numeric: tabular-nums; }}
 th, td {{ padding: 5px 10px; border-bottom: 1px solid var(--border); text-align: right;
   white-space: nowrap; }}
-th:first-child, td.subject {{ text-align: left; }}
+th:first-child, th.subject, td.subject {{ text-align: left; }}
 thead th {{ color: var(--text-2); font-weight: 600; }}
 td.delta, td.floor {{ color: var(--text-2); }}
 td.subject {{ white-space: normal; color: var(--text-2); }}
@@ -489,7 +508,8 @@ of the sweep: <a href="hardening.html">hardening</a>. The mockups, as of this me
 <p>The change is since the merge before. A bar's colour is how well it is tested; the tick on
 it is the area's floor (its lines' / branches' in the last column), and a bar below its floor
 is striped. <i>Server</i> and <i>Browser</i> are
-their areas together; <i>Overall</i> is every area, the connector's too. Sorting by a count
+their areas together (the browser app's, without the ui-kit); <i>Kit</i> is the ui-kit;
+<i>Overall</i> is every area, the connector's too. Sorting by a count
 sorts by size.</p>
 
 <h2>Over the merges</h2>
@@ -500,10 +520,12 @@ sorts by size.</p>
 </div>
 
 <details>
-<summary>Every merge</summary>
+<summary>Every merge, its lines / branches</summary>
 <div class="scroll"><table>
-<thead><tr><th>Date</th><th>PR</th><th>Commit</th><th>Server lines</th><th>Server branches</th>
-<th>Browser lines</th><th>Browser branches</th><th>Subject</th></tr></thead>
+<thead><tr><th>Date</th><th>PR</th><th>Commit</th>
+<th title="Lines / branches">Server</th><th title="Lines / branches">Browser</th>
+<th title="Lines / branches">Kit</th><th title="Lines / branches">Overall</th>
+<th class="subject">Subject</th></tr></thead>
 <tbody>
 {merges}
 </tbody>
@@ -630,7 +652,7 @@ def build() -> int:
     base = site_url()
     nonce = os.environ.get("GITHUB_RUN_ID") or str(os.getpid())
     try:
-        history = fetch_history(base, nonce)
+        history = [renamed(h) for h in fetch_history(base, nonce)]
     except (OSError, ValueError) as e:
         if in_ci():
             raise

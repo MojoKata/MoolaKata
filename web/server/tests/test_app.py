@@ -431,6 +431,40 @@ def test_two_step_sign_in_through_the_app(page):
     admin.context.close()
 
 
+def test_the_user_tile_opens_profile_where_sign_out_is(page):
+    """S12.2.16: the avatar and name are a navigation entry to Profile, with no menu and no
+    underline; Profile's top bar holds Sign Out where the others show the prices' age, and its
+    card is as tall as what it holds."""
+    john = signed_in_page(page, "john")
+    john.wait_for_selector(".side")
+    visit(john, "/ui/accounts")
+    john.wait_for_selector(".topbar .price-status")
+    assert john.get_by_role("button", name="Sign Out").count() == 0
+    tile = john.locator(".user-tile a.nav-item.user-link")
+    assert tile.get_attribute("href") == "/ui/profile"
+    assert tile.get_attribute("aria-haspopup") is None
+    tile.hover()
+    assert tile.evaluate("(e) => getComputedStyle(e).textDecorationLine") == "none"
+    tile.click()
+    john.wait_for_url("**/ui/profile")
+    until(john, lambda: tile.get_attribute("aria-current") == "page", what="Profile current")
+    sign_out = john.locator(".topbar").get_by_role("button", name="Sign Out")
+    sign_out.wait_for()
+    assert john.locator(".topbar .price-status").count() == 0
+    card = john.locator(".content .g2 > .card").first
+    card.locator("h3", has_text="Profile").wait_for()
+    tall = john.evaluate(
+        """() => { const g = document.querySelector('.content .g2');
+        return [g.firstElementChild.getBoundingClientRect().height,
+                g.lastElementChild.getBoundingClientRect().height]; }"""
+    )
+    assert tall[0] < tall[1], tall
+    sign_out.click()
+    john.get_by_role("button", name="Sign In", exact=True).wait_for()
+    assert john.problems == []
+    john.context.close()
+
+
 def last_mail_link() -> str:
     import email
     import email.policy

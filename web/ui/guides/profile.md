@@ -1,6 +1,7 @@
 # Profile
 
 Your name, email, password, two-step sign-in and how MoolaKata shows things to you.
+**Sign Out**, at the top right, ends your session in this browser.
 
 ![Profile](shots/profile.png)
 
