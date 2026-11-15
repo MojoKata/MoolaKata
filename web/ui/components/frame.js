@@ -165,8 +165,7 @@ export function Frame({ children, onSignOut }) {
       `
       : html`<${HouseholdAvatar} house=${s.household} />`
   }
-        <div class="brand-text"><div class="brand-name">${s.household.name}</div>
-          <div class="brand-ver">MoolaKata ${version} ${
+        <div class="brand-text"><div class="brand-name">${s.household.name} ${
     mockup
       ? html`<button type="button" class="pill-mock" aria-haspopup="menu" onClick=${(
         /** @type {MouseEvent} */ e,
@@ -177,7 +176,8 @@ export function Frame({ children, onSignOut }) {
       : dev
       ? html`<span class="pill-dev" data-tip="Dev mode: the rules are the same as production">DEV</span>`
       : null
-  }</div></div>
+  }</div>
+          <div class="brand-ver">${version}</div></div>
       </div>
       ${
     updated.value
