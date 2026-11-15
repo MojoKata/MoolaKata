@@ -195,17 +195,26 @@ def keyed(kind: str, text: str) -> str:
 
 def meter(kind: str, v: float | None, floor: float | None = None, was: float | None = None) -> str:
     """A bar for a percentage in its band's colour (S17.5.8), a tick at the floor (striped below
-    it), the figure and its change."""
+    it), the figure, marked with a star from 95%, and its change."""
     if v is None:
-        return "<td class='m'><span class='meter none'></span><span class='pct'>—</span></td>"
+        return (
+            "<td class='m'><span class='meter none'></span><span class='star'></span>"
+            "<span class='pct'>—</span></td>"
+        )
     below = " below" if floor is not None and v < floor else ""
     tick = f"<i style='left:{floor}%' title='floor {pct(floor)}'></i>" if floor is not None else ""
     delta = change(v, was)
     name = coverage.band(v)[0]
+    # A star's bar stays green: gold beside amber would blur the bands, so the star is its mark.
+    star = (
+        "<span class='star' title='95% and up'>★</span>"
+        if name == "top"
+        else "<span class='star'></span>"
+    )
     return (
         f"<td class='m'><span class='meter {kind} {name}{below}'><b style='width:{v}%'></b>"
         f"{tick}</span>"
-        f"<span class='pct'>{pct(v)}</span><span class='delta'>{delta}</span></td>"
+        f"{star}<span class='pct'>{pct(v)}</span><span class='delta'>{delta}</span></td>"
     )
 
 
@@ -358,7 +367,7 @@ TEMPLATE = """<!doctype html>
   --surface: #fcfcfb; --raised: #f3f2ee; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --track: #e9e8e2; --border: rgba(11, 11, 11, 0.10);
   --lines: #2a78d6; --branches: #eb6834; --bad: #c8312b;
-  --good: #2f9e55; --fair: #d79b0f; --stripe: rgba(255, 255, 255, 0.55);
+  --good: #2f9e55; --fair: #d79b0f; --stripe: rgba(255, 255, 255, 0.55); --gold: #b8860b;
 }}
 @media (prefers-color-scheme: dark) {{
   :root {{
@@ -366,7 +375,7 @@ TEMPLATE = """<!doctype html>
     --surface: #1a1a19; --raised: #232321; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
     --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
-    --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
+    --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5); --gold: #f2c94c;
   }}
 }}
 * {{ box-sizing: border-box; }}
@@ -424,7 +433,7 @@ td.n {{ color: var(--text-2); }}
   vertical-align: middle; border-radius: 6px; background: var(--track); }}
 #areas tr.file .meter {{ height: 8px; }}
 .meter b {{ position: absolute; inset: 0 auto 0 0; border-radius: 6px; }}
-.meter.good b {{ background-color: var(--good); }}
+.meter.top b, .meter.good b {{ background-color: var(--good); }}
 .meter.fair b {{ background-color: var(--fair); }}
 .meter.low b {{ background-color: var(--bad); }}
 .meter.below b {{ background-image: repeating-linear-gradient(135deg, transparent 0 3px,
@@ -433,6 +442,7 @@ td.n {{ color: var(--text-2); }}
 .meter i {{ position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
   background: var(--text); }}
 .pct {{ display: inline-block; width: 3.9em; text-align: right; }}
+.star {{ display: inline-block; width: 1.1em; text-align: right; color: var(--gold); }}
 .delta {{ display: inline-block; width: 3.2em; text-align: right; font-size: 16px;
   color: var(--text-2); }}
 
@@ -501,13 +511,14 @@ of the sweep: <a href="hardening.html">hardening</a>. The mockups, as of this me
 {sums}
 </tfoot>
 </table></div>
-<div class="legend"><span><span class="swatch good"></span>80% and up</span>
+<div class="legend"><span><span class="star">★</span> 95% and up</span>
+<span><span class="swatch good"></span>80% and up</span>
 <span><span class="swatch fair"></span>60% to 80%</span>
 <span><span class="swatch low"></span>under 60%</span>
 <span><span class="swatch fair below"></span>below its floor</span></div>
-<p>The change is since the merge before. A bar's colour is how well it is tested; the tick on
-it is the area's floor (its lines' / branches' in the last column), and a bar below its floor
-is striped. <i>Server</i> and <i>Browser</i> are
+<p>The change is since the merge before. A bar's colour is how well it is tested, and a star
+marks 95% and up; the tick on it is the area's floor (its lines' / branches' in the last column),
+and a bar below its floor is striped. <i>Server</i> and <i>Browser</i> are
 their areas together (the browser app's, without the ui-kit); <i>Kit</i> is the ui-kit;
 <i>Overall</i> is every area, the connector's too. Sorting by a count
 sorts by size.</p>

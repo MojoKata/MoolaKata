@@ -405,8 +405,7 @@ export function NoteEditor(
       const text = existing ? (a.href ?? pageAddress(a.page)) : '';
       const c = view.coordsAtPos(from),
         w = /** @type {HTMLElement} */ (wrap.current).getBoundingClientRect();
-      const z = zoomOf(wrap.current);
-      setPop({ from, to, text, existing, x: (c.left - w.left) / z, y: (c.bottom - w.top) / z + 4 });
+      setPop({ from, to, text, existing, x: c.left - w.left, y: c.bottom - w.top + 4 });
       return true;
     };
     /** The page's address on this server, for editing a link to one. @param {string} page */
@@ -633,11 +632,10 @@ export function NoteEditor(
 
   const chars = state ? [...state.doc.textContent].length : 0;
   const near = chars >= SPEC.limits.chars * 0.8;
-  const z = zoomOf(wrap.current);
   const caretAt = caretLink && view && wrap.current
     ? (() => {
       const c = view.coordsAtPos(caretLink.from), w = wrap.current.getBoundingClientRect();
-      return { x: (c.left - w.left) / z, y: (c.bottom - w.top) / z + 4 };
+      return { x: c.left - w.left, y: c.bottom - w.top + 4 };
     })()
     : null;
   const linkTip = (/** @type {any} */ a) => {
@@ -766,13 +764,6 @@ export function NoteEditor(
         : null}
     </div>
   `;
-}
-
-/** The page's zoom (the mockup draws at zoom 2), for placing a popover by the text's box. */
-function zoomOf(/** @type {Element | null} */ el) {
-  if (!el) return 1;
-  const z = Number(getComputedStyle(document.documentElement).zoom);
-  return z > 0 ? z : 1;
 }
 
 /**

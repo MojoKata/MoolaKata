@@ -5,8 +5,7 @@
 Needs Playwright for Python and its Chromium (`pip install playwright`, then
 `playwright install chromium`). The screens, dialogs and Settings sections come from the
 mockup itself (`window.MOCK_INDEX`), so nothing here needs updating when one is added.
-Screenshots of each go to the directory given. The mockup draws at `zoom: 2`, so the
-viewport is 2880x1800, which shows what a 1440x900 window does.
+Screenshots of each go to the directory given: a 1440x900 window, drawn at twice its pixels.
 """
 
 import sys
@@ -15,7 +14,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 MOCKUP = Path(__file__).resolve().parent / "MoolaKata-mock.html"
-VIEWPORT = {"width": 2880, "height": 1800}
+VIEWPORT = {"width": 1440, "height": 900}
 
 
 def main(out: Path) -> int:
@@ -24,7 +23,7 @@ def main(out: Path) -> int:
     url = MOCKUP.as_uri()
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport=VIEWPORT)
+        page = browser.new_page(viewport=VIEWPORT, device_scale_factor=2)
         page.on("pageerror", lambda e: errors.append(f"page error: {e}"))
         page.on(
             "console",

@@ -2,8 +2,8 @@
 
 1. **Frame**: drawn once around every signed-in screen, from one list of navigation entries;
    no screen draws or changes it.
-   1. A **sidebar** pinned to the viewport: the household's avatar and name with the version
-      (and a red **DEV** pill in dev mode), the navigation with count badges, and at its
+   1. A **sidebar** pinned to the viewport: the household's avatar and name (a red **DEV**
+      pill beside the name in dev mode) with the version number alone under it, the navigation with count badges, and at its
       foot the signed-in user's
       tile with the **theme** button (crescent moon for dark, lightbulb for light, palette
       for the system's; a click moves to the next). The navigation has the household's money
