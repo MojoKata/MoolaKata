@@ -56,7 +56,7 @@ needed before it, **Low** can follow it.
 |---|---|
 | GitHub issues and a project | the review's outcome: one issue per finding, under its area's step (§10) |
 | `review/<nnnn>/` on the review's branch | its work pad: `<nnnn>` the review's number in four digits |
-| `docs/reviews/check_docs.py` | the mechanical checks of Phase 0 (§4.1) |
+| `web/server/src/moolakata/dev/doccheck.py` | the mechanical checks of Phase 0 (§4.1) |
 
 The work pad holds everything a session needs from earlier ones while the review runs. It
 lives on the review's branch only, and is never merged: what outlives the review is in its
@@ -65,7 +65,7 @@ issues, each standing on its own, and in the requirements.
 | File | Written by | What |
 |---|---|---|
 | `log.md` | every session | one line per session: its start and end (`date`, Chicago time), phase or unit, what it wrote, what is left |
-| `doccheck.txt`, `cites.tsv` | Phase 0 | `check_docs.py`'s report and its citations by item |
+| `doccheck.txt`, `cites.tsv` | Phase 0 | `doccheck`'s report and its citations by item |
 | `delta.txt` | Phase 0 | the change since the last review, per unit (§4.3) |
 | `map.md` | Phase 0 | the units: sections, code paths, tests, lines (§4.2) |
 | `docs-<block>.md` | Phase 1 | a block's claims and its claims digest (§5) |
@@ -126,13 +126,10 @@ These hold in every phase, and keep each session inside its context with room to
 8. **End with the log.** The last act of a session is its line in `log.md`, its commit and
    push (§2), and, when it is the last session of the day, the state of the review in
    `docs/handoff.md`.
-9. **Quote code in ```` ```text ```` fences.** `web/check` runs `ruff format --check` over
-   `docs/reviews`, and ruff formats ```` ```python ```` blocks in Markdown: it would rewrite
-   the quoted lines. Never run `ruff format` without `--check` there.
-10. **A withheld claim is only an id.** Everywhere committed (another claim, an earlier
+9. **A withheld claim is only an id.** Everywhere committed (another claim, an earlier
    finding's re-check, a log row, a scratch file's name) it appears as its id, kind and
    severity, never beside words on what it is about (§2).
-11. **Scratch stays out of the repository.** Scratch tests and scripts live in the job's
+10. **Scratch stays out of the repository.** Scratch tests and scripts live in the job's
    scratch directory, even for a moment; `PYTHONPATH=tests web/dev.sh uv run pytest -p
    conftest <path>` runs one with the server's fixtures.
 
@@ -141,7 +138,7 @@ These hold in every phase, and keep each session inside its context with room to
 ### 4.1 The mechanical checks
 
 ```
-python3 docs/reviews/check_docs.py --cites <pad>/cites.tsv > <pad>/doccheck.txt
+web/dev.sh uv run python -m moolakata.dev.doccheck --cites "$PWD/<pad>/cites.tsv" > <pad>/doccheck.txt
 ```
 
 It reports what needs no judgement: requirement ids cited in the documents or the code that

@@ -11,7 +11,7 @@ web/ui/vendor/*/
 .ruff_cache/
 
 # A review's withheld claims (docs/REVIEW.md §2)
-docs/reviews/*/withheld.md
+review/*/withheld.md
 
 # The mockup generated from the app (requirements S12.9): built by CI and published, never
 # committed (web/dev.sh mockup builds it here to open from disk).

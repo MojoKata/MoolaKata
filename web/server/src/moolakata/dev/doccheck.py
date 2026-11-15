@@ -1,6 +1,6 @@
 """The mechanical checks a review starts with (docs/REVIEW.md, Phase 0).
 
-    python3 docs/reviews/check_docs.py [--cites FILE] [--quiet]
+    web/dev.sh uv run python -m moolakata.dev.doccheck [--cites FILE] [--quiet]
 
 Reads the requirements, the other documents under docs/ and the code's comments, and reports:
 
@@ -25,13 +25,15 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+from .. import paths
+
+ROOT = paths.ROOT
 REQ = ROOT / "docs" / "requirements"
 SCHEMA = ROOT / "docs" / "schema.md"
 MAX_LINES = 500
 
-# Documents whose citations must resolve. Reviews and the handoff record history, so they may
-# cite what has since gone.
+# Documents whose citations must resolve. The handoff records history, so it may cite what has
+# since gone.
 DOCS = [p for p in sorted((ROOT / "docs").glob("*.md")) if p.name != "handoff.md"]
 DOCS += [*sorted(REQ.glob("*.md")), ROOT / "README.md", ROOT / "docs/mockups/MoolaKata-mock.html"]
 CODE_DIRS = ["web/server/src", "connector", "web/ui"]
