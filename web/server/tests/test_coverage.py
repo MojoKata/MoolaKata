@@ -75,15 +75,16 @@ def test_the_summary_shows_bars_counts_and_the_sums_last():
     ]
     # The browser app's areas, without the kit; the kit alone; everything.
     assert rows[-3].startswith("| **Browser** | 1 | 🟢 `█████████░` 91.0% | 1,793 of 1,970 |")
-    assert rows[-2].startswith("| **Kit** | 1 | 🟢 `██████████` 95.0% | 950 of 1,000 |")
+    assert rows[-2].startswith("| **Kit** | 1 | ⭐ `██████████` 95.0% | 950 of 1,000 |")
     assert rows[-1].startswith("| **Overall** | 5 | 🟢 `█████████░` 88.1% | 8,557 of 9,708 |")
     assert coverage.bar(None) == "—" and coverage.bar(4.9) == "🔴 `░░░░░░░░░░` 4.9%"
 
 
-def test_a_figure_s_band_is_green_from_80_and_red_under_60():
-    """S17.5.8: the bands, at their edges."""
-    got = [coverage.band(v)[0] for v in (0.0, 59.9, 60.0, 79.9, 80.0, 100.0)]
-    assert got == ["low", "low", "fair", "fair", "good", "good"]
+def test_a_figure_s_band_is_a_star_from_95_green_from_80_and_red_under_60():
+    """S17.5.8: the bands, at their edges, each with one mark."""
+    got = [coverage.band(v) for v in (0.0, 59.9, 60.0, 79.9, 80.0, 94.9, 95.0, 100.0)]
+    low, fair, good, top = ("low", "🔴"), ("fair", "🟡"), ("good", "🟢"), ("top", "⭐")
+    assert got == [low, low, fair, fair, good, good, top, top]
 
 
 def test_a_route_module_counts_in_the_area_it_serves():

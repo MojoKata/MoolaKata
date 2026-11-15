@@ -230,4 +230,8 @@ def test_a_bar_takes_its_band_s_colour_and_stripes_below_its_floor():
     """S17.5.8: how well a figure is tested is its colour; below its area's floor, striped."""
     assert "class='meter lines good'" in cs.meter("lines", 92.0, 90.0)
     assert "class='meter branches fair below'" in cs.meter("branches", 70.0, 71.0)
+    # From 95% the bar stays green and the figure takes a star, its one mark (S17.5.8).
+    top, good = cs.meter("lines", 95.0), cs.meter("lines", 94.9)
+    assert "class='meter lines top'" in top and "class='star on'" in top
+    assert "class='meter lines good'" in good and "star on" not in good
     assert "class='meter lines low'" in cs.meter("lines", 57.2)

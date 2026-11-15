@@ -11,7 +11,7 @@
   --grid: #e1e0d9; --track: #e9e8e2; --border: rgba(11, 11, 11, 0.10);
   --lines: #2a78d6; --branches: #eb6834; --bad: #c8312b;
   --good: #2f9e55; --fair: #d79b0f; --stripe: rgba(255, 255, 255, 0.55);
-  --mut: #7a4fd0; --low: #b9b7ae;
+  --mut: #7a4fd0; --low: #b9b7ae; --gold: #b8860b;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -20,7 +20,7 @@
     --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
     --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
     --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
-    --mut: #a283ea; --low: #5c5b55;
+    --mut: #a283ea; --low: #5c5b55; --gold: #f2c94c;
   }
 }
 :root[data-theme="dark"] {
@@ -29,7 +29,7 @@
   --grid: #2c2c2a; --track: #34342f; --border: rgba(255, 255, 255, 0.10);
   --lines: #3987e5; --branches: #d95926; --bad: #e5534b;
   --good: #3fb768; --fair: #e2ab2b; --stripe: rgba(0, 0, 0, 0.5);
-  --mut: #a283ea; --low: #5c5b55;
+  --mut: #a283ea; --low: #5c5b55; --gold: #f2c94c;
 }
 * { box-sizing: border-box; }
 body { margin: 0 auto; max-width: 1500px; padding-block: 24px 48px;
@@ -90,6 +90,12 @@ tr.detail > td { text-align: left; white-space: normal; background: var(--raised
   background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--stripe) 3px 6px); }
 .meter.single b { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
 .pct { display: inline-block; width: 3.6em; text-align: right; }
+.star { display: inline-block; width: 1.1em; text-align: right; }
+/* The star is drawn, not a font's glyph, so every viewer sees it. */
+.star.on::before { content: ''; display: inline-block; width: 0.85em; height: 0.85em;
+  vertical-align: -0.05em; background-color: var(--gold);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z'/%3E%3C/svg%3E") center / contain no-repeat; }
 .delta { display: inline-block; width: 3.4em; text-align: right; font-size: 12px; color: var(--text-2); }
 .delta.up { color: var(--good); }
 .n { color: var(--text-2); }
@@ -171,7 +177,7 @@ and files.
   <span><b>Mutation:</b></span>
   <span><i class="sw settled"></i>tested and settled</span><span><i class="sw stale"></i>changed since its run</span>
   <span><b>Coverage:</b></span>
-  <span><i class="sw good"></i>good ≥ 80%</span><span><i class="sw fair"></i>fair ≥ 60%</span><span><i class="sw low"></i>low</span>
+  <span><span class="star on"></span> ≥ 95%</span><span><i class="sw good"></i>good ≥ 80%</span><span><i class="sw fair"></i>fair ≥ 60%</span><span><i class="sw low"></i>low</span>
 </div>
 
 <div class="tools">
@@ -231,6 +237,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = (a, b) => b ? 100 * a / b : null;
 const band = p => p == null ? '' : p >= 80 ? 'good' : p >= 60 ? 'fair' : 'low';
+// From 95% a figure is starred, its bar still green (S17.5.8): the star is its one mark.
+const star = p => p != null && p >= 95 ? '<span class="star on" title="95% and up"></span>' : '<span class="star"></span>';
 const f1 = p => p == null ? '—' : p.toFixed(1) + '%';
 const prLink = n => `<a class="chip" href="${REPO}/pull/${n}">#${n}</a>`;
 const commit = c => `<a href="${REPO}/commit/${c}"><code>${esc(c.slice(0, 7))}</code></a>`;
@@ -264,7 +272,7 @@ function covCell(p, pb, first) {
   if (p == null) return `<td class="${cls}"><span class="na">—</span></td>`;
   const d = pb == null ? null : p - pb;
   const dt = d == null || Math.abs(d) < 0.05 ? '<span class="delta"></span>' : `<span class="delta ${d > 0 ? 'up' : ''}">${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}</span>`;
-  return `<td class="${cls}"><span class="meter single"><b class="${band(p)}" style="width:${p}%"></b></span><span class="pct">${f1(p)}</span>${dt}</td>`;
+  return `<td class="${cls}"><span class="meter single"><b class="${band(p)}" style="width:${p}%"></b></span>${star(p)}<span class="pct">${f1(p)}</span>${dt}</td>`;
 }
 function findBar(r) {
   if (!r.total) return `<span class="na">none</span>`;

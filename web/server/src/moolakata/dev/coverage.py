@@ -47,9 +47,9 @@ ANNOTATIONS = 9  # GitHub shows 10 notices a step: the headline and the nine lar
 # same each run; the browser's move 10 or more lines and branches with their timing.
 SLACK = {"server": 3, "connector": 3, "browser": 40, "kit": 40}
 BAR = 10  # the job summary's bars, in characters
-# How well an area is tested, whatever its floor: the usual three bands (green from 80%, red
-# under 60%), each with its dot in the job summary and its colour on the site.
-BANDS = ((80.0, "good", "🟢"), (60.0, "fair", "🟡"), (0.0, "low", "🔴"))
+# How well an area is tested, whatever its floor (S17.5.8): a star from 95%, green from 80%, red
+# under 60%; each band has one mark in the job summary and its own look on the site.
+BANDS = ((95.0, "top", "⭐"), (80.0, "good", "🟢"), (60.0, "fair", "🟡"), (0.0, "low", "🔴"))
 # Where each side's files sit, for the shorter names the site shows.
 ROOTS = ("web/server/src/moolakata/", "connector/moolakata_connector/", "web/ui/")
 # A route module of ui/ counts in the area it serves: the package of its own name, or the one

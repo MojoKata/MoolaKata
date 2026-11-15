@@ -118,9 +118,10 @@
          `ui/` counts in the package it serves (`ui/budgets.py` with `budgets/`,
          `ui/positions.py` with `options/`); the routes that serve no package are `server/ui`. A browser file's
          branches count only where its code ran. Each figure falls in a band of how well it
-         is tested, whatever its floor: **good** from 80%, **fair** from 60%, **low** under
-         60%, shown as 🟢, 🟡 and 🔴 where only text is shown, and as green, amber and red
-         on the site.
+         is tested, whatever its floor: **top** from 95%, **good** from 80%, **fair** from
+         60%, **low** under 60%. Where only text is shown each has one mark, ⭐, 🟢, 🟡 or 🔴;
+         on the site and the hardening page a bar is green, amber or red, and a top figure's
+         bar is green with a gold ★ beside the figure.
       2. **The changed lines**: how many of the lines added or changed since the base (the
          merge base with `main`; in CI, the commit before) the tests reach, and each stretch
          they don't.
