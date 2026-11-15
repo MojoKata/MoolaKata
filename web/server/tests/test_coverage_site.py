@@ -74,23 +74,28 @@ def test_an_entry_names_its_pull_request(monkeypatch):
     assert cs.entry({})["pr"] is None
 
 
-def test_server_and_browser_are_their_areas_summed_from_their_counts():
+def test_the_four_sums_are_their_areas_summed_from_their_counts():
     areas = {
         "server/core": area(100.0, 50.0, count=300),
         "server/ledger": area(50.0, None, count=100),
         "browser/app": area(40.0, 60.0),
+        "kit": area(90.0, 70.0),
     }
     h = point("e" * 40, areas)
+    assert list(cs.SUMS) == ["server", "browser", "kit", "overall"]
     assert cs.figure(h, "server", "lines") == 87.5
     assert cs.figure(h, "server", "branches") == 50.0
+    # The browser app's areas, without the kit.
     assert cs.figure(h, "browser", "lines") == 40.0
+    assert cs.figure(h, "kit", "lines") == 90.0
+    assert cs.figure(h, "overall", "lines") == 80.0
     assert cs.figure(h, "server/ledger", "branches") is None
     assert cs.figure(h, "server/gone", "lines") is None
     # Everything as one, the connector's too.
     everything = coverage.total({**areas, "connector": area(80.0, 40.0)})
-    assert (everything["lines"], everything["branches"]) == (78.3, 50.0)
-    assert everything["lineCount"] == 600 and everything["linesReached"] == 470
-    assert everything["files"] == 4
+    assert (everything["lines"], everything["branches"]) == (80.0, 53.3)
+    assert everything["lineCount"] == 700 and everything["linesReached"] == 560
+    assert everything["files"] == 5
 
 
 def test_a_chart_breaks_where_an_area_was_not_measured():
@@ -125,7 +130,10 @@ def test_the_site_holds_the_reports_the_history_and_a_page(monkeypatch, tmp_path
     monkeypatch.setattr(cs, "SITE", out / "site")
     monkeypatch.delenv("MK_COVERAGE_SITE", raising=False)
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-    before = point("0" * 40, {"server/core": area(89.0, 80.0)}, pr=17)
+    # Measured before the kit was an area of its own: read as the kit's.
+    before = point("0" * 40, {"server/core": area(89.0, 80.0), "browser/kit": area(70.0, 60.0)},
+                   pr=17)  # fmt: skip
+    before["hardening"] = {"browser/kit": {"open": 1}}
     monkeypatch.setattr(cs, "get", site({"history.json": json.dumps([before]).encode()}))
     mockups = tmp_path / "mockups"
     mockups.mkdir()
@@ -143,13 +151,17 @@ def test_the_site_holds_the_reports_the_history_and_a_page(monkeypatch, tmp_path
     assert cs.build() == 0
     history = json.loads((out / "site" / "history.json").read_text())
     assert len(history) == 2 and history[0]["commit"] == "0" * 40
+    assert sorted(history[0]["areas"]) == ["kit", "server/core"]
+    assert history[0]["hardening"] == {"kit": {"open": 1}}
     assert history[-1]["areas"] == totals
     assert (out / "site" / "server" / "index.html").read_text() == "server report"
     page = (out / "site" / "index.html").read_text()
     assert "<title>MoolaKata coverage</title>" in page
     assert "work &lt;" + "0" * 40 + "&gt;" in page  # an old subject, escaped
     assert "<span class='pct'>90.0%</span><span class='delta'>+1.0</span>" in page
-    assert page.count('<figure class="chart"') == 2 + len(totals)
+    # The four sums' charts, then each area's.
+    assert page.count('<figure class="chart"') == 4 + len(totals)
+    assert 'data-area="kit"' in page and "<td>90.0% / 80.0%</td>" in page
     # Each area opens to its files, each linked to its line-by-line report.
     assert page.count("<tbody class='area'>") == len(totals)
     assert "<a href='server/z_1_access_py.html'>access.py</a>" in page
