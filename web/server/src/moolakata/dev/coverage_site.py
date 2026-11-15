@@ -24,12 +24,6 @@ from .. import paths
 from . import coverage, hardening
 
 SITE = coverage.OUT / "site"
-# A top figure's star (S17.5.8), drawn rather than a font's ★: a viewer's fonts may have none.
-STAR = (
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E"
-    "%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27"
-    "l6.91-1.01z'/%3E%3C/svg%3E\")"
-)
 # The mockups published beside the reports (S12.9): the hand-written one, committed, and the one
 # generated from the app when it is here (CI's Pages job adds the run's own to the site).
 MOCKUPS = paths.ROOT / "docs" / "mockups"
@@ -213,7 +207,7 @@ def meter(kind: str, v: float | None, floor: float | None = None, was: float | N
     name = coverage.band(v)[0]
     # A star's bar stays green: gold beside amber would blur the bands, so the star is its mark.
     star = (
-        "<span class='star on' title='95% and up'></span>"
+        "<span class='star' title='95% and up'>★</span>"
         if name == "top"
         else "<span class='star'></span>"
     )
@@ -345,7 +339,6 @@ def page(history: list[dict], floors: dict, files: list[dict], base: str, repo: 
     }
     script = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     return TEMPLATE.format(
-        star=STAR,
         commit=commit,
         commit_url=f"{repo}/commit/{last['commit']}",
         pr=pr,
@@ -449,11 +442,7 @@ td.n {{ color: var(--text-2); }}
 .meter i {{ position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
   background: var(--text); }}
 .pct {{ display: inline-block; width: 3.9em; text-align: right; }}
-.star {{ display: inline-block; width: 1.1em; text-align: right; }}
-.star.on::before {{ content: ''; display: inline-block; width: 0.85em; height: 0.85em;
-  vertical-align: -0.05em; background-color: var(--gold);
-  -webkit-mask: {star} center / contain no-repeat;
-  mask: {star} center / contain no-repeat; }}
+.star {{ display: inline-block; width: 1.1em; text-align: right; color: var(--gold); }}
 .delta {{ display: inline-block; width: 3.2em; text-align: right; font-size: 16px;
   color: var(--text-2); }}
 
@@ -522,7 +511,7 @@ of the sweep: <a href="hardening.html">hardening</a>. The mockups, as of this me
 {sums}
 </tfoot>
 </table></div>
-<div class="legend"><span><span class="star on"></span> 95% and up</span>
+<div class="legend"><span><span class="star">★</span> 95% and up</span>
 <span><span class="swatch good"></span>80% and up</span>
 <span><span class="swatch fair"></span>60% to 80%</span>
 <span><span class="swatch low"></span>under 60%</span>
