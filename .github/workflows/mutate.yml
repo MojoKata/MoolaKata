@@ -64,8 +64,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: true
-      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
-        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
       - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
       - name: the fast tests, each test's file its context
@@ -95,8 +95,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: true
-      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
-        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
       - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
       - name: the parts' measurements
@@ -159,8 +159,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: true
-      - name: coworker status, unattended (installs what the machine lacks for MoolaKata)
-        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status
+      - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
+        run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
       - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
         run: web/dev.sh setup
       - name: the test map
