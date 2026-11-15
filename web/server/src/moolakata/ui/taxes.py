@@ -595,8 +595,7 @@ def _filing(s, f: Filing, docs: list[TaxDocument], today: dt.date) -> FilingOut:
 
 def detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
     """A book the caller reads, in full: its accounts, documents and dependents are the
-    book's, worked out as the server over every filer's accounts (S8.14.2, decision 8.1 of
-    the access-views walk)."""
+    book's, worked out as the server over every filer's accounts (S8.14.2)."""
     with scoping.as_server(s, "a tax book in full, for one who reads it") as srv:
         return _detail(srv, c, srv.get(TaxBook, b.id), held)
 

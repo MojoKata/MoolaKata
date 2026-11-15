@@ -266,8 +266,8 @@ def shape(
     out = []
     for t in rows:
         other = accounts.get(other_acct.get(t.transferId, ""))
-        # The other half is named only to someone who reads its account (decision 1c.4 of
-        # the access-views walk): neither its id nor its account's name, else.
+        # The other half is named only to someone who reads its account: neither its id nor its
+        # account's name, else.
         if other is not None and access.perms(s, Account, other.id, user_id) is None:
             other = None
         out.append(

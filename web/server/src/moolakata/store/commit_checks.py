@@ -1,6 +1,6 @@
-"""Checks every write transaction runs once its changes are in, before it commits (the filed
-tax years walk, decision 1): each registered by the module that owns its rule, so a new way of
-writing is checked without remembering to (`taxes.closed`)."""
+"""Checks every write transaction runs once its changes are in, before it commits
+(S2.8): each registered by the module that owns its rule, so a new way of writing is checked
+without remembering to (`taxes.closed`)."""
 
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 # The questions a request confirmed by its header (`HEADER`, a comma-separated list of codes):
 # a route outside the save answers a check's question this way, the browser retrying the
-# request with it once the person confirms (decision 1 of the filed tax years walk).
+# request with it once the person confirms (S2.8).
 HEADER = "x-moolakata-confirm"
 confirmed: ContextVar[frozenset[str]] = ContextVar("confirmed", default=frozenset())
 

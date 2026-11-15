@@ -1,7 +1,7 @@
 """An HSA's coverage, a Roth conversion as a contribution source, and two kinds of
-transaction (requirements S8.5, S8.6; the values, taxes and options walk, decisions 7 and 8):
-`Account.hsaCoverage` (self or family) sets an HSA's limit; `conversion` joins the sources of
-money into a retirement account; `foreign-tax` and `reward` join the kinds.
+transaction (requirements S8.5, S8.6): `Account.hsaCoverage` (self or family) sets an HSA's
+limit; `conversion` joins the sources of money into a retirement account; `foreign-tax` and
+`reward` join the kinds.
 
 Revision: 0052
 Follows: 0051

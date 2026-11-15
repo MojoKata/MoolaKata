@@ -1,6 +1,6 @@
 """A return that closes a tax year keeps the book's realized gains by account as they were
-when it did (requirements S2.8, S8.15; the filed tax years walk, decision 1): later changes are
-measured from them, so a difference no change made here explains is listed too.
+when it did (requirements S2.8, S8.15): later changes are measured from them, so a difference no
+change made here explains is listed too.
 
 Revision: 0050
 Follows: 0049
