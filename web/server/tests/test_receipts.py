@@ -195,10 +195,10 @@ def test_reencrypt_carries_the_receipts_over(server, jane, keyed_config, master_
 
 
 def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, jane):
-    """CR3-47 (S9.3): John, reading the joint account, sees the receipt's joint link and that
-    it is kept with one thing more, never what; the reason it is kept is named only from a
-    link he reads. Jane, its owner, sees the same of a link John made to his own account, and
-    the receipt stays out of her inbox."""
+    """S9.3: John, reading the joint account, sees the receipt's joint link and that it is kept with
+    one thing more, never what; the reason it is kept is named only from a link he reads. Jane, its
+    owner, sees the same of a link John made to his own account, and the receipt stays out of her
+    inbox."""
     from moolakata import ids
     from moolakata.store.entities.accounts import Category
 
@@ -239,8 +239,8 @@ def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, jane):
 
 
 def test_a_slow_thumbnail_holds_no_one_elses_write(server, jane, monkeypatch):
-    """CR3-48 (S9.5): an upload's thumbnail is drawn before its transaction, so another
-    user's save goes through while the reader's worker is still drawing it."""
+    """S9.5: an upload's thumbnail is drawn before its transaction, so another user's save goes
+    through while the reader's worker is still drawing it."""
     import threading
 
     drawing, go = threading.Event(), threading.Event()

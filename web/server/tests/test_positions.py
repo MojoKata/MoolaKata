@@ -62,8 +62,8 @@ def test_open_and_closed_with_their_lots(jane):
 
 
 def test_shares_moved_in_without_their_lots_list_with_their_term_unknown(jane):
-    """S2.2, CR3-73: shares moved in with no lots typed are one lot whose day bought is
-    missing: Positions lists it with its term unknown, beside a lot bought, and doesn't fail."""
+    """S2.2: shares moved in with no lots typed are one lot whose day bought is missing: Positions
+    lists it with its term unknown, beside a lot bought, and doesn't fail."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     trade(jane, brk["id"], "2024-01-05", "buy", "10", "100")
     add(jane, brk["id"], "0.00", "2026-09-12", kind="transfer-in", symbol="VTI", quantity="5")
@@ -72,7 +72,7 @@ def test_shares_moved_in_without_their_lots_list_with_their_term_unknown(jane):
     vti = next(x for x in r.json()["open"] if x["symbol"] == "VTI")
     assert [x["longTerm"] for x in vti["lots"]] == [True, None]
     assert vti["term"] == "unknown"
-    # Sold, the shares' row has its day opened unknown, as its term is (CR3-435).
+    # Sold, the shares' row has its day opened unknown, as its term is.
     trade(jane, brk["id"], "2026-10-01", "sell", "15", "110")
     sold = jane.get("/ui/api/positions").json()["closed"]
     assert [(x["symbol"], x["opened"], x["term"]) for x in sold] == [("VTI", None, "unknown")]
@@ -423,9 +423,9 @@ def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(jane):
 
 
 def test_a_closed_row_is_each_closing_trade_latest_first_with_how_it_closed(jane):
-    """S3.1: a sale from two lots is one row, opened when the first was bought; a short
-    position's close is short; how each closed in words, or the action's own name; a sale with
-    no lot to match has no cost, no gain and an unknown term (CR3-415)."""
+    """S3.1: a sale from two lots is one row, opened when the first was bought; a short position's
+    close is short; how each closed in words, or the action's own name; a sale with no lot to match
+    has no cost, no gain and an unknown term."""
     brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
     trade(jane, brk, "2025-01-02", "buy", "10", "100", "VTI")
     trade(jane, brk, "2025-06-02", "buy", "10", "110", "VTI")
@@ -509,9 +509,9 @@ def test_each_option_trade_open_latest_first_then_each_closed_latest_first(jane)
 
 
 def test_an_adjusted_contracts_trade_goes_on_under_it_on_the_side_it_was(jane):
-    """S3.10.4, CR3-438: a trade open when its contract is adjusted goes on under the adjusted
-    contract, from the day it opened, on the side held: a put sold, bought back and then bought
-    is long; a call bought, sold and then sold again is short."""
+    """S3.10.4: a trade open when its contract is adjusted goes on under the adjusted contract, from
+    the day it opened, on the side held: a put sold, bought back and then bought is long; a call
+    bought, sold and then sold again is short."""
     brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
     for action, day, contracts in (("sell-to-open", "2026-09-01", "2"),
                                    ("buy-to-close", "2026-09-02", "2"),

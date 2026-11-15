@@ -52,3 +52,37 @@
   4.3"), and `test_importers.py:240` ("Walk item 13:"). Fixtures: only their `about` text and
   a comment changed; no test reads `about` or compares it.
 - **Doubts**: none.
+
+## Batch 4 of 4
+
+- Files done: 48 (all changed)
+- Citations removed: 134 CR3 ids, and 17 references to walks and their decisions (the brief's
+  grep matched 8; the rest were "(decision 5)" in `test_taxbooks.py`, "Decision 4's second
+  line:" in `test_races.py`, "13.1" in `test_prices.py`, "7.1" in `test_taxpanels.py`,
+  "(16.4)" in `worlds/accounts.py`, and "Found while walking:" and "1.1 of the walk:" in
+  `test_where_money_is.py`)
+- GH links added: `web/server/tests/test_links.py:988` → #237 (CR3-121, open: statements
+  against the uploads in flight, not covered yet)
+- Notes: most were beside a requirement id or a docstring's leading label with the why after
+  it, and were dropped (the next word capitalised); the touched docstring paragraphs were
+  reflowed to 100 columns (word-for-word otherwise; checked with a word diff). Requirement ids
+  in place of a CR3 id or a walk, each confirmed in today's requirements as exactly what the
+  test pins: "The claim (CR3-40):" → "S7.12.3:", "The claim (CR3-46):" → "S7.10.3:" (the
+  review said S7.10.1; today's S7.10.3 holds "Set to $0 a month … keeps its balance"),
+  "The claim (CR3-44):" → "S7.6.1:", "The claim (CR3-39):" and "1.1 of the walk:" →
+  "S7.10.4:", "Found while walking:" → "S7.10.5:" (a refund in a reserve's category is never
+  landed). "The review's case:" became "A target under a year:" (`test_projections.py`) and
+  went (`test_wallets.py`); "CR3-n's category:" became "The kind of bug:" (projections, rules,
+  users) or "Generated:" (wallets); "CR3-2's envelope case" → "In an envelope budget";
+  "CR3-n put back:" in the worlds' plant docstrings went, as in `worlds/budget.py`.
+- **Doubts**:
+  1. `worlds/accounts.py:677,686`, `worlds/options.py:187,196`, `worlds/tax_moves.py:286,295`:
+     each `Plant`'s `why` was a CR3 id. It is only shown in `test_worlds`'s failure message
+     ("names the claim or rule it stands for"), so I treated it as an assertion message and
+     wrote a requirement id and the rule, as `worlds/budget.py` and `worlds/tax.py` do:
+     "S5.2.3: each loan and item on a row of its own", "S5.2.1: shares, items and loans moved
+     in are contributions", "S3.6: by the underlying's close", "S3.5.5: a leg risks what its
+     shape does", "S8.6: a conversion or a rollover is no contribution", "S2.2: shares moved in
+     keep their lots". Keep, or would you rather they stay as data?
+  2. `web/server/tests/test_file_access.py:1-2` (not in this batch) still cites "the values,
+     taxes and options walk, 10.1": for the coordinator.

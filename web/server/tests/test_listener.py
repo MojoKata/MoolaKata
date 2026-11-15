@@ -1,6 +1,6 @@
-"""Settings › Network's listener, read only (requirements S13.3, S16.14, CR3-12, CR3-308): its
-mode and port; in `proxy` mode the proxies whose forwarded headers count; in `tls` mode whether
-the certificate was given or is the server's own, which is for testing."""
+"""Settings › Network's listener, read only (requirements S13.3, S16.14): its mode and port; in
+`proxy` mode the proxies whose forwarded headers count; in `tls` mode whether the certificate was
+given or is the server's own, which is for testing."""
 
 import dataclasses
 import ipaddress

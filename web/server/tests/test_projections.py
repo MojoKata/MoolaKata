@@ -401,7 +401,7 @@ def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server,
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "owner-sees-it"
 
 
-# ---------- the saving that reaches a target (S6.4.2.4, CR3-31)
+# ---------- the saving that reaches a target (S6.4.2.4)
 
 
 def _plan(start: float, days: int) -> tuple[engine.Plan, int]:
@@ -433,10 +433,10 @@ def _reaches(plan: engine.Plan, target: float, idx: int, chance: float, saving: 
 @pytest.mark.parametrize("start", [0.0, 4_000.0, 13_000.0])
 @pytest.mark.parametrize("chance", [0.9, 0.5])
 def test_the_saving_named_reaches_the_target_and_a_dollar_less_doesnt(days, start, chance):
-    """CR3-31's category: a search that assumed its bound was enough. Across dates (days,
-    months, a year either side of one, years), starts (nothing, part, past the target) and
-    both chances asked (savings 90%, education 50%), the saving named is the least that
-    reaches the target, to the dollar a year."""
+    """The kind of bug: a search that assumed its bound was enough. Across dates (days, months, a
+    year either side of one, years), starts (nothing, part, past the target) and both chances asked
+    (savings 90%, education 50%), the saving named is the least that reaches the target, to the
+    dollar a year."""
     plan, idx = _plan(start, days)
     target = 12_000.0
     got = engine.needed_saving(plan, target, idx, chance)
@@ -456,8 +456,8 @@ def test_no_saving_changes_todays_balance_and_the_search_has_an_end(monkeypatch)
 
 
 def test_a_target_months_away_names_a_saving_that_reaches_it(jane):
-    """The review's case: $12,000 by Apr 13, 2027 from nothing, in cash. The answer said
-    $1,000 a month, which reaches half of it; saving what it says now reaches it."""
+    """A target under a year: $12,000 by Apr 13, 2027 from nothing, in cash. The answer said $1,000
+    a month, which reaches half of it; saving what it says now reaches it."""
     inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
@@ -479,8 +479,8 @@ def test_an_answer_no_saving_reaches_says_so(jane, monkeypatch):
 
 
 def test_a_saving_that_stops_mid_year_counts_its_part_and_rises_each_year():
-    """The model's savings in a year (S6.4): a year's contribution rising by its growth, the
-    last year of saving counting its part (school's start, CR3-31). No returns, no fees."""
+    """The model's savings in a year (S6.4): a year's contribution rising by its growth, the last
+    year of saving counting its part (school's start). No returns, no fees."""
     plan = engine.Plan(start=0.0, weights={"cash": 1.0}, returns={"cash": 0.0},
                        vols={"cash": 0.0}, inflation=0.0, fees=0.0, first_year=2026, years=4,
                        contribution=1000.0, contribution_growth=0.1, contribute_years=2,

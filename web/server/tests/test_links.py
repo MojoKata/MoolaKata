@@ -882,7 +882,7 @@ def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatc
         assert e.value.code == code
 
 
-# ---------- one receipt never holds a change back (S11.4, CR3-4)
+# ---------- one receipt never holds a change back (S11.4)
 
 
 def _shared_receipt(a, ca, cb):
@@ -984,8 +984,8 @@ def test_a_failure_after_the_exchange_call_is_recorded_on_the_link(admins):
 
 def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     """S17.5: the largest receipt Settings allows fits every path it takes across a link: a
-    `deliver` body and a `file` answer are bounded by it sealed, and the uploads in flight hold
-    one. (Statements against uploads in flight are CR3-121, not covered here yet.)"""
+    `deliver` body and a `file` answer are bounded by it sealed, and the uploads in flight hold one.
+    Statements against the uploads in flight are not covered here yet (See GH #237)."""
     from moolakata import middleware, net, settings
     from moolakata.links import sealed
 
@@ -1022,9 +1022,8 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
 
 
 def test_a_locked_copys_inbox_names_no_one(admins):
-    """CR3-55, S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry
-    beside it too: no owner's name, item id or user id in the clear; the unlock still checks
-    and applies it."""
+    """S11.9.1: what waits in a locked copy's inbox is sealed, the change's registry beside it too:
+    no owner's name, item id or user id in the clear; the unlock still checks and applies it."""
     from moolakata.store.entities.users import User
 
     a, b, ca, cb, _ = admins
@@ -1049,8 +1048,8 @@ def test_a_locked_copys_inbox_names_no_one(admins):
 
 
 def test_a_tax_books_document_files_cross_when_included(admins):
-    """CR3-10: a tax book shared with Include receipts sends its documents' files, each named
-    by its form and issuer; without the tick they stay home (S11.5.1)."""
+    """A tax book shared with Include receipts sends its documents' files, each named by its form
+    and issuer; without the tick they stay home (S11.5.1)."""
     from test_receipts import png
 
     a, b, ca, cb, _ = admins

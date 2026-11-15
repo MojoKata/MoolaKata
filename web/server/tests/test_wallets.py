@@ -583,8 +583,8 @@ def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, jane):
 
 
 def test_saving_the_suggested_source_turns_reading_on(server, admin_client):
-    """CR3-62: the section's first save writes the source at its default, mempool.space, and
-    that is what turns wallet reading on (S16.7)."""
+    """The section's first save writes the source at its default, mempool.space, and that is what
+    turns wallet reading on (S16.7)."""
     from edits import save_settings
 
     from moolakata import settings
@@ -611,7 +611,7 @@ def test_a_wallets_keys_are_bounded(jane):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text
 
 
-# ---------- a key taken out (S1.6.1.3, CR3-20)
+# ---------- a key taken out (S1.6.1.3)
 
 TYPED = "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
 
@@ -635,9 +635,9 @@ def _off_chain(server, account_id) -> dict[str, tuple[bool, bool]]:
 
 
 def test_taking_a_key_out_never_marks_its_transactions_off_the_chain(server, jane, monkeypatch):
-    """The review's case: a zpub's three transactions recorded, the zpub replaced by another
-    key, two reads: none is marked, so no alert invites deleting coins still there. Typed in
-    again, it is read again, and a transaction the chain dropped meanwhile is marked."""
+    """A zpub's three transactions recorded, the zpub replaced by another key, two reads: none is
+    marked, so no alert invites deleting coins still there. Typed in again, it is read again, and a
+    transaction the chain dropped meanwhile is marked."""
     w = new_account(jane, name="Cold storage", type="crypto-wallet")
     saved(wallet(jane, w["id"], ZPUB))
     fake = Fake(keys.extended(ZPUB).address(0, 19))
@@ -684,11 +684,10 @@ class Chain:
 def test_no_transaction_still_on_the_chain_is_ever_marked_whatever_keys_come_and_go(
     server, jane, monkeypatch, seed
 ):
-    """CR3-20's category, generated: keys taken out and typed in again, transactions leaving
-    the chain and coming back, reads between. A model says what each read must leave marked:
-    a transaction is judged only while a key that read it is in the wallet, and marked after
-    two judged reads in a row miss it; one back on the chain is unmarked. Every recorded
-    transaction is linked to a key."""
+    """Generated: keys taken out and typed in again, transactions leaving the chain and coming back,
+    reads between. A model says what each read must leave marked: a transaction is judged only while
+    a key that read it is in the wallet, and marked after two judged reads in a row miss it; one
+    back on the chain is unmarked. Every recorded transaction is linked to a key."""
     import random
 
     rnd = random.Random(seed)
@@ -777,8 +776,8 @@ def test_a_transfer_between_two_wallets_is_linked_to_each_ones_own_keys(server, 
 
 
 def test_a_deleted_link_brings_a_transaction_no_key(server, jane, monkeypatch):
-    """A link marked deleted counts as none: the transaction is judged again, as one no key
-    brought is (CR3-20), and marked once two reads miss it."""
+    """A link marked deleted counts as none: the transaction is judged again, as one no key brought
+    is, and marked once two reads miss it."""
     from sqlalchemy import update
 
     from moolakata import clock

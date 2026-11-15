@@ -56,8 +56,8 @@ def _merged(w: tw.World) -> None:
 
 
 def class_of(symbol: str) -> str:
-    """A hand-typed symbol's class (CR3-14): five letters ending in X is a fund; an option's
-    contract (SPY 18DEC26 500 C) an option; a merger's new shares the old ones' class."""
+    """A hand-typed symbol's class: five letters ending in X is a fund; an option's contract (SPY
+    18DEC26 500 C) an option; a merger's new shares the old ones' class."""
     symbol = _MERGED.get(symbol, symbol)
     if " " in symbol:
         return "option"

@@ -131,9 +131,9 @@ def test_re2_patterns_match_as_written(pattern, payee, hit):
     "pattern", [r"re:((a+))+$", r"re:(?:(a+))+$", r"re:((ab)+)+$", r"re:(a|aa)+$", "re:a.*a.*a.*b"]
 )
 def test_no_pattern_holds_the_server(pattern):
-    """CR3-25: each of these backtracked for ever in Python's re on a payee that nearly
-    matches; RE2 reads the 500 characters once. The bound is generous: a backtracking engine
-    takes days here, RE2 microseconds."""
+    """Each of these backtracked for ever in Python's re on a payee that nearly matches; RE2 reads
+    the 500 characters once. The bound is generous: a backtracking engine takes days here, RE2
+    microseconds."""
     import time
 
     r = m(payeeMatch=pattern)
@@ -245,9 +245,9 @@ def test_a_receipts_merchant_is_renamed_by_the_rules(server, jane):
 
 
 def test_user_text_reaches_a_regular_expression_only_through_a_rule():
-    """CR3-25's category: a pattern a user typed, run by a backtracking engine. Python's `re`
-    is called only with patterns written in the code; the rest are named here with what they
-    are built from, never a user's text. A user's pattern goes through `compile_pattern`."""
+    """The kind of bug: a pattern a user typed, run by a backtracking engine. Python's `re` is
+    called only with patterns written in the code; the rest are named here with what they are built
+    from, never a user's text. A user's pattern goes through `compile_pattern`."""
     import ast
     from pathlib import Path
 

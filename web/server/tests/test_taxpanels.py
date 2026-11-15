@@ -71,7 +71,7 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(jane):
     assert aapl["adjustment"] == "250.00", "half the 500 loss: 5 of 10 shares replaced"
     assert aapl["gain"] == "-250.00"
     w = p["washes"][0]
-    # In an IRA the loss is lost for good: the replacement keeps its cost (S3.8.3, CR3-391).
+    # In an IRA the loss is lost for good: the replacement keeps its cost (S3.8.3).
     assert w["replacementAccount"] == "IRA" and w["adjustedBasis"] == "750.00"
     d = p["scheduleD"]
     assert d["shortTerm"] == "-250.00" and d["longTerm"] == "200.00"
@@ -149,8 +149,8 @@ def test_txf_counts_what_it_leaves_out_by_why():
 
     rows = [row("A"), row("D", "W"), row("I"), row("K"), row("F", "C"), row("C", "L")]
     rows += [row("A"), row("B"), row("E", "W")]
-    rows[6].lotMissing = True  # no day bought to write (CR3-415)
-    rows[7].basis = rows[8].basis = None  # no basis to write, never a 0 (CR3-416)
+    rows[6].lotMissing = True  # no day bought to write
+    rows[7].basis = rows[8].basis = None  # no basis to write, never a 0
     assert [exports.in_txf(r) for r in rows] == [True, True] + [False] * 7
     assert exports.txf_left_out(rows) == {
         "digital": 2,
@@ -217,7 +217,7 @@ def test_deductions_loans_and_issues(jane):
     kinds = {i["kind"] for i in p["issues"]}
     assert {"sale-without-lot", "sale-basis"} <= kinds
     # Sold without a lot: its day bought is missing as its basis is, never its sale's day;
-    # the CSV leaves it blank and TXF leaves the row out, counted (S8.1, S8.2, CR3-415).
+    # the CSV leaves it blank and TXF leaves the row out, counted (S8.1, S8.2).
     (row,) = [r for r in p["rows"] if r["description"] == "3 MSFT"]
     assert (row["acquired"], row["basis"], row["lotMissing"], row["longTerm"]) == (
         None,
@@ -301,7 +301,7 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(jane):
 
 
 def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(jane):
-    # CR3-386, S2.1: a fund bought in 2011 has no reported basis (funds from 2012), so its
+    # S2.1: a fund bought in 2011 has no reported basis (funds from 2012), so its
     # sale goes in box E; a share bought the same day, in D.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     trade(jane, brk["id"], "2011-06-01", "buy", "10", "50", symbol="FSKAX")
@@ -313,7 +313,7 @@ def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(jane):
 
 
 def test_average_cost_is_for_funds_a_share_goes_first_in(jane):
-    # CR3-387, S2.3: in an account set to average cost, a fund's sale takes the average of
+    # S2.3: in an account set to average cost, a fund's sale takes the average of
     # its shares and a listed share's the oldest lot.
     brk = new_account(jane, name="Brokerage", type="brokerage", lotMethod="average")
     for symbol in ("VTSAX", "IBM"):
@@ -325,7 +325,7 @@ def test_average_cost_is_for_funds_a_share_goes_first_in(jane):
 
 
 def test_a_replacement_bought_before_the_loss_sale_is_a_plain_lot_until_it(jane):
-    # CR3-388, S3.8.3: highest cost first picks the sale's lots by their cost on the day; the
+    # S3.8.3: highest cost first picks the sale's lots by their cost on the day; the
     # replacement bought nine days before takes the loss only once the sale has it.
     brk = new_account(jane, name="Brokerage", type="brokerage", lotMethod="hifo")
     trade(jane, brk["id"], "2023-08-21", "buy", "10", "366.93", symbol="HON")
@@ -339,7 +339,7 @@ def test_a_replacement_bought_before_the_loss_sale_is_a_plain_lot_until_it(jane)
 
 
 def test_shares_a_sale_sold_never_replace_it(jane):
-    # CR3-388, S3.8.2: last in first out sells the three bought a week before with three of
+    # S3.8.2: last in first out sells the three bought a week before with three of
     # the old lot; those three were sold, so they replace nothing.
     brk = new_account(jane, name="Brokerage", type="brokerage", lotMethod="lifo")
     trade(jane, brk["id"], "2024-01-08", "buy", "10", "200", symbol="IBM")
@@ -360,7 +360,7 @@ def lots_on(c, account_id, day, sale_id=None):
 
 
 def test_a_sale_takes_the_lots_picked_and_keeps_them_through_an_edit(jane):
-    # CR3-389, S2.3: specific identification is chosen per sale: the lots picked, the rest
+    # S2.3: specific identification is chosen per sale: the lots picked, the rest
     # first in; the picks are records of the sale, kept when it changes.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     trade(jane, brk["id"], "2024-01-08", "buy", "10", "100", symbol="IBM")
@@ -393,7 +393,7 @@ def test_a_sale_takes_the_lots_picked_and_keeps_them_through_an_edit(jane):
 
 
 def test_a_pick_of_a_lot_a_wash_sale_split_takes_from_its_parts(jane):
-    # CR3-26: L is bought 10 at $160, 4 of which replace an earlier loss sale; picking L for 10
+    # L is bought 10 at $160, 4 of which replace an earlier loss sale; picking L for 10
     # takes all of L, never 6 of K.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     trade(jane, brk["id"], "2025-01-02", "buy", "10", "100", symbol="AAPL")  # K
@@ -419,7 +419,7 @@ def test_a_pick_of_a_lot_a_wash_sale_split_takes_from_its_parts(jane):
 
 
 def test_fewer_shares_bought_back_replace_the_earliest_acquired(jane):
-    # CR3-390, S3.8.2, Treas. Reg. §1.1091-1(c): highest cost first sells the $120 lot then
+    # S3.8.2, Treas. Reg. §1.1091-1(c): highest cost first sells the $120 lot then
     # the $100 one, both at a loss; the ten bought back replace the earliest acquired.
     brk = new_account(jane, name="Brokerage", type="brokerage", lotMethod="hifo")
     trade(jane, brk["id"], "2025-01-06", "buy", "10", "100", symbol="IBM")
@@ -434,7 +434,7 @@ def test_fewer_shares_bought_back_replace_the_earliest_acquired(jane):
 
 
 def test_a_reinvested_dividend_counts_as_a_dividend(jane):
-    # CR3-392, S8.5: reinvested, a dividend is still one; ordinary unless typed qualified.
+    # S8.5: reinvested, a dividend is still one; ordinary unless typed qualified.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "-120.00", "2026-03-31", kind="reinvest", symbol="SCHD",
         quantity="1", price="120")  # fmt: skip
@@ -445,7 +445,7 @@ def test_a_reinvested_dividend_counts_as_a_dividend(jane):
 
 
 def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(jane):
-    # CR3-393, S8.14.2: an account left out of the book takes its wash sales with it.
+    # S8.14.2: an account left out of the book takes its wash sales with it.
     brk = new_account(jane, name="Brokerage", type="brokerage")
     trade(jane, brk["id"], "2025-01-06", "buy", "10", "100", symbol="IBM")
     trade(jane, brk["id"], "2026-03-02", "sell", "10", "80", symbol="IBM")
@@ -460,8 +460,8 @@ def test_a_book_lists_the_wash_sales_of_the_accounts_it_counts(jane):
 
 
 def test_a_roth_conversion_and_a_rollover_are_no_contributions(jane):
-    """CR3-37: a matched transfer from a traditional IRA to a Roth IRA is a conversion, from a
-    401(k) to an IRA a rollover; neither counts against a limit nor as a distribution."""
+    """A matched transfer from a traditional IRA to a Roth IRA is a conversion, from a 401(k) to an
+    IRA a rollover; neither counts against a limit nor as a distribution."""
     trad = new_account(jane, name="Traditional IRA", type="ira")
     roth = new_account(jane, name="Roth IRA", type="roth-ira")
     plan = new_account(jane, name="Old 401(k)", type="401k")
@@ -486,8 +486,8 @@ def test_a_roth_conversion_and_a_rollover_are_no_contributions(jane):
 
 
 def test_an_hsa_counts_its_employers_money_against_its_coverages_limit(server, frozen):
-    """CR3-37, 7.1: an HSA's limit is its coverage's, $1,000 more at 55; the employer's money
-    counts against it beside the owner's."""
+    """An HSA's limit is its coverage's, $1,000 more at 55; the employer's money counts against it
+    beside the owner's."""
     from edits import edit
 
     make_user(server, "harry", born=1970)  # 56 in 2026
@@ -506,8 +506,8 @@ def test_an_hsa_counts_its_employers_money_against_its_coverages_limit(server, f
 
 
 def test_foreign_tax_and_crypto_income_on_the_income_panel(jane):
-    """CR3-38: foreign tax a fund paid shows by payer; coins received as income count at
-    their value when received, which is the basis of the lot they make."""
+    """Foreign tax a fund paid shows by payer; coins received as income count at their value when
+    received, which is the basis of the lot they make."""
     brk = new_account(jane, name="Brokerage", type="brokerage", institution="Fidelity")
     add(jane, brk["id"], "180.00", "2026-06-30", kind="dividend", symbol="VXUS")
     add(jane, brk["id"], "-14.22", "2026-06-30", kind="foreign-tax", symbol="VXUS")
@@ -533,9 +533,9 @@ def _rows_8949(c, b):
 
 
 def test_shares_moved_in_keep_the_days_they_were_bought(jane):
-    """CR3-73: a transfer-in typed lot by lot keeps each lot's day bought and basis, so a
-    sale soon after is long term for the old lot; one typed without lots has its day bought
-    missing, its term unknown and the book says so."""
+    """A transfer-in typed lot by lot keeps each lot's day bought and basis, so a sale soon after is
+    long term for the old lot; one typed without lots has its day bought missing, its term unknown
+    and the book says so."""
     fid = new_account(jane, name="Fidelity", type="brokerage")
     r = make(jane, "Txn", accountId=fid["id"], date="2026-01-10", kind="transfer-in",
              symbol="VTI", quantity="100", amount="0.00",
@@ -565,8 +565,8 @@ def test_shares_moved_in_keep_the_days_they_were_bought(jane):
 
 
 def test_shares_moved_between_two_accounts_carry_their_lots(jane):
-    """CR3-73: a transfer out and in of the same shares between two of the owner's accounts
-    is offered as a pair; matched, the shares arrive with the lots they left with."""
+    """A transfer out and in of the same shares between two of the owner's accounts is offered as a
+    pair; matched, the shares arrive with the lots they left with."""
     schwab = new_account(jane, name="Schwab", type="brokerage")
     fid = new_account(jane, name="Fidelity", type="brokerage")
     add(jane, schwab["id"], "15000.00", "2019-01-02", kind="deposit")
@@ -589,9 +589,9 @@ def test_shares_moved_between_two_accounts_carry_their_lots(jane):
 
 
 def test_a_sale_of_shares_moved_in_without_their_day_bought_says_so(jane):
-    """S2.2, CR3-399: shares moved in with their basis but not the day they were bought, two
-    sold: Positions shows the sale's term unknown, its Form 8949 date is VARIOUS, and Taxes
-    lists the sale until the day is typed."""
+    """S2.2: shares moved in with their basis but not the day they were bought, two sold: Positions
+    shows the sale's term unknown, its Form 8949 date is VARIOUS, and Taxes lists the sale until the
+    day is typed."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "0.00", "2026-01-12", kind="transfer-in", symbol="VTI", quantity="5",
         costBasis="400")  # fmt: skip
@@ -621,7 +621,7 @@ def test_a_funds_distributions_and_return_of_capital_reach_the_return(jane):
     inc = p["income"]
     assert inc["capitalGainDistributions"] == "50.00" and inc["returnOfCapital"] == "1200.00"
     (row,) = [r for r in p["rows"] if r["description"] == "VTI return of capital over basis"]
-    # Its own kind: the Property panel lists only items sold, never this (CR3-414).
+    # Its own kind: the Property panel lists only items sold, never this.
     assert row["kind"] == "return-of-capital"
     assert (row["acquired"], row["sold"], row["gain"], row["longTerm"]) == (
         "2026-01-05",

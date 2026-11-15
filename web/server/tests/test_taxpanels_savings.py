@@ -669,8 +669,8 @@ def test_interest_is_summed_by_payer_largest_first_over_the_years_days(db):
 
 def test_dividends_by_kind_and_by_payer(db):
     """Ordinary dividends include qualified ones and those untyped; a reinvested dividend is a
-    dividend; capital-gain distributions count by payer with dividends; a return of capital is
-    its own line and no payer's dividend (S8.5, CR3-392, CR3-402)."""
+    dividend; capital-gain distributions count by payer with dividends; a return of capital is its
+    own line and no payer's dividend (S8.5)."""
     with db.tx(unscoped="test") as s:
         u = _user(s, "Ann", 1980)
         small = _acct(s, u, "A small", "brokerage", institution="Alpha Co")

@@ -259,8 +259,8 @@ def _every(s, account: str, interval: str) -> None:
 
 
 def test_a_statements_value_is_stale_by_the_day_asked_not_by_today(server):
-    """CR3-8: a quarterly plan's Mar 31 value is stale from Jul 30, the day its next statement
-    is overdue; a figure for an earlier day saw it fresh, though it is stale today."""
+    """A quarterly plan's Mar 31 value is stale from Jul 30, the day its next statement is overdue;
+    a figure for an earlier day saw it fresh, though it is stale today."""
     owner = make_user(server, "jane").id
     with server.db.tx(unscoped="test") as s:
         a, x = _account(s, owner), _instrument(s, "CIT")
@@ -546,7 +546,7 @@ def test_an_items_series_keeps_its_step(server, jane):
 
 
 def test_a_days_flows_add_up(server, jane):
-    """Money in and out on the same day nets to one flow (CR3-28)."""
+    """Money in and out on the same day nets to one flow."""
     loan = new_account(jane, name="HELOC", type="mortgage")
     saved(terms(jane, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
                 rate="6"))  # fmt: skip
@@ -558,8 +558,8 @@ def test_a_days_flows_add_up(server, jane):
 
 
 def test_options_moved_in_count_their_shares_at_that_days_price(server):
-    """CR3-28: contracts moved in count at the price the series takes for them on the day of
-    the move (a mark typed that day included), times their 100 shares a contract."""
+    """Contracts moved in count at the price the series takes for them on the day of the move (a
+    mark typed that day included), times their 100 shares a contract."""
     owner = make_user(server, "jane").id
     with server.db.tx(unscoped="test") as s:
         a, under = _account(s, owner), _instrument(s, "MSFT")

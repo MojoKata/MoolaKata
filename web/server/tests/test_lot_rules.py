@@ -148,7 +148,7 @@ def test_a_lot_opens_at_its_cost_on_its_day(txn, basis):
     )  # fmt: skip
 
 
-# -- Shares moved between accounts carry what is known of them (CR3-73) ------------------------
+# -- Shares moved between accounts carry what is known of them ---------------------------------
 
 
 def test_a_transfer_out_takes_its_lots_with_what_is_known_of_them():
@@ -319,7 +319,7 @@ def test_an_all_cash_merger_is_a_sale():
     assert sold(r) == [("A", D(10), D(1500), D(1000), "fifo")] and r.open == []
 
 
-# -- What is known of a lot goes wherever it goes (S2.2, CR3-398, CR3-399) ----------------------
+# -- What is known of a lot goes wherever it goes (S2.2) ----------------------------------------
 # Each fact a lot can carry, crossed with each thing that can happen to it: the lots and sale
 # parts that come of it carry the fact, and one without it gains none.
 

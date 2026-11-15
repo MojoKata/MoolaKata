@@ -1,7 +1,7 @@
-"""A link's lifecycle (links/lifecycle.py; requirements S11.6, S11.7; link-protocol.md §4.6):
-every state × broken mark × event, against the table the protocol writes, with no server; the
-protocol's tables held to the module's; nothing else in `links/` writing a link's state; and
-the sequences two servers live through, linking again among them (CR3-50)."""
+"""A link's lifecycle (links/lifecycle.py; requirements S11.6, S11.7; link-protocol.md §4.6): every
+state × broken mark × event, against the table the protocol writes, with no server; the protocol's
+tables held to the module's; nothing else in `links/` writing a link's state; and the sequences two
+servers live through, linking again among them."""
 
 import itertools
 import re

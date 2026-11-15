@@ -600,8 +600,8 @@ def test_a_candidate_related_to_both_filers_keeps_the_first_relation_but_a_desce
 
 
 def test_a_person_has_one_relation_word_in_the_book_and_when_chosen(home):
-    """S8.14.5.5: Zoe is Jane's friend and John's daughter. Whichever filer is first, she is
-    a daughter both when chosen and in the book's list (CR3-440)."""
+    """S8.14.5.5: Zoe is Jane's friend and John's daughter. Whichever filer is first, she is a
+    daughter both when chosen and in the book's list."""
     h = home
     jane, john = h.me(h.jane), h.me(h.john)
     zoe = h.person("Zoe", 2012)

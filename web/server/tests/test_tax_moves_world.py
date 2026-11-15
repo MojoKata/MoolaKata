@@ -1,8 +1,8 @@
-"""Generated worlds of money moved for taxes (`worlds.tax_moves`), made through the API and held
-to the reference (requirements S2.2, S8.1, S8.5, S8.6; the values, taxes and options walk,
-10.2): the 2026 book's Retirement panel (what counts against each limit, the conversions, the
-rollovers, the distributions, an HSA's limit), its Income panel (foreign tax by payer, crypto
-income by account) and Form 8949's rows of shares moved in and coins received.
+"""Generated worlds of money moved for taxes (`worlds.tax_moves`), made through the API and held to
+the reference (requirements S2.2, S8.1, S8.5, S8.6): the 2026 book's Retirement panel (what counts
+against each limit, the conversions, the rollovers, the distributions, an HSA's limit), its Income
+panel (foreign tax by payer, crypto income by account) and Form 8949's rows of shares moved in and
+coins received.
 
 A decoy stranger, Mallory, holds the same kinds of records; none of them may reach Jane's
 book.

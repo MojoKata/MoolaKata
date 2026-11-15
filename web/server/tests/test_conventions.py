@@ -119,8 +119,8 @@ def test_the_document_lists_the_problems_and_their_codes():
 
 
 def test_what_the_reader_may_do_never_travels_back():
-    """`access` (the reader's permissions and whether a record is theirs) goes only from the
-    server (mine walk, decision 1.4): no request body, nor anything one refers to, has it."""
+    """`access` (the reader's permissions and whether a record is theirs) goes only from the server:
+    no request body, nor anything one refers to, has it."""
     from moolakata import contract
 
     doc = contract.openapi_document()

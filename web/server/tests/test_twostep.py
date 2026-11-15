@@ -241,8 +241,8 @@ def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):
 
 
 def test_a_new_address_leaves_a_sign_in_waiting_for_its_code(server, frozen):
-    """Only the links mailed to the old address end with it (CR3-452): a sign-in elsewhere
-    waiting for its two-step code goes on."""
+    """Only the links mailed to the old address end with it: a sign-in elsewhere waiting for its
+    two-step code goes on."""
     from test_users import last_link, set_public_url
 
     set_public_url(server)

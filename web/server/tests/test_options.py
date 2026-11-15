@@ -886,7 +886,7 @@ def test_an_option_trade_is_saved_with_its_contract_payee_and_who_made_it(server
     from moolakata.store.entities.accounts import Transaction
 
     brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
-    # No fees is a 0 typed, kept as typed (CR3-437).
+    # No fees is a 0 typed, kept as typed.
     t = saved(_trade(jane, brk, fees="0", amount="640.00", memo="Wheel"))
     assert (t["payee"], t["memo"], t["fees"], t["quantity"], t["price"]) == (
         "Sell to open MSFT 20NOV26 480 P", "Wheel", "0.00", "1.0", "6.4")  # fmt: skip

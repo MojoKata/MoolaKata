@@ -1,10 +1,9 @@
-"""Generated worlds of money moved for taxes (requirements S2.2, S8.1, S8.5, S8.6; the values,
-taxes and options walk, 10.2): retirement money moved in and out by every route, an HSA's
-coverage and its owner's age, foreign tax and coins received as income, and shares moved in by
-every route across the one-year line, drawn from a seed. A world is a plain description; the
-reference functions below work out from it alone, as plainly as possible, what the 2026 tax
-book's Retirement and Income panels and Form 8949 must say; `test_tax_moves_world` makes each
-world through the API and holds the panels to them.
+"""Generated worlds of money moved for taxes (requirements S2.2, S8.1, S8.5, S8.6): retirement money
+moved in and out by every route, an HSA's coverage and its owner's age, foreign tax and coins
+received as income, and shares moved in by every route across the one-year line, drawn from a seed.
+A world is a plain description; the reference functions below work out from it alone, as plainly as
+possible, what the 2026 tax book's Retirement and Income panels and Form 8949 must say;
+`test_tax_moves_world` makes each world through the API and holds the panels to them.
 
 Records, each in accounts of its own:
 
@@ -265,15 +264,15 @@ def rows_8949(w: World) -> list[tuple[str, str, D, bool]]:
 
 
 def _every_deposit_a_contribution(s, t, account):
-    """CR3-37 put back: money into a retirement account is a contribution, however it came."""
+    """Money into a retirement account is a contribution, however it came."""
     if t.instrumentId or not t.amount:
         return None
     return "employee" if t.amount > 0 else "distribution"
 
 
 def _bitcoin_pairs_alone(s, owner_id):
-    """CR3-73 put back: only bitcoin moved between accounts is offered as a pair; shares
-    arrive as bought the day they did, missing their basis."""
+    """Only bitcoin moved between accounts is offered as a pair; shares arrive as bought the day
+    they did, missing their basis."""
     return 0
 
 
@@ -283,7 +282,7 @@ PLANTS = [
             "every deposit a contribution",
             "moolakata.taxes.retirement:classify",
             _every_deposit_a_contribution,
-            "CR3-37",
+            "S8.6: a conversion or a rollover is no contribution",
         ),
         (0,),
     ),
@@ -292,7 +291,7 @@ PLANTS = [
             "shares never paired",
             "moolakata.bitcoin.transfers:propose",
             _bitcoin_pairs_alone,
-            "CR3-73",
+            "S2.2: shares moved in keep their lots",
         ),
         (0,),
     ),

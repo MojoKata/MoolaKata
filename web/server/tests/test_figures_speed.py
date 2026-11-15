@@ -1,7 +1,7 @@
-"""The figures built on accounts read in queries that don't grow with the trades, and grow with
-the accounts by a bounded few each (the values, taxes and options walk, 16.5): a portfolio's
-value, Holdings and series, a projection built on it, a loan's screen. Accounts and trades are
-written straight to the database; the time each read takes is printed, never asserted.
+"""The figures built on accounts read in queries that don't grow with the trades, and grow with the
+accounts by a bounded few each: a portfolio's value, Holdings and series, a projection built on it,
+a loan's screen. Accounts and trades are written straight to the database; the time each read takes
+is printed, never asserted.
 """
 
 import datetime as dt
