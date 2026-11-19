@@ -34,7 +34,8 @@ test per behaviour over one test per change.
 ## What you may change
 
 - **Only test files** under `web/server/tests/`. Never a file under `web/server/src/`, the
-  docs, the mockup, or anything outside the tests.
+  docs, the mockup, or anything outside the tests. Not even for a moment to try a change by hand: `mutate
+  run --only` tries any single change for you.
 - Add to the test file that already covers the route or function (find it with `grep`;
   transactions and accounts routes are mostly in `test_accounts.py` and `test_ledger.py`). A new
   file only when no file fits, named `test_<module>_<topic>.py`.
