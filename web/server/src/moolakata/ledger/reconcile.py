@@ -90,7 +90,7 @@ def duplicates(transactions: list) -> list[list[str]]:
             continue
         key = (t.date, t.amount, (t.payee or t.payeeRaw or "").lower(), t.instrumentId)
         groups.setdefault(key, []).append(t.id)
-        fit = getattr(t, "fitId", None)
+        fit = t.fitId
         if fit:
             base, _, n = fit.rpartition("#")
             groups.setdefault(("fitId", base if base and n.isdigit() else fit), []).append(t.id)

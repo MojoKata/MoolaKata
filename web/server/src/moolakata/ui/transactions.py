@@ -58,12 +58,11 @@ INSTRUMENT_KINDS = (
     "return-of-capital",
     "reward",  # coins received as income, at the day's price (S8.5)
 )
-# Made only with what they need: an option trade with its contract (S3.2, a create that names
-# it), an option's end by settling it, and a corporate action's pairs from the action (S2.4).
+# Made only with what they need: a corporate action's pairs, and an option contract's
+# adjustment, from the action (S2.4, S3.10); an option trade with its contract (S3.2, a create
+# that names it), and an option's end by settling it.
+CORPORATE_KINDS = ("symbol-change", "spin-off", "merger", "option-adjust")
 OPTION_KINDS = (
-    "symbol-change",
-    "spin-off",
-    "merger",
     "buy-to-open",
     "sell-to-open",
     "buy-to-close",
@@ -433,7 +432,7 @@ def _check(
     elif kind == "adjustment" and not (body.memo or "").strip():
         # A difference accepted as an adjustment says why (S1.11.4).
         errors.append(FieldError("memo", "note-required", "Say why the balance is adjusted."))
-    elif kind in OPTION_KINDS[:3]:
+    elif kind in CORPORATE_KINDS:
         errors.append(
             FieldError("kind", "corporate-kind", "Record it as a corporate action on Positions.")
         )

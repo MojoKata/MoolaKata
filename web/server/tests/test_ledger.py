@@ -30,6 +30,7 @@ class Txn:
     runningBalance: D | None = None
     amountWas: D | None = None
     duplicateAnswer: str | None = None
+    fitId: str | None = None  # the id a file gave it
     id: str = field(default_factory=lambda: f"Txn{next(_n)}")
     createdAt: dt.datetime = field(default_factory=lambda: T0 + dt.timedelta(seconds=next(_n)))
 
@@ -311,3 +312,28 @@ def test_calculations_never_import_sqlalchemy():
                     else ([node.module or ""] if isinstance(node, ast.ImportFrom) else [])
                 )
                 assert not any(n.startswith("sqlalchemy") for n in names), path
+
+
+def test_possible_duplicates_are_one_day_amount_payee_and_instrument_or_one_file_id():
+    """S1.11.5: rows alike in day, amount, payee (case aside, the bank's words when no payee)
+    and instrument are possible duplicates, and so are rows a file gave one id (`X` and
+    `X#2`, a number after the #); a row in two such groups is named once in each, and a
+    different payee, instrument or id is no duplicate."""
+    day = d(2026, 9, 5)
+
+    def t(payee="Cafe", amount=-20, **kw):
+        return Txn(day, "withdrawal", D(amount), payee=payee, **kw)
+
+    def ids(*txns):
+        return [
+            [txns.index(x) for x in txns if x.id in g] for g in reconcile.duplicates(list(txns))
+        ]
+
+    assert ids(t(), t(payee="CAFE")) == [[0, 1]]
+    assert ids(t(payee=None, payeeRaw="POS CAFE"), t(payee=None, payeeRaw="pos cafe")) == [[0, 1]]
+    assert ids(t(), t(payee="Bakery"), t(amount=-21), t(instrumentId="I1")) == []
+    assert ids(t(fitId="F1", amount=-1), t(fitId="F1#2", amount=-2)) == [[0, 1]]
+    assert ids(t(fitId="F1", amount=-1), t(fitId="F1#a", amount=-2)) == []
+    assert ids(t(fitId="F1#2", amount=-1), t(fitId="F1#3", amount=-2)) == [[0, 1]]
+    # Alike and from one id at once: one group, named once.
+    assert ids(t(fitId="F1"), t(fitId="F1#2")) == [[0, 1]]

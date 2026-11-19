@@ -694,6 +694,7 @@ def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(serve
     [
         ("checking", {"kind": "gift"}, "kind", "kind-invalid"),
         ("brokerage", {"kind": "merger"}, "kind", "corporate-kind"),
+        ("checking", {"kind": "option-adjust"}, "kind", "corporate-kind"),
         ("brokerage", {"kind": "expire"}, "kind", "option-kind"),
         ("brokerage", {"kind": "foreign-tax", "amount": "1.00"}, "amount", "amount-sign"),
         ("brokerage", {"kind": "foreign-tax", "amount": "-1.00"}, None, None),
