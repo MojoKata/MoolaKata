@@ -118,3 +118,28 @@ Doubts:
 - Lots carried in by a transfer paired with another account's transfer out (S2.2, S1.7.1) have no lot id in the replay, so `lot_choices` never offers them: a sale of carried shares can't pick its lots (S2.3). Not pinned; the test of what is offered uses a bought option for the lot without an id instead.
 - One who only reads an account may send a transaction's fields as they are with a leave-out (S7.3.5) and is refused nothing: `_txn_update` asks the account's write only for fields that differ. Pinned (`test_one_who_reads_an_account_leaves_a_trade_out_with_its_draft_as_it_is`), as `_txn_editable`'s docstring says.
 - Any function called only at import (as `_set_of`, from a model's class body) leaves survivors no test can kill; worth a line in mutation-testing.md if the coordinator agrees.
+
+## Batch 6
+
+Test files touched: `tests/test_accounts.py`, `tests/test_connections.py`.
+
+Counts: killed 122, equivalent 17, bug 2, unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x__change__mutmut_86`, `_186`: an update's `sent` is the fields that differ from the account as it is (`_account_update`), and on a create `later` holds `withdrawalsAMonth` and `statementInterval` only when not None, where a new account's are None: `in sent or differs` decides as `in sent and differs`.
+- `x__change__mutmut_106`, `_107`, `_114` to `_118`: the limit's Problem carries its field error, and the save answers with the field errors alone (`save._Outcome`), dropping the Problem's own code and words; `_change` is called only through the save.
+- `x__change__mutmut_160`, `_161`, `_168`, `_169`: likewise the coverage Problem's own code and words (its field error keeps `message`, which is held).
+- `x__change__mutmut_202`: the body is always an `AccountRecord`, which has `statementIntervalDismissed`, so `getattr` without a default never misses.
+- `x__change__mutmut_241`: `connectionId` not in `sent` means the body's is the account's (update) or None as the new account's (create), so `body.connectionId` is `a.connectionId`.
+- `x__change__mutmut_253`: a connection is deleted only by Remove, which also makes it `removed` (or with its user), and the caller's view shows only their own: `deleted` never decides alone.
+- `x__change__mutmut_276`: `syncAccount` not in `sent` means the body's is the account's, which is only ever kept stripped (or None, which `not which` refuses as `""` is).
+
+Bug:
+- `x__change__mutmut_138`, `_206`: tell apart only through an account made with `hsaCoverage` or `statementIntervalDismissed` and a field of `later`: `_make` and `later` leave both out, so a create drops them silently, an invalid dismissed interval included (refused on a change). A test would pin a value sent and dropped unrefused (S8.6, R3.11). New account's dialog never sends either.
+
+Mutation check: 122 killed, the 19 survivors exactly the equivalent and bug ones above.
+
+Doubts:
+- A write share changes an account's notes (and opening balance and date): `settings_fields` leaves them out. Pinned for notes (`test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings`) as S10.3 names only the name and method among an account's settings; worth a look if notes count as a setting.
+- `REFUSED_WORDS` in `test_accounts.py` holds the words of every refusal in `test_an_accounts_settings_are_refused_on_their_own_field` (the existing test now checks field, code and message).
+- `logged` in `test_accounts.py` (imported by `test_connections.py`) reads an account's Activity entries other than its creation and its sharing.

@@ -614,6 +614,20 @@ def test_a_typed_balance_changes_in_place_and_one_from_a_file_never(server):
 
 
 INTERVAL = "statement-interval-invalid"
+# Each field's refusal, in its own words (R3.7).
+REFUSED_WORDS = {
+    "lotMethod": "FIFO, LIFO, HIFO, specific identification or average cost.",
+    "keptBy": "Imports, manual or bitcoin.",
+    "notes": "Notes are up to 20,000 characters.",
+    "closedOn": "The day it closed: today or earlier.",
+    "statementInterval": "Monthly, quarterly, yearly or none.",
+    "statementIntervalDismissed": "An interval.",
+    "withdrawalsAMonth": "A savings account's limit: 1 to 99, or empty.",
+    "hsaCoverage": "An HSA's coverage: self-only or family.",
+    "type": "An account keeps its type.",
+    "name": "Enter a name of up to 80 characters.",
+    "openingDate": "An opening balance needs its date, and a date its balance.",
+}
 
 
 @pytest.mark.parametrize(
@@ -648,7 +662,7 @@ INTERVAL = "statement-interval-invalid"
 )
 def test_an_accounts_settings_are_refused_on_their_own_field(server, kind, fields, field, code):
     """S1.2, S1.11.7, S8.6, R3.11: a change of an account's settings, each refused on its
-    field, and each bound's own side kept."""
+    field in its words, and each bound's own side kept."""
     import datetime as dt
 
     from moolakata import clock
@@ -665,7 +679,90 @@ def test_an_accounts_settings_are_refused_on_their_own_field(server, kind, field
         assert r.status_code == 200, r.text
         return
     assert r.status_code == 422, r.text
-    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)
+    refused = [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+    assert refused == [(field, code, REFUSED_WORDS[field])]
+
+
+def logged(server, account_id: str) -> list[tuple]:
+    """What Activity holds of an account's changes since it was made (its sharing aside):
+    each entry's kind, actor, subject kind, owner and detail."""
+    import json
+
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        rows = (
+            s.query(Activity)
+            .filter(Activity.subjectId == account_id, Activity.kind.like("account.%"))
+            .filter(Activity.kind != "account.created")
+            .order_by(Activity.at, Activity.id)
+        )
+        return [(x.kind, x.actorId, x.subjectKind, x.ownerId, json.loads(x.detail)) for x in rows]
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields"),
+    [
+        ("checking", {"notes": "Bills come out of this one."}),
+        ("checking", {"keptBy": ["file", "manual"]}),
+        ("checking", {"statementInterval": "quarterly"}),
+        ("savings", {"withdrawalsAMonth": 6}),
+        ("hsa", {"hsaCoverage": "family"}),
+    ],
+)
+def test_an_accounts_change_is_kept_and_logged_for_its_owner_by_the_field_changed(
+    server, kind, fields
+):
+    """S1.2, S8.6, S1.11.7: a change of an account is kept, and logged as an update for its
+    owner naming the one field it changed."""
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, type=kind, name=kind.title())
+    out = saved(change(c, "Acct", a, **fields))
+    assert {k: out[k] for k in fields} == fields
+    assert logged(server, a["id"]) == [
+        ("account.updated", jane, "account", jane, {"fields": list(fields)})
+    ]
+
+
+def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server):
+    """S10.3: one who writes an account changes what it holds, its notes among them, logged
+    for its owner as theirs; its settings stay the owner's, each refused in the same words."""
+    from edits import share
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    accounts = {}
+    for kind in ("checking", "savings", "hsa"):
+        a = new_account(c, type=kind, name=kind.title())
+        assert share(c, "account", a["id"], users={john: "write"}).status_code == 200
+        accounts[kind] = f"/ui/api/accounts/{a['id']}"
+    settings = [
+        ("checking", "lotMethod", "lifo"),
+        ("checking", "keptBy", ["file", "manual"]),
+        ("checking", "closedOn", "2026-01-02"),
+        ("checking", "countInNetWorth", False),
+        ("checking", "name", "Joint checking"),
+        ("checking", "institution", "Second Example Bank"),
+        ("checking", "mask", "1234"),
+        ("checking", "statementInterval", "quarterly"),
+        ("checking", "statementIntervalDismissed", "quarterly"),
+        ("checking", "connectionId", new_id("Conn")),
+        ("checking", "syncAccount", "Checking ••4417"),
+        ("savings", "withdrawalsAMonth", 6),
+        ("hsa", "hsaCoverage", "family"),
+    ]
+    for kind, field, value in settings:
+        r = edit(j, "Acct", accounts[kind], **{field: value})
+        assert r.status_code == 403, (field, r.text)
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+            (None, "owner-only", "Only the account's owner changes its settings.")
+        ], field
+    out = saved(edit(j, "Acct", accounts["checking"], notes="John's too."))
+    assert out["notes"] == "John's too."
+    assert logged(server, out["id"]) == [
+        ("account.updated", john, "account", jane, {"fields": ["notes"]})
+    ]
 
 
 def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(server):
