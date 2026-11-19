@@ -1,0 +1,1015 @@
+# Batch 4: 122 survivors in ui.transactions.pick_sale, ui.transactions.pick_checked, ui.transactions.picks_fit, ui.transactions.pick_editable, ui.transactions.pick_update
+# Each: the change's name, then its diff (from fork run 44505709314, code unchanged at the head).
+
+# moolakata.ui.transactions.x__pick_sale__mutmut_6
+ def _pick_sale(ctx, sale_id: str) -> tuple[Transaction, Account]:
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+-    if t is None or t.deleted:
++    if t is None and t.deleted:
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+# moolakata.ui.transactions.x__pick_sale__mutmut_8
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse(None, "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_9
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", None, "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_10
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "transaction-unknown", None)
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_11
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_12
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_13
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "transaction-unknown", )
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_14
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("XXsaleIdXX", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_15
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleid", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_16
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("SALEID", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_17
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "XXtransaction-unknownXX", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_18
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "TRANSACTION-UNKNOWN", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_19
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "transaction-unknown", "XXNo such transaction.XX")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_20
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "transaction-unknown", "no such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_21
+     """The pick's sale, written by the caller."""
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+-        raise refuse("saleId", "transaction-unknown", "No such transaction.")
++        raise refuse("saleId", "transaction-unknown", "NO SUCH TRANSACTION.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+# moolakata.ui.transactions.x__pick_sale__mutmut_26
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+-    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
++    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, None)
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_30
+     t = ctx.s.get(Transaction, sale_id)
+     if t is None or t.deleted:
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+-    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
++    a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, )
+     if t.kind != "sell" or not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_33
+     if t is None or t.deleted:
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+-    if t.kind != "sell" or not t.instrumentId:
++    if t.kind != "sell" and not t.instrumentId:
+         raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_38
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse(None, "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_39
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", None, "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_40
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "pick-not-a-sale", None)
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_41
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_42
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_43
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "pick-not-a-sale", )
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_44
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("XXsaleIdXX", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_45
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleid", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_46
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("SALEID", "pick-not-a-sale", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_47
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "XXpick-not-a-saleXX", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_48
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "PICK-NOT-A-SALE", "Lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_49
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "pick-not-a-sale", "XXLots are picked for a sale.XX")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_50
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "pick-not-a-sale", "lots are picked for a sale.")
+     return t, a
+# moolakata.ui.transactions.x__pick_sale__mutmut_51
+         raise refuse("saleId", "transaction-unknown", "No such transaction.")
+     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
+     if t.kind != "sell" or not t.instrumentId:
+-        raise refuse("saleId", "pick-not-a-sale", "Lots are picked for a sale.")
++        raise refuse("saleId", "pick-not-a-sale", "LOTS ARE PICKED FOR A SALE.")
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_11
+     if (
+         lot is None
+         or lot.deleted
+-        or lot.accountId != t.accountId
+-        or lot.instrumentId != t.instrumentId
++        or lot.accountId != t.accountId and lot.instrumentId != t.instrumentId
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+# moolakata.ui.transactions.x__pick_checked__mutmut_12
+     lot = ctx.s.get(Lot, body.lotId)
+     if (
+         lot is None
+-        or lot.deleted
+-        or lot.accountId != t.accountId
++        or lot.deleted and lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+# moolakata.ui.transactions.x__pick_checked__mutmut_13
+     t, a = _pick_sale(ctx, body.saleId)
+     lot = ctx.s.get(Lot, body.lotId)
+     if (
+-        lot is None
+-        or lot.deleted
++        lot is None and lot.deleted
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+# moolakata.ui.transactions.x__pick_checked__mutmut_17
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse(None, "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_18
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", None, "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_19
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "lot-unknown", None)
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_20
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_21
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_22
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "lot-unknown", )
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_23
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("XXlotIdXX", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_24
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotid", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_25
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("LOTID", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_26
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "XXlot-unknownXX", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_27
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "LOT-UNKNOWN", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_28
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "lot-unknown", "XXChoose a lot of this holding.XX")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_29
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "lot-unknown", "choose a lot of this holding.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_30
+         or lot.accountId != t.accountId
+         or lot.instrumentId != t.instrumentId
+     ):
+-        raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
++        raise refuse("lotId", "lot-unknown", "CHOOSE A LOT OF THIS HOLDING.")
+     if body.quantity <= 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+# moolakata.ui.transactions.x__pick_checked__mutmut_31
+         or lot.instrumentId != t.instrumentId
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+-    if body.quantity <= 0:
++    if body.quantity < 0:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_32
+         or lot.instrumentId != t.instrumentId
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+-    if body.quantity <= 0:
++    if body.quantity <= 1:
+         raise refuse("quantity", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_33
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse(None, "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_34
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", None, "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_35
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "quantity-invalid", None)
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_36
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_37
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_38
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "quantity-invalid", )
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_39
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("XXquantityXX", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_40
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("QUANTITY", "quantity-invalid", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_41
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "XXquantity-invalidXX", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_42
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "QUANTITY-INVALID", "More than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_43
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "quantity-invalid", "XXMore than none.XX")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_44
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "quantity-invalid", "more than none.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__pick_checked__mutmut_45
+     ):
+         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
+     if body.quantity <= 0:
+-        raise refuse("quantity", "quantity-invalid", "More than none.")
++        raise refuse("quantity", "quantity-invalid", "MORE THAN NONE.")
+     _picks_fit(ctx, t, a)
+     return t, a
+# moolakata.ui.transactions.x__picks_fit__mutmut_7
+         if t.deleted:
+             return
+         picks = list(
+-            ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
++            ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, ))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+# moolakata.ui.transactions.x__picks_fit__mutmut_14
+         picks = list(
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+-        if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
++        if sum((p.quantity for p in picks), ) > abs(t.quantity or 0):
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+# moolakata.ui.transactions.x__picks_fit__mutmut_20
+         picks = list(
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+-        if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
++        if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 1):
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+# moolakata.ui.transactions.x__picks_fit__mutmut_21
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse(None, "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_22
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", None, "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_23
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "picks-over", None)
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_24
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_25
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_26
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "picks-over", )
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_27
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("XXquantityXX", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_28
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("QUANTITY", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_29
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "XXpicks-overXX", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_30
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "PICKS-OVER", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_31
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "picks-over", "XXThe lots picked come to more than the sale.XX")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_32
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "picks-over", "the lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_33
+             ctx.s.scalars(select(LotPick).where(LotPick.saleId == t.id, LotPick.deleted == false()))
+         )
+         if sum((p.quantity for p in picks), Decimal(0)) > abs(t.quantity or 0):
+-            raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
++            raise refuse("quantity", "picks-over", "THE LOTS PICKED COME TO MORE THAN THE SALE.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+# moolakata.ui.transactions.x__picks_fit__mutmut_45
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+-            if p.quantity > held.get(p.lotId, Decimal(0)):
++            if p.quantity > held.get(p.lotId, None):
+                 raise refuse("quantity", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+# moolakata.ui.transactions.x__picks_fit__mutmut_47
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+-            if p.quantity > held.get(p.lotId, Decimal(0)):
++            if p.quantity > held.get(p.lotId, ):
+                 raise refuse("quantity", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+# moolakata.ui.transactions.x__picks_fit__mutmut_49
+             raise refuse("quantity", "picks-over", "The lots picked come to more than the sale.")
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+-            if p.quantity > held.get(p.lotId, Decimal(0)):
++            if p.quantity > held.get(p.lotId, Decimal(1)):
+                 raise refuse("quantity", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+# moolakata.ui.transactions.x__picks_fit__mutmut_50
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse(None, "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_51
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", None, "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_56
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("XXquantityXX", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_57
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("QUANTITY", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_58
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", "XXpick-overXX", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_59
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", "PICK-OVER", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_60
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", "pick-over", "XXMore than the lot held that day.XX")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_61
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", "pick-over", "more than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_62
+         held = {c.lotId: c.quantity for c in lot_choices(ctx.s, a, t.date, t.id)}
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+-                raise refuse("quantity", "pick-over", "More than the lot held that day.")
++                raise refuse("quantity", "pick-over", "MORE THAN THE LOT HELD THAT DAY.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_64
+         for p in picks:
+             if p.quantity > held.get(p.lotId, Decimal(0)):
+                 raise refuse("quantity", "pick-over", "More than the lot held that day.")
+-        washes.recompute(ctx.s, a.ownerId)
++        washes.recompute(ctx.s, None)
+ 
+     ctx.verify(f"picks:{t.id}", check)
+# moolakata.ui.transactions.x__picks_fit__mutmut_67
+                 raise refuse("quantity", "pick-over", "More than the lot held that day.")
+         washes.recompute(ctx.s, a.ownerId)
+ 
+-    ctx.verify(f"picks:{t.id}", check)
++    ctx.verify(None, check)
+# moolakata.ui.transactions.x__pick_editable__mutmut_6
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+-    if p is None or p.deleted:
++    if p is None and p.deleted:
+         raise Problem(404, "not-found", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_8
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(None, "not-found", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_9
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, None, "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_10
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "not-found", None)
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_11
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem("not-found", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_12
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_13
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "not-found", )
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_14
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(405, "not-found", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_15
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "XXnot-foundXX", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_16
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "NOT-FOUND", "Not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_17
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "not-found", "XXNot foundXX")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_18
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "not-found", "not found")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_editable__mutmut_19
+ def _pick_editable(ctx, record_id: str) -> LotPick:
+     p = ctx.s.get(LotPick, record_id)
+     if p is None or p.deleted:
+-        raise Problem(404, "not-found", "Not found")
++        raise Problem(404, "not-found", "NOT FOUND")
+     _pick_sale(ctx, p.saleId)
+     return p
+# moolakata.ui.transactions.x__pick_update__mutmut_1
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+-    if body.saleId != p.saleId or body.lotId != p.lotId:
++    if body.saleId != p.saleId and body.lotId != p.lotId:
+         raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_4
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse(None, "pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_5
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", None, "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_6
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "pick-fixed", None)
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_7
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_8
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_9
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "pick-fixed", )
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_10
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("XXlotIdXX", "pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_11
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotid", "pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_12
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("LOTID", "pick-fixed", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_13
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "XXpick-fixedXX", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_14
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "PICK-FIXED", "A pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_15
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "pick-fixed", "XXA pick keeps its sale and lot.XX")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_16
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "pick-fixed", "a pick keeps its sale and lot.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity
+# moolakata.ui.transactions.x__pick_update__mutmut_17
+ def _pick_update(ctx, p: LotPick, body: LotPickRecord) -> None:
+     if body.saleId != p.saleId or body.lotId != p.lotId:
+-        raise refuse("lotId", "pick-fixed", "A pick keeps its sale and lot.")
++        raise refuse("lotId", "pick-fixed", "A PICK KEEPS ITS SALE AND LOT.")
+     _pick_checked(ctx, body)
+     p.quantity = body.quantity

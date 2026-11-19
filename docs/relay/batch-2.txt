@@ -1,0 +1,915 @@
+# Batch 2: 104 survivors in ui.transactions.transfer_lots, ui.transactions.reward_basis, ui.transactions.transfer_with
+# Each: the change's name, then its diff (from fork run 44505709314, code unchanged at the head).
+
+# moolakata.ui.transactions.x__transfer_lots__mutmut_6
+     """The lots shares moved in arrive as (S2.2): those typed, each with the day it was
+     bought and its basis, adding up to the shares; none typed, one lot of the day they arrived,
+     marked as not knowing when they were bought (its term unknown until it is)."""
+-    lots_in = getattr(body, "transferLots", None)
++    lots_in = getattr(body, "transferLots", )
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_13
+     marked as not knowing when they were bought (its term unknown until it is)."""
+     lots_in = getattr(body, "transferLots", None)
+     if lots_in:
+-        if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
++        if sum((x.quantity for x in lots_in), ) != abs(body.quantity):
+             raise refuse(
+                 "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_18
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                None, "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_20
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "transferLots", "lots-unbalanced", None
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_24
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "XXtransferLotsXX", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_25
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "transferlots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_26
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "TRANSFERLOTS", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_29
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "transferLots", "lots-unbalanced", "XXThe lots add up to the shares moved in.XX"
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_30
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "transferLots", "lots-unbalanced", "the lots add up to the shares moved in."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_31
+     if lots_in:
+         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+             raise refuse(
+-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
++                "transferLots", "lots-unbalanced", "THE LOTS ADD UP TO THE SHARES MOVED IN."
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_33
+             raise refuse(
+                 "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+-        if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
++        if any(x.acquiredOn > body.date and x.quantity <= 0 for x in lots_in):
+             raise refuse(
+                 "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_34
+             raise refuse(
+                 "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+-        if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
++        if any(x.acquiredOn >= body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+                 "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_35
+             raise refuse(
+                 "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+-        if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
++        if any(x.acquiredOn > body.date or x.quantity < 0 for x in lots_in):
+             raise refuse(
+                 "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_36
+             raise refuse(
+                 "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
+             )
+-        if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
++        if any(x.acquiredOn > body.date or x.quantity <= 1 for x in lots_in):
+             raise refuse(
+                 "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_37
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                None, "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_38
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", None, "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_39
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "lot-invalid", None
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_40
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_41
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_42
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
+-            )
++                "transferLots", "lot-invalid", )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+         rows = [(body.date, abs(body.quantity), getattr(body, "costBasis", None), True)]
+# moolakata.ui.transactions.x__transfer_lots__mutmut_43
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "XXtransferLotsXX", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_44
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferlots", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_45
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "TRANSFERLOTS", "lot-invalid", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_46
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "XXlot-invalidXX", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_47
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "LOT-INVALID", "Each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_48
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "lot-invalid", "XXEach lot was bought by the day it moved in.XX"
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_49
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "lot-invalid", "each lot was bought by the day it moved in."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_50
+             )
+         if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+             raise refuse(
+-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
++                "transferLots", "lot-invalid", "EACH LOT WAS BOUGHT BY THE DAY IT MOVED IN."
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+# moolakata.ui.transactions.x__transfer_lots__mutmut_59
+             )
+         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+     else:
+-        rows = [(body.date, abs(body.quantity), getattr(body, "costBasis", None), True)]
++        rows = [(body.date, abs(body.quantity), getattr(body, "costBasis", ), True)]
+     for acquired, qty, basis, missing in rows:
+         s.add(
+             Lot(
+# moolakata.ui.transactions.x__transfer_lots__mutmut_72
+                 acquiredOn=acquired,
+                 quantity=qty,
+                 costBasis=basis,
+-                basisMissing=basis is None,
++                basisMissing=None,
+                 acquiredMissing=missing,
+             )
+         )
+# moolakata.ui.transactions.x__transfer_lots__mutmut_81
+                 acquiredOn=acquired,
+                 quantity=qty,
+                 costBasis=basis,
+-                basisMissing=basis is None,
+                 acquiredMissing=missing,
+             )
+         )
+# moolakata.ui.transactions.x__reward_basis__mutmut_1
+     at the price typed with them, else the owner's price for the day; none known, missing."""
+     from .. import valuation
+ 
+-    price = body.price
++    price = None
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_2
+     from .. import valuation
+ 
+     price = body.price
+-    if price is None:
++    if price is not None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_3
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = None
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_4
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(None)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_5
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(None, [inst_id], body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_6
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, None, body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_7
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, [inst_id], None, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_8
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, [inst_id], body.date, owner=None).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_9
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices([inst_id], body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_10
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_11
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, [inst_id], owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_12
+ 
+     price = body.price
+     if price is None:
+-        found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
++        found = valuation.prices(s, [inst_id], body.date, ).get(inst_id)
+         price = found.price if found is not None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_13
+     price = body.price
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+-        price = found.price if found is not None else None
++        price = None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_14
+     price = body.price
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+-        price = found.price if found is not None else None
++        price = found.price if (found is not None) and False else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_15
+     price = body.price
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+-        price = found.price if found is not None else None
++        price = found.price if (found is not None) or True else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_16
+     price = body.price
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+-        price = found.price if found is not None else None
++        price = found.price if found is None else None
+     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
+# moolakata.ui.transactions.x__reward_basis__mutmut_18
+     if price is None:
+         found = valuation.prices(s, [inst_id], body.date, owner=owner).get(inst_id)
+         price = found.price if found is not None else None
+-    return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
++    return (abs(body.quantity) * price).quantize(Decimal("0.01")) if (price) or True else None
+# moolakata.ui.transactions.x__transfer_with__mutmut_2
+     already matched elsewhere stays as it is."""
+ 
+     def pair() -> None:
+-        made = ctx.notes.get("transactions-made", set())
++        made = ctx.notes.get(None, set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_3
+     already matched elsewhere stays as it is."""
+ 
+     def pair() -> None:
+-        made = ctx.notes.get("transactions-made", set())
++        made = ctx.notes.get("transactions-made", None)
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_5
+     already matched elsewhere stays as it is."""
+ 
+     def pair() -> None:
+-        made = ctx.notes.get("transactions-made", set())
++        made = ctx.notes.get("transactions-made", )
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_6
+     already matched elsewhere stays as it is."""
+ 
+     def pair() -> None:
+-        made = ctx.notes.get("transactions-made", set())
++        made = ctx.notes.get("XXtransactions-madeXX", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_7
+     already matched elsewhere stays as it is."""
+ 
+     def pair() -> None:
+-        made = ctx.notes.get("transactions-made", set())
++        made = ctx.notes.get("TRANSACTIONS-MADE", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_13
+     def pair() -> None:
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+-        if other is None or other.deleted or other.id == t.id:
++        if other is None or other.deleted and other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+# moolakata.ui.transactions.x__transfer_with__mutmut_14
+     def pair() -> None:
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+-        if other is None or other.deleted or other.id == t.id:
++        if other is None and other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+# moolakata.ui.transactions.x__transfer_with__mutmut_17
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse(None, "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_18
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", None, "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_19
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "transaction-unknown", None)
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_20
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_21
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_22
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "transaction-unknown", )
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_23
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("XXtransferWithIdXX", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_24
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferwithid", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_25
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("TRANSFERWITHID", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_26
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "XXtransaction-unknownXX", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_27
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "TRANSACTION-UNKNOWN", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_28
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "transaction-unknown", "XXNo such transaction.XX")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_29
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "transaction-unknown", "no such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_30
+         made = ctx.notes.get("transactions-made", set())
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+-            raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
++            raise refuse("transferWithId", "transaction-unknown", "NO SUCH TRANSACTION.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_34
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+-        access.account(ctx.s, ctx.caller.id, other.accountId, "write")
++        access.account(ctx.s, ctx.caller.id, other.accountId, None)
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+# moolakata.ui.transactions.x__transfer_with__mutmut_38
+         other = ctx.s.get(Transaction, other_id)
+         if other is None or other.deleted or other.id == t.id:
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+-        access.account(ctx.s, ctx.caller.id, other.accountId, "write")
++        access.account(ctx.s, ctx.caller.id, other.accountId, )
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+# moolakata.ui.transactions.x__transfer_with__mutmut_44
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse(None, "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_46
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("transferWithId", "transfer-taken", None)
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_50
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("XXtransferWithIdXX", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_51
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("transferwithid", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_52
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("TRANSFERWITHID", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_55
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("transferWithId", "transfer-taken", "XXThat transaction isn't free.XX")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_56
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("transferWithId", "transfer-taken", "that transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_57
+             raise refuse("transferWithId", "transaction-unknown", "No such transaction.")
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+-            raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
++            raise refuse("transferWithId", "transfer-taken", "THAT TRANSACTION ISN'T FREE.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+# moolakata.ui.transactions.x__transfer_with__mutmut_58
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+-        if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
++        if other.accountId == t.accountId or other.instrumentId and t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_59
+         access.account(ctx.s, ctx.caller.id, other.accountId, "write")
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+-        if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
++        if other.accountId == t.accountId and other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+# moolakata.ui.transactions.x__transfer_with__mutmut_61
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse(None, "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_62
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", None, "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_63
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "not-a-transfer", None)
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_64
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_65
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_66
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "not-a-transfer", )
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_67
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("XXtransferWithIdXX", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_68
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferwithid", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_69
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("TRANSFERWITHID", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_70
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "XXnot-a-transferXX", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_71
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "NOT-A-TRANSFER", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_72
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "not-a-transfer", "XXA transfer is between two accounts.XX")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_73
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "not-a-transfer", "a transfer is between two accounts.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_74
+         if other.transferId not in (None, t.id) and other.id not in made:
+             raise refuse("transferWithId", "transfer-taken", "That transaction isn't free.")
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+-            raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
++            raise refuse("transferWithId", "not-a-transfer", "A TRANSFER IS BETWEEN TWO ACCOUNTS.")
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+# moolakata.ui.transactions.x__transfer_with__mutmut_77
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse(None, "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_79
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("amount", "amount-mismatch", None)
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_83
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("XXamountXX", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_84
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("AMOUNT", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_87
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("amount", "amount-mismatch", "XXThe two halves' amounts differ.XX")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_88
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("amount", "amount-mismatch", "the two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_89
+         if other.accountId == t.accountId or other.instrumentId or t.instrumentId:
+             raise refuse("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+         if other.amount != -t.amount:
+-            raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
++            raise refuse("amount", "amount-mismatch", "THE TWO HALVES' AMOUNTS DIFFER.")
+         repo.unlink_transfer(ctx.s, t)
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+# moolakata.ui.transactions.x__transfer_with__mutmut_94
+         if other.amount != -t.amount:
+             raise refuse("amount", "amount-mismatch", "The two halves' amounts differ.")
+         repo.unlink_transfer(ctx.s, t)
+-        repo.unlink_transfer(ctx.s, other)
++        repo.unlink_transfer(None, other)
+         t.transferId, other.transferId = other.id, t.id
+ 
+     ctx.verify(f"transfer:{t.id}", pair)
+# moolakata.ui.transactions.x__transfer_with__mutmut_99
+         repo.unlink_transfer(ctx.s, other)
+         t.transferId, other.transferId = other.id, t.id
+ 
+-    ctx.verify(f"transfer:{t.id}", pair)
++    ctx.verify(None, pair)
