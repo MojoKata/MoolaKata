@@ -853,13 +853,107 @@ def test_a_trade_changed_carries_its_lot_and_a_known_day_bought_stays(server):
 
     buy = add(c, a["id"], "-1000.00", "2026-09-01", kind="buy", symbol="VTI", quantity="10",
               price="100", fees="0")  # fmt: skip
-    saved(change(c, "Txn", buy, quantity="12", amount="-1260.00", date="2026-09-02"))
+    buy = saved(change(c, "Txn", buy, quantity="12", amount="-1260.00", date="2026-09-02"))
     assert lots_("VTI") == [("12.0", "1260.00", "2026-09-02")]
+    # Each of the three changed alone carries the lot too, a reinvestment's as a buy's.
+    buy = saved(change(c, "Txn", buy, quantity="11"))
+    assert lots_("VTI") == [("11.0", "1260.00", "2026-09-02")]
+    buy = saved(change(c, "Txn", buy, amount="-1100.00"))
+    assert lots_("VTI") == [("11.0", "1100.00", "2026-09-02")]
+    saved(change(c, "Txn", buy, date="2026-09-03"))
+    assert lots_("VTI") == [("11.0", "1100.00", "2026-09-03")]
+    again = add(c, a["id"], "-50.00", "2026-09-04", kind="reinvest", symbol="VXUS", quantity="1",
+                price="50", fees="0")  # fmt: skip
+    saved(change(c, "Txn", again, quantity="2"))
+    assert lots_("VXUS") == [("2.0", "50.00", "2026-09-04")]
+    # Shares moved in with no lots typed: their one lot's day follows the day they arrived.
+    untyped = add(c, a["id"], "0.00", "2026-09-10", kind="transfer-in", symbol="SCHD",
+                  quantity="3")  # fmt: skip
+    saved(change(c, "Txn", untyped, date="2026-09-12"))
+    assert _lots_made(server, untyped["id"]) == [("2026-09-12", 3, None, True, True)]
     typed = [{"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "250"}]
     moved = add(c, a["id"], "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
                 transferLots=typed)  # fmt: skip
     saved(change(c, "Txn", moved, date="2026-09-11"))
     assert lots_("KO") == [("5.0", "250.00", "2020-01-02")]
+
+
+def test_an_amount_changed_is_checked_as_it_is_sent(server):
+    """S2.1: a change is checked with the amount it sends, not the one it had: foreign tax
+    paid made money in is refused on its amount."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+    t = add(c, a["id"], "-10.00", "2026-09-01", kind="foreign-tax")
+    r = change(c, "Txn", t, amount="10.00")
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("amount", "amount-sign", "Foreign tax paid is money out: a negative amount.")
+    ]
+
+
+def test_a_trade_left_without_fees_keeps_them_until_its_fees_or_kind_change(server):
+    """R3.11: a trade a file brought without fees changes without its fees typed; changed in
+    kind, it is a trade typed again, and a blank is refused."""
+    from moolakata.store.entities.accounts import Transaction
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+    buy = add(c, a["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+              price="100", fees="0")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        s.get(Transaction, buy["id"]).fees = None  # as a file without fees leaves it
+    path = f"/ui/api/transactions/{buy['id']}"
+    assert saved(edit(c, "Txn", path, memo="from the file"))["fees"] is None
+    r = edit(c, "Txn", path, kind="reinvest")
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("fees", "fees-invalid", "Zero or more.")
+    ]
+    assert saved(edit(c, "Txn", path, kind="reinvest", fees="0"))["kind"] == "reinvest"
+
+
+def test_a_trade_made_a_sale_takes_the_accounts_method_and_made_a_buy_none(server):
+    """S2.3: a buy changed into a sale takes the account's lot method, the one in force for
+    it; changed back into a buy, it has none."""
+    from moolakata.store.entities.accounts import Transaction
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage", lotMethod="lifo")["id"]
+    add(c, a, "-1000.00", "2026-09-01", kind="buy", symbol="VTI", quantity="10", price="100",
+        fees="0")  # fmt: skip
+    t = add(c, a, "-500.00", "2026-09-02", kind="buy", symbol="VTI", quantity="5", price="100",
+            fees="0")  # fmt: skip
+
+    def method():
+        with server.db.read(unscoped="test") as s:
+            return s.get(Transaction, t["id"]).lotMethod
+
+    assert method() is None
+    t = saved(change(c, "Txn", t, kind="sell", amount="500.00"))
+    assert method() == "lifo"
+    saved(change(c, "Txn", t, kind="buy", amount="-500.00"))
+    assert method() is None
+
+
+def test_a_transfer_changed_in_its_amount_or_its_day_is_paired_no_more(server):
+    """S1.7: a half whose amount or day changes is no longer the other's: both are free."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)["id"]
+    card = new_account(c, name="Visa", type="credit-card", mask="1111")["id"]
+
+    def paired(t):
+        return c.get(f"/ui/api/transactions/{t['id']}").json()["transferId"]
+
+    for amount, fields in (("500.00", {"amount": "499.00"}), ("600.00", {"date": "2026-09-17"})):
+        out = add(c, chk, f"-{amount}", "2026-09-15")
+        paid = add(c, card, amount, "2026-09-16", kind="deposit")
+        assert paired(paid) == out["id"]
+        saved(change(c, "Txn", paid, **fields))
+        assert (paired(out), paired(paid)) == (None, None), fields
 
 
 def _lots_made(server, txn_id):

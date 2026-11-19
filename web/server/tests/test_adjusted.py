@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, make, option_trade, remove, saved
+from edits import create, edit, make, option_trade, remove, saved
 from sqlalchemy import false, select
 from test_accounts import new_account
 from test_options import opt
@@ -214,6 +214,20 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, jane):
         cash = [(t.kind, t.amount, t.payee) for t in s.query(Transaction).filter_by(
             accountId=a, kind="deposit", deleted=False)]  # fmt: skip
     assert cash == [("deposit", D("100.00"), "Deliverable cash (assigned MSFT1 20NOV26 480 P)")]
+    assert held(jane) == {"MSFT": (200, 95300, "2026-11-20")}
+
+
+def test_an_assigned_shares_trade_changed_keeps_the_deliverables_cash_off_their_basis(server, jane):
+    """S3.10.4: the shares an assignment buys are based at the strike less the deliverable's
+    cash; a change that leaves their shares, cost and day (its memo) leaves that basis."""
+    from moolakata.store.entities.accounts import Transaction
+
+    a, r = _adjusted_put(jane, cash="50")
+    assert r.status_code == 200, r.text
+    assert _settle(jane, a, "assign", "2").status_code in (200, 201)
+    with server.db.read(unscoped="test") as s:
+        buy = s.query(Transaction).filter_by(accountId=a, kind="buy", deleted=False).one().id
+    assert saved(edit(jane, "Txn", f"/ui/api/transactions/{buy}", memo="assigned at expiry"))
     assert held(jane) == {"MSFT": (200, 95300, "2026-11-20")}
 
 
