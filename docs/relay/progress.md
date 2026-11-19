@@ -95,3 +95,26 @@ Doubts:
 - A sale's quantity changed to `0` or cleared is saved (see the bug above); the create refuses both.
 - A pick of a lot typed over afterwards (S2.2) drops out of the sale's picks unseen (the access view hides it, the row stays live); the sale falls back to its method without saying so. Not pinned.
 - `_pick_sale`'s write check only decides when the lot named is of an account the caller writes and the sale's is one they only read (else `may_create` refuses on the lot first); the test names the caller's own lot for that.
+
+## Batch 5
+
+Test files touched: `tests/test_accounts.py`, `tests/test_txn_save.py`, `tests/test_taxpanels.py`.
+
+Counts: killed 118, equivalent 4, bug 0, unreachable 11, slow 0, still surviving 0.
+
+Equivalent:
+- `x__lots_of__mutmut_7`: the caller's session reads lots through their access view, which never returns a deleted lot (as batch 3's `x__change__mutmut_101`), so `Lot.deleted == false()` drops nothing.
+- `x__txn_current__mutmut_8`: for a transaction of no holding, `s.get(Instrument, None)` returns None (with a warning only), as the `else None` does.
+- `x_lot_choices__mutmut_13`: every lot is made by a transaction (S2.2; `lots.replay` raises on one without), so `transactionId is None` is never true, and a lot of a transaction left out is never reached: the replay reads lots only through the transactions it replays.
+- `x_lot_choices__mutmut_28`: the replay drops every lot of no shares (`out.open = [... if lot.quantity]`), so `> 0` and `>= 0` keep the same lots.
+
+Unreachable:
+- `x__set_of__mutmut_1` to `_8`: `_set_of()` runs once, at import, building `TxnRecord`'s fields; mutmut's workers fork from a process that has already imported the module, so the change is never the one in force. (A test of the contract, `uniqueItems` and the `[]` default on `tagIds`/`leftOutOf`, would hold it, but no run can show it killed.)
+- `x_lot_choices__mutmut_66`, `_68`, `_69`: the `"?"` fallback: an open lot's instrument is one its transaction names, and instruments are never deleted and read by every signed-in user (schema.md §7), so the symbol is always found.
+
+Mutation check: 118 killed, the 15 survivors exactly the equivalent and unreachable ones above.
+
+Doubts:
+- Lots carried in by a transfer paired with another account's transfer out (S2.2, S1.7.1) have no lot id in the replay, so `lot_choices` never offers them: a sale of carried shares can't pick its lots (S2.3). Not pinned; the test of what is offered uses a bought option for the lot without an id instead.
+- One who only reads an account may send a transaction's fields as they are with a leave-out (S7.3.5) and is refused nothing: `_txn_update` asks the account's write only for fields that differ. Pinned (`test_one_who_reads_an_account_leaves_a_trade_out_with_its_draft_as_it_is`), as `_txn_editable`'s docstring says.
+- Any function called only at import (as `_set_of`, from a model's class body) leaves survivors no test can kill; worth a line in mutation-testing.md if the coordinator agrees.

@@ -833,3 +833,67 @@ def test_a_funds_distributions_and_return_of_capital_reach_the_return(jane):
     )
     [vti] = [x for x in jane.get("/ui/api/positions").json()["open"] if x["symbol"] == "VTI"]
     assert (vti["quantity"], vti["cost"]) == (10, 0)
+
+
+def test_the_lots_a_sale_may_pick_are_those_held_on_its_day(jane):
+    """S2.3: a sale picks from the lots open on its day, a trade of that day among them, each
+    however few its shares, a basis missing shown missing; an option bought is a contract,
+    not a lot to pick (S3.2)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, brk, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="0.5")
+    trade(jane, brk, "2026-03-02", "buy", "1", "250", symbol="IBM")
+    r = option_trade(jane, brk, "2026-03-02", "buy-to-open", "IBM", "call", 300, "2026-12-18",
+                     1, "5.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = lots_on(jane, brk, "2026-03-02")
+    assert {k: (x["quantity"], x["basis"]) for k, x in held.items()} == {
+        ("IBM", "2026-03-02"): ("1.0", "250.00"),
+        ("KO", "2026-01-05"): ("0.5", None),
+    }
+
+
+def test_a_later_sale_picks_from_what_an_earlier_ones_picks_left(jane):
+    """S2.3: the lots an earlier sale picked are gone from those a later one picks from, never
+    the first in instead."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2024-01-08", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-06-02", "buy", "10", "300", symbol="IBM")
+    newer = lots_on(jane, brk, "2026-03-02")[("IBM", "2025-06-02")]
+    r = make(jane, "Txn", accountId=brk, date="2026-03-02", kind="sell", symbol="IBM",
+             quantity="4", price="250", amount="1000.00",
+             picks=[{"lotId": newer["lotId"], "quantity": "4"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = lots_on(jane, brk, "2026-04-01")
+    assert {k[1]: x["quantity"] for k, x in held.items()} == {
+        "2024-01-08": "10.0",
+        "2025-06-02": "6.0",
+    }
+
+
+def test_a_replacements_lot_takes_its_wash_sales_loss_from_the_loss_sales_day(jane):
+    """S3.8, S2.3: a replacement's lot is offered with the loss its wash sale adds only from
+    the loss sale's day on, whichever of the owner's accounts sold; the lots a sale picks from
+    leave out its own wash sale."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    other = new_account(jane, name="Other", type="brokerage", mask="2222")["id"]
+    trade(jane, brk, "2026-01-05", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2026-03-02", "buy", "10", "50", symbol="IBM")
+    trade(jane, other, "2026-01-05", "buy", "10", "100", symbol="KO")
+    trade(jane, brk, "2026-03-02", "buy", "10", "50", symbol="KO")
+    trade(jane, other, "2026-03-10", "sell", "10", "50", symbol="KO")
+    sale = make(jane, "Txn", accountId=brk, date="2026-03-10", kind="sell", symbol="IBM",
+                quantity="10", price="50", amount="500.00")  # fmt: skip
+    assert sale.status_code == 200, sale.text
+
+    def bases(day, sale_id=None):
+        return {k: x["basis"] for k, x in lots_on(jane, brk, day, sale_id).items()}
+
+    first, replaced = ("IBM", "2026-01-05"), ("IBM", "2026-03-02")
+    ko = ("KO", "2026-03-02")
+    assert bases("2026-03-09") == {first: "1000.00", replaced: "500.00", ko: "500.00"}
+    assert bases("2026-03-10", sale.json()["id"]) == {
+        first: "1000.00",
+        replaced: "500.00",
+        ko: "1000.00",
+    }
+    assert bases("2026-03-10") == {replaced: "1000.00", ko: "1000.00"}

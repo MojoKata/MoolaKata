@@ -810,19 +810,38 @@ def test_both_real_answers_the_rows_grouped_with_it_and_no_others(server):
 
 
 def test_keeping_a_transaction_needs_one_off_the_chain_at_the_version_read(server):
-    """S1.6.2.7: *keep* is for a transaction no longer on the chain, at the version read; one
-    on the chain, an old version and one not found are each refused."""
-    make_user(server, "jane")
-    c = sign_in(server, "jane")
-    t = add(c, new_account(c)["id"], "-5.00", "2026-09-01")
+    """S1.6.2.7: *keep* is for a transaction no longer on the chain, at the version read, by
+    one who writes its account (S10.3); one on the chain, an old version (answered with the
+    transaction as the caller reads it, their tags with it), one only read, and one deleted
+    or never made are each refused."""
+    from edits import share
+    from test_sharing import setup
 
-    def keep(txn_id, version):
-        return c.post(f"/ui/api/transactions/{txn_id}/keep", headers={"If-Match": f'"{version}"'})
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-5.00", "2026-09-01", tags=["work"])
 
-    r = keep(t["id"], t["version"])
+    def keep(who, txn_id, version):
+        return who.post(f"/ui/api/transactions/{txn_id}/keep", headers={"If-Match": f'"{version}"'})
+
+    r = keep(jane, t["id"], t["version"])
     assert (r.status_code, r.json()["code"]) == (422, "on-chain"), r.text
-    assert keep(t["id"], t["version"] - 1).status_code == 412
-    assert keep(new_id("Txn"), 1).status_code == 404
+    r = keep(jane, t["id"], t["version"] - 1)
+    assert (r.status_code, r.json()["code"]) == (412, "stale-version"), r.text
+    assert (r.json()["current"]["id"], r.json()["current"]["tags"]) == (t["id"], ["work"])
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    r = keep(john, t["id"], t["version"])
+    assert (r.status_code, r.json()["code"]) == (403, "share-read-only"), r.text
+    gone = add(jane, a["id"], "-6.00", "2026-09-02")
+    saved(remove(jane, "Txn", gone))
+    for txn_id, version in ((new_id("Txn"), 1), (gone["id"], gone["version"])):
+        r = keep(jane, txn_id, version)
+        assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+            404,
+            "not-found",
+            "Not found",
+        ), txn_id
 
 
 def test_a_kind_changed_to_blank_is_refused_on_its_field(server):
@@ -1042,12 +1061,15 @@ def test_a_split_is_of_a_known_transaction_not_a_trade_and_a_known_category(serv
     saved(remove(c, "Txn", gone))
     for txn in (new_id("Txn"), gone["id"]):  # the save finds no such record
         assert create(c, "Split", transactionId=txn, amount="-40.00").status_code == 404
-    for txn, fields, code in (
-        (bought["id"], {}, "split-trade"),
-        (spent["id"], {"categoryId": new_id("Cat")}, "category-unknown"),
+    trade = ("transactionId", "split-trade", "A trade isn't split across categories.")
+    unknown = ("categoryId", "category-unknown", "Choose a category.")
+    for txn, fields, refusal in (
+        (bought["id"], {}, trade),
+        (spent["id"], {"categoryId": new_id("Cat")}, unknown),
     ):
         r = create(c, "Split", transactionId=txn, amount="-40.00", **fields)
-        assert (r.status_code, r.json()["errors"][0]["code"]) == (422, code), r.text
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [refusal]
 
 
 def test_a_sold_buy_deleted_leaves_its_sale_without_a_lot(server):
