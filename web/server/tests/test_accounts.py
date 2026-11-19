@@ -566,3 +566,183 @@ def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
     [vti] = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
     [lot] = vti["lots"]
     assert lot["acquiredMissing"] and lot["longTerm"] is None and lot["basisMissing"]
+
+
+def test_a_typed_balance_changes_in_place_and_one_from_a_file_never(server):
+    """S1.11: a balance typed by hand is changed where it is, on its own account and never in
+    the future; one a file brought changes only with the file, and another user's is not
+    theirs to change."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.store.entities.accounts import Anchor
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
+    other = new_account(c, name="Other")
+    add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
+    an = saved(create(c, "Anchr", accountId=a["id"], date="2026-09-10", balance="990.00"))
+    r = change(c, "Anchr", an, accountId=other["id"])
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (422, "anchor-fixed"), r.text
+    tomorrow = (clock.today() + dt.timedelta(days=1)).isoformat()
+    r = change(c, "Anchr", an, date=tomorrow)
+    assert r.json()["errors"][0]["code"] == "date-in-future", r.text
+    an = saved(change(c, "Anchr", an, balance="980.00", note="  "))
+    check = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]
+    assert (check["reported"], check["ok"]) == ("980.00", True)
+    with server.db.read(unscoped="test") as s:
+        kept = s.get(Anchor, an["id"])
+        assert (kept.note, kept.source) == (None, "typed")
+    job = upload(c, other["id"], "statement.qfx", (FIX / "bank.ofx").read_bytes())
+    assert job["state"] == "done", job["error"]
+    with server.db.read(unscoped="test") as s:
+        filed = s.query(Anchor).filter_by(accountId=other["id"]).one()
+        filed = {"id": filed.id, "version": filed.version}
+    r = change(c, "Anchr", filed, balance="1.00")
+    assert r.json()["errors"][0]["code"] == "anchor-imported", r.text
+    make_user(server, "john")
+    assert change(sign_in(server, "john"), "Anchr", an, balance="1.00").status_code == 404
+
+
+INTERVAL = "statement-interval-invalid"
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields", "field", "code"),
+    [
+        ("checking", {"lotMethod": "random"}, "lotMethod", "lot-method-invalid"),
+        ("checking", {"keptBy": []}, "keptBy", "kept-by-invalid"),
+        ("checking", {"keptBy": ["manual", "fax"]}, "keptBy", "kept-by-invalid"),
+        ("checking", {"notes": "x" * 20001}, "notes", "notes-too-long"),
+        ("checking", {"notes": "x" * 20000}, None, None),
+        ("checking", {"closedOn": "tomorrow"}, "closedOn", "closed-in-future"),
+        ("checking", {"closedOn": "today"}, None, None),
+        ("checking", {"statementInterval": "weekly"}, "statementInterval", INTERVAL),
+        (
+            "checking",
+            {"statementIntervalDismissed": "weekly"},
+            "statementIntervalDismissed",
+            INTERVAL,
+        ),
+        ("checking", {"withdrawalsAMonth": 6}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 0}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 100}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 99}, None, None),
+        ("money-market", {"withdrawalsAMonth": 1}, None, None),
+        ("checking", {"hsaCoverage": "self"}, "hsaCoverage", "coverage-invalid"),
+        ("hsa", {"hsaCoverage": "both"}, "hsaCoverage", "coverage-invalid"),
+        ("hsa", {"hsaCoverage": "family"}, None, None),
+        ("checking", {"type": "savings"}, "type", "type-fixed"),
+        ("checking", {"name": "  "}, "name", "name-invalid"),
+        ("checking", {"openingBalance": "5.00"}, "openingDate", "opening-incomplete"),
+    ],
+)
+def test_an_accounts_settings_are_refused_on_their_own_field(server, kind, fields, field, code):
+    """S1.2, S1.11.7, S8.6, R3.11: a change of an account's settings, each refused on its
+    field, and each bound's own side kept."""
+    import datetime as dt
+
+    from moolakata import clock
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type=kind, name=kind.title())
+    days = {"today": clock.today(), "tomorrow": clock.today() + dt.timedelta(days=1)}
+    fields = {
+        k: days[v].isoformat() if v in ("today", "tomorrow") else v for k, v in fields.items()
+    }
+    r = change(c, "Acct", a, **fields)
+    if code is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)
+
+
+def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(server):
+    """S1.11.6: a statement ticked off in the save that makes it is reconciled at once and
+    then stays as it was; one not finished stays with its account and may be deleted, and is
+    gone after."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
+    other = new_account(c, name="Other")
+    saved(change(c, "Txn", add(c, a["id"], "100.00", "2026-09-03", kind="deposit"), cleared=True))
+    fields = {"accountId": a["id"], "statementDate": "2026-09-30", "statementBalance": "100.00"}
+    done = saved(create(c, "Recon", finished=True, **fields))
+    assert done["finishedAt"]
+    r = change(c, "Recon", done, statementBalance="90.00")
+    assert r.json()["errors"][0]["code"] == "reconciled", r.text
+    open_ = reconcile(c, a["id"], "2026-10-31", "100.00")
+    r = change(c, "Recon", open_, accountId=other["id"])
+    assert r.json()["errors"][0]["code"] == "reconciliation-fixed", r.text
+    assert remove(c, "Recon", open_).status_code == 200
+    assert change(c, "Recon", open_, statementBalance="1.00").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("acct", "fields", "field", "code"),
+    [
+        ("checking", {"kind": "gift"}, "kind", "kind-invalid"),
+        ("brokerage", {"kind": "merger"}, "kind", "corporate-kind"),
+        ("brokerage", {"kind": "expire"}, "kind", "option-kind"),
+        ("brokerage", {"kind": "foreign-tax", "amount": "1.00"}, "amount", "amount-sign"),
+        ("brokerage", {"kind": "foreign-tax", "amount": "-1.00"}, None, None),
+        ("checking", {"categoryId": "gone"}, "categoryId", "category-unknown"),
+        (
+            "brokerage",
+            {"kind": "buy", "symbol": "VTI", "quantity": "1", "fees": None},
+            "fees",
+            "fees-invalid",
+        ),
+        ("checking", {"fees": "-0.01"}, "fees", "fees-invalid"),
+        (
+            "checking",
+            {"kind": "deposit", "amount": "10.00", "reimbursable": "5.00"},
+            "reimbursable",
+            "reimbursable-invalid",
+        ),
+        ("checking", {"reimbursable": "0"}, "reimbursable", "reimbursable-invalid"),
+        ("checking", {"reimbursable": "10.01"}, "reimbursable", "reimbursable-invalid"),
+        ("checking", {"reimbursable": "10.00"}, None, None),
+        ("checking", {"owedBy": "x" * 81}, "owedBy", "owed-by-too-long"),
+        ("checking", {"owedBy": "x" * 80}, None, None),
+        ("checking", {"payee": "x" * 201}, "payee", "payee-too-long"),
+        ("checking", {"payee": "x" * 200}, None, None),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionSource": "boss"},
+            "contributionSource",
+            "choice-invalid",
+        ),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionYear": 1969},
+            "contributionYear",
+            "year-invalid",
+        ),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionYear": 2101},
+            "contributionYear",
+            "year-invalid",
+        ),
+        ("ira", {"kind": "deposit", "amount": "10.00", "contributionYear": 2100}, None, None),
+    ],
+)
+def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, field, code):
+    """S2.1, S2.9, S8.6, R3.11: what a transaction is and carries, each refused on its field,
+    and each bound's own side kept."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type=acct, name=acct.title())
+    fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-10.00", **fields}
+    if fields.get("categoryId") == "gone":
+        fields["categoryId"] = new_id("Cat")
+    r = make(c, "Txn", **fields)
+    if code is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)

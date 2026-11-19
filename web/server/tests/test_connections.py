@@ -162,6 +162,10 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     mine = next(x for x in out["connections"] if x["id"] == cid)
     assert mine["accounts"][0]["id"] == aid
+    # Turned off by its owner, and on again: the institution account goes with it.
+    off = saved(change(jane, "Acct", jane.get(f"/ui/api/accounts/{aid}").json(), connectionId=None))
+    assert (off["connectionId"], off["syncAccount"]) == (None, None)
+    saved(change(jane, "Acct", off, connectionId=cid, syncAccount="Checking ••4417"))
     # A write share doesn't see or change it (S18.6.2).
     john_id = john.get("/ui/api/session").json()["user"]["id"]
     r = share(jane, "account", aid, users={john_id: "write"})

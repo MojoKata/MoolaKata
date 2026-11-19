@@ -104,20 +104,6 @@ class AccountDetail(AccountRow):
     countedVersion: int = 0
 
 
-class NewAccount(Model):
-    name: str
-    type: str
-    institution: str | None = None
-    mask: str | None = None
-    notes: str | None = None
-    keptBy: list[str] = Field(default_factory=lambda: ["manual"])
-    lotMethod: str = "fifo"
-    openingBalance: Money | None = None
-    openingDate: dt.date | None = None
-    # A donor-advised fund counts in no one's net worth unless said (S1.1).
-    countInNetWorth: bool | None = None
-
-
 class AccountRecord(Model):
     """An account as a draft saves it (S12.15): its type is chosen when it is made; its
     settings are its owner's (S10.3)."""
@@ -271,10 +257,11 @@ class NewReconciliation(Model):
 # ---------- shaping ----------
 
 
-def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[FieldError]:
+def _check(body: AccountRecord, sent: set[str] | None = None) -> list[FieldError]:
+    """A record's refusals: every field of a new account (`sent` None); of one changed, its
+    values, with its name and opening balance only when the change touches them."""
     errors = []
-    sent = body.model_fields_set
-    new = isinstance(body, NewAccount) if new is None else new
+    new = sent is None
     named = new or "name" in sent
     if named and (not (body.name or "").strip() or len(body.name or "") > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
@@ -522,9 +509,7 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if f in sent:
             value = getattr(body, f)
             if isinstance(value, str):
-                value = value.strip() or None
-            if f in ("name",) and value is None:
-                continue
+                value = value.strip() or None  # a name is never blank: `_check` refuses it
             if getattr(a, f) != value:
                 setattr(a, f, value)
                 changed.append(f)
@@ -1016,7 +1001,7 @@ save.register(
 
 
 def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
-    _raise(_check(body, new=True))
+    _raise(_check(body))
     a = _make(ctx.s, ctx.caller, body, record_id)
     later = {
         f
@@ -1065,7 +1050,7 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
     sent = {f for f in AccountRecord.model_fields if getattr(body, f) != current[f]}
     if "type" in sent:
         raise refuse("type", "type-fixed", "An account keeps its type.")
-    _raise(_check(body, new=False))
+    _raise(_check(body, sent))
     p = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
     _change(ctx.s, ctx.caller, a, p, body, sent - set(WALLET_FIELDS))
     if sent & set(WALLET_FIELDS):

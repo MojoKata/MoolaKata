@@ -92,3 +92,29 @@ def test_the_markets_points_are_the_close_before_then_the_stored_history(monkeyp
     }
     assert len(asked) == 1
     assert valuation.market_points(None, [], d(2026, 1, 2), d(2026, 1, 10)) == {}
+
+
+@pytest.mark.parametrize(
+    ("rng", "first", "step"),
+    [
+        ("1M", d(2026, 9, 12), 1),  # 31 days back
+        ("3M", d(2026, 7, 13), 1),
+        ("YTD", d(2026, 1, 1), 1),
+        ("1Y", d(2025, 10, 12), 1),
+        ("5Y", d(2021, 10, 12), 5),  # past 400 days, a point every year's worth / 365
+        ("All", d(2026, 3, 2), 1),  # the account's first transaction
+    ],
+)
+def test_an_accounts_chart_starts_where_its_range_says(server, jane, rng, first, step):
+    from moolakata import clock
+
+    clock.fix(dt.datetime(2026, 10, 13, 12, tzinfo=dt.UTC))
+    try:
+        a = new_account(jane, openingBalance="0.00", openingDate="2026-03-01")
+        add(jane, a["id"], "10.00", "2026-03-02", kind="deposit")
+        pts = jane.get(f"/ui/api/accounts/{a['id']}/series", params={"range": rng}).json()
+    finally:
+        clock.fix(None)
+    days = [d.fromisoformat(p["date"]) for p in pts["points"]]
+    assert days[0] == first and days[-1] == d(2026, 10, 13)
+    assert (days[1] - days[0]).days == step

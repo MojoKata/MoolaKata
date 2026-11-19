@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, saved, tag
+from edits import change, make, new_id, remove, saved, tag
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -296,3 +296,42 @@ def test_re2s_reason_is_read_whatever_form_it_comes_in(args, said):
     import re2
 
     assert match._refusal(re2.error(*args)) == said
+
+
+@pytest.mark.parametrize(
+    ("fields", "field", "code"),
+    [
+        ({"direction": "sideways"}, "direction", "direction-invalid"),
+        ({"amountMin": "-0.01"}, "amountMin", "amount-invalid"),
+        ({"amountMax": "-0.01"}, "amountMax", "amount-invalid"),
+        ({"amountMin": "10", "amountMax": "9.99"}, "amountMax", "range-invalid"),
+        ({"accountId": "theirs"}, "accountId", "account-unknown"),
+        ({"categoryId": "gone"}, "categoryId", "category-unknown"),
+        ({"payee": "x" * 201}, "payee", "payee-too-long"),
+        ({"tags": 11}, "tagIds", "tags-invalid"),
+        ({"payee": "   ", "categoryId": None}, "categoryId", "rule-sets-nothing"),
+        # Each bound's own side is kept.
+        ({"direction": "in"}, None, None),
+        ({"amountMin": "0", "amountMax": "0"}, None, None),
+        ({"payee": " " + "x" * 200 + " "}, None, None),
+        ({"tags": 10}, None, None),
+        ({"tags": 1, "categoryId": None}, None, None),
+    ],
+)
+def test_each_part_of_a_rule_is_refused_on_its_own_field(server, jane, fields, field, code):
+    """S2.7: what a rule matches and sets is checked field by field (R3.11)."""
+    fields = dict(fields)
+    fields.setdefault("categoryId", cats(jane)["Food › Groceries"])
+    if fields.get("accountId") == "theirs":
+        make_user(server, "john")
+        fields["accountId"] = new_account(sign_in(server, "john"), name="John's")["id"]
+    if fields.get("categoryId") == "gone":
+        fields["categoryId"] = new_id("Cat")
+    if "tags" in fields:
+        fields["tagIds"] = [tag(jane, f"t{i}") for i in range(fields.pop("tags"))]
+    r = make(jane, "Rule", payeeMatch="acme", **fields)
+    if code is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)

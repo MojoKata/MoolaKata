@@ -140,30 +140,6 @@ class TxnOut(Model):
     version: int
 
 
-class TxnIn(Model):
-    accountId: str
-    date: dt.date
-    kind: str = "withdrawal"
-    amount: Money
-    payee: str | None = None
-    memo: str | None = None
-    categoryId: str | None = None
-    instrumentId: str | None = None
-    symbol: str | None = None
-    quantity: Quantity | None = None
-    price: Quantity | None = None
-    fees: Money | None = None
-    dividendType: str | None = None
-    splitRatio: Quantity | None = None
-    contributionYear: int | None = None
-    contributionSource: str | None = None
-    costBasis: Money | None = None
-    reimbursable: Money | None = None
-    owedBy: str | None = None
-    splits: list[SplitIn] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-
-
 class Categorise(Model):
     ids: list[str]
     categoryId: str | None
@@ -454,7 +430,7 @@ def _check(
     errors = []
     if kind not in TXN_KINDS:
         errors.append(FieldError("kind", "kind-invalid", "Choose a kind of transaction."))
-    elif kind == "adjustment" and not (getattr(body, "memo", None) or "").strip():
+    elif kind == "adjustment" and not (body.memo or "").strip():
         # A difference accepted as an adjustment says why (S1.11.4).
         errors.append(FieldError("memo", "note-required", "Say why the balance is adjusted."))
     elif kind in OPTION_KINDS[:3]:
@@ -469,39 +445,20 @@ def _check(
         errors.append(
             FieldError("kind", "kind-not-for-account", "Trades belong in an investing account.")
         )
-    if kind == "foreign-tax" and getattr(body, "amount", None) is not None and body.amount > 0:
+    if kind == "foreign-tax" and body.amount is not None and body.amount > 0:
         errors.append(
             FieldError("amount", "amount-sign", "Foreign tax paid is money out: a negative amount.")
         )
-    if getattr(body, "categoryId", None):
+    if body.categoryId:
         cat = s.get(Category, body.categoryId)
         if cat is None or cat.deleted:
             errors.append(FieldError("categoryId", "category-unknown", "Choose a category."))
-    for i, sp in enumerate(getattr(body, "splits", None) or []):
-        if sp.categoryId:
-            cat = s.get(Category, sp.categoryId)
-            if cat is None or cat.deleted:
-                errors.append(
-                    FieldError(f"splits.{i}.categoryId", "category-unknown", "Choose a category.")
-                )
-    if getattr(body, "splits", None) and body.amount is not None:
-        total = sum((sp.amount for sp in body.splits), Decimal(0))
-        if total != body.amount:
-            errors.append(
-                FieldError(
-                    "splits",
-                    "splits-unbalanced",
-                    "The parts must add up to the transaction's amount.",
-                )
-            )
     # A trade's fees are typed with it, 0 for none: a blank is refused (R3.11).
-    fees = getattr(body, "fees", None)
+    fees = body.fees
     if (fees_sent and kind in lots.FEE_KINDS and fees is None) or (fees is not None and fees < 0):
         errors.append(FieldError("fees", "fees-invalid", "Zero or more."))
-    errors += _check_reimbursable(body, "", body.amount)
-    for i, sp in enumerate(getattr(body, "splits", None) or []):
-        errors += _check_reimbursable(sp, f"splits.{i}.", sp.amount)
-    if getattr(body, "payee", None) and len(body.payee) > 200:
+    errors += _check_reimbursable(body)
+    if body.payee and len(body.payee) > 200:
         errors.append(FieldError("payee", "payee-too-long", "At most 200 characters."))
     if body.contributionSource and body.contributionSource not in SOURCES:
         errors.append(
@@ -516,21 +473,19 @@ def _check(
     return errors
 
 
-def _check_reimbursable(body, at: str, amount: Decimal | None) -> list[FieldError]:
-    """Spending marked to be paid back: no more than was spent (S2.9)."""
+def _check_reimbursable(body: TxnRecord | SplitRecord) -> list[FieldError]:
+    """Spending marked to be paid back, a transaction's or a part's: no more than was spent
+    (S2.9)."""
     errors = []
-    r = getattr(body, "reimbursable", None)
+    r, amount = body.reimbursable, body.amount
     if r is not None and (r <= 0 or amount is None or amount >= 0 or r > -amount):
         errors.append(
             FieldError(
-                f"{at}reimbursable",
-                "reimbursable-invalid",
-                "Spending only, and no more than was spent.",
+                "reimbursable", "reimbursable-invalid", "Spending only, and no more than was spent."
             )
         )
-    owed = getattr(body, "owedBy", None)
-    if owed is not None and len(owed) > 80:
-        errors.append(FieldError(f"{at}owedBy", "owed-by-too-long", "At most 80 characters."))
+    if body.owedBy is not None and len(body.owedBy) > 80:
+        errors.append(FieldError("owedBy", "owed-by-too-long", "At most 80 characters."))
     return errors
 
 
@@ -539,35 +494,7 @@ def _raise(errors: list[FieldError]) -> None:
         raise Problem(422, errors[0].code, errors[0].message, errors)
 
 
-def _set_splits(s: Session, t: Transaction, splits: list[SplitIn], by: str) -> None:
-    for old in s.scalars(
-        select(Split).where(Split.transactionId == t.id, Split.deleted == false())
-    ):
-        old.mark_deleted(by)
-    for sp in splits:
-        s.add(
-            Split(
-                id=ids.new_id("Split"),
-                transactionId=t.id,
-                categoryId=sp.categoryId,
-                amount=sp.amount,
-                memo=sp.memo,
-                reimbursable=sp.reimbursable,
-                owedBy=(sp.owedBy or "").strip() or None,
-                deductible=sp.deductible,
-            )
-        )
-    if splits:
-        t.categoryId = None
-
-
-def _set_tags(s: Session, t: Transaction, user_id: str, names: list[str]) -> None:
-    """Tags given by name (a new transaction's): each the user's own, made when new."""
-    tag_ids = [tags.make(s, user_id, n).id for n in dict.fromkeys(names) if n.strip()]
-    tags.set_on(s, "transaction", t.id, user_id, tag_ids, user_id)
-
-
-def _instrument(s: Session, body: TxnIn, account: Account) -> str | None:
+def _instrument(s: Session, body: TxnRecord, account: Account) -> str | None:
     if body.instrumentId:
         inst = s.get(Instrument, body.instrumentId)
         if inst is None or inst.deleted:
@@ -660,7 +587,7 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
         price=body.price,
         fees=body.fees,
         dividendType=body.dividendType,
-        splitRatio=getattr(body, "splitRatio", None),
+        splitRatio=body.splitRatio,
         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
         contributionYear=body.contributionYear
         if body.contributionYear
@@ -668,8 +595,8 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
         contributionSource=body.contributionSource,
         reimbursable=body.reimbursable,
         owedBy=(body.owedBy or "").strip() or None,
-        deductible=getattr(body, "deductible", None),
-        cleared=bool(getattr(body, "cleared", False)),
+        deductible=body.deductible,
+        cleared=body.cleared,
         createdById=c.id,
     )
     s.add(t)
@@ -698,12 +625,9 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
 
         s.flush()
         pairs.propose(s, a.ownerId)
-    _set_splits(s, t, getattr(body, "splits", None) or [], c.id)
-    if getattr(body, "tagIds", None):
+    if body.tagIds:
         tags.owned(s, c.id, body.tagIds)
         tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
-    elif getattr(body, "tags", None):
-        _set_tags(s, t, c.id, body.tags)
     repo.match_transfer(s, t, a.ownerId)
     s.flush()
     if t.kind == "split" and inst_id:
@@ -824,10 +748,7 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
         for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
             lot.quantity, lot.acquiredOn = t.quantity, t.date
             lot.costBasis = -t.amount
-    if getattr(body, "splits", None) is not None and "splits" in sent:
-        _set_splits(s, t, body.splits, c.id)
-        changed.append("splits")
-    if getattr(body, "tagIds", None) is not None and "tagIds" in sent:
+    if "tagIds" in sent:
         tags.owned(s, c.id, body.tagIds)
         tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
     return changed
@@ -1293,7 +1214,7 @@ def _split_txn(ctx, txn_id: str) -> tuple[Transaction, Account]:
 
 def _split_checked(ctx, body: SplitRecord) -> tuple[Transaction, Account]:
     t, a = _split_txn(ctx, body.transactionId)
-    errors = _check_reimbursable(body, "", body.amount)
+    errors = _check_reimbursable(body)
     if body.categoryId:
         cat = ctx.s.get(Category, body.categoryId)
         if cat is None or cat.deleted:
