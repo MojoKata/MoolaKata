@@ -5,9 +5,10 @@ Temporary: `docs/relay/` is deleted before PR #599 merges. Read this whole brief
 
 ## Goal
 
-H1.8 (#69) sweeps `server/ledger`. A CI mutation run (fork run 44505709314) left these
-survivors in `ui/transactions.py`, `ui/accounts.py` and `ledger/balances.py`: changes to the
-code that every test still passes. Your batch is one file, `docs/relay/batch-N.txt` (each
+H1.8 (#69) sweeps `server/ledger`. CI mutation runs (fork runs 44505709314 for batches 1-7,
+44561996257 for 8 on) left these survivors in `ui/transactions.py`, `ui/accounts.py` and
+`ledger/balances.py`: changes to the code that every test still passes. Tests the earlier
+batches added may already kill some of yours: the batch's mutation check shows which. Your batch is one file, `docs/relay/batch-N.txt` (each
 change's name, then its diff), with the bare names in `batch-N.names`. The code at the head of
 `h1-8-ledger` is the code the run mutated.
 

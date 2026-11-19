@@ -1,0 +1,749 @@
+# Batch 8: 83 survivors in ui.transactions._make, ui.transactions._raise, ui.transactions._txn_create, ui.transactions.shape
+# Each: the change's name, then its diff (from fork run 44561996257, code unchanged at the head).
+
+# moolakata.ui.transactions.x__make__mutmut_5
+ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
+     """A transaction made, with its lot, splits and tags; the closed-year question (S2.8) is
+     the write's own check, before it commits (`taxes.closed`)."""
+-    a, held = access.account(s, c.id, body.accountId, "write")
++    a, held = access.account(s, c.id, body.accountId, None)
+     investing = atypes.investing(a.type)
+     _raise(_check(s, body, body.kind, investing))
+     if confirm:
+# moolakata.ui.transactions.x__make__mutmut_9
+ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
+     """A transaction made, with its lot, splits and tags; the closed-year question (S2.8) is
+     the write's own check, before it commits (`taxes.closed`)."""
+-    a, held = access.account(s, c.id, body.accountId, "write")
++    a, held = access.account(s, c.id, body.accountId, )
+     investing = atypes.investing(a.type)
+     _raise(_check(s, body, body.kind, investing))
+     if confirm:
+# moolakata.ui.transactions.x__make__mutmut_23
+     investing = atypes.investing(a.type)
+     _raise(_check(s, body, body.kind, investing))
+     if confirm:
+-        closed.confirm(s)
++        closed.confirm(None)
+     inst_id = _instrument(s, body, a)
+     if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+# moolakata.ui.transactions.x__make__mutmut_35
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "XXsellXX", "reinvest", "transfer-in", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_36
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "SELL", "reinvest", "transfer-in", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_37
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "XXreinvestXX", "transfer-in", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_38
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "REINVEST", "transfer-in", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_39
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "XXtransfer-inXX", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_40
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "TRANSFER-IN", "transfer-out", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_41
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "XXtransfer-outXX", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_42
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "TRANSFER-OUT", "reward") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_43
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "XXrewardXX") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_44
+     if confirm:
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+-    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
++    if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "REWARD") and (
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+# moolakata.ui.transactions.x__make__mutmut_45
+         closed.confirm(s)
+     inst_id = _instrument(s, body, a)
+     if body.kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward") and (
+-        not inst_id or not body.quantity
++        not inst_id and not body.quantity
+     ):
+         raise refuse(
+             "symbol" if not inst_id else "quantity",
+# moolakata.ui.transactions.x__make__mutmut_48
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            None,
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_50
+         raise refuse(
+             "symbol" if not inst_id else "quantity",
+             "trade-incomplete",
+-            "A trade needs its instrument and quantity.",
++            None,
+         )
+     t = Transaction(
+         id=txn_id,
+# moolakata.ui.transactions.x__make__mutmut_54
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "symbol" if (not inst_id) and False else "quantity",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_55
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "symbol" if (not inst_id) or True else "quantity",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_56
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "XXsymbolXX" if not inst_id else "quantity",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_57
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "SYMBOL" if not inst_id else "quantity",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_58
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "symbol" if inst_id else "quantity",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_59
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "symbol" if not inst_id else "XXquantityXX",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_60
+         not inst_id or not body.quantity
+     ):
+         raise refuse(
+-            "symbol" if not inst_id else "quantity",
++            "symbol" if not inst_id else "QUANTITY",
+             "trade-incomplete",
+             "A trade needs its instrument and quantity.",
+         )
+# moolakata.ui.transactions.x__make__mutmut_63
+         raise refuse(
+             "symbol" if not inst_id else "quantity",
+             "trade-incomplete",
+-            "A trade needs its instrument and quantity.",
++            "XXA trade needs its instrument and quantity.XX",
+         )
+     t = Transaction(
+         id=txn_id,
+# moolakata.ui.transactions.x__make__mutmut_64
+         raise refuse(
+             "symbol" if not inst_id else "quantity",
+             "trade-incomplete",
+-            "A trade needs its instrument and quantity.",
++            "a trade needs its instrument and quantity.",
+         )
+     t = Transaction(
+         id=txn_id,
+# moolakata.ui.transactions.x__make__mutmut_65
+         raise refuse(
+             "symbol" if not inst_id else "quantity",
+             "trade-incomplete",
+-            "A trade needs its instrument and quantity.",
++            "A TRADE NEEDS ITS INSTRUMENT AND QUANTITY.",
+         )
+     t = Transaction(
+         id=txn_id,
+# moolakata.ui.transactions.x__make__mutmut_74
+         amount=body.amount,
+         payee=(body.payee or "").strip() or None,
+         payeeRaw=(body.payee or "").strip() or None,
+-        memo=body.memo,
++        memo=None,
+         categoryId=body.categoryId,
+         instrumentId=inst_id,
+         quantity=body.quantity,
+# moolakata.ui.transactions.x__make__mutmut_83
+         dividendType=body.dividendType,
+         splitRatio=body.splitRatio,
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+-        contributionYear=body.contributionYear
+-        if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        contributionYear=None,
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_88
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+         deductible=body.deductible,
+-        cleared=body.cleared,
++        cleared=None,
+         createdById=c.id,
+     )
+     s.add(t)
+# moolakata.ui.transactions.x__make__mutmut_89
+         owedBy=(body.owedBy or "").strip() or None,
+         deductible=body.deductible,
+         cleared=body.cleared,
+-        createdById=c.id,
++        createdById=None,
+     )
+     s.add(t)
+     s.flush()
+# moolakata.ui.transactions.x__make__mutmut_97
+         amount=body.amount,
+         payee=(body.payee or "").strip() or None,
+         payeeRaw=(body.payee or "").strip() or None,
+-        memo=body.memo,
+         categoryId=body.categoryId,
+         instrumentId=inst_id,
+         quantity=body.quantity,
+# moolakata.ui.transactions.x__make__mutmut_106
+         dividendType=body.dividendType,
+         splitRatio=body.splitRatio,
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+-        contributionYear=body.contributionYear
+-        if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_111
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+         deductible=body.deductible,
+-        cleared=body.cleared,
+         createdById=c.id,
+     )
+     s.add(t)
+# moolakata.ui.transactions.x__make__mutmut_112
+         owedBy=(body.owedBy or "").strip() or None,
+         deductible=body.deductible,
+         cleared=body.cleared,
+-        createdById=c.id,
+-    )
++        )
+     s.add(t)
+     s.flush()
+     if inst_id and body.kind == "transfer-in":
+# moolakata.ui.transactions.x__make__mutmut_115
+         date=body.date,
+         kind=body.kind,
+         amount=body.amount,
+-        payee=(body.payee or "").strip() or None,
++        payee=(body.payee or "XXXX").strip() or None,
+         payeeRaw=(body.payee or "").strip() or None,
+         memo=body.memo,
+         categoryId=body.categoryId,
+# moolakata.ui.transactions.x__make__mutmut_118
+         kind=body.kind,
+         amount=body.amount,
+         payee=(body.payee or "").strip() or None,
+-        payeeRaw=(body.payee or "").strip() or None,
++        payeeRaw=(body.payee or "XXXX").strip() or None,
+         memo=body.memo,
+         categoryId=body.categoryId,
+         instrumentId=inst_id,
+# moolakata.ui.transactions.x__make__mutmut_120
+         fees=body.fees,
+         dividendType=body.dividendType,
+         splitRatio=body.splitRatio,
+-        lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
++        lotMethod=a.lotMethod if (body.kind in lots.DISPOSALS) or True else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+         else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+# moolakata.ui.transactions.x__make__mutmut_122
+         splitRatio=body.splitRatio,
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+-        if body.contributionYear
++        if (body.contributionYear) and False
+         else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+# moolakata.ui.transactions.x__make__mutmut_123
+         splitRatio=body.splitRatio,
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+-        if body.contributionYear
++        if (body.contributionYear) or True
+         else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+# moolakata.ui.transactions.x__make__mutmut_124
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if (body.kind == "deposit" and atypes.retirement(a.type)) and False else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_125
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if (body.kind == "deposit" and atypes.retirement(a.type)) or True else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_126
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if body.kind == "deposit" or atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_127
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if body.kind != "deposit" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_128
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if body.kind == "XXdepositXX" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_129
+         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
+         contributionYear=body.contributionYear
+         if body.contributionYear
+-        else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
++        else (body.date.year if body.kind == "DEPOSIT" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+         owedBy=(body.owedBy or "").strip() or None,
+# moolakata.ui.transactions.x__make__mutmut_133
+         else (body.date.year if body.kind == "deposit" and atypes.retirement(a.type) else None),
+         contributionSource=body.contributionSource,
+         reimbursable=body.reimbursable,
+-        owedBy=(body.owedBy or "").strip() or None,
++        owedBy=(body.owedBy or "XXXX").strip() or None,
+         deductible=body.deductible,
+         cleared=body.cleared,
+         createdById=c.id,
+# moolakata.ui.transactions.x__make__mutmut_153
+     s.flush()
+     if inst_id and body.kind == "transfer-in":
+         _transfer_lots(s, t, a, inst_id, body)
+-    elif inst_id and body.kind in ("buy", "reinvest", "reward"):
++    elif inst_id and body.kind in ("buy", "XXreinvestXX", "reward"):
+         basis = -body.amount
+         if body.kind == "reward":
+             basis = _reward_basis(s, body, inst_id, a.ownerId)
+# moolakata.ui.transactions.x__make__mutmut_154
+     s.flush()
+     if inst_id and body.kind == "transfer-in":
+         _transfer_lots(s, t, a, inst_id, body)
+-    elif inst_id and body.kind in ("buy", "reinvest", "reward"):
++    elif inst_id and body.kind in ("buy", "REINVEST", "reward"):
+         basis = -body.amount
+         if body.kind == "reward":
+             basis = _reward_basis(s, body, inst_id, a.ownerId)
+# moolakata.ui.transactions.x__make__mutmut_163
+     elif inst_id and body.kind in ("buy", "reinvest", "reward"):
+         basis = -body.amount
+         if body.kind == "reward":
+-            basis = _reward_basis(s, body, inst_id, a.ownerId)
++            basis = _reward_basis(None, body, inst_id, a.ownerId)
+         s.add(
+             Lot(
+                 id=ids.new_id("Lot"),
+# moolakata.ui.transactions.x__make__mutmut_165
+     elif inst_id and body.kind in ("buy", "reinvest", "reward"):
+         basis = -body.amount
+         if body.kind == "reward":
+-            basis = _reward_basis(s, body, inst_id, a.ownerId)
++            basis = _reward_basis(s, body, None, a.ownerId)
+         s.add(
+             Lot(
+                 id=ids.new_id("Lot"),
+# moolakata.ui.transactions.x__make__mutmut_166
+     elif inst_id and body.kind in ("buy", "reinvest", "reward"):
+         basis = -body.amount
+         if body.kind == "reward":
+-            basis = _reward_basis(s, body, inst_id, a.ownerId)
++            basis = _reward_basis(s, body, inst_id, None)
+         s.add(
+             Lot(
+                 id=ids.new_id("Lot"),
+# moolakata.ui.transactions.x__make__mutmut_179
+                 acquiredOn=body.date,
+                 quantity=body.quantity,
+                 costBasis=basis,
+-                basisMissing=basis is None,
++                basisMissing=None,
+             )
+         )
+     if inst_id and body.kind in ("transfer-in", "transfer-out"):
+# moolakata.ui.transactions.x__make__mutmut_187
+                 acquiredOn=body.date,
+                 quantity=body.quantity,
+                 costBasis=basis,
+-                basisMissing=basis is None,
+-            )
++                )
+         )
+     if inst_id and body.kind in ("transfer-in", "transfer-out"):
+         # Shares or coins moved between the owner's accounts, offered as a pair.
+# moolakata.ui.transactions.x__make__mutmut_193
+                 basisMissing=basis is None,
+             )
+         )
+-    if inst_id and body.kind in ("transfer-in", "transfer-out"):
++    if inst_id or body.kind in ("transfer-in", "transfer-out"):
+         # Shares or coins moved between the owner's accounts, offered as a pair.
+         from ..bitcoin import transfers as pairs
+ 
+# moolakata.ui.transactions.x__make__mutmut_197
+                 basisMissing=basis is None,
+             )
+         )
+-    if inst_id and body.kind in ("transfer-in", "transfer-out"):
++    if inst_id and body.kind in ("transfer-in", "XXtransfer-outXX"):
+         # Shares or coins moved between the owner's accounts, offered as a pair.
+         from ..bitcoin import transfers as pairs
+ 
+# moolakata.ui.transactions.x__make__mutmut_198
+                 basisMissing=basis is None,
+             )
+         )
+-    if inst_id and body.kind in ("transfer-in", "transfer-out"):
++    if inst_id and body.kind in ("transfer-in", "TRANSFER-OUT"):
+         # Shares or coins moved between the owner's accounts, offered as a pair.
+         from ..bitcoin import transfers as pairs
+ 
+# moolakata.ui.transactions.x__make__mutmut_212
+         pairs.propose(s, a.ownerId)
+     if body.tagIds:
+         tags.owned(s, c.id, body.tagIds)
+-        tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
++        tags.set_on(s, "transaction", t.id, None, body.tagIds, c.id)
+     repo.match_transfer(s, t, a.ownerId)
+     s.flush()
+     if t.kind == "split" and inst_id:
+# moolakata.ui.transactions.x__make__mutmut_214
+         pairs.propose(s, a.ownerId)
+     if body.tagIds:
+         tags.owned(s, c.id, body.tagIds)
+-        tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
++        tags.set_on(s, "transaction", t.id, c.id, body.tagIds, None)
+     repo.match_transfer(s, t, a.ownerId)
+     s.flush()
+     if t.kind == "split" and inst_id:
+# moolakata.ui.transactions.x__make__mutmut_229
+         tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
+     repo.match_transfer(s, t, a.ownerId)
+     s.flush()
+-    if t.kind == "split" and inst_id:
++    if t.kind == "split" or inst_id:
+         # Its open options follow a whole-number split (S3.10.1).
+         from ..options import adjust
+ 
+# moolakata.ui.transactions.x__make__mutmut_234
+         # Its open options follow a whole-number split (S3.10.1).
+         from ..options import adjust
+ 
+-        adjust.with_split(s, c.id, a, t)
++        adjust.with_split(s, None, a, t)
+         s.flush()
+     if inst_id:
+         washes.recompute(s, a.ownerId)
+# moolakata.ui.transactions.x__raise__mutmut_3
+ def _raise(errors: list[FieldError]) -> None:
+     if errors:
+-        raise Problem(422, errors[0].code, errors[0].message, errors)
++        raise Problem(422, errors[0].code, None, errors)
+# moolakata.ui.transactions.x__txn_create__mutmut_14
+ 
+         t = make_trade(ctx, record_id, body)
+     else:
+-        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
++        t, _, _ = _make(ctx.s, ctx.caller, body, record_id, None)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+# moolakata.ui.transactions.x__txn_create__mutmut_21
+         t = make_trade(ctx, record_id, body)
+     else:
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+-    ctx.notes.setdefault("transactions-made", set()).add(t.id)
++    ctx.notes.setdefault("transactions-made", set()).add(None)
+     if body.leftOutOf:
+         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+# moolakata.ui.transactions.x__txn_create__mutmut_22
+         t = make_trade(ctx, record_id, body)
+     else:
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+-    ctx.notes.setdefault("transactions-made", set()).add(t.id)
++    ctx.notes.setdefault(None, set()).add(t.id)
+     if body.leftOutOf:
+         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+# moolakata.ui.transactions.x__txn_create__mutmut_26
+         t = make_trade(ctx, record_id, body)
+     else:
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+-    ctx.notes.setdefault("transactions-made", set()).add(t.id)
++    ctx.notes.setdefault("XXtransactions-madeXX", set()).add(t.id)
+     if body.leftOutOf:
+         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+# moolakata.ui.transactions.x__txn_create__mutmut_27
+         t = make_trade(ctx, record_id, body)
+     else:
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+-    ctx.notes.setdefault("transactions-made", set()).add(t.id)
++    ctx.notes.setdefault("TRANSACTIONS-MADE", set()).add(t.id)
+     if body.leftOutOf:
+         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+# moolakata.ui.transactions.x__txn_create__mutmut_28
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(None, ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_29
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, None, t, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_30
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, None, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_31
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, t, None, body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_32
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, t, [], None)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_33
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.caller, t, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_34
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, t, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_35
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, [], body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_36
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, t, body.leftOutOf)
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x__txn_create__mutmut_37
+         t, _, _ = _make(ctx.s, ctx.caller, body, record_id, False)
+     ctx.notes.setdefault("transactions-made", set()).add(t.id)
+     if body.leftOutOf:
+-        _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
++        _set_left_out(ctx.s, ctx.caller, t, [], )
+     if body.transferWithId:
+         _transfer_with(ctx, t, body.transferWithId)
+     _parts_add_up(ctx, t)
+# moolakata.ui.transactions.x_shape__mutmut_28
+     if ids_:
+         for sp in s.scalars(
+             select(Split)
+-            .where(Split.transactionId.in_(ids_), Split.deleted == false())
++            .where(Split.transactionId.in_(ids_), )
+             .order_by(Split.id)
+         ):
+             splits.setdefault(sp.transactionId, []).append(sp)
+# moolakata.ui.transactions.x_shape__mutmut_43
+         for p in s.scalars(
+             select(LotPick)
+             .where(LotPick.saleId.in_(sales), LotPick.deleted == false())
+-            .order_by(LotPick.id)
++            .order_by(None)
+         ):
+             picked.setdefault(p.saleId, []).append(p)
+     tagged = _tags(s, user_id, ids_)
+# moolakata.ui.transactions.x_shape__mutmut_46
+     if sales:
+         for p in s.scalars(
+             select(LotPick)
+-            .where(LotPick.saleId.in_(sales), LotPick.deleted == false())
++            .where(LotPick.deleted == false())
+             .order_by(LotPick.id)
+         ):
+             picked.setdefault(p.saleId, []).append(p)
+# moolakata.ui.transactions.x_shape__mutmut_69
+             picked.setdefault(p.saleId, []).append(p)
+     tagged = _tags(s, user_id, ids_)
+     paid = reimbursements.paid_back(s, ids_)
+-    moved_in = [t.id for t in rows if t.kind == "transfer-in"]
++    moved_in = [t.id for t in rows if t.kind != "transfer-in"]
+     bases = {
+         lot.transactionId: lot.costBasis
+         for lot in s.scalars(select(Lot).where(Lot.transactionId.in_(moved_in)))
+# moolakata.ui.transactions.x_shape__mutmut_70
+             picked.setdefault(p.saleId, []).append(p)
+     tagged = _tags(s, user_id, ids_)
+     paid = reimbursements.paid_back(s, ids_)
+-    moved_in = [t.id for t in rows if t.kind == "transfer-in"]
++    moved_in = [t.id for t in rows if t.kind == "XXtransfer-inXX"]
+     bases = {
+         lot.transactionId: lot.costBasis
+         for lot in s.scalars(select(Lot).where(Lot.transactionId.in_(moved_in)))
+# moolakata.ui.transactions.x_shape__mutmut_71
+             picked.setdefault(p.saleId, []).append(p)
+     tagged = _tags(s, user_id, ids_)
+     paid = reimbursements.paid_back(s, ids_)
+-    moved_in = [t.id for t in rows if t.kind == "transfer-in"]
++    moved_in = [t.id for t in rows if t.kind == "TRANSFER-IN"]
+     bases = {
+         lot.transactionId: lot.costBasis
+         for lot in s.scalars(select(Lot).where(Lot.transactionId.in_(moved_in)))
+# moolakata.ui.transactions.x_shape__mutmut_130
+                 imported=t.importId is not None,
+                 cleared=t.cleared,
+                 reconciled=t.reconciliationId in finished,
+-                amountWas=t.amountWas,
++                amountWas=None,
+                 offChainAt=t.offChainAt,
+                 reimbursable=t.reimbursable,
+                 owedBy=t.owedBy,
