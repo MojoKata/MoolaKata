@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
-from sqlalchemy import and_, false, func, or_, select, type_coerce
+from sqlalchemy import false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
 from .. import access, activity, clock, ids, reimbursements, tags, washes
@@ -854,22 +854,26 @@ def categorise(body: Categorise, request: Request, c: Caller = Depends(caller)):
 @router.post("/transactions/{txn_id}/both-real", response_model=TxnOut)
 def both_real(txn_id: str, request: Request, c: Caller = Depends(caller)):
     """Two identical rows on one day, or two a file gave one id: the answer *both real* is
-    kept (S1.11.5)."""
+    kept (S1.11.5), on the rows of each group of possible duplicates the row is in, as the
+    reconcile view groups them, and no others."""
+    from ..ledger import reconcile
+
     with server(request).db.tx(user=c.id) as s:
         t = s.get(Transaction, txn_id)
         if t is None or t.deleted:
             raise Problem(404, "not-found", "Not found")
         a, held = access.account(s, c.id, t.accountId, "write")
-        base = (t.fitId or "").rpartition("#")[0] or t.fitId
-        same = and_(Transaction.date == t.date, Transaction.amount == t.amount)
-        if base:
-            same = or_(same, Transaction.fitId == base, Transaction.fitId.like(f"{base}#%"))
-        for twin in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId == t.accountId, same, Transaction.deleted == false()
+        txns = list(
+            s.scalars(
+                select(Transaction).where(
+                    Transaction.accountId == t.accountId, Transaction.deleted == false()
+                )
             )
-        ):
-            twin.duplicateAnswer = "both-real"
+        )
+        twins = {i for group in reconcile.duplicates(txns) if t.id in group for i in group}
+        for x in txns:
+            if x.id in twins:
+                x.duplicateAnswer = "both-real"
         s.flush()
         return shape(s, c.id, [t], {a.id: held})[0]
 

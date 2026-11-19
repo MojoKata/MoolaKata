@@ -746,3 +746,47 @@ def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, fi
         return
     assert r.status_code == 422, r.text
     assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)
+
+
+def test_both_real_answers_the_rows_grouped_with_it_and_no_others(server):
+    """S1.11.5: *both real* is kept on the rows the reconcile view grouped as possible
+    duplicates with the one answered: the same day, amount and payee, or one id a file gave
+    twice, never a row that only shares the day and amount."""
+    from moolakata.ledger import reconcile
+    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.store.repos import ledger as repo
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    cafe = add(c, a["id"], "-40.00", "2026-09-05", payee="Cafe")
+    add(c, a["id"], "-40.00", "2026-09-05", payee="Cafe")
+    bakery = add(c, a["id"], "-40.00", "2026-09-05", payee="Bakery")
+    add(c, a["id"], "-40.00", "2026-09-05", payee="Bakery")
+    b = new_account(c, name="Second", mask="9999")
+    data = (FIX / "bank.ofx").read_bytes().replace(b"<FITID>20260910-1", b"<FITID>20260903-1")
+    assert upload(c, b["id"], "repeat.qfx", data)["result"]["added"] == 5
+
+    def groups(account_id):
+        with server.db.read(unscoped="test") as s:
+            txns = repo.load(s, s.get(Account, account_id)).transactions
+            return [sorted(t.payee or "" for t in txns if t.id in g)
+                    for g in reconcile.duplicates(txns)]  # fmt: skip
+
+    assert groups(a["id"]) == [["Cafe", "Cafe"], ["Bakery", "Bakery"]]
+    r = c.post(f"/ui/api/transactions/{cafe['id']}/both-real")
+    assert r.status_code == 200, r.text
+    assert groups(a["id"]) == [["Bakery", "Bakery"]]
+    with server.db.read(unscoped="test") as s:
+        second = s.query(Transaction).filter_by(accountId=b["id"], fitId="20260903-1#2").one().id
+    assert c.post(f"/ui/api/transactions/{second}/both-real").status_code == 200
+    assert groups(b["id"]) == []
+    # Another user's row, and one deleted, are not found.
+    make_user(server, "john")
+    assert (
+        sign_in(server, "john").post(f"/ui/api/transactions/{bakery['id']}/both-real").status_code
+        == 404
+    )
+    one = c.get("/ui/api/transactions", params={"payee": "bakery"}).json()["items"][0]
+    saved(remove(c, "Txn", one))
+    assert c.post(f"/ui/api/transactions/{one['id']}/both-real").status_code == 404
