@@ -105,3 +105,28 @@ def test_a_difference_the_statements_trades_explain_is_pointed_at():
     assert hint(9, both) is None
     assert hint(7, [(D2, "KO", D(2), "buy")]) is None
     assert hint(5, both) is None
+
+
+def test_a_statement_value_is_held_to_the_accounts_value_on_its_day(monkeypatch):
+    """S1.3.3.8.1: each statement's ending value, oldest first, against the account's value on
+    the statement's day, its holdings counted when the account is an investing one; a cash
+    balance reported is no value check."""
+    from moolakata import valuation
+    from moolakata.ledger import reconcile
+
+    seen = []
+
+    def value(s, led, investing, day):
+        seen.append((investing, day))
+        return D(7)
+
+    monkeypatch.setattr(valuation, "account_value", value)
+    anchors = [NS(date=D2, balance=D(9), source="statement-value"),
+               NS(date=D1, balance=D(5), source="statement-value"),
+               NS(date=D3, balance=D(1), source="typed")]  # fmt: skip
+    for type_, investing in (("brokerage", True), ("checking", False)):
+        seen.clear()
+        got = reconcile.value_checks(None, NS(account=NS(type=type_)), anchors)
+        assert [(v.date, v.reported, v.computed) for v in got] == [(D1, D(5), D(7)),
+                                                                    (D2, D(9), D(7))]  # fmt: skip
+        assert seen == [(investing, D1), (investing, D2)]
