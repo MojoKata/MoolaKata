@@ -435,7 +435,8 @@ def test_each_change_to_a_rule_is_the_owners_activity_and_only_what_happened(ser
     first = saved(change(jane, "Rule", first, position=1))
     assert next(x["kind"] for x in feed(jane)[1]) == "rule.moved"
     first = saved(change(jane, "Rule", first, payee="Acme"))
-    assert [x["kind"] for x in feed(jane)[1]][:2] == ["rule.updated", "rule.moved"]
+    kinds = [x["kind"] for x in feed(jane)[1]]
+    assert kinds[0] == "rule.updated" and kinds.count("rule.moved") == 1, kinds
     saved(remove(jane, "Rule", first))
     assert next(x["kind"] for x in feed(jane)[1]) == "rule.deleted"
     a = new_account(jane, name="Joint")
@@ -445,6 +446,14 @@ def test_each_change_to_a_rule_is_the_owners_activity_and_only_what_happened(ser
     assert jane.post("/ui/api/rules/apply").json()["changed"] == 2
     applied = feed(jane)[1][0]
     assert applied["kind"] == "rules.applied" and "2" in applied["text"], applied
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.query(Activity).filter(Activity.kind.like("rule%")).all()
+        assert {r.ownerId for r in rows} == {me}
+        assert {r.kind: r.detail for r in rows if r.detail != "{}"} == {
+            "rules.applied": '{"count": 2}'
+        }
 
 
 def test_a_rule_deleted_closes_the_list_up_and_its_tags_taken_off_say_by_whom(server, jane):
@@ -455,13 +464,17 @@ def test_a_rule_deleted_closes_the_list_up_and_its_tags_taken_off_say_by_whom(se
     c = cats(jane)
     rules = [rule(jane, payeeMatch=p, categoryId=c["Food › Groceries"]) for p in ("a", "b", "c")]
     saved(remove(jane, "Rule", rules[0]))
+    from moolakata.store.entities.accounts import Rule
+
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Rule, rules[0]["id"]).deletedById == me
     listed = jane.get("/ui/api/rules").json()["items"]
     assert [(r["payeeMatch"], r["position"]) for r in listed] == [("b", 0), ("c", 1)]
     work = tag(jane, "Work")
     b = saved(change(jane, "Rule", listed[0], tagIds={"add": [work], "remove": []}))
     b = saved(change(jane, "Rule", b, tagIds={"add": [], "remove": [work]}))
     assert b["tags"] == []
-    me = jane.get("/ui/api/session").json()["user"]["id"]
     with server.db.read(unscoped="test") as s:
         (link,) = s.query(RuleTag).filter_by(ruleId=b["id"]).all()
         assert link.deletedById == me
@@ -589,3 +602,32 @@ def test_a_pattern_of_200_characters_is_kept():
                                          direction="out", accountId="A")) == match.Matcher(
         "acme", D(2), D(9), "out", "A"
     )  # fmt: skip
+
+
+def test_uncategorised_leaves_out_deleted_trades_transfers_and_others_accounts(server, jane):
+    """S2.7.4: of the transactions a rule matches, only the live, uncategorised ones that are
+    neither a trade nor a transfer's half, in an account the caller can change, are counted."""
+    c = cats(jane)
+    a = new_account(jane, name="Joint")
+    b = new_account(jane, name="Other", mask="9999")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, a["id"], "-5.00", payee="Acme")  # the one counted
+    saved(remove(jane, "Txn", add(jane, a["id"], "-6.00", payee="Acme")))
+    add(jane, brk["id"], "-50.00", kind="buy", symbol="VTI", quantity="1", price="50",
+        fees="0", payee="Acme")  # fmt: skip
+    out = add(jane, a["id"], "-500.00", "2026-09-15", payee="Acme")
+    add(jane, b["id"], "500.00", "2026-09-16", kind="deposit", payee="Acme")
+    assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"]
+    from edits import share
+
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    add(john, new_account(john, name="John's")["id"], "-5.00", payee="Acme")
+    # Shared with Jane to read: she sees it, but it isn't hers to change.
+    seen = new_account(john, name="John's shared", mask="7777")
+    add(john, seen["id"], "-5.00", payee="Acme")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    saved(share(john, "account", seen["id"], users={me: "read"}))
+    assert jane.get(f"/ui/api/accounts/{seen['id']}").status_code == 200
+    rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
+    assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
