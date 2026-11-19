@@ -51,13 +51,35 @@ def test_a_new_transaction_and_its_parts_in_one_save(server, frozen):
     assert {x["memo"] for x in t["splits"]} == {None, "minibar"}
 
 
+UNBALANCED = ("splits", "splits-unbalanced", "The parts must add up to the transaction's amount.")
+
+
 def test_parts_that_dont_add_up_save_nothing(server, frozen):
     c, acct, cat, _ = setup_budget(server)
     r, txn = made(c, acct, cat, [("-60.00", {}), ("-30.00", {})])
     assert r.status_code == 422, r.text
     (err,) = r.json()["errors"]
-    assert (err["field"], err["code"], err["id"]) == ("splits", "splits-unbalanced", txn)
+    assert (err["field"], err["code"], err["message"], err["id"]) == (*UNBALANCED, txn)
     assert c.get(f"/ui/api/transactions/{txn}").status_code == 404
+
+
+def test_each_transaction_in_one_save_has_its_own_parts_add_up(server, frozen):
+    """S2.6: two split transactions saved together are each checked against their own parts:
+    the second's not adding up is refused though the first's do."""
+    c, acct, cat, _ = setup_budget(server)
+    ops, txns = [], []
+    for parts in (("-60.00", "-40.00"), ("-60.00", "-30.00")):
+        txn = new("Txn")
+        txns.append(txn)
+        ops.append({"op": "create", "entity": "Txn", "id": txn,
+                    "fields": {"accountId": acct["id"], "date": "2026-10-02",
+                               "kind": "withdrawal", "amount": "-100.00"}})  # fmt: skip
+        ops += [{"op": "create", "entity": "Split", "id": new("Split"),
+                 "fields": {"transactionId": txn, "amount": x, "categoryId": cat["Travel"]}}
+                for x in parts]  # fmt: skip
+    r = save(c, ops)
+    assert _errors(r) == [UNBALANCED]
+    assert r.json()["errors"][0]["id"] == txns[1]
 
 
 def test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks(server, frozen):

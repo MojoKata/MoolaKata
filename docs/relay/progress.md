@@ -195,3 +195,22 @@ Doubts:
 - A non-split trade keeps a `splitRatio` sent with it (the bug above); the lot replay ignores it, so it changes no figure.
 - `_make`'s `confirm` parameter and its `closed.confirm` branch are dead: the save asks S2.8's question for every op.
 - The batch's mutation runs are slow here (about 2 changes a minute with 4 to 7 whole test files); the baseline took 50 minutes.
+
+## Batch 9
+
+Test files touched: `tests/test_accounts.py`, `tests/test_txn_save.py`.
+
+Counts: killed 93, equivalent 6, bug 0, unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x__check_reimbursable__mutmut_6`: tells apart only with no amount, and a transaction's and a part's `amount` is a required `Money` (an update's fields are validated as the model after `save._merged`), so it is never None.
+- `x__check_reimbursable__mutmut_11`, `_12`: with `r > 0`, an amount of 0 or more is refused by `r > -amount` anyway, so `amount >= 0` decides nothing of its own.
+- `x__instrument__mutmut_23`: `repo.instrument` looks a symbol up by `.upper()` and makes one with `.upper()`, and the length check doesn't care about case, so a lowered symbol finds and makes the same instrument.
+- `x__parts_add_up__mutmut_7`: the caller's session reads splits through their access view, which never returns a deleted one (as batch 8's `x_shape__mutmut_28`): `test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks` deletes a part and adds up the rest, and the change still survives.
+- `x__parts_add_up__mutmut_21`: `sum` starting from `0` rather than `Decimal(0)` over Decimals gives the same Decimal, and the parts are never empty there.
+
+Mutation check (`--tests` the two files above): 93 killed, the 6 survivors exactly the equivalent ones above. No baseline run: nearly every survivor was a refusal's words, which no test held.
+
+Doubts:
+- `TXN_REFUSED_WORDS` in `test_accounts.py` holds the words of each refusal in `test_a_transactions_fields_are_refused_on_their_own`, which now checks every refusal's field, code and words (it read the first one's field and code only).
+- `_check_reimbursable`'s `amount is None or amount >= 0` is redundant with `r > -amount` for a positive `r`; left as it is.

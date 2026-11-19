@@ -904,15 +904,40 @@ def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_i
     assert logged(server, a["id"]) == [reconciled, reconciled]
 
 
+# Each refusal of a transaction's fields, in its own words (R3.7).
+TXN_REFUSED_WORDS = {
+    "kind-invalid": "Choose a kind of transaction.",
+    "note-required": "Say why the balance is adjusted.",
+    "corporate-kind": "Record it as a corporate action on Positions.",
+    "option-kind": "Record an option trade from the account's Holdings.",
+    "kind-not-for-account": "Trades belong in an investing account.",
+    "amount-sign": "Foreign tax paid is money out: a negative amount.",
+    "category-unknown": "Choose a category.",
+    "instrument-unknown": "Choose an instrument.",
+    "symbol-invalid": "Enter a symbol such as VTI.",
+    "fees-invalid": "Zero or more.",
+    "reimbursable-invalid": "Spending only, and no more than was spent.",
+    "owed-by-too-long": "At most 80 characters.",
+    "payee-too-long": "At most 200 characters.",
+    "choice-invalid": "Employee, employer, rollover or conversion.",
+    "year-invalid": "Enter a year.",
+}
+TRADE = {"kind": "buy", "quantity": "1", "price": "10", "fees": "0"}
+
+
 @pytest.mark.parametrize(
     ("acct", "fields", "field", "code"),
     [
         ("checking", {"kind": "gift"}, "kind", "kind-invalid"),
+        ("checking", {"kind": "adjustment"}, "memo", "note-required"),
+        ("checking", {"kind": "adjustment", "memo": "  "}, "memo", "note-required"),
+        ("checking", {"kind": "foreign-tax"}, "kind", "kind-not-for-account"),
         ("brokerage", {"kind": "merger"}, "kind", "corporate-kind"),
         ("checking", {"kind": "option-adjust"}, "kind", "corporate-kind"),
         ("brokerage", {"kind": "expire"}, "kind", "option-kind"),
         ("brokerage", {"kind": "foreign-tax", "amount": "1.00"}, "amount", "amount-sign"),
         ("brokerage", {"kind": "foreign-tax", "amount": "-1.00"}, None, None),
+        ("brokerage", {"kind": "foreign-tax", "amount": "0.00"}, None, None),
         ("checking", {"categoryId": "gone"}, "categoryId", "category-unknown"),
         (
             "brokerage",
@@ -920,6 +945,9 @@ def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_i
             "instrumentId",
             "instrument-unknown",
         ),
+        ("brokerage", {**TRADE, "symbol": "   "}, "symbol", "symbol-invalid"),
+        ("brokerage", {**TRADE, "symbol": "X" * 33}, "symbol", "symbol-invalid"),
+        ("brokerage", {**TRADE, "symbol": "X" * 32}, None, None),
         (
             "brokerage",
             {"kind": "buy", "symbol": "VTI", "quantity": "1", "fees": None},
@@ -936,6 +964,7 @@ def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_i
         ("checking", {"reimbursable": "0"}, "reimbursable", "reimbursable-invalid"),
         ("checking", {"reimbursable": "10.01"}, "reimbursable", "reimbursable-invalid"),
         ("checking", {"reimbursable": "10.00"}, None, None),
+        ("checking", {"reimbursable": "1.00"}, None, None),
         ("checking", {"owedBy": "x" * 81}, "owedBy", "owed-by-too-long"),
         ("checking", {"owedBy": "x" * 80}, None, None),
         ("checking", {"payee": "x" * 201}, "payee", "payee-too-long"),
@@ -959,11 +988,12 @@ def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_i
             "year-invalid",
         ),
         ("ira", {"kind": "deposit", "amount": "10.00", "contributionYear": 2100}, None, None),
+        ("ira", {"kind": "deposit", "amount": "10.00", "contributionYear": 1970}, None, None),
     ],
 )
 def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, field, code):
-    """S2.1, S2.9, S8.6, R3.11: what a transaction is and carries, each refused on its field,
-    and each bound's own side kept."""
+    """S2.1, S2.9, S8.6, R3.11, R3.7: what a transaction is and carries, each refused on its
+    field in its words, and each bound's own side kept."""
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, type=acct, name=acct.title())
@@ -977,7 +1007,7 @@ def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, fi
         assert r.status_code == 200, r.text
         return
     assert r.status_code == 422, r.text
-    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)
+    assert refusals(r) == [(field, code, TXN_REFUSED_WORDS[code])]
 
 
 def test_both_real_answers_the_rows_grouped_with_it_and_no_others(server):
