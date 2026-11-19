@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, make, option_trade, saved, sell, terms
+from edits import change, loan_payment, make, option_trade, saved, sell, terms
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -562,6 +562,25 @@ def test_shares_moved_in_keep_the_days_they_were_bought(jane):
     assert ko["lots"][0]["acquiredMissing"] and ko["lots"][0]["longTerm"] is None
     kinds = [i["kind"] for i in panels(jane, b)["issues"]]
     assert "acquired-missing" in kinds
+    # Its quantity and day corrected: the lot still missing its day bought follows them.
+    t = saved(change(jane, "Txn", r.json(), quantity="12", date="2026-02-03"))
+
+    def lots_():
+        held = jane.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+        return next(h for h in held if h["symbol"] == "KO")["lots"]
+
+    assert [(x["quantity"], x["acquiredOn"], x["acquiredMissing"]) for x in lots_()] == [
+        ("12.0", "2026-02-03", True)
+    ]
+    # Then its lots typed: each keeps the day it was bought, and the day missing is gone.
+    saved(change(jane, "Txn", t, transferLots=[
+        {"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "250"},
+        {"acquiredOn": "2021-06-01", "quantity": "7", "costBasis": "420"},
+    ]))  # fmt: skip
+    assert [(x["quantity"], x["acquiredOn"], x["acquiredMissing"]) for x in lots_()] == [
+        ("5.0", "2020-01-02", False), ("7.0", "2021-06-01", False)
+    ]  # fmt: skip
+    assert "acquired-missing" not in [i["kind"] for i in panels(jane, b)["issues"]]
 
 
 def test_shares_moved_between_two_accounts_carry_their_lots(jane):

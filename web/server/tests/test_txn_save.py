@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, make, reconcile, remove, saved
+from edits import asked, change, make, new_id, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -134,6 +134,14 @@ def test_left_out_of_a_budget_from_the_transactions_draft(server, frozen):
     other = make(c, "Bdgt", name="Other", accountIds=[]).json()
     r = change(c, "Txn", t, leftOutOf={"add": [other["id"]], "remove": []})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-in-budget"
+    # Counted again, then left out once more: the same leave-out comes back.
+    t = saved(change(c, "Txn", t, leftOutOf={"add": [], "remove": [b["id"]]}))
+    assert t["leftOutOf"] == []
+    t = saved(change(c, "Txn", t, leftOutOf={"add": [b["id"]], "remove": []}))
+    assert t["leftOutOf"] == [b["id"]]
+    # A budget the caller can't change, or none, is refused on the field.
+    r = change(c, "Txn", t, leftOutOf={"add": [new_id("Bdgt")], "remove": []})
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "budget-unknown"
 
 
 def test_a_split_transaction_deleted_takes_its_parts(server, frozen):

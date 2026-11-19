@@ -641,23 +641,14 @@ def _make(s: Session, c: Caller, body, txn_id: str, confirm: bool):
     return t, a, held
 
 
-def _editable(
-    s: Session, c: Caller, txn_id: str, version: int, confirm: bool
-) -> tuple[Transaction, Account, str]:
+def _editable(s: Session, c: Caller, txn_id: str, version: int) -> tuple[Transaction, Account, str]:
+    """A transaction the caller writes, at the version they read."""
     t = s.get(Transaction, txn_id)
     if t is None or t.deleted:
         raise Problem(404, "not-found", "Not found")
     a, held = access.account(s, c.id, t.accountId, "write")
     if t.version != version:
         raise stale(shape(s, c.id, [t], {a.id: held})[0])
-    if t.reconciliationId and not confirm:
-        r = s.get(Reconciliation, t.reconciliationId)
-        if r is not None and r.finishedAt is not None:
-            raise Problem(
-                409,
-                "reconciled-period",
-                "This transaction is in a reconciled period. Change it anyway?",
-            )
     return t, a, held
 
 
@@ -703,15 +694,13 @@ CHANGED = (
 
 def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[str]) -> list[str]:
     """The fields `sent` set on a transaction, its lot following its trade; what changed."""
-    kind = body.kind if "kind" in sent and body.kind else t.kind
+    kind = body.kind if "kind" in sent else t.kind  # a blank kind is refused, never kept
     checked = body.model_copy(update={"amount": body.amount if "amount" in sent else t.amount})
     _raise(_check(s, checked, kind, atypes.investing(a.type), bool({"fees", "kind"} & sent)))
     changed = []
     for f in CHANGED:
         if f in sent:
             value = getattr(body, f)
-            if f in ("date", "kind", "amount", "cleared") and value is None:
-                continue
             if getattr(t, f) != value:
                 setattr(t, f, value)
                 changed.append(f)
@@ -899,7 +888,8 @@ def keep_off_chain(
     """Keep a bitcoin transaction the explorer or node no longer has: its mark is cleared
     (S1.6.2.7). Deleting it is the usual delete."""
     with server(request).db.tx(user=c.id) as s:
-        t, a, held = _editable(s, c, txn_id, version, True)
+        # Keeping it changes no figure, so a reconciled period isn't asked about.
+        t, a, held = _editable(s, c, txn_id, version)
         if t.offChainAt is None:
             raise refuse(None, "on-chain", "It is still on the chain.")
         t.offChainAt, t.offChainMissedAt, t.offChainKeptAt = None, None, clock.now()

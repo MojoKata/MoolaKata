@@ -175,6 +175,14 @@ def test_splits_tags_and_bulk_categorise(server):
     assert r.json()["changed"] == 2
     r = c.get("/ui/api/transactions", params={"category": groceries}).json()["items"]
     assert len(r) == 3  # two direct, one through a split
+    # Already so: none changed. Over 1,000 at once, or a category not known: refused.
+    again = {"ids": [u1["id"]], "categoryId": groceries}
+    assert c.post("/ui/api/transactions/categorise", json=again).json()["changed"] == 0
+    many = {"ids": [new_id("Txn") for _ in range(1001)], "categoryId": groceries}
+    r = c.post("/ui/api/transactions/categorise", json=many)
+    assert (r.status_code, r.json()["code"]) == (422, "too-many")
+    r = c.post("/ui/api/transactions/categorise", json={**again, "categoryId": new_id("Cat")})
+    assert (r.status_code, r.json()["code"]) == (422, "category-unknown")
     assert (
         c.get("/ui/api/transactions", params={"tag": "holiday"}).json()["items"][0]["id"] == t["id"]
     )
@@ -790,3 +798,56 @@ def test_both_real_answers_the_rows_grouped_with_it_and_no_others(server):
     one = c.get("/ui/api/transactions", params={"payee": "bakery"}).json()["items"][0]
     saved(remove(c, "Txn", one))
     assert c.post(f"/ui/api/transactions/{one['id']}/both-real").status_code == 404
+
+
+def test_keeping_a_transaction_needs_one_off_the_chain_at_the_version_read(server):
+    """S1.6.2.7: *keep* is for a transaction no longer on the chain, at the version read; one
+    on the chain, an old version and one not found are each refused."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    t = add(c, new_account(c)["id"], "-5.00", "2026-09-01")
+
+    def keep(txn_id, version):
+        return c.post(f"/ui/api/transactions/{txn_id}/keep", headers={"If-Match": f'"{version}"'})
+
+    r = keep(t["id"], t["version"])
+    assert (r.status_code, r.json()["code"]) == (422, "on-chain"), r.text
+    assert keep(t["id"], t["version"] - 1).status_code == 412
+    assert keep(new_id("Txn"), 1).status_code == 404
+
+
+def test_a_kind_changed_to_blank_is_refused_on_its_field(server):
+    """R3.11: a change that blanks a transaction's kind is refused on the field, never written
+    (it reached the database before, refused there as a missing reference)."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    t = add(c, new_account(c)["id"], "-5.00", "2026-09-01")
+    r = change(c, "Txn", t, kind="")
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
+        "kind",
+        "kind-invalid",
+    )
+
+
+def test_a_trade_changed_carries_its_lot_and_a_known_day_bought_stays(server):
+    """S2.2, S2.3: a buy changed moves its lot's quantity, cost and day with it; shares moved
+    in whose lots were typed keep each lot's day bought when the move's day changes."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+
+    def lots_(symbol):
+        held = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
+        lots = next(h for h in held if h["symbol"] == symbol)["lots"]
+        return [(x["quantity"], x["basis"], x["acquiredOn"]) for x in lots]
+
+    buy = add(c, a["id"], "-1000.00", "2026-09-01", kind="buy", symbol="VTI", quantity="10",
+              price="100", fees="0")  # fmt: skip
+    saved(change(c, "Txn", buy, quantity="12", amount="-1260.00", date="2026-09-02"))
+    assert lots_("VTI") == [("12.0", "1260.00", "2026-09-02")]
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "250"}]
+    moved = add(c, a["id"], "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
+                transferLots=typed)  # fmt: skip
+    saved(change(c, "Txn", moved, date="2026-09-11"))
+    assert lots_("KO") == [("5.0", "250.00", "2020-01-02")]
