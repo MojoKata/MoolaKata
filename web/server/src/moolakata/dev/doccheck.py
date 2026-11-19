@@ -5,14 +5,15 @@
 Reads the requirements, the other documents under docs/ and the code's comments, and reports:
 
 1. ids cited that name nothing: a requirement item (S9.8.7, R1.16) that no section numbers,
-   or a gap, question or later item (G8, Q8, L8) that is not open;
-2. the README's tables of sections, gaps, questions and later work against the files;
+   a question (Q8) that is not open, a gap or later-work id (G8, L8), which are issues now,
+   or an issue link whose text and address name different issues;
+2. the README's tables of sections and questions against the files;
 3. section files past 500 lines;
 4. words and dates a statement doesn't carry (docs/requirements and docs/schema.md), for a
    reader to judge: some are fine in context;
 5. the schema's prefix tables out of byte order, or a prefix used twice;
-6. the next free G, Q and L numbers, counted over the files and the requirements' history (a
-   floor: a question asked while building may have taken a number no file shows).
+6. the next free Q number, counted over the files and the requirements' history (a floor: a
+   question asked while building may have taken a number no file shows).
 
 --cites writes, for every requirement item, the code files that cite it (tab separated), the
 start of Phase 0's map. Exits 1 if any of 1, 2, 3 or 5 found something; 4 never fails.
@@ -41,10 +42,15 @@ CODE_SKIP = ("web/ui/vendor/",)
 
 ITEM = re.compile(r"(?<![\w.])([SR]\d+(?:\.\d+)*)(?![\w])")
 DOTTED = re.compile(r"(?<![\w.])([SR]\d+\.\d+(?:\.\d+)*)(?![\w])")
-TRACKED = re.compile(r"(?<![\w-])([GQL])(\d+)(?![\w])")
-RANGE = re.compile(r"(?<![\w-])([GQL])(\d+)\s*[–-]\s*\1?(\d+)(?![\w])")
-# Not citations: examples (`G8`, "G1, G2, …") and where numbering stands ("after G24").
-NOT_CITED = re.compile(r"`[GQL]\d+`|\b([GQL])1, \1?2, …|\bafter [GQL]\d+")
+TRACKED = re.compile(r"(?<![\w-])Q(\d+)(?![\w])")
+RANGE = re.compile(r"(?<![\w-])Q(\d+)\s*[–-]\s*Q?(\d+)(?![\w])")
+# Not citations: examples (`Q8`, "Q1, Q2, …") and where numbering stands ("after Q24").
+NOT_CITED = re.compile(r"`Q\d+`|\bQ1, Q?2, …|\bafter Q\d+")
+# Gaps and later work are GitHub issues, cited by number (`[G#581](…/issues/581)`); their old
+# G and L ids are not cited (README, "How the requirements are organised").
+RETIRED = re.compile(r"(?<![\w-])[GL]\d+(?![\w])")
+ISSUE = re.compile(r"\[([GF]?)#(\d+)\](\(([^)\s]*)\))?")
+ISSUES = "https://github.com/MojoKata/MoolaKata/issues/"
 LIST_ITEM = re.compile(r"^( *)(\d+)\. ")
 CHANGELOG = re.compile(
     r"\b(now|no longer|revised|proposed|approved|previously|formerly|used to|"
@@ -92,11 +98,20 @@ def requirement_ids() -> set[str]:
     return ids
 
 
-def open_tracked() -> dict[str, set[int]]:
-    found: dict[str, set[int]] = {}
-    for letter, name in (("G", "gaps.md"), ("Q", "questions.md"), ("L", "later.md")):
-        text = (REQ / name).read_text()
-        found[letter] = {int(n) for n in re.findall(rf"^## {letter}(\d+):", text, re.M)}
+def open_questions() -> set[int]:
+    text = (REQ / "questions.md").read_text()
+    return {int(n) for n in re.findall(r"^## Q(\d+):", text, re.M)}
+
+
+def issue_link_problems(line: str) -> list[str]:
+    """An issue cited as `[G#n]`, `[F#n]` or `[#n]` links to that same issue."""
+    found = []
+    for m in ISSUE.finditer(line):
+        cited, target = f"[{m.group(1)}#{m.group(2)}]", m.group(4)
+        if target is None:
+            found.append(f"{cited} links to no issue")
+        elif target != f"{ISSUES}{m.group(2)}":
+            found.append(f"{cited} links to {target}, not issue {m.group(2)}")
     return found
 
 
@@ -123,11 +138,11 @@ def main(argv: list[str]) -> int:
     problems: list[str] = []
     warnings: list[str] = []
     items = requirement_ids()
-    tracked = open_tracked()
+    questions = open_questions()
 
     # 1. Citations that name nothing.
     def check_text(path: Path, text: str, pattern: re.Pattern) -> None:
-        own = path.name in ("gaps.md", "questions.md", "later.md")
+        own = path.name == "questions.md"
         for n, line in enumerate(text.splitlines(), 1):
             for m in pattern.finditer(line):
                 ident = m.group(1)
@@ -138,14 +153,18 @@ def main(argv: list[str]) -> int:
                 continue
             if path.suffix != ".md":  # the mockup's Q1 is a quarter
                 continue
+            problems.extend(f"{rel(path)}:{n}: {p}" for p in issue_link_problems(line))
+            for m in RETIRED.finditer(line):
+                problems.append(
+                    f"{rel(path)}:{n}: {m.group(0)}: cite the gap or later work's issue"
+                )
             spans = [r.span() for r in RANGE.finditer(line)]
             spans += [r.span() for r in NOT_CITED.finditer(line)]
             for m in TRACKED.finditer(line):
                 if any(a <= m.start() < b for a, b in spans):
                     continue
-                letter, num = m.group(1), int(m.group(2))
-                if num not in tracked[letter]:
-                    problems.append(f"{rel(path)}:{n}: {letter}{num} is not open in its file")
+                if int(m.group(1)) not in questions:
+                    problems.append(f"{rel(path)}:{n}: Q{m.group(1)} is not open in its file")
 
     for path in DOCS:
         check_text(path, path.read_text(), ITEM)
@@ -174,16 +193,11 @@ def main(argv: list[str]) -> int:
         problems.append(f"docs/requirements/README.md: section {sid} ({name}) is not in its table")
     for sid, name in sorted(listed - files):
         problems.append(f"docs/requirements/README.md: {sid} links {name}, which is not there")
-    for letter, ids in tracked.items():
-        in_table = {int(n) for n in re.findall(rf"^\| \*\*{letter}(\d+)\*\* \|", readme, re.M)}
-        for n in sorted(ids - in_table):
-            problems.append(
-                f"docs/requirements/README.md: {letter}{n} is open but not in its table"
-            )
-        for n in sorted(in_table - ids):
-            problems.append(
-                f"docs/requirements/README.md: {letter}{n} is in its table but not open"
-            )
+    in_table = {int(n) for n in re.findall(r"^\| \*\*Q(\d+)\*\* \|", readme, re.M)}
+    for n in sorted(questions - in_table):
+        problems.append(f"docs/requirements/README.md: Q{n} is open but not in its table")
+    for n in sorted(in_table - questions):
+        problems.append(f"docs/requirements/README.md: Q{n} is in its table but not open")
 
     # 3. Section files past the limit.
     for path in sorted(REQ.glob("S*.md")):
@@ -213,13 +227,10 @@ def main(argv: list[str]) -> int:
                 problems.append(f"docs/schema.md: prefix {p} in both §{seen[p]} and §{title}")
             seen[p] = title
 
-    # 6. The next free numbers: past every id ever used, in the files or the history.
+    # 6. The next free question number: past every one ever used, in the files or the history.
     history = git("log", "-p", "--format=", "--", "docs/requirements")
     corpus = history + "".join(p.read_text() for p in REQ.glob("*.md"))
-    nxt = {}
-    for letter in "GQL":
-        used = [int(n) for n in re.findall(rf"(?<![\w-]){letter}(\d+)(?![\w])", corpus)]
-        nxt[letter] = max(used, default=0) + 1
+    used = [int(n) for n in re.findall(r"(?<![\w-])Q(\d+)(?![\w])", corpus)]
 
     # The report. --quiet, as web/check runs it, prints only what fails.
     if "--quiet" in argv:
@@ -230,8 +241,8 @@ def main(argv: list[str]) -> int:
         print(f"## {title}: {len(rows)}\n")
         print("\n".join(f"- {r}" for r in rows) or "- none")
         print()
-    print("## Next free ids, at least\n")
-    print(", ".join(f"{k}{v}" for k, v in nxt.items()))
+    print("## Next free question id, at least\n")
+    print(f"Q{max(used, default=0) + 1}")
     print("\nA question asked while building takes a Q number without reaching the files, so")
     print("take the higher of this and the last one the handoff or the commits name.")
     never = sorted(

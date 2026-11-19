@@ -47,7 +47,7 @@ says what the numbers recommend and confirms the choice with the user either way
 review asked for on a delta small enough for an incremental one, a quick one asked for where
 checking is advised, and the reverse of each.
 
-**Severity** follows `requirements/gaps.md`: **High** blocks the next release, **Med** is
+**Severity** follows the gaps' ranks: **High** blocks the next release, **Med** is
 needed before it, **Low** can follow it.
 
 ## 2. The files
@@ -117,8 +117,8 @@ These hold in every phase, and keep each session inside its context with room to
    in the work pad or the job's scratch directory, and only their summary is read.
 5. **Every claim carries its evidence**: the file and line, the quoted lines of code (or of
    the document), and the requirement id. Re-read the cited lines before writing the claim.
-6. **The settled stays settled.** `rejected-ideas.md`, `later.md`, `out-of-scope.md`, the open
-   gaps and questions, and a review's recorded decisions are not raised again without a new
+6. **The settled stays settled.** `rejected-ideas.md`, `out-of-scope.md`, the `future` and
+   `gap` issues, the open questions, and a review's recorded decisions are not raised again without a new
    reason, which the claim states.
 7. **Run little.** A claim may be reproduced with one test file, one test, or a request
    against `web/dev.sh run`. Anything that takes over a minute is asked for first; `web/check`
@@ -183,7 +183,7 @@ Three sessions, one after another, each reading one block whole:
 
 | Block | Reads |
 |---|---|
-| `docs-1-money` | the requirements' README (R1–R3) and S1–S9, with `later.md`, `gaps.md`, `questions.md` |
+| `docs-1-money` | the requirements' README (R1–R3) and S1–S9, with `questions.md` and the `future` and `gap` issues |
 | `docs-2-platform` | the README (R1–R3) and S10–S18, with `out-of-scope.md` and `rejected-ideas.md` |
 | `docs-3-protocols` | `schema.md`, `link-protocol.md`, `connector-protocol.md`, `operations.md`, `api.md`, `DEPLOY.md`, `RELEASE.md`, `test-plan.md`, `dependencies.md` |
 

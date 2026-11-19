@@ -10,8 +10,7 @@
       accounts or a portfolio, it starts from their **current values** each time it opens,
       with their *as of*, and from their allocation by asset class.
    2. **Contributions**: an amount, its frequency, growth per year, and until when. Capping
-      them, for retirement accounts, by the limits of S1.4 comes later ([later work](later.md),
-      L7).
+      them, for retirement accounts, by the limits of S1.4 comes later ([F#563](https://github.com/MojoKata/MoolaKata/issues/563)).
 2. **Goal types.** All three use the same models (S6.4).
    1. **Retirement**, for one person or a **couple**: each person's birth year and
       retirement age, and the accounts that are theirs. After retirement come

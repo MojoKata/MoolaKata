@@ -36,8 +36,7 @@ preparer.
    1. one side reachable from the other (a forwarded port or a reverse proxy). That side
       **serves** and the other **pulls**;
    2. both on one overlay network, such as **Tailscale**, **WireGuard** or ZeroTier. This is
-      the recommended setup and needs no open port;
-   3. *(not now)* a relay. MoolaKata does not run one ([out of scope](out-of-scope.md)).
+      the recommended setup and needs no open port.
 
    A link works when **either** side can reach the other: each exchange carries both
    directions, receipts included (the side that calls sends its own receipts' bytes in it), so

@@ -20,7 +20,7 @@ The mockup draws at the browser's own scale; check and screenshot it as a 1440×
 (`check.py` takes its screenshots at twice the pixels).
 
 The web app and its mockup are for desktop browsers. Phone layouts are not checked or fixed:
-phones will get a separate, focused PWA later (requirements S12.8).
+phones will get a separate, focused PWA later (requirements S12.8, [F#571](https://github.com/MojoKata/MoolaKata/issues/571)).
 
 While the app is being built there are two mockups (requirements S12.9): the hand-written
 `MoolaKata-mock.html`, which stays the design reference and is updated with every UI-facing
@@ -40,16 +40,19 @@ the same rule. Status goes in the repository's root README (the product and its 
 ## How the requirements are laid out
 
 - `README.md` holds the decisions (R1), terminology (R2) and design principles (R3), and
-  tables of the sections and the gaps. Each section is a file `S<n>-<name>.md`.
-- References are ids, never file names: `R1.16`, `S9.8.7`, `G8`, `Q8`. Section ids and their
-  first-level items (`S1.2`) are never renumbered or reused; a new one takes the next free
-  number. Deeper items may be renumbered with every reference updated in the same change.
+  a table of the sections. Each section is a file `S<n>-<name>.md`.
+- References are ids, never file names: `R1.16`, `S9.8.7`, `Q8`, and issues by number (below).
+  Section ids and their first-level items (`S1.2`) are never renumbered or reused; a new one
+  takes the next free number. Deeper items may be renumbered with every reference updated in the same change.
 - A section file past 500 lines moves its first-level items to their own files
   (`S1-accounts-02-brokerage.md` holds S1.2) and keeps a summary with a table of them.
-- **Gaps** (`gaps.md`, and the README's table): areas named but not yet specified, each with a
-  lasting id (G1, G2, …). When the build reaches one, propose a reasonable solution for the
-  average cases (a Schwab brokerage account, a UMB bank account), write it into its section,
-  and record what is still open as a gap. A specified gap is removed; its id is never reused.
+- **Gaps and later work are GitHub issues** on MojoKata/MoolaKata: an area named but not yet
+  specified is labelled `gap` (its rank, High, Medium or Low, in its body), work planned for
+  after the first release `future`. A section cites one by number, linked to the issue:
+  `[G#581](https://github.com/MojoKata/MoolaKata/issues/581)` for a gap, `[F#560](…)` for later
+  work, `[#583](…)` for any other issue. When the build reaches a gap, propose a reasonable
+  solution for the average cases (a Schwab brokerage account, a UMB bank account), write it
+  into its section, file what is still open as a new `gap` issue, and close the old one.
 - **Open questions** (`questions.md`): ids Q1, Q2, … are shared with the questions asked
   while building, and never reused. An answered question's answer goes into its section and
   the question is removed.
