@@ -72,3 +72,26 @@ Doubts:
 - `_txn_current` takes a transfer-in's `costBasis` from the first lot of any state (`.first()`, no deleted filter, no order) - after lots are typed again it may read a deleted lot; not pinned.
 - Two waiting loops left from batch 2 (`until ! pgrep -f "mutate run moolakata/ui/transactions.py"`) never end: `pgrep -f` matches their own command line. Not mine; left for the coordinator.
 - `--only-file docs/relay/batch-N.names` must be an absolute path: `mutate run` reads it from another directory.
+
+## Batch 4
+
+Test files touched: `tests/test_taxpanels.py`.
+
+Counts: killed 118, equivalent 2, bug 1, unreachable 1, slow 0, still surviving 0.
+
+Equivalent:
+- `x__picks_fit__mutmut_7`: the caller's session reads picks through their access view, which never returns a deleted one (a pick taken away and another made in its place saves either way), so `LotPick.deleted == false()` drops nothing.
+- `x__picks_fit__mutmut_14`: `sum` starting from `0` rather than `Decimal(0)` over Decimals gives the same Decimal, and over no picks `0 > abs(...)` decides as `Decimal(0)` does.
+
+Bug:
+- `x__picks_fit__mutmut_20`: tells apart only through a sale of no shares, and a sale's quantity can be changed to `0` or cleared (both answer 200, tried by hand), though making one without it is refused (`trade-incomplete`); a test would pin a sale with no quantity (R3.11, S2.3).
+
+Unreachable:
+- `x__pick_checked__mutmut_13`: the save's create check (`may_create`, LotPick seen through `lotId`) answers 404 for a lot unknown or typed over before `_pick_checked` runs; on an update, a pick whose lot was typed over is itself not found (404), so `lot` is never None or deleted there.
+
+Mutation check: 118 killed, the 4 survivors exactly the equivalent, bug and unreachable ones above.
+
+Doubts:
+- A sale's quantity changed to `0` or cleared is saved (see the bug above); the create refuses both.
+- A pick of a lot typed over afterwards (S2.2) drops out of the sale's picks unseen (the access view hides it, the row stays live); the sale falls back to its method without saying so. Not pinned.
+- `_pick_sale`'s write check only decides when the lot named is of an account the caller writes and the sale's is one they only read (else `may_create` refuses on the lot first); the test names the caller's own lot for that.
