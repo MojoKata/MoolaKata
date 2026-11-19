@@ -2,6 +2,7 @@
 
 import io
 from decimal import Decimal as D
+from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
@@ -533,3 +534,58 @@ def test_uncategorised_counts_what_a_rule_would_set_in_the_callers_accounts_alon
     rule(jane, payeeMatch="acme store", accountId=a["id"], categoryId=c["Food › Groceries"])
     assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"]
     assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
+
+
+@pytest.mark.parametrize(
+    ("rule", "payee", "amount", "account", "hit"),
+    [
+        # Direction: money in is more than none, money out less; none is neither.
+        ({"direction": "in"}, "Acme", "0.01", "A", True),
+        ({"direction": "in"}, "Acme", "0", "A", False),
+        ({"direction": "out"}, "Acme", "-0.01", "A", True),
+        ({"direction": "out"}, "Acme", "0", "A", False),
+        ({"direction": "any"}, "Acme", "0", "A", True),
+        # Bounds are sizes, each its own side kept.
+        ({"amountMin": D(5)}, "Acme", "-5", "A", True),
+        ({"amountMin": D(5)}, "Acme", "-4.99", "A", False),
+        ({"amountMax": D(5)}, "Acme", "5", "A", True),
+        ({"amountMax": D(5)}, "Acme", "5.01", "A", False),
+        # The account it names, and no other.
+        ({"accountId": "A"}, "Acme", "-1", "A", True),
+        ({"accountId": "A"}, "Acme", "-1", "B", False),
+        # No payee matches nothing; a payee is read to its 500th character.
+        ({"payeeMatch": "x"}, None, "-1", "A", False),
+        ({"payeeMatch": "zz"}, "a" * 499 + "zz", "-1", "A", False),
+        ({"payeeMatch": "z"}, "a" * 499 + "z", "-1", "A", True),
+    ],
+)
+def test_a_rule_matches_by_direction_size_account_and_the_payees_first_500_characters(
+    rule, payee, amount, account, hit
+):
+    """S2.7.1."""
+    r = m(**({"payeeMatch": "acme"} | rule))
+    assert match.matches(r, payee, D(amount), account) is hit
+    assert (match.first_match([("R", r)], payee, D(amount), account) == "R") is hit
+
+
+@pytest.mark.parametrize(
+    ("pattern", "said"),
+    [
+        ("", "Some text of the payee, at most 200 characters."),
+        ("x" * 201, "Some text of the payee, at most 200 characters."),
+        ("re:", "A regular expression after re:, such as re:^AMZN."),
+        ("RE:  ", "A regular expression after re:, such as re:^AMZN."),
+    ],
+)
+def test_a_pattern_empty_or_too_long_is_refused_in_its_words(pattern, said):
+    with pytest.raises(match.Invalid) as e:
+        match.compile_pattern(pattern)
+    assert str(e.value) == said
+
+
+def test_a_pattern_of_200_characters_is_kept():
+    assert match.compile_pattern("x" * 200) is None
+    assert match.matcher(SimpleNamespace(payeeMatch="acme", amountMin=D(2), amountMax=D(9),
+                                         direction="out", accountId="A")) == match.Matcher(
+        "acme", D(2), D(9), "out", "A"
+    )  # fmt: skip

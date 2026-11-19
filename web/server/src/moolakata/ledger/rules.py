@@ -104,9 +104,10 @@ def matches(m: Matcher, payee: str | None, amount: Decimal, account_id: str) -> 
     return m.payeeMatch.strip().lower() in text.lower()
 
 
-def first_match(rules: list, matchers: list[Matcher], payee, amount, account_id):
-    """The first rule, in order, that the transaction matches; None when none does."""
-    for rule, m in zip(rules, matchers, strict=True):
+def first_match(rules: list[tuple[Any, Matcher]], payee, amount, account_id):
+    """The first rule, in order, that the transaction matches; None when none does. `rules`
+    are each rule with its matcher."""
+    for rule, m in rules:
         if matches(m, payee, amount, account_id):
             return rule
     return None
