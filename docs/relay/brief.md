@@ -52,11 +52,13 @@ test per behaviour over one test per change.
    root; never only your new tests with `-k`).
 2. The duplicate-name grep above, on each touched file.
 3. `web/check static` (formatting and lint, about 6 s). If it reformats, rerun 1.
-4. The batch's mutation check: `web/dev.sh mutate run <module> --only-file docs/relay/batch-N.names --tests tests/<each file you touched> --workers 6`
+4. The batch's mutation check: `web/dev.sh mutate run <module> --only-file /home/dev/kata/MoolaKata/docs/relay/batch-N.names --tests tests/<each file you touched> --workers 6`
    (one `<module>` per source file in your batch, such as `moolakata/ui/transactions.py`;
-   without `--tests` it runs only the test files that import the module). About a minute's
-   setup, then seconds a change: 10 to 25 minutes for a batch, so run it in the background
-   and wait for it to end. It prints killed and survived per file and writes the survivors to
+   without `--tests` it runs only the test files that import the module; the names file's path
+   must be absolute, as `mutate run` reads it from another directory). About a minute's
+   setup, then seconds a change: 10 to 25 minutes for a batch, so run it as a background command
+   and wait for its own completion notice. Never wait with a loop that searches the process
+   list (`pgrep -f`, `ps | grep`): its pattern matches its own command line, so it never ends. It prints killed and survived per file and writes the survivors to
    `web/.dev/mutate/survivors.txt`. Every change you counted as killed must show as killed; anything still
    surviving is either fixed with another test or moved to one of the lists, with why.
    Don't run anything else under `mutate`, and don't start a second one while one runs.
