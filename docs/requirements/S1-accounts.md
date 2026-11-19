@@ -340,9 +340,11 @@
       that change it (the first after a rate reset, a recast, or a HELOC draw in its repayment
       period, a fee or charge added to what is owed being one, and a HELOC's first repayment
       day) the principal and interest due stays level; on such a day it becomes what pays off
-      the balance then owed by the term's last payment day, that day counted. Interest is
-      rounded half up to the cent, and a balance of less than $1 left by rounding goes with
-      the last payment.
+      the balance then owed by the term's last payment day, that day counted. Interest, and
+      the level principal and interest itself as a lender rounds it, are rounded half up to
+      the cent, and a balance of less than $1 left by rounding goes with the last payment.
+      Where payments are so small that their rounding adds up to a payment or more, the
+      balance is paid off that many payments before the term's last day.
    3. **Payments**: a payment transaction from a bank account (matched as a transfer, S1.7) is
       **split** into principal, interest, escrow, PMI and fees by the schedule, as is every
       payment into the loan however it arrives (imported, or typed in the loan's account): one

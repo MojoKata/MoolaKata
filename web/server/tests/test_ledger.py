@@ -2,6 +2,7 @@
 
 import ast
 import datetime as dt
+import itertools
 from dataclasses import dataclass, field
 from decimal import Decimal as D
 from pathlib import Path
@@ -11,7 +12,7 @@ from moolakata import paths
 from moolakata.ledger import balances, lots, reconcile, transfers
 
 T0 = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
-_n = iter(range(1, 10_000))
+_n = itertools.count(1)  # unbounded: a process running many tests draws more than any range
 
 
 @dataclass
