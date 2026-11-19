@@ -146,6 +146,9 @@ class Replay:
 
 
 def _order(method: str, lots: list[OpenLot]) -> list[OpenLot]:
+    """Lots in the order a method takes them: newest first, the highest cost a share first (a
+    lot whose basis is missing last), or else oldest first: what specific identification
+    leaves unpicked, and average cost's shares (S2.3)."""
     if method == "lifo":
         return sorted(lots, key=lambda x: x.acquiredOn, reverse=True)
     if method == "hifo":
@@ -554,7 +557,7 @@ def _option(out: Replay, t) -> None:
     elif t.kind == "sell-to-close":
         _consume(out, t, qty, "fifo", t.amount, realize=True)
     elif t.kind == "buy-to-close":
-        _cover(out, t, qty, t.amount)
+        _cover(out, t, qty, t.amount, short=False)  # a written option bought back
     elif t.kind in ("assign", "exercise"):
         # The contract ends without a gain of its own: its premium goes into the stock's basis
         # or proceeds, on the stock trades made with it (S3.4), worked out here so an edit to
@@ -590,7 +593,7 @@ def _option(out: Replay, t) -> None:
         if longs:
             _consume(out, t, min(qty, longs), "fifo", ZERO, realize=True)
         else:
-            _cover(out, t, qty, ZERO)
+            _cover(out, t, qty, ZERO, short=False)  # a written option expired
 
 
 def _spread_premium(out: Replay, end_id: str, premium: Decimal | None) -> None:
@@ -636,7 +639,7 @@ def _cover_short_stock(out: Replay, t, n_made: int) -> None:
         left -= take
 
 
-def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal, *, short: bool = False) -> None:
+def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal, *, short: bool) -> None:
     """Close short lots, oldest first: each realizes its credit less the share of the cost to
     close (proceeds, negative or zero); `short` when they are shares sold short."""
     shorts = sorted(
@@ -692,8 +695,7 @@ def _consume(
                     plan.append((lot, take))
                     left -= take
                     want -= take
-    order = method if method in ("fifo", "lifo", "hifo") else "fifo"
-    for lot in _order(order, held):
+    for lot in _order(method, held):
         if left <= 0:
             break
         take = min(left, room(lot))
@@ -712,11 +714,8 @@ def _consume(
             else:
                 lot.basis = (whole * lot.quantity / pool).quantize(CENT)
                 given += lot.basis
-    used = (
-        method
-        if method in ("fifo", "lifo", "hifo", "average")
-        else ("specific" if picks else "fifo")
-    )
+    # A sale under specific identification with nothing picked went first in.
+    used = "fifo" if method == "specific" and not picks else method
     allotted = ZERO
     for i, (lot, take) in enumerate(plan):
         last = i == len(plan) - 1 and left <= 0

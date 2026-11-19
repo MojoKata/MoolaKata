@@ -3812,7 +3812,6 @@
  * @property {string} direction
  * @property {(string | null)} accountId
  * @property {(string | null)} accountName
- * @property {boolean} accountDeleted
  * @property {(string | null)} categoryId
  * @property {(string | null)} categoryPath
  * @property {boolean} categoryDeleted

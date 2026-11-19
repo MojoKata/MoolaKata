@@ -37,7 +37,7 @@ function when(r) {
     );
   }
   if (r.direction !== 'any') parts.push(r.direction === 'in' ? 'money in' : 'money out');
-  if (r.accountId) parts.push(`in ${r.accountName}${r.accountDeleted ? ' (deleted)' : ''}`);
+  if (r.accountId) parts.push(`in ${r.accountName}`);
   return parts.join(' · ');
 }
 

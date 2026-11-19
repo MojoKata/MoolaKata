@@ -6,6 +6,7 @@ problem or a sale part names. Each test names the rule; the mutation run found t
 import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal as D
+from types import SimpleNamespace
 
 import pytest
 from test_ledger import Lot, Pick, Snap, book, replay, sell
@@ -408,3 +409,73 @@ def test_picks_take_a_lot_whatever_is_missing_from_it_and_carry_what_is():
     assert got == [("L2", D(3), None, False), ("L3", D(2), D(400), True),
                    ("L1", D(3), D(300), False)]  # fmt: skip
     assert r.disposals[0].gain is None
+
+
+# -- How a sale takes its lots, on plain lots (S2.3) ---------------------------------------------
+
+
+def _open(*held):
+    """Lots held, oldest first: (lot id, quantity, basis or None)."""
+    out = lots.Replay()
+    for i, (lot_id, q, b) in enumerate(held):
+        basis = None if b is None else D(b)
+        out.open.append(lots.OpenLot(lot_id, "VTI", d(2025, 1, i + 1), D(q), basis))
+    return out
+
+
+def _sale(qty, proceeds, method, picks=(), out=None):
+    t = SimpleNamespace(id="S", instrumentId="VTI", date=d(2026, 3, 2))
+    lots._consume(out, t, D(qty), method, D(proceeds), realize=True, picks=list(picks))
+    return [(x.lotId, x.quantity, x.proceeds, x.basis, x.method) for x in out.disposals]
+
+
+def test_a_method_not_known_is_refused_naming_the_ones_there_are():
+    with pytest.raises(
+        ValueError, match=r"'random' is none of fifo, lifo, hifo, specific, average"
+    ):
+        _sale(1, 10, "random", out=_open(("A", 1, 10)))
+
+
+def test_picks_count_only_for_specific_identification():
+    out = _open(("A", 5, 50), ("B", 5, 100))
+    assert _sale(2, 40, "fifo", [Pick("S", "B", D(2))], out) == [("A", D(2), D(40), D(20), "fifo")]
+
+
+def test_a_pick_takes_no_more_than_the_sale_and_a_lot_used_up_gives_no_empty_part():
+    """A pick larger than the sale takes the sale's shares; a second pick of the lot it used up
+    adds no part of no shares."""
+    out = _open(("A", 10, 100), ("B", 10, 200))
+    picks = [Pick("S", "A", D(8)), Pick("S", "A", D(5)), Pick("S", "B", D(1))]
+    got = _sale(5, 50, "specific", picks, out)
+    assert got == [("A", D(5), D(50), D(50), "specific")]
+
+
+def test_a_pick_of_a_split_lot_takes_its_parts_in_turn_and_no_more_than_picked():
+    """A lot a wash sale split is two parts of one id: a pick of 4 takes 3 and then 1, and the
+    rest of the sale goes first in, here from an older lot."""
+    out = _open(("M", 10, 100), ("L", 3, 30), ("L", 3, 60))
+    got = _sale(6, 60, "specific", [Pick("S", "L", D(4))], out)
+    assert [(x[0], x[1]) for x in got] == [("L", D(3)), ("L", D(1)), ("M", D(2))]
+
+
+def test_a_sales_proceeds_are_shared_by_quantity_the_last_part_taking_the_cents_left():
+    out = _open(("A", 1, 1), ("B", 1, 1), ("C", 1, 1))
+    got = _sale(3, 10, "fifo", out=out)
+    assert [x[2] for x in got] == [D("3.33"), D("3.33"), D("3.34")]
+    assert sum(x[2] for x in got) == D(10)
+
+
+def test_average_cost_rebases_the_shares_held_the_last_lot_taking_the_cents_left():
+    """S2.3: every share held is re-based to the pool's average; the last lot held takes what
+    rounding leaves, and a lot of no shares left is no part of the pool."""
+    out = _open(("A", 1, "3"), ("B", 1, "3"), ("C", 1, "4"), ("Z", 0, "0"))
+    _sale(1, 5, "average", out=out)
+    assert [(x.lotId, x.quantity, x.basis) for x in out.open] == [
+        ("A", D(0), D(0)), ("B", D(1), D("3.33")), ("C", D(1), D("3.34")), ("Z", D(0), D(0))
+    ]  # fmt: skip
+
+
+def test_hifo_takes_the_highest_cost_a_share_first_and_a_lot_without_a_basis_last():
+    out = _open(("A", 1, 10), ("N", 1, None), ("B", 1, 30), ("C", 1, 20))
+    got = _sale(4, 40, "hifo", out=out)
+    assert [x[0] for x in got] == ["B", "C", "A", "N"]

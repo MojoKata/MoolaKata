@@ -1158,3 +1158,91 @@ def test_an_all_cash_merger_at_a_loss_is_a_wash_sale_with_shares_bought_elsewher
     [row] = [r for r in jane.get("/ui/api/positions").json()["closed"] if r["accountId"] == a]
     assert (row["how"], row["realized"], row["washDisallowed"]) == ("merger", "-229.00",
                                                                      "229.00")  # fmt: skip
+
+
+# ---- A short sale of shares from an assignment, and its cover (S3.4) ----
+
+
+def _assign_call(c, acct, contracts="1", strike="480"):
+    opt(c, acct, "sell-to-open", "2026-09-02", "6.40", right="call", strike=strike,
+        contracts=contracts, fees="0")  # fmt: skip
+    call = _held(c, acct, f"MSFT 20NOV26 {strike} C")
+    r = c.post(f"/ui/api/accounts/{acct}/options/{call['instrumentId']}/settle",
+               json={"how": "assign", "date": "2026-11-20", "contracts": contracts})  # fmt: skip
+    assert r.status_code == 201, r.text
+
+
+def _trade(c, acct, kind, qty, price, day="2026-11-23", symbol="MSFT"):
+    amount = D(qty) * D(price)
+    r = make(c, "Txn", accountId=acct, date=day, kind=kind, symbol=symbol, quantity=qty,
+             price=price, amount=str(-amount if kind == "buy" else amount), fees="0")  # fmt: skip
+    assert r.status_code == 200, r.text
+
+
+def _shorts(server, acct):
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.repos import ledger as repo
+
+    with server.db.read(unscoped="test") as s:
+        rp = repo.load(s, s.get(Account, acct)).replay()
+        return [(x.quantity, x.basis) for x in rp.open if x.quantity < 0], rp.shorts
+
+
+def test_an_assignment_with_some_shares_held_sells_them_and_shorts_the_rest(server, jane):
+    """S3.4: 50 held of the 100 assigned: those are sold, and the other 50 are a short lot whose
+    basis is the rest of what the assignment brought in (48,640 less the held shares' 24,320)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _trade(jane, brk["id"], "buy", "50", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    lots_, opened = _shorts(server, brk["id"])
+    assert lots_ == [(D(-50), D("-24320.00"))]
+    assert [q for _, _, q in opened] == [D(50)]
+
+
+def test_an_assignment_of_exactly_the_shares_held_opens_no_short(server, jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _trade(jane, brk["id"], "buy", "100", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    assert _shorts(server, brk["id"]) == ([], [])
+
+
+def test_a_fraction_of_a_share_left_unheld_is_shorted(server, jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _trade(jane, brk["id"], "buy", "99.5", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    lots_, opened = _shorts(server, brk["id"])
+    assert [q for q, _ in lots_] == [D("-0.5")] and [q for _, _, q in opened] == [D("0.5")]
+
+
+def test_a_cover_takes_its_own_shares_never_another_stocks_lots(server, jane):
+    """S3.4: shares bought while short close the short from what that buy made: the lots of
+    other stocks held stay whole, and one share bought covers one."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="VTI")
+    _trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="KO")
+    _assign_call(jane, brk["id"])
+    _trade(jane, brk["id"], "buy", "1", "470")
+    assert _shorts(server, brk["id"])[0] == [(D(-99), D("-48153.60"))]
+    _trade(jane, brk["id"], "buy", "149", "470", day="2026-11-24")
+    assert _shorts(server, brk["id"])[0] == []
+    assert _held(jane, brk["id"], "MSFT")["quantity"] == "50.0"
+    for symbol in ("VTI", "KO"):
+        assert _held(jane, brk["id"], symbol)["quantity"] == "10.0"
+
+
+def test_shares_moved_in_while_short_are_held_and_the_buy_covers_the_short_alone(server, jane):
+    """S3.4, S2.2: half a share moved in while short stays held; the shares bought after cover
+    the 100 short, no more."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _assign_call(jane, brk["id"])
+    r = make(jane, "Txn", accountId=brk["id"], date="2026-11-21", kind="transfer-in",
+             symbol="MSFT", quantity="0.5", amount="0.00", fees="0")  # fmt: skip
+    assert r.status_code == 200, r.text
+    _trade(jane, brk["id"], "buy", "100", "470")
+    assert _shorts(server, brk["id"])[0] == []
+    assert _held(jane, brk["id"], "MSFT")["quantity"] == "0.5"

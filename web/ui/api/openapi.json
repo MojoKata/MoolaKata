@@ -22469,10 +22469,6 @@
       "RuleOut": {
         "additionalProperties": false,
         "properties": {
-          "accountDeleted": {
-            "title": "Accountdeleted",
-            "type": "boolean"
-          },
           "accountId": {
             "anyOf": [
               {
@@ -22606,7 +22602,6 @@
           "direction",
           "accountId",
           "accountName",
-          "accountDeleted",
           "categoryId",
           "categoryPath",
           "categoryDeleted",
