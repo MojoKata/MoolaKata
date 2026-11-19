@@ -852,3 +852,81 @@ def test_a_trade_changed_carries_its_lot_and_a_known_day_bought_stays(server):
                 transferLots=typed)  # fmt: skip
     saved(change(c, "Txn", moved, date="2026-09-11"))
     assert lots_("KO") == [("5.0", "250.00", "2020-01-02")]
+
+
+def test_a_split_is_of_a_known_transaction_not_a_trade_and_a_known_category(server):
+    """S2.6: a part names a transaction the caller writes that isn't a trade, and a category
+    there is."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    spent = add(c, a["id"], "-100.00", "2026-09-01")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    bought = add(c, brk["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+                 price="100", fees="0")  # fmt: skip
+    gone = add(c, a["id"], "-5.00", "2026-09-01")
+    saved(remove(c, "Txn", gone))
+    for txn in (new_id("Txn"), gone["id"]):  # the save finds no such record
+        assert create(c, "Split", transactionId=txn, amount="-40.00").status_code == 404
+    for txn, fields, code in (
+        (bought["id"], {}, "split-trade"),
+        (spent["id"], {"categoryId": new_id("Cat")}, "category-unknown"),
+    ):
+        r = create(c, "Split", transactionId=txn, amount="-40.00", **fields)
+        assert (r.status_code, r.json()["errors"][0]["code"]) == (422, code), r.text
+
+
+def test_a_sold_buy_deleted_leaves_its_sale_without_a_lot(server):
+    """S8.4: the shares a sale took gone with their buy, the sale has no lot to match: shown
+    as such, never taken from another lot or a basis made up."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    bought = add(c, brk["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+                 price="100", fees="0")  # fmt: skip
+    add(c, brk["id"], "120.00", "2026-09-02", kind="sell", symbol="VTI", quantity="1",
+        price="120", fees="0")  # fmt: skip
+    saved(remove(c, "Txn", c.get(f"/ui/api/transactions/{bought['id']}").json()))
+    sold = next(r for r in c.get("/ui/api/positions").json()["closed"] if r["symbol"] == "VTI")
+    assert sold["realized"] is None, sold
+
+
+# One account of each group (S1.1) and every kind (S2.1): what the transaction save takes.
+GRID_TYPES = ("checking", "credit-card", "mortgage", "brokerage", "ira", "529", "daf",
+              "crypto-exchange", "vehicle")  # fmt: skip
+HOLDING_KINDS = ("buy", "sell", "reinvest", "return-of-capital", "transfer-in", "transfer-out",
+                 "split", "foreign-tax", "reward")  # fmt: skip
+
+
+def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule(server):
+    """S2.1, S2.4, S3.2, S3.10: a kind that moves a holding is an investing account's alone;
+    an option trade, an option's end, a corporate action and a contract's adjustment are made
+    where they are made, never typed here; every other kind goes in any account."""
+    from moolakata.ledger import types as atypes
+    from moolakata.store.tables.accounts import TXN_KINDS
+    from moolakata.ui import transactions as tx
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    accts = {t: new_account(c, type=t, name=t)["id"] for t in GRID_TYPES}
+    for kind in TXN_KINDS:
+        for type_, aid in accts.items():
+            f = {"accountId": aid, "date": "2026-09-01", "amount": "-10.00", "kind": kind,
+                 "memo": "why"}  # fmt: skip
+            if kind in HOLDING_KINDS or kind in ("dividend", "capital-gain"):
+                f |= {"symbol": "VTI", "quantity": "1", "price": "10"}
+            if kind == "split":
+                f |= {"splitRatio": "2", "amount": "0.00"}
+            if kind in ("buy-to-open", "sell-to-open", "buy-to-close", "sell-to-close"):
+                want = "right-invalid"  # read as an option trade, which names its contract
+            elif kind in tx.CORPORATE_KINDS:
+                want = "corporate-kind"
+            elif kind in tx.OPTION_KINDS:
+                want = "option-kind"
+            elif kind in HOLDING_KINDS and not atypes.investing(type_):
+                want = "kind-not-for-account"
+            else:
+                want = None
+            r = make(c, "Txn", **f)
+            got = None if r.status_code == 200 else r.json()["errors"][0]["code"]
+            assert got == want, (kind, type_, r.text)

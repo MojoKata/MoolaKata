@@ -1195,10 +1195,9 @@ def _txn_delete(ctx, t: Transaction) -> None:
 
 
 def _split_txn(ctx, txn_id: str) -> tuple[Transaction, Account]:
-    """The split's transaction, written by the caller and not a trade."""
+    """The split's transaction, written by the caller and not a trade. The save has found it,
+    live and seen by the caller, before a part's record is read (S13.8.11)."""
     t = ctx.s.get(Transaction, txn_id)
-    if t is None or t.deleted:
-        raise refuse("transactionId", "transaction-unknown", "No such transaction.")
     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
     if t.instrumentId:
         raise refuse("transactionId", "split-trade", "A trade isn't split across categories.")
