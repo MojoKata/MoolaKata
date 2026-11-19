@@ -578,13 +578,17 @@ def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
 
 def test_a_typed_balance_changes_in_place_and_one_from_a_file_never(server):
     """S1.11: a balance typed by hand is changed where it is, on its own account and never in
-    the future; one a file brought changes only with the file, and another user's is not
-    theirs to change."""
+    the future, each refusal in its words (R3.7); one a file brought changes only with the
+    file; another user's, or one deleted, is not found, and one who only reads its account
+    (S10.3) may not change it."""
     import datetime as dt
+
+    from edits import share
 
     from moolakata import clock
     from moolakata.store.entities.accounts import Anchor
 
+    john = make_user(server, "john").id
     make_user(server, "jane")
     c = sign_in(server, "jane")
     a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
@@ -592,25 +596,63 @@ def test_a_typed_balance_changes_in_place_and_one_from_a_file_never(server):
     add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
     an = saved(create(c, "Anchr", accountId=a["id"], date="2026-09-10", balance="990.00"))
     r = change(c, "Anchr", an, accountId=other["id"])
-    assert (r.status_code, r.json()["errors"][0]["code"]) == (422, "anchor-fixed"), r.text
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [("accountId", "anchor-fixed", "A balance stays with its account.")]
     tomorrow = (clock.today() + dt.timedelta(days=1)).isoformat()
+    future = [("date", "date-in-future", "A reported balance can't be in the future.")]
     r = change(c, "Anchr", an, date=tomorrow)
-    assert r.json()["errors"][0]["code"] == "date-in-future", r.text
+    assert (r.status_code, refusals(r)) == (422, future), r.text
+    r = create(c, "Anchr", accountId=a["id"], date=tomorrow, balance="980.00")
+    assert (r.status_code, refusals(r)) == (422, future), r.text
     an = saved(change(c, "Anchr", an, balance="980.00", note="  "))
     check = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]
     assert (check["reported"], check["ok"]) == ("980.00", True)
     with server.db.read(unscoped="test") as s:
         kept = s.get(Anchor, an["id"])
         assert (kept.note, kept.source) == (None, "typed")
+    # Today's is no balance in the future.
+    saved(create(c, "Anchr", accountId=a["id"], date=clock.today().isoformat(), balance="980.00"))
     job = upload(c, other["id"], "statement.qfx", (FIX / "bank.ofx").read_bytes())
     assert job["state"] == "done", job["error"]
     with server.db.read(unscoped="test") as s:
         filed = s.query(Anchor).filter_by(accountId=other["id"]).one()
         filed = {"id": filed.id, "version": filed.version}
     r = change(c, "Anchr", filed, balance="1.00")
-    assert r.json()["errors"][0]["code"] == "anchor-imported", r.text
-    make_user(server, "john")
-    assert change(sign_in(server, "john"), "Anchr", an, balance="1.00").status_code == 404
+    assert refusals(r) == [
+        (None, "anchor-imported", "A balance from a file changes with the file.")
+    ], r.text
+    gone = [(None, "not-found", "Not found")]
+    r = change(sign_in(server, "john"), "Anchr", an, balance="1.00")
+    assert (r.status_code, refusals(r)) == (404, gone), r.text
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    r = change(sign_in(server, "john"), "Anchr", an, balance="1.00")
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
+    assert remove(c, "Anchr", an).status_code == 200
+    r = change(c, "Anchr", an, balance="1.00")
+    assert (r.status_code, refusals(r)) == (404, gone), r.text
+
+
+def test_a_typed_balance_keeps_its_note_trimmed_and_is_logged_for_its_owner(server):
+    """S1.11.2: a balance typed keeps its note without the spaces around it, or none, through
+    a change that leaves the note as it is; it is the typer's, and logged for the owner."""
+    from moolakata.store.entities.accounts import Anchor
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
+    day = {"accountId": a["id"], "date": "2026-09-10", "balance": "990.00"}
+    noted = saved(create(c, "Anchr", **day, note="  From the bank's site  "))
+    assert noted["note"] == "From the bank's site"
+    bare = saved(create(c, "Anchr", accountId=a["id"], date="2026-09-11", balance="990.00"))
+    assert bare["note"] is None
+    assert saved(change(c, "Anchr", bare, balance="985.00"))["note"] is None
+    assert saved(change(c, "Anchr", noted, note=" Checked "))["note"] == "Checked"
+    with server.db.read(unscoped="test") as s:
+        made = [s.get(Anchor, x["id"]) for x in (noted, bare)]
+        assert [(x.note, x.createdById) for x in made] == [("Checked", jane), (None, jane)]
+    typed = ("account.balance-typed", jane, "account", jane, {})
+    assert logged(server, a["id"]) == [typed, typed]
 
 
 INTERVAL = "statement-interval-invalid"
@@ -700,6 +742,11 @@ def logged(server, account_id: str) -> list[tuple]:
         return [(x.kind, x.actorId, x.subjectKind, x.ownerId, json.loads(x.detail)) for x in rows]
 
 
+def refusals(r) -> list[tuple]:
+    """A save's refusals: each one's field, code and words."""
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
 @pytest.mark.parametrize(
     ("kind", "fields"),
     [
@@ -768,8 +815,13 @@ def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server
 def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(server):
     """S1.11.6: a statement ticked off in the save that makes it is reconciled at once and
     then stays as it was; one not finished stays with its account and may be deleted, and is
-    gone after."""
-    make_user(server, "jane")
+    gone after; one who only reads the account (S10.3) changes neither. Each refusal in its
+    words (R3.7)."""
+    from edits import share
+
+    from moolakata.store.entities.accounts import Reconciliation
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
     c = sign_in(server, "jane")
     a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
     other = new_account(c, name="Other")
@@ -777,13 +829,72 @@ def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(serve
     fields = {"accountId": a["id"], "statementDate": "2026-09-30", "statementBalance": "100.00"}
     done = saved(create(c, "Recon", finished=True, **fields))
     assert done["finishedAt"]
+    stays = [(None, "reconciled", "A reconciled period stays as it was reconciled.")]
     r = change(c, "Recon", done, statementBalance="90.00")
-    assert r.json()["errors"][0]["code"] == "reconciled", r.text
+    assert (r.status_code, refusals(r)) == (422, stays), r.text
+    r = remove(c, "Recon", done)
+    assert (r.status_code, refusals(r)) == (422, stays), r.text
     open_ = reconcile(c, a["id"], "2026-10-31", "100.00")
     r = change(c, "Recon", open_, accountId=other["id"])
-    assert r.json()["errors"][0]["code"] == "reconciliation-fixed", r.text
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [("accountId", "reconciliation-fixed", "It stays with its account.")]
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    r = change(sign_in(server, "john"), "Recon", open_, statementBalance="1.00")
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
     assert remove(c, "Recon", open_).status_code == 200
-    assert change(c, "Recon", open_, statementBalance="1.00").status_code == 404
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Reconciliation, open_["id"]).deletedById == jane
+    r = change(c, "Recon", open_, statementBalance="1.00")
+    assert (r.status_code, refusals(r)) == (404, [(None, "not-found", "Not found")]), r.text
+
+
+def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_its_day(server):
+    """S1.11.6: a statement's cleared total is the opening balance and the account's own
+    transactions ticked (or reconciled before) up to and on its date; finished, it reconciles
+    those ticked and not yet reconciled, leaves the earlier statement's its own, and is logged
+    for the owner. One that doesn't balance is refused on Finished in its words."""
+    from moolakata.store.entities.accounts import Transaction
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="10.00", openingDate="2026-08-31")
+    b = new_account(c, name="Other", openingBalance="0.00", openingDate="2026-08-31")
+
+    def txn(account, amount, day, ticked=True):
+        t = add(c, account["id"], amount, day, **({"kind": "deposit"} if amount[0] != "-" else {}))
+        return saved(change(c, "Txn", t, cleared=True)) if ticked else t
+
+    paid = txn(a, "100.00", "2026-09-03")
+    on_the_day = txn(a, "-40.00", "2026-09-30")
+    unticked = txn(a, "-5.00", "2026-09-10", ticked=False)
+    after = txn(a, "-7.00", "2026-10-02")
+    elsewhere = txn(b, "1000.00", "2026-09-05")
+    first = reconcile(c, a["id"], "2026-09-30", "75.00")
+    assert (first["cleared"], first["difference"]) == ("70.00", "5.00")
+    r = change(c, "Recon", first, finished=True)
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [
+        ("finished", "not-balanced", "Tick transactions until the difference is zero.")
+    ]
+    first = saved(change(c, "Recon", first, statementBalance="70.00", finished=True))
+    second = reconcile(c, a["id"], "2026-10-31", "63.00")
+    assert (second["cleared"], second["difference"]) == ("63.00", "0.00")
+    saved(change(c, "Recon", second, finished=True))
+    with server.db.read(unscoped="test") as s:
+        got = {
+            t["id"]: s.get(Transaction, t["id"]).reconciliationId
+            for t in (paid, on_the_day, unticked, after, elsewhere)
+        }
+    assert got == {
+        paid["id"]: first["id"],
+        on_the_day["id"]: first["id"],
+        unticked["id"]: None,
+        after["id"]: second["id"],
+        elsewhere["id"]: None,
+    }
+    reconciled = ("account.reconciled", jane, "account", jane, {})
+    assert logged(server, a["id"]) == [reconciled, reconciled]
 
 
 @pytest.mark.parametrize(
@@ -1223,3 +1334,46 @@ def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule
             r = make(c, "Txn", **f)
             got = None if r.status_code == 200 else r.json()["errors"][0]["code"]
             assert got == want, (kind, type_, r.text)
+
+
+def test_an_account_is_made_with_what_its_dialog_sent(server):
+    """S1.2: a new account keeps its notes, its opening balance's date, whether it counts in
+    net worth as sent, and no institution when none was given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(
+        c,
+        institution=None,
+        notes="Bills come out of this one.",
+        openingBalance="10.00",
+        openingDate="2026-08-31",
+        countInNetWorth=False,
+    )
+    got = c.get(f"/ui/api/accounts/{a['id']}").json()
+    assert {k: got[k] for k in ("institution", "notes", "openingDate", "countInNetWorth")} == {
+        "institution": None,
+        "notes": "Bills come out of this one.",
+        "openingDate": "2026-08-31",
+        "countInNetWorth": False,
+    }
+
+
+def test_an_account_is_deleted_by_its_owner_logged_and_never_by_one_who_reads_it(server):
+    """S10.3: one who only reads an account is refused its deletion in the words of a read
+    share; its owner deletes it, marked as theirs and logged for them."""
+    from edits import share
+
+    from moolakata.store.entities.accounts import Account
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    a = c.get(f"/ui/api/accounts/{a['id']}").json()
+    r = remove(sign_in(server, "john"), "Acct", a)
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
+    assert remove(c, "Acct", a).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Account, a["id"]).deletedById == jane
+    assert logged(server, a["id"]) == [("account.deleted", jane, "account", jane, {})]

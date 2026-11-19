@@ -231,6 +231,16 @@ def test_opening_balance_typed_or_worked_out():
     assert [b for _, b in days] == [D(1100), D(1100), D(1070), D(1070)]
 
 
+def test_a_days_balance_is_zero_before_the_accounts_opening_day_though_it_has_transactions():
+    """R3.2: before an account's history begins, its opening date when it has one (else its
+    first transaction), there is nothing to count; from then the opening balance and the
+    transactions."""
+    o = balances.Opening(D(500), d(2026, 9, 2), False)
+    txns = [Txn(d(2026, 9, 4), "deposit", D(100))]
+    days = balances.daily(o, txns, d(2026, 8, 31), d(2026, 9, 4))
+    assert [b for _, b in days] == [D(0), D(0), D(500), D(500), D(600)]
+
+
 def test_transfers_match_the_closest_and_refuse_ties():
     t = Txn(d(2026, 9, 15), "withdrawal", D(-500), accountId="A")
     near = Txn(d(2026, 9, 16), "deposit", D(500), accountId="B")

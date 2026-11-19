@@ -143,3 +143,24 @@ Doubts:
 - A write share changes an account's notes (and opening balance and date): `settings_fields` leaves them out. Pinned for notes (`test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings`) as S10.3 names only the name and method among an account's settings; worth a look if notes count as a setting.
 - `REFUSED_WORDS` in `test_accounts.py` holds the words of every refusal in `test_an_accounts_settings_are_refused_on_their_own_field` (the existing test now checks field, code and message).
 - `logged` in `test_accounts.py` (imported by `test_connections.py`) reads an account's Activity entries other than its creation and its sharing.
+
+## Batch 7
+
+Test files touched: `tests/test_accounts.py`, `tests/test_ledger.py`.
+
+Counts: killed 131, equivalent 13, bug 0, unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x_balance_on__mutmut_5`, `x_daily__mutmut_18`, `x__reconciliation_row__mutmut_5`: `sum` starting from `0` rather than a Decimal zero over Decimals, added to a Decimal opening balance, gives the same value and places.
+- `x__reconciliation_row__mutmut_12`, `x__finish__mutmut_28`: both run only in the caller's session, which reads transactions through their access view, never a deleted one (as batch 3's `x__change__mutmut_101`).
+- `x__recon_update__mutmut_2`: `_recon_current` never reads its `ctx`.
+- `x__recon_update__mutmut_34`, `x__account_update__mutmut_69`: the mapping's `before_update` hook (`store/mapping.py` `_touch`) sets `updatedAt` to `clock.now()` on every flush of a changed record, and setting it to None changes the record too, so the version moves the same.
+- `x__account_current__mutmut_8`: `keptBy` is NOT NULL (default `'["manual"]'`) and always written as a list's JSON, never empty, so the fallback is never read.
+- `x__account_update__mutmut_30`, `_32`: `_check(body, None)` checks a change as a new account (name, type, the opening pair always); the fields not sent are the account's own, which passed those checks when made and at every change that touched them (the type never changes, and the table holds it to `ACCOUNT_TYPES`), so they refuse nothing more.
+- `x__account_update__mutmut_37`, `_41`: `_account_editable` has already asked for write, so the permissions read without asking are the same `Perms`.
+
+Mutation check: 131 killed (3 in `balances.py`, 128 in `accounts.py`), the 13 survivors exactly the equivalent ones above. `x__account_update__mutmut_17`, `_25` to `_27` (the type-fixed words) were already killed by batch 6's `REFUSED_WORDS`.
+
+Doubts:
+- `refusals(r)` in `test_accounts.py` reads a save's refusals as (field, code, words); earlier tests still spell it out inline.
+- A read share changing a typed balance or a reconciliation is refused by `_anchor_editable`/`_recon_editable` as `share-read-only`; without that check the flush's own guard refuses it as `write-refused` in other words, so the tests hold the words.
