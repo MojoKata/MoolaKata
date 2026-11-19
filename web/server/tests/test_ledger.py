@@ -339,3 +339,33 @@ def test_possible_duplicates_are_one_day_amount_payee_and_instrument_or_one_file
     assert ids(t(fitId="F1#2", amount=-1), t(fitId="F1#3", amount=-2)) == [[0, 1]]
     # Alike and from one id at once: one group, named once.
     assert ids(t(fitId="F1"), t(fitId="F1#2")) == [[0, 1]]
+
+
+def test_a_transfers_other_half_is_up_to_four_days_away_and_of_some_amount():
+    """S1.7: a half four days off is a match, five isn't; a dollar matches, nothing doesn't."""
+    t = Txn(d(2026, 9, 15), "withdrawal", D(-1), accountId="A")
+    four = Txn(d(2026, 9, 19), "deposit", D(1), accountId="B")
+    five = Txn(d(2026, 9, 10), "deposit", D(1), accountId="B")
+    assert transfers.best(t, [four, five]) is four
+    zero = Txn(d(2026, 9, 15), "withdrawal", D(0), accountId="A")
+    assert transfers.best(zero, [Txn(d(2026, 9, 15), "deposit", D(0), accountId="B")]) is None
+
+
+def test_an_import_without_its_dates_covers_nothing():
+    """S1.3.3.6: an import that covers no known days, or a statement kept without reading, is
+    no period."""
+    c = reconcile.coverage([Imp("I1", None, d(2026, 8, 2)), Imp("I2", d(2026, 7, 1), None),
+                            SimpleNamespace(id="I3", coveredFrom=d(2026, 7, 1),
+                                            coveredTo=d(2026, 7, 31), format="kept")])  # fmt: skip
+    assert (c.periods, c.gaps, c.overlaps) == ([], [], [])
+
+
+def test_the_days_before_an_accounts_history_begins_are_zero():
+    """A balance counts from the opening date when there is one, the opening balance itself
+    from that day; without one, from the first transaction."""
+    opened = balances.Opening(D(100), d(2026, 9, 2), False)
+    txns = [Txn(d(2026, 9, 4), "deposit", D(10))]
+    got = balances.daily(opened, txns, d(2026, 9, 1), d(2026, 9, 4))
+    assert [b for _, b in got] == [D(0), D(100), D(100), D(110)]
+    got = balances.daily(balances.Opening(D(0), None, False), txns, d(2026, 9, 1), d(2026, 9, 4))
+    assert [b for _, b in got] == [D(0), D(0), D(0), D(10)]
