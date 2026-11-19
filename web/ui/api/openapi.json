@@ -39217,7 +39217,7 @@
     },
     "/ui/api/transactions/{txn_id}/both-real": {
       "post": {
-        "description": "Two identical rows on one day, or two a file gave one id: the answer *both real* is\nkept (S1.11.5).",
+        "description": "Two identical rows on one day, or two a file gave one id: the answer *both real* is\nkept (S1.11.5), on the rows of each group of possible duplicates the row is in, as the\nreconcile view groups them, and no others.",
         "operationId": "both_real_ui_api_transactions__txn_id__both_real_post",
         "parameters": [
           {
