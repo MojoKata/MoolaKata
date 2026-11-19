@@ -258,6 +258,7 @@ def test_deleting_either_half_of_an_adjustment_undoes_it(server, jane):
 
     from moolakata.store.entities.accounts import Transaction
 
+    me = jane.get("/ui/api/session").json()["user"]["id"]
     for half in ("out", "into"):
         a, r = _adjusted_put(jane)
         assert r.status_code == 200, r.text
@@ -268,10 +269,27 @@ def test_deleting_either_half_of_an_adjustment_undoes_it(server, jane):
         with server.db.read(unscoped="test") as s:
             left = s.query(Transaction).filter_by(accountId=a, kind="option-adjust",
                                                   deleted=False).count()  # fmt: skip
+            by = {s.get(Transaction, x).deletedById for x in rows.values()}
         assert left == 0, half
+        assert by == {me}, "each half marked by who deleted the pair"
         mine = [r for r in jane.get("/ui/api/positions").json()["open"]
                 if r["accountId"] == a]  # fmt: skip
         assert [(r["symbol"], r["quantity"]) for r in mine] == [("MSFT 20NOV26 480 P", -2)]
+
+
+def test_an_assignment_deleted_frees_the_other_half_of_its_cash_paired_as_a_transfer(server, jane):
+    """S3.4, S1.7: the deliverable's cash goes with the assignment; a transfer it was paired
+    with stays, its other half free again."""
+    a, r = _adjusted_put(jane, cash="50")
+    assert r.status_code == 200, r.text
+    end, _, cash = _settle(jane, a, "assign", "2").json()
+    chk = new_account(jane, name="Checking", mask="1234")["id"]
+    out = saved(create(jane, "Txn", accountId=chk, date="2026-11-20", amount="-100.00",
+                       kind="transfer", payee="Brokerage", transferWithId=cash["id"]))  # fmt: skip
+    assert out["transferId"] == cash["id"]
+    saved(remove(jane, "Txn", end))
+    assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
+    assert jane.get(f"/ui/api/transactions/{cash['id']}").status_code == 404
 
 
 def test_a_split_not_a_whole_number_waits_for_the_memo(jane):

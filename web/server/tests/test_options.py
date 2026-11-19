@@ -203,6 +203,34 @@ def test_a_long_call_exercised_adds_its_premium_to_the_basis(jane):
     assert _held(jane, brk["id"], "MSFT")["cost"] == "45300.00"
 
 
+@pytest.mark.parametrize(
+    ("side", "right", "how", "word", "payee"),
+    [
+        ("sell-to-open", "put", "assign", "assignment", "Assigned MSFT 20NOV26 480 P"),
+        ("buy-to-open", "call", "exercise", "exercise", "Exercised MSFT 20NOV26 480 C"),
+    ],
+)
+def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
+    server, jane, side, right, how, word, payee
+):
+    """S3.4: the stock trade alone isn't deleted, and says what it came with; deleting the
+    assignment or exercise deletes it, both marked by who deleted them."""
+    from moolakata.store.entities.accounts import Transaction
+
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    opt(jane, brk["id"], side, "2026-09-02", "6.40", right=right, fees="0")
+    held = _held(jane, brk["id"], f"MSFT 20NOV26 480 {right[0].upper()}")
+    r = jane.post(f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",
+                  json={"how": how, "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    end, stock = r.json()
+    told = f"This trade came with the {word} of {payee}: delete that, and this goes with it."
+    assert _refused(remove(jane, "Txn", stock)) == [(None, "made-by-an-assignment", told)]
+    assert remove(jane, "Txn", end).status_code == 200
+    assert _held(jane, brk["id"], "MSFT") is None
+    with server.db.read(unscoped="test") as s:
+        assert {s.get(Transaction, x["id"]).deletedById for x in (end, stock)} == {_me(jane)}
+
+
 def test_out_of_the_money_expires_the_day_after(server, jane):
     from moolakata import options
     from moolakata.prices import refresh as pricing
@@ -1128,6 +1156,28 @@ def test_a_corporate_action_deleted_is_marked_by_who_deleted_it(server, jane):
         assert all(s.get(Transaction, t["id"]).deleted for t in act["transactions"])
     r = remove(jane, "CorpA", act)
     assert (r.status_code, _refused_as(r)) == (404, [(None, "not-found", "Not found")])
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"kind": "symbol-change", "newSymbol": "META"},
+        {"kind": "spin-off", "newSymbol": "META", "ratio": "0.5", "basisShare": "10"},
+        {"kind": "merger", "newSymbol": "META", "ratio": "2", "cashPerShare": "0"},
+    ],
+)
+def test_a_leg_of_a_corporate_action_deleted_takes_the_other_and_the_action(server, jane, fields):
+    """S2.4: a pair goes together, and the action it was made from with it, each marked by who
+    deleted it."""
+    from moolakata.store.entities.accounts import CorporateAction, Transaction
+
+    a, fb = _holding(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=fb, date="2026-06-09", **fields))
+    old, new = act["transactions"]
+    assert remove(jane, "Txn", old).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert {s.get(Transaction, t["id"]).deletedById for t in (old, new)} == {_me(jane)}
+        assert s.get(CorporateAction, act["id"]).deletedById == _me(jane)
 
 
 def _refused_as(r):

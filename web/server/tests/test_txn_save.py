@@ -151,3 +151,113 @@ def test_a_split_transaction_deleted_takes_its_parts(server, frozen):
     t = c.get(f"/ui/api/transactions/{txn}").json()
     assert remove(c, "Txn", t).status_code == 200
     assert c.get(f"/ui/api/transactions/{txn}").status_code == 404
+
+
+def _stored(server, kind):
+    """Each activity of a kind, as stored: its actor, subject, owner and detail."""
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        return [(x.actorId, x.subjectKind, x.subjectId, x.ownerId, x.detail)
+                for x in s.query(Activity).filter_by(kind=kind)]  # fmt: skip
+
+
+def _errors(r):
+    assert r.status_code == 422, r.text
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def test_a_transaction_is_deleted_by_who_writes_its_account_and_logged_for_its_owner(
+    server, frozen
+):
+    """S10.3: a read share deletes nothing; one who writes the account deletes, and the
+    owner's activity says so (S10.8), counting one."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    from moolakata.store.entities.accounts import Transaction
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-10.00", "2026-10-02", payee="Shop")
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    r = remove(john, "Txn", t)
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (403, "share-read-only"), r.text
+    saved(share(jane, "account", a["id"], users={u["john"].id: "write"}))
+    assert remove(john, "Txn", t).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Transaction, t["id"]).deletedById == u["john"].id
+    assert _stored(server, "transaction.deleted") == [
+        (u["john"].id, "account", a["id"], u["jane"].id, '{"count": 1}')
+    ]
+
+
+def test_left_out_by_one_who_writes_the_budget_and_counted_again(server, frozen):
+    """S7.3.5: one who only reads the account leaves its transaction out of a budget they
+    write, never of one they read; each budget refused says why, and each change is the
+    budget owner's activity."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    from moolakata.store.entities.budgets import BudgetLeaveOut
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-10.00", "2026-10-02", payee="Shop")
+    b = make(jane, "Bdgt", name="Household", accountIds=[a["id"]]).json()
+    seen = make(jane, "Bdgt", name="Seen", accountIds=[a["id"]]).json()
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    saved(share(jane, "budget", b["id"], users={u["john"].id: "write"}))
+    saved(share(jane, "budget", seen["id"], users={u["john"].id: "read"}))
+    t = john.get(f"/ui/api/transactions/{t['id']}").json()
+    unknown = ("leftOutOf", "budget-unknown", "Not a budget you can change.")
+    r = change(john, "Txn", t, leftOutOf={"add": [seen["id"]], "remove": []})
+    assert _errors(r) == [unknown]
+    r = change(john, "Txn", t, leftOutOf={"add": [new_id("Bdgt"), new_id("Bdgt")], "remove": []})
+    assert _errors(r) == [unknown, unknown]
+    others = [make(john, "Bdgt", name=n, accountIds=[]).json()["id"] for n in ("Other", "Third")]
+    r = change(john, "Txn", t, leftOutOf={"add": others, "remove": []})
+    assert sorted(_errors(r)) == [
+        ("leftOutOf", "not-in-budget", "Other doesn't count it."),
+        ("leftOutOf", "not-in-budget", "Third doesn't count it."),
+    ]
+    t = saved(change(john, "Txn", t, leftOutOf={"add": [b["id"]], "remove": []}))
+    t = saved(change(john, "Txn", t, leftOutOf={"add": [], "remove": [b["id"]]}))
+    assert t["leftOutOf"] == []
+    with server.db.read(unscoped="test") as s:
+        assert s.get(BudgetLeaveOut, (b["id"], t["id"])).deletedById == u["john"].id
+    logged = (u["john"].id, "budget", b["id"], u["jane"].id, "{}")
+    assert _stored(server, "budget.left-out") == [logged]
+    assert _stored(server, "budget.counted-again") == [logged]
+
+
+def test_a_part_added_in_a_reconciled_period_asks_first_and_one_deleted_says_by_whom(
+    server, frozen
+):
+    """S2.7: a part made changes the transaction, so a reconciled period asks first."""
+    from moolakata.store.entities.accounts import Split
+
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [])
+    saved(change(c, "Txn", c.get(f"/ui/api/transactions/{txn}").json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    part = {"transactionId": txn, "amount": "-100.00", "categoryId": cat["Travel"]}
+    ops = [{"op": "create", "entity": "Split", "id": new("Split"), "fields": part}]
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period"]
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert save(c, ops, asks).status_code == 200
+    # A part taken away is marked by who took it (schema.md §4.1).
+    _, txn = made(c, acct, cat, [("-60.00", {}), ("-40.00", {})])
+    first, gone = c.get(f"/ui/api/transactions/{txn}").json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {**part, "transactionId": txn}}]  # fmt: skip
+    assert save(c, ops).status_code == 200
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Split, gone["id"]).deletedById == me

@@ -701,6 +701,12 @@ def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(serve
         ("checking", {"categoryId": "gone"}, "categoryId", "category-unknown"),
         (
             "brokerage",
+            {"kind": "buy", "instrumentId": "gone", "quantity": "1", "price": "10", "fees": "0"},
+            "instrumentId",
+            "instrument-unknown",
+        ),
+        (
+            "brokerage",
             {"kind": "buy", "symbol": "VTI", "quantity": "1", "fees": None},
             "fees",
             "fees-invalid",
@@ -749,6 +755,8 @@ def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, fi
     fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-10.00", **fields}
     if fields.get("categoryId") == "gone":
         fields["categoryId"] = new_id("Cat")
+    if fields.get("instrumentId") == "gone":
+        fields["instrumentId"] = new_id("Instr")
     r = make(c, "Txn", **fields)
     if code is None:
         assert r.status_code == 200, r.text
