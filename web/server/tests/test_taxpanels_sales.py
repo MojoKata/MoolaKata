@@ -936,3 +936,48 @@ def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
     assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rule) for w in washes] == [
         ("XYZ", dt.date(2026, 9, 10), "John's", "short-sale")
     ]
+
+
+def cover(gain="-900", acquired=dt.date(2026, 8, 1), short=True):
+    """A row closing a short sale opened on `acquired` in account a1, on Aug 25."""
+    r = row("A", "5100", str(D(5100) - D(gain)))
+    r.instrumentId, r.acquired, r.sold, r.short = "XYZ", acquired, dt.date(2026, 8, 25), short
+    return r
+
+
+A1, A2 = SimpleNamespace(id="a1", name="One"), SimpleNamespace(id="a2", name="Two")
+
+
+@pytest.mark.parametrize(
+    ("account", "inst", "day", "other"),
+    [
+        (A1, "XYZ", dt.date(2026, 8, 1), False),  # the short sale it closes
+        (A2, "XYZ", dt.date(2026, 8, 1), True),  # the same day in another account
+        (A1, "XYZ", dt.date(2026, 8, 2), True),  # another day in its own
+        (A1, "ABC", dt.date(2026, 8, 20), False),  # another stock
+        (A2, "XYZ", dt.date(2026, 7, 26), True),
+        (A2, "XYZ", dt.date(2026, 7, 25), False),
+        (A2, "XYZ", dt.date(2026, 9, 24), True),
+        (A2, "XYZ", dt.date(2026, 9, 25), False),
+    ],
+)
+def test_another_short_sale_is_of_the_stock_within_30_days_and_not_the_one_closed(
+    account, inst, day, other
+):
+    assert panels._another(cover(), account, inst, day) is other
+
+
+def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged():
+    shorts = [
+        (A2, "XYZ", dt.date(2026, 9, 20), D(100)),
+        (A2, "XYZ", dt.date(2026, 8, 20), D(50)),  # 5 days off, against 26
+        (A1, "XYZ", dt.date(2026, 8, 1), D(100)),  # its own
+    ]
+    rows = [cover(), cover(gain="0"), cover(gain="10"), cover(short=False)]
+    insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
+    got = panels._short_reviews(None, rows, shorts, [], insts)
+    assert [
+        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rule) for w in got
+    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
+    # With no loss to check, a spouse's accounts are never read.
+    assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
