@@ -897,3 +897,19 @@ def test_a_replacements_lot_takes_its_wash_sales_loss_from_the_loss_sales_day(ja
         ko: "1000.00",
     }
     assert bases("2026-03-10") == {replaced: "1000.00", ko: "1000.00"}
+
+
+def test_shares_moved_are_offered_as_a_pair_whichever_half_is_recorded_first(jane):
+    """S1.7.1: the half moved in recorded before the half moved out, the pair is offered once
+    the second is recorded."""
+    schwab = new_account(jane, name="Schwab", type="brokerage")
+    fid = new_account(jane, name="Fidelity", type="brokerage")
+    add(jane, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="100")  # fmt: skip
+    assert jane.get("/ui/api/transfers/bitcoin").json()["items"] == []
+    add(jane, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="100")  # fmt: skip
+    pairs = jane.get("/ui/api/transfers/bitcoin").json()["items"]
+    assert [(p["symbol"], p["fromAccount"], p["toAccount"]) for p in pairs] == [
+        ("VTI", "Schwab", "Fidelity")
+    ]

@@ -42,7 +42,7 @@ def held(c):
     }
 
 
-def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(jane):
+def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(server, jane):
     a = new_account(jane, type="brokerage")["id"]
     assert (
         opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
@@ -63,6 +63,9 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(jane):
     assert after == {"MSFT 20NOV26 240 P": (-4, -1280, "2026-09-01")}, "basis and days carry"
     gains = jane.get("/ui/api/positions").json()["closed"]
     assert gains == [], "nothing was sold"
+    with server.db.read(unscoped="test") as s:
+        made_by = {t.createdById for pair in _pairs(s, a) for t in pair}
+    assert made_by == {_uid(server)}, "the adjustment is the one who recorded the split's"
     split = r.json()
     saved(remove(jane, "Txn", split))
     assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}

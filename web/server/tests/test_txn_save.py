@@ -719,3 +719,15 @@ def test_tags_sent_as_what_to_add_and_take_away_keep_the_others(server, frozen):
     assert t["tags"] == ["home", "work"]
     t = saved(edit(c, "Txn", path, tagIds={"add": [], "remove": [work]}))
     assert t["tags"] == ["home"]
+
+
+def test_a_new_transaction_is_left_out_of_a_budget_from_its_draft(server, frozen):
+    """S7.3.5: a transaction made from its dialog with a budget it is left out of is left out
+    of it from the start."""
+    c, acct, _, b = setup_budget(server)
+    txn = new("Txn")
+    fields = {"accountId": acct["id"], "date": "2026-10-02", "amount": "-100.00",
+              "payee": "Hotel", "leftOutOf": [b["id"]]}  # fmt: skip
+    r = save(c, [{"op": "create", "entity": "Txn", "id": txn, "fields": fields}])
+    assert r.status_code == 200, r.text
+    assert c.get(f"/ui/api/transactions/{txn}").json()["leftOutOf"] == [b["id"]]

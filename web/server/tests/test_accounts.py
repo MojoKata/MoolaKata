@@ -332,6 +332,13 @@ def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
     assert job["result"]["added"] == 4 and job["result"]["matched"] == 1, job
     fine = data.replace(b"<TRNAMT>3120.00", b"<TRNAMT>3120.004")
     assert upload(c, a["id"], "fine.qfx", fine)["result"]["changed"] == 0
+    # An amount the file changed is read with the one it had before (S1.11.3).
+    moved = data.replace(b"<TRNAMT>3120.00", b"<TRNAMT>3100.00")
+    assert upload(c, a["id"], "moved.qfx", moved)["result"]["changed"] == 1
+    items = c.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    assert sorted((x["amount"], x["amountWas"]) for x in items if x["amountWas"]) == [
+        ("3100.00", "3120.00")
+    ]
     repeat = data.replace(b"<FITID>20260910-1", b"<FITID>20260903-1")
     b = new_account(c, name="Second", mask="9999")
     first = upload(c, b["id"], "repeat.qfx", repeat)["result"]
@@ -1377,3 +1384,84 @@ def test_an_account_is_deleted_by_its_owner_logged_and_never_by_one_who_reads_it
     with server.db.read(unscoped="test") as s:
         assert s.get(Account, a["id"]).deletedById == jane
     assert logged(server, a["id"]) == [("account.deleted", jane, "account", jane, {})]
+
+
+def test_a_trade_names_its_holding_and_shares_each_missing_refused_on_its_own_field(server):
+    """S2.1, R3.11: every kind that moves a holding names it and how much: a holding missing
+    is refused on the symbol, shares missing on the quantity."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    words = "A trade needs its instrument and quantity."
+    for kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward"):
+        trade = {"accountId": a, "date": "2026-09-01", "amount": "-10.00", "kind": kind,
+                 "price": "10"}  # fmt: skip
+        for sent, field in (({"quantity": "1"}, "symbol"), ({"symbol": "VTI"}, "quantity"),
+                            ({}, "symbol")):  # fmt: skip
+            r = make(c, "Txn", **trade, **sent)
+            assert (r.status_code, refusals(r)) == (422, [(field, "trade-incomplete", words)]), (
+                kind,
+                sent,
+            )
+
+
+def test_a_transaction_is_made_with_what_its_dialog_sent_and_by_whom(server):
+    """S2.6: a new transaction keeps its memo and its tick, its payee trimmed as the
+    institution's words too, and no payee or debtor when none was sent; it is the maker's."""
+    from moolakata.store.entities.accounts import Transaction
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c)["id"]
+    sent = add(c, a, "-20.00", payee="  Acme  ", memo="rent", cleared=True,
+               reimbursable="5.00", owedBy=" Bob ")  # fmt: skip
+    bare = add(c, a, "-30.00")
+    keys = ("payee", "payeeRaw", "memo", "cleared", "owedBy")
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json() for t in (sent, bare)]
+    assert [{k: t[k] for k in keys} for t in got] == [
+        {"payee": "Acme", "payeeRaw": "Acme", "memo": "rent", "cleared": True, "owedBy": "Bob"},
+        {"payee": None, "payeeRaw": None, "memo": None, "cleared": False, "owedBy": None},
+    ]
+    with server.db.read(unscoped="test") as s:
+        assert [s.get(Transaction, t["id"]).createdById for t in (sent, bare)] == [jane, jane]
+
+
+def test_a_retirement_deposit_counts_for_the_year_typed_else_its_days(server):
+    """S1.4: a contribution to a retirement account is for the year typed with it, else the
+    year of its day; nothing else carries a year it wasn't given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ira = new_account(c, name="IRA", type="ira")["id"]
+    chk = new_account(c, name="Bank", mask="2222")["id"]
+    made = [
+        add(c, ira, "100.00", "2026-03-01", kind="deposit", contributionYear=2025),
+        add(c, ira, "100.00", "2026-03-01", kind="deposit"),
+        add(c, ira, "-100.00", "2026-03-01", kind="withdrawal"),
+        add(c, chk, "100.00", "2026-03-01", kind="deposit"),
+    ]
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json()["contributionYear"] for t in made]
+    assert got == [2025, 2026, None, None]
+
+
+def test_shares_moved_in_read_with_the_basis_typed_and_other_trades_with_none(server):
+    """S2.2, S2.6: a transfer-in is read with the basis typed with it; a buy's basis is its
+    lot's, never read as the transaction's."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    moved = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="10",
+                costBasis="400.00")  # fmt: skip
+    bought = add(c, a, "-100.00", "2026-09-10", kind="buy", symbol="KO", quantity="1",
+                 price="100")  # fmt: skip
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json()["costBasis"] for t in (moved, bought)]
+    assert got == ["400.00", None]
+
+
+def test_a_reinvested_dividend_opens_a_lot_of_the_shares_it_bought(server):
+    """S2.5: a reinvestment is a buy: its shares are a lot bought that day at its amount."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "-50.00", "2026-09-04", kind="reinvest", symbol="VXUS", quantity="1",
+            price="50")  # fmt: skip
+    assert _lots_made(server, t["id"]) == [("2026-09-04", Decimal(1), Decimal(50), False, False)]

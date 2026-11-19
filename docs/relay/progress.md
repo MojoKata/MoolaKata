@@ -164,3 +164,34 @@ Mutation check: 131 killed (3 in `balances.py`, 128 in `accounts.py`), the 13 su
 Doubts:
 - `refusals(r)` in `test_accounts.py` reads a save's refusals as (field, code, words); earlier tests still spell it out inline.
 - A read share changing a typed balance or a reconciliation is refused by `_anchor_editable`/`_recon_editable` as `share-read-only`; without that check the flush's own guard refuses it as `write-refused` in other words, so the tests hold the words.
+
+## Batch 8
+
+Test files touched: `tests/test_accounts.py`, `tests/test_txn_save.py`, `tests/test_taxpanels.py`,
+`tests/test_adjusted.py`.
+
+Counts: killed 71, equivalent 9, bug 2, unreachable 1, slow 0, still surviving 0.
+
+Equivalent:
+- `x__make__mutmut_5`, `_9`: the save's create check (`save.may_create`, Txn seen through `accountId`) asks the account's write before `_make` runs (a read share is refused there as `share-read-only`, one unknown or unread 404), so `access.account` without asking returns the same account and `Perms`.
+- `x__txn_create__mutmut_14`: `_make`'s `confirm` is read only by `if confirm`, where `None` is `False`.
+- `x__make__mutmut_212`, `_214`: a transaction just made has no tag links, so `set_on`'s owner (the query for current links) and `by` (only for one taken away) never decide.
+- `x__raise__mutmut_3`: every `_raise` (transactions, items, options) runs inside the save, which answers a Problem with errors by its field errors alone, never its detail (`save._Outcome.attempt`).
+- `x_shape__mutmut_28`: every caller's session reads splits through the access view, which never returns a deleted one (as batch 3's lots): `test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks` reads a part deleted and the change still survives.
+- `x_shape__mutmut_46`: picks of sales outside the rows are keyed by their own sale and never read for these rows.
+- `x_shape__mutmut_43`: the caller's session reads picks joined to their access view, and the read without `ORDER BY` came back in id order however the picks were sent (ids against the ops' order, and against the lots' order); a test of the order kills nothing, so none is kept.
+
+Bug:
+- `x__make__mutmut_193`: tells apart only through a transfer-in or -out that could pair but was never offered: one whose day a change moves within a pair's days (or one freed when its partner goes) isn't offered (`propose` runs only when a transfer is made, never on a change; tried by hand), so a buy that ran `propose` would offer it. A test would pin a pair not offered (S1.7.1).
+- `x__make__mutmut_229`: tells apart only through a trade other than a split sent with a `splitRatio`, which is saved with it, unrefused (a buy with `splitRatio` 2 answers 200 and keeps it; tried by hand); a test would pin a stray ratio accepted (R3.11, S2.4).
+
+Unreachable:
+- `x__make__mutmut_23`: `_make`'s only caller (`_txn_create`) passes `confirm=False`, so `closed.confirm` there never runs (the save asks the closed-year question itself).
+
+Mutation check (`--tests` the four files above): 71 killed, the 12 survivors exactly the equivalent, bug and unreachable ones above (`x_shape__mutmut_43` rerun with `--only` after a second try at its order: still surviving). A baseline run with batches 1-7's tests (7 files) killed 10 of the 83 (`_make` 120, 163, 165, 166, 179, 187; `_txn_create` 21, 22, 26, 27).
+
+Doubts:
+- A transfer whose day is changed into a pair's days isn't offered as a pair until another transfer is made (the bug above); S1.7.1 reads as if it should be.
+- A non-split trade keeps a `splitRatio` sent with it (the bug above); the lot replay ignores it, so it changes no figure.
+- `_make`'s `confirm` parameter and its `closed.confirm` branch are dead: the save asks S2.8's question for every op.
+- The batch's mutation runs are slow here (about 2 changes a minute with 4 to 7 whole test files); the baseline took 50 minutes.
