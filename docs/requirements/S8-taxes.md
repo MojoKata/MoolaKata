@@ -60,7 +60,7 @@ produces worksheets and exports. It never files, and says so (R1.16).
    conversion's taxed part waits, saying for what, while any of the filer's contributions for
    the year is not yet marked or last year's basis isn't typed: neither is read as 0 (R3.11).
    Whether a contribution can be deducted (income, a workplace plan) is the filer's to decide
-   (G29). An HSA's limit is its
+   ([G#578](https://github.com/MojoKata/MoolaKata/issues/578)). An HSA's limit is its
    coverage's (self-only or family, set on the account; unset, the family limit, and the panel
    asks), $1,000 more at 55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their

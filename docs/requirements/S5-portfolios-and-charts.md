@@ -26,8 +26,7 @@
       included; a loan takes none.
 
    A portfolio of chosen holdings, allocation against a target with its drift and rebalancing,
-   income by month, and a holding's price chart with its trades come later ([later
-   work](later.md), L5).
+   income by month, and a holding's price chart with its trades come later ([F#561](https://github.com/MojoKata/MoolaKata/issues/561)).
 3. **Net worth** on the Dashboard: assets minus liabilities over time, with the composition
    stacked by account group.
 4. **Charts are drawn in the browser** from series the server computes (`GET

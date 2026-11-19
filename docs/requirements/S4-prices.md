@@ -26,12 +26,12 @@
    | Mutual funds | **Tiingo** | free | daily NAVs, posted around midnight Eastern; CBOE doesn't list them |
    | Money-market funds | none | — | held at $1.00, shown as such |
    | Crypto, major coins | **Coinbase** public prices | none | |
-   | Crypto, other coins | **manual** | — | a typed price, with its date; a source for them comes later (L9) |
+   | Crypto, other coins | **manual** | — | a typed price, with its date; a source for them comes later ([F#564](https://github.com/MojoKata/MoolaKata/issues/564)) |
    | Gold spot | **PAXG** (a token backed by one troy ounce of gold), from Coinbase | none | tracks spot closely; a proxy |
    | Silver, platinum and palladium spot | **SLV**, **PPLT** and **PALL** from CBOE (or Tiingo), divided by each fund's metal per share | free | the metal per share ships with the tax tables (S16.11) and is updated with them; within a fraction of a percent of spot |
    | Options | **CBOE delayed quotes** | none | the JSON behind cboe.com's quote pages: an underlying's whole chain in one answer, 15 minutes delayed, read after the close. Not an official API: CBOE offers it for personal, non-commercial use and may change it, so Settings says so |
    | Options, fallback | **Massive** (formerly Polygon.io), Basic plan | free | end-of-day prices and two years of history; 5 calls a minute, each page of a result counting as one |
-   | Treasuries, I bonds and EE bonds | **manual** | — | a value typed from TreasuryDirect's published figures, with its date; a source for the Treasury's yield curve and savings-bond rates comes later (L3) |
+   | Treasuries, I bonds and EE bonds | **manual** | — | a value typed from TreasuryDirect's published figures, with its date; a source for the Treasury's yield curve and savings-bond rates comes later ([F#559](https://github.com/MojoKata/MoolaKata/issues/559)) |
    | No free ticker: 529 portfolios, 401(k) collective trusts, individual corporate and municipal bonds | **manual** | — | a value from a statement or an import, or a typed price, with its date. A statement's value is marked stale once the statement after it is overdue (S1.11.7.3), or a year and 60 days on in an account that expects none, and raises an alert (S12.11) unless that overdue statement's own alert is up: it is for statements that arrive without valuing the holding |
 
 4. **Schedule**: once a day, after the US market close (6:00 PM Eastern by default), a
@@ -46,7 +46,7 @@
    for that class; Settings shows the last error, and a failure lasting past the alert
    threshold raises an alert (S12.11). Intraday quotes are not fetched.
 5. **Option marks**: the day's close from the source that serves options, else manual or
-   intrinsic value (S3.7). A close older than the last trading day is marked stale.
+   intrinsic value (S3.7). Other option sources come later ([F#558](https://github.com/MojoKata/MoolaKata/issues/558)). A close older than the last trading day is marked stale.
    An option is named by its OCC ticker (`O:MSFT261120P00480000`: underlying, expiry, put or
    call, and the strike in thousandths).
    1. **CBOE** is asked for each underlying's chain once a day, after the close, and every
@@ -60,7 +60,7 @@
    option's instrument, entered from the open position (**Type a mark**). Intrinsic value is
    the underlying's latest close past the strike, never below zero. The Open tab labels a
    mark that is typed or intrinsic. Greeks
-   are out of scope ([out of scope](out-of-scope.md)).
+   are out of scope ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
 6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
    price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.

@@ -80,7 +80,7 @@
    shows (S15.4.7); that it was opened, like every `db` and `keys` command run on the host, is
    queued in the data directory and recorded in Activity for admins at the next unlock or
    within a quarter of an hour (S15.4.7).
-8. **Export** of a user's own data comes after the first release ([later work](later.md), L4).
+8. **Export** of a user's own data comes after the first release ([F#560](https://github.com/MojoKata/MoolaKata/issues/560)).
 9. **Times and dates.**
    1. **Every timestamp is stored in UTC** (`deletedAt`, a session's start, an alert's
       opening, a price's `as_of`), and shown in the viewer's time zone.

@@ -1,7 +1,7 @@
 # S9. Receipts
 
 1. **Upload** from the browser: drag and drop, or the file picker. One or many at once.
-   Taking a photo of a receipt with a phone belongs to the mobile PWA ([out of scope](out-of-scope.md)).
+   Taking a photo of a receipt with a phone belongs to the mobile PWA ([F#571](https://github.com/MojoKata/MoolaKata/issues/571)).
    Formats: PDF, JPEG, PNG, WebP, and HEIC, the format of iPhone photos (converted to JPEG
    for display, with the photo's orientation applied). Each file is at most
    25 MB (a Setting).

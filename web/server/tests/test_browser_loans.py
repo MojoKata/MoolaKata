@@ -599,10 +599,12 @@ def test_a_helocs_draw_period_is_interest_only(browser, household, new_loan):
 
 def test_the_schedule_shows_escrow_paid_rows_and_an_overpayment(browser, household, new_loan):
     h = household
-    a = new_loan("Schedule mortgage", principal="240000", startDate=f"{months_back(3)}-01",
+    # Paid through this month's due day, so the next row is due ahead whatever today's date:
+    # a day left unpaid would show as missed once its 15 days' grace pass (S1.9.3.1).
+    a = new_loan("Schedule mortgage", principal="240000", startDate=f"{months_back(2)}-01",
                  termMonths=360, rate="6.5", escrowTax="250", pmi="80")  # fmt: skip
     due = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()
-    first, second = f"{months_back(2)}-01", f"{months_back(1)}-01"
+    first, second = f"{months_back(1)}-01", f"{months_back(0)}-01"
     assert loan_payment(h.c, a["id"], first, due["total"]).status_code == 200
     extra = Decimal(str(due["total"])) + 500
     assert loan_payment(h.c, a["id"], second, str(extra)).status_code == 200

@@ -95,12 +95,12 @@
          entry that leaves nothing out: what the institution reported, its cash and its
          positions, is what MoolaKata works out from the rows, nothing held that it didn't
          report; and the next day's file, the same days fetched again, adds nothing. A
-         household's own data joins as L14 says.
+         household's own data joins as [F#568](https://github.com/MojoKata/MoolaKata/issues/568) says.
 
       A part that waits on a fix is an expected failure named by its claim or question
       (`[xfail]` in the file's `.toml`), strict, so the fix takes the mark away. A change to
       importing adds a file, an expected result or a sequence that fails before it. Real
-      exported files join the corpus as G25 says.
+      exported files join the corpus as [G#574](https://github.com/MojoKata/MoolaKata/issues/574) says.
 
    8. **Coverage**: what the tests reach, measured on every run of `web/check`, with no
       service outside the repository and its own GitHub Pages site. coverage.py measures lines and branches in every

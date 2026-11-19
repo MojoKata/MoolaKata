@@ -257,7 +257,6 @@ def test_user_text_reaches_a_regular_expression_only_through_a_rule():
         "exactjson.py": "its own marker pattern, as bytes",
         "mcp.py": "the patterns its tools declare for their arguments",
         "middleware.py": "the API's route paths",
-        "dev/doccheck.py": "the tracked ids' letters, G, Q and L",
         "dev/mutate.py": "the module names a developer passes",
     }
     calls = {"compile", "search", "match", "fullmatch", "sub", "subn", "split", "findall"}

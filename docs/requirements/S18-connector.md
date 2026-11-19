@@ -405,7 +405,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
          a bond's and an option's, each as its kind; an option's opening or closing from what
          Schwab says of the trade (`positionEffect`), as buy or sell to open or to close,
          with its contracts' shares (Schwab's multiplier, else 100), and a share's short sale
-         and cover the same way (G28); an order of several legs (a spread, a roll) as one
+         and cover the same way ([G#577](https://github.com/MojoKata/MoolaKata/issues/577)); an order of several legs (a spread, a roll) as one
          trade per leg, its fees with the first.
       2. **An option's end**: a `RECEIVE_AND_DELIVER` removing an option as an expiry,
          assignment or exercise by what it says; the shares that come with an assignment or

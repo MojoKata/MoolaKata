@@ -29,7 +29,7 @@
           months and organisations), Taxes and Receipts. The source sends what each screen
           needs (S11.3.1). A receipt still on its way (S11.4) is listed, *not arrived*, with
           what came with it (its date, amount and payee), and opens once it has. Positions with their gains and option trades, a loan's view and a
-          physical-asset account's items come later ([later work](later.md), L6). The
+          physical-asset account's items come later ([F#562](https://github.com/MojoKata/MoolaKata/issues/562)). The
           navigation lists only the kinds you have something from. There is no Settings,
           Profile, Watchlist, import, sharing or editing;
        5. the user tile shows you, the local user, *viewing doe-parents*.

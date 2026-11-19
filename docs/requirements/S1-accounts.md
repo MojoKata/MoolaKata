@@ -46,7 +46,7 @@
       follows (a disclaimer, the time the file was downloaded) is left out, and the step says
       how many lines were. A security a CSV names by its symbol alone is a mutual fund when the
       symbol is five letters ending in X, a listed share when it is any other ticker, and in an
-      exchange's or a wallet's file a coin (G27: correcting one). Imports are idempotent: a
+      exchange's or a wallet's file a coin ([G#576](https://github.com/MojoKata/MoolaKata/issues/576): correcting one). Imports are idempotent: a
       re-imported file adds only what is new, matched by the file's transaction id (an OFX
       file's `FITID`) or by date, amount and payee, amounts compared in cents as stored. A row
       whose id isn't here yet still matches, by date, amount and payee, a row that has none (one
@@ -117,7 +117,7 @@
          saved until each part is saved or left out. The PDF is kept on each account it
          filled, once.
       6. **Kept without reading**: any statement can be kept on its account as it is, for the
-         record, without its lines being read: a brokerage statement's trades (L1), a
+         record, without its lines being read: a brokerage statement's trades ([F#557](https://github.com/MojoKata/MoolaKata/issues/557)), a
          statement whose layout isn't read, or one the person only wants archived. MoolaKata
          reads its period and institution where it can (with statement reading off, the
          person types the period), for the person to check, and keeps the PDF on the account
@@ -128,8 +128,7 @@
          this way, and the same file isn't kept twice on an account. An account kept current
          from OFX or CSV is archived this way, its statements kept beside the imports that
          carry its activity.
-      7. **Learned column positions** *(after the first release: [later work](later.md),
-         L10)*, for layouts with no section headings and no running balance, where the sign
+      7. **Learned column positions** *(after the first release: [F#565](https://github.com/MojoKata/MoolaKata/issues/565))*, for layouts with no section headings and no running balance, where the sign
          of an amount comes from the column it is in (separate *Debits* and *Credits*
          columns):
          1. **Finding the columns**: on each page, the words of the lines that start with a
@@ -187,7 +186,7 @@
          **Not read**: trades (buys and sells), options activity, corporate actions and
          margin detail. Each shows as a line left out, *not read*; a trade offers *enter it
          as a trade*, with its figures filled into the trade dialog (S3) when chosen, and the
-         rest are entered by hand (L1).
+         rest are entered by hand ([F#557](https://github.com/MojoKata/MoolaKata/issues/557)).
    4. **bitcoin watch** (self-custody wallets): balances and transactions read by address or
       xpub (S1.6);
    5. **the MoolaKata Connector**: files fetched from the institution by the connector's
@@ -197,14 +196,14 @@
 4. **Retirement accounts** also carry: the **contribution year** of each contribution (a
    contribution made 2027-03-01 may be for 2026), whether the owner's own contribution to a
    traditional IRA is **deductible** (yes, no, or not decided yet; a contribution partly
-   deducted is split, each part marked, S2.6; S8.6), employer match and vesting for a 401(k), and
+   deducted is split, each part marked, S2.6; S8.6), the employer match for a 401(k) (its vesting: [G#583](https://github.com/MojoKata/MoolaKata/issues/583)), and
    the account holder's **birth year** (from the profile) for limits and RMDs. Contribution
    limits per year are a table shipped with the app and updated with it, which an admin can
-   correct in Settings (S8.6).
+   correct in Settings › Tax tables (S16.11), shown against contributions in S8.6.
 5. **Crypto exchanges** (Coinbase, Kraken and the like) are kept current from their CSV
    exports and statements, one import mapping per exchange. Reading an exchange through its
-   API comes later ([out of scope](out-of-scope.md)).
-6. **Self-custody wallets** hold **bitcoin**. Other coins and chains come later ([out of scope](out-of-scope.md)).
+   API comes later ([F#570](https://github.com/MojoKata/MoolaKata/issues/570)).
+6. **Self-custody wallets** hold **bitcoin**. Other coins and chains come later ([F#570](https://github.com/MojoKata/MoolaKata/issues/570)).
    1. **What the account holds**: addresses, an **xpub/ypub/zpub**, or an **output
       descriptor**, from which addresses are derived (with a gap limit of 20 unused addresses
       by default). Where a choice isn't settled here, MoolaKata does as Sparrow does, so a
@@ -230,7 +229,7 @@
          addresses are derived from all its keys, and only its public keys are ever held.
          Other forms (`sh(wsh(…))`, a taproot descriptor with scripts) are refused, saying
          so. Miniscript policies beyond these come after the first release
-         ([later work](later.md), L11).
+         ([F#566](https://github.com/MojoKata/MoolaKata/issues/566)).
    2. **Where balances and history come from**, set by an admin in Settings › Bitcoin:
       1. a **public explorer** with the Esplora API (mempool.space suggested, or Blockstream).
          No wallet is read until an admin saves Settings › Bitcoin (R3.5), and until then a

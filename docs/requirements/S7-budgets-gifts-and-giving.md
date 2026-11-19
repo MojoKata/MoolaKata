@@ -186,7 +186,7 @@
       before money in on the same day; one due today, or a few days late but within its
       series' tolerance, is expected today, and one later still is *missed* and not expected,
       for payments and money in alike. With no money in expected, the next 31 days count.
-   2. *(later)*: a category passing a threshold, a large transaction.
+   2. Later ([F#572](https://github.com/MojoKata/MoolaKata/issues/572)): a category passing a threshold, a large transaction.
 7. **Gift plans and occasions.** People are the household's (S10.10). On the Gifts screen
    each user keeps a **gift plan** for each person they give to or receive from:
    1. **A gift plan has** its person, the **holidays** they get gifts for, **anniversaries**
@@ -249,7 +249,7 @@
       market value when held over a year, otherwise the lesser of the market value and the
       basis), a **qualified charitable distribution** from an IRA (from age 70½, up to the
       year's limit in the tax tables; checking the age, the limit and that it came from an IRA
-      comes later, [later work](later.md), L7), a **contribution to a donor-advised fund**, or
+      comes later, [F#563](https://github.com/MojoKata/MoolaKata/issues/563)), a **contribution to a donor-advised fund**, or
       a **grant** from one.
    4. **What counts toward the target**: everything that left the user's hands, with a DAF
       counted when it is funded (the default) or when it grants, as the plan chooses. A DAF

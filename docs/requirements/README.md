@@ -11,14 +11,15 @@ portfolios with each other, read-only or read/write, and share read-only with pe
 **How the requirements are organised.** This file holds what applies everywhere: the
 decisions (R1), the terminology (R2) and the design principles (R3). Each subject has its own
 section file, S1 to S18, listed below. A reference names a part by its id and number:
-`R1.16` is item 16 of the decisions here, `S9.8.7` item 8.7 of the receipts section, `G8` a
-gap, `L1` later work and `Q8` an open question.
+`R1.16` is item 16 of the decisions here, `S9.8.7` item 8.7 of the receipts section and `Q8`
+an open question. Gaps and later work are GitHub issues, cited by number and linked to the
+issue: `[G#n]` a gap, `[F#n]` later work, `[NO#n]` out of scope, `[#n]` any other issue.
 
 1. **Lasting ids.** Section ids (S1, S2, …) and their first-level items (`S1.2`) are never
    renumbered or reused: a new section or first-level item takes the next free number, and
    one that is removed leaves its number unused. Deeper items may be renumbered, with every
-   reference updated in the same change. Gaps (G), later work (L) and questions (Q) keep
-   their ids the same way.
+   reference updated in the same change. Questions (Q) keep their ids the same way, and an
+   issue's number is never reused.
 2. **Splitting a section.** A section file that grows past 500 lines moves its first-level
    items to files of their own, named by the item's number (`S1-accounts-02-brokerage.md`
    holds S1.2), and keeps a summary with a table of them in the form of the one below.
@@ -56,24 +57,15 @@ opens the dialogs.
 | **S17** | [Implementation](S17-implementation.md) | The stack, the repository layout, checks, dev mode, the Docker images and where they are published, the milestones, CI and releases |
 | **S18** | [MoolaKata Connector](S18-connector.md) | The second service that holds institutions' credentials, fetches with its drivers and pushes into MoolaKata's import |
 
-## Gaps
+## Gaps, later work and out of scope
 
-Areas named but not yet specified ([gaps.md](gaps.md)), each ranked High, Med or Low.
-
-| Id | Gap | Rank |
-|---|---|---|
-| **G23** | [Real receipt fixtures for the reader](gaps.md#g23-real-receipt-fixtures-for-the-reader--low) | Low |
-| **G25** | [Real exported files for the import corpus](gaps.md#g25-real-exported-files-for-the-import-corpus--low) | Low |
-| **G26** | [Seeing and recovering what was deleted](gaps.md#g26-seeing-and-recovering-what-was-deleted--low) | Low |
-| **G27** | [Correcting an instrument's class](gaps.md#g27-correcting-an-instruments-class--low) | Low |
-| **G28** | [Short sales of stock](gaps.md#g28-short-sales-of-stock--low) | Low |
-| **G29** | [Whether an IRA contribution can be deducted](gaps.md#g29-whether-an-ira-contribution-can-be-deducted--low) | Low |
-| **G30** | [A renewed certificate without a restart](gaps.md#g30-a-renewed-certificate-without-a-restart--low) | Low |
-| **G31** | [A 529's contributions in one table](gaps.md#g31-a-529s-contributions-in-one-table--low) | Low |
-| **G32** | [Which records carry a note](gaps.md#g32-which-records-carry-a-note--medium) | Medium |
-| **G33** | [People with the same initials](gaps.md#g33-people-with-the-same-initials--medium) | Medium |
-
-A new gap takes the next id after G33.
+Areas named but not yet specified are
+[issues labelled `gap`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+is%3Aopen+label%3Agap),
+each ranked High, Medium or Low in its body. Work planned for after the first release is
+[issues labelled `future`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+is%3Aopen+label%3Afuture).
+What MoolaKata does not do is
+[closed issues labelled `no`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+label%3Ano).
+A section cites one as `[G#n]`, `[F#n]` or `[NO#n]`, linked to the issue.
 
 ## Open questions
 
@@ -85,31 +77,9 @@ What waits on a decision ([questions.md](questions.md)), each ranked High, Med o
 
 A new question takes the next id after Q30.
 
-## Later work
-
-Work planned for after the first release ([later.md](later.md)).
-
-| Id | Item | What it is |
-|---|---|---|
-| **L1** | [Reading a brokerage statement's trades](later.md#l1-reading-a-brokerage-statements-trades) | buys and sells, options activity and corporate actions on a brokerage statement; until then each is offered to the trade dialog |
-| **L2** | [Other option price sources](later.md#l2-other-option-price-sources) | Schwab Trader API through a connector driver, MarketData.app, Massive with a live key, Tradier |
-| **L3** | [Treasury yields and savings-bond rates](later.md#l3-treasury-yields-and-savings-bond-rates) | a price source for Treasuries, I bonds and EE bonds from the Treasury's published data; until then they are priced by hand |
-| **L4** | [A user's export of their own data](later.md#l4-a-users-export-of-their-own-data) | a ZIP of a user's accounts, transactions, lots and receipts, streamed, after the password again |
-| **L5** | [Portfolio charts beyond value, returns and holdings](later.md#l5-portfolio-charts-beyond-value-returns-and-holdings) | chosen holdings, allocation with a target and rebalancing, income by month, a holding's price chart |
-| **L6** | [More of a linked household's window](later.md#l6-more-of-a-linked-households-window) | positions with gains, loans, physical-asset items, and a tax book's files across a link |
-| **L7** | [Limits checked in projections and giving](later.md#l7-limits-checked-in-projections-and-giving) | contribution caps in projections, and QCD age, limit and source checks |
-| **L9** | [More price sources](later.md#l9-more-price-sources) | Alpha Vantage as the last stock fallback, CoinGecko for coins Coinbase doesn't list |
-| **L10** | [Learned column positions for statements](later.md#l10-learned-column-positions-for-statements) | a statement's Debit and Credit columns found, named once and learned per institution; until then a sign comes from the line itself or its words |
-| **L11** | [Miniscript wallet policies](later.md#l11-miniscript-wallet-policies) | timelocked recovery paths and decaying multisig in `wsh()`, and taproot script trees; until then refused |
-| **L12** | [Who paid in a household budget](later.md#l12-who-paid-in-a-household-budget) | each member's share of a group budget's costs, who paid what, and who owes whom |
-| **L14** | [The drivers checked against a household's own data](later.md#l14-the-drivers-checked-against-a-households-own-data) | Schwab Trader API data and OFX servers' answers from the household's accounts, joined to the connector corpus |
-| **L15** | [Holding the event loop caught by the tests](later.md#l15-holding-the-event-loop-caught-by-the-tests) | asyncio's debug mode in the test server, failing a test whose callback holds the loop |
-
 ## Also here
 
 - [Open questions](questions.md): what waits on a decision, listed above.
-- [Later work](later.md): what comes after the first release.
-- [Out of scope](out-of-scope.md): what MoolaKata does not do.
 - [Rejected ideas](rejected-ideas.md): ideas weighed and turned down, with the reason.
 
 # R1. Decisions
@@ -124,7 +94,7 @@ The rulings the rest of the requirements apply.
 2. **A single-page app at `/ui`**, dark-mode first, in one frame: a collapsible
    sidebar, the signed-in user at its foot, the theme button, a DEV pill in dev mode and an
    update pill. It is built for desktop browsers. Phones will get a separate, focused PWA
-   later, not the whole web app (S12.8, [out of scope](out-of-scope.md)).
+   later, not the whole web app (S12.8, [F#571](https://github.com/MojoKata/MoolaKata/issues/571)).
 3. **Context-sensitive help on every screen**: the F1 help pane, with one Markdown guide per
    screen or panel that follows the focused field (S12.7). A test fails when a field has
    no heading in its guide.
@@ -198,9 +168,9 @@ The rulings the rest of the requirements apply.
     as they do with people on their own (S10.3). What a household shares is shown in a **window
     of its own**, never mixed with this household's data (S12.10). This suits household
     servers; a server for more than a household would need users to opt in to being listed
-    ([out of scope](out-of-scope.md)).
+    (out of scope: [NO#598](https://github.com/MojoKata/MoolaKata/issues/598)).
 23. **US dollars only.** Every account, price, total and report is in USD. There are no
-    foreign accounts and no currency conversion (S4.8, [out of scope](out-of-scope.md)).
+    foreign accounts and no currency conversion (S4.8, out of scope: [NO#585](https://github.com/MojoKata/MoolaKata/issues/585)).
 24. **Records are soft-deleted.** Deleting marks a record deleted, with when and by whom, and
     a view per table works out whether it is deleted through what it belongs to. The few
     exceptions are listed in [`schema.md`](schema.md) (S14.1.5).
@@ -212,7 +182,7 @@ The rulings the rest of the requirements apply.
     photos of statements read on the server. There is no bank-aggregation service (S1.3,
     [rejected ideas](rejected-ideas.md)); the household's own MoolaKata Connector fetches
     such files for the accounts whose owners turn its sync on (S18). **Bitcoin** is the one chain watched, through a public explorer or the household's
-    own node; other coins and exchanges' APIs come later (S1.5, S1.6).
+    own node; other coins and exchanges' APIs come later (S1.5, S1.6, [F#570](https://github.com/MojoKata/MoolaKata/issues/570)).
 
 # R2. Terminology
 
