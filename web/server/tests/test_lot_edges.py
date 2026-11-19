@@ -392,3 +392,19 @@ def test_two_picks_of_one_lot_take_no_more_than_it_holds():
         (lots_[1].id, D(6)), (lots_[1].id, D(4)), (lots_[0].id, D(2))
     ]  # fmt: skip
     assert all(x.quantity >= 0 for x in r.open)
+
+
+def test_picks_take_a_lot_whatever_is_missing_from_it_and_carry_what_is():
+    """S2.3, S2.2, S8.4: a sale's picks take a lot whose basis is missing (its gain unknown)
+    and one whose day bought is missing (its term unknown) as they take any; a pick of a lot
+    not held takes nothing, and the rest of the sale goes first in."""
+    plain = Lot("L1", "VTI", d(2024, 1, 5), D(10), D(1000))
+    no_basis = Lot("L2", "VTI", d(2025, 3, 5), D(10), None, basisMissing=True)
+    no_day = Lot("L3", "VTI", d(2025, 6, 1), D(10), D(2000), acquiredMissing=True)
+    s = sell(8, 2400, method="specific")
+    picks = [Pick(s.id, "L2", D(3)), Pick(s.id, "L3", D(2)), Pick(s.id, "GONE", D(1))]
+    r = replay("fifo", [s], [plain, no_basis, no_day], picks, [])
+    got = [(x.lotId, x.quantity, x.basis, x.acquiredMissing) for x in r.disposals]
+    assert got == [("L2", D(3), None, False), ("L3", D(2), D(400), True),
+                   ("L1", D(3), D(300), False)]  # fmt: skip
+    assert r.disposals[0].gain is None

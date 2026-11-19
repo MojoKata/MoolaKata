@@ -44,6 +44,7 @@ class Lot:
     costBasis: D | None
     transactionId: str | None = None
     basisMissing: bool = False
+    acquiredMissing: bool = False  # shares moved in whose day bought isn't known (S2.2)
     createdAt: dt.datetime = T0
 
 

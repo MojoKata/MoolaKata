@@ -4,6 +4,7 @@ and when the next statement is overdue."""
 import datetime as dt
 from types import SimpleNamespace as NS
 
+import pytest
 from edits import edit, saved
 
 from moolakata.ledger import expected
@@ -158,3 +159,29 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
     assert saved(edit(c, "Acct", path, statementInterval="yearly"))["statementInterval"] == "yearly"
     out = saved(edit(c, "Acct", path, statementInterval=None))
     assert out["statementInterval"] is None, "back to the type's"
+
+
+@pytest.mark.parametrize(
+    ("gap", "learned"),
+    [
+        (19, None),
+        (20, "monthly"),
+        (45, "monthly"),
+        (46, "quarterly"),
+        (135, "quarterly"),
+        (136, "yearly"),
+    ],
+)
+def test_the_typical_gap_between_three_ends_decides_the_interval(gap, learned):
+    """S1.11.7: under 20 days apart is downloads, not statements; up to 45 days monthly, up
+    to 135 quarterly, more yearly. The gap is the middle one, so one odd gap doesn't decide."""
+    first = dt.date(2025, 1, 31)
+    ends = [first, first + dt.timedelta(days=gap), first + dt.timedelta(days=2 * gap)]
+    assert expected.learned(imp(*ends)) == learned
+    # A fourth end a year late: one odd gap among three, and the middle one still decides.
+    assert expected.learned(imp(*ends, ends[-1] + dt.timedelta(days=400))) == learned
+
+
+def test_a_kept_by_not_read_counts_as_none_so_no_statement_is_expected():
+    assert expected.kept_by(acct(kept="not json")) == []
+    assert expected.interval(acct(kept="not json")) == "none"
