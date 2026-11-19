@@ -4779,6 +4779,7 @@
  * @property {import('../kit/dec.js').Dec} replacementQty
  * @property {(import('../kit/dec.js').Dec | null)} adjustedBasis
  * @property {boolean} review
+ * @property {(string | null)} rule
  */
 
 /**

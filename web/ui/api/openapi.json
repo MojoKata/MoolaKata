@@ -27765,6 +27765,17 @@
             "title": "Review",
             "type": "boolean"
           },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
           "sold": {
             "format": "date",
             "title": "Sold",
@@ -27785,7 +27796,8 @@
           "replacementAccount",
           "replacementQty",
           "adjustedBasis",
-          "review"
+          "review",
+          "rule"
         ],
         "title": "WashOut",
         "type": "object"

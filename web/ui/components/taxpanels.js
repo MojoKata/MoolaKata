@@ -240,27 +240,29 @@ function Gains({ p }) {
             : null}
         </div>
         <div class="card"><h3 data-help="wash-sales">Wash Sales</h3>${p.washes.length
-          ? p.washes.map((/** @type {any} */ w) =>
-            html`<div class="list-item"><div class="grow">${w.symbol} ${
-              w.rule === 'short-sale' ? 'bought back' : 'sold'
-            } ${date(w.sold)}<div class="small dim">${w.account} · ${
-              w.rule === 'short-sale' ? 'sold short' : 'replaced'
-            } ${date(w.replacedOn)} in ${w.replacementAccount} (${
-              quantity(w.replacementQty)
-            } shares)${
-              w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : ''
-            }</div></div>${
-              w.review
-                ? html`
-                  <${StatePill} tone="warn" why=${REVIEW_WHY[w.rule]}>review</${StatePill}>
-                `
-                : html`
-                  <span
-                    class="small"><span class="pill warn">W</span> <${Amt} v=${w
-                      .disallowed} /> of <${Amt} v=${w.loss} /></span>
-                `
-            }</div>`
-          )
+          ? p.washes.map((/** @type {any} */ w) => {
+            // A short sale's review names its cover and the other short sale (S3.8.5.1).
+            const short = w.rule === 'short-sale';
+            const sale = `${w.symbol} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
+            const near = `${short ? 'sold short' : 'replaced'} ${
+              date(w.replacedOn)
+            } in ${w.replacementAccount} (${quantity(w.replacementQty)} shares)`;
+            const basis = w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : '';
+            const outcome = w.review
+              ? html`<${StatePill} tone="warn" why=${REVIEW_WHY[w.rule]}>review</${StatePill}>`
+              : html`
+                <span
+                  class="small"><span class="pill warn">W</span> <${Amt} v=${w
+                    .disallowed} /> of <${Amt} v=${w.loss} /></span>
+              `;
+            return html`
+              <div class="list-item">
+                <div class="grow">${sale}<div class="small dim">${w
+                  .account} · ${near}${basis}</div></div>
+                ${outcome}
+              </div>
+            `;
+          })
           : html`<${Empty}>None found</${Empty}>`}
         </div>
       </div>
