@@ -30,3 +30,20 @@ Doubts:
 - In a reconciled period, a save that deletes one part and adds another answers 422 `splits-unbalanced` rather than asking: the created part's question rolls it back, and the parts check then runs on what is left (`ui/save.py` `apply`). The test adds a part to a transaction without parts instead; this looks like a bug for S2.7 and S13.8.11.5.
 - `_split_delete` doesn't call `_reconciled`: deleting a part of a transaction in a reconciled period asks nothing, where adding or changing one asks (S2.7). Not pinned.
 - The made-by-an-assignment refusal reads "the assignment of Assigned MSFT 20NOV26 480 P" (the end's payee repeats the word). Pinned as it is; the wording may want a look.
+
+## Batch 2
+
+Test files touched: `tests/test_txn_save.py`, `tests/test_accounts.py`.
+
+Counts: killed 101, equivalent 3, bug 0, unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x__transfer_lots__mutmut_6`: every body has `transferLots`: a `TxnRecord` (from `_make`) or the `SimpleNamespace` `_change` builds with it, so `getattr` without a default never misses.
+- `x__transfer_lots__mutmut_13`: `sum` starting from `0` rather than `Decimal(0)` over Decimals gives the same Decimal, and the lots are never empty there (`if lots_in`).
+- `x__transfer_lots__mutmut_59`: every body has `costBasis` (`TxnRecord`, and `_change`'s `SimpleNamespace` sets it to None), so `getattr` without a default never misses.
+
+Mutation check: 101 killed, the 3 survivors exactly the equivalent ones above.
+
+Doubts:
+- A reward's price typed with it counts as the owner's price for that day (the trade tier of `valuation.prices` reads the reward itself, flushed before `_reward_basis`), so with no close or typed price, a reward without a price on the same day as one with a price takes that one's price. The reward test puts a typed price (S4.7) before the priced reward so that the typed-with-it price is what decides. Looks right for S8.5, but worth knowing.
+- A half paired by hand with another user's transaction (write share) reads `transferId` None for the account's owner, who can't see the caller's account; only the caller sees the pair. Not pinned; looks like the intended read filter.

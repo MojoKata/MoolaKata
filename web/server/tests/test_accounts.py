@@ -862,6 +862,78 @@ def test_a_trade_changed_carries_its_lot_and_a_known_day_bought_stays(server):
     assert lots_("KO") == [("5.0", "250.00", "2020-01-02")]
 
 
+def _lots_made(server, txn_id):
+    """The live lots a transaction made, as stored: day bought, quantity, basis, and whether
+    its basis and its day bought are missing."""
+    from sqlalchemy import false, select
+
+    from moolakata.store.entities.accounts import Lot
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(Lot).where(Lot.transactionId == txn_id, Lot.deleted == false()))
+        return sorted((str(x.acquiredOn), x.quantity, x.costBasis, x.basisMissing,
+                       x.acquiredMissing) for x in rows)  # fmt: skip
+
+
+def test_shares_moved_in_arrive_as_the_lots_typed_each_bought_by_that_day(server):
+    """S2.2: the lots typed add up to the shares moved in, each of some shares, bought on or
+    before the day they moved in; none typed, one lot of that day, its day bought missing, and
+    its basis missing unless typed."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    move = {"accountId": a, "date": "2026-09-10", "kind": "transfer-in", "symbol": "KO",
+            "quantity": "10", "amount": "0.00"}  # fmt: skip
+    unbalanced = ("transferLots", "lots-unbalanced", "The lots add up to the shares moved in.")
+    invalid = ("transferLots", "lot-invalid", "Each lot was bought by the day it moved in.")
+    for typed, refusal in (
+        ([("2020-01-02", "9")], unbalanced),
+        ([("2026-09-11", "10")], invalid),  # bought after it moved in
+        ([("2020-01-02", "10"), ("2021-01-04", "0")], invalid),
+        ([("2020-01-02", "12"), ("2021-01-04", "-2")], invalid),
+    ):
+        lots = [{"acquiredOn": d, "quantity": q, "costBasis": "100"} for d, q in typed]
+        r = create(c, "Txn", **move, transferLots=lots)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [refusal]
+    # Bought the day it moved in, and less than one share: both lots as typed.
+    lots = [{"acquiredOn": "2026-09-10", "quantity": "9.5", "costBasis": "950"},
+            {"acquiredOn": "2020-01-02", "quantity": "0.5"}]  # fmt: skip
+    t = add(c, a, **{**move, "amount": "0.00"}, transferLots=lots)
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", Decimal("0.5"), None, True, False),
+        ("2026-09-10", Decimal("9.5"), Decimal("950"), False, False),
+    ]
+    t = add(c, a, **move)
+    assert _lots_made(server, t["id"]) == [("2026-09-10", Decimal(10), None, True, True)]
+    t = add(c, a, **move, costBasis="400.00")
+    assert _lots_made(server, t["id"]) == [("2026-09-10", Decimal(10), Decimal(400), False, True)]
+
+
+def test_coins_received_as_income_open_a_lot_at_their_value_that_day(server):
+    """S8.5: a reward's lot has its value as its basis: at the price typed with it, else the
+    owner's price for its day; none known, its basis is missing."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ex = new_account(c, name="Exchange", type="crypto-exchange")["id"]
+    # The owner's own trades price ETH, before the day and after it; a price typed later
+    # wins from its day on (S4.7).
+    for day, price in (("2026-03-01", "2000"), ("2026-05-01", "3000")):
+        bought = add(c, ex, f"-{price}.00", day, kind="buy", symbol="ETH", quantity="1",
+                     price=price, fees="0")  # fmt: skip
+    eth = bought["instrumentId"]
+    saved(create(c, "TyPrc", instrumentId=eth, date="2026-06-30", close="2500"))
+    reward = {"kind": "reward", "symbol": "ETH", "quantity": "0.003"}
+    priced = add(c, ex, "0.00", "2026-04-01", **reward)
+    unknown = add(c, ex, "0.00", "2026-04-01", **{**reward, "symbol": "SOL"})
+    typed = add(c, ex, "0.00", "2026-07-01", **reward, price="1234.56")
+    assert [_lots_made(server, t["id"]) for t in (priced, unknown, typed)] == [
+        [("2026-04-01", Decimal("0.003"), Decimal("6.00"), False, False)],
+        [("2026-04-01", Decimal("0.003"), None, True, False)],
+        [("2026-07-01", Decimal("0.003"), Decimal("3.70"), False, False)],
+    ]
+
+
 def test_a_split_is_of_a_known_transaction_not_a_trade_and_a_known_category(server):
     """S2.6: a part names a transaction the caller writes that isn't a trade, and a category
     there is."""

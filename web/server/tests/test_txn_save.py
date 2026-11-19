@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, make, new_id, reconcile, remove, saved
+from edits import asked, change, edit, make, new_id, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -261,3 +261,121 @@ def test_a_part_added_in_a_reconciled_period_asks_first_and_one_deleted_says_by_
     me = c.get("/ui/api/session").json()["user"]["id"]
     with server.db.read(unscoped="test") as s:
         assert s.get(Split, gone["id"]).deletedById == me
+
+
+def _paired(c, txn_id):
+    return c.get(f"/ui/api/transactions/{txn_id}").json()["transferId"]
+
+
+def test_a_transfer_matched_by_hand_names_a_live_half_of_another_account_moving_cash(
+    server, frozen
+):
+    """S1.7: the other half named is a live transaction of another account, neither moving a
+    holding, for the same amount the other way; each refusal says which, and pairs nothing."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    brk = new_account(c, name="Brokerage", type="brokerage", mask="3333")
+    # Dates apart by more than a match's window, so only a hand pairs them.
+    into = add(c, chk["id"], "50.00", "2026-10-01", kind="deposit")
+    gone = add(c, sav["id"], "-50.00", "2026-10-20")
+    saved(remove(c, "Txn", gone))
+    same = add(c, chk["id"], "-50.00", "2026-10-20")
+    bought = add(c, brk["id"], "-50.00", "2026-10-20", kind="buy", symbol="VTI", quantity="1",
+                 price="50", fees="0")  # fmt: skip
+    short = add(c, sav["id"], "-49.00", "2026-10-20")
+    unknown = ("transferWithId", "transaction-unknown", "No such transaction.")
+    apart = ("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+    for other, refusal in (
+        (new("Txn"), unknown),
+        (gone["id"], unknown),
+        (into["id"], unknown),  # itself
+        (same["id"], apart),
+        (bought["id"], apart),  # a holding's
+        (short["id"], ("amount", "amount-mismatch", "The two halves' amounts differ.")),
+    ):
+        path = f"/ui/api/transactions/{into['id']}"
+        assert _errors(edit(c, "Txn", path, transferWithId=other)) == [refusal], other
+        assert _paired(c, into["id"]) is None
+    half = add(c, sav["id"], "-50.00", "2026-10-20")
+    assert saved(edit(c, "Txn", f"/ui/api/transactions/{into['id']}", transferWithId=half["id"]))
+    assert (_paired(c, into["id"]), _paired(c, half["id"])) == (half["id"], into["id"])
+
+
+def test_a_half_matched_elsewhere_is_taken_unless_this_save_made_it(server, frozen):
+    """S1.7: a transfer already matched stays as it is; one this save made, matched on its
+    own, goes to the half that names it, and the match it made is undone."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    card = new_account(c, name="Visa", type="credit-card", mask="1111")
+    out = add(c, chk["id"], "-500.00", "2026-09-15")
+    paid = add(c, card["id"], "500.00", "2026-09-16", kind="deposit")
+    assert _paired(c, paid["id"]) == out["id"]
+    moved = add(c, sav["id"], "-500.00", "2026-10-01")
+    r = edit(c, "Txn", f"/ui/api/transactions/{moved['id']}", transferWithId=paid["id"])
+    assert _errors(r) == [("transferWithId", "transfer-taken", "That transaction isn't free.")]
+    assert (_paired(c, paid["id"]), _paired(c, moved["id"])) == (out["id"], None)
+    # Made in one save: the card's half matches the checking on its own, then is named.
+    early = add(c, chk["id"], "-700.00", "2026-10-01")
+    x, t = new("Txn"), new("Txn")
+    ops = [
+        {"op": "create", "entity": "Txn", "id": t,
+         "fields": {"accountId": sav["id"], "date": "2026-10-02", "amount": "-700.00",
+                    "transferWithId": x}},
+        {"op": "create", "entity": "Txn", "id": x,
+         "fields": {"accountId": card["id"], "date": "2026-10-02", "amount": "700.00",
+                    "kind": "deposit"}},
+    ]  # fmt: skip
+    assert save(c, ops).status_code == 200
+    assert (_paired(c, t), _paired(c, x), _paired(c, early["id"])) == (x, t, None)
+
+
+def test_a_half_named_is_of_an_account_the_caller_writes(server, frozen):
+    """S1.7, S10.3: a half the caller only reads is not theirs to pair; written, it is."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    theirs = new_account(jane)
+    half = add(jane, theirs["id"], "-30.00", "2026-10-01")
+    mine = new_account(john, name="John's", mask="4444")
+    fields = {"accountId": mine["id"], "date": "2026-10-20", "amount": "30.00",
+              "kind": "deposit", "transferWithId": half["id"]}  # fmt: skip
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "read"}))
+    r = save(john, [{"op": "create", "entity": "Txn", "id": new("Txn"), "fields": fields}])
+    assert r.status_code == 403, r.text
+    assert [(e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("share-read-only", "You can read this account but not change it.")
+    ]
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "write"}))
+    t = new("Txn")
+    r = save(john, [{"op": "create", "entity": "Txn", "id": t, "fields": fields}])
+    assert r.status_code == 200, r.text
+    assert (_paired(john, t), _paired(john, half["id"])) == (half["id"], t)
+
+
+def test_each_transfer_named_in_one_save_is_paired(server, frozen):
+    """S1.7: two matches made by hand in one save each pair their halves."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    ones = [add(c, chk["id"], f"-{n}.00", "2026-10-01") for n in (100, 200)]
+    others = [add(c, sav["id"], f"{n}.00", "2026-10-20", kind="deposit") for n in (100, 200)]
+    pairs = zip(ones, others, strict=True)
+    ops = [{"op": "update", "entity": "Txn", "id": t["id"], "version": t["version"],
+            "fields": {"transferWithId": o["id"]}} for t, o in pairs]  # fmt: skip
+    r = save(c, ops)
+    assert r.status_code == 200, r.text
+    assert [_paired(c, t["id"]) for t in ones] == [o["id"] for o in others]
