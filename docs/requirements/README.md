@@ -13,7 +13,7 @@ decisions (R1), the terminology (R2) and the design principles (R3). Each subjec
 section file, S1 to S18, listed below. A reference names a part by its id and number:
 `R1.16` is item 16 of the decisions here, `S9.8.7` item 8.7 of the receipts section and `Q8`
 an open question. Gaps and later work are GitHub issues, cited by number and linked to the
-issue: `[G#n]` a gap, `[F#n]` later work, `[#n]` any other issue.
+issue: `[G#n]` a gap, `[F#n]` later work, `[NO#n]` out of scope, `[#n]` any other issue.
 
 1. **Lasting ids.** Section ids (S1, S2, …) and their first-level items (`S1.2`) are never
    renumbered or reused: a new section or first-level item takes the next free number, and
@@ -57,13 +57,15 @@ opens the dialogs.
 | **S17** | [Implementation](S17-implementation.md) | The stack, the repository layout, checks, dev mode, the Docker images and where they are published, the milestones, CI and releases |
 | **S18** | [MoolaKata Connector](S18-connector.md) | The second service that holds institutions' credentials, fetches with its drivers and pushes into MoolaKata's import |
 
-## Gaps and later work
+## Gaps, later work and out of scope
 
 Areas named but not yet specified are
 [issues labelled `gap`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+is%3Aopen+label%3Agap),
 each ranked High, Medium or Low in its body. Work planned for after the first release is
 [issues labelled `future`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+is%3Aopen+label%3Afuture).
-A section cites one as `[G#n]` or `[F#n]`, linked to the issue.
+What MoolaKata does not do is
+[closed issues labelled `no`](https://github.com/MojoKata/MoolaKata/issues?q=is%3Aissue+label%3Ano).
+A section cites one as `[G#n]`, `[F#n]` or `[NO#n]`, linked to the issue.
 
 ## Open questions
 
@@ -78,7 +80,6 @@ A new question takes the next id after Q30.
 ## Also here
 
 - [Open questions](questions.md): what waits on a decision, listed above.
-- [Out of scope](out-of-scope.md): what MoolaKata does not do.
 - [Rejected ideas](rejected-ideas.md): ideas weighed and turned down, with the reason.
 
 # R1. Decisions
@@ -167,9 +168,9 @@ The rulings the rest of the requirements apply.
     as they do with people on their own (S10.3). What a household shares is shown in a **window
     of its own**, never mixed with this household's data (S12.10). This suits household
     servers; a server for more than a household would need users to opt in to being listed
-    ([out of scope](out-of-scope.md)).
+    (out of scope: [NO#598](https://github.com/MojoKata/MoolaKata/issues/598)).
 23. **US dollars only.** Every account, price, total and report is in USD. There are no
-    foreign accounts and no currency conversion (S4.8, [out of scope](out-of-scope.md)).
+    foreign accounts and no currency conversion (S4.8, out of scope: [NO#585](https://github.com/MojoKata/MoolaKata/issues/585)).
 24. **Records are soft-deleted.** Deleting marks a record deleted, with when and by whom, and
     a view per table works out whether it is deleted through what it belongs to. The few
     exceptions are listed in [`schema.md`](schema.md) (S14.1.5).

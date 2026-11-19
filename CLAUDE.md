@@ -50,7 +50,8 @@ the same rule. Status goes in the repository's root README (the product and its 
   specified is labelled `gap` (its rank, High, Medium or Low, in its body), work planned for
   after the first release `future`. A section cites one by number, linked to the issue:
   `[G#581](https://github.com/MojoKata/MoolaKata/issues/581)` for a gap, `[F#560](…)` for later
-  work, `[#583](…)` for any other issue. When the build reaches a gap, propose a reasonable
+  work, `[#583](…)` for any other issue. What MoolaKata does not do is a closed issue labelled
+  `no`, cited `[NO#585](…)`. When the build reaches a gap, propose a reasonable
   solution for the average cases (a Schwab brokerage account, a UMB bank account), write it
   into its section, file what is still open as a new `gap` issue, and close the old one.
 - **Open questions** (`questions.md`): ids Q1, Q2, … are shared with the questions asked

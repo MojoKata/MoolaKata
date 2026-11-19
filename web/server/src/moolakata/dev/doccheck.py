@@ -46,10 +46,13 @@ TRACKED = re.compile(r"(?<![\w-])Q(\d+)(?![\w])")
 RANGE = re.compile(r"(?<![\w-])Q(\d+)\s*[–-]\s*Q?(\d+)(?![\w])")
 # Not citations: examples (`Q8`, "Q1, Q2, …") and where numbering stands ("after Q24").
 NOT_CITED = re.compile(r"`Q\d+`|\bQ1, Q?2, …|\bafter Q\d+")
-# Gaps and later work are GitHub issues, cited by number (`[G#581](…/issues/581)`); their old
-# G and L ids are not cited (README, "How the requirements are organised").
+# Gaps, later work and what is out of scope are GitHub issues, cited by number
+# (`[G#581](…/issues/581)`), its kind in a prefix: G a gap, F later work, NO out of scope, none
+# any other issue. The old G and L ids are not cited (README, "How the requirements are
+# organised").
 RETIRED = re.compile(r"(?<![\w-])[GL]\d+(?![\w])")
-ISSUE = re.compile(r"\[([GF]?)#(\d+)\](\(([^)\s]*)\))?")
+ISSUE = re.compile(r"\[([A-Z]*)#(\d+)\](\(([^)\s]*)\))?")
+KINDS = ("", "G", "F", "NO")
 ISSUES = "https://github.com/MojoKata/MoolaKata/issues/"
 LIST_ITEM = re.compile(r"^( *)(\d+)\. ")
 CHANGELOG = re.compile(
@@ -104,10 +107,12 @@ def open_questions() -> set[int]:
 
 
 def issue_link_problems(line: str) -> list[str]:
-    """An issue cited as `[G#n]`, `[F#n]` or `[#n]` links to that same issue."""
+    """An issue cited as `[G#n]`, `[F#n]`, `[NO#n]` or `[#n]` links to that same issue."""
     found = []
     for m in ISSUE.finditer(line):
         cited, target = f"[{m.group(1)}#{m.group(2)}]", m.group(4)
+        if m.group(1) not in KINDS:
+            found.append(f"{cited}: the prefix is G, F, NO or none")
         if target is None:
             found.append(f"{cited} links to no issue")
         elif target != f"{ISSUES}{m.group(2)}":

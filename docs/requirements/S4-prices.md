@@ -60,7 +60,7 @@
    option's instrument, entered from the open position (**Type a mark**). Intrinsic value is
    the underlying's latest close past the strike, never below zero. The Open tab labels a
    mark that is typed or intrinsic. Greeks
-   are out of scope ([out of scope](out-of-scope.md)).
+   are out of scope ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
 6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
    price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.
