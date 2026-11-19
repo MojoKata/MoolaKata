@@ -1172,7 +1172,7 @@ def _assign_call(c, acct, contracts="1", strike="480"):
     assert r.status_code == 201, r.text
 
 
-def _trade(c, acct, kind, qty, price, day="2026-11-23", symbol="MSFT"):
+def _stock_trade(c, acct, kind, qty, price, day="2026-11-23", symbol="MSFT"):
     amount = D(qty) * D(price)
     r = make(c, "Txn", accountId=acct, date=day, kind=kind, symbol=symbol, quantity=qty,
              price=price, amount=str(-amount if kind == "buy" else amount), fees="0")  # fmt: skip
@@ -1193,7 +1193,7 @@ def test_an_assignment_with_some_shares_held_sells_them_and_shorts_the_rest(serv
     basis is the rest of what the assignment brought in (48,640 less the held shares' 24,320)."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
-    _trade(jane, brk["id"], "buy", "50", "400", day="2026-09-01")
+    _stock_trade(jane, brk["id"], "buy", "50", "400", day="2026-09-01")
     _assign_call(jane, brk["id"])
     lots_, opened = _shorts(server, brk["id"])
     assert lots_ == [(D(-50), D("-24320.00"))]
@@ -1203,7 +1203,7 @@ def test_an_assignment_with_some_shares_held_sells_them_and_shorts_the_rest(serv
 def test_an_assignment_of_exactly_the_shares_held_opens_no_short(server, jane):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
-    _trade(jane, brk["id"], "buy", "100", "400", day="2026-09-01")
+    _stock_trade(jane, brk["id"], "buy", "100", "400", day="2026-09-01")
     _assign_call(jane, brk["id"])
     assert _shorts(server, brk["id"]) == ([], [])
 
@@ -1211,7 +1211,7 @@ def test_an_assignment_of_exactly_the_shares_held_opens_no_short(server, jane):
 def test_a_fraction_of_a_share_left_unheld_is_shorted(server, jane):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
-    _trade(jane, brk["id"], "buy", "99.5", "400", day="2026-09-01")
+    _stock_trade(jane, brk["id"], "buy", "99.5", "400", day="2026-09-01")
     _assign_call(jane, brk["id"])
     lots_, opened = _shorts(server, brk["id"])
     assert [q for q, _ in lots_] == [D("-0.5")] and [q for _, _, q in opened] == [D("0.5")]
@@ -1222,12 +1222,12 @@ def test_a_cover_takes_its_own_shares_never_another_stocks_lots(server, jane):
     other stocks held stay whole, and one share bought covers one."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
-    _trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="VTI")
-    _trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="KO")
+    _stock_trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="VTI")
+    _stock_trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="KO")
     _assign_call(jane, brk["id"])
-    _trade(jane, brk["id"], "buy", "1", "470")
+    _stock_trade(jane, brk["id"], "buy", "1", "470")
     assert _shorts(server, brk["id"])[0] == [(D(-99), D("-48153.60"))]
-    _trade(jane, brk["id"], "buy", "149", "470", day="2026-11-24")
+    _stock_trade(jane, brk["id"], "buy", "149", "470", day="2026-11-24")
     assert _shorts(server, brk["id"])[0] == []
     assert _held(jane, brk["id"], "MSFT")["quantity"] == "50.0"
     for symbol in ("VTI", "KO"):
@@ -1243,6 +1243,6 @@ def test_shares_moved_in_while_short_are_held_and_the_buy_covers_the_short_alone
     r = make(jane, "Txn", accountId=brk["id"], date="2026-11-21", kind="transfer-in",
              symbol="MSFT", quantity="0.5", amount="0.00", fees="0")  # fmt: skip
     assert r.status_code == 200, r.text
-    _trade(jane, brk["id"], "buy", "100", "470")
+    _stock_trade(jane, brk["id"], "buy", "100", "470")
     assert _shorts(server, brk["id"])[0] == []
     assert _held(jane, brk["id"], "MSFT")["quantity"] == "0.5"
