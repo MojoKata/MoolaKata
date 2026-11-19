@@ -44,6 +44,7 @@ class WashOut(Model):
     replacementQty: Quantity
     adjustedBasis: Money | None
     review: bool
+    rule: str | None  # a review's: "option" or "short-sale" (S3.8.5)
 
 
 class BoxTotal(Model):

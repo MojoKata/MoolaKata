@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from decimal import Decimal as D
 
 import pytest
-from test_ledger import Lot, Pick, Snap, replay
+from test_ledger import Lot, Pick, Snap, book, replay, sell
 from test_lot_rules import T, at, old_and_new, opt, sold
 
 from moolakata.ledger import lots
@@ -379,3 +379,16 @@ def test_a_snapshot_leaves_a_short_lot_past_the_difference_alone():
     ], [], [], [Snap("OPT", d(2026, 1, 31), D(1))], by_snapshots=True)  # fmt: skip
     assert [(x.quantity, x.basis) for x in r.open] == [(D(3), D(300)), (D(-2), D(-200))]
     assert [p.quantity for p in r.problems] == [D(-2)]
+
+
+def test_two_picks_of_one_lot_take_no_more_than_it_holds():
+    """S2.3: a lot picked twice (the route allows one live pick a lot; the ledger holds on its
+    own) gives its 10 shares once, and the rest of the sale goes first in."""
+    txns, lots_ = book()
+    s = sell(12, 3000, method="specific")
+    picks = [Pick(s.id, lots_[1].id, D(6)), Pick(s.id, lots_[1].id, D(6))]
+    r = replay("fifo", [*txns, s], lots_, picks, [])
+    assert [(x.lotId, x.quantity) for x in r.disposals] == [
+        (lots_[1].id, D(6)), (lots_[1].id, D(4)), (lots_[0].id, D(2))
+    ]  # fmt: skip
+    assert all(x.quantity >= 0 for x in r.open)

@@ -48,7 +48,10 @@ class Disposal:
     method: str
     adjustment: Decimal = ZERO  # a wash sale's disallowed loss, added back (code W, S3.8)
     heldFrom: dt.date | None = None  # a replacement's tacked holding period (S3.8.4)
-    written: bool = False  # a written option closed: short-term whatever its days (S3.3)
+    # A written option, or a short sale of shares, closed: short-term whatever its days
+    # (S3.3, S3.4).
+    written: bool = False
+    short: bool = False  # a short sale of shares closed: never a wash sale's loss (S3.8.5.1)
     standIn: bool = False  # from a lot a snapshot stood in for: when it was bought is unknown
     # From shares moved in whose day bought isn't known: its term is unknown (S2.2).
     acquiredMissing: bool = False
@@ -124,6 +127,9 @@ class Replay:
     # Corporate actions: the old legs a new leg follows, and a merger's cash by its old leg.
     paired: set = field(default_factory=set)
     cash: dict = field(default_factory=dict)
+    # Short sales of shares opened (S3.4): (instrument, day, quantity), for the review of a
+    # short sale's loss (S3.8.5.1).
+    shorts: list = field(default_factory=list)
 
     def quantity(self, instrument_id: str) -> Decimal:
         # An empty sum's int 0 equals Decimal 0 in every caller's comparison, arithmetic and text.
@@ -620,7 +626,7 @@ def _cover_short_stock(out: Replay, t, n_made: int) -> None:
     cover = min(short, qty)
     if cover <= 0:
         return
-    _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT))
+    _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
     left = cover
     for lot in out.open[-n_made:]:
         if left <= 0 or lot.quantity <= 0:
@@ -630,9 +636,9 @@ def _cover_short_stock(out: Replay, t, n_made: int) -> None:
         left -= take
 
 
-def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal) -> None:
+def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal, *, short: bool = False) -> None:
     """Close short lots, oldest first: each realizes its credit less the share of the cost to
-    close (proceeds, negative or zero)."""
+    close (proceeds, negative or zero); `short` when they are shares sold short."""
     shorts = sorted(
         (x for x in out.open if x.instrumentId == t.instrumentId and x.quantity < 0),
         key=lambda x: x.acquiredOn,
@@ -652,7 +658,7 @@ def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal) -> None:
             basis = (lot.basis * take / -lot.quantity).quantize(CENT)
             lot.basis -= basis
         lot.quantity += take
-        out.disposals.append(_sold(t, lot, take, share, basis, "fifo", written=True))
+        out.disposals.append(_sold(t, lot, take, share, basis, "fifo", written=True, short=short))
     if left > 0:
         out.problems.append(Problem("close-without-open", t.instrumentId, t.date, t.id, left))
 
@@ -669,13 +675,19 @@ def _consume(
     held = [lot for lot in out.open if lot.instrumentId == t.instrumentId and lot.quantity > 0]
     total, left = qty, qty
     plan: list[tuple[OpenLot, Decimal]] = []
+
+    def room(lot: OpenLot) -> Decimal:
+        """What the plan has yet to take of the lot: two picks of one lot never take more than
+        it holds."""
+        return lot.quantity - sum((q for x, q in plan if x is lot), ZERO)
+
     if method == "specific" and picks:
         # A picked lot is every part of it: one a wash sale split takes from its parts in turn,
         # never from another lot.
         for p in picks:
             want = p.quantity
             for lot in (x for x in held if x.lotId == p.lotId):
-                take = min(want, lot.quantity, left)
+                take = min(want, room(lot), left)
                 if take > 0:
                     plan.append((lot, take))
                     left -= take
@@ -684,8 +696,7 @@ def _consume(
     for lot in _order(order, held):
         if left <= 0:
             break
-        room = lot.quantity - sum((q for p, q in plan if p is lot), ZERO)
-        take = min(left, room)
+        take = min(left, room(lot))
         if take > 0:
             plan.append((lot, take))
             left -= take
@@ -724,6 +735,7 @@ def _consume(
         # Assigned a call, or a put exercised, with no shares held: a short sale at the
         # strike, its credit the basis of a short stock lot (S3.4).
         out.open.append(OpenLot(None, t.instrumentId, t.date, -left, -(proceeds - allotted)))
+        out.shorts.append((t.instrumentId, t.date, left))
     elif left > 0:
         _unmatched(out, t, left, proceeds - allotted, realize, used)
 

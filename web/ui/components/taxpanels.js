@@ -145,6 +145,12 @@ function txfLeftOut(n) {
   `;
 }
 
+/** Why a possible wash sale is the preparer's to decide, by its rule (S3.8.5). */
+const REVIEW_WHY = /** @type {Record<string, string>} */ ({
+  option: 'An option on the same underlying.',
+  'short-sale': 'A short sale closed at a loss, with another short sale of it within 30 days.',
+});
+
 /** @param {{ p: any }} p */
 function Gains({ p }) {
   const [term, setTerm] = useState('all');
@@ -235,15 +241,18 @@ function Gains({ p }) {
         </div>
         <div class="card"><h3 data-help="wash-sales">Wash Sales</h3>${p.washes.length
           ? p.washes.map((/** @type {any} */ w) =>
-            html`<div class="list-item"><div class="grow">${w.symbol} sold ${date(w.sold)}<div
-              class="small dim">${w.account} · replaced ${
-              date(w.replacedOn)
-            } in ${w.replacementAccount} (${quantity(w.replacementQty)} shares)${
+            html`<div class="list-item"><div class="grow">${w.symbol} ${
+              w.rule === 'short-sale' ? 'bought back' : 'sold'
+            } ${date(w.sold)}<div class="small dim">${w.account} · ${
+              w.rule === 'short-sale' ? 'sold short' : 'replaced'
+            } ${date(w.replacedOn)} in ${w.replacementAccount} (${
+              quantity(w.replacementQty)
+            } shares)${
               w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : ''
             }</div></div>${
               w.review
                 ? html`
-                  <${StatePill} tone="warn" why="An option on the same underlying.">review</${StatePill}>
+                  <${StatePill} tone="warn" why=${REVIEW_WHY[w.rule]}>review</${StatePill}>
                 `
                 : html`
                   <span

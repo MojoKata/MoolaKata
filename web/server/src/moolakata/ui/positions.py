@@ -119,6 +119,7 @@ def _how(t: Transaction) -> str:
     """How a closing trade closed: in words, or its kind."""
     return {
         "sell": "sold",
+        "buy": "bought back",  # a buy closes only a short sale of shares (S3.4)
         "sell-to-close": "sold",
         "buy-to-close": "bought back",
         "expire": "expired",
