@@ -48,6 +48,8 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
   ['fee', 'Fee'],
 ]);
 const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
+// The other half of a pair its reader doesn't see: never sent, only changed to none.
+const UNSEEN_HALF = 'unseen';
 // A physical asset's items carry their purchase, improvements and sale: its account takes
 // only the transfers that pay for or are paid by them (S1.10).
 const ASSET_KINDS = /** @type {[string, string][]} */ ([['transfer', 'Transfer']]);
@@ -263,7 +265,10 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const f = useDraft(async (draft) => {
     if (editing) {
       const got = await api.get(`/transactions/${txn.id}`);
-      draft.load(Txn, { ...got, transferWithId: got.transferId });
+      // Paired with a half the reader doesn't see: its id unread, the pair still undone by
+      // a change to none (S1.7).
+      const pair = got.transferId ?? (got.transferPaired ? UNSEEN_HALF : null);
+      draft.load(Txn, { ...got, transferWithId: pair });
       const t = /** @type {Txn} */ (draft.records[0]);
       for (const sp of t.get('splits') || []) draft.load(Part, { ...sp, transactionId: t.id });
       for (const p of got.picks || []) draft.load(Pick, { ...p, saleId: t.id });
@@ -355,7 +360,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                   }}>Delete</button>
               `
               : null}
-            ${editing && txn.transferId
+            ${editing && txn.transferPaired
               ? html`<button type="button" class="btn" disabled=${
                 save.busy || !t
               } onClick=${async () => {
@@ -367,7 +372,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                 if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
               }}>Not a Transfer</button>`
               : null}
-            ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
+            ${editing && !trade && !txn.transferPaired && (txn.payeeRaw || txn.payee)
               ? html`<button type="button" class="btn" onClick=${() =>
                 // New rule opens over this dialog, which stays as it is (S2.7.6, S12.15.7).
                 openDialog(NewRuleDialog, {

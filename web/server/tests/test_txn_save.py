@@ -818,16 +818,16 @@ def test_a_transfers_other_half_is_named_only_to_one_who_reads_its_account(serve
               "kind": "deposit", "transferWithId": half["id"]}  # fmt: skip
     r = save(john, [{"op": "create", "entity": "Txn", "id": t, "fields": fields}])
     assert r.status_code == 200, r.text
-    keys = ("transferId", "transferAccountName")
+    keys = ("transferPaired", "transferId", "transferAccountName")
     path = f"/ui/api/transactions/{half['id']}"
     got = [[who.get(path).json()[k] for k in keys] for who in (jane, john)]
-    assert got == [[t, None], [t, "John's"]]
+    assert got == [[True, None, None], [True, t, "John's"]]
     # The name rests on the reader's own access, not only on what the session shows.
     with server.db.read(unscoped="test") as s:
         row = s.get(Transaction, half["id"])
         held = access.perms(s, Account, theirs["id"], u["jane"].id)
         (out,) = ui_txns.shape(s, u["jane"].id, [row], {theirs["id"]: held})
-        assert (out.transferId, out.transferAccountName) == (t, None)
+        assert (out.transferPaired, out.transferId, out.transferAccountName) == (True, None, None)
 
 
 def _reconciled_bill(server, parts):

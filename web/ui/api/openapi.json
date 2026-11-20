@@ -26263,6 +26263,11 @@
             ],
             "title": "Transferlots"
           },
+          "transferPaired": {
+            "default": false,
+            "title": "Transferpaired",
+            "type": "boolean"
+          },
           "version": {
             "title": "Version",
             "type": "integer"

@@ -4496,6 +4496,7 @@
  * @property {(string | null)} contributionSource
  * @property {(string | null)} transferId
  * @property {(string | null)} transferAccountName
+ * @property {boolean} [transferPaired]
  * @property {boolean} imported
  * @property {boolean} cleared
  * @property {boolean} reconciled

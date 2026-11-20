@@ -118,7 +118,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
                 : null
             }
           ${
-              t.transferId
+              t.transferPaired
                 ? html`<div class="small dim"><${Icon} name="tx" /> transfer${
                   // Paired with an account the reader doesn't see: paired, never where (S1.7).
                   t.transferAccountName

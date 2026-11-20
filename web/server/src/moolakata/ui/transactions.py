@@ -116,6 +116,7 @@ class TxnOut(Model):
     contributionSource: str | None
     transferId: str | None
     transferAccountName: str | None
+    transferPaired: bool = False  # paired, the other half seen or not (S1.7)
     imported: bool
     cleared: bool
     reconciled: bool
@@ -246,8 +247,8 @@ def shape(
     out = []
     for t in rows:
         other = accounts.get(other_acct.get(t.transferId, ""))
-        # A pair is the row's own (its transferId): one who doesn't read the other half's
-        # account sees that it is paired, never where to (S1.7).
+        # One who doesn't read the other half's account sees that it is paired, never where
+        # to, nor the other half's id: no answer names what its reader can't read (S1.7).
         if other is not None and access.perms(s, Account, other.id, user_id) is None:
             other = None
         out.append(
@@ -270,7 +271,8 @@ def shape(
                 dividendType=t.dividendType,
                 contributionYear=t.contributionYear,
                 contributionSource=t.contributionSource,
-                transferId=t.transferId,
+                transferId=t.transferId if other is not None else None,
+                transferPaired=t.transferId is not None,
                 transferAccountName=other.name if other is not None else None,
                 imported=t.importId is not None,
                 cleared=t.cleared,
