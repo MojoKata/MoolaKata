@@ -330,7 +330,7 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.goal != p.goal:
         raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
-    refuse_all(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
+    refuse_all(_check(s, p.ownerId, body.name, p.goal, body.builtOn, body.inputs))
     current = _projection_current(ctx, p)
     fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
     p.name = body.name.strip()

@@ -815,11 +815,31 @@ def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server
         assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
             (None, "owner-only", "Only the account's owner changes its settings.")
         ], sent
+    assert edit(c, "Acct", accounts["savings"], **opening).status_code == 200
+    for f, v in (("openingBalance", "300.00"), ("openingDate", "2026-01-05")):
+        r = edit(j, "Acct", accounts["savings"], **{f: v})
+        assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only", f
     out = saved(edit(j, "Acct", accounts["checking"], notes="John's too."))
     assert out["notes"] == "John's too."
     assert logged(server, out["id"]) == [
         ("account.updated", john, "account", jane, {"fields": ["notes"]})
     ]
+
+
+def test_a_change_checks_its_name_and_opening_only_when_it_touches_them(server):
+    """An account kept with a name too long and an opening balance without its day (written
+    before the rules, or by an import) still takes a change to its mask: a change is checked
+    for what it touches."""
+    from moolakata.store.entities.accounts import Account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(Account, a["id"])
+        row.name, row.openingBalance = "x" * 90, Decimal("5.00")
+    out = saved(edit(c, "Acct", f"/ui/api/accounts/{a['id']}", mask="1234"))
+    assert (out["mask"], out["name"]) == ("1234", "x" * 90)
 
 
 def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(server):
@@ -1298,6 +1318,13 @@ def test_coins_received_as_income_open_a_lot_at_their_value_that_day(server):
         [("2026-04-01", Decimal("0.003"), None, True, False)],
         [("2026-07-01", Decimal("0.003"), Decimal("3.70"), False, False)],
     ]
+    # Changed, the lot follows: more coins at the owner's price, a price typed again.
+    saved(edit(c, "Txn", f"/ui/api/transactions/{priced['id']}", quantity="0.004"))
+    saved(edit(c, "Txn", f"/ui/api/transactions/{typed['id']}", price="2000"))
+    assert [_lots_made(server, t["id"]) for t in (priced, typed)] == [
+        [("2026-04-01", Decimal("0.004"), Decimal("8.00"), False, False)],
+        [("2026-07-01", Decimal("0.003"), Decimal("6.00"), False, False)],
+    ]
 
 
 def test_a_split_is_of_a_known_transaction_not_a_trade_and_a_known_category(server):
@@ -1381,8 +1408,17 @@ def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule
             else:
                 want = None
             r = make(c, "Txn", **f)
-            got = None if r.status_code == 200 else r.json()["errors"][0]["code"]
-            assert got == want, (kind, type_, r.text)
+            e = None if r.status_code == 200 else r.json()["errors"][0]
+            assert (e and e["code"]) == want, (kind, type_, r.text)
+            if want == "kind-not-for-account":
+                # In the words of the rule that refused it, at the kind.
+                if not atypes.investing(type_) and kind in HOLDING_KINDS:
+                    words = "Trades belong in an investing account."
+                elif not atypes.investing(type_) and kind == "capital-gain":
+                    words = "A capital-gain distribution belongs in an investing account."
+                else:
+                    words = "Record a purchase, improvement or sale on the item."
+                assert (e["field"], e["message"]) == ("kind", words), (kind, type_)
 
 
 def test_an_account_is_made_with_what_its_dialog_sent(server):

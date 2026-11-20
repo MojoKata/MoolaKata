@@ -236,6 +236,7 @@ def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
         assert _refused(r) == [(None, "made-by-an-action", fixed)], field
     stock = saved(change(jane, "Txn", stock, memo="assigned early", cleared=True))
     assert (stock["memo"], stock["cleared"]) == ("assigned early", True)
+    assert stock["figuresFixed"] == fixed, "the dialog shows why its figures are fixed"
     assert remove(jane, "Txn", end).status_code == 200
     assert _held(jane, brk["id"], "MSFT") is None
     with server.db.read(unscoped="test") as s:

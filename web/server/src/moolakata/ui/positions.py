@@ -184,13 +184,14 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
             oc = options.contract_of(s, iid)  # none for an instrument that isn't an option
             if oc is not None:
                 under = options.per_share(s, oc, today, led.account.ownerId)
+                # A contract names its stock: it is always there.
                 stock = s.get(Instrument, oc.underlyingId)
                 extra = {
                     "expiry": oc.expiry,
                     "daysToExpiry": (oc.expiry - today).days,
                     "inTheMoney": options.in_the_money(oc, under[0]) if under else None,
                     "underlyingId": oc.underlyingId,
-                    "underlyingSymbol": stock.symbol if stock else None,
+                    "underlyingSymbol": stock.symbol,
                 }
             open_rows.append(
                 OpenRow(

@@ -236,7 +236,7 @@ def finish_setup(
 # ---------- checks ----------
 
 
-def _email_problems(s: Db, email: str, user_id: str | None) -> list[FieldError]:
+def _email_problems(s: Db, email: str | None, user_id: str | None) -> list[FieldError]:
     email = (email or "").strip().lower()
     if not EMAIL.match(email) or len(email) > 254:
         return [FieldError("email", "email-invalid", "Enter an email address.")]
@@ -569,7 +569,7 @@ def confirm_email_change(s: Db, token: str, svc: Services | None = None) -> User
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    refuse_all(_email_problems(s, row.data or "", user.id))
+    refuse_all(_email_problems(s, row.data, user.id))
     s.delete(row)
     old = user.email
     _set_email(s, user, row.data)

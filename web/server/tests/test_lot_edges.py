@@ -430,6 +430,34 @@ def test_a_buy_without_a_lot_of_its_own_closes_the_short_from_its_own_shares():
     ]  # fmt: skip
 
 
+def test_an_all_cash_merger_closes_a_short_as_shares_sold_short_and_sells_a_single_share():
+    """S3.4: an account short three VTI pays the merger's cash to close them, shares sold
+    short; one long share, a lot of exactly one, is sold at the cash; with none held, the
+    merger's cash is all it is: no sale, no problem."""
+    merger = T(d(2026, 3, 1), "merger", D(-150), "VTI", D(3), createdAt=at(1))
+    r = replay("fifo", [merger], [_short()], [], [])
+    assert sold(r) == [("SH", D(3), D(-150), D(-300), "fifo")]
+    assert (r.disposals[0].short, r.disposals[0].gain, r.open) == (True, D(150), [])
+    merger = T(d(2026, 3, 1), "merger", D(150), "VTI", D(-1), createdAt=at(1))
+    r = replay("fifo", [merger], [Lot("L", "VTI", d(2025, 1, 2), D(1), D(100))], [], [])
+    assert sold(r) == [("L", D(1), D(150), D(100), "fifo")] and r.open == []
+    other = Lot("X", "VXUS", d(2025, 1, 2), D(2), D(100))
+    r = replay("fifo", [merger], [other], [], [])
+    assert (r.disposals, r.problems, kept(r)) == ([], [], [("X", "VXUS", D(2), D(100), None)])
+
+
+def test_a_mergers_cash_beside_shares_is_a_gain_on_a_lot_of_exactly_one_share():
+    """IRC §356: one share for two of the acquirer at $50 and $30 cash, bought for $80: the
+    $30 is all gain ($130 got for $80 paid), the new shares keep the $80."""
+    made = [Lot("A", "OLD", d(2024, 1, 1), D(1), D(80))]
+    old = T(d(2026, 5, 1), "merger", D(30), "OLD", D(-1), createdAt=at(2))
+    nxt = T(d(2026, 5, 1), "merger", D(0), "NEW", D(2), transferId=old.id, createdAt=at(3),
+            splitRatio=D(2), price=D(50))  # fmt: skip
+    r = replay("fifo", [old, nxt], made, [], [])
+    assert [(x.instrumentId, x.quantity, x.basis) for x in r.open] == [("NEW", D(2), D(80))]
+    assert sold(r) == [("A", D(0), D(30), D(0), "merger")]
+
+
 def test_a_buy_without_a_quantity_closes_no_short():
     """A file's buy can come without its shares (S1.3.2): it opens nothing and closes nothing."""
     buy = T(d(2026, 2, 1), "buy", D(-140), "VTI", None, createdAt=at(1))

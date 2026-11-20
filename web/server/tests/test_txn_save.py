@@ -1031,6 +1031,8 @@ def test_a_picked_lot_that_goes_or_holds_less_asks_and_its_picks_go(server, froz
     # A basis fixed keeps the lot, and the pick with it.
     saved(edit(c, "Txn", path, transferLots=[typed[0], {**typed[1], "costBasis": "330"}]))
     assert [p["lotId"] for p in c.get(sale_path).json()["picks"]] == [lot]
+    # The question names the sale's own method, kept from its day, not the account's now.
+    saved(edit(c, "Acct", f"/ui/api/accounts/{a}", lotMethod="lifo"))
     for change_ in ({"transferLots": [typed[0], {**typed[1], "quantity": "1"}], "quantity": "3"},
                     {"transferLots": [{**typed[0], "quantity": "5"}]},
                     {"kind": "transfer-out"}):  # fmt: skip
@@ -1039,8 +1041,14 @@ def test_a_picked_lot_that_goes_or_holds_less_asks_and_its_picks_go(server, froz
         assert r.json()["asks"][0]["message"] == told
     r = drop(c, "Txn", path)
     assert asked(r) == ["picks-dropped"]
+    (pick,) = c.get(sale_path).json()["picks"]
     saved(edit(c, "Txn", path, confirm=True, transferLots=[{**typed[0], "quantity": "5"}]))
     assert c.get(sale_path).json()["picks"] == []
+    from moolakata.store.entities.accounts import LotPick
+
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(LotPick, pick["id"]).deletedById == me
 
 
 def test_a_transfer_changed_to_match_or_freed_is_paired_as_a_new_one_is(server, frozen):
@@ -1069,3 +1077,172 @@ def test_a_transfer_changed_to_match_or_freed_is_paired_as_a_new_one_is(server, 
     saved(edit(c, "Txn", path, transferWithId=None))
     saved(edit(c, "Txn", path, memo="rent"))
     assert _paired(c, out["id"]) is None
+
+
+def _brokerage(server):
+    from conftest import make_user, sign_in
+    from test_accounts import new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    return c, new_account(c, name="Brokerage", type="brokerage")["id"]
+
+
+def test_a_kind_changed_is_checked_where_it_may_be(server, frozen):
+    """S2.1, S2.4, S2.5: a kind chosen on a change meets the rules a new one does: a trade or a
+    capital-gain distribution only in an investing account, a split only as a corporate
+    action."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)["id"]
+    t = add(c, chk, "10.00", "2026-09-01", kind="deposit")
+    path = f"/ui/api/transactions/{t['id']}"
+    for kind, code in (("capital-gain", "kind-not-for-account"), ("split", "corporate-kind"),
+                       ("reinvest", "kind-not-for-account")):  # fmt: skip
+        r = edit(c, "Txn", path, kind=kind)
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]][:1] == [("kind", code)], kind
+
+
+def test_a_trade_imported_without_its_shares_takes_a_note_as_it_is(server, frozen):
+    """S1.3.2: a file's buy can come without its shares; a change that leaves its kind and
+    shares alone doesn't ask for them."""
+    from test_accounts import add
+
+    from moolakata.store.entities.accounts import Transaction
+
+    c, a = _brokerage(server)
+    t = add(c, a, "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1", price="100",
+            fees="0")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        s.get(Transaction, t["id"]).quantity = None
+    out = saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", memo="from the file"))
+    assert (out["memo"], out["quantity"]) == ("from the file", None)
+
+
+def test_a_half_left_by_its_partners_new_amount_is_paired_again(server, frozen):
+    """S1.7: a half's partner changed to another amount lets it go, and the half left, free,
+    is linked with another that matches it, as a new one would be."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c, name="Checking")
+    sav = new_account(c, name="Savings", type="savings", mask="2222")
+    third = new_account(c, name="Cash", type="savings", mask="3333")
+    out = add(c, chk["id"], "-200.00", "2026-10-01", kind="withdrawal")
+    into = add(c, sav["id"], "200.00", "2026-10-02", kind="deposit")
+    assert _paired(c, out["id"]) == into["id"]
+    spare = add(c, third["id"], "-200.00", "2026-10-02", kind="withdrawal")
+    assert _paired(c, spare["id"]) is None
+    saved(edit(c, "Txn", f"/ui/api/transactions/{out['id']}", amount="-150.00"))
+    assert (_paired(c, out["id"]), _paired(c, into["id"])) == (None, spare["id"])
+
+
+def test_a_trade_changed_to_shares_moved_in_is_offered_as_a_pair(server, frozen):
+    """S1.7.1: shares that left another of the owner's accounts, and the same shares typed as
+    leaving this one, its kind corrected to shares moved in, are offered as a pair as two
+    typed so are."""
+    from test_accounts import add, new_account
+
+    c, a = _brokerage(server)
+    other = new_account(c, name="Other", type="brokerage", mask="2222")["id"]
+    add(c, other, "-500.00", "2026-09-01", kind="buy", symbol="KO", quantity="5", price="100",
+        fees="0")  # fmt: skip
+    add(c, other, "0.00", "2026-09-10", kind="transfer-out", symbol="KO", quantity="5", fees="0")
+    # Typed the wrong way round, as shares leaving: its kind alone corrected.
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-out", symbol="KO", quantity="5", fees="0")
+    assert c.get("/ui/api/transfers/bitcoin").json()["items"] == []
+    saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", kind="transfer-in"))
+    assert len(c.get("/ui/api/transfers/bitcoin").json()["items"]) == 1
+
+
+def test_a_trade_made_a_move_in_takes_the_basis_typed_with_it(server, frozen):
+    """S2.2: a buy changed to shares moved in, its basis typed with the change, arrives as one
+    lot of that basis, its day bought missing."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "-500.00", "2026-09-10", kind="buy", symbol="KO", quantity="5", price="100",
+            fees="0")  # fmt: skip
+    saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", kind="transfer-in", amount="0.00",
+               price=None, costBasis="450.00"))  # fmt: skip
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, 450, False, True)]
+
+
+def test_one_lot_typed_takes_its_basis_on_the_lot_and_a_note_leaves_the_lots(server, frozen):
+    """S2.2: shares moved in as one typed lot have its basis typed on the lot, a basis for the
+    whole refused as for several; a note changed leaves the lots and their basis together."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    saved(edit(c, "Txn", path, transferLots=[
+        {"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "100"}]))  # fmt: skip
+    assert _errors(edit(c, "Txn", path, costBasis="200.00")) == [
+        ("costBasis", "basis-on-lots", "Type the basis on each lot.")
+    ]
+    two = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    # Their basis sent again as it reads is no basis typed for the whole.
+    out = saved(edit(c, "Txn", path, memo="from Schwab", costBasis="400.00"))
+    assert out["costBasis"] == "400.00"
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", 2, 100, False, False),
+        ("2021-01-04", 3, 300, False, False),
+    ]
+
+
+def test_lots_cleared_arrive_as_one_lot_with_the_basis_the_move_reads(server, frozen):
+    """S2.2: shares moved in, their lots typed and then sent as none, arrive as one lot of the
+    day they came, its day bought missing, keeping the basis the move reads, not losing it."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    two = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    assert saved(edit(c, "Txn", path, transferLots=[]))["costBasis"] == "400.00"
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, 400, False, True)]
+
+
+def test_lots_typed_again_are_matched_to_the_lots_held_by_the_day_bought(server, frozen):
+    """S2.2, S2.3: lots typed latest first and sent again in date order keep each its own id,
+    the oldest first, so a sale's pick of the later lot still picks the later lot."""
+    from test_accounts import add
+    from test_taxpanels import lots_on
+
+    from moolakata.store.entities.accounts import Lot
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    later = {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}
+    older = {"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"}
+    saved(edit(c, "Txn", path, transferLots=[later, older]))
+    lot = lots_on(c, a, "2026-03-02")[("KO", "2021-01-04")]["lotId"]
+    r = make(
+        c,
+        "Txn",
+        accountId=a,
+        date="2026-03-02",
+        kind="sell",
+        symbol="KO",
+        quantity="3",
+        price="200",
+        amount="600.00",
+        fees="0",
+        picks=[{"lotId": lot, "quantity": "3"}],
+    )
+    assert r.status_code == 200, r.text
+    saved(edit(c, "Txn", path, transferLots=[older, {**later, "costBasis": "330"}]))
+    with server.db.read(unscoped="test") as s:
+        kept = s.get(Lot, lot)
+        assert (str(kept.acquiredOn), kept.quantity, kept.costBasis) == ("2021-01-04", 3, 330)

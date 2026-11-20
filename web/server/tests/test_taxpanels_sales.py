@@ -992,7 +992,9 @@ def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, 
 
     held = new_account(jane, name="Held", type="brokerage")
     shorted = new_account(jane, name="Short", type="brokerage", mask="2222")
-    for a in (held, shorted):
+    # An account read after the one with the cover, which closed no short itself.
+    quiet = new_account(jane, name="Zed", type="brokerage", mask="3333")
+    for a in (held, shorted, quiet):
         add(jane, a["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(jane, held["id"], "2026-02-02", "buy", "100", "70", "XYZ")
     short_sale(jane, shorted["id"], "2026-06-01", "2026-07-01")  # short 100 at 50
@@ -1008,6 +1010,37 @@ def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, 
         "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
         "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
     }]  # fmt: skip
+
+
+def test_a_cover_review_takes_a_loss_sale_and_the_nearest_cover_of_its_stock_within_30_days():
+    """S3.8.5.5: only a sale at a loss is flagged (none at no gain or a cent's gain, nor a row
+    with no sale); a buy that closed a short counts only for the same stock, 30 days either
+    side, the bound included, and the nearest names it."""
+
+    def sale(gain, sale_id="S1"):
+        r = row("A", "5000", str(D(5000) - D(gain)))
+        r.instrumentId, r.sold, r.short, r.saleId = "XYZ", dt.date(2026, 8, 25), False, sale_id
+        return r
+
+    def buy(inst, day):
+        return SimpleNamespace(instrumentId=inst, date=day)
+
+    covers = [
+        (A1, buy("XYZ", dt.date(2026, 9, 24)), D(30)),  # 30 days after: in
+        (A2, buy("XYZ", dt.date(2026, 8, 20)), D(5)),  # 5 days before: the nearest
+        (A2, buy("ABC", dt.date(2026, 8, 25)), D(7)),  # another stock, the same day
+        (A1, buy("XYZ", dt.date(2026, 7, 25)), D(31)),  # 31 days before: out
+    ]
+    insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
+    rows = [sale("10"), sale("0"), sale("0.50"), sale("-900", None), sale("-900")]
+    got = panels._cover_reviews(rows, covers, insts)
+    assert [(w.loss, w.replacedOn, w.replacementAccount, w.replacementQty) for w in got] == [
+        (D(900), dt.date(2026, 8, 20), "Two", D(5))
+    ]
+    assert [w.replacedOn for w in panels._cover_reviews(rows, covers[:1], insts)] == [
+        dt.date(2026, 9, 24)
+    ]
+    assert panels._cover_reviews(rows, covers[2:], insts) == []
 
 
 def _short_position(jane, name="Brokerage"):

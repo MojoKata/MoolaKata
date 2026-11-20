@@ -24,7 +24,9 @@ def of(s: Session, user_ids: set[str]) -> dict[str, Owner]:
     already sees."""
     if not user_ids:
         return {}
-    with scoping.as_server(s, "the owners of what a caller is shown", expire=False) as srv:
+    # Only reads, and the caller's records stay as read: no change here shows.
+    why = "the owners of what a caller is shown"  # pragma: no mutate
+    with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         return {
             u.id: Owner(u.displayName, u.avatar, u.active)
             for u in srv.scalars(select(User).where(User.id.in_(list(user_ids))))

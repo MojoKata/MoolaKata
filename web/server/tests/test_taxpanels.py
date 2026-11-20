@@ -919,7 +919,7 @@ def test_shares_moved_are_offered_as_a_pair_whichever_half_is_recorded_first(jan
     ]
 
 
-def test_shares_carried_in_are_sold_by_the_lots_picked(jane):
+def test_shares_carried_in_are_sold_by_the_lots_picked(server, jane):
     """S2.3, S1.7.1: shares moved from one of the owner's accounts to another arrive with the
     lots they left with, each its own, so a sale where they arrive may pick them, as the
     receiving broker sells by the transfer statement's lots; half a lot moved is picked as the
@@ -950,3 +950,14 @@ def test_shares_carried_in_are_sold_by_the_lots_picked(jane):
     closed = jane.get("/ui/api/positions").json()["closed"]
     sold = [(x["opened"], x["cost"], x["realized"]) for x in closed if x["how"] == "sold"]
     assert sold == [("2020-03-04", "7500.00", "2500.00")]
+    # The pick changed, the lot is still the sale's to pick, its own pick left out of what is
+    # held that day; taken away, it is marked as who took it.
+    from moolakata.store.entities.accounts import LotPick
+
+    (pick,) = jane.get(f"/ui/api/transactions/{r.json()['id']}").json()["picks"]
+    assert saved(change(jane, "LotPk", pick, quantity="40"))["quantity"] == "40.0"
+    (pick,) = jane.get(f"/ui/api/transactions/{r.json()['id']}").json()["picks"]
+    assert remove(jane, "LotPk", pick).status_code == 200
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(LotPick, pick["id"]).deletedById == me

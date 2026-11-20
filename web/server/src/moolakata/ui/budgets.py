@@ -401,7 +401,7 @@ def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
     )
 
 
-def _check(s, user_id: str, body) -> list[FieldError]:
+def _check(body) -> list[FieldError]:
     errors = []
     if body.name is not None and (not body.name.strip() or len(body.name) > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
@@ -492,7 +492,7 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
             "Tracking or envelope.",
             [FieldError("method", "method-invalid", "Tracking or envelope.")],
         )
-    refuse_all(_check(s, c.id, body))
+    refuse_all(_check(body))
     b = Budget(
         id=budget_id,
         ownerId=c.id,
@@ -516,7 +516,7 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
 
 def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -> None:
     """The fields `sent`: its name and options. Its accounts are records of their own."""
-    refuse_all(_check(s, b.ownerId, body))
+    refuse_all(_check(body))
     fields = []
     if "name" in sent and body.name.strip() != b.name:
         b.name = body.name.strip()

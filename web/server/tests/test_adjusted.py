@@ -42,6 +42,23 @@ def held(c):
     }
 
 
+def test_an_action_needs_its_stock_held_but_a_split_reaches_its_options_alone(server, jane):
+    """S2.4.1: nothing of MSFT held, no action is recorded on it; held only through a put, a
+    split is (it adjusts the put, S3.10.1) and a symbol change isn't."""
+    a = new_account(jane, type="brokerage")["id"]
+    empty = new_account(jane, type="brokerage", name="Empty")["id"]
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "6.40", fees="0"))
+    r = split(jane, empty, "2026-10-01", "2")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-held"
+    found = jane.get("/ui/api/instruments", params={"q": "MSFT"}).json()["items"]
+    msft = next(i for i in found if i["symbol"] == "MSFT")["id"]
+    fields = {"accountId": a, "instrumentId": msft, "kind": "symbol-change",
+              "date": "2026-10-01", "newSymbol": "MSFX"}  # fmt: skip
+    r = create(jane, "CorpA", **fields)
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-held"
+    assert split(jane, a, "2026-10-01", "2").status_code == 200
+
+
 def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(server, jane):
     a = new_account(jane, type="brokerage")["id"]
     assert (

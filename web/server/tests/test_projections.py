@@ -100,6 +100,37 @@ def test_inputs_are_checked(jane):
     }
 
 
+def test_a_changed_projection_is_checked_as_a_new_one_is(jane):
+    """Its name, what it is built on and its inputs are each refused at their field."""
+    p = retirement(jane)
+    for fields, field in (
+        ({"name": " "}, "name"),
+        ({"builtOn": {"kind": "moon"}}, "builtOn"),
+        ({"inputs": {**p["inputs"], "fees": 9}}, "inputs.fees"),
+    ):
+        r = change(jane, "Prjct", p, **fields)
+        assert r.status_code == 422, fields
+        assert [e["field"] for e in r.json()["errors"]] == [field]
+
+
+def test_an_education_projection_keeps_its_beneficiary_made_or_changed(jane):
+    """S6.6, S10.10: an education goal is for someone: made or changed without them, it is
+    refused at the beneficiary."""
+    me = jane.get("/ui/api/profile").json()["id"]
+    body = {"name": "College", "goal": "education",
+            "builtOn": {"kind": "typed", "amount": 1000, "allocation": {"bonds": 100}},
+            "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000}}  # fmt: skip
+    r = make(jane, "Prjct", **body)
+    assert r.status_code == 422
+    assert [e["field"] for e in r.json()["errors"]] == ["inputs.beneficiary"]
+    who = {"beneficiary": {"kind": "user", "id": me}}
+    r = make(jane, "Prjct", **{**body, "inputs": {**body["inputs"], **who}})
+    assert r.status_code == 200, r.text
+    r = change(jane, "Prjct", r.json(), inputs=body["inputs"])
+    assert r.status_code == 422
+    assert [e["field"] for e in r.json()["errors"]] == ["inputs.beneficiary"]
+
+
 def test_built_on_accounts_starts_from_their_value(jane):
     acct = new_account(jane, name="Savings", type="savings")
     add(jane, acct["id"], "12000.00", "2026-10-01")

@@ -88,8 +88,9 @@ def irr(
     if f_lo * f_hi > 0:  # pragma: no mutate
         return None  # no rate from -99% to +1000% a year fits (cash all one way among them)
     # The width halves to 1e-9 in 34 steps; the cap only keeps a wrong step from looping for
-    # ever. No mutant of the width's test differs: 10.99 / 2**k is never exactly 1e-9.
-    for _ in range(64):
+    # ever, so a cap a step longer ends nothing sooner. No mutant of the width's test differs:
+    # 10.99 / 2**k is never exactly 1e-9.
+    for _ in range(64):  # pragma: no mutate
         if hi - lo < Decimal("1e-9"):  # pragma: no mutate
             break
         mid = (lo + hi) / 2
