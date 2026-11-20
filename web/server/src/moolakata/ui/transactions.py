@@ -2,8 +2,8 @@
 filtered and paged; manual entry and edits; bulk categorise; splits, tags and transfers."""
 
 import datetime as dt
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
@@ -558,11 +558,24 @@ def _instrument(s: Session, body: TxnRecord, account: Account) -> str | None:
     return None
 
 
-def _transfer_lots(s: Session, t: Transaction, a: Account, inst_id: str, body) -> None:
+@dataclass(frozen=True)
+class LotsSent:
+    """A transfer in's lots as a change types them again (S2.2): what `_transfer_lots` reads
+    of a new transaction's record."""
+
+    transferLots: list | None
+    quantity: Decimal
+    date: dt.date
+    costBasis: Decimal | None = None
+
+
+def _transfer_lots(
+    s: Session, t: Transaction, a: Account, inst_id: str, body: TxnRecord | LotsSent
+) -> None:
     """The lots shares moved in arrive as (S2.2): those typed, each with the day it was
     bought and its basis, adding up to the shares; none typed, one lot of the day they arrived,
     marked as not knowing when they were bought (its term unknown until it is)."""
-    lots_in = getattr(body, "transferLots", None)
+    lots_in = body.transferLots
     if lots_in:
         if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
             raise refuse(
@@ -574,7 +587,7 @@ def _transfer_lots(s: Session, t: Transaction, a: Account, inst_id: str, body) -
             )
         rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
     else:
-        rows = [(body.date, abs(body.quantity), getattr(body, "costBasis", None), True)]
+        rows = [(body.date, abs(body.quantity), body.costBasis, True)]
     for acquired, qty, basis, missing in rows:
         s.add(
             Lot(
@@ -786,8 +799,7 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
         s.flush()
         inst_id = t.instrumentId
         _transfer_lots(s, t, s.get(Account, t.accountId), inst_id,
-                       SimpleNamespace(transferLots=body.transferLots, quantity=t.quantity,
-                                       date=t.date, costBasis=None))  # fmt: skip
+                       LotsSent(body.transferLots, t.quantity, t.date))  # fmt: skip
         changed.append("transferLots")
     elif t.kind == "transfer-in" and {"quantity", "date"} & set(changed):
         # A lot whose day bought is known keeps it; one still missing it follows the day the
@@ -971,7 +983,9 @@ def keep_off_chain(
 
 def _set_of():
     """A set held by the record, sent as what to add and take away (S13.8.11.1)."""
-    return Field(default_factory=list, json_schema_extra={"uniqueItems": True})
+    # Runs at import, in `TxnRecord`'s body: mutmut can't put a change of it in force;
+    # `test_a_records_sets_are_lists_of_distinct_ids_none_by_default` holds what it builds.
+    return Field(default_factory=list, json_schema_extra={"uniqueItems": True})  # pragma: no mutate
 
 
 class TransferLot(Model):

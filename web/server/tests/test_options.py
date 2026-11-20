@@ -1306,3 +1306,30 @@ def test_shares_moved_in_while_short_are_held_and_the_buy_covers_the_short_alone
     _stock_trade(jane, brk["id"], "buy", "100", "470")
     assert _shorts(server, brk["id"])[0] == []
     assert _held(jane, brk["id"], "MSFT")["quantity"] == "0.5"
+
+
+def test_a_corporate_actions_transactions_keep_their_figures_and_take_their_notes(jane):
+    """S2.4.6, S3.10: what an action made follows from it, so a pair's half never moves to
+    another day (its new half always comes after its old) nor changes its shares; its memo,
+    category, tags and cleared mark change as any transaction's."""
+    from edits import split
+
+    a, fb = _holding(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=fb, kind="symbol-change",
+                       date="2026-06-09", newSymbol="META"))  # fmt: skip
+    saved(option_trade(jane, a, "2026-06-10", "sell-to-open", "meta", "put", "480",
+                       "2026-11-20", "1", "6.40", "0"))  # fmt: skip
+    made = split(jane, a, "2026-06-12", "2", symbol="META")
+    assert made.status_code == 200, made.text
+    words = "A corporate action's transaction changes only its memo, category, tags and mark."
+    with_split = [t for t in jane.get("/ui/api/transactions", params={"account": a}).json()[
+        "items"] if t["kind"] in ("symbol-change", "split", "option-adjust")]  # fmt: skip
+    assert {t["kind"] for t in with_split} == {"symbol-change", "split", "option-adjust"}
+    for t in with_split:
+        for field, value in (("date", "2026-06-01"), ("quantity", "3"), ("amount", "1.00")):
+            assert _refused(change(jane, "Txn", t, **{field: value})) == [
+                (None, "made-by-an-action", words)
+            ], (t["kind"], field)
+        t = saved(change(jane, "Txn", t, memo="as the broker wrote it", cleared=True))
+        assert (t["memo"], t["cleared"]) == ("as the broker wrote it", True)
+    assert act["transactions"][0]["kind"] == "symbol-change"

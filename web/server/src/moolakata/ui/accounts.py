@@ -279,12 +279,12 @@ def _check(body: AccountRecord, sent: set[str] | None = None) -> list[FieldError
         )
     if body.keptBy is not None and (not body.keptBy or any(k not in KEPT_BY for k in body.keptBy)):
         errors.append(FieldError("keptBy", "kept-by-invalid", "Imports, manual or bitcoin."))
-    closed = getattr(body, "closedOn", None)
+    closed = body.closedOn
     if closed is not None and closed > clock.today():
         errors.append(
             FieldError("closedOn", "closed-in-future", "The day it closed: today or earlier.")
         )
-    every = getattr(body, "statementInterval", None)
+    every = body.statementInterval
     if every is not None and every not in expected.INTERVALS:
         errors.append(
             FieldError(
@@ -435,6 +435,25 @@ def list_accounts(request: Request, c: Caller = Depends(caller)):
         return [row(s, a, p, ctx) for a, p in visible]
 
 
+# What a new account is made with; the rest of `AccountRecord` follows as a change (the
+# wallet's keys apart, kept by `wallets`).
+MADE_FIELDS = frozenset(
+    {
+        "name",
+        "type",
+        "institution",
+        "mask",
+        "notes",
+        "keptBy",
+        "lotMethod",
+        "openingBalance",
+        "openingDate",
+        "countInNetWorth",
+        *WALLET_FIELDS,
+    }
+)
+
+
 def _make(s, c: Caller, body, account_id: str) -> Account:
     a = Account(
         id=account_id,
@@ -480,7 +499,7 @@ ACCOUNT_FIELDS = (
 )
 
 
-def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
+def _change(s, c: Caller, a: Account, p: Perms, body: AccountRecord, sent: set[str]) -> None:
     """The fields `sent` set on an account: its settings with `configurable` (S10.3)."""
     settings_fields = {
         "lotMethod",
@@ -496,6 +515,10 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         "syncAccount",
         "withdrawalsAMonth",
         "hsaCoverage",
+        # Where its history starts: it moves every past balance, reconciled periods and filed
+        # years included (S10.3.2).
+        "openingBalance",
+        "openingDate",
     }
     if not p.configurable and sent & settings_fields:
         raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
@@ -534,10 +557,12 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
     if "statementInterval" in sent and a.statementInterval != body.statementInterval:
         a.statementInterval = body.statementInterval
         changed.append("statementInterval")
-    dismissed = getattr(body, "statementIntervalDismissed", None)
+    dismissed = body.statementIntervalDismissed
     if "statementIntervalDismissed" in sent and a.statementIntervalDismissed != dismissed:
         if dismissed is not None and dismissed not in expected.INTERVALS:
             raise refuse("statementIntervalDismissed", "statement-interval-invalid", "An interval.")
+        # Not in `changed`: a proposal set aside is the owner's answer to a suggestion, not a
+        # change to the account worth showing in Activity (S10.8).
         a.statementIntervalDismissed = dismissed
     if "connectionId" in sent or "syncAccount" in sent:
         from ..store.entities.connector import Connection
@@ -991,15 +1016,10 @@ save.register(
 def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
     refuse_all(_check(body))
     a = _make(ctx.s, ctx.caller, body, record_id)
+    # Every field `_make` doesn't set goes through the change's checks, so none sent is dropped.
     later = {
         f
-        for f in (
-            "closedOn",
-            "statementInterval",
-            "withdrawalsAMonth",
-            "connectionId",
-            "syncAccount",
-        )
+        for f in set(AccountRecord.model_fields) - MADE_FIELDS
         if getattr(body, f) != AccountRecord.model_fields[f].default
     }
     if later:

@@ -103,9 +103,11 @@
    2. **write**: also change what the item holds: for an account, add and edit transactions,
       import, categorise and attach receipts; for the other kinds, edit their entries. A
       write share cannot delete the item, change its sharing, change its settings or what it
-      covers (an account's name and method, a budget's or a tax book's accounts, which
-      projection is active), or see or change its secrets (keys and credentials): those stay
-      the owner's (a tax book's filers', S8.14.1).
+      covers (an account's settings are what its Settings tab holds: its name, institution,
+      mask, method, opening balance and its date, how it is kept, when it closed and whether
+      it counts in net worth; a budget's or a tax book's accounts, which projection is
+      active), or see or change its secrets (keys and credentials): those stay the owner's (a
+      tax book's filers', S8.14.1). An account's notes are among what it holds.
 
    What anyone holds of anything is decided once, for every read and every write, by each
    table's access view ([`schema.md`](schema.md) §7): read, and the permissions to change

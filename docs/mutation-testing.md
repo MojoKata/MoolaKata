@@ -314,6 +314,22 @@ Read every survivor, by function and line, and settle it one of three ways:
    too: where a statement's other changes are caught, leave it unmarked and list its
    equivalents with the area's results instead.
 
+Three kinds of survivor are settled the same way every time:
+
+- **An access check that restates the session's scoping** (an `editable` that refuses another
+  user's record or a deleted one, when the caller's access view already hides both) is kept
+  as a second guard and tested directly, with an unscoped session (`db.read(unscoped=...)`)
+  where only the check stands between the caller and the row. Never removed or marked: should
+  the scoping ever slip, it is what still refuses.
+- **A filter the access view also applies** (`X.deleted == false()`, an owner's id, in a
+  query run in the caller's session) is kept, so the query states the rows it wants whatever
+  session runs it (server work reads unscoped), and its survivor is listed as an equivalent.
+  Never removed or marked.
+- **Code run only at import** (a class body's field built by a call, a module constant) can't
+  be changed in force: mutmut's workers fork from a process that has already imported it. Its
+  result gets a test, and the code a mark saying so, the one mark for code whose output can
+  differ.
+
 A survivor that shows a wrong answer is a bug: it gets its issue, and a test that fails on the
 code as it was.
 

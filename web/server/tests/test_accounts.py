@@ -781,8 +781,9 @@ def test_an_accounts_change_is_kept_and_logged_for_its_owner_by_the_field_change
 
 
 def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server):
-    """S10.3: one who writes an account changes what it holds, its notes among them, logged
-    for its owner as theirs; its settings stay the owner's, each refused in the same words."""
+    """S10.3.2: one who writes an account changes what it holds, its notes among them, logged
+    for its owner as theirs; its settings (its Settings tab: the opening balance and its day
+    too) stay the owner's, each refused in the same words."""
     from edits import share
 
     jane, john = make_user(server, "jane").id, make_user(server, "john").id
@@ -807,12 +808,13 @@ def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server
         ("savings", "withdrawalsAMonth", 6),
         ("hsa", "hsaCoverage", "family"),
     ]
-    for kind, field, value in settings:
-        r = edit(j, "Acct", accounts[kind], **{field: value})
-        assert r.status_code == 403, (field, r.text)
+    opening = {"openingBalance": "250.00", "openingDate": "2026-01-01"}
+    for kind, sent in [*((k, {f: v}) for k, f, v in settings), ("checking", opening)]:
+        r = edit(j, "Acct", accounts[kind], **sent)
+        assert r.status_code == 403, (sent, r.text)
         assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
             (None, "owner-only", "Only the account's owner changes its settings.")
-        ], field
+        ], sent
     out = saved(edit(j, "Acct", accounts["checking"], notes="John's too."))
     assert out["notes"] == "John's too."
     assert logged(server, out["id"]) == [
@@ -1621,6 +1623,11 @@ def test_an_accounts_detail_reads_its_tax_dismissed_interval_and_no_options_risk
     saved(edit(c, "Acct", path, statementIntervalDismissed="quarterly"))
     got = c.get(path).json()
     assert (got["tax"], got["statementIntervalDismissed"]) == ("deferred", "quarterly")
+    # Set aside, a proposal is no change worth showing in Activity (S10.8); the interval
+    # itself, set, is.
+    assert logged(server, a["id"]) == []
+    saved(edit(c, "Acct", path, statementInterval="quarterly"))
+    assert [x[4] for x in logged(server, a["id"])] == [{"fields": ["statementInterval"]}]
     bank = c.get(f"/ui/api/accounts/{new_account(c)['id']}").json()
     risk = ("optionsValue", "capitalAtRisk", "capitalAtRiskUnlimited")
     assert [bank[k] for k in risk] == [None, None, False]
@@ -1758,3 +1765,44 @@ def test_a_retirement_deposit_reads_where_it_came_from_and_a_dividend_its_kind(s
         (None, "qualified"),
         (None, None),
     ]
+
+
+# Each field of a new account's record: the type it is valid on, a value it keeps, one it
+# refuses (None: nothing to refuse beyond the model's own type).
+MADE_WITH = {
+    "institution": ("checking", "Example Bank", None),
+    "mask": ("checking", "1234", "12"),
+    "notes": ("checking", "Joint, from 2019.", None),
+    "keptBy": ("checking", ["file"], ["yacht"]),
+    "lotMethod": ("brokerage", "lifo", "newest"),
+    "countInNetWorth": ("checking", False, None),
+    "closedOn": ("checking", "2026-01-02", "2999-01-01"),
+    "statementInterval": ("checking", "quarterly", "sometimes"),
+    "statementIntervalDismissed": ("checking", "quarterly", "sometimes"),
+    "withdrawalsAMonth": ("savings", 6, 100),
+    "hsaCoverage": ("hsa", "family", "both"),
+}
+# Fields with tests of their own: a pair, the account's name and type, a connection's
+# (test_connections), a wallet's (test_wallets).
+MADE_ELSEWHERE = {"name", "type", "openingBalance", "openingDate", "connectionId",
+                  "syncAccount", "walletKeys", "gapLimit"}  # fmt: skip
+
+
+def test_an_account_is_made_with_every_field_sent_each_kept_or_refused(server):
+    """R3.11, S1.2, S8.6, S1.11.7: a new account keeps every field its record sends, or
+    refuses it on its own field, as a change does: none is dropped unsaid."""
+    from moolakata.ui.accounts import AccountRecord
+
+    assert set(MADE_WITH) | MADE_ELSEWHERE == set(AccountRecord.model_fields)
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    for field, (type_, good, bad) in MADE_WITH.items():
+        a = new_account(c, type=type_, name=field, **{field: good})
+        assert c.get(f"/ui/api/accounts/{a['id']}").json()[field] == good, field
+        if bad is not None:
+            r = make(c, "Acct", type=type_, name=field, **{field: bad})
+            assert r.status_code == 422, (field, r.text)
+            assert [e["field"] for e in r.json()["errors"]] == [field], field
+    # An HSA's coverage on another type is refused, never kept on the wrong account.
+    r = make(c, "Acct", type="checking", name="x", hsaCoverage="family")
+    assert [e["code"] for e in r.json()["errors"]] == ["coverage-invalid"]

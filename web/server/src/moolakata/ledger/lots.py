@@ -216,7 +216,7 @@ def replay(
         # An assignment's stock trades come after it on its day, to take its premium; the new
         # leg of a pair that moves lots, after the old one.
         leg = getattr(t, "optionTransactionId", None) in ends or (
-            t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
+            t.kind in (*CORPORATE, "option-adjust") and t.transferId
         )
         events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
     for h in snapshots:
@@ -377,7 +377,7 @@ def _transaction(
                         lot.acquiredOn,
                         lot.quantity,
                         None if lot.basisMissing else lot.costBasis,
-                        acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
+                        acquiredMissing=lot.acquiredMissing,
                     )
                 )
             if t.id in out.premium:

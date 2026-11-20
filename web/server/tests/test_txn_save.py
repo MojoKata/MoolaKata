@@ -909,3 +909,16 @@ def test_only_a_split_has_a_ratio_and_a_split_is_a_corporate_action(server, froz
         "corporate-kind",
         "Record it as a corporate action on Positions.",
     )
+
+
+def test_a_records_sets_are_lists_of_distinct_ids_none_by_default():
+    """S13.8.11.1: a set a record holds (its tags, the budgets it is left out of) is sent as a
+    list of distinct ids, an empty one when none is sent; the contract `_set_of` builds at
+    import, which no run of mutmut can change in force."""
+    from moolakata.ui.rules import RuleRecord
+    from moolakata.ui.transactions import TxnRecord
+
+    for model, field in ((TxnRecord, "tagIds"), (TxnRecord, "leftOutOf"), (RuleRecord, "tagIds")):
+        schema = model.model_json_schema()["properties"][field]
+        assert (schema["type"], schema["uniqueItems"]) == ("array", True), (model, field)
+        assert model.model_fields[field].get_default(call_default_factory=True) == []

@@ -631,3 +631,25 @@ def test_uncategorised_leaves_out_deleted_trades_transfers_and_others_accounts(s
     assert jane.get(f"/ui/api/accounts/{seen['id']}").status_code == 200
     rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
     assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
+
+
+def test_a_rule_changed_is_the_callers_own_and_live_even_read_unscoped(server):
+    """S2.7, S10.3: the save's scoped session already hides another's rules and deleted ones;
+    `_own` refuses them too, the second guard should the session ever read more."""
+    from moolakata.errors import Problem
+    from moolakata.ui import rules as ui_rules
+
+    jane = make_user(server, "jane").id
+    make_user(server, "john")
+    j, o = sign_in(server, "jane"), sign_in(server, "john")
+    mine = make(j, "Rule", payeeMatch="kroger", payee="Kroger").json()
+    theirs = make(o, "Rule", payeeMatch="aldi", payee="Aldi").json()
+    gone = make(j, "Rule", payeeMatch="costco", payee="Costco").json()
+    assert remove(j, "Rule", gone).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        caller = SimpleNamespace(id=jane)
+        assert ui_rules._own(s, caller, mine["id"]).id == mine["id"]
+        for other in (theirs["id"], gone["id"], new_id("Rule")):
+            with pytest.raises(Problem) as e:
+                ui_rules._own(s, caller, other)
+            assert (e.value.status, e.value.code) == (404, "not-found"), other
