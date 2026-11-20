@@ -1,0 +1,423 @@
+# Batch 13: 47 survivors and 7 unrun changes in ledger.lots (_disallow, replay, _transaction, _cover_short_stock)
+# Each: the change's name, then its diff (from fork run 44643471165, at e313155b: the rest round of
+# the settling run's ledger-3). The unrun ones, after the survivors, have no diff: the batch's mutation
+# check runs them and writes any survivor's diff to web/.dev/mutate/survivors.txt.
+
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_9
+     none held, S3.4) close the short first; the rest stay long. The lots just made are the
+     last ones open."""
+     short = -sum(
+-        (x.quantity for x in out.open if x.instrumentId == t.instrumentId and x.quantity < 0),
++        (x.quantity for x in out.open if x.instrumentId == t.instrumentId and x.quantity <= 0),
+         ZERO,
+     )
+     qty = abs(t.quantity or ZERO)
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_19
+     )
+     qty = abs(t.quantity or ZERO)
+     cover = min(short, qty)
+-    if cover <= 0:
++    if cover < 0:
+         return
+     _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
+     left = cover
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_37
+     _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
+     left = cover
+     for lot in out.open[-n_made:]:
+-        if left <= 0 or lot.quantity <= 0:
++        if left <= 0 and lot.quantity <= 0:
+             continue
+         take = min(left, lot.quantity)
+         _take(lot, take)
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_38
+     _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
+     left = cover
+     for lot in out.open[-n_made:]:
+-        if left <= 0 or lot.quantity <= 0:
++        if left < 0 or lot.quantity <= 0:
+             continue
+         take = min(left, lot.quantity)
+         _take(lot, take)
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_40
+     _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
+     left = cover
+     for lot in out.open[-n_made:]:
+-        if left <= 0 or lot.quantity <= 0:
++        if left <= 0 or lot.quantity < 0:
+             continue
+         take = min(left, lot.quantity)
+         _take(lot, take)
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_42
+     left = cover
+     for lot in out.open[-n_made:]:
+         if left <= 0 or lot.quantity <= 0:
+-            continue
++            break
+         take = min(left, lot.quantity)
+         _take(lot, take)
+         left -= take
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_52
+             continue
+         take = min(left, lot.quantity)
+         _take(lot, take)
+-        left -= take
++        left = take
+# moolakata.ledger.lots.x__cover_short_stock__mutmut_53
+             continue
+         take = min(left, lot.quantity)
+         _take(lot, take)
+-        left -= take
++        left += take
+# moolakata.ledger.lots.x__disallow__mutmut_7
+     over the sale's when the wash sale names no lot."""
+     by: dict[tuple[str, str | None], Decimal] = {}
+     for w in washes:
+-        key = (w.saleId, getattr(w, "lotId", None))
++        key = (w.saleId, getattr(w, "lotId", ))
+         by[key] = by.get(key, ZERO) + w.disallowed
+     for (sale, lot_id), amount in by.items():
+         losing = [
+# moolakata.ledger.lots.x__disallow__mutmut_25
+             for d in out.disposals
+             if d.saleId == sale
+             and (lot_id is None or d.lotId == lot_id)
+-            and (d.raw_gain or ZERO) < 0
++            and (d.raw_gain or ZERO) <= 0
+         ]
+         total = -sum((d.raw_gain for d in losing), ZERO)
+         given = ZERO
+# moolakata.ledger.lots.x__disallow__mutmut_26
+             for d in out.disposals
+             if d.saleId == sale
+             and (lot_id is None or d.lotId == lot_id)
+-            and (d.raw_gain or ZERO) < 0
++            and (d.raw_gain or ZERO) < 1
+         ]
+         total = -sum((d.raw_gain for d in losing), ZERO)
+         given = ZERO
+# moolakata.ledger.lots.x__disallow__mutmut_28
+             and (lot_id is None or d.lotId == lot_id)
+             and (d.raw_gain or ZERO) < 0
+         ]
+-        total = -sum((d.raw_gain for d in losing), ZERO)
++        total = +sum((d.raw_gain for d in losing), ZERO)
+         given = ZERO
+         for i, d in enumerate(losing):
+             part = (
+# moolakata.ledger.lots.x__disallow__mutmut_32
+             and (lot_id is None or d.lotId == lot_id)
+             and (d.raw_gain or ZERO) < 0
+         ]
+-        total = -sum((d.raw_gain for d in losing), ZERO)
++        total = -sum((d.raw_gain for d in losing), )
+         given = ZERO
+         for i, d in enumerate(losing):
+             part = (
+# moolakata.ledger.lots.x__disallow__mutmut_36
+         for i, d in enumerate(losing):
+             part = (
+                 amount - given
+-                if i == len(losing) - 1
++                if (i == len(losing) - 1) and False
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+# moolakata.ledger.lots.x__disallow__mutmut_37
+         for i, d in enumerate(losing):
+             part = (
+                 amount - given
+-                if i == len(losing) - 1
++                if (i == len(losing) - 1) or True
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+# moolakata.ledger.lots.x__disallow__mutmut_38
+         given = ZERO
+         for i, d in enumerate(losing):
+             part = (
+-                amount - given
++                amount + given
+                 if i == len(losing) - 1
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+# moolakata.ledger.lots.x__disallow__mutmut_39
+         for i, d in enumerate(losing):
+             part = (
+                 amount - given
+-                if i == len(losing) - 1
++                if i != len(losing) - 1
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+# moolakata.ledger.lots.x__disallow__mutmut_40
+         for i, d in enumerate(losing):
+             part = (
+                 amount - given
+-                if i == len(losing) - 1
++                if i == len(losing) + 1
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+# moolakata.ledger.lots.x__disallow__mutmut_41
+         for i, d in enumerate(losing):
+             part = (
+                 amount - given
+-                if i == len(losing) - 1
++                if i == len(losing) - 2
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+# moolakata.ledger.lots.x__disallow__mutmut_43
+             part = (
+                 amount - given
+                 if i == len(losing) - 1
+-                else (amount * -d.raw_gain / total).quantize(CENT)
++                else (amount * -d.raw_gain * total).quantize(CENT)
+             )
+             d.adjustment += part
+             given += part
+# moolakata.ledger.lots.x__disallow__mutmut_44
+             part = (
+                 amount - given
+                 if i == len(losing) - 1
+-                else (amount * -d.raw_gain / total).quantize(CENT)
++                else (amount / -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+             given += part
+# moolakata.ledger.lots.x__disallow__mutmut_45
+             part = (
+                 amount - given
+                 if i == len(losing) - 1
+-                else (amount * -d.raw_gain / total).quantize(CENT)
++                else (amount * +d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+             given += part
+# moolakata.ledger.lots.x__disallow__mutmut_46
+                 if i == len(losing) - 1
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+-            d.adjustment += part
++            d.adjustment = part
+             given += part
+# moolakata.ledger.lots.x__disallow__mutmut_48
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+-            given += part
++            given = part
+# moolakata.ledger.lots.x__disallow__mutmut_49
+                 else (amount * -d.raw_gain / total).quantize(CENT)
+             )
+             d.adjustment += part
+-            given += part
++            given -= part
+# moolakata.ledger.lots.x__transaction__mutmut_41
+                         lot.instrumentId,
+                         lot.acquiredOn,
+                         lot.quantity,
+-                        None if lot.basisMissing else lot.costBasis,
++                        None if (lot.basisMissing) and False else lot.costBasis,
+                         acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
+                     )
+                 )
+# moolakata.ledger.lots.x__transaction__mutmut_46
+                         lot.acquiredOn,
+                         lot.quantity,
+                         None if lot.basisMissing else lot.costBasis,
+-                        acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
++                        acquiredMissing=bool(getattr(lot, "acquiredMissing", None)),
+                     )
+                 )
+             if t.id in out.premium:
+# moolakata.ledger.lots.x__transaction__mutmut_49
+                         lot.acquiredOn,
+                         lot.quantity,
+                         None if lot.basisMissing else lot.costBasis,
+-                        acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
++                        acquiredMissing=bool(getattr(lot, "acquiredMissing", )),
+                     )
+                 )
+             if t.id in out.premium:
+# moolakata.ledger.lots.x__transaction__mutmut_53
+                         lot.acquiredOn,
+                         lot.quantity,
+                         None if lot.basisMissing else lot.costBasis,
+-                        acquiredMissing=bool(getattr(lot, "acquiredMissing", False)),
++                        acquiredMissing=bool(getattr(lot, "acquiredMissing", True)),
+                     )
+                 )
+             if t.id in out.premium:
+# moolakata.ledger.lots.x__transaction__mutmut_107
+                 basis = (t.quantity * t.price).quantize(CENT) if t.price else None
+             out.open.append(OpenLot(None, t.instrumentId, t.date, t.quantity, basis))
+         if t.kind == "buy":
+-            _cover_short_stock(out, t, len(made) if made else 1)
++            _cover_short_stock(out, t, len(made) if (made) and False else 1)
+     elif t.kind in ("sell", "transfer-out"):
+         qty = abs(t.quantity or ZERO)
+         if not qty:
+# moolakata.ledger.lots.x__transaction__mutmut_108
+                 basis = (t.quantity * t.price).quantize(CENT) if t.price else None
+             out.open.append(OpenLot(None, t.instrumentId, t.date, t.quantity, basis))
+         if t.kind == "buy":
+-            _cover_short_stock(out, t, len(made) if made else 1)
++            _cover_short_stock(out, t, len(made) if (made) or True else 1)
+     elif t.kind in ("sell", "transfer-out"):
+         qty = abs(t.quantity or ZERO)
+         if not qty:
+# moolakata.ledger.lots.x__transaction__mutmut_109
+                 basis = (t.quantity * t.price).quantize(CENT) if t.price else None
+             out.open.append(OpenLot(None, t.instrumentId, t.date, t.quantity, basis))
+         if t.kind == "buy":
+-            _cover_short_stock(out, t, len(made) if made else 1)
++            _cover_short_stock(out, t, len(made) if made else 2)
+     elif t.kind in ("sell", "transfer-out"):
+         qty = abs(t.quantity or ZERO)
+         if not qty:
+# moolakata.ledger.lots.x__transaction__mutmut_135
+             method = "fifo"  # average cost is for funds and coins; a share goes first in (S2.3)
+         proceeds = (
+             t.amount + (getattr(t, "proceedsAdjustment", None) or ZERO)
+-            if t.kind == "sell"
++            if (t.kind == "sell") or True
+             else ZERO
+         )
+         # A short call's credit adds to the proceeds; a long put's premium comes off them.
+# moolakata.ledger.lots.x__transaction__mutmut_172
+         # A short call's credit adds to the proceeds; a long put's premium comes off them.
+         proceeds -= out.premium.pop(t.id, None) or ZERO
+         _consume(out, t, qty, method, proceeds, realize=t.kind == "sell", picks=picks)
+-    elif t.kind == "split" and t.splitRatio:
++    elif t.kind == "split" or t.splitRatio:
+         for lot in out.open:
+             if lot.instrumentId == t.instrumentId:
+                 lot.quantity *= t.splitRatio
+# moolakata.ledger.lots.x_replay__mutmut_9
+     lots_by_txn: dict[str, list] = {}
+     for lot in lots:
+         if not lot.transactionId:
+-            raise ValueError(f"lot {lot.id} has no transaction: every lot is made by one (S2.2)")
++            raise ValueError(None)
+         lots_by_txn.setdefault(lot.transactionId, []).append(lot)
+     picks_by_sale: dict[str, list] = {}
+     for p in picks:
+# moolakata.ledger.lots.x_replay__mutmut_47
+         # An assignment's stock trades come after it on its day, to take its premium; the new
+         # leg of a pair that moves lots, after the old one.
+         leg = getattr(t, "optionTransactionId", None) in ends or (
+-            t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
++            t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", )
+         )
+         events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
+     for h in snapshots:
+# moolakata.ledger.lots.x_replay__mutmut_54
+         leg = getattr(t, "optionTransactionId", None) in ends or (
+             t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
+         )
+-        events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
++        events.append((t.date, 2 if leg else 0, t.createdAt, t.id, "txn", t))
+     for h in snapshots:
+         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
+     # A wash sale settles on its replacement right after the loss sale: a replacement
+# moolakata.ledger.lots.x_replay__mutmut_56
+         leg = getattr(t, "optionTransactionId", None) in ends or (
+             t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
+         )
+-        events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
++        events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "XXtxnXX", t))
+     for h in snapshots:
+         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
+     # A wash sale settles on its replacement right after the loss sale: a replacement
+# moolakata.ledger.lots.x_replay__mutmut_57
+         leg = getattr(t, "optionTransactionId", None) in ends or (
+             t.kind in (*CORPORATE, "option-adjust") and getattr(t, "transferId", None)
+         )
+-        events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
++        events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "TXN", t))
+     for h in snapshots:
+         events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
+     # A wash sale settles on its replacement right after the loss sale: a replacement
+# moolakata.ledger.lots.x_replay__mutmut_59
+         )
+         events.append((t.date, 1 if leg else 0, t.createdAt, t.id, "txn", t))
+     for h in snapshots:
+-        events.append((h.asOf, 2, h.createdAt, h.id, "snapshot", h))  # at the day's end
++        events.append((h.asOf, 3, h.createdAt, h.id, "snapshot", h))  # at the day's end
+     # A wash sale settles on its replacement right after the loss sale: a replacement
+     # bought before it is a plain lot until then, so the sale never picks its own lots by the
+     # loss it is about to have disallowed. `sale_at` is each sale's day and making, from any
+# moolakata.ledger.lots.x_replay__mutmut_68
+     for w in washes:
+         at = (sale_at or {}).get(w.saleId)
+         if at is not None:
+-            events.append((at[0], 0, at[1], f"{w.saleId}~{w.id}", "settle", w))
++            events.append((at[0], 1, at[1], f"{w.saleId}~{w.id}", "settle", w))
+     # Ids are unique, so the first four decide: no sort key changes the order.
+     events.sort(key=lambda e: e[:4])  # pragma: no mutate
+ 
+# moolakata.ledger.lots.x_replay__mutmut_103
+             out.legs.setdefault(end, []).append(t)
+             if end in ends:
+                 out.leg_ids.add(t.id)
+-        if t.kind in CORPORATE and t.transferId:
++        if t.kind in CORPORATE or t.transferId:
+             out.paired.add(t.transferId)
+     for _, _, _, _, what, obj in events:
+         if what == "snapshot":
+# moolakata.ledger.lots.x_replay__mutmut_138
+         elif carried_in and obj.kind == "transfer-in" and obj.id in carried_in:
+             # A pair from another account: the lots its transfer out took, whole.
+             for lot in carried_in[obj.id]:
+-                out.open.append(replace(lot, lotId=None, instrumentId=obj.instrumentId))
++                out.open.append(replace(lot, instrumentId=obj.instrumentId))
+         else:
+             before = len(out.open)
+             _transaction(
+# moolakata.ledger.lots.x_replay__mutmut_139
+         elif carried_in and obj.kind == "transfer-in" and obj.id in carried_in:
+             # A pair from another account: the lots its transfer out took, whole.
+             for lot in carried_in[obj.id]:
+-                out.open.append(replace(lot, lotId=None, instrumentId=obj.instrumentId))
++                out.open.append(replace(lot, lotId=None, ))
+         else:
+             before = len(out.open)
+             _transaction(
+# moolakata.ledger.lots.x_replay__mutmut_154
+                 out,
+                 obj,
+                 account_method,
+-                lots_by_txn.get(obj.id, []),
++                lots_by_txn.get(obj.id, None),
+                 picks_by_sale.get(obj.id, []),
+                 averaged,
+             )
+# moolakata.ledger.lots.x_replay__mutmut_156
+                 out,
+                 obj,
+                 account_method,
+-                lots_by_txn.get(obj.id, []),
++                lots_by_txn.get(obj.id, ),
+                 picks_by_sale.get(obj.id, []),
+                 averaged,
+             )
+# moolakata.ledger.lots.x_replay__mutmut_160
+                 obj,
+                 account_method,
+                 lots_by_txn.get(obj.id, []),
+-                picks_by_sale.get(obj.id, []),
++                picks_by_sale.get(obj.id, ),
+                 averaged,
+             )
+             if obj.id in replaced:
+
+# Unrun on CI (the job ran out of time):
+# moolakata.ledger.lots.x_replay__mutmut_158
+# moolakata.ledger.lots.x_replay__mutmut_170
+# moolakata.ledger.lots.x_replay__mutmut_176
+# moolakata.ledger.lots.x_replay__mutmut_178
+# moolakata.ledger.lots.x_replay__mutmut_181
+# moolakata.ledger.lots.x_replay__mutmut_183
+# moolakata.ledger.lots.x_replay__mutmut_185
