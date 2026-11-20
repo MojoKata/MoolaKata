@@ -295,6 +295,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const type = BY_TYPE[account.type] || BY_TYPE.checking;
   const kind = t?.get('kind') || '';
   const trade = TRADE.includes(kind);
+  // What a corporate action, an assignment or an exercise made keeps the figures it made it
+  // with; its notes change (S2.4.7, S3.4).
+  const fixed = editing ? txn.figuresFixed || null : null;
   // Bitcoin is typed and shown in the person's unit, BTC or sats (S1.6.4).
   const btc = isBitcoin(t);
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
@@ -393,17 +396,20 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                   options=${writable.map((a) => [a.id, a.name])} />
               `
               : null}
+            ${fixed ? html`<p class="small dim" style=${{ marginTop: 0 }}>${fixed}</p>` : null}
             <div class="row">
-              <${RecField} rec=${t} name="date" label="Date" />
+              <${RecField} rec=${t} name="date" label="Date" disabled=${!!fixed} why=${fixed} />
               <${RecField} rec=${t} name="kind" label="Kind"
-                options=${kindsFor(type)} />
+                options=${kindsFor(type)} disabled=${!!fixed} why=${fixed} />
             </div>
             ${trade
               ? html`
                 <div class="row">
                   <${RecField} rec=${t} name="symbol" label="Symbol" disabled=${editing} />
-                  <${RecField} rec=${t} name="quantity" label="Quantity" bitcoin=${btc} />
-                  <${RecField} rec=${t} name="price" label="Price" />
+                  <${RecField} rec=${t} name="quantity" label="Quantity" bitcoin=${btc}
+                    disabled=${!!fixed} why=${fixed} />
+                  <${RecField} rec=${t} name="price" label="Price" disabled=${!!fixed}
+                    why=${fixed} />
                 </div>
               `
               : null}
@@ -411,11 +417,21 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
               : null}
             <div class="row">
-              <${RecField} rec=${t} name="amount" label="Amount" />
-              ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
+              <${RecField} rec=${t} name="amount" label="Amount" disabled=${!!fixed} why=${fixed} />
+              ${trade
+                ? html`
+                  <${RecField} rec=${t} name="fees" label="Fees" disabled=${!!fixed}
+                    why=${fixed} />
+                `
+                : null}
             </div>
             ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} btc=${btc} />` : null}
-            ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
+            ${!trade
+              ? html`
+                <${RecField} rec=${t} name="payee" label="Payee" disabled=${!!fixed}
+                  why=${fixed} />
+              `
+              : null}
             ${!trade && !parts.length
               ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" />`
               : null}

@@ -51,6 +51,7 @@ def test_a_short_put_is_a_negative_lot_and_realizes_at_close(jane):
     v = jane.get("/ui/api/positions").json()
     row = v["open"][0]
     assert row["symbol"] == "MSFT 20NOV26 480 P" and row["side"] == "short"
+    assert row["underlyingSymbol"] == "MSFT", "a split of it reaches the option (S3.10.1)"
     assert row["quantity"] == "-2.0" and row["cost"] == "-1279.35"
     r = opt(jane, brk["id"], "buy-to-close", "2026-10-01", "2.10", contracts="2")
     assert saved(r)["amount"] == "-420.65"

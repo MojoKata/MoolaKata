@@ -58,6 +58,9 @@ class OpenRow(Model):
     expiry: dt.date | None = None  # an option's
     daysToExpiry: int | None = None
     inTheMoney: bool | None = None  # by the underlying's latest close
+    # An option's stock: a split of it reaches the option, recorded on it (S3.10.1).
+    underlyingId: str | None = None
+    underlyingSymbol: str | None = None
 
 
 class ClosedRow(Model):
@@ -181,10 +184,13 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
             oc = options.contract_of(s, iid)  # none for an instrument that isn't an option
             if oc is not None:
                 under = options.per_share(s, oc, today, led.account.ownerId)
+                stock = s.get(Instrument, oc.underlyingId)
                 extra = {
                     "expiry": oc.expiry,
                     "daysToExpiry": (oc.expiry - today).days,
                     "inTheMoney": options.in_the_money(oc, under[0]) if under else None,
+                    "underlyingId": oc.underlyingId,
+                    "underlyingSymbol": stock.symbol if stock else None,
                 }
             open_rows.append(
                 OpenRow(

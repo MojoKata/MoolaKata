@@ -14603,6 +14603,28 @@
             "title": "Term",
             "type": "string"
           },
+          "underlyingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingid"
+          },
+          "underlyingSymbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingsymbol"
+          },
           "unrealized": {
             "anyOf": [
               {
@@ -26000,6 +26022,17 @@
               }
             ],
             "title": "Fees"
+          },
+          "figuresFixed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figuresfixed"
           },
           "id": {
             "title": "Id",

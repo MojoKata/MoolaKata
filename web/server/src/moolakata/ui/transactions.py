@@ -135,6 +135,9 @@ class TxnOut(Model):
     tagIds: list[str]
     receipts: int
     access: Access
+    # Why its kind, amount, shares, price, day and payee are fixed, for what a corporate
+    # action, an assignment or an exercise made (S2.4.7, S3.4); none for any other.
+    figuresFixed: str | None = None
     version: int
 
 
@@ -285,6 +288,7 @@ def shape(
                 tagIds=[x.id for x in tagged.get(t.id, [])],
                 receipts=len(attached.get(t.id, [])),
                 access=Access.of(held[t.accountId].child()),
+                figuresFixed=_fixed_by_action(s, t),
                 version=t.version,
             )
         )

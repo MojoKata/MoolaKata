@@ -2424,6 +2424,8 @@
  * @property {(string | null)} [expiry]
  * @property {(number | null)} [daysToExpiry]
  * @property {(boolean | null)} [inTheMoney]
+ * @property {(string | null)} [underlyingId]
+ * @property {(string | null)} [underlyingSymbol]
  */
 
 /**
@@ -4512,6 +4514,7 @@
  * @property {Array<string>} tagIds
  * @property {number} receipts
  * @property {Access} access
+ * @property {(string | null)} [figuresFixed]
  * @property {number} version
  */
 
