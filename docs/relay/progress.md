@@ -317,3 +317,20 @@ Doubts:
 - The two-lot buy in `test_shares_bought_while_short_close_it_from_the_buys_lots_in_turn` kills `_cover_short_stock` 52, 53 and `_transaction` 107. A buy gets two lots only as a transfer in's typed lots retyped as a buy, I think (not tried); `test_wash_sales_on_one_buy_take_its_lots_in_turn` already treats such a buy as real.
 - A buy of negative shares is accepted (the bug above); the route's `trade-incomplete` refuses only none.
 - A wash sale with no lot spread over a sale's lot-named losing parts (the bug above) may want `_disallow` to take only lotless parts for such a row.
+
+## Batch 14
+
+Test files touched: `tests/test_ledger.py`.
+
+Counts (the 94 changes CI never ran): killed 94, equivalent 0, bug 0, unreachable 0, slow 0,
+still surviving 0.
+
+First mutation check, settled locally rather than by CI: `--tests` `test_statements.py`,
+`test_expected.py`, `test_ledger.py`, `test_accounts.py` (the run added `test_holdingcheck.py`,
+which imports `reconcile`), 10 workers: 90 killed (all 21 in `expected.py`, all 14 of `checks`,
+55 of `coverage`), 4 survivors, all `coverage`'s day edges: `x_coverage__mutmut_18`, `_19`,
+`_23` (an import starting the day after the last ends, or one day after that) and `_27` (one
+starting on the last's end day). One test, `test_coverage_counts_whole_days_at_its_edges`,
+holds those edges and each period's imports; the rerun of the four killed all four.
+
+Doubts: none.

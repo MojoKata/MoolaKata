@@ -312,6 +312,25 @@ def test_coverage_gaps_and_overlaps():
     ]
 
 
+def test_coverage_counts_whole_days_at_its_edges():
+    """S1.11.1: an import starting the day after the last ends carries on its period, one
+    starting on that last day overlaps it by that day, and a single day missed is a gap."""
+    c = reconcile.coverage(
+        [
+            Imp("I1", d(2026, 7, 1), d(2026, 7, 31)),
+            Imp("I2", d(2026, 8, 1), d(2026, 8, 31)),
+            Imp("I3", d(2026, 8, 31), d(2026, 9, 30)),
+            Imp("I4", d(2026, 10, 2), d(2026, 10, 31)),
+        ]
+    )
+    assert [(p.start, p.end, p.importIds) for p in c.periods] == [
+        (d(2026, 7, 1), d(2026, 9, 30), ["I1", "I2", "I3"]),
+        (d(2026, 10, 2), d(2026, 10, 31), ["I4"]),
+    ]
+    assert c.gaps == [(d(2026, 10, 1), d(2026, 10, 1))]
+    assert c.overlaps == [(d(2026, 8, 31), d(2026, 8, 31))]
+
+
 def test_checks_name_the_suspects_between_matching_balances():
     txns = [
         Txn(d(2026, 9, 1), "deposit", D(100), payee="Pay"),
