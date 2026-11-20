@@ -22,10 +22,19 @@
    unknown, and Taxes lists it until both are typed (S8.4). What is known of a lot goes with it
    wherever it goes: a sale from it has its term unknown and its Form 8949 date *VARIOUS*, and
    Taxes lists the sale too; a symbol change, spin-off or merger carries the mark to the new
-   shares. Editing the transfer's date moves only a lot whose day bought is missing.
+   shares. Editing the transfer's date moves only a lot whose day bought is missing. The
+   shares' basis is their lots' together, missing while any lot's is; typed lot by lot, each
+   lot takes its own. A buy, a reinvestment or coins received as income make one lot of their
+   day; a trade's lots follow it as it changes, its kind among what they follow.
+   Lots typed again change in place, in order, each keeping its identity, so a sale's pick of
+   one holds (S2.3).
 3. **Sales consume lots** by the account's **lot method**: FIFO (the default), LIFO, HIFO,
    specific identification (chosen per sale), or **average cost** (mutual funds, and crypto
-   where elected: a listed share in an account set to average cost is sold first in). The method in force at the sale is recorded on it, however the sale arrives
+   where elected: a listed share in an account set to average cost is sold first in). A sale
+   picks from any lot it holds that day, those carried in by a paired transfer among them. A
+   change that takes a picked lot away (its trade deleted, its kind changed, its shares typed
+   again as fewer lots) or leaves it less than was picked asks first, naming the sale;
+   confirmed, the sale's picks go and it takes its lots by its method. The method in force at the sale is recorded on it, however the sale arrives
    (typed, imported or synced); changing an account's method applies to the sales after the
    change, and the wash sales are worked out again (S3.8.4).
 4. **Corporate actions**: splits, reverse splits, symbol changes, spin-offs (manual basis

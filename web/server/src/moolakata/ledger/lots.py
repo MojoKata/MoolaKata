@@ -118,6 +118,8 @@ class Replay:
     # What each transfer out took with it: (acquired, quantity, basis), by transaction, so a
     # matched transfer in can open the same lots (S1.7.1).
     moved: dict = field(default_factory=dict)
+    # Shares a buy bought to close a short, by the buy (S3.4).
+    covered: dict = field(default_factory=dict)
     # An assignment's or exercise's stock trades, by the option's end, and the premium each
     # takes into its basis or proceeds once the end is replayed (S3.4); None while the
     # option's basis is missing.
@@ -206,6 +208,10 @@ def replay(
         if not lot.transactionId:
             raise ValueError(f"lot {lot.id} has no transaction: every lot is made by one (S2.2)")
         lots_by_txn.setdefault(lot.transactionId, []).append(lot)
+    for t in transactions:
+        made = lots_by_txn.get(t.id, [])
+        if t.kind in ONE_LOT and len(made) > 1:
+            raise ValueError(f"{t.kind} {t.id} has {len(made)} lots: it makes one (S2.2)")
     picks_by_sale: dict[str, list] = {}
     for p in picks:
         picks_by_sale.setdefault(p.saleId, []).append(p)
@@ -256,8 +262,9 @@ def replay(
                 _settle(lot, obj, basis_added)
         elif carried_in and obj.kind == "transfer-in" and obj.id in carried_in:
             # A pair from another account: the lots its transfer out took, whole.
+            # Each keeps its lot's id, so a sale here may pick it (S2.3).
             for lot in carried_in[obj.id]:
-                out.open.append(replace(lot, lotId=None, instrumentId=obj.instrumentId))
+                out.open.append(replace(lot, instrumentId=obj.instrumentId))
         else:
             before = len(out.open)
             _transaction(
@@ -395,7 +402,7 @@ def _transaction(
                 basis = (t.quantity * t.price).quantize(CENT) if t.price else None
             out.open.append(OpenLot(None, t.instrumentId, t.date, t.quantity, basis))
         if t.kind == "buy":
-            _cover_short_stock(out, t, len(made) if made else 1)
+            _cover_short_stock(out, t)
     elif t.kind in ("sell", "transfer-out"):
         qty = abs(t.quantity or ZERO)
         if not qty:
@@ -457,6 +464,10 @@ def _adjust(out: Replay, t) -> None:
         out.open.append(
             replace(lot, instrumentId=t.instrumentId, quantity=lot.quantity * t.splitRatio)
         )
+
+
+# What makes one lot of its day: shares moved in may arrive as several, typed (S2.2).
+ONE_LOT = ("buy", "reinvest", "reward")
 
 
 # Corporate actions (S2.4) that move lots between instruments, each a pair of transactions
@@ -616,10 +627,10 @@ def _spread_premium(out: Replay, end_id: str, premium: Decimal | None) -> None:
         out.premium[leg.id] = share
 
 
-def _cover_short_stock(out: Replay, t, n_made: int) -> None:
+def _cover_short_stock(out: Replay, t) -> None:
     """Shares bought while the account is short them (from an assignment or exercise with
-    none held, S3.4) close the short first; the rest stay long. The lots just made are the
-    last ones open."""
+    none held, S3.4) close the short first; the rest stay long. The buy's one lot (S2.2) is
+    the last one open."""
     short = -sum(
         (x.quantity for x in out.open if x.instrumentId == t.instrumentId and x.quantity < 0),
         ZERO,
@@ -629,13 +640,9 @@ def _cover_short_stock(out: Replay, t, n_made: int) -> None:
     if cover <= 0:
         return
     _cover(out, t, cover, (t.amount * cover / qty).quantize(CENT), short=True)
-    left = cover
-    for lot in out.open[-n_made:]:
-        if left <= 0 or lot.quantity <= 0:
-            continue
-        take = min(left, lot.quantity)
-        _take(lot, take)
-        left -= take
+    _take(out.open[-1], cover)
+    # Shares that closed a short replace no loss sale (S3.8.5.5).
+    out.covered[t.id] = cover
 
 
 def _cover(out: Replay, t, qty: Decimal, proceeds: Decimal, *, short: bool) -> None:
@@ -724,9 +731,7 @@ def _consume(
         if not realize:
             # What a transfer out takes, whole: its day, basis, holding period and whether it
             # stood in for a snapshot, so its pair carries them.
-            out.moved.setdefault(t.id, []).append(
-                replace(lot, lotId=None, quantity=take, basis=basis)
-            )
+            out.moved.setdefault(t.id, []).append(replace(lot, quantity=take, basis=basis))
         if realize:
             out.disposals.append(_sold(t, lot, take, share, basis, used))
     if left > 0 and realize and t.id in out.leg_ids:

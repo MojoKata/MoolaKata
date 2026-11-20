@@ -226,10 +226,13 @@ def shape(
     tagged = _tags(s, user_id, ids_)
     paid = reimbursements.paid_back(s, ids_)
     moved_in = [t.id for t in rows if t.kind == "transfer-in"]
-    bases = {
-        lot.transactionId: lot.costBasis
-        for lot in s.scalars(select(Lot).where(Lot.transactionId.in_(moved_in)))
-    }
+    # Shares moved in: their basis is their lots' together, missing while any lot's is (S2.2).
+    by_move: dict[str, list] = {}
+    for lot in s.scalars(
+        select(Lot).where(Lot.transactionId.in_(moved_in), Lot.deleted == false())
+    ):
+        by_move.setdefault(lot.transactionId, []).append(lot.costBasis)
+    bases = {k: None if None in v else sum(v, Decimal(0)) for k, v in by_move.items()}
     from .. import receipts as receipt_store
 
     attached = receipt_store.receipts_of(s, ids_)
@@ -560,8 +563,8 @@ def _instrument(s: Session, body: TxnRecord, account: Account) -> str | None:
 
 @dataclass(frozen=True)
 class LotsSent:
-    """A transfer in's lots as a change types them again (S2.2): what `_transfer_lots` reads
-    of a new transaction's record."""
+    """A transfer in's lots as a change types them (S2.2): what `_transfer_rows` reads of a
+    new transaction's record."""
 
     transferLots: list | None
     quantity: Decimal
@@ -569,31 +572,64 @@ class LotsSent:
     costBasis: Decimal | None = None
 
 
-def _transfer_lots(
-    s: Session, t: Transaction, a: Account, inst_id: str, body: TxnRecord | LotsSent
-) -> None:
+# A lot as a trade makes it: the day bought, the shares, the basis, whether the day bought
+# is missing.
+LotRow = tuple[dt.date, Decimal, Decimal | None, bool]
+
+
+def _transfer_rows(body: TxnRecord | LotsSent) -> list[LotRow]:
     """The lots shares moved in arrive as (S2.2): those typed, each with the day it was
     bought and its basis, adding up to the shares; none typed, one lot of the day they arrived,
     marked as not knowing when they were bought (its term unknown until it is)."""
     lots_in = body.transferLots
-    if lots_in:
-        if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
-            raise refuse(
-                "transferLots", "lots-unbalanced", "The lots add up to the shares moved in."
-            )
-        if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
-            raise refuse(
-                "transferLots", "lot-invalid", "Each lot was bought by the day it moved in."
-            )
-        rows = [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
-    else:
-        rows = [(body.date, abs(body.quantity), body.costBasis, True)]
-    for acquired, qty, basis, missing in rows:
+    if not lots_in:
+        return [(body.date, abs(body.quantity), body.costBasis, True)]
+    if sum((x.quantity for x in lots_in), Decimal(0)) != abs(body.quantity):
+        raise refuse("transferLots", "lots-unbalanced", "The lots add up to the shares moved in.")
+    if any(x.acquiredOn > body.date or x.quantity <= 0 for x in lots_in):
+        raise refuse("transferLots", "lot-invalid", "Each lot was bought by the day it moved in.")
+    return [(x.acquiredOn, x.quantity, x.costBasis, False) for x in lots_in]
+
+
+def _made_rows(s: Session, t: Transaction, a: Account, typed: LotsSent | None) -> list[LotRow]:
+    """The lots a trade of its kind is made with (S2.2): a buy's or a reinvestment's one lot
+    of its day, its cost what it paid; coins received as income one at their value that day
+    (S8.5); shares moved in, `typed`'s lots; any other kind none."""
+    if not t.instrumentId:
+        return []
+    if t.kind == "transfer-in":
+        return _transfer_rows(typed or LotsSent(None, t.quantity, t.date))
+    if t.kind in ("buy", "reinvest"):
+        return [(t.date, t.quantity, -t.amount, False)]
+    if t.kind == "reward":
+        return [(t.date, t.quantity, _reward_basis(s, t, t.instrumentId, a.ownerId), False)]
+    return []
+
+
+def _write_lots(ctx, t: Transaction, rows: list[LotRow]) -> None:
+    """The trade's lots as `rows` say, in order: a lot it has keeps its id and takes the row's
+    day, shares and basis, so a sale's pick of it holds (S2.3); a row more is a lot made, a
+    lot more is deleted. A pick a lot no longer holds is asked about first (`_picks_dropped`),
+    while the lot is still there to read it by."""
+    s = ctx.s
+    have = _live_lots(s, t)
+    _picks_dropped(
+        ctx,
+        {lot.id: row[1] for lot, row in zip(have, rows, strict=False)},
+        {lot.id for lot in have[len(rows) :]},
+        t,
+    )
+    for i, (acquired, qty, basis, missing) in enumerate(rows):
+        if i < len(have):
+            lot = have[i]
+            lot.acquiredOn, lot.quantity, lot.costBasis = acquired, qty, basis
+            lot.basisMissing, lot.acquiredMissing = basis is None, missing
+            continue
         s.add(
             Lot(
                 id=ids.new_id("Lot"),
-                accountId=a.id,
-                instrumentId=inst_id,
+                accountId=t.accountId,
+                instrumentId=t.instrumentId,
                 transactionId=t.id,
                 acquiredOn=acquired,
                 quantity=qty,
@@ -602,6 +638,42 @@ def _transfer_lots(
                 acquiredMissing=missing,
             )
         )
+    for lot in have[len(rows) :]:
+        lot.mark_deleted(ctx.caller.id)
+
+
+# A sale's method as its question says it (S2.3); specific identification with nothing picked
+# goes first in.
+METHOD_WORDS = {"fifo": "first in, first out", "lifo": "last in, first out",
+                "hifo": "highest cost first", "average": "at their average cost",
+                "specific": "first in, first out"}  # fmt: skip
+
+
+def _picks_dropped(ctx, held: dict[str, Decimal], gone: set[str], t: Transaction) -> None:
+    """Sales' picks of the trade's lots that a change can't keep, a lot `gone` or holding
+    less than was picked (`held`, its shares to come): asked first, naming the sale and what
+    it takes its lots by once its picks go (S2.3); confirmed, they are deleted, before their
+    lot is."""
+    picks = ctx.s.scalars(
+        select(LotPick)
+        .join(Lot, Lot.id == LotPick.lotId)
+        .where(Lot.transactionId == t.id, Lot.deleted == false(), LotPick.deleted == false())
+    )
+    dropped = [p for p in picks if p.lotId in gone or p.quantity > held.get(p.lotId, p.quantity)]
+    if not dropped:
+        return
+    sale = ctx.s.get(Transaction, dropped[0].saleId)
+    account = ctx.s.get(Account, sale.accountId)
+    inst = ctx.s.get(Instrument, sale.instrumentId)
+    when = f"{sale.date:%b} {sale.date.day}, {sale.date.year}"
+    method = METHOD_WORDS[sale.lotMethod or account.lotMethod]
+    ctx.ask(
+        "picks-dropped",
+        f"The sale of {abs(sale.quantity).normalize():f} {inst.symbol} on {when} picks lots of"
+        f" this trade: its picks go, and it takes its lots {method}.",
+    )
+    for p in dropped:
+        p.mark_deleted(ctx.caller.id)
 
 
 def _reward_basis(s: Session, body, inst_id: str, owner: str) -> Decimal | None:
@@ -616,9 +688,10 @@ def _reward_basis(s: Session, body, inst_id: str, owner: str) -> Decimal | None:
     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
 
 
-def _make(s: Session, c: Caller, body, txn_id: str):
+def _make(ctx, body: TxnRecord, txn_id: str):
     """A transaction made, with its lot, splits and tags; the save asks the closed-year
     question (S2.8) for it, as for every op."""
+    s, c = ctx.s, ctx.caller
     a, held = access.account(s, c.id, body.accountId, "write")
     refuse_all(_check(s, body, body.kind, a.type))
     inst_id = _instrument(s, body, a)
@@ -651,24 +724,8 @@ def _make(s: Session, c: Caller, body, txn_id: str):
     )
     s.add(t)
     s.flush()
-    if inst_id and body.kind == "transfer-in":
-        _transfer_lots(s, t, a, inst_id, body)
-    elif inst_id and body.kind in ("buy", "reinvest", "reward"):
-        basis = -body.amount
-        if body.kind == "reward":
-            basis = _reward_basis(s, body, inst_id, a.ownerId)
-        s.add(
-            Lot(
-                id=ids.new_id("Lot"),
-                accountId=a.id,
-                instrumentId=inst_id,
-                transactionId=t.id,
-                acquiredOn=body.date,
-                quantity=body.quantity,
-                costBasis=basis,
-                basisMissing=basis is None,
-            )
-        )
+    typed = LotsSent(body.transferLots, body.quantity, body.date, body.costBasis)
+    _write_lots(ctx, t, _made_rows(s, t, a, typed))
     if inst_id and body.kind in ("transfer-in", "transfer-out"):
         # Shares or coins moved between the owner's accounts, offered as a pair.
         from ..bitcoin import transfers as pairs
@@ -752,8 +809,19 @@ def _fixed_by_action(s: Session, t: Transaction) -> str | None:
     return None
 
 
-def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[str]) -> list[str]:
-    """The fields `sent` set on a transaction, its lot following its trade; what changed."""
+def _live_lots(s: Session, t: Transaction) -> list[Lot]:
+    return list(
+        s.scalars(
+            select(Lot)
+            .where(Lot.transactionId == t.id, Lot.deleted == false())
+            .order_by(Lot.acquiredOn, Lot.id)
+        )
+    )
+
+
+def _change(ctx, t: Transaction, a: Account, body: TxnRecord, sent: set[str]) -> list[str]:
+    """The fields `sent` set on a transaction, its lots following its trade; what changed."""
+    s, c = ctx.s, ctx.caller
     fixed = _fixed_by_action(s, t)
     if fixed is not None and sent - NOTE_FIELDS:
         raise refuse(None, "made-by-an-action", fixed)
@@ -786,32 +854,37 @@ def _change(s: Session, c: Caller, t: Transaction, a: Account, body, sent: set[s
     if "amount" in changed or "date" in changed:
         repo.unlink_transfer(s, t)
         t.amountWas = None
-    if "costBasis" in sent:
-        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
-            if lot.costBasis != body.costBasis:
-                lot.costBasis = body.costBasis
-                lot.basisMissing = body.costBasis is None
-                changed.append("costBasis")
-    if t.kind == "transfer-in" and "transferLots" in sent:
-        # Its lots typed again, each with the day it was bought (S2.2).
-        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id, Lot.deleted == false())):
-            lot.mark_deleted(c.id)
-        s.flush()
-        inst_id = t.instrumentId
-        _transfer_lots(s, t, s.get(Account, t.accountId), inst_id,
-                       LotsSent(body.transferLots, t.quantity, t.date))  # fmt: skip
-        changed.append("transferLots")
-    elif t.kind == "transfer-in" and {"quantity", "date"} & set(changed):
-        # A lot whose day bought is known keeps it; one still missing it follows the day the
-        # shares arrived.
-        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
-            if lot.acquiredMissing:
-                lot.quantity, lot.acquiredOn = abs(t.quantity), t.date
-    if t.kind in ("buy", "reinvest") and {"quantity", "amount", "date"} & set(changed):
-        # The lot follows its trade.
-        for lot in s.scalars(select(Lot).where(Lot.transactionId == t.id)):
-            lot.quantity, lot.acquiredOn = t.quantity, t.date
-            lot.costBasis = -t.amount
+    typed = "transferLots" in sent and t.kind == "transfer-in"
+    if (
+        "kind" in changed
+        or typed
+        or (
+            t.kind in ("buy", "reinvest", "reward")
+            and {"quantity", "amount", "date", "price"} & set(changed)
+        )
+    ):
+        # The lots follow the trade, its kind among what they follow: written as a new trade
+        # of its kind would make them, keeping each lot's id where it has one (S2.2, S2.3).
+        cost = body.costBasis if "costBasis" in sent else None
+        sent_lots = body.transferLots if typed or "kind" in changed else None
+        rows = _made_rows(s, t, a, LotsSent(sent_lots, t.quantity, t.date, cost))
+        _write_lots(ctx, t, rows)
+        if typed:
+            changed.append("transferLots")
+    elif t.kind == "transfer-in":
+        live = _live_lots(s, t)
+        if {"quantity", "date"} & set(changed):
+            # A lot whose day bought is known keeps it; one still missing it follows the day
+            # the shares arrived.
+            for lot in live:
+                if lot.acquiredMissing:
+                    lot.quantity, lot.acquiredOn = abs(t.quantity), t.date
+        if "costBasis" in sent:
+            # Its basis is its lots' (S2.2): typed one by one, each takes its own.
+            if len(live) != 1 or not live[0].acquiredMissing:
+                raise refuse("costBasis", "basis-on-lots", "Type the basis on each lot.")
+            live[0].costBasis, live[0].basisMissing = body.costBasis, body.costBasis is None
+            changed.append("costBasis")
     if "tagIds" in sent:
         tags.owned(s, c.id, body.tagIds)
         tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
@@ -1176,7 +1249,7 @@ def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
 
         t = make_trade(ctx, record_id, body)
     else:
-        t, _, _ = _make(ctx.s, ctx.caller, body, record_id)
+        t, _, _ = _make(ctx, body, record_id)
     ctx.notes.setdefault("transactions-made", set()).add(t.id)
     if body.leftOutOf:
         _set_left_out(ctx.s, ctx.caller, t, [], body.leftOutOf)
@@ -1228,14 +1301,19 @@ def _lots_of(s: Session, t: Transaction) -> list[TransferLot] | None:
             for x in sorted(rows, key=lambda x: x.acquiredOn)]  # fmt: skip
 
 
+def _basis_moved_in(s: Session, t: Transaction) -> Decimal | None:
+    """Shares moved in: their basis, their lots' together; missing while any lot's is."""
+    bases = [x.costBasis for x in _live_lots(s, t)]
+    return None if not bases or None in bases else sum(bases, Decimal(0))
+
+
 def _txn_current(ctx, t: Transaction) -> dict:
-    lot = ctx.s.scalars(select(Lot).where(Lot.transactionId == t.id)).first()
     inst = ctx.s.get(Instrument, t.instrumentId) if t.instrumentId else None
     return {
         "accountId": t.accountId,
         "symbol": inst.symbol if inst else None,
         "instrumentId": t.instrumentId,
-        "costBasis": lot.costBasis if lot is not None and t.kind == "transfer-in" else None,
+        "costBasis": _basis_moved_in(ctx.s, t) if t.kind == "transfer-in" else None,
         "transferLots": _lots_of(ctx.s, t) if t.kind == "transfer-in" else None,
         "tagIds": tags.ids_of(ctx.s, "transaction", ctx.caller.id, t.id),
         "leftOutOf": _left_out_of(ctx.s, ctx.caller, t),
@@ -1268,7 +1346,7 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     if sent - {"leftOutOf", "transferWithId"}:
         a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
         _reconciled(ctx, t)
-        changed = _change(ctx.s, ctx.caller, t, a, body, sent)
+        changed = _change(ctx, t, a, body, sent)
         _changed(ctx.s, ctx.caller, a, changed)
         ctx.s.flush()
         if t.instrumentId:
@@ -1281,6 +1359,7 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
 def _txn_delete(ctx, t: Transaction) -> None:
     a, _ = access.account(ctx.s, ctx.caller.id, t.accountId, "write")
     _reconciled(ctx, t)
+    _picks_dropped(ctx, {}, {x.id for x in _live_lots(ctx.s, t)}, t)
     delete_txn(ctx.s, ctx.caller, t, a)
 
 
@@ -1378,11 +1457,16 @@ def _pick_sale(ctx, sale_id: str) -> tuple[Transaction, Account]:
 def _pick_checked(ctx, body: LotPickRecord) -> tuple[Transaction, Account]:
     t, a = _pick_sale(ctx, body.saleId)
     lot = ctx.s.get(Lot, body.lotId)
+    # A lot of the sale's account, or one its shares carried in from another (S1.7.1): held
+    # here on the sale's day either way.
     if (
         lot is None
         or lot.deleted
-        or lot.accountId != t.accountId
         or lot.instrumentId != t.instrumentId
+        or (
+            lot.accountId != t.accountId
+            and lot.id not in {x.lotId for x in lot_choices(ctx.s, a, t.date, t.id)}
+        )
     ):
         raise refuse("lotId", "lot-unknown", "Choose a lot of this holding.")
     if body.quantity <= 0:

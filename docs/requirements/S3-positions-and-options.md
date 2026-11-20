@@ -148,7 +148,10 @@
          same option, or one on the same underlying, opened within 30 days either side;
       3. a loss on stock whose **replacement came through an option**: a put assigned to the
          user, or a call they exercised, within 30 days either side of the loss sale;
-      4. a loss on stock with an **option on it bought or sold** within 30 days either side.
+      4. a loss on stock with an **option on it bought or sold** within 30 days either side;
+      5. a loss on stock with **shares of it bought to close a short sale** (S3.4) within 30
+         days either side: those shares are never taken as its replacement; what the buy
+         leaves long is, as any purchase.
 
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;

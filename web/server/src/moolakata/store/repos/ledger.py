@@ -121,12 +121,14 @@ def _load(s: Session, account: Account, raw: bool, _depth: int) -> Ledger:
         .order_by(Transaction.date, Transaction.createdAt)
     ).all()
     lot_rows = s.scalars(live(Lot, t.Lot).where(Lot.accountId == aid)).all()
-    lot_ids = [x.id for x in lot_rows]
+    # A pick is its sale's: the lot it names may be one carried in from another account
+    # (S2.3, S1.7.1).
+    sale_ids = [x.id for x in txns if x.kind in lots.DISPOSALS]
     picks = (
         s.scalars(
-            select(LotPick).where(LotPick.lotId.in_(lot_ids), LotPick.deleted == false())
+            select(LotPick).where(LotPick.saleId.in_(sale_ids), LotPick.deleted == false())
         ).all()
-        if lot_ids
+        if sale_ids
         else []
     )
     snaps = s.scalars(

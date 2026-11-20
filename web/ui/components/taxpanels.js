@@ -149,6 +149,8 @@ function txfLeftOut(n) {
 const REVIEW_WHY = /** @type {Record<string, string>} */ ({
   option: 'An option on the same underlying.',
   'short-sale': 'A short sale closed at a loss, with another short sale of it within 30 days.',
+  'short-cover':
+    'Shares bought to close a short sale within 30 days: whether they replace it is unsettled.',
 });
 
 /** @param {{ p: any }} p */

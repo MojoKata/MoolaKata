@@ -47,24 +47,36 @@ def test_only_an_ira_or_a_roth_ira_loses_the_disallowed_loss_for_good(account_ty
     assert lots.adds_basis(account_type) is adds
 
 
-def test_wash_sales_on_one_buy_take_its_lots_in_turn():
-    """Two wash sales replaced by one buy of two lots (S3.8.2): the first takes the one-share
-    lot, the second the next lot, never the emptied one; each part takes its own loss into its
-    basis and its sold shares' day bought."""
+def test_wash_sales_on_one_buy_take_its_shares_in_turn():
+    """Two wash sales replaced by one buy of three shares (S3.8.2): the first takes one share
+    split from the buy's lot, the second the two left, never the share already taken; each
+    part takes its own loss into its basis and its sold shares' day bought."""
     buy = T(d(2025, 3, 5), "buy", D(-150), "VTI", D(3), createdAt=at(1))
-    made = [
-        Lot("RA", "VTI", d(2025, 3, 5), D(1), D(50), transactionId=buy.id),
-        Lot("RB", "VTI", d(2025, 3, 5), D(2), D(100), transactionId=buy.id),
-    ]
+    made = [Lot("R", "VTI", d(2025, 3, 5), D(3), D(150), transactionId=buy.id)]
     washes = [
         W("W1", "S1", buy.id, D(1), D(30), d(2024, 1, 1)),
         W("W2", "S2", buy.id, D(2), D(40), d(2024, 2, 1)),
     ]
     r = replay("fifo", [buy], made, [], [], washes=washes)
     assert kept(r) == [
-        ("RA", "VTI", D(1), D(80), d(2024, 1, 1)),
-        ("RB", "VTI", D(2), D(140), d(2024, 2, 1)),
+        ("R", "VTI", D(1), D(80), d(2024, 1, 1)),
+        ("R", "VTI", D(2), D(140), d(2024, 2, 1)),
     ]
+
+
+def test_a_buy_of_more_than_one_lot_is_refused_by_name():
+    """S2.2: a buy, a reinvestment or a reward makes one lot of its day; only shares moved in
+    arrive as several. Any more is broken data, said by name, never replayed as it is."""
+    for kind in ("buy", "reinvest", "reward"):
+        buy = T(d(2025, 3, 5), kind, D(-150), "VTI", D(3), createdAt=at(1))
+        made = [Lot("RA", "VTI", d(2025, 3, 5), D(1), D(50), transactionId=buy.id),
+                Lot("RB", "VTI", d(2025, 3, 5), D(2), D(100), transactionId=buy.id)]  # fmt: skip
+        with pytest.raises(ValueError, match=f"{kind} {buy.id} has 2 lots"):
+            replay("fifo", [buy], made, [], [])
+    moved = T(d(2025, 3, 5), "transfer-in", D(0), "VTI", D(3), createdAt=at(1))
+    made = [Lot("RA", "VTI", d(2024, 3, 5), D(1), D(50), transactionId=moved.id),
+            Lot("RB", "VTI", d(2024, 4, 5), D(2), D(100), transactionId=moved.id)]  # fmt: skip
+    assert len(replay("fifo", [moved], made, [], []).open) == 2
 
 
 def test_a_replacement_without_a_basis_keeps_it_missing_and_takes_the_day():
@@ -395,17 +407,15 @@ def _short():
     return Lot("SH", "VTI", d(2026, 1, 5), D(-3), D(-300))
 
 
-def test_shares_bought_while_short_close_it_from_the_buys_lots_in_turn():
-    """S3.4: seven bought for $140 in two lots while three are short: the three close the short
-    at their share of the cost, taken from the first lot's two and then one of the second; the
-    rest stay long at their basis."""
+def test_shares_bought_while_short_close_it_from_the_buys_lot_first():
+    """S3.4: seven bought for $140 while three are short: the three close the short at their
+    share of the cost, taken from the buy's lot; the rest stay long at their basis."""
     buy = T(d(2026, 2, 1), "buy", D(-140), "VTI", D(7), createdAt=at(1))
-    made = [Lot("B1", "VTI", buy.date, D(2), D(40), transactionId=buy.id),
-            Lot("B2", "VTI", buy.date, D(5), D(100), transactionId=buy.id)]  # fmt: skip
+    made = [Lot("B", "VTI", buy.date, D(7), D(140), transactionId=buy.id)]
     r = replay("fifo", [buy], [_short(), *made], [], [])
     assert sold(r) == [("SH", D(3), D(-60), D(-300), "fifo")]
     assert (r.disposals[0].short, r.disposals[0].gain) == (True, D(240))
-    assert [(x.lotId, x.quantity, x.basis) for x in r.open] == [("B2", D(4), D(80))]
+    assert [(x.lotId, x.quantity, x.basis) for x in r.open] == [("B", D(4), D(80))]
 
 
 def test_a_buy_without_a_lot_of_its_own_closes_the_short_from_its_own_shares():

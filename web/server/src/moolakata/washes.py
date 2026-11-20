@@ -92,6 +92,12 @@ def _recompute(s: Session, user_id: str) -> int:
         for a in accounts
         if atypes.TAX.get(a.type) == "taxable" and atypes.investing(a.type)
     ]
+    # Shares a buy bought to close a short are never a replacement: whether they count is the
+    # preparer's call, flagged for review (S3.8.5.5). Only what the buy leaves long replaces.
+    covered = {k: v for led in ledgers for k, v in led.replay().covered.items()}
+    for group in buys.values():
+        for b in group:
+            b.remaining -= covered.get(b.txn.id, 0)
     from . import people
 
     spouse_on: dict[tuple[str, dt.date], str | None] = {}

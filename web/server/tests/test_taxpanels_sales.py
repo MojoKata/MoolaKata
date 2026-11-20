@@ -981,3 +981,30 @@ def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged
     ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
     # With no loss to check, a spouse's accounts are never read.
     assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
+
+
+def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, jane):
+    """S3.8.5.5: a loss sale of XYZ in one account, and in another shares of it bought within
+    30 days to close a short sale there: whether they replace the loss is unsettled, so no
+    loss is disallowed and the loss is flagged for the preparer; shares the buy leaves long
+    still replace it."""
+    from moolakata.store.entities.accounts import WashSale
+
+    held = new_account(jane, name="Held", type="brokerage")
+    shorted = new_account(jane, name="Short", type="brokerage", mask="2222")
+    for a in (held, shorted):
+        add(jane, a["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, held["id"], "2026-02-02", "buy", "100", "70", "XYZ")
+    short_sale(jane, shorted["id"], "2026-06-01", "2026-07-01")  # short 100 at 50
+    trade(jane, held["id"], "2026-08-20", "sell", "100", "60", "XYZ")  # 1,000 lost
+    # 120 bought: 100 close the short, and the 20 left long replace 20 of the 100 sold.
+    trade(jane, shorted["id"], "2026-08-25", "buy", "120", "62", "XYZ")
+    with server.db.read(unscoped="test") as s:
+        assert [w.quantity for w in s.query(WashSale).all()] == [20], "only what stays long"
+    got = [w for w in reviews(jane, book(jane)) if w["rule"] == "short-cover"]
+    assert got == [{
+        # The loss left once the 20 shares' part of it is disallowed: 1,000 less 200.
+        "sold": "2026-08-20", "symbol": "XYZ", "account": "Held", "loss": "800.00",
+        "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
+    }]  # fmt: skip

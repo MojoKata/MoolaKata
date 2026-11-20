@@ -176,7 +176,8 @@ def test_a_transfer_out_takes_its_lots_with_what_is_known_of_them():
     out = Txn(d(2026, 2, 1), "transfer-out", D(0), "VTI", D(-2), createdAt=at(2))
     out2 = Txn(d(2026, 2, 1), "transfer-out", D(0), "VXUS", D(-1), createdAt=at(3))
     r = replay("fifo", [into, out, out2], made, [], [snap], by_snapshots=True)
-    assert r.moved[out.id] == [lots.OpenLot(None, "VTI", d(2026, 1, 5), D(2), D(200),
+    # The lot's id goes with it, so a sale where it arrives may pick it (S2.3).
+    assert r.moved[out.id] == [lots.OpenLot("M", "VTI", d(2026, 1, 5), D(2), D(200),
                                             acquiredMissing=True)]  # fmt: skip
     assert r.moved[out2.id] == [lots.OpenLot(None, "VXUS", d(2026, 1, 6), D(1), None,
                                              standIn=True)]  # fmt: skip

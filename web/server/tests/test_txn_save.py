@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, edit, make, new_id, reconcile, remove, saved
+from edits import asked, change, drop, edit, make, new_id, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -536,10 +536,11 @@ def test_tags_changed_on_a_transaction_are_the_savers_own_and_one_taken_off_says
         assert row.deletedById == me
 
 
-def test_lots_typed_again_replace_only_that_moves_own_each_marked_when_and_by_whom(server, frozen):
-    """S2.2: shares moved in, their lots typed again, take the place of the lots they had,
-    each marked deleted by who typed over it, when they did; another move's lots, and lots
-    typed over before, stay as they were. Each change logs what it changed (S10.8)."""
+def test_lots_typed_again_keep_their_ids_and_only_that_moves_own(server, frozen):
+    """S2.2, S2.3: shares moved in, their lots typed again, change in place, in order, each
+    keeping its id (so a sale's pick of it holds); a lot more is made, a lot fewer deleted by
+    who typed it so; another move's lots stay as they were. Each change logs what it changed
+    (S10.8)."""
     from conftest import make_user, sign_in
     from test_accounts import _lots_made, add, new_account
 
@@ -551,24 +552,32 @@ def test_lots_typed_again_replace_only_that_moves_own_each_marked_when_and_by_wh
     other = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="VTI", quantity="4")
     t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
     path = f"/ui/api/transactions/{t['id']}"
+
+    def ids_now():
+        with server.db.read(unscoped="test") as s:
+            rows = s.query(Lot).filter_by(transactionId=t["id"]).order_by(Lot.id).all()
+            return [(x.id, x.deleted) for x in rows]
+
+    first = ids_now()
     for day in ("2020-01-02", "2021-01-04"):
         lots = [{"acquiredOn": day, "quantity": "5", "costBasis": "250"}]
         saved(edit(c, "Txn", path, transferLots=lots))
-        clock.fix(clock.now() + dt.timedelta(hours=1))
-    assert _lots_made(server, other["id"]) == [("2026-09-10", 4, None, True, True)]
-    saved(edit(c, "Txn", f"/ui/api/transactions/{other['id']}", costBasis="400.00"))
+    assert ids_now() == first, "one lot, typed twice over: the same lot"
+    assert _lots_made(server, t["id"]) == [("2021-01-04", 5, 250, False, False)]
+    two = [{"acquiredOn": "2019-05-01", "quantity": "2", "costBasis": "80"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "150"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    assert ids_now()[0][0] == first[0][0] and len(ids_now()) == 2
+    saved(edit(c, "Txn", path, transferLots=[{**two[0], "quantity": "5"}]))
     me = c.get("/ui/api/session").json()["user"]["id"]
     with server.db.read(unscoped="test") as s:
-        rows = s.query(Lot).filter_by(transactionId=t["id"]).order_by(Lot.acquiredOn).all()
-        gone = [(str(x.acquiredOn), x.deletedById, x.deletedAt) for x in rows if x.deleted]
-    assert [x[:2] for x in gone] == [("2020-01-02", me), ("2026-09-10", me)]
-    # The lot of the day it moved in was typed over first, an hour before the next.
-    assert gone[1][2] < gone[0][2]
-    assert _lots_made(server, t["id"]) == [("2021-01-04", 5, 250, False, False)]
+        gone = [x for x in s.query(Lot).filter_by(transactionId=t["id"]).all() if x.deleted]
+        assert [(str(x.acquiredOn), x.deletedById) for x in gone] == [("2021-01-04", me)]
+    assert _lots_made(server, other["id"]) == [("2026-09-10", 4, None, True, True)]
+    saved(edit(c, "Txn", f"/ui/api/transactions/{other['id']}", costBasis="400.00"))
     assert sorted(x[4] for x in _stored(server, "transaction.updated")) == [
         '{"count": 1, "fields": ["costBasis"]}',
-        '{"count": 1, "fields": ["transferLots"]}',
-        '{"count": 1, "fields": ["transferLots"]}',
+        *['{"count": 1, "fields": ["transferLots"]}'] * 4,
     ]
 
 
@@ -680,7 +689,9 @@ def test_lots_sent_again_as_they_are_type_nothing_over(server, frozen):
     assert _lots_made(server, missing["id"]) == [("2026-09-10", 2, None, True, True)]
     with server.db.read(unscoped="test") as s:
         rows = s.query(Lot).filter(Lot.transactionId.in_([t["id"], missing["id"]])).all()
-        assert [str(x.acquiredOn) for x in rows if x.deleted] == ["2026-09-10"]
+        # The lot of the day they arrived became the first typed, its id kept (S2.3): none
+        # was typed over.
+        assert (len(rows), [x for x in rows if x.deleted]) == (3, [])
     assert sorted(x[4] for x in _stored(server, "transaction.updated")) == [
         '{"count": 1, "fields": ["memo"]}',
         '{"count": 1, "fields": ["memo"]}',
@@ -922,3 +933,100 @@ def test_a_records_sets_are_lists_of_distinct_ids_none_by_default():
         schema = model.model_json_schema()["properties"][field]
         assert (schema["type"], schema["uniqueItems"]) == ("array", True), (model, field)
         assert model.model_fields[field].get_default(call_default_factory=True) == []
+
+
+def test_a_trades_lots_follow_its_kind_changed_and_back(server, frozen):
+    """S2.2: the lots follow the trade, its kind among what they follow: shares moved in made
+    a sale keep no lot; made shares moved in again, they arrive on their day with their basis
+    missing; made a buy, one lot of its day at its cost, never the lots they were typed as."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    saved(edit(c, "Txn", path, kind="transfer-out", fees="0"))
+    assert _lots_made(server, t["id"]) == []
+    saved(edit(c, "Txn", path, kind="transfer-in", date="2026-09-12"))
+    assert _lots_made(server, t["id"]) == [("2026-09-12", 5, None, True, True)]
+    saved(edit(c, "Txn", path, transferLots=typed))
+    saved(edit(c, "Txn", path, kind="buy", amount="-500.00", price="100", fees="0"))
+    assert _lots_made(server, t["id"]) == [("2026-09-12", 5, 500, False, False)]
+    saved(edit(c, "Txn", path, kind="sell", amount="500.00"))
+    assert _lots_made(server, t["id"]) == []
+
+
+def test_shares_moved_in_have_their_lots_basis_together(server, frozen):
+    """S2.2: the basis of shares moved in is their lots' together, missing while any lot's
+    is; typed as one lot it is that lot's, and typed lot by lot each takes its own: a basis
+    for the whole is refused, never put on every lot."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
+            costBasis="400.00")  # fmt: skip
+    path = f"/ui/api/transactions/{t['id']}"
+    assert c.get(path).json()["costBasis"] == "400.00"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    assert c.get(path).json()["costBasis"] == "400.00"
+    saved(edit(c, "Txn", path, transferLots=[typed[0], {**typed[1], "costBasis": None}]))
+    assert c.get(path).json()["costBasis"] is None
+    assert _errors(edit(c, "Txn", path, costBasis="900.00")) == [
+        ("costBasis", "basis-on-lots", "Type the basis on each lot.")
+    ]
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", 2, 100, False, False),
+        ("2021-01-04", 3, None, True, False),
+    ]
+
+
+def test_a_picked_lot_that_goes_or_holds_less_asks_and_its_picks_go(server, frozen):
+    """S2.3: a sale's pick of a lot holds through a change that keeps the lot; a change that
+    takes the lot away (shares typed again as fewer lots, a kind changed, the trade deleted),
+    or leaves it less than was picked, asks first, naming the sale, and confirmed the picks
+    go, the sale taking its lots by its method."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+    from test_taxpanels import lots_on
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    moved = add(c, a, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{moved['id']}"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    lot = lots_on(c, a, "2026-03-02")[("KO", "2021-01-04")]["lotId"]
+    sale = make(c, "Txn", accountId=a, date="2026-03-02", kind="sell", symbol="KO",
+                quantity="3", price="200", amount="600.00", fees="0",
+                picks=[{"lotId": lot, "quantity": "3"}])  # fmt: skip
+    assert sale.status_code == 200, sale.text
+    sale_path = f"/ui/api/transactions/{sale.json()['id']}"
+    told = (
+        "The sale of 3 KO on Mar 2, 2026 picks lots of this trade: its picks go, and it takes"
+        " its lots first in, first out."
+    )
+    # A basis fixed keeps the lot, and the pick with it.
+    saved(edit(c, "Txn", path, transferLots=[typed[0], {**typed[1], "costBasis": "330"}]))
+    assert [p["lotId"] for p in c.get(sale_path).json()["picks"]] == [lot]
+    for change_ in ({"transferLots": [typed[0], {**typed[1], "quantity": "1"}], "quantity": "3"},
+                    {"transferLots": [{**typed[0], "quantity": "5"}]},
+                    {"kind": "transfer-out"}):  # fmt: skip
+        r = edit(c, "Txn", path, **change_)
+        assert asked(r) == ["picks-dropped"], change_
+        assert r.json()["asks"][0]["message"] == told
+    r = drop(c, "Txn", path)
+    assert asked(r) == ["picks-dropped"]
+    saved(edit(c, "Txn", path, confirm=True, transferLots=[{**typed[0], "quantity": "5"}]))
+    assert c.get(sale_path).json()["picks"] == []

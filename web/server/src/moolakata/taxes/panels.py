@@ -98,8 +98,9 @@ class Wash:
     replacementQty: Decimal
     adjustedBasis: Decimal | None  # the replacement lot's basis with the loss added
     review: bool = False  # for the preparer to decide, never adjusted (S3.8.5)
-    # A review's rule: "option", an option on the same underlying (S3.8.5.2–4), or
-    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1).
+    # A review's rule: "option", an option on the same underlying (S3.8.5.2–4),
+    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1), or
+    # "short-cover", a loss with shares bought near it to close a short sale (S3.8.5.5).
     rule: str | None = None
 
 
@@ -158,11 +159,13 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
     insts: dict[str, Instrument] = {}
     losses: dict[str, Decimal] = {}
     shorts: list = []
+    covers: list = []
     for a in _taxable(counted):
         if a.type not in ("brokerage", "crypto-exchange", "crypto-wallet"):
             continue
         rp = repo.load(s, a).replay()
         shorts += [(a, *x) for x in rp.shorts]
+        covers += [(a, s.get(Transaction, t_id), qty) for t_id, qty in rp.covered.items()]
         for d in rp.disposals:
             if not first <= d.soldOn <= last:
                 continue
@@ -210,6 +213,7 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
     washes_ = _stored_washes(s, book, losses, {a.id for a in counted})
     washes_ += _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
     washes_ += _short_reviews(s, rows, shorts, spouse_accounts or [], insts)
+    washes_ += _cover_reviews(rows, covers, insts)
     rows += _items(s, counted, first, last)
     return rows, washes_
 
@@ -381,6 +385,40 @@ def _short_reviews(
                     None,
                     review=True,
                     rule="short-sale",
+                )
+            )
+    return out
+
+
+def _cover_reviews(rows: list[Row], covers: list, insts) -> list[Wash]:
+    """A loss sale of a stock with shares of it bought to close a short sale within 30 days
+    either side: whether they replace it is unsettled, so it is flagged for the preparer,
+    never adjusted (S3.8.5.5). `covers` are the counted accounts' buys that closed a short,
+    with the shares that did."""
+    out = []
+    for r in rows:
+        if r.short or r.gain is None or r.gain >= 0 or not r.saleId:
+            continue
+        near = [
+            (a, t, qty)
+            for a, t, qty in covers
+            if t.instrumentId == r.instrumentId and abs((t.date - r.sold).days) <= WASH_DAYS
+        ]
+        if near:
+            a, t, qty = min(near, key=lambda x: abs((x[1].date - r.sold).days))
+            out.append(
+                Wash(
+                    r.sold,
+                    insts[r.instrumentId].symbol,
+                    r.account,
+                    -r.gain,
+                    ZERO,
+                    t.date,
+                    a.name,
+                    qty,
+                    None,
+                    review=True,
+                    rule="short-cover",
                 )
             )
     return out

@@ -489,18 +489,22 @@ def test_lots_are_picked_for_a_live_sale_of_an_account_the_caller_writes(server,
 
 def test_a_pick_is_of_a_live_lot_of_the_sales_holding_and_more_than_none(jane):
     """S2.3: the lot picked is one of the sale's holding in the sale's account, refused on
-    the lot; one unknown or typed over (S2.2) is not found; none or less is refused on the
-    quantity."""
+    the lot; one unknown or gone (its shares typed again as fewer lots, S2.2) is not found;
+    none or less is refused on the quantity."""
     brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
     other = new_account(jane, name="Other", type="brokerage", mask="2222")["id"]
     trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="IBM")
     trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="VTI")
     trade(jane, other, "2025-01-06", "buy", "10", "100", symbol="IBM")
     moved = add(jane, brk, "0.00", "2025-02-03", kind="transfer-in", symbol="IBM", quantity="5")
-    held = lots_on(jane, brk, "2026-03-02")
-    typed_over = held[("IBM", "2025-02-03")]["lotId"]
+    path = f"/ui/api/transactions/{moved['id']}"
+    two = [{"acquiredOn": "2024-05-01", "quantity": "3", "costBasis": "300"},
+           {"acquiredOn": "2024-06-03", "quantity": "2", "costBasis": "200"}]  # fmt: skip
+    saved(edit(jane, "Txn", path, transferLots=two))
+    typed_over = lots_on(jane, brk, "2026-03-02")[("IBM", "2024-06-03")]["lotId"]
     lots = [{"acquiredOn": "2024-05-01", "quantity": "5", "costBasis": "500"}]
-    saved(edit(jane, "Txn", f"/ui/api/transactions/{moved['id']}", transferLots=lots))
+    saved(edit(jane, "Txn", path, transferLots=lots))
+    held = lots_on(jane, brk, "2026-03-02")
     sale = add(jane, brk, "500.00", "2026-03-02", kind="sell", symbol="IBM", quantity="5",
                price="100")["id"]  # fmt: skip
     for lot in (new_id("Lot"), typed_over):
@@ -913,3 +917,36 @@ def test_shares_moved_are_offered_as_a_pair_whichever_half_is_recorded_first(jan
     assert [(p["symbol"], p["fromAccount"], p["toAccount"]) for p in pairs] == [
         ("VTI", "Schwab", "Fidelity")
     ]
+
+
+def test_shares_carried_in_are_sold_by_the_lots_picked(jane):
+    """S2.3, S1.7.1: shares moved from one of the owner's accounts to another arrive with the
+    lots they left with, each its own, so a sale where they arrive may pick them, as the
+    receiving broker sells by the transfer statement's lots; half a lot moved is picked as the
+    half that came."""
+    schwab = new_account(jane, name="Schwab", type="brokerage")
+    fid = new_account(jane, name="Fidelity", type="brokerage", mask="2222")
+    add(jane, schwab["id"], "30000.00", "2019-01-02", kind="deposit")
+    trade(jane, schwab["id"], "2019-03-04", "buy", "100", "100")
+    trade(jane, schwab["id"], "2020-03-04", "buy", "100", "150")
+    add(jane, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="150")  # fmt: skip
+    add(jane, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="150")  # fmt: skip
+    (pair,) = jane.get("/ui/api/transfers/bitcoin").json()["items"]
+    r = jane.post(f"/ui/api/transfers/bitcoin/{pair['id']}", json={"confirm": True},
+                  headers={"If-Match": f'"{pair["version"]}"'})  # fmt: skip
+    assert r.status_code == 200, r.text
+    offered = lots_on(jane, fid["id"], "2026-03-02")
+    assert {k: (v["quantity"], v["basis"]) for k, v in offered.items()} == {
+        ("VTI", "2019-03-04"): ("100.0", "10000.00"),
+        ("VTI", "2020-03-04"): ("50.0", "7500.00"),
+    }
+    later = offered[("VTI", "2020-03-04")]["lotId"]
+    r = make(jane, "Txn", accountId=fid["id"], date="2026-03-02", kind="sell", symbol="VTI",
+             quantity="50", price="200", amount="10000.00", fees="0",
+             picks=[{"lotId": later, "quantity": "50"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    closed = jane.get("/ui/api/positions").json()["closed"]
+    sold = [(x["opened"], x["cost"], x["realized"]) for x in closed if x["how"] == "sold"]
+    assert sold == [("2020-03-04", "7500.00", "2500.00")]
