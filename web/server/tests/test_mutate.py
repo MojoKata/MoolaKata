@@ -723,3 +723,22 @@ def test_export_keeps_each_survivors_diff_from_the_mutants_when_the_run_was_stop
         "# moolakata.money.py.x_f__mutmut_2\n def total(xs):\n-    return sum(xs)\n"
         "+    return None\n"
     )
+
+
+def test_a_fixs_run_takes_only_the_changes_on_the_lines_it_wrote():
+    """docs/mutation-testing.md: a fix's run covers the changes on the lines it added or
+    changed, every line a change takes away being one of them; a change only adding a line,
+    or touching an older line, is left to its area's sweep."""
+    from moolakata.dev import mutate
+
+    added = {"return a + b", "if a > 0:"}
+    diff = (
+        "--- f.py\n+++ f.py\n@@ -1,2 +1,2 @@\n def f(a, b):\n-    return a + b\n+    return a - b\n"
+    )
+    assert mutate.on_added(diff, added)
+    older = diff.replace("return a + b", "return a * b")
+    assert not mutate.on_added(older, added)
+    both = "-    if a > 0:\n-    x = 1\n+    if a >= 0:\n"
+    assert not mutate.on_added(both, added), "one of its lines is older"
+    assert not mutate.on_added("+    pass\n", added), "takes nothing away"
+    assert not mutate.on_added("-    \n+    x\n", added), "only a blank line"

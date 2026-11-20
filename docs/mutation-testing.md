@@ -259,7 +259,11 @@ takes each change's outcome from whichever job finished it; a round that leaves 
 is followed by another, numbered after it. A job stopped before its
 first change (the memory limit, or a test failing in the copy) is run again by name, with the
 `jobs` input, once the cause is fixed; `gather <first run> <rerun>` takes a later run's job over
-the earlier one's, and records no area with a job that ran nothing. A module no test file
+the earlier one's, and records no area with a job that ran nothing. A fix's run, or a sweep's
+once its fixes have changed code its run already settled, takes the `changed` input instead: a
+commit, and `mutate plan --changed` makes the changed modules' mutants and keeps those on the
+lines written since it (every line a change takes away among them), in jobs of about 100
+changes by area (`ledger.c-1`, …) that run only those. A module no test file
 reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
 job says so, and `gather` names it for the area's sweep.
 

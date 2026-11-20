@@ -611,7 +611,83 @@ def plan_jobs(modules: dict[str, int], areas: list[str], size: int, skip: set[st
     return out
 
 
+# A job of changes on lines a pull request wrote: about an hour's worth at the jobs' pace.
+CHANGED_PER_JOB = 100
+
+
+def added_lines(base: str, module: str) -> set[str]:
+    """The lines the module has gained since `base`, stripped: what a change must sit on."""
+    d = subprocess.run(  # noqa: S603 - our own command
+        ["git", "diff", "-U0", base, "--", f"web/server/src/{module}"],  # noqa: S607
+        cwd=paths.ROOT, capture_output=True, text=True, check=True,
+    ).stdout  # fmt: skip
+    return {x[1:].strip() for x in d.splitlines() if x.startswith("+") and not x.startswith("+++")}
+
+
+def on_added(diff: str, added: set[str]) -> bool:
+    """Whether a change's diff touches only added lines: every line it takes away is one of
+    them (a fix's run covers what it wrote, docs/mutation-testing.md)."""
+    gone = [
+        x[1:].strip() for x in diff.splitlines() if x.startswith("-") and not x.startswith("---")
+    ]
+    gone = [x for x in gone if x]
+    return bool(gone) and all(x in added for x in gone)
+
+
+def changed_jobs(base: str) -> tuple[list[dict], dict[str, list[str]]]:
+    """Jobs for the changes on the lines written since `base`, a module's at a time (its own
+    tests alone, so a job's first full test run is short), each of about `CHANGED_PER_JOB`
+    changes dealt out across its functions."""
+    from . import coverage
+
+    files = subprocess.run(  # noqa: S603 - our own command
+        ["git", "diff", "--name-only", base, "--", "web/server/src"],  # noqa: S607
+        cwd=paths.ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split()  # fmt: skip
+    modules = server_modules()
+    changed = [f.removeprefix("web/server/src/") for f in files]
+    changed = [m for m in changed if m in modules]
+    if not changed:
+        return [], {}
+    make_copy()
+    configure(changed, [])
+    shown({}, generate=True)  # the copy's mutants made, for their names and diffs
+    # The .meta files sit beside the mutants' copy of src: `src/moolakata/x.py`.
+    named = {n: rel for rel, keys in codes(COPY / "mutants").items() for n in keys}
+    diffs = shown(named)
+    added = {m: added_lines(base, m) for m in changed}
+    by_area: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for n, f in sorted(named.items()):
+        m = f.removeprefix("src/")
+        if on_added(diffs.get(n, ""), added.get(m, set())):
+            area = coverage.area_of(f"web/server/src/{m}") or "server/core"
+            by_area[area][m].append(n)
+    jobs: list[dict] = []
+    names: dict[str, list[str]] = {}
+    for area, mods in sorted(by_area.items()):
+        k = 0
+        for m, these in sorted(mods.items()):
+            parts = max(1, -(-len(these) // CHANGED_PER_JOB))
+            for part in range(parts):
+                k += 1
+                name = f"{slug(area)}.c-{k}"
+                names[name] = these[part::parts]  # dealt out: one function's spread
+                jobs.append({"name": name, "area": area, "lines": 0,
+                             "size": f"{len(names[name])} changes", "modules": m,
+                             "only": f"{name}.txt"})  # fmt: skip
+    return jobs, names
+
+
 def plan(args) -> int:
+    if args.changed:
+        jobs, names = changed_jobs(args.changed)
+        out = Path(args.rest_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        for name, these in names.items():
+            (out / f"{name}.txt").write_text("\n".join(these) + "\n")
+        print(json.dumps(jobs))
+        print(f"{len(jobs)} jobs, {sum(len(x) for x in names.values())} changes", file=sys.stderr)
+        return 0
     if args.rest:
         given = downloaded(args.rest)
         if args.jobs:  # only these baseline jobs' unrun changes: another's are under way
@@ -1041,6 +1117,10 @@ def main(argv: list[str] | None = None) -> int:
         "--rest",
         nargs="*",
         help="instead, the changes these runs left unrun (as gather takes them)",
+    )
+    pl.add_argument(
+        "--changed",
+        help="instead, the changes on the lines written since this commit (a fix's run)",
     )
     pl.add_argument("--rest-dir", default=str(paths.WEB / ".dev" / "rest"),
                     help="where each such job's changes are written")  # fmt: skip
