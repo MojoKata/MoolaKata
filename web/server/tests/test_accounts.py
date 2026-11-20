@@ -707,6 +707,7 @@ REFUSED_WORDS = {
         ("checking", {"type": "savings"}, "type", "type-fixed"),
         ("checking", {"name": "  "}, "name", "name-invalid"),
         ("checking", {"openingBalance": "5.00"}, "openingDate", "opening-incomplete"),
+        ("checking", {"openingDate": "2026-01-02"}, "openingDate", "opening-incomplete"),
     ],
 )
 def test_an_accounts_settings_are_refused_on_their_own_field(server, kind, fields, field, code):
@@ -1495,3 +1496,189 @@ def test_a_reinvested_dividend_opens_a_lot_of_the_shares_it_bought(server):
     t = add(c, a, "-50.00", "2026-09-04", kind="reinvest", symbol="VXUS", quantity="1",
             price="50")  # fmt: skip
     assert _lots_made(server, t["id"]) == [("2026-09-04", Decimal(1), Decimal(50), False, False)]
+
+
+# ---------- an account made and read ----------
+
+
+def test_a_new_accounts_fields_are_each_refused_on_their_own_in_their_words(server):
+    """S1.2, R3.11: a new account's every field is checked, each refusal on its own field in
+    its words; a name of 80 characters is taken and one of 81 refused."""
+    import datetime as dt
+
+    from moolakata import clock
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    r = make(
+        c,
+        "Acct",
+        name="x" * 81,
+        type="yacht",
+        mask="12",
+        lotMethod="random",
+        keptBy=["fax"],
+        closedOn=(clock.today() + dt.timedelta(days=1)).isoformat(),
+        statementInterval="weekly",
+        notes="x" * 20001,
+        openingBalance="10.00",
+    )
+    assert r.status_code == 422, r.text
+    # A new account's type is chosen from the list, not kept.
+    new = {"type": "Choose an account type.", "mask": "The last four digits, such as 4821."}
+    words = REFUSED_WORDS | new
+    codes = {
+        "name": "name-invalid",
+        "type": "type-invalid",
+        "mask": "mask-invalid",
+        "lotMethod": "lot-method-invalid",
+        "keptBy": "kept-by-invalid",
+        "closedOn": "closed-in-future",
+        "statementInterval": INTERVAL,
+        "notes": "notes-too-long",
+        "openingDate": "opening-incomplete",
+    }
+    assert refusals(r) == [(f, code, words[f]) for f, code in codes.items()]
+    assert new_account(c, name="x" * 80)["name"] == "x" * 80
+
+
+def test_an_account_made_closed_with_its_interval_and_limit_keeps_them_logged_as_closed(server):
+    """S1.2, S1.11.7: an account made with the day it closed, its statements' interval and its
+    withdrawals' limit keeps them, its making logged for its owner as theirs and its closing
+    with the fields it set."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.store.entities.core import Activity
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    closed = (clock.today() - dt.timedelta(days=1)).isoformat()
+    sent = {"closedOn": closed, "statementInterval": "quarterly", "withdrawalsAMonth": 6}
+    a = new_account(c, type="savings", name="Savings", **sent)
+    got = c.get(f"/ui/api/accounts/{a['id']}").json()
+    assert {k: got[k] for k in sent} == sent
+    fields = ["closedOn", "withdrawalsAMonth", "statementInterval"]
+    assert logged(server, a["id"]) == [
+        ("account.closed", jane, "account", jane, {"fields": fields})
+    ]
+    with server.db.read(unscoped="test") as s:
+        made = s.query(Activity).filter(
+            Activity.subjectId == a["id"], Activity.kind == "account.created"
+        )
+        assert [(x.actorId, x.ownerId) for x in made] == [(jane, jane)]
+
+
+def test_an_accounts_row_reads_its_institution_owner_balance_and_change_over_30_days(server):
+    """S12.2.2: each account's row reads its institution, its owner's name and picture, its
+    balance and its change since the day 30 days ago, that day's own transactions counted
+    then; an investing account's holdings at their price count in both."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.store.entities.users import User
+
+    jane = make_user(server, "jane").id
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, jane).avatar = "avatar-jane.png"
+    c = sign_in(server, "jane")
+    today = clock.today()
+
+    def ago(days: int) -> str:
+        return (today - dt.timedelta(days=days)).isoformat()
+
+    opening = {"openingBalance": "1000.00", "openingDate": ago(100)}
+    bank = new_account(c, **opening)["id"]
+    for amount, days in (("-10.00", 31), ("-20.00", 30), ("-40.00", 29), ("-80.00", 0)):
+        add(c, bank, amount, ago(days))
+    shares = new_account(c, name="Brokerage", type="brokerage", mask="9999", **opening)["id"]
+    add(c, shares, "-100.00", ago(60), kind="buy", symbol="VTI", quantity="10", price="10")
+    add(c, shares, "50.00", ago(5), kind="deposit")
+    rows = {x["id"]: x for x in c.get("/ui/api/accounts").json()["items"]}
+    keys = ("institution", "ownerName", "ownerAvatar", "balance", "change")
+    got = {k: rows[bank][k] for k in keys}
+    assert got == {
+        "institution": "First Example Bank",
+        "ownerName": "Jane",
+        "ownerAvatar": "avatar-jane.png",
+        "balance": "850.00",
+        "change": "-120.00",
+    }
+    assert (rows[shares]["balance"], rows[shares]["change"]) == ("1050.00", "50.00")
+
+
+def test_an_accounts_detail_reads_its_tax_dismissed_interval_and_no_options_risk(server):
+    """S1.2, S1.11.7, S3.5.6: an account's detail reads its type's tax treatment and the
+    interval proposal set aside; an account that doesn't invest has no options at risk."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type="ira", name="IRA")
+    path = f"/ui/api/accounts/{a['id']}"
+    saved(edit(c, "Acct", path, statementIntervalDismissed="quarterly"))
+    got = c.get(path).json()
+    assert (got["tax"], got["statementIntervalDismissed"]) == ("deferred", "quarterly")
+    bank = c.get(f"/ui/api/accounts/{new_account(c)['id']}").json()
+    risk = ("optionsValue", "capitalAtRisk", "capitalAtRiskUnlimited")
+    assert [bank[k] for k in risk] == [None, None, False]
+
+
+def test_an_open_account_whose_statement_is_overdue_needs_one_and_a_closed_one_never(server):
+    """S1.11.7.3, S1.2: an account whose next statement is overdue asks for one, unless it is
+    closed."""
+    import datetime as dt
+
+    from moolakata import clock, ids
+    from moolakata.store.entities.accounts import Import
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    open_ = new_account(c, keptBy=["file"])["id"]
+    closed = new_account(c, keptBy=["file"], name="Old", mask="1111",
+                         closedOn=clock.today().isoformat())["id"]  # fmt: skip
+    end = clock.today() - dt.timedelta(days=200)
+    with server.db.tx(unscoped="test") as s:
+        for a in (open_, closed):
+            s.add(Import(id=ids.new_id("Imprt"), accountId=a, userId=jane, format="statement",
+                         fileName="old.pdf", fileHash=a, coveredFrom=end.replace(day=1),
+                         coveredTo=end))  # fmt: skip
+    rows = {x["id"]: x["needsAnchor"] for x in c.get("/ui/api/accounts").json()["items"]}
+    assert rows == {open_: True, closed: False}
+
+
+def test_a_receiver_reads_their_count_in_my_totals_and_a_save_answers_as_a_read(server):
+    """S10.7, S12.15: one an account is shared with reads their Count in my totals on it, its
+    record their own, and with nothing shared in it; a save of it answers with the account as
+    they read it, its last update among it."""
+    from edits import share
+
+    make_user(server, "jane")
+    john = make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    a = new_account(c)
+    add(c, a["id"], "-5.00")
+    saved(share(c, "account", a["id"], users={john: "write"}))
+    counted = saved(create(j, "CntAc", accountId=a["id"], counted=True))
+    path = f"/ui/api/accounts/{a['id']}"
+    read = j.get(path).json()
+    keys = ("counted", "countedId", "countedVersion", "sharedWith")
+    assert [read[k] for k in keys] == [True, counted["id"], counted["version"], 0]
+    assert counted["version"] > 0
+    assert read["lastUpdated"] is not None
+    out = saved(edit(j, "Acct", path, notes="John's too."))
+    assert out == j.get(path).json()
+    assert c.get(path).json()["countedId"] is None
+
+
+def test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name(server, admin_client):
+    """S10.1.7, S12.2.2: an owner made inactive is no longer read by the household, so one
+    their account is shared with still reads it, without its owner's name or picture."""
+    from edits import share
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    users = admin_client.get("/ui/api/users").json()["items"]
+    saved(change(admin_client, "User", next(u for u in users if u["id"] == jane), active=False))
+    rows = sign_in(server, "john").get("/ui/api/accounts").json()["items"]
+    assert [(x["id"], x["ownerName"], x["ownerAvatar"]) for x in rows] == [(a["id"], "", None)]

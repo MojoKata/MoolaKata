@@ -214,3 +214,23 @@ Mutation check (`--tests` the two files above): 93 killed, the 6 survivors exact
 Doubts:
 - `TXN_REFUSED_WORDS` in `test_accounts.py` holds the words of each refusal in `test_a_transactions_fields_are_refused_on_their_own`, which now checks every refusal's field, code and words (it read the first one's field and code only).
 - `_check_reimbursable`'s `amount is None or amount >= 0` is redundant with `r > -amount` for a positive `r`; left as it is.
+
+## Batch 10
+
+Test files touched: `tests/test_accounts.py`, `tests/test_wallets.py`, `tests/test_mcp.py`.
+
+Counts: killed 104, equivalent 7, bug 0, unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x__check__mutmut_109`, `_136`: the body is always an `AccountRecord` (create and update alike), which has `closedOn` and `statementInterval`, so `getattr` without a default never misses (as batch 6's `x__change__mutmut_202`).
+- `x__check__mutmut_180`: an account's opening balance and date are always both set or both none (made and changed only through `_check`, which refuses a half pair whenever either is sent), so a half pair in the body comes only from a field sent: `& sent` and `| sent` decide alike.
+- `x__counted_ref__mutmut_8`: `CountedAccount` is seen per user (`Seen.per_user("userId")`), so in the caller's session the account's only row is the caller's own, with `userId` or without.
+- `x__raise__mutmut_2`, `_3`: `_raise` runs only inside the save (`_account_create`, `_account_update`), which answers a Problem with errors by its field errors alone, never its code or detail (as batch 8's `x__raise__mutmut_3`).
+- `x_imports_of__mutmut_6`: `Import` is seen as its account's child, through a view that leaves out deleted rows (`access_views._child`), so `Import.deleted == false()` drops nothing in the caller's session (as batch 3's lots).
+
+Mutation check (`--tests` the three files above; the run added `test_import_corpus.py`): 104 killed, the 7 survivors exactly the equivalent ones above. No baseline run.
+
+Doubts:
+- `row`'s detail default (`x_row__mutmut_1`) shows only through MCP's `list_accounts`, which dumps the route's rows itself: the HTTP list serializes them as `AccountRow` either way. The MCP test now holds a row's fields to `AccountRow`'s (no notes).
+- An owner made inactive is no longer read by the household (`_user` view), so one their account is shared with lists it with `ownerName` "" and no picture (`test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name`). Pinned as the code means it; S10.1.7 says their data stays, but a nameless row may want a look.
+- Changing `statementIntervalDismissed` is kept but logged as no change (`_change` doesn't add it to `changed`); not pinned either way.
