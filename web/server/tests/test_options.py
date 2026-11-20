@@ -206,15 +206,16 @@ def test_a_long_call_exercised_adds_its_premium_to_the_basis(jane):
 @pytest.mark.parametrize(
     ("side", "right", "how", "word", "payee"),
     [
-        ("sell-to-open", "put", "assign", "assignment", "Assigned MSFT 20NOV26 480 P"),
-        ("buy-to-open", "call", "exercise", "exercise", "Exercised MSFT 20NOV26 480 C"),
+        ("sell-to-open", "put", "assign", "assignment", "MSFT 20NOV26 480 P"),
+        ("buy-to-open", "call", "exercise", "exercise", "MSFT 20NOV26 480 C"),
     ],
 )
 def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
     server, jane, side, right, how, word, payee
 ):
-    """S3.4: the stock trade alone isn't deleted, and says what it came with; deleting the
-    assignment or exercise deletes it, both marked by who deleted them."""
+    """S3.4: the stock trade alone isn't deleted, nor its figures changed, and says what it
+    came with, by its contract and day; its notes change; deleting the assignment or exercise
+    deletes it, both marked by who deleted them."""
     from moolakata.store.entities.accounts import Transaction
 
     brk = new_account(jane, name="Brokerage", type="brokerage")
@@ -223,8 +224,17 @@ def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
     r = jane.post(f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",
                   json={"how": how, "date": "2026-11-20", "contracts": "1"})  # fmt: skip
     end, stock = r.json()
-    told = f"This trade came with the {word} of {payee}: delete that, and this goes with it."
+    told = (
+        f"This trade came with the {word} of {payee} on Nov 20, 2026: delete that, and this"
+        " goes with it."
+    )
     assert _refused(remove(jane, "Txn", stock)) == [(None, "made-by-an-assignment", told)]
+    fixed = f"This trade came with the {word} of {payee} on Nov 20, 2026: change that."
+    for field, value in (("quantity", "50"), ("amount", "-1.00"), ("date", "2026-11-21")):
+        r = change(jane, "Txn", stock, **{field: value})
+        assert _refused(r) == [(None, "made-by-an-action", fixed)], field
+    stock = saved(change(jane, "Txn", stock, memo="assigned early", cleared=True))
+    assert (stock["memo"], stock["cleared"]) == ("assigned early", True)
     assert remove(jane, "Txn", end).status_code == 200
     assert _held(jane, brk["id"], "MSFT") is None
     with server.db.read(unscoped="test") as s:

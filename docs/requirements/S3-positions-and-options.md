@@ -38,9 +38,13 @@
    premium is worked out from the option's lots each time the account's figures are, so a
    corrected opening trade follows through. A call assigned, or a put exercised, with none of
    the shares held is a short sale at the strike: a short stock lot whose basis is what it
-   brought in, closed by the shares bought later, its gain short-term. The resulting stock lots link back to the option,
-   and deleting the assignment or exercise deletes its stock trade with it, after asking; the
-   stock trade alone isn't deleted.
+   brought in, closed by the shares bought later, its gain short-term. The resulting stock
+   lots link back to the option, and deleting the assignment or exercise deletes its stock
+   trade with it, after asking; the stock trade alone isn't deleted, nor are its figures
+   (kind, shares, amount, price, day) changed, as they follow from the assignment: it is
+   corrected by deleting the assignment and recording it again. Its memo, category, tags and
+   cleared mark change as any transaction's. So does a corporate action's transaction
+   (S2.4.6).
 5. **Strategies**: legs held together (a covered call, a vertical spread, an iron condor)
    are grouped and shown as one. Grouping is a label: lots, gains, wash sales and taxes stay
    per leg.

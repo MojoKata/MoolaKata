@@ -85,7 +85,7 @@ def test_a_replacement_partly_sold_before_the_loss_sale_takes_its_share_of_the_l
     made = [Lot("R", "VTI", d(2025, 3, 1), D(10), D(500), transactionId=buy.id)]
     early = T(d(2025, 3, 5), "sell", D(220), "VTI", D(-4), lotMethod="lifo", createdAt=at(2))
     loss = T(d(2025, 3, 10), "sell", D(700), "VTI", D(-10), createdAt=at(3))
-    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2))
+    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2), lotId="A")
     r = replay("fifo", [buy, early, loss], [old, *made], [], [], washes=[wash],
                     sale_at={loss.id: (loss.date, loss.createdAt)})  # fmt: skip
     assert sold(r) == [("R", D(4), D(220), D(200), "lifo"), ("A", D(10), D(700), D(1000), "fifo")]
@@ -101,7 +101,7 @@ def _bought_back(early: bool):
     day = d(2025, 3, 1) if early else d(2025, 3, 20)
     buy = T(day, "buy", D(-500), "VTI", D(10), createdAt=at(1 if early else 3))
     made = [Lot("R", "VTI", day, D(10), D(500), transactionId=buy.id)]
-    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2))
+    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2), lotId="A")
     return loss, buy, [old, *made], wash
 
 
@@ -615,3 +615,20 @@ def test_hifo_takes_the_highest_cost_a_share_first_and_a_lot_without_a_basis_las
     out = _open(("A", 1, 10), ("N", 1, None), ("B", 1, 30), ("C", 1, 20))
     got = _sale(4, 40, "hifo", out=out)
     assert [x[0] for x in got] == ["B", "C", "A", "N"]
+
+
+def test_a_wash_sale_of_a_part_with_no_lot_stays_on_the_parts_with_no_lot():
+    """S3.8.2: the loss disallowed is that lot's, its W on that lot's row. A sale of a named
+    lot (washed by its own row) and of shares with no lot (washed by one naming none): each
+    part takes only its own wash sale, never a share of the other's."""
+    day, sold_on = dt.date(2026, 1, 5), dt.date(2026, 3, 2)
+    out = lots.Replay()
+    named = lots.Disposal("S", "L1", "VTI", day, sold_on, D(10), D(900), D(1000), "fifo")
+    lotless = lots.Disposal("S", None, "VTI", day, sold_on, D(5), D(450), D(500), "fifo")
+    out.disposals = [named, lotless]
+    washes = [
+        SimpleNamespace(saleId="S", lotId="L1", disallowed=D("60.00")),
+        SimpleNamespace(saleId="S", lotId=None, disallowed=D("50.00")),
+    ]
+    lots._disallow(out, washes)
+    assert (named.adjustment, lotless.adjustment) == (D("60.00"), D("50.00"))

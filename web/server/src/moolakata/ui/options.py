@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 
 from .. import access, activity, options, washes
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import types as atypes
 from ..money import grouped
 from ..store.entities.accounts import CorporateAction, Instrument, Transaction
@@ -17,7 +17,7 @@ from ..taxes import closed
 from . import save
 from .conventions import ExactRoute, IdOf, Model, Money, Quantity
 from .deps import Caller, caller, server
-from .transactions import TxnOut, _raise, shape
+from .transactions import TxnOut, shape
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["options"])
 
@@ -54,7 +54,7 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     multiplier = 100 if body.multiplier is None else body.multiplier
     if not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
-    _raise(e)
+    refuse_all(e)
     # The save asked for write on the account before this ran (`save.may_create`).
     a, _ = access.account(s, c.id, body.accountId)
     if not atypes.investing(a.type):

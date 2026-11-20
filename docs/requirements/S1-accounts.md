@@ -438,6 +438,10 @@
     6. **An account's chart** is its items' total value over time. The Items tab lists the
        items with cost basis, value, gain and age, and opens each one with its history,
        notes and documents.
+    7. **Its transactions are transfers only**: the money paid for an item, or received for
+       one, as the other half of a transfer from or to the bank account it came through, so
+       it counts neither as spending nor as income. They never change the account's value,
+       which is its items'; a purchase, an improvement or a sale is recorded on the item.
 11. **Reconciliation** keeps an account's balance in step with the institution's, for every
     account kept from files or statements: banking, cards, brokerage cash, and the retirement,
     plan, 529, HSA, DAF and exchange accounts whose statements S1.11.7 expects, each on its
@@ -465,8 +469,9 @@
        shows as such in the account and in Activity. An account with an open mismatch is
        marked in Accounts, and raises an alert after 7 days (S12.11).
     5. **Duplicate suspects** are flagged, never merged silently: two identical rows on one
-       day, or two rows a file gave the same id, ask *both real?* the first time, and the
-       answer is kept.
+       day (the same amount, holding and payee, the payee's case aside, or the bank's words
+       when there is no payee), or two rows a file gave the same id, ask *both real?* the
+       first time, and the answer is kept.
     6. **Ticking off** (optional, for accounts kept by hand): pick a statement's closing date
        and balance, tick transactions as cleared until the difference is zero, and the period
        is marked **reconciled**. Editing a transaction inside a reconciled period asks first.

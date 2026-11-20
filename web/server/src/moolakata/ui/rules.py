@@ -6,7 +6,7 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, tags
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
 from ..store.repos import rules as repo
@@ -161,11 +161,6 @@ def _check(s, c: Caller, body: RuleFields, tagged: int) -> list[FieldError]:
     return e
 
 
-def _raise(e: list[FieldError]) -> None:
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
-
-
 def _values(body: RuleFields) -> dict:
     """What a rule matches and sets, as kept: words trimmed, none for a blank."""
     return {
@@ -228,7 +223,7 @@ class RuleRecord(RuleFields):
 
 def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
     s, c = ctx.s, ctx.caller
-    _raise(_check(s, c, body, len(body.tagIds)))
+    refuse_all(_check(s, c, body, len(body.tagIds)))
     tags.owned(s, c.id, body.tagIds)
     rules = repo.of_user(s, c.id)
     if len(rules) >= 500:
@@ -258,7 +253,7 @@ def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
         _renumber(rules)
         _record(s, "rule.moved", c)
     if any(getattr(body, f) != current[f] for f in (*RuleFields.model_fields, "tagIds")):
-        _raise(_check(s, c, body, len(body.tagIds)))
+        refuse_all(_check(s, c, body, len(body.tagIds)))
         tags.owned(s, c.id, body.tagIds)
         _fill(r, body)
         tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)

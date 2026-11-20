@@ -33,7 +33,8 @@
    Return of capital is spread over every lot of the holding by quantity, a lot without a basis
    keeping its share until its basis is entered; what exceeds a lot's basis is a capital gain.
    1. **Recorded** on Positions with **Corporate action…** (or read from a broker's file, for a
-      split): the holding, the date, and what the action needs. Each lot keeps the day it was
+      split), and nowhere else: the holding (for a split, also a stock only whose options
+      are held, S3.10.1), the date, and what the action needs. Each lot keeps the day it was
       acquired and any holding period a wash sale tacked to it.
    2. **A split** multiplies every lot's shares by its ratio, the basis unchanged.
    3. **A symbol change** moves every lot whole to the new symbol.
@@ -47,12 +48,16 @@
       for each share is asked of every merger, `0` for one paid all in shares (**Min: $0.00**
       fills it in, R3.11): a blank is refused, so cash left out is never read as none.
    6. A move between instruments is a pair of transactions, one on each; deleting either
-      deletes both, after asking. Options on the shares are adjusted as S3.10 says.
+      deletes both, after asking. Options on the shares are adjusted as S3.10 says. An
+      action's transactions keep the figures it made them with: only their memo, category,
+      tags and cleared mark change.
    7. **The action is kept** as typed, its transactions made from it: deleting the action, or
       one of its transactions, undoes it whole. One read from a broker's file is its
       transaction alone.
 5. **Dividends and interest**: qualified and ordinary dividends, reinvestment (a dividend plus
-   a buy), and capital-gain distributions, with the classification the 1099 will use.
+   a buy), and capital-gain distributions, with the classification the 1099 will use. A
+   capital-gain distribution is an investing account's alone: only a fund pays one, into the
+   account that holds it.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an
    optional split across categories, a memo, tags, receipts, and a reimbursable mark (S2.9).
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per

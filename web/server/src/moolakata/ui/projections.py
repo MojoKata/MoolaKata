@@ -12,7 +12,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, projections
 from ..access import Perms
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..projections import assumptions, bitcoin, taxtables
 from ..store.entities.projections import AssumptionSet, Projection, ShownProjection, TaxFigure
 from ..store.entities.users import User
@@ -243,11 +243,6 @@ def _check_inputs(inputs: dict) -> list[FieldError]:
     return e
 
 
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
-
-
 @router.get("/projections", response_model=list[ProjectionRow])
 def list_projections(request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
@@ -311,7 +306,7 @@ class ProjectionRecord(NewProjection):
 def _projection_create(ctx, record_id: str, body: ProjectionRecord) -> None:
     """It starts as a scenario; making it active is a step of its own (S6.7)."""
     s, c = ctx.s, ctx.caller
-    _raise(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
+    refuse_all(_check(s, c.id, body.name, body.goal, body.builtOn, body.inputs))
     p = Projection(
         id=record_id,
         ownerId=c.id,
@@ -335,7 +330,7 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.goal != p.goal:
         raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
-    _raise(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
+    refuse_all(_check(s, p.ownerId, body.name, None, body.builtOn, body.inputs))
     current = _projection_current(ctx, p)
     fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
     p.name = body.name.strip()

@@ -486,9 +486,10 @@ def test_one_who_reads_an_account_changes_and_unpairs_none_of_its_transactions(s
     assert _paired(jane, paid["id"]) == out["id"]
 
 
-def test_a_transfer_paired_or_unpaired_in_a_reconciled_period_asks_nothing(server, frozen):
-    """S1.7: pairing the halves of a transfer by hand, or undoing it, changes neither one's
-    amount nor its day, so a reconciled period (S2.7) has nothing to ask."""
+def test_a_transfer_paired_or_unpaired_in_a_reconciled_period_asks_first(server, frozen):
+    """S1.11.6: pairing the halves of a transfer by hand, or undoing it, changes what each
+    counts as (a transfer, or spending and income), so a reconciled period of either half
+    asks first, as any other edit there does."""
     from test_accounts import add, new_account
 
     c, acct, cat, _ = setup_budget(server)
@@ -499,10 +500,19 @@ def test_a_transfer_paired_or_unpaired_in_a_reconciled_period_asks_nothing(serve
     sav = new_account(c, name="Savings", type="savings", mask="2222")
     half = add(c, sav["id"], "100.00", "2026-10-25", kind="deposit")
     assert _paired(c, txn) is None
-    saved(edit(c, "Txn", path, transferWithId=half["id"]))
+    assert asked(edit(c, "Txn", path, transferWithId=half["id"])) == ["reconciled-period"]
+    assert _paired(c, txn) is None
+    saved(edit(c, "Txn", path, confirm=True, transferWithId=half["id"]))
     assert _paired(c, txn) == half["id"]
-    saved(edit(c, "Txn", path, transferWithId=None))
+    assert asked(edit(c, "Txn", path, transferWithId=None)) == ["reconciled-period"]
+    saved(edit(c, "Txn", path, confirm=True, transferWithId=None))
     assert (_paired(c, txn), _paired(c, half["id"])) == (None, None)
+    # From the other side: the half named is in the reconciled period, so pairing it asks.
+    other = f"/ui/api/transactions/{half['id']}"
+    assert asked(edit(c, "Txn", other, transferWithId=txn)) == ["reconciled-period"]
+    saved(edit(c, "Txn", other, confirm=True, transferWithId=txn))
+    # And letting it go asks too: the half it was paired with is the reconciled one.
+    assert asked(edit(c, "Txn", other, transferWithId=None)) == ["reconciled-period"]
 
 
 def test_tags_changed_on_a_transaction_are_the_savers_own_and_one_taken_off_says_by_whom(
@@ -796,3 +806,106 @@ def test_the_other_half_of_a_transfer_is_named_only_to_one_who_reads_its_account
     path = f"/ui/api/transactions/{half['id']}"
     got = [[who.get(path).json()[k] for k in keys] for who in (jane, john)]
     assert got == [[None, None], [t, "John's"]]
+
+
+def _reconciled_bill(server, parts):
+    """A $100 bill with its parts, cleared and inside a finished reconciliation."""
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, parts)
+    path = f"/ui/api/transactions/{txn}"
+    saved(change(c, "Txn", c.get(path).json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    return c, cat, txn, path
+
+
+def test_a_part_taken_away_in_a_reconciled_period_asks_first(server, frozen):
+    """S1.11.6: taking a part away changes the transaction, as adding or changing one does."""
+    c, _, _, path = _reconciled_bill(server, [("-60.00", {}), ("-40.00", {})])
+    first, gone = c.get(path).json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {"amount": "-100.00"}}]  # fmt: skip
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period", "reconciled-period"]
+    assert {x["id"] for x in r.json()["asks"]} == {first["id"], gone["id"]}
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert save(c, ops, asks).status_code == 200
+    assert [p["amount"] for p in c.get(path).json()["splits"]] == ["-100.00"]
+
+
+def test_a_save_that_asks_is_judged_whole_once_answered_never_on_what_is_left(server, frozen):
+    """S13.8.11.5: a part taken away and another added in a reconciled period ask, and the
+    parts are added up only on the whole save: never a refusal for the half the question
+    held back."""
+    c, cat, txn, path = _reconciled_bill(server, [("-60.00", {}), ("-40.00", {})])
+    _, gone = c.get(path).json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "create", "entity": "Split", "id": new("Split"),
+            "fields": {"transactionId": txn, "amount": gone["amount"],
+                       "categoryId": cat["Travel"]}}]  # fmt: skip
+    r = save(c, ops)
+    assert r.status_code == 409, r.text
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    r = save(c, ops, asks)
+    assert r.status_code == 200, r.text
+    assert sorted(str(p["amount"]) for p in c.get(path).json()["splits"]) == ["-40.00", "-60.00"]
+    assert gone["id"] not in {p["id"] for p in c.get(path).json()["splits"]}
+    # Answered, a save whose parts don't add up is refused for that, as any other is.
+    first, _ = c.get(path).json()["splits"]
+    ops = [{"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {"amount": "-1.00"}}]  # fmt: skip
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period"]
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert _errors(save(c, ops, asks))[0][1] == "splits-unbalanced"
+
+
+def test_a_trades_quantity_is_more_than_none_made_or_changed(server, frozen):
+    """R3.11, S2.2: a trade names how many shares it moves, more than none, the kind saying
+    which way; a change can't take it to none, clear it or turn it negative, nor make a
+    trade of a transaction with no shares."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")["id"]
+    words = "A trade needs its instrument and quantity."
+    for kind in ("buy", "sell"):
+        t = add(c, brk, "-100.00", "2026-10-02", kind=kind, symbol="VTI", quantity="5",
+                price="20", fees="0")  # fmt: skip
+        path = f"/ui/api/transactions/{t['id']}"
+        none = ("quantity", "trade-incomplete", words)
+        less = ("quantity", "quantity-invalid", "More than none.")
+        for value, want in (("0", none), (None, none), ("-5", less)):
+            assert _errors(edit(c, "Txn", path, quantity=value)) == [want], (kind, value)
+        r = make(c, "Txn", accountId=brk, date="2026-10-02", amount="-100.00", kind=kind,
+                 symbol="VTI", quantity="-5", price="20", fees="0")  # fmt: skip
+        assert _errors(r) == [("quantity", "quantity-invalid", "More than none.")], kind
+    cash = add(c, brk, "500.00", "2026-10-02", kind="deposit")
+    r = edit(c, "Txn", f"/ui/api/transactions/{cash['id']}", kind="buy", fees="0")
+    assert _errors(r) == [("symbol", "trade-incomplete", words)]
+
+
+def test_only_a_split_has_a_ratio_and_a_split_is_a_corporate_action(server, frozen):
+    """S2.4.1: a split is recorded on Positions; a trade sent with a ratio is refused, never
+    kept with it (R3.11)."""
+    from conftest import make_user, sign_in
+    from test_accounts import new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")["id"]
+    trade = {"accountId": brk, "date": "2026-10-02", "amount": "-100.00", "symbol": "VTI",
+             "quantity": "5", "price": "20", "fees": "0"}  # fmt: skip
+    r = make(c, "Txn", **trade, kind="buy", splitRatio="2")
+    assert _errors(r) == [
+        ("splitRatio", "ratio-not-for-kind", "Only a split has a ratio: record it as a corporate"
+         " action.")
+    ]  # fmt: skip
+    r = make(c, "Txn", **{**trade, "amount": "0.00"}, kind="split", splitRatio="2")
+    assert _errors(r)[0] == (
+        "kind",
+        "corporate-kind",
+        "Record it as a corporate action on Positions.",
+    )

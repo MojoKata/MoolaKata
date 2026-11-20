@@ -1341,9 +1341,11 @@ HOLDING_KINDS = ("buy", "sell", "reinvest", "return-of-capital", "transfer-in", 
 
 
 def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule(server):
-    """S2.1, S2.4, S3.2, S3.10: a kind that moves a holding is an investing account's alone;
-    an option trade, an option's end, a corporate action and a contract's adjustment are made
-    where they are made, never typed here; every other kind goes in any account."""
+    """S2.1, S2.4, S3.2, S3.10: a kind that moves a holding, and a capital-gain distribution,
+    is an investing account's alone; an option trade, an option's end, a corporate action (a
+    split among them) and a contract's adjustment are made where they are made, never typed
+    here; a physical asset's account takes transfers only (S1.10); every other kind goes in
+    any account."""
     from moolakata.ledger import types as atypes
     from moolakata.store.tables.accounts import TXN_KINDS
     from moolakata.ui import transactions as tx
@@ -1365,7 +1367,9 @@ def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule
                 want = "corporate-kind"
             elif kind in tx.OPTION_KINDS:
                 want = "option-kind"
-            elif kind in HOLDING_KINDS and not atypes.investing(type_):
+            elif (kind in (*HOLDING_KINDS, "capital-gain") and not atypes.investing(type_)) or (
+                kind != "transfer" and atypes.GROUPS[type_] == "physical-assets"
+            ):
                 want = "kind-not-for-account"
             else:
                 want = None

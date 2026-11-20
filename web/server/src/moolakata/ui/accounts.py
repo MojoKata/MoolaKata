@@ -12,7 +12,7 @@ from sqlalchemy import false, func, select
 
 from .. import access, activity, clock, exactjson, valuation
 from ..access import Perms
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import expected, holdingcheck, reconcile
 from ..ledger import types as atypes
 from ..ledger.lots import long_term
@@ -308,11 +308,6 @@ def _check(body: AccountRecord, sent: set[str] | None = None) -> list[FieldError
     return errors
 
 
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
-
-
 @dataclass
 class Context:
     """What every row of one caller's list shares."""
@@ -520,17 +515,10 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if body.withdrawalsAMonth is not None and (
             a.type not in ("savings", "money-market") or not 1 <= body.withdrawalsAMonth <= 99
         ):
-            raise Problem(
-                422,
+            raise refuse(
+                "withdrawalsAMonth",
                 "limit-invalid",
                 "A savings account's limit: 1 to 99, or empty.",
-                [
-                    FieldError(
-                        "withdrawalsAMonth",
-                        "limit-invalid",
-                        "A savings account's limit: 1 to 99, or empty.",
-                    )
-                ],
             )
         a.withdrawalsAMonth = body.withdrawalsAMonth
         changed.append("withdrawalsAMonth")
@@ -538,9 +526,9 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if body.hsaCoverage is not None and (
             a.type != "hsa" or body.hsaCoverage not in ("self", "family")
         ):
-            message = "An HSA's coverage: self-only or family."
-            raise Problem(422, "coverage-invalid", message,
-                          [FieldError("hsaCoverage", "coverage-invalid", message)])  # fmt: skip
+            raise refuse(
+                "hsaCoverage", "coverage-invalid", "An HSA's coverage: self-only or family."
+            )
         a.hsaCoverage = body.hsaCoverage
         changed.append("hsaCoverage")
     if "statementInterval" in sent and a.statementInterval != body.statementInterval:
@@ -1001,7 +989,7 @@ save.register(
 
 
 def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
-    _raise(_check(body))
+    refuse_all(_check(body))
     a = _make(ctx.s, ctx.caller, body, record_id)
     later = {
         f
@@ -1031,7 +1019,7 @@ def _account_current(ctx, a: Account) -> dict:
 
     return {
         "type": a.type,
-        "keptBy": json.loads(a.keptBy or "[]"),
+        "keptBy": json.loads(a.keptBy),
         "statementInterval": a.statementInterval,
         "statementIntervalDismissed": a.statementIntervalDismissed,
         "withdrawalsAMonth": a.withdrawalsAMonth,
@@ -1050,7 +1038,7 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
     sent = {f for f in AccountRecord.model_fields if getattr(body, f) != current[f]}
     if "type" in sent:
         raise refuse("type", "type-fixed", "An account keeps its type.")
-    _raise(_check(body, sent))
+    refuse_all(_check(body, sent))
     p = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
     _change(ctx.s, ctx.caller, a, p, body, sent - set(WALLET_FIELDS))
     if sent & set(WALLET_FIELDS):

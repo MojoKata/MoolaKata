@@ -185,6 +185,9 @@ def test_the_typical_gap_between_three_ends_decides_the_interval(gap, learned):
     assert expected.learned(imp(*ends, ends[-1] + dt.timedelta(days=400))) == learned
 
 
-def test_a_kept_by_not_read_counts_as_none_so_no_statement_is_expected():
-    assert expected.kept_by(acct(kept="not json")) == []
-    assert expected.interval(acct(kept="not json")) == "none"
+def test_a_kept_by_not_read_is_a_fault_never_read_as_kept_by_nothing():
+    # `keptBy` is always a list's JSON: anything else is broken data, said loudly.
+    with pytest.raises(ValueError):
+        expected.kept_by(acct(kept="not json"))
+    assert expected.kept_by(acct(kept="[]")) == []
+    assert expected.interval(acct(kept="[]")) == "none"

@@ -346,14 +346,17 @@ def apply(s: Session, c: Caller, request: Request, body: SaveIn) -> tuple[list[S
         seen.add(op.id)
         ctx.record_id = op.id
         out.attempt(s, op.id, op.entity, lambda op=op, kind=kind: _apply(ctx, op, kind))
-    # Checks that span records, once every op has gone in; noise after a refusal or a stale.
-    if not (out.stale or out.errors):
+    # Checks that span records, once every op has gone in; noise after a refusal or a stale,
+    # and after a question too: an op that asks is rolled back, so what is left isn't what the
+    # save would do once it is answered (S13.8.11.5).
+    if not (out.stale or out.errors or out.asks):
         for record_id, fn in list(ctx._verify.values()):
             ctx.record_id = record_id
             out.attempt(s, record_id, "", fn)
     # A filed year's gains moved by the save: asked as the save's question (S2.8), here rather
-    # than at the commit, so it joins the others.
-    if not (out.stale or out.errors) and body.ops:
+    # than at the commit; once the save's other questions are answered, so it is asked of all
+    # the save does.
+    if not (out.stale or out.errors or out.asks) and body.ops:
         from ..taxes import closed
 
         if any(code == closed.CODE for code, _ in ctx.confirmed):

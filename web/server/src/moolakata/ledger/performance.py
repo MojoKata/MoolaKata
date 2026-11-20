@@ -87,8 +87,11 @@ def irr(
     # the quotient's and it is never 0.
     if f_lo * f_hi > 0:  # pragma: no mutate
         return None  # no rate from -99% to +1000% a year fits (cash all one way among them)
-    # No mutant differs: the width, 10.99 / 2**k, is never exactly 1e-9.
-    while hi - lo >= Decimal("1e-9"):  # pragma: no mutate
+    # The width halves to 1e-9 in 34 steps; the cap only keeps a wrong step from looping for
+    # ever. No mutant of the width's test differs: 10.99 / 2**k is never exactly 1e-9.
+    for _ in range(64):
+        if hi - lo < Decimal("1e-9"):  # pragma: no mutate
+            break
         mid = (lo + hi) / 2
         f_mid = npv(mid)
         if f_mid == 0:

@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, edit, make, option_trade, remove, saved
+from edits import create, edit, option_trade, remove, saved, split
 from sqlalchemy import false, select
 from test_accounts import new_account
 from test_options import opt
@@ -48,16 +48,7 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(server,
         opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    r = make(
-        jane,
-        "Txn",
-        accountId=a,
-        date="2026-10-01",
-        kind="split",
-        symbol="MSFT",
-        amount="0",
-        splitRatio="2",
-    )
+    r = split(jane, a, "2026-10-01", "2")
     assert r.status_code == 200, r.text
     after = held(jane)
     assert after == {"MSFT 20NOV26 240 P": (-4, -1280, "2026-09-01")}, "basis and days carry"
@@ -66,8 +57,7 @@ def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(server,
     with server.db.read(unscoped="test") as s:
         made_by = {t.createdById for pair in _pairs(s, a) for t in pair}
     assert made_by == {_uid(server)}, "the adjustment is the one who recorded the split's"
-    split = r.json()
-    saved(remove(jane, "Txn", split))
+    saved(remove(jane, "Txn", r.json()))
     assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 
@@ -175,8 +165,7 @@ def test_a_strategys_leg_follows_its_contract_when_adjusted(jane):
 
     # At open, the leg is the contract it opened as.
     assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
-    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
-             amount="0", splitRatio="2")  # fmt: skip
+    r = split(jane, a, "2026-10-01", "2")
     assert r.status_code == 200, r.text
     assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00", "94720.00")
     saved(remove(jane, "Txn", r.json()))
@@ -316,8 +305,7 @@ def test_a_split_not_a_whole_number_waits_for_the_memo(jane):
         opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
-             amount="0", splitRatio="1.5")  # fmt: skip
+    r = split(jane, a, "2026-10-01", "1.5")
     assert r.status_code == 200, r.text
     assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
@@ -460,8 +448,7 @@ def test_a_whole_split_adjusts_an_adjusted_contract_only_when_it_delivers_just_t
     a, r = _adjusted_put(jane, deliverable=deliverable, cash=cash)
     assert r.status_code == 200, r.text
     saved(opt(jane, a, "sell-to-open", "2026-10-06", "1.00", strike="500", fees="0"))
-    r = make(jane, "Txn", accountId=a, date="2026-10-07", kind="split", symbol="MSFT",
-             amount="0", splitRatio="2")  # fmt: skip
+    r = split(jane, a, "2026-10-07", "2")
     assert r.status_code == 200, r.text
     sym = after[0]
     assert held(jane) == {
@@ -583,8 +570,7 @@ def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, jane):
 
 
 def _split_msft(c, a, day="2026-10-01"):
-    r = make(c, "Txn", accountId=a, date=day, kind="split", symbol="MSFT", amount="0",
-             splitRatio="2")  # fmt: skip
+    r = split(c, a, day, "2")
     assert r.status_code == 200, r.text
 
 

@@ -24,6 +24,12 @@ WORDS = {
 }
 
 
+def _options_on(s: Session, account: Account, inst: Instrument, day: dt.date) -> bool:
+    from .options import adjust
+
+    return bool(adjust.open_contracts(s, account, inst.id, day))
+
+
 def record(
     s: Session,
     user_id: str,
@@ -40,7 +46,8 @@ def record(
     """The transactions a corporate action makes, checked first; refused field by field."""
     e: list[FieldError] = []
     held = repo.load(s, account).replay().quantity(inst.id)
-    if held <= 0:
+    if held <= 0 and not (kind == "split" and _options_on(s, account, inst, day)):
+        # A split reaches the options on the stock too, held without its shares (S3.10.1).
         e.append(FieldError("instrumentId", "nothing-held", "Nothing of it is held here."))
     new_symbol = (new_symbol or "").strip().upper() or None
     all_cash = kind == "merger" and new_symbol is None

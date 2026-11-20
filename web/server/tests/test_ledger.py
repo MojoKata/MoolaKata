@@ -461,6 +461,10 @@ def test_possible_duplicates_are_one_day_amount_payee_and_instrument_or_one_file
     assert ids(t(payee=None, payeeRaw="POS CAFE"), t(payee=None, payeeRaw="POS BAKERY")) == []
     # A letter's compatibility form (the Kelvin sign some exports write for K) is the letter.
     assert ids(t(payee="\u212aiosk"), t(payee="kiosk")) == [[0, 1]]
+    # Case aside in full: a letter whose capital is two letters (ß, SS) is alike too; an
+    # accent is not case, so it still tells two payees apart.
+    assert ids(t(payee="Straße Bakery"), t(payee="STRASSE BAKERY")) == [[0, 1]]
+    assert ids(t(payee="Café"), t(payee="CAFE")) == []
     # Rows with no words at all are alike only with each other.
     assert ids(t(payee=None), t(payee=None), t(payee="xxxx")) == [[0, 1]]
     assert ids(t(), t(payee="Bakery"), t(amount=-21), t(instrumentId="I1")) == []

@@ -48,6 +48,15 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
   ['fee', 'Fee'],
 ]);
 const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
+// A physical asset's items carry their purchase, improvements and sale: its account takes
+// only the transfers that pay for or are paid by them (S1.10).
+const ASSET_KINDS = /** @type {[string, string][]} */ ([['transfer', 'Transfer']]);
+
+/**
+ * The kinds a transaction of an account of this type may be (S2.1, S1.10).
+ * @param {any} type
+ */
+const kindsFor = (type) => type.investing ? TRADE_KINDS : type.physical ? ASSET_KINDS : BANK_KINDS;
 
 /**
  * The owner's own contribution to a traditional IRA, which is deductible or not (S8.6): money
@@ -184,7 +193,7 @@ const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
  */
 function Beyond({ t, parts, type }) {
   const cats = useCategories();
-  const kinds = type.investing ? TRADE_KINDS : BANK_KINDS;
+  const kinds = kindsFor(type);
   const kind = kinds.find(([k]) => k === t.get('kind'))?.[1];
   const said = [
     kind,
@@ -249,7 +258,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const writable = accounts.filter((a) => canAdd('Txn', a));
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
-    return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);
+    return kindsFor(type).map(([k]) => k);
   };
   const f = useDraft(async (draft) => {
     if (editing) {
@@ -387,7 +396,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
             <div class="row">
               <${RecField} rec=${t} name="date" label="Date" />
               <${RecField} rec=${t} name="kind" label="Kind"
-                options=${type.investing ? TRADE_KINDS : BANK_KINDS} />
+                options=${kindsFor(type)} />
             </div>
             ${trade
               ? html`

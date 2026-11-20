@@ -328,19 +328,18 @@ def _settle(lot: OpenLot, row, basis_added: bool) -> None:
 
 def _disallow(out: Replay, washes) -> None:
     """A loss sale's disallowed part, on the disposals of the sold lot whose loss it is:
-    spread by loss over that lot's losing parts (a lot a wash sale split may sell in two), or
-    over the sale's when the wash sale names no lot."""
+    spread by loss over that lot's losing parts (a lot a wash sale split may sell in two). A
+    wash sale of a part with no lot (shares a snapshot stands in for) takes only the sale's
+    parts with no lot: a named lot's row keeps its own (S3.8.2)."""
     by: dict[tuple[str, str | None], Decimal] = {}
     for w in washes:
-        key = (w.saleId, getattr(w, "lotId", None))
+        key = (w.saleId, w.lotId)
         by[key] = by.get(key, ZERO) + w.disallowed
     for (sale, lot_id), amount in by.items():
         losing = [
             d
             for d in out.disposals
-            if d.saleId == sale
-            and (lot_id is None or d.lotId == lot_id)
-            and (d.raw_gain or ZERO) < 0
+            if d.saleId == sale and d.lotId == lot_id and (d.raw_gain or ZERO) < 0
         ]
         total = -sum((d.raw_gain for d in losing), ZERO)
         given = ZERO

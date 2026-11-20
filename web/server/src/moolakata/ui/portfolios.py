@@ -11,7 +11,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, clock, figures, valuation
 from ..access import Perms
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, refuse, refuse_all
 from ..ledger import performance as perf
 from ..ledger import types as atypes
 from ..options import strategies as strat
@@ -147,11 +147,6 @@ def _check(s, user_id: str, body) -> list[FieldError]:
     return errors
 
 
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
-
-
 def _set_members(s, p: Portfolio, wanted: list[str], by: str) -> None:
     current = {
         m.accountId: m
@@ -200,7 +195,7 @@ class PortfolioRecord(Model):
 
 def _portfolio_create(ctx, record_id: str, body: PortfolioRecord) -> None:
     s, c = ctx.s, ctx.caller
-    _raise(_check(s, c.id, body))
+    refuse_all(_check(s, c.id, body))
     p = Portfolio(id=record_id, ownerId=c.id, name=body.name.strip(), benchmark=body.benchmark,
                   notes=body.notes)  # fmt: skip
     s.add(p)
@@ -222,7 +217,7 @@ def _portfolio_current(ctx, p: Portfolio) -> dict:
 def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
     s, c = ctx.s, ctx.caller
     _, held = access.portfolio(s, c.id, p.id, "write")
-    _raise(_check(s, p.ownerId, body))
+    refuse_all(_check(s, p.ownerId, body))
     fields = []
     for f in ("name", "benchmark", "notes"):
         value = getattr(body, f)

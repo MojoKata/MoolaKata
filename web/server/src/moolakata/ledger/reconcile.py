@@ -88,7 +88,7 @@ def duplicates(transactions: list) -> list[list[str]]:
     for t in transactions:
         if t.duplicateAnswer == "both-real":
             continue
-        key = (t.date, t.amount, (t.payee or t.payeeRaw or "").lower(), t.instrumentId)
+        key = (t.date, t.amount, (t.payee or t.payeeRaw or "").casefold(), t.instrumentId)
         groups.setdefault(key, []).append(t.id)
         fit = t.fitId
         if fit:
