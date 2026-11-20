@@ -257,3 +257,28 @@ Mutation check (`--tests` the two files above): 24 killed (13 in `accounts.py`, 
 Doubts:
 - The `access.perms` check in `shape` (`x_shape__mutmut_105`) is dead in every user session; it only guards against a session that reads more than the caller does. Left as it is.
 - The held-but-killing-nothing test above is kept, since it is the only one that holds a hidden half naming nothing (batch 2's doubt); drop it if tests must each kill something.
+
+## Batch 12
+
+Test files touched: `tests/test_ledger.py`, `tests/test_lot_rules.py`, `tests/test_holdingcheck.py`,
+`tests/test_expected.py`, `tests/test_returns_and_payoff_edges.py`.
+
+Counts (the 43 survivors and the 27 unsettled together, 70): killed 53, equivalent 17, bug 0,
+unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `ledger.balances.x_opening__mutmut_27`, `ledger.lots.x__consume__mutmut_16`, `_68`, `_73`, `x__cover_short_stock__mutmut_6`, `ledger.holdingcheck.x_compare__mutmut_66`: `sum` starting from `0` rather than `ZERO` over Decimals gives the same Decimal; where the sum may be empty (`room`'s plan, `opening`'s rows by the day, the shorts) the int 0 is only subtracted from a Decimal or compared with `<= 0`, giving the same value.
+- `ledger.lots.x__consume__mutmut_43`: with `left` at 0 the loop goes on, but every `take` is then `min(0, room) = 0` and nothing is planned (room is never negative).
+- `ledger.expected.x_kept_by__mutmut_4`: an empty `keptBy` read as `"XX[]XX"` fails to parse and the `except` gives `[]`, as `"[]"` does.
+- `ledger.performance.x_annualise__mutmut_14` (`r >= -1`): at `r = -1` the formula gives `Decimal("-1.0")`, equal to `Decimal(-1)`, and `fmt_rate` quantizes both to `-100.00`.
+- `ledger.reconcile.x_duplicates__mutmut_26`, `_27`, `_28`: the file id's group key is a 2-tuple and every other key a 4-tuple, so the tag's words never decide which rows group.
+- `ui.rules.x__out__mutmut_3`: `s.get(Account, None)` returns None (with a warning only), as the `else None` does.
+- `ui.rules.x__own__mutmut_6`: `_own` runs only as the save's `editable`, in the caller's session, where `Rule` is seen per user (`ownerId`) through a view without deleted rows, and a save takes one op per record (`id-repeated`), so a rule found is never deleted nor another's.
+- `ui.rules.x__raise__mutmut_2`, `_3`: `_raise` runs only inside the save, which answers a Problem with errors by its field errors alone (as batch 8's `x__raise__mutmut_3`).
+- `ui.rules.x__uncategorised__mutmut_15`: both callers read in the caller's scoped session, whose transactions come through the access view, never a deleted one (as batch 7's `x__reconciliation_row__mutmut_12`).
+
+Mutation check (`--tests` the five files above; the run added `test_accounts.py`, `test_figures.py`, `test_importers.py`, `test_lot_edges.py`, `test_properties.py`, `test_tax_dependents_rules.py`): 53 killed, the 12 ledger survivors exactly the equivalent ones above; the 5 `ui.rules` changes showed as no tests (no file the run took reaches the routes), rerun with `--tests tests/test_rules.py`: all 5 survived, the equivalent ones above.
+
+Doubts:
+- `x_duplicates__mutmut_7` (`.lower()` to `.upper()`) is killed only by a compatibility letter (the Kelvin sign, which lowers to `k` but uppers to itself); `casefold()` would be the full "case aside" of S1.11.5 (`Straße` and `STRASSE` are no duplicates with `.lower()`). Not pinned either way beyond the Kelvin sign.
+- The option-adjust test holds a new half whose old half isn't in the replay carrying nothing; reached by a request only if a leg's day can be moved before its old half's, which I didn't try.

@@ -6,7 +6,7 @@ import datetime as dt
 from decimal import Decimal as D
 from types import SimpleNamespace as NS
 
-from test_ledger import Snap, Txn, buy
+from test_ledger import Lot, Snap, Txn, buy
 from test_lot_edges import W
 
 from moolakata.ledger import holdingcheck as hc
@@ -37,6 +37,20 @@ def test_a_lot_bought_on_the_day_is_held_that_day_and_not_the_day_before():
     t, lot = buy(D2, 5, 500)
     assert hc.held_on(ledger([t], [lot]), D2) == {"VTI": (D(5), D(500))}
     assert hc.held_on(ledger([t], [lot]), D2 - dt.timedelta(days=1)) == {}
+
+
+def test_shares_moved_in_on_the_day_are_held_that_day_with_their_lots_basis():
+    """S2.2: a transfer in opens the lots typed with it, their basis included, on its day."""
+    t = Txn(D2, "transfer-in", D(0), "VTI", D(5))
+    lot = Lot(f"L{t.id}", "VTI", D2, D(5), D(500), t.id)
+    assert hc.held_on(ledger([t], [lot]), D2) == {"VTI": (D(5), D(500))}
+
+
+def test_the_cash_row_is_held_to_the_cash_on_the_statements_day():
+    led = ledger([], [])
+    led.balance = {D1: D(5), D2: D(7)}.get
+    (line,) = hc.compare(led, D2, [row("Cash", value=D(7), cash=True)])
+    assert (line.held, line.ok) == (D(7), True)
 
 
 def test_a_wash_sale_counts_from_its_sale_on_and_never_in_an_ira():

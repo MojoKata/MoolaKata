@@ -52,6 +52,9 @@ def test_overdue_after_the_interval_and_its_grace():
     )
     y = expected.overdue(acct(every="yearly"), imp(dt.date(2025, 12, 31)), dt.date(2027, 3, 1))
     assert (y.due, y.name) == (dt.date(2027, 3, 1), "the 2026 statement")
+    # A year that ends in another month is named by its last month.
+    y = expected.overdue(acct(every="yearly"), imp(dt.date(2025, 6, 30)), dt.date(2030, 1, 1))
+    assert y.name == "the year to June 2026 statement"
     assert expected.overdue(acct(every="none"), ends, dt.date(2030, 1, 1)) is None
     assert expected.overdue(a, [], dt.date(2030, 1, 1)) is None
 
