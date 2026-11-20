@@ -282,3 +282,38 @@ Mutation check (`--tests` the five files above; the run added `test_accounts.py`
 Doubts:
 - `x_duplicates__mutmut_7` (`.lower()` to `.upper()`) is killed only by a compatibility letter (the Kelvin sign, which lowers to `k` but uppers to itself); `casefold()` would be the full "case aside" of S1.11.5 (`Straße` and `STRASSE` are no duplicates with `.lower()`). Not pinned either way beyond the Kelvin sign.
 - The option-adjust test holds a new half whose old half isn't in the replay carrying nothing; reached by a request only if a leg's day can be moved before its old half's, which I didn't try.
+
+## Batch 13
+
+Test files touched: `tests/test_lot_edges.py`.
+
+Counts (the 47 survivors and the 7 unsettled together, 54): killed 30, equivalent 22, bug 2,
+unreachable 0, slow 0, still surviving 0.
+
+Equivalent:
+- `x__cover_short_stock__mutmut_9`: a lot of no shares counted among the shorts adds 0 to their sum.
+- `x__cover_short_stock__mutmut_38`: with `left` at 0, `take` is 0 and `_take(lot, 0)` changes no lot's quantity or basis by value (the basis only gains `.00`).
+- `x__cover_short_stock__mutmut_40`: a buy's lot of no shares taken for none gets a basis of 0 and is dropped at the end before anything reads it (`_replacement` passes over lots of none).
+- `x__cover_short_stock__mutmut_42`: `break` for `continue` tells apart only through a buy's lot of none or less before one with shares. A buy has one lot (route, file, assignment), or a transfer in's typed lots, each of more than none (`lot-invalid`), and a quantity changed sets every lot to it, so no such lot comes first.
+- `x__disallow__mutmut_7`: every `WashSale` has `lotId` (a column, None by default), so `getattr` without a default never misses.
+- `x__disallow__mutmut_32`: `sum` starting from `0` rather than `ZERO` over Decimals gives the same Decimal, and with no losing parts the loop never runs (as batch 12's).
+- `x__transaction__mutmut_41`: every write of a lot sets `basisMissing` to `costBasis is None` (route, change, file, bitcoin and giving pairs), so `None if basisMissing else costBasis` is `costBasis`.
+- `x__transaction__mutmut_46`, `_49`, `_53`: every `Lot` has `acquiredMissing` (a column), so the `getattr` default is never read.
+- `x__transaction__mutmut_135`: a transfer out's proceeds are read only for a sale's parts and a short sale, both `realize` only, so its amount there decides nothing.
+- `x_replay__mutmut_47`: every transaction has `transferId` (a column), and replay reads `t.transferId` of every corporate one directly anyway.
+- `x_replay__mutmut_56`, `_57`: the event's word `"txn"` is never compared: the loop tells `"snapshot"` and `"settle"` apart and takes anything else as a transaction.
+- `x_replay__mutmut_59`: snapshots are the only events at 2, so 3 sorts them the same, after legs (1) and the rest (0).
+- `x_replay__mutmut_103`: `out.paired` is read only for a merger's old leg, and the only transaction whose `transferId` names a merger is its new leg, a merger itself (transfers pair instrument-less halves across accounts, shares' pairs and option adjustments name their own halves).
+- `x_replay__mutmut_138`, `_139`: `carried_in` holds only a transfer out's `moved` lots, made with `lotId=None`, and `_carried_in` pairs only halves of one instrument.
+- `x_replay__mutmut_154`, `_156`, `_158`, `_160`: `_transaction`'s lots and picks are only tested for truth (`if made`, `len(made) if made`, `"specific" if picks`, `_consume`'s `and picks`), where None and `[]` agree.
+
+Bug:
+- `x__cover_short_stock__mutmut_37`: tells apart only through a buy's lot of negative shares, and a buy of `-5` is saved unrefused (200; tried by hand), its lot of -5 counted as a short its own buy then covers. A test would pin that (R3.11, S2.2).
+- `x__disallow__mutmut_46` (`=` for `+=`): tells apart only through a sale part in two wash sales' groups: a sale with a lot's losing part washed by its own row (`lotId` A) and a lotless losing part (a carried lot) washed by one with no lot. The lotless row is spread over every losing part of the sale, A's too, so A's row takes part of another part's disallowed loss (S3.8.2: the loss disallowed is that lot's). Not tried through a request.
+
+Mutation check (`--tests` the three lot files; the run added `test_properties.py`, `test_tax_dependents_rules.py`): 30 killed (the 23 survivors counted killed and the 7 unsettled ones; `replay` 158 survived, the equivalent one above), the 24 survivors exactly the equivalent and bug ones above. Nothing to rerun.
+
+Doubts:
+- The two-lot buy in `test_shares_bought_while_short_close_it_from_the_buys_lots_in_turn` kills `_cover_short_stock` 52, 53 and `_transaction` 107. A buy gets two lots only as a transfer in's typed lots retyped as a buy, I think (not tried); `test_wash_sales_on_one_buy_take_its_lots_in_turn` already treats such a buy as real.
+- A buy of negative shares is accepted (the bug above); the route's `trade-incomplete` refuses only none.
+- A wash sale with no lot spread over a sale's lot-named losing parts (the bug above) may want `_disallow` to take only lotless parts for such a row.
