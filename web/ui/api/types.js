@@ -24,6 +24,7 @@
  * @property {(string | null)} closedOn
  * @property {string} ownerId
  * @property {string} ownerName
+ * @property {boolean} ownerActive
  * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar
@@ -116,6 +117,7 @@
  * @property {(string | null)} closedOn
  * @property {string} ownerId
  * @property {string} ownerName
+ * @property {boolean} ownerActive
  * @property {Access} access
  * @property {number} sharedWith
  * @property {(string | null)} ownerAvatar

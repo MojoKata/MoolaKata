@@ -120,8 +120,10 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
           ${
               t.transferId
                 ? html`<div class="small dim"><${Icon} name="tx" /> transfer${
-                  t.transferAccountName ? ' with ' + t.transferAccountName : ''
-                }</div>`
+                  // Paired with an account the reader doesn't see: paired, never where (S1.7).
+                  t.transferAccountName
+                    ? ' with ' + t.transferAccountName
+                    : " · an account you don't see"}</div>`
                 : null
             }
           ${

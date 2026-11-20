@@ -1206,7 +1206,8 @@ def test_a_trade_made_a_sale_takes_the_accounts_method_and_made_a_buy_none(serve
 
 
 def test_a_transfer_changed_in_its_amount_or_its_day_is_paired_no_more(server):
-    """S1.7: a half whose amount or day changes is no longer the other's: both are free."""
+    """S1.7: a half whose amount or day changes is no longer the other's, both free unless
+    they still match: a day moved within the 4 days pairs them again."""
     make_user(server, "jane")
     c = sign_in(server, "jane")
     chk = new_account(c)["id"]
@@ -1215,12 +1216,16 @@ def test_a_transfer_changed_in_its_amount_or_its_day_is_paired_no_more(server):
     def paired(t):
         return c.get(f"/ui/api/transactions/{t['id']}").json()["transferId"]
 
-    for amount, fields in (("500.00", {"amount": "499.00"}), ("600.00", {"date": "2026-09-17"})):
+    for amount, fields in (("500.00", {"amount": "499.00"}), ("600.00", {"date": "2026-09-25"})):
         out = add(c, chk, f"-{amount}", "2026-09-15")
         paid = add(c, card, amount, "2026-09-16", kind="deposit")
         assert paired(paid) == out["id"]
-        saved(change(c, "Txn", paid, **fields))
+        paid = saved(change(c, "Txn", paid, **fields))
         assert (paired(out), paired(paid)) == (None, None), fields
+    out = add(c, chk, "-700.00", "2026-09-15")
+    paid = add(c, card, "700.00", "2026-09-16", kind="deposit")
+    saved(change(c, "Txn", paid, date="2026-09-18"))
+    assert paired(out) == paid["id"]
 
 
 def _lots_made(server, txn_id):
@@ -1680,9 +1685,10 @@ def test_a_receiver_reads_their_count_in_my_totals_and_a_save_answers_as_a_read(
     assert c.get(path).json()["countedId"] is None
 
 
-def test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name(server, admin_client):
-    """S10.1.7, S12.2.2: an owner made inactive is no longer read by the household, so one
-    their account is shared with still reads it, without its owner's name or picture."""
+def test_an_account_of_an_owner_made_inactive_is_still_named_as_theirs(server, admin_client):
+    """S10.1.7, S12.2.2: what an owner made inactive shared stays shared, and theirs: one it
+    is shared with still reads it, with its owner's name and picture, marked inactive, though
+    the household no longer reads them."""
     from edits import share
 
     jane, john = make_user(server, "jane").id, make_user(server, "john").id
@@ -1691,8 +1697,10 @@ def test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name(serv
     saved(share(c, "account", a["id"], users={john: "read"}))
     users = admin_client.get("/ui/api/users").json()["items"]
     saved(change(admin_client, "User", next(u for u in users if u["id"] == jane), active=False))
-    rows = sign_in(server, "john").get("/ui/api/accounts").json()["items"]
-    assert [(x["id"], x["ownerName"], x["ownerAvatar"]) for x in rows] == [(a["id"], "", None)]
+    j = sign_in(server, "john")
+    rows = j.get("/ui/api/accounts").json()["items"]
+    assert [(x["id"], x["ownerName"], x["ownerActive"]) for x in rows] == [(a["id"], "Jane", False)]
+    assert j.get(f"/ui/api/accounts/{a['id']}").json()["ownerActive"] is False
 
 
 def test_an_owners_rows_read_their_mask_and_count_in_net_worth_and_detail_its_opening(server):

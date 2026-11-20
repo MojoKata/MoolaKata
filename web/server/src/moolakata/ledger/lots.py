@@ -480,9 +480,10 @@ def _corporate(out: Replay, t) -> None:
     the old leg names (its splitRatio) to new shares, the parent's kept; a merger carries the
     lots to the acquirer at its ratio, any cash it paid (the old leg's amount) a gain only as
     far as it and the gain go (IRC §356), and all cash a sale. Days held carry over."""
-    # A lot of no shares carries nothing: its copy has no shares, boot or gain, and is dropped.
+    # Short lots go too (S2.4): an account short the shares owes the new ones. A lot of no
+    # shares carries nothing: its copy has no shares, boot or gain, and is dropped.
     # pragma: no mutate start
-    held = [x for x in out.open if x.instrumentId == t.instrumentId and x.quantity > 0]
+    held = [x for x in out.open if x.instrumentId == t.instrumentId and x.quantity != 0]
     # pragma: no mutate end
     if t.transferId is None:
         if t.kind == "spin-off":
@@ -499,10 +500,13 @@ def _corporate(out: Replay, t) -> None:
             out.carried[t.id] = moved
             return
         if t.kind == "merger" and t.id not in out.paired:
-            # An empty sum's int 0 is only tested for truth.
-            qty = sum((x.quantity for x in held), ZERO)  # pragma: no mutate
-            if qty:
+            # A merger paid all in cash: a sale of every lot, or for an account short the
+            # shares, their cover at the cash, its gain short-term (S3.4).
+            qty = sum((x.quantity for x in held), ZERO)
+            if qty > 0:
                 _consume(out, t, qty, "fifo", t.amount, realize=True)
+            elif qty < 0:
+                _cover(out, t, -qty, t.amount, short=True)
             return
         out.open = [x for x in out.open if x not in held]
         out.carried[t.id] = held
@@ -516,7 +520,9 @@ def _corporate(out: Replay, t) -> None:
     total = sum((x.quantity for x in lots), ZERO)  # pragma: no mutate
     for lot in lots:
         basis = lot.basis
-        if cash and total and basis is not None:
+        # Cash paid besides shares is a gain only on a long lot (IRC §356); what a short owes
+        # of it is open (G#577), its lots carried at the ratio.
+        if cash and total and basis is not None and lot.quantity > 0:
             boot = (cash * lot.quantity / total).quantize(CENT)
             value = (lot.quantity * ratio * (t.price or ZERO)).quantize(CENT)
             recognized = max(ZERO, min(boot, boot + value - basis))

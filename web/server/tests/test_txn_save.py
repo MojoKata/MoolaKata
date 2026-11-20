@@ -795,12 +795,17 @@ def test_a_transaction_reads_only_its_own_tags_budgets_left_out_of_and_paybacks(
     ]
 
 
-def test_the_other_half_of_a_transfer_is_named_only_to_one_who_reads_its_account(server, frozen):
-    """S1.7, S10.3: a half paired with one of an account its reader doesn't read names neither
-    that half nor its account; one who reads both reads the pair."""
+def test_a_transfers_other_half_is_named_only_to_one_who_reads_its_account(server, frozen):
+    """S1.7, S10.3: one who writes two owners' accounts may pair their halves; the owner who
+    doesn't read the other account sees the half paired, never where to (its account's name
+    unread), even read unscoped; one who reads both reads the pair."""
     from edits import share
     from test_accounts import add, new_account
     from test_sharing import setup
+
+    from moolakata import access
+    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.ui import transactions as ui_txns
 
     u, c = setup(server)
     jane, john = c["jane"], c["john"]
@@ -816,7 +821,13 @@ def test_the_other_half_of_a_transfer_is_named_only_to_one_who_reads_its_account
     keys = ("transferId", "transferAccountName")
     path = f"/ui/api/transactions/{half['id']}"
     got = [[who.get(path).json()[k] for k in keys] for who in (jane, john)]
-    assert got == [[None, None], [t, "John's"]]
+    assert got == [[t, None], [t, "John's"]]
+    # The name rests on the reader's own access, not only on what the session shows.
+    with server.db.read(unscoped="test") as s:
+        row = s.get(Transaction, half["id"])
+        held = access.perms(s, Account, theirs["id"], u["jane"].id)
+        (out,) = ui_txns.shape(s, u["jane"].id, [row], {theirs["id"]: held})
+        assert (out.transferId, out.transferAccountName) == (t, None)
 
 
 def _reconciled_bill(server, parts):
@@ -1030,3 +1041,31 @@ def test_a_picked_lot_that_goes_or_holds_less_asks_and_its_picks_go(server, froz
     assert asked(r) == ["picks-dropped"]
     saved(edit(c, "Txn", path, confirm=True, transferLots=[{**typed[0], "quantity": "5"}]))
     assert c.get(sale_path).json()["picks"] == []
+
+
+def test_a_transfer_changed_to_match_or_freed_is_paired_as_a_new_one_is(server, frozen):
+    """S1.7: opposite amounts in two of the owner's accounts within 4 days are linked, however
+    they came to match: a day corrected, a half freed when its partner goes; a pair undone by
+    hand isn't linked again by a change that moves neither amount nor day."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c, name="Checking")
+    sav = new_account(c, name="Savings", type="savings", mask="2222")
+    out = add(c, chk["id"], "-200.00", "2026-10-01", kind="withdrawal")
+    into = add(c, sav["id"], "200.00", "2026-10-20", kind="deposit")
+    assert _paired(c, out["id"]) is None, "19 days apart"
+    saved(edit(c, "Txn", f"/ui/api/transactions/{into['id']}", date="2026-10-02"))
+    assert _paired(c, out["id"]) == into["id"], "the day corrected, they match"
+    # Another half on the same day; the first one deleted, the half it leaves takes it.
+    other = add(c, sav["id"], "200.00", "2026-10-03", kind="deposit")
+    assert _paired(c, other["id"]) is None
+    saved(drop(c, "Txn", f"/ui/api/transactions/{into['id']}"))
+    assert _paired(c, out["id"]) == other["id"]
+    # Undone by hand, a memo changed links nothing again.
+    path = f"/ui/api/transactions/{out['id']}"
+    saved(edit(c, "Txn", path, transferWithId=None))
+    saved(edit(c, "Txn", path, memo="rent"))
+    assert _paired(c, out["id"]) is None

@@ -44,7 +44,7 @@
    (kind, shares, amount, price, day) changed, as they follow from the assignment: it is
    corrected by deleting the assignment and recording it again. Its memo, category, tags and
    cleared mark change as any transaction's. So does a corporate action's transaction
-   (S2.4.6).
+   (S2.4.7).
 5. **Strategies**: legs held together (a covered call, a vertical spread, an iron condor)
    are grouped and shown as one. Grouping is a label: lots, gains, wash sales and taxes stay
    per leg.

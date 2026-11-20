@@ -294,6 +294,10 @@
             ],
             "title": "Optionsvalue"
           },
+          "ownerActive": {
+            "title": "Owneractive",
+            "type": "boolean"
+          },
           "ownerAvatar": {
             "anyOf": [
               {
@@ -426,6 +430,7 @@
           "closedOn",
           "ownerId",
           "ownerName",
+          "ownerActive",
           "access",
           "sharedWith",
           "ownerAvatar",
@@ -854,6 +859,10 @@
             "title": "Needsanchor",
             "type": "boolean"
           },
+          "ownerActive": {
+            "title": "Owneractive",
+            "type": "boolean"
+          },
           "ownerAvatar": {
             "anyOf": [
               {
@@ -905,6 +914,7 @@
           "closedOn",
           "ownerId",
           "ownerName",
+          "ownerActive",
           "access",
           "sharedWith",
           "ownerAvatar",

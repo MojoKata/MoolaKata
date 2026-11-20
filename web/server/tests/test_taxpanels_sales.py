@@ -1008,3 +1008,54 @@ def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, 
         "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
         "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
     }]  # fmt: skip
+
+
+def _short_position(jane, name="Brokerage"):
+    """An account short 100 XYZ at 50 (an assigned call, its 1.00 premium in: 5,100 in), and
+    XYZ's instrument."""
+    brk = new_account(jane, name=name, type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    short_sale(jane, brk["id"], "2026-06-01", "2026-07-01")
+    (xyz,) = [r for r in jane.get("/ui/api/positions").json()["open"] if r["symbol"] == "XYZ"]
+    assert (xyz["side"], xyz["quantity"]) == ("short", "-100.0")
+    return brk["id"], xyz["instrumentId"]
+
+
+def _open(jane, symbol):
+    rows = jane.get("/ui/api/positions").json()["open"]
+    return [(r["side"], r["quantity"], r["cost"]) for r in rows if r["symbol"] == symbol]
+
+
+def test_a_short_position_follows_its_stocks_symbol_change_spin_off_and_merger(jane):
+    """S2.4, S3.4: an account short the shares owes the new ones: a symbol change moves the
+    short whole, a spin-off moves its share of what the short brought in to a short of the
+    new shares, a merger paid in shares moves it at the ratio; each is then closed by the
+    new shares bought."""
+    a, xyz = _short_position(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=xyz, kind="symbol-change",
+                       date="2026-07-15", newSymbol="NEWX"))  # fmt: skip
+    assert _open(jane, "XYZ") == [] and _open(jane, "NEWX") == [("short", "-100.0", "-5100.00")]
+    newx = act["transactions"][1]["instrumentId"]
+    saved(create(jane, "CorpA", accountId=a, instrumentId=newx, kind="spin-off",
+                 date="2026-07-20", ratio="0.5", newSymbol="SPUN", basisShare="20"))  # fmt: skip
+    assert _open(jane, "NEWX") == [("short", "-100.0", "-4080.00")]
+    assert _open(jane, "SPUN") == [("short", "-50.0", "-1020.00")]
+    saved(create(jane, "CorpA", accountId=a, instrumentId=newx, kind="merger",
+                 date="2026-07-25", ratio="2", newSymbol="BIGCO", cashPerShare="0"))  # fmt: skip
+    assert _open(jane, "NEWX") == [] and _open(jane, "BIGCO") == [("short", "-200.0", "-4080.00")]
+    trade(jane, a, "2026-08-03", "buy", "200", "15", "BIGCO")
+    closed = [(r["symbol"], r["realized"]) for r in jane.get("/ui/api/positions").json()["closed"]
+              if r["symbol"] == "BIGCO"]  # fmt: skip
+    assert closed == [("BIGCO", "1080.00")], "4,080 brought in less 3,000 to close"
+    assert _open(jane, "BIGCO") == []
+
+
+def test_a_short_position_in_a_merger_paid_all_in_cash_is_covered_at_the_cash(jane):
+    """S2.4.5, S3.4: a merger paid all in cash sells every lot; an account short the shares
+    pays the cash for each, which closes the short, its gain short-term."""
+    a, xyz = _short_position(jane)
+    saved(create(jane, "CorpA", accountId=a, instrumentId=xyz, kind="merger",
+                 date="2026-07-15", cashPerShare="45"))  # fmt: skip
+    assert _open(jane, "XYZ") == []
+    (closed,) = [r for r in jane.get("/ui/api/positions").json()["closed"] if r["symbol"] == "XYZ"]
+    assert (closed["realized"], closed["term"]) == ("600.00", "short"), "5,100 in, 4,500 out"

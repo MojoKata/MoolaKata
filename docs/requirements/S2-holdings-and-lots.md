@@ -56,11 +56,17 @@
       gain is a row of Form 8949. A merger paid all in cash is a sale of every lot. The cash
       for each share is asked of every merger, `0` for one paid all in shares (**Min: $0.00**
       fills it in, R3.11): a blank is refused, so cash left out is never read as none.
-   6. A move between instruments is a pair of transactions, one on each; deleting either
+   6. **A short position** (S3.4) follows the action as a long one does: a symbol change
+      moves it whole, a spin-off moves its share of what the short brought in to a short of
+      the new shares, a merger moves it at the ratio, and a merger paid all in cash closes it
+      at the cash, its gain short-term. What the cash of a merger paid in cash and shares
+      counts for on a short is open ([G#577](https://github.com/MojoKata/MoolaKata/issues/577)):
+      the short is carried at the ratio.
+   7. A move between instruments is a pair of transactions, one on each; deleting either
       deletes both, after asking. Options on the shares are adjusted as S3.10 says. An
       action's transactions keep the figures it made them with: only their memo, category,
       tags and cleared mark change.
-   7. **The action is kept** as typed, its transactions made from it: deleting the action, or
+   8. **The action is kept** as typed, its transactions made from it: deleting the action, or
       one of its transactions, undoes it whole. One read from a broker's file is its
       transaction alone.
 5. **Dividends and interest**: qualified and ordinary dividends, reinvestment (a dividend plus

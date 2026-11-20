@@ -243,8 +243,8 @@ def shape(
     out = []
     for t in rows:
         other = accounts.get(other_acct.get(t.transferId, ""))
-        # The other half is named only to someone who reads its account: neither its id nor its
-        # account's name, else.
+        # A pair is the row's own (its transferId): one who doesn't read the other half's
+        # account sees that it is paired, never where to (S1.7).
         if other is not None and access.perms(s, Account, other.id, user_id) is None:
             other = None
         out.append(
@@ -267,7 +267,7 @@ def shape(
                 dividendType=t.dividendType,
                 contributionYear=t.contributionYear,
                 contributionSource=t.contributionSource,
-                transferId=t.transferId if other is not None else None,
+                transferId=t.transferId,
                 transferAccountName=other.name if other is not None else None,
                 imported=t.importId is not None,
                 cleared=t.cleared,
@@ -688,6 +688,22 @@ def _reward_basis(s: Session, body, inst_id: str, owner: str) -> Decimal | None:
     return (abs(body.quantity) * price).quantize(Decimal("0.01")) if price else None
 
 
+def _match(s: Session, t: Transaction, owner_id: str) -> None:
+    """A free transaction paired as it now stands (S1.7): cash linked with its other half in
+    another of the owner's accounts; shares or coins moved, offered as a pair (S1.7.1).
+    Run whenever one is made, or comes to match: its amount, day or kind changed, or its
+    other half gone."""
+    if t.transferId or t.deleted:
+        return
+    if t.instrumentId and t.kind in ("transfer-in", "transfer-out"):
+        from ..bitcoin import transfers as pairs
+
+        s.flush()
+        pairs.propose(s, owner_id)
+    else:
+        repo.match_transfer(s, t, owner_id)
+
+
 def _make(ctx, body: TxnRecord, txn_id: str):
     """A transaction made, with its lot, splits and tags; the save asks the closed-year
     question (S2.8) for it, as for every op."""
@@ -726,16 +742,10 @@ def _make(ctx, body: TxnRecord, txn_id: str):
     s.flush()
     typed = LotsSent(body.transferLots, body.quantity, body.date, body.costBasis)
     _write_lots(ctx, t, _made_rows(s, t, a, typed))
-    if inst_id and body.kind in ("transfer-in", "transfer-out"):
-        # Shares or coins moved between the owner's accounts, offered as a pair.
-        from ..bitcoin import transfers as pairs
-
-        s.flush()
-        pairs.propose(s, a.ownerId)
     if body.tagIds:
         tags.owned(s, c.id, body.tagIds)
         tags.set_on(s, "transaction", t.id, c.id, body.tagIds, c.id)
-    repo.match_transfer(s, t, a.ownerId)
+    _match(s, t, a.ownerId)
     s.flush()
     if inst_id:
         washes.recompute(s, a.ownerId)
@@ -851,9 +861,17 @@ def _change(ctx, t: Transaction, a: Account, body: TxnRecord, sent: set[str]) ->
     if "kind" in changed:
         # Made a sale: the account's method now is the one in force for it (S2.3).
         t.lotMethod = (t.lotMethod or a.lotMethod) if t.kind in lots.DISPOSALS else None
+    freed = None
     if "amount" in changed or "date" in changed:
+        freed = s.get(Transaction, t.transferId) if t.transferId else None
         repo.unlink_transfer(s, t)
         t.amountWas = None
+    if {"amount", "date", "kind"} & set(changed):
+        # Changed to match another half, it is paired as one made so is (S1.7); the half it
+        # leaves, free again, too.
+        _match(s, t, a.ownerId)
+        if freed is not None:
+            _match(s, freed, s.get(Account, freed.accountId).ownerId)
     typed = "transferLots" in sent and t.kind == "transfer-in"
     if (
         "kind" in changed
@@ -943,8 +961,13 @@ def delete_txn(s: Session, c: Caller, t: Transaction, a: Account) -> None:
         ):
             repo.unlink_transfer(s, leg)
             leg.mark_deleted(c.id)
+    freed = s.get(Transaction, t.transferId) if t.transferId else None
     repo.unlink_transfer(s, t)
     t.mark_deleted(c.id)
+    if freed is not None:
+        # The other half, free again, pairs with another that matches it (S1.7).
+        s.flush()
+        _match(s, freed, s.get(Account, freed.accountId).ownerId)
     if t.instrumentId:
         s.flush()
         washes.recompute(s, a.ownerId)

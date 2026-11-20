@@ -1309,7 +1309,7 @@ def test_shares_moved_in_while_short_are_held_and_the_buy_covers_the_short_alone
 
 
 def test_a_corporate_actions_transactions_keep_their_figures_and_take_their_notes(jane):
-    """S2.4.6, S3.10: what an action made follows from it, so a pair's half never moves to
+    """S2.4.7, S3.10: what an action made follows from it, so a pair's half never moves to
     another day (its new half always comes after its old) nor changes its shares; its memo,
     category, tags and cleared mark change as any transaction's."""
     from edits import split

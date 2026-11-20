@@ -45,8 +45,9 @@ def record(
 ) -> list[Transaction]:
     """The transactions a corporate action makes, checked first; refused field by field."""
     e: list[FieldError] = []
+    # Held long, or short (an assignment with none held, S3.4): the action reaches either.
     held = repo.load(s, account).replay().quantity(inst.id)
-    if held <= 0 and not (kind == "split" and _options_on(s, account, inst, day)):
+    if held == 0 and not (kind == "split" and _options_on(s, account, inst, day)):
         # A split reaches the options on the stock too, held without its shares (S3.10.1).
         e.append(FieldError("instrumentId", "nothing-held", "Nothing of it is held here."))
     new_symbol = (new_symbol or "").strip().upper() or None

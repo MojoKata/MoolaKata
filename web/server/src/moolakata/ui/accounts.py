@@ -16,6 +16,7 @@ from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import expected, holdingcheck, reconcile
 from ..ledger import types as atypes
 from ..ledger.lots import long_term
+from ..people import owners
 from ..store.entities.accounts import (
     Account,
     Anchor,
@@ -25,7 +26,6 @@ from ..store.entities.accounts import (
     Reconciliation,
     Transaction,
 )
-from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..store.tables.accounts import ACCOUNT_TYPES, LOT_METHODS
 from . import save
@@ -59,6 +59,7 @@ class AccountRow(Model):
     closedOn: dt.date | None  # the day it closed (S1.2); none while open
     ownerId: str
     ownerName: str
+    ownerActive: bool  # an owner made inactive is still named, marked so (S10.1.7)
     access: Access
     sharedWith: int
     ownerAvatar: str | None
@@ -313,16 +314,17 @@ class Context:
     """What every row of one caller's list shares."""
 
     userId: str
-    owners: dict[str, User]
+    owners: dict[str, owners.Owner]
     updated: dict
     today: dt.date
     counted: set[str]
 
 
 def context(s, user_id: str, account_ids: list[str]) -> Context:
+    owner_ids = set(s.scalars(select(Account.ownerId).where(Account.id.in_(account_ids))))
     return Context(
         user_id,
-        {u.id: u for u in s.scalars(select(User))},
+        owners.of(s, owner_ids),
         repo.latest_activity(s, account_ids),
         clock.today(),
         counted_for(s, user_id),
@@ -333,7 +335,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
     from . import wallets
 
     today = ctx.today
-    owner = ctx.owners.get(a.ownerId)
+    owner = ctx.owners[a.ownerId]
     ledger = repo.load(s, a)
     investing = atypes.investing(a.type)
     value = valuation.account_value(s, ledger, investing)
@@ -351,8 +353,9 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         mask=a.mask,
         closedOn=a.closedOn,
         ownerId=a.ownerId,
-        ownerName=owner.displayName if owner else "",
-        ownerAvatar=owner.avatar if owner else None,
+        ownerName=owner.name,
+        ownerAvatar=owner.avatar,
+        ownerActive=owner.active,
         access=Access.of(p),
         sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if p.shareable else 0,
         counted=a.countInNetWorth if p.mine else a.id in ctx.counted,
