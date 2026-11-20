@@ -1682,3 +1682,75 @@ def test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name(serv
     saved(change(admin_client, "User", next(u for u in users if u["id"] == jane), active=False))
     rows = sign_in(server, "john").get("/ui/api/accounts").json()["items"]
     assert [(x["id"], x["ownerName"], x["ownerAvatar"]) for x in rows] == [(a["id"], "", None)]
+
+
+def test_an_owners_rows_read_their_mask_and_count_in_net_worth_and_detail_its_opening(server):
+    """S1.1, S1.2: the owner's row of each account reads its last four digits and whether it
+    counts in net worth as set on it; its detail reads the opening balance typed."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    counted = new_account(c, openingBalance="250.00", openingDate="2026-08-31")["id"]
+    left = new_account(c, name="Old", mask="1111", countInNetWorth=False)["id"]
+    rows = {x["id"]: (x["mask"], x["counted"]) for x in c.get("/ui/api/accounts").json()["items"]}
+    assert rows == {counted: ("4821", True), left: ("1111", False)}
+    got = c.get(f"/ui/api/accounts/{counted}").json()
+    assert (got["mask"], got["openingBalance"], got["openingDate"]) == (
+        "4821",
+        "250.00",
+        "2026-08-31",
+    )
+
+
+def test_an_accounts_interval_proposal_is_learned_from_its_own_statements_alone(server):
+    """S1.11.7: the interval proposed for an account is learned from its own statements, never
+    from another account's."""
+    import datetime as dt
+
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Import
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    quarterly = new_account(c, keptBy=["file"])["id"]
+    other = new_account(c, keptBy=["file"], name="Other", mask="1111")["id"]
+    with server.db.tx(unscoped="test") as s:
+        for end in (dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30)):
+            s.add(Import(id=ids.new_id("Imprt"), accountId=quarterly, userId=jane,
+                         format="statement", fileName=f"{end}.pdf", fileHash=str(end),
+                         coveredFrom=end.replace(day=1), coveredTo=end))  # fmt: skip
+    got = [c.get(f"/ui/api/accounts/{a}").json()["statementIntervalProposal"]
+           for a in (quarterly, other)]  # fmt: skip
+    assert got == ["quarterly", None]
+
+
+def test_a_transaction_reads_whether_it_came_from_a_file(server):
+    """S1.3: each transaction a file brought in reads as imported; one typed, not."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    assert upload(c, a["id"], "statement.qfx", (FIX / "bank.ofx").read_bytes())["state"] == "done"
+    typed = add(c, a["id"], "-1.00", "2026-09-30")
+    rows = c.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    got = sorted((x["id"] == typed["id"], x["imported"]) for x in rows)
+    assert got == [(False, True)] * 5 + [(True, False)]
+
+
+def test_a_retirement_deposit_reads_where_it_came_from_and_a_dividend_its_kind(server):
+    """S8.6, S2.5: a contribution reads the source typed with it, a dividend whether it is
+    qualified or ordinary; neither reads one it wasn't given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ira = new_account(c, name="IRA", type="ira")["id"]
+    made = [
+        add(c, ira, "100.00", "2026-03-01", kind="deposit", contributionSource="employer"),
+        add(c, ira, "100.00", "2026-03-01", kind="deposit"),
+        add(c, ira, "5.00", "2026-03-02", kind="dividend", symbol="VTI", dividendType="qualified"),
+        add(c, ira, "5.00", "2026-03-02", kind="dividend", symbol="VTI"),
+    ]
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json() for t in made]
+    assert [(t["contributionSource"], t["dividendType"]) for t in got] == [
+        ("employer", None),
+        (None, None),
+        (None, "qualified"),
+        (None, None),
+    ]

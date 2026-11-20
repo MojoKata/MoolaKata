@@ -753,3 +753,46 @@ def test_a_new_transaction_is_left_out_of_a_budget_from_its_draft(server, frozen
     r = save(c, [{"op": "create", "entity": "Txn", "id": txn, "fields": fields}])
     assert r.status_code == 200, r.text
     assert c.get(f"/ui/api/transactions/{txn}").json()["leftOutOf"] == [b["id"]]
+
+
+def test_a_transaction_reads_only_its_own_tags_budgets_left_out_of_and_paybacks(server, frozen):
+    """S2.6, S7.3.5, S2.9: a transaction reads the tags it has, the budgets it is left out of
+    and what was paid back of it; another of the same account reads none of them."""
+    from edits import tag
+
+    c, acct, cat, b = setup_budget(server)
+    _, one = made(c, acct, cat, [])
+    _, two = made(c, acct, cat, [])
+    work = tag(c, "work")
+    saved(edit(c, "Txn", f"/ui/api/transactions/{one}", tagIds=[work],
+               leftOutOf={"add": [b["id"]], "remove": []}))  # fmt: skip
+    keys = ("tags", "tagIds", "leftOutOf", "paidBack")
+    got = [c.get(f"/ui/api/transactions/{t}").json() for t in (one, two)]
+    assert [{k: t[k] for k in keys} for t in got] == [
+        {"tags": ["work"], "tagIds": [work], "leftOutOf": [b["id"]], "paidBack": "0.00"},
+        {"tags": [], "tagIds": [], "leftOutOf": [], "paidBack": "0.00"},
+    ]
+
+
+def test_the_other_half_of_a_transfer_is_named_only_to_one_who_reads_its_account(server, frozen):
+    """S1.7, S10.3: a half paired with one of an account its reader doesn't read names neither
+    that half nor its account; one who reads both reads the pair."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    theirs = new_account(jane)
+    half = add(jane, theirs["id"], "-30.00", "2026-10-01")
+    mine = new_account(john, name="John's", mask="4444")
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "write"}))
+    t = new("Txn")
+    fields = {"accountId": mine["id"], "date": "2026-10-20", "amount": "30.00",
+              "kind": "deposit", "transferWithId": half["id"]}  # fmt: skip
+    r = save(john, [{"op": "create", "entity": "Txn", "id": t, "fields": fields}])
+    assert r.status_code == 200, r.text
+    keys = ("transferId", "transferAccountName")
+    path = f"/ui/api/transactions/{half['id']}"
+    got = [[who.get(path).json()[k] for k in keys] for who in (jane, john)]
+    assert got == [[None, None], [t, "John's"]]

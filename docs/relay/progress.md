@@ -234,3 +234,26 @@ Doubts:
 - `row`'s detail default (`x_row__mutmut_1`) shows only through MCP's `list_accounts`, which dumps the route's rows itself: the HTTP list serializes them as `AccountRow` either way. The MCP test now holds a row's fields to `AccountRow`'s (no notes).
 - An owner made inactive is no longer read by the household (`_user` view), so one their account is shared with lists it with `ownerName` "" and no picture (`test_an_account_of_an_owner_made_inactive_is_listed_with_no_owners_name`). Pinned as the code means it; S10.1.7 says their data stays, but a nameless row may want a look.
 - Changing `statementIntervalDismissed` is kept but logged as no change (`_change` doesn't add it to `changed`); not pinned either way.
+
+## Batch 11
+
+Test files touched: `tests/test_accounts.py`, `tests/test_txn_save.py`.
+
+Counts (the 25 survivors and the 7 unsettled together, 32): killed 24, equivalent 7, bug 0,
+unreachable 1, slow 0, still surviving 0.
+
+Equivalent:
+- `x__raise__mutmut_2`: every `_raise` runs inside the save, which answers a Problem with errors by its field errors alone, never its code (as batch 8's `x__raise__mutmut_3` and batch 10's accounts `_raise_2`).
+- `x_shape__mutmut_27`: splits of transactions outside the rows are keyed by their own transaction and never read for these rows (as batch 8's `x_shape__mutmut_46` for picks).
+- `x_shape__mutmut_47`: the caller's session reads picks through their access view, which never returns a deleted one (as batch 4's `x__picks_fit__mutmut_7`).
+- `x_shape__mutmut_90`, `_92`, `_93`: the default is read only for a transaction unpaired or whose half the caller doesn't see, and no account's id is `""`, `None` or `"XXXX"`: `accounts.get` gives None for each.
+- `x_shape__mutmut_24` (unsettled on CI): parts sent in one save against the order made (a later id first) still came back in id order without `ORDER BY`, as batch 8's `x_shape__mutmut_43` for picks; the test of the order killed nothing, so none is kept.
+
+Unreachable:
+- `x_shape__mutmut_105`: every caller of `shape` reads in the caller's scoped session (schema.md §7.6), where the other half and its account are found only through the same `AccountAccess` view `access.perms` reads, so `perms` is never None for an account found. `test_the_other_half_of_a_transfer_is_named_only_to_one_who_reads_its_account` holds the behaviour (the owner reads neither half nor account; the pairer reads both) but kills nothing.
+
+Mutation check (`--tests` the two files above): 24 killed (13 in `accounts.py`, 11 in `transactions.py`), the 8 survivors exactly the equivalent and unreachable ones above. Batch 10's tests already killed `_counted_ref` 1, 5, 15, 17, `context` 1, 18 and `row` 115, 120, 131; batch 8's `shape` 74, 123, 136, 173, 197.
+
+Doubts:
+- The `access.perms` check in `shape` (`x_shape__mutmut_105`) is dead in every user session; it only guards against a session that reads more than the caller does. Left as it is.
+- The held-but-killing-nothing test above is kept, since it is the only one that holds a hidden half naming nothing (batch 2's doubt); drop it if tests must each kill something.
