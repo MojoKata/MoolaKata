@@ -304,7 +304,8 @@ def _replacement(out: Replay, before: int, rows: list) -> list[tuple]:
         for lot in made:
             # `left` is 0 here only for a wash sale of no shares: its part of none is dropped.
             if left <= 0 or lot.quantity <= 0:  # pragma: no mutate
-                continue
+                # A buy or reinvest opens one lot: skipping it or stopping ends the search alike.
+                continue  # pragma: no mutate
             take = min(left, lot.quantity)
             # Never read again: the loop breaks right after.
             left -= take  # pragma: no mutate
@@ -356,7 +357,8 @@ def _disallow(out: Replay, washes) -> None:
                 if i == len(losing) - 1
                 else (amount * -d.raw_gain / total).quantize(CENT)
             )
-            d.adjustment += part
+            # A losing part is in one group, its sale's and lot's: its adjustment is set once.
+            d.adjustment = part
             given += part
 
 

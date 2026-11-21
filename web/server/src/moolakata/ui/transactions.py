@@ -732,7 +732,6 @@ def _make(ctx, body: TxnRecord, txn_id: str):
         price=body.price,
         fees=body.fees,
         dividendType=body.dividendType,
-        splitRatio=body.splitRatio,
         lotMethod=a.lotMethod if body.kind in lots.DISPOSALS else None,
         contributionYear=body.contributionYear
         if body.contributionYear
