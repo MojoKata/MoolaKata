@@ -7,7 +7,8 @@
 # `jobs` runs only the named jobs again (one stopped early, after a fix to the tools); `rest`
 # runs the changes earlier runs left unrun (a job out of time), split by mutmut's estimates, in
 # jobs that run only those; `gather` takes the runs together, a later run's job over the earlier
-# one's, and each change's outcome from whichever job finished it.
+# one's, and each change's outcome from whichever job finished it. `changed` runs, instead, only
+# the changes on the lines written since a commit: a fix's run (docs/mutation-testing.md).
 # A pull request that changes this file or the tools runs a trial on two small modules. The
 # actions are pinned by commit and listed in the register (docs/dependencies.md).
 name: mutate
@@ -33,6 +34,9 @@ on:
         default: ""
       rest:
         description: "Instead, the changes these runs left unrun (run ids, owner/repo:id for a fork's), as gather takes them; with jobs, only theirs"
+        default: ""
+      changed:
+        description: "Instead, the changes on the lines written since this commit (a fix's run)"
         default: ""
   pull_request:
     paths:
@@ -95,6 +99,7 @@ jobs:
         with:
           persist-credentials: false
           submodules: true
+          fetch-depth: 0 # `changed` reads the lines written since its commit
       - name: coworker status, unattended (installs what the machine lacks for MoolaKata; a runner has open egress, so the hosts aren't probed)
         run: COWORKER_UNATTENDED=1 coworker/bin/coworker status --no-network
       - name: web/dev.sh setup (uv, Python 3.14, Deno and Chromium, each pinned)
@@ -116,11 +121,14 @@ jobs:
           JOBS: ${{ inputs.jobs && format('--jobs {0}', inputs.jobs) || '' }}
           TRIAL: ${{ github.event_name == 'pull_request' && '--modules moolakata/duration.py moolakata/ui/tokens.py' || '' }}
           REST: ${{ inputs.rest }}
+          CHANGED: ${{ inputs.changed }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -f  # the areas are globs for plan, not for the shell
           # shellcheck disable=SC2086 # the areas, flags, jobs, trial and runs are words
-          if [ -n "$REST" ]; then
+          if [ -n "$CHANGED" ]; then
+            jobs=$(web/dev.sh mutate plan --changed "$CHANGED" --rest-dir "$GITHUB_WORKSPACE/web/.dev/rest")
+          elif [ -n "$REST" ]; then
             jobs=$(web/dev.sh mutate plan --rest $REST $JOBS --rest-dir "$GITHUB_WORKSPACE/web/.dev/rest")
           else
             jobs=$(web/dev.sh mutate plan --areas $AREAS --size "$SIZE" $ALL $JOBS $TRIAL)
@@ -134,8 +142,8 @@ jobs:
           name: testmap
           path: web/.dev/testmap/map.json
           retention-days: 7
-      - name: each job's changes, for rest
-        if: inputs.rest != ''
+      - name: each job's changes, for rest or changed
+        if: inputs.rest != '' || inputs.changed != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rest

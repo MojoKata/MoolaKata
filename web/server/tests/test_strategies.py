@@ -5,7 +5,7 @@ import datetime as dt
 from decimal import Decimal as D
 from types import SimpleNamespace as NS
 
-from edits import change, create, make, option_trade, remove, saved
+from edits import change, create, make, option_trade, remove, saved, split
 
 from moolakata.options.strategies import Leg, capital_at_risk, figures, shape
 
@@ -911,9 +911,8 @@ def test_an_accounts_strategies_and_legs_are_its_own_and_not_deleted(server, jan
     same_day = [group(x) for x in ("470", "460", "465", "455")]
     other = group("480", account=b)
     assert remove(jane, "Strat", {"id": gone, "version": 1}).status_code == 200
-    split = make(jane, "Txn", accountId=b, date="2026-10-06", kind="split", symbol="MSFT",
-                 amount="0", splitRatio="2")  # fmt: skip
-    assert split.status_code == 200, split.text
+    r = split(jane, b, "2026-10-06", "2")
+    assert r.status_code == 200, r.text
     # The same day's stamped in an order the database couldn't fall back on: the order made,
     # the ids' order, or either reversed.
     fallbacks = [same_day, sorted(same_day)]
@@ -926,7 +925,7 @@ def test_an_accounts_strategies_and_legs_are_its_own_and_not_deleted(server, jan
         mine = [r.instrumentId for r in strat.legs_of(s, s.get(Strategy, early))]
     assert adjusted != held["480"], "the split in b took b's contract with it"
     assert mine == [held["480"]], "and left a's as it was"
-    assert remove(jane, "Txn", split.json()).status_code == 200
+    assert remove(jane, "Txn", r.json()).status_code == 200
     with server.db.tx(unscoped="test") as s:
         assert [x.id for x in strat.of_account(s, a)] == [early, *stamped]
         assert [x.id for x in strat.of_account(s, a, dismissed=True)] == [no]

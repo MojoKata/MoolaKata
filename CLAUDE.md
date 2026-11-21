@@ -1,5 +1,12 @@
 # MoolaKata: working rules
 
+## Shared agent rules
+
+`agents/` (a submodule) holds the rules shared by every project: hooks, killing processes,
+walk thrus. They apply here as well as everything below:
+
+@agents/CLAUDE.md
+
 ## Keep the mockup in step with the requirements
 
 `docs/mockups/MoolaKata-mock.html` is the reference for every screen. Any change to

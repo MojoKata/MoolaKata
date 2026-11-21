@@ -2,6 +2,7 @@
 
 import ast
 import datetime as dt
+import itertools
 from dataclasses import dataclass, field
 from decimal import Decimal as D
 from pathlib import Path
@@ -11,7 +12,7 @@ from moolakata import paths
 from moolakata.ledger import balances, lots, reconcile, transfers
 
 T0 = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
-_n = iter(range(1, 10_000))
+_n = itertools.count(1)  # unbounded: a process running many tests draws more than any range
 
 
 @dataclass
@@ -30,6 +31,7 @@ class Txn:
     runningBalance: D | None = None
     amountWas: D | None = None
     duplicateAnswer: str | None = None
+    fitId: str | None = None  # the id a file gave it
     id: str = field(default_factory=lambda: f"Txn{next(_n)}")
     createdAt: dt.datetime = field(default_factory=lambda: T0 + dt.timedelta(seconds=next(_n)))
 
@@ -43,6 +45,7 @@ class Lot:
     costBasis: D | None
     transactionId: str | None = None
     basisMissing: bool = False
+    acquiredMissing: bool = False  # shares moved in whose day bought isn't known (S2.2)
     createdAt: dt.datetime = T0
 
 
@@ -228,6 +231,53 @@ def test_opening_balance_typed_or_worked_out():
     assert [b for _, b in days] == [D(1100), D(1100), D(1070), D(1070)]
 
 
+def test_an_opening_balance_typed_keeps_its_day_and_one_worked_out_starts_at_the_first_row():
+    """R3.2: one typed, even of zero, is the account's with its day, whatever was reported;
+    one worked out is the earliest reported balance less what came in by its day (not after),
+    dated from the first transaction, or the balance's own day when there are none; with
+    nothing reported it is zero, undated and typed by no one."""
+    txns = [
+        Txn(d(2026, 9, 1), "deposit", D(100)),
+        Txn(d(2026, 9, 3), "withdrawal", D(-30)),
+        Txn(d(2026, 9, 5), "deposit", D(50)),
+    ]
+    reported = [Anchor(d(2026, 9, 3), D(1070))]
+    o = balances.opening(Acct(D(0), d(2026, 8, 31)), txns, reported)
+    assert o == balances.Opening(D(0), d(2026, 8, 31), False)
+    assert balances.opening(Acct(), txns, reported) == balances.Opening(
+        D(1000), d(2026, 9, 1), True
+    )
+    o = balances.opening(Acct(), [], [Anchor(d(2026, 9, 3), D(500))])
+    assert o == balances.Opening(D(500), d(2026, 9, 3), True)
+    assert balances.opening(Acct(), txns, []) == balances.Opening(D(0), None, False)
+
+
+def test_the_balances_reported_leave_out_a_statements_value_and_keep_a_days_order():
+    """S1.3.3.8.1: a statement's ending value is checked apart, not as a balance; the rest
+    oldest first, a day's anchors before the file's running balance that day (S1.11.2)."""
+    rb = Txn(d(2026, 9, 1), "deposit", D(100), runningBalance=D(400))
+    anchors = [
+        Anchor(d(2026, 9, 8), D(900), "typed", "b"),
+        Anchor(d(2026, 9, 1), D(500), "ofx", "a"),
+        Anchor(d(2026, 9, 5), D(700), "statement-value", "v"),
+    ]
+    assert balances.points(anchors, [rb]) == [
+        (d(2026, 9, 1), D(500), "ofx", "a"),
+        (d(2026, 9, 1), D(400), "running-balance", rb.id),
+        (d(2026, 9, 8), D(900), "typed", "b"),
+    ]
+
+
+def test_a_days_balance_is_zero_before_the_accounts_opening_day_though_it_has_transactions():
+    """R3.2: before an account's history begins, its opening date when it has one (else its
+    first transaction), there is nothing to count; from then the opening balance and the
+    transactions."""
+    o = balances.Opening(D(500), d(2026, 9, 2), False)
+    txns = [Txn(d(2026, 9, 4), "deposit", D(100))]
+    days = balances.daily(o, txns, d(2026, 8, 31), d(2026, 9, 4))
+    assert [b for _, b in days] == [D(0), D(0), D(500), D(500), D(600)]
+
+
 def test_transfers_match_the_closest_and_refuse_ties():
     t = Txn(d(2026, 9, 15), "withdrawal", D(-500), accountId="A")
     near = Txn(d(2026, 9, 16), "deposit", D(500), accountId="B")
@@ -262,6 +312,25 @@ def test_coverage_gaps_and_overlaps():
     ]
 
 
+def test_coverage_counts_whole_days_at_its_edges():
+    """S1.11.1: an import starting the day after the last ends carries on its period, one
+    starting on that last day overlaps it by that day, and a single day missed is a gap."""
+    c = reconcile.coverage(
+        [
+            Imp("I1", d(2026, 7, 1), d(2026, 7, 31)),
+            Imp("I2", d(2026, 8, 1), d(2026, 8, 31)),
+            Imp("I3", d(2026, 8, 31), d(2026, 9, 30)),
+            Imp("I4", d(2026, 10, 2), d(2026, 10, 31)),
+        ]
+    )
+    assert [(p.start, p.end, p.importIds) for p in c.periods] == [
+        (d(2026, 7, 1), d(2026, 9, 30), ["I1", "I2", "I3"]),
+        (d(2026, 10, 2), d(2026, 10, 31), ["I4"]),
+    ]
+    assert c.gaps == [(d(2026, 10, 1), d(2026, 10, 1))]
+    assert c.overlaps == [(d(2026, 8, 31), d(2026, 8, 31))]
+
+
 def test_checks_name_the_suspects_between_matching_balances():
     txns = [
         Txn(d(2026, 9, 1), "deposit", D(100), payee="Pay"),
@@ -278,6 +347,65 @@ def test_checks_name_the_suspects_between_matching_balances():
     assert cks[1].suspects.changed == [txns[3].id]
     txns[2].duplicateAnswer = txns[1].duplicateAnswer = "both-real"
     assert reconcile.duplicates(txns) == []
+
+
+def test_a_mismatch_names_only_what_lies_after_the_last_match_up_to_its_day():
+    """S1.11.4: each check names the balance it compares; a mismatch's suspects are the rows
+    after the last matching balance's day and on or before its own, and the coverage gaps that
+    end after that day and start by its own. A mismatch with no match before it looks from the
+    start."""
+    last_ok, day = d(2026, 9, 1), d(2026, 9, 8)
+    on_ok = [
+        Txn(last_ok, "deposit", D(100), payee="Pay", amountWas=D(90)),
+        Txn(last_ok, "withdrawal", D(-5), payee="Cafe"),
+        Txn(last_ok, "withdrawal", D(-5), payee="Cafe"),
+    ]
+    changed = Txn(day, "withdrawal", D(-20), payee="Shop", amountWas=D(-25))
+    twice = [Txn(day, "withdrawal", D(-7), payee="Cafe") for _ in range(2)]
+    after = Txn(d(2026, 9, 9), "withdrawal", D(-1), payee="Late", amountWas=D(-2))
+    txns = [*on_ok, changed, *twice, after]
+    start = balances.Opening(D(1000), None, False)
+    anchors = [Anchor(last_ok, D(1090), id="a"), Anchor(day, D(1063), id="b")]
+    gaps = [
+        (d(2026, 8, 20), last_ok),  # ends on the match's day
+        (d(2026, 9, 2), d(2026, 9, 3)),
+        (day, d(2026, 9, 10)),  # starts on the mismatch's day
+        (d(2026, 9, 9), d(2026, 9, 12)),  # starts after it
+    ]
+    ok, off = reconcile.checks(start, txns, anchors, reconcile.Coverage([], gaps, []))
+    assert (ok.ref, ok.ok, ok.windowFrom, ok.suspects) == ("a", True, None, None)
+    assert (off.ref, off.source, off.difference, off.windowFrom) == ("b", "ofx", D(7), last_ok)
+    assert off.suspects == reconcile.Suspects(
+        duplicates=[[twice[0].id, twice[1].id]],
+        changed=[changed.id],
+        gaps=[(d(2026, 9, 2), d(2026, 9, 3)), (day, d(2026, 9, 10))],
+        firstParting=None,
+    )
+    cover = reconcile.Coverage([], gaps, [])
+    (first,) = reconcile.checks(start, txns, [Anchor(day, D(1))], cover)
+    assert first.windowFrom is None
+    assert first.suspects == reconcile.Suspects(
+        duplicates=[[on_ok[1].id, on_ok[2].id], [twice[0].id, twice[1].id]],
+        changed=[on_ok[0].id, changed.id],
+        gaps=gaps[:3],
+        firstParting=None,
+    )
+
+
+def test_a_running_balance_that_parts_names_its_first_row_and_an_anchor_none():
+    """S1.11.3: a file's running balance that parts from MoolaKata's names the first row where
+    they part; an anchor's mismatch has no such row."""
+    txns = [
+        Txn(d(2026, 9, 1), "deposit", D(100), runningBalance=D(1100)),
+        Txn(d(2026, 9, 2), "withdrawal", D(-10), runningBalance=D(1085)),
+    ]
+    start = balances.Opening(D(1000), None, False)
+    anchors = [Anchor(d(2026, 9, 3), D(1000), id="a")]
+    ok, rb, anchor = reconcile.checks(start, txns, anchors, reconcile.Coverage([], [], []))
+    assert (ok.ok, ok.source, ok.ref) == (True, "running-balance", txns[0].id)
+    assert (rb.source, rb.ref, rb.difference) == ("running-balance", txns[1].id, D(-5))
+    assert rb.suspects.firstParting == txns[1].id
+    assert (anchor.ref, anchor.suspects.firstParting) == ("a", None)
 
 
 def test_first_parting_running_balance_row():
@@ -311,3 +439,69 @@ def test_calculations_never_import_sqlalchemy():
                     else ([node.module or ""] if isinstance(node, ast.ImportFrom) else [])
                 )
                 assert not any(n.startswith("sqlalchemy") for n in names), path
+
+
+def test_possible_duplicates_are_one_day_amount_payee_and_instrument_or_one_file_id():
+    """S1.11.5: rows alike in day, amount, payee (case aside, the bank's words when no payee)
+    and instrument are possible duplicates, and so are rows a file gave one id (`X` and
+    `X#2`, a number after the #); a row in two such groups is named once in each, and a
+    different payee, instrument or id is no duplicate."""
+    day = d(2026, 9, 5)
+
+    def t(payee="Cafe", amount=-20, **kw):
+        return Txn(day, "withdrawal", D(amount), payee=payee, **kw)
+
+    def ids(*txns):
+        return [
+            [txns.index(x) for x in txns if x.id in g] for g in reconcile.duplicates(list(txns))
+        ]
+
+    assert ids(t(), t(payee="CAFE")) == [[0, 1]]
+    assert ids(t(payee=None, payeeRaw="POS CAFE"), t(payee=None, payeeRaw="pos cafe")) == [[0, 1]]
+    assert ids(t(payee=None, payeeRaw="POS CAFE"), t(payee=None, payeeRaw="POS BAKERY")) == []
+    # A letter's compatibility form (the Kelvin sign some exports write for K) is the letter.
+    assert ids(t(payee="\u212aiosk"), t(payee="kiosk")) == [[0, 1]]
+    # Case aside in full: a letter whose capital is two letters (ß, SS) is alike too; an
+    # accent is not case, so it still tells two payees apart.
+    assert ids(t(payee="Straße Bakery"), t(payee="STRASSE BAKERY")) == [[0, 1]]
+    assert ids(t(payee="Café"), t(payee="CAFE")) == []
+    # Rows with no words at all are alike only with each other.
+    assert ids(t(payee=None), t(payee=None), t(payee="xxxx")) == [[0, 1]]
+    assert ids(t(), t(payee="Bakery"), t(amount=-21), t(instrumentId="I1")) == []
+    assert ids(t(fitId="F1", amount=-1), t(fitId="F1#2", amount=-2)) == [[0, 1]]
+    assert ids(t(fitId="F1", amount=-1), t(fitId="F1#a", amount=-2)) == []
+    assert ids(t(fitId="F1#2", amount=-1), t(fitId="F1#3", amount=-2)) == [[0, 1]]
+    # The number is after the last #: an id with a # of its own keeps it.
+    assert ids(t(fitId="A#B", amount=-1), t(fitId="A#B#2", amount=-2)) == [[0, 1]]
+    # Alike and from one id at once: one group, named once.
+    assert ids(t(fitId="F1"), t(fitId="F1#2")) == [[0, 1]]
+
+
+def test_a_transfers_other_half_is_up_to_four_days_away_and_of_some_amount():
+    """S1.7: a half four days off is a match, five isn't; a dollar matches, nothing doesn't."""
+    t = Txn(d(2026, 9, 15), "withdrawal", D(-1), accountId="A")
+    four = Txn(d(2026, 9, 19), "deposit", D(1), accountId="B")
+    five = Txn(d(2026, 9, 10), "deposit", D(1), accountId="B")
+    assert transfers.best(t, [four, five]) is four
+    zero = Txn(d(2026, 9, 15), "withdrawal", D(0), accountId="A")
+    assert transfers.best(zero, [Txn(d(2026, 9, 15), "deposit", D(0), accountId="B")]) is None
+
+
+def test_an_import_without_its_dates_covers_nothing():
+    """S1.3.3.6: an import that covers no known days, or a statement kept without reading, is
+    no period."""
+    c = reconcile.coverage([Imp("I1", None, d(2026, 8, 2)), Imp("I2", d(2026, 7, 1), None),
+                            SimpleNamespace(id="I3", coveredFrom=d(2026, 7, 1),
+                                            coveredTo=d(2026, 7, 31), format="kept")])  # fmt: skip
+    assert (c.periods, c.gaps, c.overlaps) == ([], [], [])
+
+
+def test_the_days_before_an_accounts_history_begins_are_zero():
+    """A balance counts from the opening date when there is one, the opening balance itself
+    from that day; without one, from the first transaction."""
+    opened = balances.Opening(D(100), d(2026, 9, 2), False)
+    txns = [Txn(d(2026, 9, 4), "deposit", D(10))]
+    got = balances.daily(opened, txns, d(2026, 9, 1), d(2026, 9, 4))
+    assert [b for _, b in got] == [D(0), D(100), D(100), D(110)]
+    got = balances.daily(balances.Opening(D(0), None, False), txns, d(2026, 9, 1), d(2026, 9, 4))
+    assert [b for _, b in got] == [D(0), D(0), D(0), D(10)]

@@ -7,6 +7,7 @@ is kept.
 """
 
 import datetime as dt
+import math
 from decimal import Decimal as D
 from types import SimpleNamespace
 
@@ -107,16 +108,25 @@ def test_one_payment_days_dues_are_paid_once_however_the_payment_is_split(
 )
 def test_a_helocs_repayment_ends_on_its_terms_last_payment_day(months, share, rate, drawn):
     """Drawn in its draw period and repaid as scheduled, a HELOC's last payment falls on the term's
-    end, its repayment level to the last."""
+    end, its repayment level to the last (S1.9.2). The level is rounded half up to the cent, as a
+    lender rounds it: where that rounding, grown at the loan's rate, adds up to a payment or more,
+    the balance is paid off that many payments sooner, and never otherwise."""
     draw_months = max(1, months * share // 100)
     t = L.Terms(principal=D(0), start=dt.date(2026, 1, 1), months=months, rate=rate,
                 drawMonths=draw_months)  # fmt: skip
     _, rows = L.summary(t, [], [(dt.date(2026, 1, 10), drawn)], dt.date(2026, 1, 20))
     repay = [r for r in rows if not L._in_draw(t, r.date)]
-    assert rows[-1].date == t.end and repay[0].date == L.draw_ends(t)
-    assert len(repay) == months - draw_months + 1
+    assert repay[0].date == L.draw_ends(t)
+    n = months - draw_months + 1
     level = repay[0].principal + repay[0].interest
     assert all(r.principal + r.interest == level for r in repay[:-1])
+    r = rate / 100 / 12
+    exact = drawn / n if r == 0 else drawn * r / (1 - (1 + r) ** -n)
+    over = level - exact  # what rounding added to each payment
+    grown = over * n if r == 0 else over * ((1 + r) ** n - 1) / r
+    early = (t.end.year - rows[-1].date.year) * 12 + t.end.month - rows[-1].date.month
+    assert 0 <= early <= (math.ceil(grown / level) if over > 0 else 0), (early, over, level)
+    assert len(repay) == n - early
 
 
 @PROPERTIES

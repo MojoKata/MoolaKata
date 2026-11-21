@@ -298,7 +298,10 @@
           back and answers 409 `confirm-needed`, listing each question's `code`, record `id`
           and message. Sent
           again with `confirm` (a list of `{code, id}`), it goes ahead only when every
-          question it raises is in that list.
+          question it raises is in that list. The checks that span records (a transaction's
+          parts adding up to it) and the `closed-year` question are judged once the save's
+          other questions are answered, on everything it does, never on what is left of it
+          while a question waits.
        6. **After the commit**, the live stream's events (S12.6), alerts and the work that
           follows a change run once for the whole save, and Activity records each change.
        7. **The answer** is 200 with each record the save touched: its id, its new version

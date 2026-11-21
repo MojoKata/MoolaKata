@@ -501,6 +501,55 @@ def test_email_change_needs_recent_password_and_a_confirmed_link(server):
     assert c.get("/ui/api/profile").json()["email"] == "hal@new.lan"
 
 
+def test_an_address_asked_for_is_checked_and_ones_own_is_not_taken(server):
+    """A new address is refused at its field when it isn't one or another user has it; the
+    user's own, typed again in another case, is theirs and goes through (S10.1.5)."""
+    set_public_url(server)
+    make_user(server, "hal")
+    make_user(server, "ivy")
+    c = sign_in(server, "hal")
+    for address, code in (("not an address", "email-invalid"), ("IVY@home.lan", "email-taken")):
+        r = c.post("/ui/api/profile/email", json={"email": address})
+        assert r.status_code == 422, address
+        assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == ("email", code)
+        # Outside a save, the problem itself is its first refusal's, for a client reading it.
+        assert (r.json()["code"], r.json()["detail"]) == (code, r.json()["errors"][0]["message"])
+    assert c.post("/ui/api/profile/email", json={"email": "HAL@home.lan"}).status_code == 204
+    _, token = last_link(server)
+    assert c.post("/ui/api/email-change/confirm", json={"token": token}).status_code == 204
+    assert c.get("/ui/api/profile").json()["email"] == "hal@home.lan"
+
+
+def test_an_address_taken_before_its_link_is_opened_is_refused(server):
+    """The link confirms the address only if no one took it in the meantime."""
+    set_public_url(server)
+    make_user(server, "hal")
+    c = sign_in(server, "hal")
+    assert c.post("/ui/api/profile/email", json={"email": "hal@new.lan"}).status_code == 204
+    _, token = last_link(server)
+    make_user(server, "ivy", email="hal@new.lan")
+    r = c.post("/ui/api/email-change/confirm", json={"token": token})
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "email-taken"
+    assert c.get("/ui/api/profile").json()["email"] == "hal@home.lan"
+
+
+def test_an_admins_edit_of_a_name_or_invited_address_is_checked(admin_client, server):
+    """A blank name and a broken address are refused at their fields; an invited address
+    corrected only in its case is the user's own, not taken (S10.1.3)."""
+    eve, _ = _invite_eve(admin_client, server)
+    for fields, field, code in (
+        ({"displayName": " "}, "displayName", "name-invalid"),
+        ({"email": "eve at home"}, "email", "email-invalid"),
+    ):
+        r = change(admin_client, "User", eve, **fields)
+        assert r.status_code == 422, fields
+        assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (field, code)
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, eve["id"]).email = "Eve@hme.lan"
+    eve = next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == eve["id"])
+    assert saved(change(admin_client, "User", eve, email="eve@hme.lan"))["email"] == "eve@hme.lan"
+
+
 # ---------- the active flag (S10.1.7) ----------
 
 
@@ -592,6 +641,22 @@ def test_groups(admin_client, server):
     assert r.status_code == 412 and r.json()["current"][0]["current"]["name"] == "Family"
     rows = {u["username"]: u for u in admin_client.get("/ui/api/users").json()["items"]}
     assert rows["ben"]["groupIds"] == [g["id"]]
+
+
+def test_a_groups_name_is_checked_at_its_field_and_its_own_in_another_case_is_free(admin_client):
+    """A group's name is refused at `name` (not a person's `displayName`) when blank or too
+    long, made or changed; changing only its case is no clash with itself."""
+    for bad in (" ", "x" * 81):
+        r = make(admin_client, "Group", name=bad)
+        assert r.status_code == 422, bad
+        assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
+            "name", "name-invalid")  # fmt: skip
+    g = make(admin_client, "Group", name="Family").json()
+    r = change(admin_client, "Group", g, name=" ")
+    assert r.status_code == 422
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
+        "name", "name-invalid")  # fmt: skip
+    assert saved(change(admin_client, "Group", g, name="FAMILY"))["name"] == "FAMILY"
 
 
 # ---------- profile ----------

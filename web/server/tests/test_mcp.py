@@ -7,6 +7,7 @@ from edits import make, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import mcp
+from moolakata.ui.accounts import AccountRow
 
 
 @pytest.fixture
@@ -71,6 +72,8 @@ def test_tools_read_what_the_user_can_see_and_record_each_call(server, jane, age
     assert not out["isError"]
     names = [x["name"] for x in out["structuredContent"]["result"]]
     assert names == ["Everyday checking"]
+    # An account's row, never its detail: its notes stay on its page (S10.9).
+    assert set(out["structuredContent"]["result"][0]) == set(AccountRow.model_fields)
     txns = call(agent, secret, "list_transactions", account_id=a["id"])
     assert [t["payee"] for t in txns["structuredContent"]["result"]] == ["Blue Bottle Coffee"]
     refused = call(agent, secret, "get_account_holdings", account_id=hidden["id"])

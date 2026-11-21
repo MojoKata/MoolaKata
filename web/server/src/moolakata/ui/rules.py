@@ -6,7 +6,7 @@ from pydantic import Field
 from sqlalchemy import false, select
 
 from .. import access, activity, tags
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import rules as match
 from ..store.entities.accounts import Account, Category, Rule, Transaction
 from ..store.repos import rules as repo
@@ -37,8 +37,7 @@ class RuleOut(Model):
     amountMax: Money | None
     direction: str
     accountId: str | None
-    accountName: str | None
-    accountDeleted: bool
+    accountName: str | None  # a rule goes with its account (schema.md), so it's never deleted
     categoryId: str | None
     categoryPath: str | None
     categoryDeleted: bool
@@ -68,7 +67,8 @@ def _paths(s) -> dict[str, tuple[str, bool]]:
 
 def _out(s, r: Rule, paths: dict) -> RuleOut:
     a = s.get(Account, r.accountId) if r.accountId else None
-    path, cat_deleted = paths.get(r.categoryId, (None, False)) if r.categoryId else (None, False)
+    # Every category is in `paths`, and a rule's category stays (it keeps its name, schema.md).
+    path, cat_deleted = paths[r.categoryId] if r.categoryId else (None, False)
     return RuleOut(
         id=r.id,
         position=r.position,
@@ -78,7 +78,6 @@ def _out(s, r: Rule, paths: dict) -> RuleOut:
         direction=r.direction,
         accountId=r.accountId,
         accountName=a.name if a else None,
-        accountDeleted=bool(a and a.deleted),
         categoryId=r.categoryId,
         categoryPath=path,
         categoryDeleted=cat_deleted,
@@ -162,18 +161,22 @@ def _check(s, c: Caller, body: RuleFields, tagged: int) -> list[FieldError]:
     return e
 
 
-def _raise(e: list[FieldError]) -> None:
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
+def _values(body: RuleFields) -> dict:
+    """What a rule matches and sets, as kept: words trimmed, none for a blank."""
+    return {
+        "payeeMatch": body.payeeMatch.strip(),
+        "amountMin": body.amountMin,
+        "amountMax": body.amountMax,
+        "direction": body.direction,
+        "accountId": body.accountId or None,
+        "categoryId": body.categoryId or None,
+        "payee": (body.payee or "").strip() or None,
+    }
 
 
 def _fill(r: Rule, body: RuleFields) -> None:
-    r.payeeMatch = body.payeeMatch.strip()
-    r.amountMin, r.amountMax = body.amountMin, body.amountMax
-    r.direction = body.direction
-    r.accountId = body.accountId or None
-    r.categoryId = body.categoryId or None
-    r.payee = (body.payee or "").strip() or None
+    for name, value in _values(body).items():
+        setattr(r, name, value)
 
 
 def _record(s, kind: str, c: Caller, count: int | None = None) -> None:
@@ -220,16 +223,16 @@ class RuleRecord(RuleFields):
 
 def _rule_create(ctx, record_id: str, body: RuleRecord) -> None:
     s, c = ctx.s, ctx.caller
-    _raise(_check(s, c, body, len(body.tagIds)))
+    refuse_all(_check(s, c, body, len(body.tagIds)))
     tags.owned(s, c.id, body.tagIds)
     rules = repo.of_user(s, c.id)
     if len(rules) >= 500:
         raise refuse(None, "too-many-rules", "At most 500 rules.")
-    r = Rule(id=record_id, ownerId=c.id, position=len(rules), payeeMatch="")
-    _fill(r, body)
+    r = Rule(id=record_id, ownerId=c.id, position=len(rules), **_values(body))
     s.add(r)
     s.flush()
-    tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)
+    for tag_id in body.tagIds:  # a new rule has none to take away
+        tags.add_on(s, "rule", r.id, tag_id)
     _record(s, "rule.created", c)
 
 
@@ -250,7 +253,7 @@ def _rule_update(ctx, r: Rule, body: RuleRecord) -> None:
         _renumber(rules)
         _record(s, "rule.moved", c)
     if any(getattr(body, f) != current[f] for f in (*RuleFields.model_fields, "tagIds")):
-        _raise(_check(s, c, body, len(body.tagIds)))
+        refuse_all(_check(s, c, body, len(body.tagIds)))
         tags.owned(s, c.id, body.tagIds)
         _fill(r, body)
         tags.set_on(s, "rule", r.id, c.id, body.tagIds, c.id)

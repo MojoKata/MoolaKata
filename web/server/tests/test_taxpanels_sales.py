@@ -555,7 +555,7 @@ def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(jane):
     assert w == {
         "sold": "2026-03-05", "symbol": "DDD", "account": "Brokerage", "loss": "100.00",
         "disallowed": "0.00", "replacedOn": "2026-03-10", "replacementAccount": "Brokerage",
-        "replacementQty": "2.0", "adjustedBasis": None, "review": True,
+        "replacementQty": "2.0", "adjustedBasis": None, "review": True, "rule": "option",
     }  # fmt: skip
 
 
@@ -846,3 +846,249 @@ def test_shares_moved_in_from_another_users_account_in_the_year_keep_its_basis(s
         "Mine: shares from John's on Dec 31 keep the giver's basis",
         "Mine: shares from John's on Jan 1 keep the giver's basis",
     ]
+
+
+# ---------- A short sale's loss: flagged, never a wash sale (S3.8.5.1) ----------
+
+
+def short_sale(c, acct, opened, assigned, strike="50"):
+    """A call written and assigned with none of the shares held: a short sale of 100 XYZ at
+    the strike, its 1.00 premium added to what it brought in (S3.4)."""
+    o = opt(c, acct, "sell-to-open", opened, "1.00", underlying="XYZ", strike=strike)
+    r = c.post(
+        f"/ui/api/accounts/{acct}/options/{o['instrumentId']}/settle",
+        json={"how": "assign", "date": assigned, "contracts": "1"},
+    )
+    assert r.status_code == 201, r.text
+
+
+def test_a_short_sales_loss_is_no_wash_sale_and_its_cover_was_bought_back(jane):
+    # Short 100 at 50 (5,100 in), covered at 60: a 900 loss. The shares bought 11 days later
+    # are a plain lot, never its replacement; and its own short sale, 4 days before, is no
+    # other short sale near it.
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    short_sale(jane, brk["id"], "2026-08-03", "2026-08-21")
+    trade(jane, brk["id"], "2026-08-25", "buy", "100", "60", "XYZ")
+    trade(jane, brk["id"], "2026-09-05", "buy", "100", "58", "XYZ")
+    p = read_panels(jane, book(jane))
+    (cover,) = [r for r in p["rows"] if r["description"] == "100 XYZ"]
+    assert (cover["proceeds"], cover["basis"], cover["code"], cover["adjustment"]) == (
+        "5100.00", "6000.00", "", "0.00"
+    )  # fmt: skip
+    assert p["washes"] == []
+    v = jane.get("/ui/api/positions").json()
+    (closed,) = [r for r in v["closed"] if r["symbol"] == "XYZ"]
+    assert (closed["realized"], closed["how"]) == ("-900.00", "bought back")
+    (held,) = [r for r in v["open"] if r["symbol"] == "XYZ"]
+    assert held["cost"] == "5800.00", "nothing added to the lot bought after"
+
+
+@pytest.mark.parametrize(
+    ("opened", "assigned", "flagged"),
+    [
+        # Opened before the cover and still short: 30 days before it, and 31.
+        ("2026-07-02", "2026-07-26", True),
+        ("2026-07-02", "2026-07-25", False),
+        # Opened after it: 30 days after, and 31.
+        ("2026-09-01", "2026-09-24", True),
+        ("2026-09-01", "2026-09-25", False),
+    ],
+)
+def test_a_short_sales_loss_with_another_short_sale_within_30_days_is_flagged(
+    jane, opened, assigned, flagged
+):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    short_sale(jane, brk["id"], "2026-06-01", "2026-07-01")
+    short_sale(jane, brk["id"], opened, assigned, strike="55")
+    # Covers the first, the oldest: 900 lost.
+    trade(jane, brk["id"], "2026-08-25", "buy", "100", "60", "XYZ")
+    got = reviews(jane, book(jane))
+    if not flagged:
+        assert got == []
+        return
+    assert got == [{
+        "sold": "2026-08-25", "symbol": "XYZ", "account": "Brokerage", "loss": "900.00",
+        "disallowed": "0.00", "replacedOn": assigned, "replacementAccount": "Brokerage",
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-sale",
+    }]  # fmt: skip
+
+
+def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.entities.taxes import TaxBook
+
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    theirs = new_account(john, name="John's", type="brokerage")
+    add(john, theirs["id"], "10000.00", "2026-01-02", kind="deposit")
+    short_sale(john, theirs["id"], "2026-08-03", "2026-09-10")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    short_sale(jane, brk["id"], "2026-06-01", "2026-07-01")
+    trade(jane, brk["id"], "2026-08-25", "buy", "100", "60", "XYZ")
+    b = book(jane)
+    with server.db.read(unscoped="test") as s:
+        book_ = s.get(TaxBook, b)
+        assert panels.form_8949(s, book_)[1] == []
+        _, washes = panels.form_8949(s, book_, [s.get(Account, theirs["id"])])
+    assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rule) for w in washes] == [
+        ("XYZ", dt.date(2026, 9, 10), "John's", "short-sale")
+    ]
+
+
+def cover(gain="-900", acquired=dt.date(2026, 8, 1), short=True):
+    """A row closing a short sale opened on `acquired` in account a1, on Aug 25."""
+    r = row("A", "5100", str(D(5100) - D(gain)))
+    r.instrumentId, r.acquired, r.sold, r.short = "XYZ", acquired, dt.date(2026, 8, 25), short
+    return r
+
+
+A1, A2 = SimpleNamespace(id="a1", name="One"), SimpleNamespace(id="a2", name="Two")
+
+
+@pytest.mark.parametrize(
+    ("account", "inst", "day", "other"),
+    [
+        (A1, "XYZ", dt.date(2026, 8, 1), False),  # the short sale it closes
+        (A2, "XYZ", dt.date(2026, 8, 1), True),  # the same day in another account
+        (A1, "XYZ", dt.date(2026, 8, 2), True),  # another day in its own
+        (A1, "ABC", dt.date(2026, 8, 20), False),  # another stock
+        (A2, "XYZ", dt.date(2026, 7, 26), True),
+        (A2, "XYZ", dt.date(2026, 7, 25), False),
+        (A2, "XYZ", dt.date(2026, 9, 24), True),
+        (A2, "XYZ", dt.date(2026, 9, 25), False),
+    ],
+)
+def test_another_short_sale_is_of_the_stock_within_30_days_and_not_the_one_closed(
+    account, inst, day, other
+):
+    assert panels._another(cover(), account, inst, day) is other
+
+
+def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged():
+    shorts = [
+        (A2, "XYZ", dt.date(2026, 9, 20), D(100)),
+        (A2, "XYZ", dt.date(2026, 8, 20), D(50)),  # 5 days off, against 26
+        (A1, "XYZ", dt.date(2026, 8, 1), D(100)),  # its own
+    ]
+    rows = [cover(), cover(gain="0"), cover(gain="10"), cover(short=False)]
+    insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
+    got = panels._short_reviews(None, rows, shorts, [], insts)
+    assert [
+        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rule) for w in got
+    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
+    # With no loss to check, a spouse's accounts are never read.
+    assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
+
+
+def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, jane):
+    """S3.8.5.5: a loss sale of XYZ in one account, and in another shares of it bought within
+    30 days to close a short sale there: whether they replace the loss is unsettled, so no
+    loss is disallowed and the loss is flagged for the preparer; shares the buy leaves long
+    still replace it."""
+    from moolakata.store.entities.accounts import WashSale
+
+    held = new_account(jane, name="Held", type="brokerage")
+    shorted = new_account(jane, name="Short", type="brokerage", mask="2222")
+    # An account read after the one with the cover, which closed no short itself.
+    quiet = new_account(jane, name="Zed", type="brokerage", mask="3333")
+    for a in (held, shorted, quiet):
+        add(jane, a["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, held["id"], "2026-02-02", "buy", "100", "70", "XYZ")
+    short_sale(jane, shorted["id"], "2026-06-01", "2026-07-01")  # short 100 at 50
+    trade(jane, held["id"], "2026-08-20", "sell", "100", "60", "XYZ")  # 1,000 lost
+    # 120 bought: 100 close the short, and the 20 left long replace 20 of the 100 sold.
+    trade(jane, shorted["id"], "2026-08-25", "buy", "120", "62", "XYZ")
+    with server.db.read(unscoped="test") as s:
+        assert [w.quantity for w in s.query(WashSale).all()] == [20], "only what stays long"
+    got = [w for w in reviews(jane, book(jane)) if w["rule"] == "short-cover"]
+    assert got == [{
+        # The loss left once the 20 shares' part of it is disallowed: 1,000 less 200.
+        "sold": "2026-08-20", "symbol": "XYZ", "account": "Held", "loss": "800.00",
+        "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
+    }]  # fmt: skip
+
+
+def test_a_cover_review_takes_a_loss_sale_and_the_nearest_cover_of_its_stock_within_30_days():
+    """S3.8.5.5: only a sale at a loss is flagged (none at no gain or a cent's gain, nor a row
+    with no sale); a buy that closed a short counts only for the same stock, 30 days either
+    side, the bound included, and the nearest names it."""
+
+    def sale(gain, sale_id="S1"):
+        r = row("A", "5000", str(D(5000) - D(gain)))
+        r.instrumentId, r.sold, r.short, r.saleId = "XYZ", dt.date(2026, 8, 25), False, sale_id
+        return r
+
+    def buy(inst, day):
+        return SimpleNamespace(instrumentId=inst, date=day)
+
+    covers = [
+        (A1, buy("XYZ", dt.date(2026, 9, 24)), D(30)),  # 30 days after: in
+        (A2, buy("XYZ", dt.date(2026, 8, 20)), D(5)),  # 5 days before: the nearest
+        (A2, buy("ABC", dt.date(2026, 8, 25)), D(7)),  # another stock, the same day
+        (A1, buy("XYZ", dt.date(2026, 7, 25)), D(31)),  # 31 days before: out
+    ]
+    insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
+    rows = [sale("10"), sale("0"), sale("0.50"), sale("-900", None), sale("-900")]
+    got = panels._cover_reviews(rows, covers, insts)
+    assert [(w.loss, w.replacedOn, w.replacementAccount, w.replacementQty) for w in got] == [
+        (D(900), dt.date(2026, 8, 20), "Two", D(5))
+    ]
+    assert [w.replacedOn for w in panels._cover_reviews(rows, covers[:1], insts)] == [
+        dt.date(2026, 9, 24)
+    ]
+    assert panels._cover_reviews(rows, covers[2:], insts) == []
+
+
+def _short_position(jane, name="Brokerage"):
+    """An account short 100 XYZ at 50 (an assigned call, its 1.00 premium in: 5,100 in), and
+    XYZ's instrument."""
+    brk = new_account(jane, name=name, type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    short_sale(jane, brk["id"], "2026-06-01", "2026-07-01")
+    (xyz,) = [r for r in jane.get("/ui/api/positions").json()["open"] if r["symbol"] == "XYZ"]
+    assert (xyz["side"], xyz["quantity"]) == ("short", "-100.0")
+    return brk["id"], xyz["instrumentId"]
+
+
+def _open(jane, symbol):
+    rows = jane.get("/ui/api/positions").json()["open"]
+    return [(r["side"], r["quantity"], r["cost"]) for r in rows if r["symbol"] == symbol]
+
+
+def test_a_short_position_follows_its_stocks_symbol_change_spin_off_and_merger(jane):
+    """S2.4, S3.4: an account short the shares owes the new ones: a symbol change moves the
+    short whole, a spin-off moves its share of what the short brought in to a short of the
+    new shares, a merger paid in shares moves it at the ratio; each is then closed by the
+    new shares bought."""
+    a, xyz = _short_position(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=xyz, kind="symbol-change",
+                       date="2026-07-15", newSymbol="NEWX"))  # fmt: skip
+    assert _open(jane, "XYZ") == [] and _open(jane, "NEWX") == [("short", "-100.0", "-5100.00")]
+    newx = act["transactions"][1]["instrumentId"]
+    saved(create(jane, "CorpA", accountId=a, instrumentId=newx, kind="spin-off",
+                 date="2026-07-20", ratio="0.5", newSymbol="SPUN", basisShare="20"))  # fmt: skip
+    assert _open(jane, "NEWX") == [("short", "-100.0", "-4080.00")]
+    assert _open(jane, "SPUN") == [("short", "-50.0", "-1020.00")]
+    saved(create(jane, "CorpA", accountId=a, instrumentId=newx, kind="merger",
+                 date="2026-07-25", ratio="2", newSymbol="BIGCO", cashPerShare="0"))  # fmt: skip
+    assert _open(jane, "NEWX") == [] and _open(jane, "BIGCO") == [("short", "-200.0", "-4080.00")]
+    trade(jane, a, "2026-08-03", "buy", "200", "15", "BIGCO")
+    closed = [(r["symbol"], r["realized"]) for r in jane.get("/ui/api/positions").json()["closed"]
+              if r["symbol"] == "BIGCO"]  # fmt: skip
+    assert closed == [("BIGCO", "1080.00")], "4,080 brought in less 3,000 to close"
+    assert _open(jane, "BIGCO") == []
+
+
+def test_a_short_position_in_a_merger_paid_all_in_cash_is_covered_at_the_cash(jane):
+    """S2.4.5, S3.4: a merger paid all in cash sells every lot; an account short the shares
+    pays the cash for each, which closes the short, its gain short-term."""
+    a, xyz = _short_position(jane)
+    saved(create(jane, "CorpA", accountId=a, instrumentId=xyz, kind="merger",
+                 date="2026-07-15", cashPerShare="45"))  # fmt: skip
+    assert _open(jane, "XYZ") == []
+    (closed,) = [r for r in jane.get("/ui/api/positions").json()["closed"] if r["symbol"] == "XYZ"]
+    assert (closed["realized"], closed["term"]) == ("600.00", "short"), "5,100 in, 4,500 out"

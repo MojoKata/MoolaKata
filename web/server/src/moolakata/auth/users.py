@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as Db
 
 from .. import activity, clock, ids, settings
 from ..config import Config
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..mail import Email, Mailer, base_url, link
 from ..store.entities.users import Group, OneTimeToken, User, UserGroup
 from . import passwords, sessions
@@ -236,7 +236,7 @@ def finish_setup(
 # ---------- checks ----------
 
 
-def _email_problems(s: Db, email: str, user_id: str | None) -> list[FieldError]:
+def _email_problems(s: Db, email: str | None, user_id: str | None) -> list[FieldError]:
     email = (email or "").strip().lower()
     if not EMAIL.match(email) or len(email) > 254:
         return [FieldError("email", "email-invalid", "Enter an email address.")]
@@ -270,11 +270,6 @@ def _name_problems(name: str, field: str = "displayName") -> list[FieldError]:
     if not name or len(name) > 80:
         return [FieldError(field, "name-invalid", "Enter a name of up to 80 characters.")]
     return []
-
-
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
 
 
 # ---------- invitations (S10.1.3) ----------
@@ -367,7 +362,7 @@ def invite(
     known = {g.id for g in s.scalars(select(Group).where(Group.deleted == false()))}
     if any(g not in known for g in groups):
         errors.append(FieldError("groupIds", "group-unknown", "Choose existing groups."))
-    _raise(errors)
+    refuse_all(errors)
     u = User(
         id=user_id or ids.new_id("User"),
         personId=people.for_new_user(s, display_name.strip(), sex, by.id).id,
@@ -550,7 +545,7 @@ def _set_password(s: Db, svc: Services, user: User, password: str, kind: str) ->
 
 def request_email_change(s: Db, svc: Services, user: User, email: str) -> None:
     """A new address takes effect only when a link sent to it is opened."""
-    _raise(_email_problems(s, email, user.id))
+    refuse_all(_email_problems(s, email, user.id))
     email = email.strip().lower()
     token = _issue(s, user, "email-change", dt.timedelta(hours=EMAIL_CHANGE_HOURS), email)
     url = link(s, svc.config, "/ui/confirm-email", token)
@@ -574,7 +569,7 @@ def confirm_email_change(s: Db, token: str, svc: Services | None = None) -> User
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    _raise(_email_problems(s, row.data or "", user.id))
+    refuse_all(_email_problems(s, row.data, user.id))
     s.delete(row)
     old = user.email
     _set_email(s, user, row.data)
@@ -697,7 +692,7 @@ def update_user(
     URL to build it from, none is sent, and the admin resends it once there is."""
     fields = []
     if display_name is not None and display_name.strip() != user.displayName:
-        _raise(_name_problems(display_name))
+        refuse_all(_name_problems(display_name))
         user.displayName = display_name.strip()
         fields.append("displayName")
     if email is not None and email.strip().lower() != (user.email or ""):
@@ -708,7 +703,7 @@ def update_user(
                 "Once a user has joined, they change their own email address.",
                 409,
             )
-        _raise(_email_problems(s, email, user.id))
+        refuse_all(_email_problems(s, email, user.id))
         _set_email(s, user, email.strip().lower())
         fields.append("email")
     if fields:
@@ -750,7 +745,7 @@ def create_group(
     s: Db, by: User, name: str, member_ids: list[str], group_id: str | None = None
 ) -> Group:
     name = (name or "").strip()
-    _raise(_name_problems(name, "name") + _group_name_taken(s, name, None))
+    refuse_all(_name_problems(name, "name") + _group_name_taken(s, name, None))
     g = Group(id=group_id or ids.new_id("Group"), name=name)
     s.add(g)
     s.flush()
@@ -783,7 +778,7 @@ def update_group(
     if name is not None and name.strip() != g.name:
         if g.builtIn:
             raise refuse("name", "built-in", "The Admins group keeps its name.", 409)
-        _raise(_name_problems(name, "name") + _group_name_taken(s, name.strip(), g.id))
+        refuse_all(_name_problems(name, "name") + _group_name_taken(s, name.strip(), g.id))
         g.name = name.strip()
         fields.append("name")
     if active is not None and active != g.active:

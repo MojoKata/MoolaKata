@@ -6,9 +6,10 @@ problem or a sale part names. Each test names the rule; the mutation run found t
 import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal as D
+from types import SimpleNamespace
 
 import pytest
-from test_ledger import Lot, Pick, Snap, replay
+from test_ledger import Lot, Pick, Snap, book, replay, sell
 from test_lot_rules import T, at, old_and_new, opt, sold
 
 from moolakata.ledger import lots
@@ -46,24 +47,36 @@ def test_only_an_ira_or_a_roth_ira_loses_the_disallowed_loss_for_good(account_ty
     assert lots.adds_basis(account_type) is adds
 
 
-def test_wash_sales_on_one_buy_take_its_lots_in_turn():
-    """Two wash sales replaced by one buy of two lots (S3.8.2): the first takes the one-share
-    lot, the second the next lot, never the emptied one; each part takes its own loss into its
-    basis and its sold shares' day bought."""
+def test_wash_sales_on_one_buy_take_its_shares_in_turn():
+    """Two wash sales replaced by one buy of three shares (S3.8.2): the first takes one share
+    split from the buy's lot, the second the two left, never the share already taken; each
+    part takes its own loss into its basis and its sold shares' day bought."""
     buy = T(d(2025, 3, 5), "buy", D(-150), "VTI", D(3), createdAt=at(1))
-    made = [
-        Lot("RA", "VTI", d(2025, 3, 5), D(1), D(50), transactionId=buy.id),
-        Lot("RB", "VTI", d(2025, 3, 5), D(2), D(100), transactionId=buy.id),
-    ]
+    made = [Lot("R", "VTI", d(2025, 3, 5), D(3), D(150), transactionId=buy.id)]
     washes = [
         W("W1", "S1", buy.id, D(1), D(30), d(2024, 1, 1)),
         W("W2", "S2", buy.id, D(2), D(40), d(2024, 2, 1)),
     ]
     r = replay("fifo", [buy], made, [], [], washes=washes)
     assert kept(r) == [
-        ("RA", "VTI", D(1), D(80), d(2024, 1, 1)),
-        ("RB", "VTI", D(2), D(140), d(2024, 2, 1)),
+        ("R", "VTI", D(1), D(80), d(2024, 1, 1)),
+        ("R", "VTI", D(2), D(140), d(2024, 2, 1)),
     ]
+
+
+def test_a_buy_of_more_than_one_lot_is_refused_by_name():
+    """S2.2: a buy, a reinvestment or a reward makes one lot of its day; only shares moved in
+    arrive as several. Any more is broken data, said by name, never replayed as it is."""
+    for kind in ("buy", "reinvest", "reward"):
+        buy = T(d(2025, 3, 5), kind, D(-150), "VTI", D(3), createdAt=at(1))
+        made = [Lot("RA", "VTI", d(2025, 3, 5), D(1), D(50), transactionId=buy.id),
+                Lot("RB", "VTI", d(2025, 3, 5), D(2), D(100), transactionId=buy.id)]  # fmt: skip
+        with pytest.raises(ValueError, match=f"{kind} {buy.id} has 2 lots"):
+            replay("fifo", [buy], made, [], [])
+    moved = T(d(2025, 3, 5), "transfer-in", D(0), "VTI", D(3), createdAt=at(1))
+    made = [Lot("RA", "VTI", d(2024, 3, 5), D(1), D(50), transactionId=moved.id),
+            Lot("RB", "VTI", d(2024, 4, 5), D(2), D(100), transactionId=moved.id)]  # fmt: skip
+    assert len(replay("fifo", [moved], made, [], []).open) == 2
 
 
 def test_a_replacement_without_a_basis_keeps_it_missing_and_takes_the_day():
@@ -84,12 +97,75 @@ def test_a_replacement_partly_sold_before_the_loss_sale_takes_its_share_of_the_l
     made = [Lot("R", "VTI", d(2025, 3, 1), D(10), D(500), transactionId=buy.id)]
     early = T(d(2025, 3, 5), "sell", D(220), "VTI", D(-4), lotMethod="lifo", createdAt=at(2))
     loss = T(d(2025, 3, 10), "sell", D(700), "VTI", D(-10), createdAt=at(3))
-    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2))
+    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2), lotId="A")
     r = replay("fifo", [buy, early, loss], [old, *made], [], [], washes=[wash],
                     sale_at={loss.id: (loss.date, loss.createdAt)})  # fmt: skip
     assert sold(r) == [("R", D(4), D(220), D(200), "lifo"), ("A", D(10), D(700), D(1000), "fifo")]
     assert [x.gain for x in r.disposals] == [D(20), D(0)]
     assert kept(r) == [("R", "VTI", D(6), D(480), d(2024, 1, 2))]
+
+
+def _bought_back(early: bool):
+    """A loss of $300 on ten shares of lot A, replaced by a buy of ten (S3.8): bought before the
+    loss sale (`early`) or after it, the sale's day and making known."""
+    old = Lot("A", "VTI", d(2024, 1, 2), D(10), D(1000))
+    loss = T(d(2025, 3, 10), "sell", D(700), "VTI", D(-10), createdAt=at(2))
+    day = d(2025, 3, 1) if early else d(2025, 3, 20)
+    buy = T(day, "buy", D(-500), "VTI", D(10), createdAt=at(1 if early else 3))
+    made = [Lot("R", "VTI", day, D(10), D(500), transactionId=buy.id)]
+    wash = W("W1", loss.id, buy.id, D(10), D(300), d(2024, 1, 2), lotId="A")
+    return loss, buy, [old, *made], wash
+
+
+def test_a_replacement_bought_after_its_loss_sale_takes_the_loss_when_bought():
+    """S3.8.3: the sale has passed by the buy, so the replacement opens with the loss in its
+    basis and the sold shares' day."""
+    loss, buy, made, wash = _bought_back(early=False)
+    r = replay("fifo", [loss, buy], made, [], [], washes=[wash],
+               sale_at={loss.id: (loss.date, loss.createdAt)})  # fmt: skip
+    assert kept(r) == [("R", "VTI", D(10), D(800), d(2024, 1, 2))]
+
+
+def test_a_wash_sale_settles_before_what_is_made_after_its_loss_sale_that_day():
+    """S3.8.3: a replacement bought before the loss sale takes the loss from the sale on, so a
+    sale of four of it later that same day sells them at the adjusted basis, held from the
+    sold shares' day."""
+    loss, buy, made, wash = _bought_back(early=True)
+    later = T(loss.date, "sell", D(220), "VTI", D(-4), createdAt=at(3))
+    r = replay("fifo", [buy, loss, later], made, [], [], washes=[wash],
+               sale_at={loss.id: (loss.date, loss.createdAt)})  # fmt: skip
+    assert sold(r) == [("A", D(10), D(700), D(1000), "fifo"), ("R", D(4), D(220), D(320), "fifo")]
+    assert r.disposals[1].heldFrom == d(2024, 1, 2)
+    assert kept(r) == [("R", "VTI", D(6), D(480), d(2024, 1, 2))]
+
+
+def _part(lot_id, proceeds, basis, sale="S"):
+    """One share of a sale from a lot, at a gain or a loss (no basis: missing)."""
+    return lots.Disposal(sale, lot_id, "VTI", d(2024, 1, 2), d(2025, 3, 10), D(1), D(proceeds),
+                         None if basis is None else D(basis), "fifo")  # fmt: skip
+
+
+def test_a_lots_disallowed_loss_goes_on_its_losing_parts_by_loss_the_last_taking_the_rest():
+    """S3.8.2: the loss disallowed is the sold lot's, two wash sales of it adding up. A lot a
+    wash sale split sells in parts: $10 over three equal losses is 3.33, 3.33 and 3.34. Its
+    part at a gain, even under a dollar, or with its basis missing has no loss to take any;
+    another lot's part and another sale's keep their own."""
+    out = lots.Replay()
+    out.disposals = [
+        _part("A", 90, 100),
+        _part("A", "100.50", 100),
+        _part("A", 90, None),
+        _part("B", 60, 100),
+        _part("A", 90, 100),
+        _part("A", 80, 100, sale="S2"),
+        _part("A", 90, 100),
+    ]
+    washes = [W("W1", "S", "R", D(1), D(4), d(2024, 1, 2), lotId="A"),
+              W("W2", "S", "R", D(2), D(6), d(2024, 1, 2), lotId="A")]  # fmt: skip
+    lots._disallow(out, washes)
+    assert [x.adjustment for x in out.disposals] == [
+        D("3.33"), 0, 0, 0, D("3.33"), 0, D("3.34")
+    ]  # fmt: skip
 
 
 # -- Return of capital (S2.4) ----------------------------------------------------------------
@@ -323,6 +399,105 @@ def test_a_partial_close_leaves_the_rest_of_the_credit_on_the_short():
     assert [(x.quantity, x.basis) for x in r.open] == [(D(-2), D(-200))]
 
 
+# -- Shares bought while short (S3.4) ---------------------------------------------------------
+
+
+def _short():
+    """Three shares short at $100 each, as an assignment with none held leaves them."""
+    return Lot("SH", "VTI", d(2026, 1, 5), D(-3), D(-300))
+
+
+def test_shares_bought_while_short_close_it_from_the_buys_lot_first():
+    """S3.4: seven bought for $140 while three are short: the three close the short at their
+    share of the cost, taken from the buy's lot; the rest stay long at their basis."""
+    buy = T(d(2026, 2, 1), "buy", D(-140), "VTI", D(7), createdAt=at(1))
+    made = [Lot("B", "VTI", buy.date, D(7), D(140), transactionId=buy.id)]
+    r = replay("fifo", [buy], [_short(), *made], [], [])
+    assert sold(r) == [("SH", D(3), D(-60), D(-300), "fifo")]
+    assert (r.disposals[0].short, r.disposals[0].gain) == (True, D(240))
+    assert [(x.lotId, x.quantity, x.basis) for x in r.open] == [("B", D(4), D(80))]
+
+
+def test_a_buy_without_a_lot_of_its_own_closes_the_short_from_its_own_shares():
+    """S3.4: the shares a buy opens itself close the short; a lot held before it, another
+    instrument's here, keeps all of its own."""
+    other = Lot("X", "VXUS", d(2026, 1, 6), D(10), D(500))
+    buy = T(d(2026, 2, 1), "buy", D(-140), "VTI", D(7), createdAt=at(1))
+    r = replay("fifo", [buy], [_short(), other], [], [])
+    assert sold(r) == [("SH", D(3), D(-60), D(-300), "fifo")]
+    assert [(x.lotId, x.instrumentId, x.quantity, x.basis) for x in r.open] == [
+        ("X", "VXUS", D(10), D(500)), (None, "VTI", D(4), D(80))
+    ]  # fmt: skip
+
+
+def test_an_all_cash_merger_closes_a_short_as_shares_sold_short_and_sells_a_single_share():
+    """S3.4: an account short three VTI pays the merger's cash to close them, shares sold
+    short; one long share, a lot of exactly one, is sold at the cash; with none held, the
+    merger's cash is all it is: no sale, no problem."""
+    merger = T(d(2026, 3, 1), "merger", D(-150), "VTI", D(3), createdAt=at(1))
+    r = replay("fifo", [merger], [_short()], [], [])
+    assert sold(r) == [("SH", D(3), D(-150), D(-300), "fifo")]
+    assert (r.disposals[0].short, r.disposals[0].gain, r.open) == (True, D(150), [])
+    merger = T(d(2026, 3, 1), "merger", D(150), "VTI", D(-1), createdAt=at(1))
+    r = replay("fifo", [merger], [Lot("L", "VTI", d(2025, 1, 2), D(1), D(100))], [], [])
+    assert sold(r) == [("L", D(1), D(150), D(100), "fifo")] and r.open == []
+    other = Lot("X", "VXUS", d(2025, 1, 2), D(2), D(100))
+    r = replay("fifo", [merger], [other], [], [])
+    assert (r.disposals, r.problems, kept(r)) == ([], [], [("X", "VXUS", D(2), D(100), None)])
+
+
+def test_a_mergers_cash_beside_shares_is_a_gain_on_a_lot_of_exactly_one_share():
+    """IRC §356: one share for two of the acquirer at $50 and $30 cash, bought for $80: the
+    $30 is all gain ($130 got for $80 paid), the new shares keep the $80."""
+    made = [Lot("A", "OLD", d(2024, 1, 1), D(1), D(80))]
+    old = T(d(2026, 5, 1), "merger", D(30), "OLD", D(-1), createdAt=at(2))
+    nxt = T(d(2026, 5, 1), "merger", D(0), "NEW", D(2), transferId=old.id, createdAt=at(3),
+            splitRatio=D(2), price=D(50))  # fmt: skip
+    r = replay("fifo", [old, nxt], made, [], [])
+    assert [(x.instrumentId, x.quantity, x.basis) for x in r.open] == [("NEW", D(2), D(80))]
+    assert sold(r) == [("A", D(0), D(30), D(0), "merger")]
+
+
+def test_a_buy_without_a_quantity_closes_no_short():
+    """A file's buy can come without its shares (S1.3.2): it opens nothing and closes nothing."""
+    buy = T(d(2026, 2, 1), "buy", D(-140), "VTI", None, createdAt=at(1))
+    r = replay("fifo", [buy], [_short()], [], [])
+    assert r.disposals == [] and kept(r) == [("SH", "VTI", D(-3), D(-300), None)]
+
+
+# -- What the replay is given, and the order of a day (S2.2, R3.2) ---------------------------------
+
+
+def test_a_lot_without_its_transaction_is_refused_naming_it():
+    lot = Lot("L9", "VTI", d(2025, 1, 2), D(1), D(10))
+    with pytest.raises(
+        ValueError, match=r"^lot L9 has no transaction: every lot is made by one \(S2\.2\)$"
+    ):
+        lots.replay("fifo", [], [lot], [], [])
+
+
+def test_a_new_leg_comes_before_its_days_snapshot_though_the_snapshot_was_read_first():
+    """An account kept by snapshots (R3.2) whose holding changes symbol: the new symbol's
+    snapshot that day is at the day's end, after the pair, however early it was read in, so it
+    finds the lots carried and nothing missing."""
+    old, nxt = old_and_new("symbol-change")
+    before = Snap("OLD", d(2026, 4, 30), D(10), id="H0", createdAt=at(0))
+    after = Snap("NEW", nxt.date, D(10), id="H1", createdAt=at(0))
+    r = replay("fifo", [old, nxt], [], [], [before, after])
+    assert [(x.instrumentId, x.quantity, x.standIn) for x in r.open] == [("NEW", D(10), True)]
+    assert [(p.instrumentId, p.date, p.quantity) for p in r.problems] == [
+        ("OLD", d(2026, 4, 30), D(10))
+    ]
+
+
+def test_a_ratio_on_what_is_no_split_splits_nothing():
+    """S2.4: only a split's ratio changes the shares held; a dividend with one leaves them."""
+    made = [Lot("A", "VTI", d(2024, 1, 2), D(10), D(1000))]
+    div = T(d(2025, 3, 1), "dividend", D(25), "VTI", splitRatio=D(2), createdAt=at(1))
+    r = replay("fifo", [div], made, [], [])
+    assert kept(r) == [("A", "VTI", D(10), D(1000), None)]
+
+
 # -- What a problem or a sale part names (S8.4) -------------------------------------------------
 
 
@@ -379,3 +554,119 @@ def test_a_snapshot_leaves_a_short_lot_past_the_difference_alone():
     ], [], [], [Snap("OPT", d(2026, 1, 31), D(1))], by_snapshots=True)  # fmt: skip
     assert [(x.quantity, x.basis) for x in r.open] == [(D(3), D(300)), (D(-2), D(-200))]
     assert [p.quantity for p in r.problems] == [D(-2)]
+
+
+def test_two_picks_of_one_lot_take_no_more_than_it_holds():
+    """S2.3: a lot picked twice (the route allows one live pick a lot; the ledger holds on its
+    own) gives its 10 shares once, and the rest of the sale goes first in."""
+    txns, lots_ = book()
+    s = sell(12, 3000, method="specific")
+    picks = [Pick(s.id, lots_[1].id, D(6)), Pick(s.id, lots_[1].id, D(6))]
+    r = replay("fifo", [*txns, s], lots_, picks, [])
+    assert [(x.lotId, x.quantity) for x in r.disposals] == [
+        (lots_[1].id, D(6)), (lots_[1].id, D(4)), (lots_[0].id, D(2))
+    ]  # fmt: skip
+    assert all(x.quantity >= 0 for x in r.open)
+
+
+def test_picks_take_a_lot_whatever_is_missing_from_it_and_carry_what_is():
+    """S2.3, S2.2, S8.4: a sale's picks take a lot whose basis is missing (its gain unknown)
+    and one whose day bought is missing (its term unknown) as they take any; a pick of a lot
+    not held takes nothing, and the rest of the sale goes first in."""
+    plain = Lot("L1", "VTI", d(2024, 1, 5), D(10), D(1000))
+    no_basis = Lot("L2", "VTI", d(2025, 3, 5), D(10), None, basisMissing=True)
+    no_day = Lot("L3", "VTI", d(2025, 6, 1), D(10), D(2000), acquiredMissing=True)
+    s = sell(8, 2400, method="specific")
+    picks = [Pick(s.id, "L2", D(3)), Pick(s.id, "L3", D(2)), Pick(s.id, "GONE", D(1))]
+    r = replay("fifo", [s], [plain, no_basis, no_day], picks, [])
+    got = [(x.lotId, x.quantity, x.basis, x.acquiredMissing) for x in r.disposals]
+    assert got == [("L2", D(3), None, False), ("L3", D(2), D(400), True),
+                   ("L1", D(3), D(300), False)]  # fmt: skip
+    assert r.disposals[0].gain is None
+
+
+# -- How a sale takes its lots, on plain lots (S2.3) ---------------------------------------------
+
+
+def _open(*held):
+    """Lots held, oldest first: (lot id, quantity, basis or None)."""
+    out = lots.Replay()
+    for i, (lot_id, q, b) in enumerate(held):
+        basis = None if b is None else D(b)
+        out.open.append(lots.OpenLot(lot_id, "VTI", d(2025, 1, i + 1), D(q), basis))
+    return out
+
+
+def _sale(qty, proceeds, method, picks=(), out=None):
+    t = SimpleNamespace(id="S", instrumentId="VTI", date=d(2026, 3, 2))
+    lots._consume(out, t, D(qty), method, D(proceeds), realize=True, picks=list(picks))
+    return [(x.lotId, x.quantity, x.proceeds, x.basis, x.method) for x in out.disposals]
+
+
+def test_a_method_not_known_is_refused_naming_the_ones_there_are():
+    with pytest.raises(
+        ValueError, match=r"'random' is none of fifo, lifo, hifo, specific, average"
+    ):
+        _sale(1, 10, "random", out=_open(("A", 1, 10)))
+
+
+def test_picks_count_only_for_specific_identification():
+    out = _open(("A", 5, 50), ("B", 5, 100))
+    assert _sale(2, 40, "fifo", [Pick("S", "B", D(2))], out) == [("A", D(2), D(40), D(20), "fifo")]
+
+
+def test_a_pick_takes_no_more_than_the_sale_and_a_lot_used_up_gives_no_empty_part():
+    """A pick larger than the sale takes the sale's shares; a second pick of the lot it used up
+    adds no part of no shares."""
+    out = _open(("A", 10, 100), ("B", 10, 200))
+    picks = [Pick("S", "A", D(8)), Pick("S", "A", D(5)), Pick("S", "B", D(1))]
+    got = _sale(5, 50, "specific", picks, out)
+    assert got == [("A", D(5), D(50), D(50), "specific")]
+
+
+def test_a_pick_of_a_split_lot_takes_its_parts_in_turn_and_no_more_than_picked():
+    """A lot a wash sale split is two parts of one id: a pick of 4 takes 3 and then 1, and the
+    rest of the sale goes first in, here from an older lot."""
+    out = _open(("M", 10, 100), ("L", 3, 30), ("L", 3, 60))
+    got = _sale(6, 60, "specific", [Pick("S", "L", D(4))], out)
+    assert [(x[0], x[1]) for x in got] == [("L", D(3)), ("L", D(1)), ("M", D(2))]
+
+
+def test_a_sales_proceeds_are_shared_by_quantity_the_last_part_taking_the_cents_left():
+    out = _open(("A", 1, 1), ("B", 1, 1), ("C", 1, 1))
+    got = _sale(3, 10, "fifo", out=out)
+    assert [x[2] for x in got] == [D("3.33"), D("3.33"), D("3.34")]
+    assert sum(x[2] for x in got) == D(10)
+
+
+def test_average_cost_rebases_the_shares_held_the_last_lot_taking_the_cents_left():
+    """S2.3: every share held is re-based to the pool's average; the last lot held takes what
+    rounding leaves, and a lot of no shares left is no part of the pool."""
+    out = _open(("A", 1, "3"), ("B", 1, "3"), ("C", 1, "4"), ("Z", 0, "0"))
+    _sale(1, 5, "average", out=out)
+    assert [(x.lotId, x.quantity, x.basis) for x in out.open] == [
+        ("A", D(0), D(0)), ("B", D(1), D("3.33")), ("C", D(1), D("3.34")), ("Z", D(0), D(0))
+    ]  # fmt: skip
+
+
+def test_hifo_takes_the_highest_cost_a_share_first_and_a_lot_without_a_basis_last():
+    out = _open(("A", 1, 10), ("N", 1, None), ("B", 1, 30), ("C", 1, 20))
+    got = _sale(4, 40, "hifo", out=out)
+    assert [x[0] for x in got] == ["B", "C", "A", "N"]
+
+
+def test_a_wash_sale_of_a_part_with_no_lot_stays_on_the_parts_with_no_lot():
+    """S3.8.2: the loss disallowed is that lot's, its W on that lot's row. A sale of a named
+    lot (washed by its own row) and of shares with no lot (washed by one naming none): each
+    part takes only its own wash sale, never a share of the other's."""
+    day, sold_on = dt.date(2026, 1, 5), dt.date(2026, 3, 2)
+    out = lots.Replay()
+    named = lots.Disposal("S", "L1", "VTI", day, sold_on, D(10), D(900), D(1000), "fifo")
+    lotless = lots.Disposal("S", None, "VTI", day, sold_on, D(5), D(450), D(500), "fifo")
+    out.disposals = [named, lotless]
+    washes = [
+        SimpleNamespace(saleId="S", lotId="L1", disallowed=D("60.00")),
+        SimpleNamespace(saleId="S", lotId=None, disallowed=D("50.00")),
+    ]
+    lots._disallow(out, washes)
+    assert (named.adjustment, lotless.adjustment) == (D("60.00"), D("50.00"))

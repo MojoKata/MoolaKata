@@ -43,7 +43,9 @@ export function ShareMarks({ a }) {
       ? html`<span class="mark" data-tip="Shared by me"><${Icon} name="share" /> ${a.sharedWith}</span>`
       : null;
   }
-  return html`<span class="mark" data-tip=${`Shared with me by ${a.ownerName} (${
+  // An owner made inactive is still named, so the account stays theirs (S10.1.7).
+  const owner = a.ownerActive === false ? `${a.ownerName} (inactive)` : a.ownerName;
+  return html`<span class="mark" data-tip=${`Shared with me by ${owner} (${
     a.access.writable ? 'write' : 'read'
   })`}>
     <${Avatar} sm name=${a.ownerName} image=${a.ownerAvatar} id=${a.ownerId} />

@@ -6,7 +6,19 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, make, option_trade, saved, sell, terms
+from edits import (
+    change,
+    edit,
+    loan_payment,
+    make,
+    new_id,
+    option_trade,
+    remove,
+    saved,
+    sell,
+    share,
+    terms,
+)
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -418,6 +430,181 @@ def test_a_pick_of_a_lot_a_wash_sale_split_takes_from_its_parts(jane):
     ]
 
 
+def save_picks(c, *picks):
+    """Lots picked for sales, each (saleId, lotId, quantity), in one save as the sale's draft
+    sends them; the answer and each pick's id."""
+    ids = [new_id("LotPk") for _ in picks]
+    ops = [{"op": "create", "entity": "LotPk", "id": i,
+            "fields": {"saleId": s, "lotId": lot, "quantity": q}}
+           for i, (s, lot, q) in zip(ids, picks, strict=True)]  # fmt: skip
+    return c.post("/ui/api/save", json={"ops": ops}), ids
+
+
+def refusals(r):
+    """A refused save's status and each refusal's field, code and words."""
+    return r.status_code, [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def picks_of(c, sale_id):
+    return c.get(f"/ui/api/transactions/{sale_id}").json()["picks"]
+
+
+def test_lots_are_picked_for_a_live_sale_of_an_account_the_caller_writes(server, frozen):
+    """S2.3, S10.3: a pick names a sale (a live sell of a holding) of an account the caller
+    writes; one who only reads the sale's account picks for it and changes its picks in
+    nothing, whatever lot they name."""
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    own = new_account(john, name="John's", type="brokerage")["id"]
+    buy = add(jane, brk, "-1000.00", "2025-01-06", kind="buy", symbol="IBM", quantity="10",
+              price="100")  # fmt: skip
+    trade(john, own, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    sale = add(jane, brk, "500.00", "2026-03-02", kind="sell", symbol="IBM", quantity="5",
+               price="100")["id"]  # fmt: skip
+    gone = add(jane, brk, "200.00", "2026-03-09", kind="sell", symbol="IBM", quantity="2",
+               price="100")  # fmt: skip
+    saved(remove(jane, "Txn", gone))
+    lot = lots_on(jane, brk, "2026-03-02")[("IBM", "2025-01-06")]["lotId"]
+    unknown = [("saleId", "transaction-unknown", "No such transaction.")]
+    assert refusals(save_picks(jane, (new_id("Txn"), lot, "1"))[0]) == (422, unknown)
+    assert refusals(save_picks(jane, (gone["id"], lot, "1"))[0]) == (422, unknown)
+    assert refusals(save_picks(jane, (buy["id"], lot, "1"))[0]) == (
+        422,
+        [("saleId", "pick-not-a-sale", "Lots are picked for a sale.")],
+    )
+    saved(save_picks(jane, (sale, lot, "1"))[0])
+    (pick,) = picks_of(jane, sale)
+    saved(share(jane, "account", brk, users={u["john"].id: "read"}))
+    johns = lots_on(john, own, "2026-03-02")[("IBM", "2025-01-06")]["lotId"]
+    for r in (save_picks(john, (sale, johns, "1"))[0], change(john, "LotPk", pick, quantity="2")):
+        assert (r.status_code, r.json()["errors"][0]["code"]) == (403, "share-read-only"), r.text
+    assert [p["quantity"] for p in picks_of(jane, sale)] == ["1.0"]
+    saved(share(jane, "account", brk, users={u["john"].id: "write"}))
+    saved(change(john, "LotPk", pick, quantity="2"))
+    assert [p["quantity"] for p in picks_of(jane, sale)] == ["2.0"]
+
+
+def test_a_pick_is_of_a_live_lot_of_the_sales_holding_and_more_than_none(jane):
+    """S2.3: the lot picked is one of the sale's holding in the sale's account, refused on
+    the lot; one unknown or gone (its shares typed again as fewer lots, S2.2) is not found;
+    none or less is refused on the quantity."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    other = new_account(jane, name="Other", type="brokerage", mask="2222")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="VTI")
+    trade(jane, other, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    moved = add(jane, brk, "0.00", "2025-02-03", kind="transfer-in", symbol="IBM", quantity="5")
+    path = f"/ui/api/transactions/{moved['id']}"
+    two = [{"acquiredOn": "2024-05-01", "quantity": "3", "costBasis": "300"},
+           {"acquiredOn": "2024-06-03", "quantity": "2", "costBasis": "200"}]  # fmt: skip
+    saved(edit(jane, "Txn", path, transferLots=two))
+    typed_over = lots_on(jane, brk, "2026-03-02")[("IBM", "2024-06-03")]["lotId"]
+    lots = [{"acquiredOn": "2024-05-01", "quantity": "5", "costBasis": "500"}]
+    saved(edit(jane, "Txn", path, transferLots=lots))
+    held = lots_on(jane, brk, "2026-03-02")
+    sale = add(jane, brk, "500.00", "2026-03-02", kind="sell", symbol="IBM", quantity="5",
+               price="100")["id"]  # fmt: skip
+    for lot in (new_id("Lot"), typed_over):
+        r, _ = save_picks(jane, (sale, lot, "1"))
+        assert refusals(r) == (404, [(None, "not-found", "Not found")]), lot
+    for lot in (
+        held[("VTI", "2025-01-06")]["lotId"],
+        lots_on(jane, other, "2026-03-02")[("IBM", "2025-01-06")]["lotId"],
+    ):
+        assert refusals(save_picks(jane, (sale, lot, "1"))[0]) == (
+            422,
+            [("lotId", "lot-unknown", "Choose a lot of this holding.")],
+        ), lot
+    ibm = held[("IBM", "2025-01-06")]["lotId"]
+    for none in ("0", "-1"):
+        assert refusals(save_picks(jane, (sale, ibm, none))[0]) == (
+            422,
+            [("quantity", "quantity-invalid", "More than none.")],
+        ), none
+    assert saved(save_picks(jane, (sale, ibm, "1"))[0])["quantity"] == "1.0"
+
+
+def test_the_lots_picked_come_to_no_more_than_the_sale_and_what_each_lot_held(jane):
+    """S2.3: a sale's picks, live ones only, come to no more than its shares, and each to no
+    more than its lot held on the sale's day (a lot bought later held none); each sale in one
+    save is checked, its refusal named by the pick."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-06-02", "buy", "10", "300", symbol="IBM")
+    sale = add(jane, brk, "1000.00", "2026-03-02", kind="sell", symbol="IBM", quantity="5",
+               price="200")["id"]  # fmt: skip
+    small = add(jane, brk, "400.00", "2026-03-09", kind="sell", symbol="IBM", quantity="2",
+                price="200")["id"]  # fmt: skip
+    trade(jane, brk, "2026-04-01", "buy", "10", "150", symbol="IBM")
+    held = lots_on(jane, brk, "2026-04-01")
+    older, newer = held[("IBM", "2025-01-06")]["lotId"], held[("IBM", "2025-06-02")]["lotId"]
+    later = held[("IBM", "2026-04-01")]["lotId"]
+    over = [("quantity", "picks-over", "The lots picked come to more than the sale.")]
+    assert refusals(save_picks(jane, (sale, older, "6"))[0]) == (422, over)
+    assert refusals(save_picks(jane, (sale, later, "1"))[0]) == (
+        422,
+        [("quantity", "pick-over", "More than the lot held that day.")],
+    )
+    r, ids = save_picks(jane, (sale, older, "5"), (small, newer, "3"))
+    assert refusals(r) == (422, over)
+    assert r.json()["errors"][0]["id"] == ids[1]
+    # A pick taken away no longer counts toward the sale.
+    saved(save_picks(jane, (sale, newer, "5"))[0])
+    (gone,) = picks_of(jane, sale)
+    saved(remove(jane, "LotPk", gone))
+    saved(save_picks(jane, (sale, older, "5"))[0])
+    assert [(p["lotId"], p["quantity"]) for p in picks_of(jane, sale)] == [(older, "5.0")]
+
+
+def test_a_pick_keeps_its_sale_and_lot_and_one_taken_away_is_gone(jane):
+    """S2.3: a pick changes only its quantity; one taken away is not found to change."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-06-02", "buy", "10", "300", symbol="IBM")
+    sale = add(jane, brk, "1000.00", "2026-03-02", kind="sell", symbol="IBM", quantity="5",
+               price="200")["id"]  # fmt: skip
+    other = add(jane, brk, "400.00", "2026-03-09", kind="sell", symbol="IBM", quantity="2",
+                price="200")["id"]  # fmt: skip
+    held = lots_on(jane, brk, "2026-03-02")
+    older, newer = held[("IBM", "2025-01-06")]["lotId"], held[("IBM", "2025-06-02")]["lotId"]
+    saved(save_picks(jane, (sale, older, "2"))[0])
+    (pick,) = picks_of(jane, sale)
+    fixed = (422, [("lotId", "pick-fixed", "A pick keeps its sale and lot.")])
+    assert refusals(change(jane, "LotPk", pick, lotId=newer)) == fixed
+    assert refusals(change(jane, "LotPk", pick, saleId=other)) == fixed
+    pick = saved(change(jane, "LotPk", pick, quantity="3"))
+    assert [(p["lotId"], p["quantity"]) for p in picks_of(jane, sale)] == [(older, "3.0")]
+    saved(remove(jane, "LotPk", pick))
+    gone = {**pick, "version": pick["version"] + 1}
+    assert refusals(change(jane, "LotPk", gone, quantity="4")) == (
+        404,
+        [(None, "not-found", "Not found")],
+    )
+
+
+def test_a_pick_works_the_wash_sales_out_again(jane):
+    """S2.3, S3.8: picking the dear lot turns the sale's gain into a loss, and the shares
+    bought back two weeks later make it a wash sale at once."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-06-02", "buy", "10", "300", symbol="IBM")
+    sale = add(jane, brk, "2000.00", "2026-03-02", kind="sell", symbol="IBM", quantity="10",
+               price="200")["id"]  # fmt: skip
+    trade(jane, brk, "2026-03-16", "buy", "10", "190", symbol="IBM")
+    b = book(jane)
+
+    def rows():
+        return [(x["acquired"], x["adjustment"]) for x in panels(jane, b)["rows"]]
+
+    assert rows() == [("2025-01-06", "0.00")]
+    dear = lots_on(jane, brk, "2026-03-02")[("IBM", "2025-06-02")]["lotId"]
+    saved(save_picks(jane, (sale, dear, "10"))[0])
+    assert rows() == [("2025-06-02", "1000.00")]
+
+
 def test_fewer_shares_bought_back_replace_the_earliest_acquired(jane):
     # S3.8.2, Treas. Reg. §1.1091-1(c): highest cost first sells the $120 lot then
     # the $100 one, both at a loss; the ten bought back replace the earliest acquired.
@@ -562,6 +749,25 @@ def test_shares_moved_in_keep_the_days_they_were_bought(jane):
     assert ko["lots"][0]["acquiredMissing"] and ko["lots"][0]["longTerm"] is None
     kinds = [i["kind"] for i in panels(jane, b)["issues"]]
     assert "acquired-missing" in kinds
+    # Its quantity and day corrected: the lot still missing its day bought follows them.
+    t = saved(change(jane, "Txn", r.json(), quantity="12", date="2026-02-03"))
+
+    def lots_():
+        held = jane.get(f"/ui/api/accounts/{fid['id']}/holdings").json()["holdings"]
+        return next(h for h in held if h["symbol"] == "KO")["lots"]
+
+    assert [(x["quantity"], x["acquiredOn"], x["acquiredMissing"]) for x in lots_()] == [
+        ("12.0", "2026-02-03", True)
+    ]
+    # Then its lots typed: each keeps the day it was bought, and the day missing is gone.
+    saved(change(jane, "Txn", t, transferLots=[
+        {"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "250"},
+        {"acquiredOn": "2021-06-01", "quantity": "7", "costBasis": "420"},
+    ]))  # fmt: skip
+    assert [(x["quantity"], x["acquiredOn"], x["acquiredMissing"]) for x in lots_()] == [
+        ("5.0", "2020-01-02", False), ("7.0", "2021-06-01", False)
+    ]  # fmt: skip
+    assert "acquired-missing" not in [i["kind"] for i in panels(jane, b)["issues"]]
 
 
 def test_shares_moved_between_two_accounts_carry_their_lots(jane):
@@ -631,3 +837,127 @@ def test_a_funds_distributions_and_return_of_capital_reach_the_return(jane):
     )
     [vti] = [x for x in jane.get("/ui/api/positions").json()["open"] if x["symbol"] == "VTI"]
     assert (vti["quantity"], vti["cost"]) == (10, 0)
+
+
+def test_the_lots_a_sale_may_pick_are_those_held_on_its_day(jane):
+    """S2.3: a sale picks from the lots open on its day, a trade of that day among them, each
+    however few its shares, a basis missing shown missing; an option bought is a contract,
+    not a lot to pick (S3.2)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, brk, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="0.5")
+    trade(jane, brk, "2026-03-02", "buy", "1", "250", symbol="IBM")
+    r = option_trade(jane, brk, "2026-03-02", "buy-to-open", "IBM", "call", 300, "2026-12-18",
+                     1, "5.00")  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = lots_on(jane, brk, "2026-03-02")
+    assert {k: (x["quantity"], x["basis"]) for k, x in held.items()} == {
+        ("IBM", "2026-03-02"): ("1.0", "250.00"),
+        ("KO", "2026-01-05"): ("0.5", None),
+    }
+
+
+def test_a_later_sale_picks_from_what_an_earlier_ones_picks_left(jane):
+    """S2.3: the lots an earlier sale picked are gone from those a later one picks from, never
+    the first in instead."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2024-01-08", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2025-06-02", "buy", "10", "300", symbol="IBM")
+    newer = lots_on(jane, brk, "2026-03-02")[("IBM", "2025-06-02")]
+    r = make(jane, "Txn", accountId=brk, date="2026-03-02", kind="sell", symbol="IBM",
+             quantity="4", price="250", amount="1000.00",
+             picks=[{"lotId": newer["lotId"], "quantity": "4"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    held = lots_on(jane, brk, "2026-04-01")
+    assert {k[1]: x["quantity"] for k, x in held.items()} == {
+        "2024-01-08": "10.0",
+        "2025-06-02": "6.0",
+    }
+
+
+def test_a_replacements_lot_takes_its_wash_sales_loss_from_the_loss_sales_day(jane):
+    """S3.8, S2.3: a replacement's lot is offered with the loss its wash sale adds only from
+    the loss sale's day on, whichever of the owner's accounts sold; the lots a sale picks from
+    leave out its own wash sale."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    other = new_account(jane, name="Other", type="brokerage", mask="2222")["id"]
+    trade(jane, brk, "2026-01-05", "buy", "10", "100", symbol="IBM")
+    trade(jane, brk, "2026-03-02", "buy", "10", "50", symbol="IBM")
+    trade(jane, other, "2026-01-05", "buy", "10", "100", symbol="KO")
+    trade(jane, brk, "2026-03-02", "buy", "10", "50", symbol="KO")
+    trade(jane, other, "2026-03-10", "sell", "10", "50", symbol="KO")
+    sale = make(jane, "Txn", accountId=brk, date="2026-03-10", kind="sell", symbol="IBM",
+                quantity="10", price="50", amount="500.00")  # fmt: skip
+    assert sale.status_code == 200, sale.text
+
+    def bases(day, sale_id=None):
+        return {k: x["basis"] for k, x in lots_on(jane, brk, day, sale_id).items()}
+
+    first, replaced = ("IBM", "2026-01-05"), ("IBM", "2026-03-02")
+    ko = ("KO", "2026-03-02")
+    assert bases("2026-03-09") == {first: "1000.00", replaced: "500.00", ko: "500.00"}
+    assert bases("2026-03-10", sale.json()["id"]) == {
+        first: "1000.00",
+        replaced: "500.00",
+        ko: "1000.00",
+    }
+    assert bases("2026-03-10") == {replaced: "1000.00", ko: "1000.00"}
+
+
+def test_shares_moved_are_offered_as_a_pair_whichever_half_is_recorded_first(jane):
+    """S1.7.1: the half moved in recorded before the half moved out, the pair is offered once
+    the second is recorded."""
+    schwab = new_account(jane, name="Schwab", type="brokerage")
+    fid = new_account(jane, name="Fidelity", type="brokerage")
+    add(jane, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="100")  # fmt: skip
+    assert jane.get("/ui/api/transfers/bitcoin").json()["items"] == []
+    add(jane, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="100")  # fmt: skip
+    pairs = jane.get("/ui/api/transfers/bitcoin").json()["items"]
+    assert [(p["symbol"], p["fromAccount"], p["toAccount"]) for p in pairs] == [
+        ("VTI", "Schwab", "Fidelity")
+    ]
+
+
+def test_shares_carried_in_are_sold_by_the_lots_picked(server, jane):
+    """S2.3, S1.7.1: shares moved from one of the owner's accounts to another arrive with the
+    lots they left with, each its own, so a sale where they arrive may pick them, as the
+    receiving broker sells by the transfer statement's lots; half a lot moved is picked as the
+    half that came."""
+    schwab = new_account(jane, name="Schwab", type="brokerage")
+    fid = new_account(jane, name="Fidelity", type="brokerage", mask="2222")
+    add(jane, schwab["id"], "30000.00", "2019-01-02", kind="deposit")
+    trade(jane, schwab["id"], "2019-03-04", "buy", "100", "100")
+    trade(jane, schwab["id"], "2020-03-04", "buy", "100", "150")
+    add(jane, schwab["id"], "0.00", "2026-01-09", kind="transfer-out", symbol="VTI",
+        quantity="150")  # fmt: skip
+    add(jane, fid["id"], "0.00", "2026-01-10", kind="transfer-in", symbol="VTI",
+        quantity="150")  # fmt: skip
+    (pair,) = jane.get("/ui/api/transfers/bitcoin").json()["items"]
+    r = jane.post(f"/ui/api/transfers/bitcoin/{pair['id']}", json={"confirm": True},
+                  headers={"If-Match": f'"{pair["version"]}"'})  # fmt: skip
+    assert r.status_code == 200, r.text
+    offered = lots_on(jane, fid["id"], "2026-03-02")
+    assert {k: (v["quantity"], v["basis"]) for k, v in offered.items()} == {
+        ("VTI", "2019-03-04"): ("100.0", "10000.00"),
+        ("VTI", "2020-03-04"): ("50.0", "7500.00"),
+    }
+    later = offered[("VTI", "2020-03-04")]["lotId"]
+    r = make(jane, "Txn", accountId=fid["id"], date="2026-03-02", kind="sell", symbol="VTI",
+             quantity="50", price="200", amount="10000.00", fees="0",
+             picks=[{"lotId": later, "quantity": "50"}])  # fmt: skip
+    assert r.status_code == 200, r.text
+    closed = jane.get("/ui/api/positions").json()["closed"]
+    sold = [(x["opened"], x["cost"], x["realized"]) for x in closed if x["how"] == "sold"]
+    assert sold == [("2020-03-04", "7500.00", "2500.00")]
+    # The pick changed, the lot is still the sale's to pick, its own pick left out of what is
+    # held that day; taken away, it is marked as who took it.
+    from moolakata.store.entities.accounts import LotPick
+
+    (pick,) = jane.get(f"/ui/api/transactions/{r.json()['id']}").json()["picks"]
+    assert saved(change(jane, "LotPk", pick, quantity="40"))["quantity"] == "40.0"
+    (pick,) = jane.get(f"/ui/api/transactions/{r.json()['id']}").json()["picks"]
+    assert remove(jane, "LotPk", pick).status_code == 200
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(LotPick, pick["id"]).deletedById == me

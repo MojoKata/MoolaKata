@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal as D
 
 from conftest import make_user, sign_in
-from edits import edit, make, remove
+from edits import change, edit, make, new_id, remove, saved
 from sqlalchemy import text
 from test_accounts import add, new_account
 
@@ -78,6 +78,27 @@ def test_dashboard_counts_owned_and_ticked_accounts(server):
     assert series["groups"] == ["banking", "liabilities"]
     assert series["points"][-1]["total"] == "900.00"
     assert john.get("/ui/api/dashboard").json()["netWorth"] == "0.00"
+
+
+def test_a_portfolio_changed_is_checked_and_kept(server):
+    """S5.1: a changed name, benchmark or set of accounts is refused at its field when it
+    isn't one; a good change keeps each."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a, b = new_account(c, type="brokerage"), new_account(c, type="brokerage", name="Second")
+    p = make(c, "Portf", name="Mine", accountIds=[a["id"]]).json()
+    for fields, field, code in (
+        ({"name": " "}, "name", "name-invalid"),
+        ({"benchmark": "DOW"}, "benchmark", "benchmark-invalid"),
+        ({"accountIds": [a["id"], new_id("Acct")]}, "accountIds", "account-unknown"),
+    ):
+        r = change(c, "Portf", p, **fields)
+        assert r.status_code == 422, fields
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [(field, code)]
+    out = saved(change(c, "Portf", p, name=" Ours ", benchmark="SPY", notes="Both",
+                       accountIds=[a["id"], b["id"]]))  # fmt: skip
+    assert (out["name"], out["benchmark"], out["notes"]) == ("Ours", "SPY", "Both")
+    assert sorted(out["accountIds"]) == sorted([a["id"], b["id"]])
 
 
 def test_portfolio_series_returns_and_holdings(server):

@@ -12,10 +12,11 @@ from sqlalchemy import false, func, select
 
 from .. import access, activity, clock, exactjson, valuation
 from ..access import Perms
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import expected, holdingcheck, reconcile
 from ..ledger import types as atypes
 from ..ledger.lots import long_term
+from ..people import owners
 from ..store.entities.accounts import (
     Account,
     Anchor,
@@ -25,7 +26,6 @@ from ..store.entities.accounts import (
     Reconciliation,
     Transaction,
 )
-from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..store.tables.accounts import ACCOUNT_TYPES, LOT_METHODS
 from . import save
@@ -59,6 +59,7 @@ class AccountRow(Model):
     closedOn: dt.date | None  # the day it closed (S1.2); none while open
     ownerId: str
     ownerName: str
+    ownerActive: bool  # an owner made inactive is still named, marked so (S10.1.7)
     access: Access
     sharedWith: int
     ownerAvatar: str | None
@@ -102,20 +103,6 @@ class AccountDetail(AccountRow):
     # A receiver's Count in my totals, a record of the save (CountedAccount): none until set.
     countedId: str | None = None
     countedVersion: int = 0
-
-
-class NewAccount(Model):
-    name: str
-    type: str
-    institution: str | None = None
-    mask: str | None = None
-    notes: str | None = None
-    keptBy: list[str] = Field(default_factory=lambda: ["manual"])
-    lotMethod: str = "fifo"
-    openingBalance: Money | None = None
-    openingDate: dt.date | None = None
-    # A donor-advised fund counts in no one's net worth unless said (S1.1).
-    countInNetWorth: bool | None = None
 
 
 class AccountRecord(Model):
@@ -271,10 +258,11 @@ class NewReconciliation(Model):
 # ---------- shaping ----------
 
 
-def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[FieldError]:
+def _check(body: AccountRecord, sent: set[str] | None = None) -> list[FieldError]:
+    """A record's refusals: every field of a new account (`sent` None); of one changed, its
+    values, with its name and opening balance only when the change touches them."""
     errors = []
-    sent = body.model_fields_set
-    new = isinstance(body, NewAccount) if new is None else new
+    new = sent is None
     named = new or "name" in sent
     if named and (not (body.name or "").strip() or len(body.name or "") > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
@@ -292,12 +280,12 @@ def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[Fi
         )
     if body.keptBy is not None and (not body.keptBy or any(k not in KEPT_BY for k in body.keptBy)):
         errors.append(FieldError("keptBy", "kept-by-invalid", "Imports, manual or bitcoin."))
-    closed = getattr(body, "closedOn", None)
+    closed = body.closedOn
     if closed is not None and closed > clock.today():
         errors.append(
             FieldError("closedOn", "closed-in-future", "The day it closed: today or earlier.")
         )
-    every = getattr(body, "statementInterval", None)
+    every = body.statementInterval
     if every is not None and every not in expected.INTERVALS:
         errors.append(
             FieldError(
@@ -321,26 +309,22 @@ def _check(body: NewAccount | AccountRecord, new: bool | None = None) -> list[Fi
     return errors
 
 
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
-
-
 @dataclass
 class Context:
     """What every row of one caller's list shares."""
 
     userId: str
-    owners: dict[str, User]
+    owners: dict[str, owners.Owner]
     updated: dict
     today: dt.date
     counted: set[str]
 
 
 def context(s, user_id: str, account_ids: list[str]) -> Context:
+    owner_ids = set(s.scalars(select(Account.ownerId).where(Account.id.in_(account_ids))))
     return Context(
         user_id,
-        {u.id: u for u in s.scalars(select(User))},
+        owners.of(s, owner_ids),
         repo.latest_activity(s, account_ids),
         clock.today(),
         counted_for(s, user_id),
@@ -351,7 +335,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
     from . import wallets
 
     today = ctx.today
-    owner = ctx.owners.get(a.ownerId)
+    owner = ctx.owners[a.ownerId]
     ledger = repo.load(s, a)
     investing = atypes.investing(a.type)
     value = valuation.account_value(s, ledger, investing)
@@ -369,8 +353,9 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         mask=a.mask,
         closedOn=a.closedOn,
         ownerId=a.ownerId,
-        ownerName=owner.displayName if owner else "",
-        ownerAvatar=owner.avatar if owner else None,
+        ownerName=owner.name,
+        ownerAvatar=owner.avatar,
+        ownerActive=owner.active,
         access=Access.of(p),
         sharedWith=len(access.holders_of(s, Account, a.id)) - 1 if p.shareable else 0,
         counted=a.countInNetWorth if p.mine else a.id in ctx.counted,
@@ -453,6 +438,25 @@ def list_accounts(request: Request, c: Caller = Depends(caller)):
         return [row(s, a, p, ctx) for a, p in visible]
 
 
+# What a new account is made with; the rest of `AccountRecord` follows as a change (the
+# wallet's keys apart, kept by `wallets`).
+MADE_FIELDS = frozenset(
+    {
+        "name",
+        "type",
+        "institution",
+        "mask",
+        "notes",
+        "keptBy",
+        "lotMethod",
+        "openingBalance",
+        "openingDate",
+        "countInNetWorth",
+        *WALLET_FIELDS,
+    }
+)
+
+
 def _make(s, c: Caller, body, account_id: str) -> Account:
     a = Account(
         id=account_id,
@@ -498,7 +502,7 @@ ACCOUNT_FIELDS = (
 )
 
 
-def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
+def _change(s, c: Caller, a: Account, p: Perms, body: AccountRecord, sent: set[str]) -> None:
     """The fields `sent` set on an account: its settings with `configurable` (S10.3)."""
     settings_fields = {
         "lotMethod",
@@ -514,6 +518,10 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         "syncAccount",
         "withdrawalsAMonth",
         "hsaCoverage",
+        # Where its history starts: it moves every past balance, reconciled periods and filed
+        # years included (S10.3.2).
+        "openingBalance",
+        "openingDate",
     }
     if not p.configurable and sent & settings_fields:
         raise Problem(403, "owner-only", "Only the account's owner changes its settings.")
@@ -522,9 +530,7 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if f in sent:
             value = getattr(body, f)
             if isinstance(value, str):
-                value = value.strip() or None
-            if f in ("name",) and value is None:
-                continue
+                value = value.strip() or None  # a name is never blank: `_check` refuses it
             if getattr(a, f) != value:
                 setattr(a, f, value)
                 changed.append(f)
@@ -535,17 +541,10 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if body.withdrawalsAMonth is not None and (
             a.type not in ("savings", "money-market") or not 1 <= body.withdrawalsAMonth <= 99
         ):
-            raise Problem(
-                422,
+            raise refuse(
+                "withdrawalsAMonth",
                 "limit-invalid",
                 "A savings account's limit: 1 to 99, or empty.",
-                [
-                    FieldError(
-                        "withdrawalsAMonth",
-                        "limit-invalid",
-                        "A savings account's limit: 1 to 99, or empty.",
-                    )
-                ],
             )
         a.withdrawalsAMonth = body.withdrawalsAMonth
         changed.append("withdrawalsAMonth")
@@ -553,18 +552,20 @@ def _change(s, c: Caller, a: Account, p: Perms, body, sent: set[str]) -> None:
         if body.hsaCoverage is not None and (
             a.type != "hsa" or body.hsaCoverage not in ("self", "family")
         ):
-            message = "An HSA's coverage: self-only or family."
-            raise Problem(422, "coverage-invalid", message,
-                          [FieldError("hsaCoverage", "coverage-invalid", message)])  # fmt: skip
+            raise refuse(
+                "hsaCoverage", "coverage-invalid", "An HSA's coverage: self-only or family."
+            )
         a.hsaCoverage = body.hsaCoverage
         changed.append("hsaCoverage")
     if "statementInterval" in sent and a.statementInterval != body.statementInterval:
         a.statementInterval = body.statementInterval
         changed.append("statementInterval")
-    dismissed = getattr(body, "statementIntervalDismissed", None)
+    dismissed = body.statementIntervalDismissed
     if "statementIntervalDismissed" in sent and a.statementIntervalDismissed != dismissed:
         if dismissed is not None and dismissed not in expected.INTERVALS:
             raise refuse("statementIntervalDismissed", "statement-interval-invalid", "An interval.")
+        # Not in `changed`: a proposal set aside is the owner's answer to a suggestion, not a
+        # change to the account worth showing in Activity (S10.8).
         a.statementIntervalDismissed = dismissed
     if "connectionId" in sent or "syncAccount" in sent:
         from ..store.entities.connector import Connection
@@ -1016,17 +1017,12 @@ save.register(
 
 
 def _account_create(ctx, record_id: str, body: AccountRecord) -> None:
-    _raise(_check(body, new=True))
+    refuse_all(_check(body))
     a = _make(ctx.s, ctx.caller, body, record_id)
+    # Every field `_make` doesn't set goes through the change's checks, so none sent is dropped.
     later = {
         f
-        for f in (
-            "closedOn",
-            "statementInterval",
-            "withdrawalsAMonth",
-            "connectionId",
-            "syncAccount",
-        )
+        for f in set(AccountRecord.model_fields) - MADE_FIELDS
         if getattr(body, f) != AccountRecord.model_fields[f].default
     }
     if later:
@@ -1046,7 +1042,7 @@ def _account_current(ctx, a: Account) -> dict:
 
     return {
         "type": a.type,
-        "keptBy": json.loads(a.keptBy or "[]"),
+        "keptBy": json.loads(a.keptBy),
         "statementInterval": a.statementInterval,
         "statementIntervalDismissed": a.statementIntervalDismissed,
         "withdrawalsAMonth": a.withdrawalsAMonth,
@@ -1065,7 +1061,7 @@ def _account_update(ctx, a: Account, body: AccountRecord) -> None:
     sent = {f for f in AccountRecord.model_fields if getattr(body, f) != current[f]}
     if "type" in sent:
         raise refuse("type", "type-fixed", "An account keeps its type.")
-    _raise(_check(body, new=False))
+    refuse_all(_check(body, sent))
     p = access.account(ctx.s, ctx.caller.id, a.id, "write")[1]
     _change(ctx.s, ctx.caller, a, p, body, sent - set(WALLET_FIELDS))
     if sent & set(WALLET_FIELDS):

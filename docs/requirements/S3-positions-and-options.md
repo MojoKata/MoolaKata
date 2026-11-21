@@ -38,9 +38,13 @@
    premium is worked out from the option's lots each time the account's figures are, so a
    corrected opening trade follows through. A call assigned, or a put exercised, with none of
    the shares held is a short sale at the strike: a short stock lot whose basis is what it
-   brought in, closed by the shares bought later, its gain short-term. The resulting stock lots link back to the option,
-   and deleting the assignment or exercise deletes its stock trade with it, after asking; the
-   stock trade alone isn't deleted.
+   brought in, closed by the shares bought later, its gain short-term. The resulting stock
+   lots link back to the option, and deleting the assignment or exercise deletes its stock
+   trade with it, after asking; the stock trade alone isn't deleted, nor are its figures
+   (kind, shares, amount, price, day) changed, as they follow from the assignment: it is
+   corrected by deleting the assignment and recording it again. Its memo, category, tags and
+   cleared mark change as any transaction's. So does a corporate action's transaction
+   (S2.4.7).
 5. **Strategies**: legs held together (a covered call, a vertical spread, an iron condor)
    are grouped and shown as one. Grouping is a label: lots, gains, wash sales and taxes stay
    per leg.
@@ -144,7 +148,10 @@
          same option, or one on the same underlying, opened within 30 days either side;
       3. a loss on stock whose **replacement came through an option**: a put assigned to the
          user, or a call they exercised, within 30 days either side of the loss sale;
-      4. a loss on stock with an **option on it bought or sold** within 30 days either side.
+      4. a loss on stock with an **option on it bought or sold** within 30 days either side;
+      5. a loss on stock with **shares of it bought to close a short sale** (S3.4) within 30
+         days either side: those shares are never taken as its replacement; what the buy
+         leaves long is, as any purchase.
 
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;

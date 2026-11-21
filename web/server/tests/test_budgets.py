@@ -230,6 +230,16 @@ def test_plan_checks_its_lines(server, frozen):
     assert {e["field"] for e in r.json()["errors"]} == {"amount", "categoryId"}
 
 
+def test_a_budgets_name_is_checked_made_or_changed(server, frozen):
+    """A blank or overlong name is refused at its field, on a new budget and a changed one."""
+    c, acct, _, b = setup_budget(server)
+    for bad in (" ", "x" * 81):
+        r = make(c, "Bdgt", name=bad, accountIds=[acct["id"]])
+        assert r.status_code == 422 and r.json()["errors"][0]["field"] == "name", bad
+        r = change(c, "Bdgt", b, name=bad)
+        assert r.status_code == 422 and r.json()["errors"][0]["code"] == "name-invalid", bad
+
+
 def test_a_household_budget_is_shared_with_a_group(server, frozen, admin_client):
     c, _, cat, b = setup_budget(server)
     make_user(server, "john")

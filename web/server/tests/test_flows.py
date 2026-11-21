@@ -79,7 +79,7 @@ def test_shares_moved_count_at_the_series_price_in_and_out(server, jane):
         costBasis="4000")  # fmt: skip
     add(jane, a["id"], "-12000.00", "2026-06-15", kind="buy", symbol="VTI", quantity="100",
         price="120")  # fmt: skip
-    add(jane, a["id"], "0.00", "2026-07-01", kind="transfer-out", symbol="VTI", quantity="-30")
+    add(jane, a["id"], "0.00", "2026-07-01", kind="transfer-out", symbol="VTI", quantity="30")
     got = flows(server, a["id"], d(2025, 12, 31), d(2026, 12, 31))
     # VXUS moved in before it had any price: nothing, in the flows as in the series.
     assert got == {d(2026, 1, 2): D("10000.00"), d(2026, 6, 1): D("5000.00"),

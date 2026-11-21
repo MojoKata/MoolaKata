@@ -4,7 +4,7 @@ S2.6, S2.9, S7.3.5, S12.15, S13.8.11)."""
 import datetime as dt
 
 import pytest
-from edits import asked, change, make, reconcile, remove, saved
+from edits import asked, change, drop, edit, make, new_id, reconcile, remove, saved
 from test_budgets import setup_budget
 from test_save import made_at
 
@@ -51,13 +51,35 @@ def test_a_new_transaction_and_its_parts_in_one_save(server, frozen):
     assert {x["memo"] for x in t["splits"]} == {None, "minibar"}
 
 
+UNBALANCED = ("splits", "splits-unbalanced", "The parts must add up to the transaction's amount.")
+
+
 def test_parts_that_dont_add_up_save_nothing(server, frozen):
     c, acct, cat, _ = setup_budget(server)
     r, txn = made(c, acct, cat, [("-60.00", {}), ("-30.00", {})])
     assert r.status_code == 422, r.text
     (err,) = r.json()["errors"]
-    assert (err["field"], err["code"], err["id"]) == ("splits", "splits-unbalanced", txn)
+    assert (err["field"], err["code"], err["message"], err["id"]) == (*UNBALANCED, txn)
     assert c.get(f"/ui/api/transactions/{txn}").status_code == 404
+
+
+def test_each_transaction_in_one_save_has_its_own_parts_add_up(server, frozen):
+    """S2.6: two split transactions saved together are each checked against their own parts:
+    the second's not adding up is refused though the first's do."""
+    c, acct, cat, _ = setup_budget(server)
+    ops, txns = [], []
+    for parts in (("-60.00", "-40.00"), ("-60.00", "-30.00")):
+        txn = new("Txn")
+        txns.append(txn)
+        ops.append({"op": "create", "entity": "Txn", "id": txn,
+                    "fields": {"accountId": acct["id"], "date": "2026-10-02",
+                               "kind": "withdrawal", "amount": "-100.00"}})  # fmt: skip
+        ops += [{"op": "create", "entity": "Split", "id": new("Split"),
+                 "fields": {"transactionId": txn, "amount": x, "categoryId": cat["Travel"]}}
+                for x in parts]  # fmt: skip
+    r = save(c, ops)
+    assert _errors(r) == [UNBALANCED]
+    assert r.json()["errors"][0]["id"] == txns[1]
 
 
 def test_a_part_changed_or_taken_away_keeps_the_others_and_their_paybacks(server, frozen):
@@ -134,6 +156,14 @@ def test_left_out_of_a_budget_from_the_transactions_draft(server, frozen):
     other = make(c, "Bdgt", name="Other", accountIds=[]).json()
     r = change(c, "Txn", t, leftOutOf={"add": [other["id"]], "remove": []})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "not-in-budget"
+    # Counted again, then left out once more: the same leave-out comes back.
+    t = saved(change(c, "Txn", t, leftOutOf={"add": [], "remove": [b["id"]]}))
+    assert t["leftOutOf"] == []
+    t = saved(change(c, "Txn", t, leftOutOf={"add": [b["id"]], "remove": []}))
+    assert t["leftOutOf"] == [b["id"]]
+    # A budget the caller can't change, or none, is refused on the field.
+    r = change(c, "Txn", t, leftOutOf={"add": [new_id("Bdgt")], "remove": []})
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "budget-unknown"
 
 
 def test_a_split_transaction_deleted_takes_its_parts(server, frozen):
@@ -143,3 +173,1076 @@ def test_a_split_transaction_deleted_takes_its_parts(server, frozen):
     t = c.get(f"/ui/api/transactions/{txn}").json()
     assert remove(c, "Txn", t).status_code == 200
     assert c.get(f"/ui/api/transactions/{txn}").status_code == 404
+
+
+def _stored(server, kind):
+    """Each activity of a kind, as stored: its actor, subject, owner and detail."""
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        return [(x.actorId, x.subjectKind, x.subjectId, x.ownerId, x.detail)
+                for x in s.query(Activity).filter_by(kind=kind)]  # fmt: skip
+
+
+def _errors(r):
+    assert r.status_code == 422, r.text
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def test_a_transaction_is_deleted_by_who_writes_its_account_and_logged_for_its_owner(
+    server, frozen
+):
+    """S10.3: a read share deletes nothing; one who writes the account deletes, and the
+    owner's activity says so (S10.8), counting one."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    from moolakata.store.entities.accounts import Transaction
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-10.00", "2026-10-02", payee="Shop")
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    r = remove(john, "Txn", t)
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (403, "share-read-only"), r.text
+    saved(share(jane, "account", a["id"], users={u["john"].id: "write"}))
+    assert remove(john, "Txn", t).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Transaction, t["id"]).deletedById == u["john"].id
+    assert _stored(server, "transaction.deleted") == [
+        (u["john"].id, "account", a["id"], u["jane"].id, '{"count": 1}')
+    ]
+
+
+def test_left_out_by_one_who_writes_the_budget_and_counted_again(server, frozen):
+    """S7.3.5: one who only reads the account leaves its transaction out of a budget they
+    write, never of one they read; each budget refused says why, and each change is the
+    budget owner's activity."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    from moolakata.store.entities.budgets import BudgetLeaveOut
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-10.00", "2026-10-02", payee="Shop")
+    b = make(jane, "Bdgt", name="Household", accountIds=[a["id"]]).json()
+    seen = make(jane, "Bdgt", name="Seen", accountIds=[a["id"]]).json()
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    saved(share(jane, "budget", b["id"], users={u["john"].id: "write"}))
+    saved(share(jane, "budget", seen["id"], users={u["john"].id: "read"}))
+    t = john.get(f"/ui/api/transactions/{t['id']}").json()
+    unknown = ("leftOutOf", "budget-unknown", "Not a budget you can change.")
+    r = change(john, "Txn", t, leftOutOf={"add": [seen["id"]], "remove": []})
+    assert _errors(r) == [unknown]
+    r = change(john, "Txn", t, leftOutOf={"add": [new_id("Bdgt"), new_id("Bdgt")], "remove": []})
+    assert _errors(r) == [unknown, unknown]
+    others = [make(john, "Bdgt", name=n, accountIds=[]).json()["id"] for n in ("Other", "Third")]
+    r = change(john, "Txn", t, leftOutOf={"add": others, "remove": []})
+    assert sorted(_errors(r)) == [
+        ("leftOutOf", "not-in-budget", "Other doesn't count it."),
+        ("leftOutOf", "not-in-budget", "Third doesn't count it."),
+    ]
+    t = saved(change(john, "Txn", t, leftOutOf={"add": [b["id"]], "remove": []}))
+    t = saved(change(john, "Txn", t, leftOutOf={"add": [], "remove": [b["id"]]}))
+    assert t["leftOutOf"] == []
+    with server.db.read(unscoped="test") as s:
+        assert s.get(BudgetLeaveOut, (b["id"], t["id"])).deletedById == u["john"].id
+    logged = (u["john"].id, "budget", b["id"], u["jane"].id, "{}")
+    assert _stored(server, "budget.left-out") == [logged]
+    assert _stored(server, "budget.counted-again") == [logged]
+
+
+def test_a_part_added_in_a_reconciled_period_asks_first_and_one_deleted_says_by_whom(
+    server, frozen
+):
+    """S2.7: a part made changes the transaction, so a reconciled period asks first."""
+    from moolakata.store.entities.accounts import Split
+
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [])
+    saved(change(c, "Txn", c.get(f"/ui/api/transactions/{txn}").json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    part = {"transactionId": txn, "amount": "-100.00", "categoryId": cat["Travel"]}
+    ops = [{"op": "create", "entity": "Split", "id": new("Split"), "fields": part}]
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period"]
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert save(c, ops, asks).status_code == 200
+    # A part taken away is marked by who took it (schema.md §4.1).
+    _, txn = made(c, acct, cat, [("-60.00", {}), ("-40.00", {})])
+    first, gone = c.get(f"/ui/api/transactions/{txn}").json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {**part, "transactionId": txn}}]  # fmt: skip
+    assert save(c, ops).status_code == 200
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Split, gone["id"]).deletedById == me
+
+
+def _paired(c, txn_id):
+    return c.get(f"/ui/api/transactions/{txn_id}").json()["transferId"]
+
+
+def test_a_transfer_matched_by_hand_names_a_live_half_of_another_account_moving_cash(
+    server, frozen
+):
+    """S1.7: the other half named is a live transaction of another account, neither moving a
+    holding, for the same amount the other way; each refusal says which, and pairs nothing."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    brk = new_account(c, name="Brokerage", type="brokerage", mask="3333")
+    # Dates apart by more than a match's window, so only a hand pairs them.
+    into = add(c, chk["id"], "50.00", "2026-10-01", kind="deposit")
+    gone = add(c, sav["id"], "-50.00", "2026-10-20")
+    saved(remove(c, "Txn", gone))
+    same = add(c, chk["id"], "-50.00", "2026-10-20")
+    bought = add(c, brk["id"], "-50.00", "2026-10-20", kind="buy", symbol="VTI", quantity="1",
+                 price="50", fees="0")  # fmt: skip
+    short = add(c, sav["id"], "-49.00", "2026-10-20")
+    unknown = ("transferWithId", "transaction-unknown", "No such transaction.")
+    apart = ("transferWithId", "not-a-transfer", "A transfer is between two accounts.")
+    for other, refusal in (
+        (new("Txn"), unknown),
+        (gone["id"], unknown),
+        (into["id"], unknown),  # itself
+        (same["id"], apart),
+        (bought["id"], apart),  # a holding's
+        (short["id"], ("amount", "amount-mismatch", "The two halves' amounts differ.")),
+    ):
+        path = f"/ui/api/transactions/{into['id']}"
+        assert _errors(edit(c, "Txn", path, transferWithId=other)) == [refusal], other
+        assert _paired(c, into["id"]) is None
+    half = add(c, sav["id"], "-50.00", "2026-10-20")
+    assert saved(edit(c, "Txn", f"/ui/api/transactions/{into['id']}", transferWithId=half["id"]))
+    assert (_paired(c, into["id"]), _paired(c, half["id"])) == (half["id"], into["id"])
+
+
+def test_a_half_matched_elsewhere_is_taken_unless_this_save_made_it(server, frozen):
+    """S1.7: a transfer already matched stays as it is; one this save made, matched on its
+    own, goes to the half that names it, and the match it made is undone."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    card = new_account(c, name="Visa", type="credit-card", mask="1111")
+    out = add(c, chk["id"], "-500.00", "2026-09-15")
+    paid = add(c, card["id"], "500.00", "2026-09-16", kind="deposit")
+    assert _paired(c, paid["id"]) == out["id"]
+    moved = add(c, sav["id"], "-500.00", "2026-10-01")
+    r = edit(c, "Txn", f"/ui/api/transactions/{moved['id']}", transferWithId=paid["id"])
+    assert _errors(r) == [("transferWithId", "transfer-taken", "That transaction isn't free.")]
+    assert (_paired(c, paid["id"]), _paired(c, moved["id"])) == (out["id"], None)
+    # Made in one save: the card's half matches the checking on its own, then is named.
+    early = add(c, chk["id"], "-700.00", "2026-10-01")
+    x, t = new("Txn"), new("Txn")
+    ops = [
+        {"op": "create", "entity": "Txn", "id": t,
+         "fields": {"accountId": sav["id"], "date": "2026-10-02", "amount": "-700.00",
+                    "transferWithId": x}},
+        {"op": "create", "entity": "Txn", "id": x,
+         "fields": {"accountId": card["id"], "date": "2026-10-02", "amount": "700.00",
+                    "kind": "deposit"}},
+    ]  # fmt: skip
+    assert save(c, ops).status_code == 200
+    assert (_paired(c, t), _paired(c, x), _paired(c, early["id"])) == (x, t, None)
+
+
+def test_a_half_named_is_of_an_account_the_caller_writes(server, frozen):
+    """S1.7, S10.3: a half the caller only reads is not theirs to pair; written, it is."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    theirs = new_account(jane)
+    half = add(jane, theirs["id"], "-30.00", "2026-10-01")
+    mine = new_account(john, name="John's", mask="4444")
+    fields = {"accountId": mine["id"], "date": "2026-10-20", "amount": "30.00",
+              "kind": "deposit", "transferWithId": half["id"]}  # fmt: skip
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "read"}))
+    r = save(john, [{"op": "create", "entity": "Txn", "id": new("Txn"), "fields": fields}])
+    assert r.status_code == 403, r.text
+    assert [(e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("share-read-only", "You can read this account but not change it.")
+    ]
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "write"}))
+    t = new("Txn")
+    r = save(john, [{"op": "create", "entity": "Txn", "id": t, "fields": fields}])
+    assert r.status_code == 200, r.text
+    assert (_paired(john, t), _paired(john, half["id"])) == (half["id"], t)
+
+
+def test_each_transfer_named_in_one_save_is_paired(server, frozen):
+    """S1.7: two matches made by hand in one save each pair their halves."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk, sav = new_account(c), new_account(c, name="Savings", type="savings", mask="2222")
+    ones = [add(c, chk["id"], f"-{n}.00", "2026-10-01") for n in (100, 200)]
+    others = [add(c, sav["id"], f"{n}.00", "2026-10-20", kind="deposit") for n in (100, 200)]
+    pairs = zip(ones, others, strict=True)
+    ops = [{"op": "update", "entity": "Txn", "id": t["id"], "version": t["version"],
+            "fields": {"transferWithId": o["id"]}} for t, o in pairs]  # fmt: skip
+    r = save(c, ops)
+    assert r.status_code == 200, r.text
+    assert [_paired(c, t["id"]) for t in ones] == [o["id"] for o in others]
+
+
+def test_a_transaction_keeps_its_account_holding_and_contract_each_refused_on_its_field(
+    server, frozen
+):
+    """S2.1, S3.2: what a transaction is of (its account, its holding, a split's ratio, an
+    option's contract) is made with it and never changed; each is refused on its own field."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    other = new_account(c, name="Savings", type="savings", mask="2222")
+    buy = add(c, brk["id"], "-100.00", "2026-10-02", kind="buy", symbol="VTI", quantity="1",
+              price="100", fees="0")  # fmt: skip
+    path = f"/ui/api/transactions/{buy['id']}"
+    for field, value in (
+        ("accountId", other["id"]),
+        ("symbol", "VOO"),
+        ("instrumentId", new_id("Instr")),
+        ("splitRatio", "2"),
+        ("right", "call"),
+        ("strike", "100"),
+        ("expiry", "2026-12-18"),
+        ("multiplier", 10),
+    ):
+        r = edit(c, "Txn", path, **{field: value})
+        assert _errors(r) == [
+            (field, "transaction-fixed", "A transaction keeps its account and holding.")
+        ], field
+    assert c.get(path).json()["version"] == buy["version"]
+
+
+def test_a_change_is_logged_for_the_owner_by_its_fields_and_a_tick_or_tags_alone_are_not(
+    server, frozen
+):
+    """S10.8: a transaction changed is its account owner's activity, by who changed it,
+    naming the fields changed and counting one; ticking it cleared, or the saver's own tags
+    alone, log nothing."""
+    from edits import share, tag
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-10.00", "2026-10-02", payee="Shop")
+    saved(share(jane, "account", a["id"], users={u["john"].id: "write"}))
+    path = f"/ui/api/transactions/{t['id']}"
+    saved(edit(john, "Txn", path, memo="lunch", payee="Cafe"))
+    saved(edit(john, "Txn", path, cleared=True))
+    saved(edit(john, "Txn", path, tagIds=[tag(john, "work")]))
+    assert _stored(server, "transaction.updated") == [
+        (u["john"].id, "account", a["id"], u["jane"].id,
+         '{"count": 1, "fields": ["payee", "memo"]}')
+    ]  # fmt: skip
+
+
+def test_one_who_reads_an_account_changes_and_unpairs_none_of_its_transactions(server, frozen):
+    """S10.3: a read share changes nothing of a transaction: neither its fields nor the
+    transfer it is half of (S1.7)."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    chk = new_account(jane)
+    card = new_account(jane, name="Visa", type="credit-card", mask="1111")
+    out = add(jane, chk["id"], "-500.00", "2026-09-15")
+    paid = add(jane, card["id"], "500.00", "2026-09-16", kind="deposit")
+    assert _paired(jane, paid["id"]) == out["id"]
+    saved(share(jane, "account", card["id"], users={u["john"].id: "read"}))
+    path = f"/ui/api/transactions/{paid['id']}"
+    for fields in ({"memo": "card"}, {"transferWithId": None}):
+        r = edit(john, "Txn", path, **fields)
+        assert r.status_code == 403, r.text
+        assert [(e["code"], e["message"]) for e in r.json()["errors"]] == [
+            ("share-read-only", "You can read this account but not change it.")
+        ]
+    assert jane.get(path).json()["memo"] is None
+    assert _paired(jane, paid["id"]) == out["id"]
+
+
+def test_a_transfer_paired_or_unpaired_in_a_reconciled_period_asks_first(server, frozen):
+    """S1.11.6: pairing the halves of a transfer by hand, or undoing it, changes what each
+    counts as (a transfer, or spending and income), so a reconciled period of either half
+    asks first, as any other edit there does."""
+    from test_accounts import add, new_account
+
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [])
+    path = f"/ui/api/transactions/{txn}"
+    saved(change(c, "Txn", c.get(path).json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    sav = new_account(c, name="Savings", type="savings", mask="2222")
+    half = add(c, sav["id"], "100.00", "2026-10-25", kind="deposit")
+    assert _paired(c, txn) is None
+    assert asked(edit(c, "Txn", path, transferWithId=half["id"])) == ["reconciled-period"]
+    assert _paired(c, txn) is None
+    saved(edit(c, "Txn", path, confirm=True, transferWithId=half["id"]))
+    assert _paired(c, txn) == half["id"]
+    assert asked(edit(c, "Txn", path, transferWithId=None)) == ["reconciled-period"]
+    saved(edit(c, "Txn", path, confirm=True, transferWithId=None))
+    assert (_paired(c, txn), _paired(c, half["id"])) == (None, None)
+    # From the other side: the half named is in the reconciled period, so pairing it asks.
+    other = f"/ui/api/transactions/{half['id']}"
+    assert asked(edit(c, "Txn", other, transferWithId=txn)) == ["reconciled-period"]
+    saved(edit(c, "Txn", other, confirm=True, transferWithId=txn))
+    # And letting it go asks too: the half it was paired with is the reconciled one.
+    assert asked(edit(c, "Txn", other, transferWithId=None)) == ["reconciled-period"]
+
+
+def test_tags_changed_on_a_transaction_are_the_savers_own_and_one_taken_off_says_by_whom(
+    server, frozen
+):
+    """S2.6: the tags a change sends are the saver's own on it, in place of those it had; a
+    tag taken off is marked by who took it off (schema.md §4.1)."""
+    from edits import tag
+
+    from moolakata.store.entities.accounts import TransactionTag
+
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [])
+    path = f"/ui/api/transactions/{txn}"
+    work, home = tag(c, "work"), tag(c, "home")
+    assert saved(edit(c, "Txn", path, tagIds=[work]))["tags"] == ["work"]
+    assert saved(edit(c, "Txn", path, tagIds=[home]))["tags"] == ["home"]
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        row = s.query(TransactionTag).filter_by(transactionId=txn, tagId=work).one()
+        assert row.deletedById == me
+
+
+def test_lots_typed_again_keep_their_ids_and_only_that_moves_own(server, frozen):
+    """S2.2, S2.3: shares moved in, their lots typed again, change in place, in order, each
+    keeping its id (so a sale's pick of it holds); a lot more is made, a lot fewer deleted by
+    who typed it so; another move's lots stay as they were. Each change logs what it changed
+    (S10.8)."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    from moolakata.store.entities.accounts import Lot
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    other = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="VTI", quantity="4")
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+
+    def ids_now():
+        with server.db.read(unscoped="test") as s:
+            rows = s.query(Lot).filter_by(transactionId=t["id"]).order_by(Lot.id).all()
+            return [(x.id, x.deleted) for x in rows]
+
+    first = ids_now()
+    for day in ("2020-01-02", "2021-01-04"):
+        lots = [{"acquiredOn": day, "quantity": "5", "costBasis": "250"}]
+        saved(edit(c, "Txn", path, transferLots=lots))
+    assert ids_now() == first, "one lot, typed twice over: the same lot"
+    assert _lots_made(server, t["id"]) == [("2021-01-04", 5, 250, False, False)]
+    two = [{"acquiredOn": "2019-05-01", "quantity": "2", "costBasis": "80"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "150"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    assert ids_now()[0][0] == first[0][0] and len(ids_now()) == 2
+    saved(edit(c, "Txn", path, transferLots=[{**two[0], "quantity": "5"}]))
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        gone = [x for x in s.query(Lot).filter_by(transactionId=t["id"]).all() if x.deleted]
+        assert [(str(x.acquiredOn), x.deletedById) for x in gone] == [("2021-01-04", me)]
+    assert _lots_made(server, other["id"]) == [("2026-09-10", 4, None, True, True)]
+    saved(edit(c, "Txn", f"/ui/api/transactions/{other['id']}", costBasis="400.00"))
+    assert sorted(x[4] for x in _stored(server, "transaction.updated")) == [
+        '{"count": 1, "fields": ["costBasis"]}',
+        *['{"count": 1, "fields": ["transferLots"]}'] * 4,
+    ]
+
+
+def test_a_transaction_or_part_deleted_or_never_made_is_not_found(server, frozen):
+    """S13.8.11: a change or a delete of a transaction or a part that was deleted, or never
+    made, finds nothing to change: refused as not found."""
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [("-60.00", {}), ("-40.00", {})])
+    kept, gone = c.get(f"/ui/api/transactions/{txn}").json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "update", "entity": "Split", "id": kept["id"], "version": kept["version"],
+            "fields": {"amount": "-100.00"}}]  # fmt: skip
+    assert save(c, ops).status_code == 200
+    _, spent = made(c, acct, cat, [])
+    spent = c.get(f"/ui/api/transactions/{spent}").json()
+    saved(remove(c, "Txn", spent))
+    for entity, record in (
+        ("Split", gone),
+        ("Split", {"id": new("Split"), "version": 1}),
+        ("Txn", spent),
+        ("Txn", {"id": new("Txn"), "version": 1}),
+    ):
+        for r in (change(c, entity, record, memo="again"), remove(c, entity, record)):
+            assert r.status_code == 404, r.text
+            assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+                (None, "not-found", "Not found")
+            ], record["id"]
+
+
+def test_a_part_keeps_its_transaction_and_who_owes_it_is_kept_without_spaces(server, frozen):
+    """S2.6: a part stays with the transaction it is of, refused on its field; S2.9: who owes
+    a part back is kept without the spaces around it, and none when not typed."""
+    c, acct, cat, _ = setup_budget(server)
+    owing = {"reimbursable": "20.00", "owedBy": "  Acme "}
+    _, txn = made(c, acct, cat, [("-80.00", {}), ("-20.00", owing)])
+    _, other = made(c, acct, cat, [])
+    parts = c.get(f"/ui/api/transactions/{txn}").json()["splits"]
+    assert sorted((str(x["amount"]), x["owedBy"]) for x in parts) == [
+        ("-20.00", "Acme"),
+        ("-80.00", None),
+    ]
+    r = change(c, "Split", parts[0], transactionId=other)
+    assert _errors(r) == [("transactionId", "split-fixed", "A part stays with its transaction.")]
+
+
+def test_a_part_changed_in_a_reconciled_period_asks_first(server, frozen):
+    """S2.7: a part changed changes the transaction, so a reconciled period asks first."""
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [("-60.00", {}), ("-40.00", {})])
+    path = f"/ui/api/transactions/{txn}"
+    saved(change(c, "Txn", c.get(path).json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    part = c.get(path).json()["splits"][0]
+    assert asked(change(c, "Split", part, memo="breakfast")) == ["reconciled-period"]
+    saved(change(c, "Split", part, confirm=True, memo="breakfast"))
+
+
+def test_one_who_reads_an_account_changes_and_deletes_none_of_its_parts(server, frozen):
+    """S10.3: a read share changes nothing of a transaction's parts (S2.6)."""
+    from edits import share
+    from test_accounts import new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    groceries = {x["path"]: x["id"] for x in jane.get("/ui/api/categories").json()["items"]}[
+        "Food › Groceries"
+    ]
+    _, txn = made(jane, a, {"Travel": groceries}, [("-100.00", {})])
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    (part,) = john.get(f"/ui/api/transactions/{txn}").json()["splits"]
+    for r in (change(john, "Split", part, memo="mine"), remove(john, "Split", part)):
+        assert r.status_code == 403, r.text
+        assert [(e["code"], e["message"]) for e in r.json()["errors"]] == [
+            ("share-read-only", "You can read this account but not change it.")
+        ]
+    assert jane.get(f"/ui/api/transactions/{txn}").json()["splits"] == [part]
+
+
+def test_lots_sent_again_as_they_are_type_nothing_over(server, frozen):
+    """S2.2: a transfer in's lots sent as it has them, in the order bought, change nothing:
+    neither typed over nor logged (S10.8); nor does one still missing its day bought, sent
+    with none."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    from moolakata.store.entities.accounts import Lot
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    add(c, a, "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1", price="100",
+        fees="0")  # fmt: skip
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    missing = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="2")
+    # Typed out of the order bought, they are read back in it.
+    typed = [{"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"},
+             {"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"}]  # fmt: skip
+    path = f"/ui/api/transactions/{t['id']}"
+    saved(edit(c, "Txn", path, transferLots=typed))
+    saved(edit(c, "Txn", path, transferLots=typed[::-1], memo="from Schwab"))
+    path = f"/ui/api/transactions/{missing['id']}"
+    saved(edit(c, "Txn", path, transferLots=None, memo="a gift"))
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", 2, 100, False, False),
+        ("2021-01-04", 3, 300, False, False),
+    ]
+    assert _lots_made(server, missing["id"]) == [("2026-09-10", 2, None, True, True)]
+    with server.db.read(unscoped="test") as s:
+        rows = s.query(Lot).filter(Lot.transactionId.in_([t["id"], missing["id"]])).all()
+        # The lot of the day they arrived became the first typed, its id kept (S2.3): none
+        # was typed over.
+        assert (len(rows), [x for x in rows if x.deleted]) == (3, [])
+    assert sorted(x[4] for x in _stored(server, "transaction.updated")) == [
+        '{"count": 1, "fields": ["memo"]}',
+        '{"count": 1, "fields": ["memo"]}',
+        '{"count": 1, "fields": ["transferLots"]}',
+    ]
+
+
+def test_a_basis_typed_or_cleared_is_the_moves_own_and_a_buy_keeps_its_cost(server, frozen):
+    """S2.2: a basis typed for shares moved in is their own lot's, whatever another move's is,
+    and cleared, it is missing again; a buy's lot keeps its cost when its draft sends no basis,
+    and its own symbol sent with it is no change of holding (S2.1)."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    first = add(c, a, "0.00", "2026-09-01", kind="transfer-in", symbol="VTI", quantity="4",
+                costBasis="100.00")  # fmt: skip
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
+            costBasis="400.00")  # fmt: skip
+    path = f"/ui/api/transactions/{t['id']}"
+    saved(edit(c, "Txn", path, costBasis="100.00"))
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, 100, False, True)]
+    saved(edit(c, "Txn", path, costBasis=None))
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, None, True, True)]
+    assert _lots_made(server, first["id"]) == [("2026-09-01", 4, 100, False, True)]
+    bought = add(c, a, "-100.00", "2026-09-02", kind="buy", symbol="VTI", quantity="1",
+                 price="100", fees="0")  # fmt: skip
+    path = f"/ui/api/transactions/{bought['id']}"
+    saved(edit(c, "Txn", path, symbol="VTI", costBasis=None, memo="monthly"))
+    assert _lots_made(server, bought["id"]) == [("2026-09-02", 1, 100, False, False)]
+
+
+def test_one_who_reads_an_account_leaves_a_trade_out_with_its_draft_as_it_is(server, frozen):
+    """S7.3.5: one who only reads the account leaves a trade out of a budget they write, the
+    draft sending the trade's holding, basis and lots as they are: none of them changes, so
+    the account's write is not needed (S10.3)."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    buy = add(jane, brk, "-100.00", "2026-10-02", kind="buy", symbol="VTI", quantity="1",
+              price="100", fees="0")  # fmt: skip
+    b = make(jane, "Bdgt", name="Household", accountIds=[brk]).json()
+    saved(share(jane, "account", brk, users={u["john"].id: "read"}))
+    saved(share(jane, "budget", b["id"], users={u["john"].id: "write"}))
+    path = f"/ui/api/transactions/{buy['id']}"
+    t = saved(edit(john, "Txn", path, symbol="VTI", costBasis=None, transferLots=None,
+                   leftOutOf={"add": [b["id"]], "remove": []}))  # fmt: skip
+    assert t["leftOutOf"] == [b["id"]]
+
+
+def test_tags_sent_as_what_to_add_and_take_away_keep_the_others(server, frozen):
+    """S13.8.11.1: tags sent as what to add and what to take away change those alone; the
+    saver's other tags on the transaction stay (S2.6)."""
+    from edits import tag
+
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, [])
+    path = f"/ui/api/transactions/{txn}"
+    work, home = tag(c, "work"), tag(c, "home")
+    saved(edit(c, "Txn", path, tagIds=[work]))
+    t = saved(edit(c, "Txn", path, tagIds={"add": [home], "remove": []}))
+    assert t["tags"] == ["home", "work"]
+    t = saved(edit(c, "Txn", path, tagIds={"add": [], "remove": [work]}))
+    assert t["tags"] == ["home"]
+
+
+def test_a_new_transaction_is_left_out_of_a_budget_from_its_draft(server, frozen):
+    """S7.3.5: a transaction made from its dialog with a budget it is left out of is left out
+    of it from the start."""
+    c, acct, _, b = setup_budget(server)
+    txn = new("Txn")
+    fields = {"accountId": acct["id"], "date": "2026-10-02", "amount": "-100.00",
+              "payee": "Hotel", "leftOutOf": [b["id"]]}  # fmt: skip
+    r = save(c, [{"op": "create", "entity": "Txn", "id": txn, "fields": fields}])
+    assert r.status_code == 200, r.text
+    assert c.get(f"/ui/api/transactions/{txn}").json()["leftOutOf"] == [b["id"]]
+
+
+def test_a_transaction_reads_only_its_own_tags_budgets_left_out_of_and_paybacks(server, frozen):
+    """S2.6, S7.3.5, S2.9: a transaction reads the tags it has, the budgets it is left out of
+    and what was paid back of it; another of the same account reads none of them."""
+    from edits import tag
+
+    c, acct, cat, b = setup_budget(server)
+    _, one = made(c, acct, cat, [])
+    _, two = made(c, acct, cat, [])
+    work = tag(c, "work")
+    saved(edit(c, "Txn", f"/ui/api/transactions/{one}", tagIds=[work],
+               leftOutOf={"add": [b["id"]], "remove": []}))  # fmt: skip
+    keys = ("tags", "tagIds", "leftOutOf", "paidBack")
+    got = [c.get(f"/ui/api/transactions/{t}").json() for t in (one, two)]
+    assert [{k: t[k] for k in keys} for t in got] == [
+        {"tags": ["work"], "tagIds": [work], "leftOutOf": [b["id"]], "paidBack": "0.00"},
+        {"tags": [], "tagIds": [], "leftOutOf": [], "paidBack": "0.00"},
+    ]
+
+
+def test_a_transfers_other_half_is_named_only_to_one_who_reads_its_account(server, frozen):
+    """S1.7, S10.3: one who writes two owners' accounts may pair their halves; the owner who
+    doesn't read the other account sees the half paired, never where to (its account's name
+    unread), even read unscoped; one who reads both reads the pair."""
+    from edits import share
+    from test_accounts import add, new_account
+    from test_sharing import setup
+
+    from moolakata import access
+    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.ui import transactions as ui_txns
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    theirs = new_account(jane)
+    half = add(jane, theirs["id"], "-30.00", "2026-10-01")
+    mine = new_account(john, name="John's", mask="4444")
+    saved(share(jane, "account", theirs["id"], users={u["john"].id: "write"}))
+    t = new("Txn")
+    fields = {"accountId": mine["id"], "date": "2026-10-20", "amount": "30.00",
+              "kind": "deposit", "transferWithId": half["id"]}  # fmt: skip
+    r = save(john, [{"op": "create", "entity": "Txn", "id": t, "fields": fields}])
+    assert r.status_code == 200, r.text
+    keys = ("transferPaired", "transferId", "transferAccountName")
+    path = f"/ui/api/transactions/{half['id']}"
+    got = [[who.get(path).json()[k] for k in keys] for who in (jane, john)]
+    assert got == [[True, None, None], [True, t, "John's"]]
+    # The name rests on the reader's own access, not only on what the session shows.
+    with server.db.read(unscoped="test") as s:
+        row = s.get(Transaction, half["id"])
+        held = access.perms(s, Account, theirs["id"], u["jane"].id)
+        (out,) = ui_txns.shape(s, u["jane"].id, [row], {theirs["id"]: held})
+        assert (out.transferPaired, out.transferId, out.transferAccountName) == (True, None, None)
+
+
+def _reconciled_bill(server, parts):
+    """A $100 bill with its parts, cleared and inside a finished reconciliation."""
+    c, acct, cat, _ = setup_budget(server)
+    _, txn = made(c, acct, cat, parts)
+    path = f"/ui/api/transactions/{txn}"
+    saved(change(c, "Txn", c.get(path).json(), cleared=True))
+    saved(change(c, "Recon", reconcile(c, acct["id"], "2026-10-31", "-100.00"), finished=True))
+    return c, cat, txn, path
+
+
+def test_a_part_taken_away_in_a_reconciled_period_asks_first(server, frozen):
+    """S1.11.6: taking a part away changes the transaction, as adding or changing one does."""
+    c, _, _, path = _reconciled_bill(server, [("-60.00", {}), ("-40.00", {})])
+    first, gone = c.get(path).json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {"amount": "-100.00"}}]  # fmt: skip
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period", "reconciled-period"]
+    assert {x["id"] for x in r.json()["asks"]} == {first["id"], gone["id"]}
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert save(c, ops, asks).status_code == 200
+    assert [p["amount"] for p in c.get(path).json()["splits"]] == ["-100.00"]
+
+
+def test_a_save_that_asks_is_judged_whole_once_answered_never_on_what_is_left(server, frozen):
+    """S13.8.11.5: a part taken away and another added in a reconciled period ask, and the
+    parts are added up only on the whole save: never a refusal for the half the question
+    held back."""
+    c, cat, txn, path = _reconciled_bill(server, [("-60.00", {}), ("-40.00", {})])
+    _, gone = c.get(path).json()["splits"]
+    ops = [{"op": "delete", "entity": "Split", "id": gone["id"], "version": gone["version"]},
+           {"op": "create", "entity": "Split", "id": new("Split"),
+            "fields": {"transactionId": txn, "amount": gone["amount"],
+                       "categoryId": cat["Travel"]}}]  # fmt: skip
+    r = save(c, ops)
+    assert r.status_code == 409, r.text
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    r = save(c, ops, asks)
+    assert r.status_code == 200, r.text
+    assert sorted(str(p["amount"]) for p in c.get(path).json()["splits"]) == ["-40.00", "-60.00"]
+    assert gone["id"] not in {p["id"] for p in c.get(path).json()["splits"]}
+    # Answered, a save whose parts don't add up is refused for that, as any other is.
+    first, _ = c.get(path).json()["splits"]
+    ops = [{"op": "update", "entity": "Split", "id": first["id"], "version": first["version"],
+            "fields": {"amount": "-1.00"}}]  # fmt: skip
+    r = save(c, ops)
+    assert asked(r) == ["reconciled-period"]
+    asks = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    assert _errors(save(c, ops, asks))[0][1] == "splits-unbalanced"
+
+
+def test_a_trades_quantity_is_more_than_none_made_or_changed(server, frozen):
+    """R3.11, S2.2: a trade names how many shares it moves, more than none, the kind saying
+    which way; a change can't take it to none, clear it or turn it negative, nor make a
+    trade of a transaction with no shares."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")["id"]
+    words = "A trade needs its instrument and quantity."
+    for kind in ("buy", "sell"):
+        t = add(c, brk, "-100.00", "2026-10-02", kind=kind, symbol="VTI", quantity="5",
+                price="20", fees="0")  # fmt: skip
+        path = f"/ui/api/transactions/{t['id']}"
+        none = ("quantity", "trade-incomplete", words)
+        less = ("quantity", "quantity-invalid", "More than none.")
+        for value, want in (("0", none), (None, none), ("-5", less)):
+            assert _errors(edit(c, "Txn", path, quantity=value)) == [want], (kind, value)
+        r = make(c, "Txn", accountId=brk, date="2026-10-02", amount="-100.00", kind=kind,
+                 symbol="VTI", quantity="-5", price="20", fees="0")  # fmt: skip
+        assert _errors(r) == [("quantity", "quantity-invalid", "More than none.")], kind
+    cash = add(c, brk, "500.00", "2026-10-02", kind="deposit")
+    r = edit(c, "Txn", f"/ui/api/transactions/{cash['id']}", kind="buy", fees="0")
+    assert _errors(r) == [("symbol", "trade-incomplete", words)]
+
+
+def test_only_a_split_has_a_ratio_and_a_split_is_a_corporate_action(server, frozen):
+    """S2.4.1: a split is recorded on Positions; a trade sent with a ratio is refused, never
+    kept with it (R3.11)."""
+    from conftest import make_user, sign_in
+    from test_accounts import new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")["id"]
+    trade = {"accountId": brk, "date": "2026-10-02", "amount": "-100.00", "symbol": "VTI",
+             "quantity": "5", "price": "20", "fees": "0"}  # fmt: skip
+    r = make(c, "Txn", **trade, kind="buy", splitRatio="2")
+    assert _errors(r) == [
+        ("splitRatio", "ratio-not-for-kind", "Only a split has a ratio: record it as a corporate"
+         " action.")
+    ]  # fmt: skip
+    r = make(c, "Txn", **{**trade, "amount": "0.00"}, kind="split", splitRatio="2")
+    assert _errors(r)[0] == (
+        "kind",
+        "corporate-kind",
+        "Record it as a corporate action on Positions.",
+    )
+
+
+def test_a_records_sets_are_lists_of_distinct_ids_none_by_default():
+    """S13.8.11.1: a set a record holds (its tags, the budgets it is left out of) is sent as a
+    list of distinct ids, an empty one when none is sent; the contract `_set_of` builds at
+    import, which no run of mutmut can change in force."""
+    from moolakata.ui.rules import RuleRecord
+    from moolakata.ui.transactions import TxnRecord
+
+    for model, field in ((TxnRecord, "tagIds"), (TxnRecord, "leftOutOf"), (RuleRecord, "tagIds")):
+        schema = model.model_json_schema()["properties"][field]
+        assert (schema["type"], schema["uniqueItems"]) == ("array", True), (model, field)
+        assert model.model_fields[field].get_default(call_default_factory=True) == []
+
+
+def test_a_trades_lots_follow_its_kind_changed_and_back(server, frozen):
+    """S2.2: the lots follow the trade, its kind among what they follow: shares moved in made
+    a sale keep no lot; made shares moved in again, they arrive on their day with their basis
+    missing; made a buy, one lot of its day at its cost, never the lots they were typed as."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    saved(edit(c, "Txn", path, kind="transfer-out", fees="0"))
+    assert _lots_made(server, t["id"]) == []
+    saved(edit(c, "Txn", path, kind="transfer-in", date="2026-09-12"))
+    assert _lots_made(server, t["id"]) == [("2026-09-12", 5, None, True, True)]
+    saved(edit(c, "Txn", path, transferLots=typed))
+    saved(edit(c, "Txn", path, kind="buy", amount="-500.00", price="100", fees="0"))
+    assert _lots_made(server, t["id"]) == [("2026-09-12", 5, 500, False, False)]
+    saved(edit(c, "Txn", path, kind="sell", amount="500.00"))
+    assert _lots_made(server, t["id"]) == []
+
+
+def test_shares_moved_in_have_their_lots_basis_together(server, frozen):
+    """S2.2: the basis of shares moved in is their lots' together, missing while any lot's
+    is; typed as one lot it is that lot's, and typed lot by lot each takes its own: a basis
+    for the whole is refused, never put on every lot."""
+    from conftest import make_user, sign_in
+    from test_accounts import _lots_made, add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
+            costBasis="400.00")  # fmt: skip
+    path = f"/ui/api/transactions/{t['id']}"
+    assert c.get(path).json()["costBasis"] == "400.00"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    assert c.get(path).json()["costBasis"] == "400.00"
+    saved(edit(c, "Txn", path, transferLots=[typed[0], {**typed[1], "costBasis": None}]))
+    assert c.get(path).json()["costBasis"] is None
+    assert _errors(edit(c, "Txn", path, costBasis="900.00")) == [
+        ("costBasis", "basis-on-lots", "Type the basis on each lot.")
+    ]
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", 2, 100, False, False),
+        ("2021-01-04", 3, None, True, False),
+    ]
+
+
+def test_a_picked_lot_that_goes_or_holds_less_asks_and_its_picks_go(server, frozen):
+    """S2.3: a sale's pick of a lot holds through a change that keeps the lot; a change that
+    takes the lot away (shares typed again as fewer lots, a kind changed, the trade deleted),
+    or leaves it less than was picked, asks first, naming the sale, and confirmed the picks
+    go, the sale taking its lots by its method."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+    from test_taxpanels import lots_on
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    moved = add(c, a, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{moved['id']}"
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+             {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=typed))
+    lot = lots_on(c, a, "2026-03-02")[("KO", "2021-01-04")]["lotId"]
+    sale = make(c, "Txn", accountId=a, date="2026-03-02", kind="sell", symbol="KO",
+                quantity="3", price="200", amount="600.00", fees="0",
+                picks=[{"lotId": lot, "quantity": "3"}])  # fmt: skip
+    assert sale.status_code == 200, sale.text
+    sale_path = f"/ui/api/transactions/{sale.json()['id']}"
+    told = (
+        "The sale of 3 KO on Mar 2, 2026 picks lots of this trade: its picks go, and it takes"
+        " its lots first in, first out."
+    )
+    # A basis fixed keeps the lot, and the pick with it.
+    saved(edit(c, "Txn", path, transferLots=[typed[0], {**typed[1], "costBasis": "330"}]))
+    assert [p["lotId"] for p in c.get(sale_path).json()["picks"]] == [lot]
+    # The question names the sale's own method, kept from its day, not the account's now.
+    saved(edit(c, "Acct", f"/ui/api/accounts/{a}", lotMethod="lifo"))
+    for change_ in ({"transferLots": [typed[0], {**typed[1], "quantity": "1"}], "quantity": "3"},
+                    {"transferLots": [{**typed[0], "quantity": "5"}]},
+                    {"kind": "transfer-out"}):  # fmt: skip
+        r = edit(c, "Txn", path, **change_)
+        assert asked(r) == ["picks-dropped"], change_
+        assert r.json()["asks"][0]["message"] == told
+    r = drop(c, "Txn", path)
+    assert asked(r) == ["picks-dropped"]
+    (pick,) = c.get(sale_path).json()["picks"]
+    saved(edit(c, "Txn", path, confirm=True, transferLots=[{**typed[0], "quantity": "5"}]))
+    assert c.get(sale_path).json()["picks"] == []
+    from moolakata.store.entities.accounts import LotPick
+
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(LotPick, pick["id"]).deletedById == me
+
+
+def test_a_transfer_changed_to_match_or_freed_is_paired_as_a_new_one_is(server, frozen):
+    """S1.7: opposite amounts in two of the owner's accounts within 4 days are linked, however
+    they came to match: a day corrected, a half freed when its partner goes; a pair undone by
+    hand isn't linked again by a change that moves neither amount nor day."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c, name="Checking")
+    sav = new_account(c, name="Savings", type="savings", mask="2222")
+    out = add(c, chk["id"], "-200.00", "2026-10-01", kind="withdrawal")
+    into = add(c, sav["id"], "200.00", "2026-10-20", kind="deposit")
+    assert _paired(c, out["id"]) is None, "19 days apart"
+    saved(edit(c, "Txn", f"/ui/api/transactions/{into['id']}", date="2026-10-02"))
+    assert _paired(c, out["id"]) == into["id"], "the day corrected, they match"
+    # Another half on the same day; the first one deleted, the half it leaves takes it.
+    other = add(c, sav["id"], "200.00", "2026-10-03", kind="deposit")
+    assert _paired(c, other["id"]) is None
+    saved(drop(c, "Txn", f"/ui/api/transactions/{into['id']}"))
+    assert _paired(c, out["id"]) == other["id"]
+    # Undone by hand, a memo changed links nothing again.
+    path = f"/ui/api/transactions/{out['id']}"
+    saved(edit(c, "Txn", path, transferWithId=None))
+    saved(edit(c, "Txn", path, memo="rent"))
+    assert _paired(c, out["id"]) is None
+
+
+def _brokerage(server):
+    from conftest import make_user, sign_in
+    from test_accounts import new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    return c, new_account(c, name="Brokerage", type="brokerage")["id"]
+
+
+def test_a_kind_changed_is_checked_where_it_may_be(server, frozen):
+    """S2.1, S2.4, S2.5: a kind chosen on a change meets the rules a new one does: a trade or a
+    capital-gain distribution only in an investing account, a split only as a corporate
+    action."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)["id"]
+    t = add(c, chk, "10.00", "2026-09-01", kind="deposit")
+    path = f"/ui/api/transactions/{t['id']}"
+    for kind, code in (("capital-gain", "kind-not-for-account"), ("split", "corporate-kind"),
+                       ("reinvest", "kind-not-for-account")):  # fmt: skip
+        r = edit(c, "Txn", path, kind=kind)
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]][:1] == [("kind", code)], kind
+
+
+def test_a_trade_imported_without_its_shares_takes_a_note_as_it_is(server, frozen):
+    """S1.3.2: a file's buy can come without its shares; a change that leaves its kind and
+    shares alone doesn't ask for them."""
+    from test_accounts import add
+
+    from moolakata.store.entities.accounts import Transaction
+
+    c, a = _brokerage(server)
+    t = add(c, a, "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1", price="100",
+            fees="0")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        s.get(Transaction, t["id"]).quantity = None
+    out = saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", memo="from the file"))
+    assert (out["memo"], out["quantity"]) == ("from the file", None)
+
+
+def test_a_half_left_by_its_partners_new_amount_is_paired_again(server, frozen):
+    """S1.7: a half's partner changed to another amount lets it go, and the half left, free,
+    is linked with another that matches it, as a new one would be."""
+    from conftest import make_user, sign_in
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c, name="Checking")
+    sav = new_account(c, name="Savings", type="savings", mask="2222")
+    third = new_account(c, name="Cash", type="savings", mask="3333")
+    out = add(c, chk["id"], "-200.00", "2026-10-01", kind="withdrawal")
+    into = add(c, sav["id"], "200.00", "2026-10-02", kind="deposit")
+    assert _paired(c, out["id"]) == into["id"]
+    spare = add(c, third["id"], "-200.00", "2026-10-02", kind="withdrawal")
+    assert _paired(c, spare["id"]) is None
+    saved(edit(c, "Txn", f"/ui/api/transactions/{out['id']}", amount="-150.00"))
+    assert (_paired(c, out["id"]), _paired(c, into["id"])) == (None, spare["id"])
+
+
+def test_a_trade_changed_to_shares_moved_in_is_offered_as_a_pair(server, frozen):
+    """S1.7.1: shares that left another of the owner's accounts, and the same shares typed as
+    leaving this one, its kind corrected to shares moved in, are offered as a pair as two
+    typed so are."""
+    from test_accounts import add, new_account
+
+    c, a = _brokerage(server)
+    other = new_account(c, name="Other", type="brokerage", mask="2222")["id"]
+    add(c, other, "-500.00", "2026-09-01", kind="buy", symbol="KO", quantity="5", price="100",
+        fees="0")  # fmt: skip
+    add(c, other, "0.00", "2026-09-10", kind="transfer-out", symbol="KO", quantity="5", fees="0")
+    # Typed the wrong way round, as shares leaving: its kind alone corrected.
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-out", symbol="KO", quantity="5", fees="0")
+    assert c.get("/ui/api/transfers/bitcoin").json()["items"] == []
+    saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", kind="transfer-in"))
+    assert len(c.get("/ui/api/transfers/bitcoin").json()["items"]) == 1
+
+
+def test_a_trade_made_a_move_in_takes_the_basis_typed_with_it(server, frozen):
+    """S2.2: a buy changed to shares moved in, its basis typed with the change, arrives as one
+    lot of that basis, its day bought missing."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "-500.00", "2026-09-10", kind="buy", symbol="KO", quantity="5", price="100",
+            fees="0")  # fmt: skip
+    saved(edit(c, "Txn", f"/ui/api/transactions/{t['id']}", kind="transfer-in", amount="0.00",
+               price=None, costBasis="450.00"))  # fmt: skip
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, 450, False, True)]
+
+
+def test_one_lot_typed_takes_its_basis_on_the_lot_and_a_note_leaves_the_lots(server, frozen):
+    """S2.2: shares moved in as one typed lot have its basis typed on the lot, a basis for the
+    whole refused as for several; a note changed leaves the lots and their basis together."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    saved(edit(c, "Txn", path, transferLots=[
+        {"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "100"}]))  # fmt: skip
+    assert _errors(edit(c, "Txn", path, costBasis="200.00")) == [
+        ("costBasis", "basis-on-lots", "Type the basis on each lot.")
+    ]
+    two = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    # Their basis sent again as it reads is no basis typed for the whole.
+    out = saved(edit(c, "Txn", path, memo="from Schwab", costBasis="400.00"))
+    assert out["costBasis"] == "400.00"
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", 2, 100, False, False),
+        ("2021-01-04", 3, 300, False, False),
+    ]
+
+
+def test_lots_cleared_arrive_as_one_lot_with_the_basis_the_move_reads(server, frozen):
+    """S2.2: shares moved in, their lots typed and then sent as none, arrive as one lot of the
+    day they came, its day bought missing, keeping the basis the move reads, not losing it."""
+    from test_accounts import _lots_made, add
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    two = [{"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"},
+           {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}]  # fmt: skip
+    saved(edit(c, "Txn", path, transferLots=two))
+    assert saved(edit(c, "Txn", path, transferLots=[]))["costBasis"] == "400.00"
+    assert _lots_made(server, t["id"]) == [("2026-09-10", 5, 400, False, True)]
+
+
+def test_lots_typed_again_are_matched_to_the_lots_held_by_the_day_bought(server, frozen):
+    """S2.2, S2.3: lots typed latest first and sent again in date order keep each its own id,
+    the oldest first, so a sale's pick of the later lot still picks the later lot."""
+    from test_accounts import add
+    from test_taxpanels import lots_on
+
+    from moolakata.store.entities.accounts import Lot
+
+    c, a = _brokerage(server)
+    t = add(c, a, "0.00", "2026-01-05", kind="transfer-in", symbol="KO", quantity="5")
+    path = f"/ui/api/transactions/{t['id']}"
+    later = {"acquiredOn": "2021-01-04", "quantity": "3", "costBasis": "300"}
+    older = {"acquiredOn": "2020-01-02", "quantity": "2", "costBasis": "100"}
+    saved(edit(c, "Txn", path, transferLots=[later, older]))
+    lot = lots_on(c, a, "2026-03-02")[("KO", "2021-01-04")]["lotId"]
+    r = make(
+        c,
+        "Txn",
+        accountId=a,
+        date="2026-03-02",
+        kind="sell",
+        symbol="KO",
+        quantity="3",
+        price="200",
+        amount="600.00",
+        fees="0",
+        picks=[{"lotId": lot, "quantity": "3"}],
+    )
+    assert r.status_code == 200, r.text
+    saved(edit(c, "Txn", path, transferLots=[older, {**later, "costBasis": "330"}]))
+    with server.db.read(unscoped="test") as s:
+        kept = s.get(Lot, lot)
+        assert (str(kept.acquiredOn), kept.quantity, kept.costBasis) == ("2021-01-04", 3, 330)

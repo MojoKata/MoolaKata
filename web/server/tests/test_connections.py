@@ -5,8 +5,9 @@ the account's Sync using MoolaKata Connector switch for its owner alone, and Rem
 import pytest
 from conftest import make_user, sign_in
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from edits import change, make, remove, saved, share
-from test_connector import FakeConnector, pair_code
+from edits import change, edit, make, remove, saved, share
+from test_accounts import logged
+from test_connector import FakeConnector, connection, pair_code
 
 from moolakata import ids
 from moolakata.connector import sealed
@@ -162,6 +163,10 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     mine = next(x for x in out["connections"] if x["id"] == cid)
     assert mine["accounts"][0]["id"] == aid
+    # Turned off by its owner, and on again: the institution account goes with it.
+    off = saved(change(jane, "Acct", jane.get(f"/ui/api/accounts/{aid}").json(), connectionId=None))
+    assert (off["connectionId"], off["syncAccount"]) == (None, None)
+    saved(change(jane, "Acct", off, connectionId=cid, syncAccount="Checking ••4417"))
     # A write share doesn't see or change it (S18.6.2).
     john_id = john.get("/ui/api/session").json()["user"]["id"]
     r = share(jane, "account", aid, users={john_id: "write"})
@@ -177,6 +182,43 @@ def test_only_the_owner_turns_an_accounts_sync_on_naming_their_own_connection(se
     assert jane.get("/ui/api/profile/connections").json()["items"] == []
     out = paired.call("/connector/v1/report", {"locked": False, "connections": []}).json()
     assert cid in out["removed"] and all(x["id"] != cid for x in out["connections"])
+
+
+def test_an_accounts_institution_account_changes_alone_and_a_removed_connection_is_never_named(
+    server, paired, admin
+):
+    """S18.6.2: the institution account changed alone keeps its connection, and is never
+    emptied while the connection stays; one who writes the account changes its notes, its
+    sync kept; each turn of the sync is logged for its owner. A connection ended by unpairing
+    (S18.4.4) is named no more."""
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    cid = connection(server, jane)
+    aid = account(server, jane)
+    path = f"/ui/api/accounts/{aid}"
+    saved(edit(c, "Acct", path, connectionId=cid, syncAccount="Checking ••4417"))
+    out = saved(edit(c, "Acct", path, syncAccount="  Savings ••9001 "))
+    assert (out["connectionId"], out["syncAccount"]) == (cid, "Savings ••9001")
+    r = edit(c, "Acct", path, syncAccount=None)
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("syncAccount", "sync-account-missing", "Which institution account this is.")
+    ]
+    assert share(c, "account", aid, users={john: "write"}).status_code == 200
+    saved(edit(j, "Acct", path, notes="Bills"))
+    out = saved(edit(c, "Acct", path, connectionId=None))
+    assert (out["connectionId"], out["syncAccount"]) == (None, None)
+    sync = {"fields": ["sync"]}
+    assert [(x[0], x[1], x[4]) for x in logged(server, aid)] == [
+        ("account.updated", jane, sync),
+        ("account.updated", jane, sync),
+        ("account.updated", john, {"fields": ["notes"]}),
+        ("account.updated", jane, sync),
+    ]
+    assert admin.post("/ui/api/settings/connector/unpair").status_code == 200
+    r = edit(c, "Acct", path, connectionId=cid, syncAccount="Checking ••4417")
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("connectionId", "not-found", "One of your own connections.")
+    ]
 
 
 def test_a_watched_folder_is_no_driver(server, paired):
