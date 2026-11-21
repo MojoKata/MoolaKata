@@ -10292,13 +10292,6 @@
               }
             ]
           },
-          "livedIn": {
-            "items": {
-              "$ref": "#/components/schemas/PeriodOut"
-            },
-            "title": "Livedin",
-            "type": "array"
-          },
           "loans": {
             "items": {
               "$ref": "#/components/schemas/SecuredLoan"
@@ -10358,10 +10351,6 @@
             ],
             "title": "Policy"
           },
-          "primaryResidence": {
-            "title": "Primaryresidence",
-            "type": "boolean"
-          },
           "purity": {
             "anyOf": [
               {
@@ -10384,6 +10373,13 @@
             "format": "decimal",
             "title": "Quantity",
             "type": "number"
+          },
+          "residencePeriods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodOut"
+            },
+            "title": "Residenceperiods",
+            "type": "array"
           },
           "sale": {
             "anyOf": [
@@ -10540,13 +10536,12 @@
           "depreciationRate",
           "address",
           "closingCosts",
-          "primaryResidence",
           "personalUse",
           "spot",
           "spotAsOf",
           "valuations",
           "improvements",
-          "livedIn",
+          "residencePeriods",
           "documents",
           "access"
         ],
@@ -10779,11 +10774,6 @@
             ],
             "default": null,
             "title": "Policy"
-          },
-          "primaryResidence": {
-            "default": false,
-            "title": "Primaryresidence",
-            "type": "boolean"
           },
           "proceeds": {
             "anyOf": [
@@ -12081,6 +12071,29 @@
           "certificate"
         ],
         "title": "Listener",
+        "type": "object"
+      },
+      "LivedInOut": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "years": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Years",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "years"
+        ],
+        "title": "LivedInOut",
         "type": "object"
       },
       "LoanOut": {
@@ -17474,6 +17487,10 @@
             "title": "Id",
             "type": "string"
           },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
           "toDate": {
             "anyOf": [
               {
@@ -17493,6 +17510,7 @@
         },
         "required": [
           "id",
+          "personId",
           "fromDate",
           "toDate",
           "version"
@@ -17502,7 +17520,7 @@
       },
       "PeriodRecord": {
         "additionalProperties": false,
-        "description": "A period a home marked the primary residence was lived in (S1.10.4): no end, lived in\nstill, or until the sale.",
+        "description": "A residence period (S1.10.4): one person's span of a home as their main home; no end,\nlived in still, or until the sale.",
         "properties": {
           "fromDate": {
             "format": "date",
@@ -17514,6 +17532,12 @@
             "title": "Itemid",
             "type": "string",
             "x-prefix": "Item"
+          },
+          "personId": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Personid",
+            "type": "string",
+            "x-prefix": "Persn"
           },
           "toDate": {
             "anyOf": [
@@ -17531,6 +17555,7 @@
         },
         "required": [
           "itemId",
+          "personId",
           "fromDate"
         ],
         "title": "PeriodRecord",
@@ -18939,7 +18964,6 @@
               "bad-credentials",
               "basis-invalid",
               "basis-on-lots",
-              "before-acquired",
               "benchmark-invalid",
               "beneficiary-invalid",
               "birthday-incomplete",
@@ -19128,9 +19152,9 @@
               "not-a-529",
               "not-a-deposit",
               "not-a-fund",
+              "not-a-home",
               "not-a-loan",
               "not-a-marriage",
-              "not-a-residence",
               "not-a-transfer",
               "not-a-wallet",
               "not-an-option",
@@ -19186,8 +19210,10 @@
               "period-backwards",
               "period-fixed",
               "period-missing",
+              "periods-outside",
               "periods-overlap",
               "person-exists",
+              "person-invalid",
               "person-is-user",
               "person-read-only",
               "person-unknown",
@@ -19422,7 +19448,6 @@
                   "bad-credentials",
                   "basis-invalid",
                   "basis-on-lots",
-                  "before-acquired",
                   "benchmark-invalid",
                   "beneficiary-invalid",
                   "birthday-incomplete",
@@ -19611,9 +19636,9 @@
                   "not-a-529",
                   "not-a-deposit",
                   "not-a-fund",
+                  "not-a-home",
                   "not-a-loan",
                   "not-a-marriage",
-                  "not-a-residence",
                   "not-a-transfer",
                   "not-a-wallet",
                   "not-an-option",
@@ -19669,8 +19694,10 @@
                   "period-backwards",
                   "period-fixed",
                   "period-missing",
+                  "periods-outside",
                   "periods-overlap",
                   "person-exists",
+                  "person-invalid",
                   "person-is-user",
                   "person-read-only",
                   "person-unknown",
@@ -22119,6 +22146,13 @@
             "title": "Gain",
             "type": "number"
           },
+          "livedIn": {
+            "items": {
+              "$ref": "#/components/schemas/LivedInOut"
+            },
+            "title": "Livedin",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -22127,21 +22161,6 @@
             "format": "date",
             "title": "Sold",
             "type": "string"
-          },
-          "yearsLivedIn": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Yearslivedin"
           },
           "yearsOwned": {
             "examples": [
@@ -22157,7 +22176,7 @@
           "sold",
           "gain",
           "yearsOwned",
-          "yearsLivedIn"
+          "livedIn"
         ],
         "title": "ResidenceOut",
         "type": "object"
@@ -29907,6 +29926,10 @@
             ],
             "title": "Gain"
           },
+          "inherited": {
+            "title": "Inherited",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "holding",
@@ -29953,7 +29976,8 @@
           "account",
           "collectable",
           "kind",
-          "lotMissing"
+          "lotMissing",
+          "inherited"
         ],
         "title": "RowOut",
         "type": "object"

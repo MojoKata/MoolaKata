@@ -3,17 +3,19 @@ from dated valuations or by depreciation; a property's improvements; photos and 
 as receipts; selling an item; and precious metals summarised by metal."""
 
 import datetime as dt
+import itertools
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import access, activity, assets, clock, loans, receipts, valuation
+from .. import access, activity, assets, clock, loans, people, receipts, valuation
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
+from ..store.entities.education import Person
 from . import save
 from .conventions import (
     Access,
@@ -60,7 +62,6 @@ class ItemIn(Model):
     depreciationRate: Money | None = None
     address: str | None = None
     closingCosts: Money | None = None
-    primaryResidence: bool = False
     personalUse: bool = False
 
 
@@ -83,6 +84,7 @@ class ImprovementOut(Model):
 
 class PeriodOut(Model):
     id: str
+    personId: str
     fromDate: dt.date
     toDate: dt.date | None
     version: int
@@ -143,13 +145,13 @@ class ItemDetail(ItemRow):
     depreciationRate: Money | None
     address: str | None
     closingCosts: Money | None
-    primaryResidence: bool
     personalUse: bool
     spot: Money | None
     spotAsOf: dt.date | None
     valuations: list[ValuationOut]
     improvements: list[ImprovementOut]
-    livedIn: list[PeriodOut]  # a primary residence's periods lived in (S1.10.4)
+    # A home's residence periods: each one person's span of it as their main home (S1.10.4).
+    residencePeriods: list[PeriodOut]
     documents: list[ReceiptRow]
     access: Access
 
@@ -227,7 +229,9 @@ def _valuation_out(v: ItemValuation) -> ValuationOut:
 
 
 def _period_out(p: ResidencePeriod) -> PeriodOut:
-    return PeriodOut(id=p.id, fromDate=p.fromDate, toDate=p.toDate, version=p.version)
+    return PeriodOut(
+        id=p.id, personId=p.personId, fromDate=p.fromDate, toDate=p.toDate, version=p.version
+    )
 
 
 def _improvement_out(m: Improvement) -> ImprovementOut:
@@ -330,13 +334,12 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
         depreciationRate=it.depreciationRate,
         address=it.address,
         closingCosts=it.closingCosts,
-        primaryResidence=it.primaryResidence,
         personalUse=it.personalUse,
         spot=sp.price if sp else None,
         spotAsOf=sp.asOf if sp else None,
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
         improvements=[_improvement_out(m) for m in reversed(d.improvements)],
-        livedIn=[_period_out(p) for p in assets.periods_of(s, it.id)],
+        residencePeriods=[_period_out(p) for p in assets.periods_of(s, it.id)],
         documents=[
             receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, it.id)
@@ -445,7 +448,6 @@ def _values(body: ItemIn, account_type: str) -> dict:
         "depreciationRate": body.depreciationRate if body.valuation == "depreciation" else None,
         "address": _clean(body.address) if account_type == "real-estate" else None,
         "closingCosts": body.closingCosts if account_type == "real-estate" else None,
-        "primaryResidence": body.primaryResidence and account_type == "real-estate",
         "personalUse": body.personalUse,
     }
 
@@ -540,10 +542,11 @@ class ImprovementRecord(ImprovementIn):
 
 
 class PeriodRecord(Model):
-    """A period a home marked the primary residence was lived in (S1.10.4): no end, lived in
-    still, or until the sale."""
+    """A residence period (S1.10.4): one person's span of a home as their main home; no end,
+    lived in still, or until the sale."""
 
     itemId: IdOf("Item")  # type: ignore[valid-type]
+    personId: IdOf("Persn")  # type: ignore[valid-type]
     fromDate: dt.date
     toDate: dt.date | None = None
 
@@ -614,8 +617,15 @@ def _item_update(ctx, it: Item, body: ItemRecord) -> None:
         raise refuse("accountId", "item-fixed", "An item stays in its account.")
     a = s.get(Account, it.accountId)  # written by the caller: `_item_editable` asked
     sold = it.soldOn
+    owned = (it.acquiredOn, it.soldOn)
     for k, v in {**_values(body, a.type), **_sale_values(body)}.items():
         setattr(it, k, v)
+    if (it.acquiredOn, it.soldOn) != owned:
+        ctx.verify(f"periods-owned:{it.id}", lambda: _periods_owned(ctx, it))
+    if it.soldOn != owned[1]:
+        # A later sale, or none, runs its open periods on: into another home's, perhaps.
+        for who in sorted({p.personId for p in assets.periods_of(s, it.id)}):
+            ctx.verify(f"sold-alone:{it.id}:{who}", lambda who=who: _person_alone(ctx, who, it.id))
     if it.metal:
         assets.metal_instrument(s, it.metal)
     _documents(s, c, it, _attached(s, it), body.receiptIds)
@@ -709,34 +719,120 @@ def _improvement_update(ctx, m: Improvement, body: ImprovementRecord) -> None:
     m.date, m.description, m.amount = body.date, body.description.strip(), body.amount
 
 
-def _period_checked(ctx, body: PeriodRecord, period_id: str) -> Item:
-    """A period lived in, made or changed: on a home marked the primary residence, within the
-    days it was owned and not ahead, never overlapping another of its periods (S1.10.4)."""
-    it, a, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
-    if a.type != "real-estate" or not it.primaryResidence:
-        raise refuse("itemId", "not-a-residence", "Only for a home marked the primary residence.")
+def _day(d: dt.date) -> str:
+    return f"{d:%b %-d, %Y}"
+
+
+def _touched(ctx) -> set[str]:
+    """The residence periods this save makes or changes: each is checked against its home's
+    days owned on its own, so the home's dates aren't refused for them too."""
+    return ctx.notes.setdefault("periods-touched", set())
+
+
+def _outside(it: Item, p) -> tuple[str, str] | None:
+    """Where a residence period falls outside its home's days owned, as the field of the
+    period and the word for it, or None."""
+    if p.fromDate < it.acquiredOn:
+        return "fromDate", "starts before"
+    if it.soldOn is not None and p.fromDate > it.soldOn:
+        return "fromDate", "starts after"
+    if it.soldOn is not None and p.toDate is not None and p.toDate > it.soldOn:
+        return "toDate", "ends after"
+    return None
+
+
+def _periods_owned(ctx, it: Item) -> None:
+    """A home's date acquired or sale day changed: every residence period the save leaves as
+    it was still falls within the days owned (S1.10.4), refused at the date it falls outside."""
     e: list[FieldError] = []
-    if body.fromDate < it.acquiredOn:
-        e.append(FieldError("fromDate", "before-acquired", "On or after the day acquired."))
-    if body.fromDate > clock.today():
-        e.append(FieldError("fromDate", "date-ahead", "Not after today."))
-    end = it.soldOn or clock.today()
-    if body.toDate is not None and body.toDate < body.fromDate:
-        e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
-    elif body.toDate is not None and body.toDate > end:
+    for p in assets.periods_of(ctx.s, it.id):
+        if p.id in _touched(ctx) or (out := _outside(it, p)) is None:
+            continue
+        field = "acquiredOn" if out[1] == "starts before" else "soldOn"
+        if any(x.field == field for x in e):
+            continue
         e.append(
             FieldError(
-                "toDate",
-                "after-sold" if it.soldOn else "date-ahead",
-                "Not after the sale." if it.soldOn else "Not after today.",
+                field,
+                "periods-outside",
+                f"The residence period from {_day(p.fromDate)} {out[1]} this.",
             )
         )
     refuse_all(e)
-    # Open periods run to the sale, or for good while it is held.
-    last = body.toDate or dt.date.max
-    for p in assets.periods_of(ctx.s, it.id):
-        if p.id != period_id and p.fromDate <= last and body.fromDate <= (p.toDate or dt.date.max):
-            raise refuse("fromDate", "periods-overlap", "It overlaps another period lived in.")
+
+
+def _period_owned(ctx, period_id: str) -> None:
+    """A residence period made or changed falls within its home's days owned, as they are once
+    the whole save has gone in (S1.10.4)."""
+    p = ctx.s.get(ResidencePeriod, period_id)
+    it = ctx.s.get(Item, p.itemId) if p is not None and not p.deleted else None
+    if it is None or it.deleted or (out := _outside(it, p)) is None:
+        return
+    field, word = out
+    message = {
+        "starts before": "On or after the day acquired.",
+        "starts after": "Not after the sale.",
+        "ends after": "Not after the sale.",
+    }[word]
+    raise refuse(field, "after-sold" if word != "starts before" else "before-acquired", message)
+
+
+def _person_alone(ctx, person_id: str, sold: str | None = None) -> None:
+    """One main home at a time: a person's residence periods, across every home the saver
+    sees, never overlap (S1.10.4); different people's may. Refused at the period's start, or
+    at the sale day of the home `sold` when its sale moved its open periods on into another."""
+    rows = list(
+        ctx.s.execute(
+            select(ResidencePeriod, Item)
+            .join(Item, Item.id == ResidencePeriod.itemId)
+            .where(
+                ResidencePeriod.personId == person_id,
+                ResidencePeriod.deleted == false(),
+                Item.deleted == false(),
+            )
+            .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
+        )
+    )
+    for (p, p_home), (q, q_home) in itertools.pairwise(rows):
+        # In order of their start: one overlaps the next when it hasn't ended by then. Open
+        # periods run to the sale, or for good while the home is held.
+        end = p.toDate or p_home.soldOn
+        if end is not None and end < q.fromDate:
+            continue
+        # Named by the period the save didn't touch, or not on the home sold: "the other".
+        q_mine = q.id in _touched(ctx) or q.itemId == sold
+        other, home, mine = (p, p_home, q_home) if q_mine else (q, q_home, p_home)
+        who = ctx.s.get(Person, person_id)
+        name = who.name if who is not None else "This person"
+        where = "this home, in another period" if home.id == mine.id else home.name
+        raise refuse(
+            "soldOn" if sold else "fromDate",
+            "periods-overlap",
+            f"{name}'s main home then was {where} (from {_day(other.fromDate)}).",
+        )
+
+
+def _period_checked(ctx, body: PeriodRecord, period_id: str) -> Item:
+    """A residence period, made or changed: on a home, for one of the household's people the
+    saver sees, from a day not ahead to one not before it nor ahead (S1.10.4). Its home's days
+    owned and the person's other periods are checked once the whole save is in."""
+    it, a, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+    if a.type != "real-estate":
+        raise refuse("itemId", "not-a-home", "Only for a home.")
+    e: list[FieldError] = []
+    who = ctx.s.get(Person, body.personId)
+    if who is None or who.deleted or not people.readable(ctx.s, ctx.caller.id, who.id):
+        e.append(FieldError("personId", "person-invalid", "One of the household's people."))
+    if body.fromDate > clock.today():
+        e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+    if body.toDate is not None and body.toDate < body.fromDate:
+        e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+    elif body.toDate is not None and body.toDate > clock.today():
+        e.append(FieldError("toDate", "date-ahead", "Not after today."))
+    refuse_all(e)
+    _touched(ctx).add(period_id)
+    ctx.verify(f"period-owned:{period_id}", lambda: _period_owned(ctx, period_id))
+    ctx.verify(f"person-alone:{body.personId}", lambda: _person_alone(ctx, body.personId))
     return it
 
 
@@ -746,6 +842,7 @@ def _period_create(ctx, record_id: str, body: PeriodRecord) -> None:
         ResidencePeriod(
             id=record_id,
             itemId=it.id,
+            personId=body.personId,
             fromDate=body.fromDate,
             toDate=body.toDate,
             createdById=ctx.caller.id,
@@ -757,7 +854,7 @@ def _period_update(ctx, p: ResidencePeriod, body: PeriodRecord) -> None:
     if body.itemId != p.itemId:
         raise refuse("itemId", "period-fixed", "A period stays with its home.")
     _period_checked(ctx, body, p.id)
-    p.fromDate, p.toDate = body.fromDate, body.toDate
+    p.personId, p.fromDate, p.toDate = body.personId, body.fromDate, body.toDate
 
 
 save.register(
@@ -817,7 +914,12 @@ save.register(
         fields=PeriodRecord,
         create=_period_create,
         editable=lambda ctx, record_id: _part_of_item(ctx, ResidencePeriod, "period", record_id),
-        current=lambda ctx, p: {"itemId": p.itemId, "fromDate": p.fromDate, "toDate": p.toDate},
+        current=lambda ctx, p: {
+            "itemId": p.itemId,
+            "personId": p.personId,
+            "fromDate": p.fromDate,
+            "toDate": p.toDate,
+        },
         update=_period_update,
         delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
         read=lambda ctx, record_id: _period_out(ctx.s.get(ResidencePeriod, record_id)),

@@ -4,7 +4,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useApi } from '../app/hooks.js';
+import { useApi, useList } from '../app/hooks.js';
 import { date, quantity } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
@@ -263,7 +263,6 @@ class ItemRec extends Record {
     depreciationRate: null,
     address: null,
     closingCosts: null,
-    primaryResidence: false,
     personalUse: false,
     soldOn: null,
     proceeds: null,
@@ -287,7 +286,7 @@ class ValuationRec extends Record {
   static ownedBy = ['itemId'];
 }
 
-/** A period a home marked the primary residence was lived in (S1.10.4). */
+/** A residence period: one person's span of a home as their main home (S1.10.4). */
 class PeriodRec extends Record {
   /** @override */
   static prefix = 'RsPrd';
@@ -323,7 +322,6 @@ function newItem(type, accountId) {
     weightUnit: metals ? 'ozt' : null,
     purity: metals ? '.9999' : null,
     depreciationRate: type === 'vehicle' ? Dec.parse('12') : null,
-    primaryResidence: type === 'real-estate',
     personalUse: ['vehicle', 'real-estate'].includes(type),
   };
 }
@@ -372,7 +370,7 @@ export function ItemDialog({ close, a, id }) {
     });
     for (const v of x.valuations) draft.load(ValuationRec, { ...v, itemId: x.id });
     for (const m of x.improvements) draft.load(ImprovementRec, { ...m, itemId: x.id });
-    for (const p of x.livedIn) draft.load(PeriodRec, { ...p, itemId: x.id });
+    for (const p of x.residencePeriods) draft.load(PeriodRec, { ...p, itemId: x.id });
   }, [id]);
   const rec = /** @type {ItemRec | undefined} */ (f.draft?.records[0]);
   const canWrite = it ? it.access.writable : true;
@@ -404,7 +402,6 @@ export function ItemDialog({ close, a, id }) {
               ${t === 'real-estate'
                 ? html`
                   <${RecField} rec=${rec} name="address" label="Address" />
-                  <${RecField} rec=${rec} name="primaryResidence" label="Primary residence" />
                 `
                 : null}
               ${t === 'precious-metals'
@@ -467,8 +464,8 @@ export function ItemDialog({ close, a, id }) {
                   ? html`<${RecField} rec=${rec} name="closingCosts" label="Closing costs" />`
                   : html`<${RecField} rec=${rec} name="insuredValue" label="Insured value" />`}
               </div>
-              ${t === 'real-estate' && rec.get('primaryResidence') && f.draft
-                ? html`<${LivedIn} rec=${rec} draft=${f.draft} why=${
+              ${t === 'real-estate' && f.draft
+                ? html`<${ResidencePeriods} rec=${rec} draft=${f.draft} why=${
                   canWrite ? null : READ_ONLY
                 } />`
                 : null}
@@ -553,55 +550,97 @@ function Side({ a, it, rec, draft }) {
   `;
 }
 
+/** "You and Jane", "Jane, John and Ann". */
+const AND = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+
 /**
- * The periods a primary residence was lived in, for the years lived in its sale shows
- * (S1.10.4, S8.13): added and removed in the dialog's draft.
+ * A home's residence periods (S1.10.4, S8.13): each one person's span of it as their main
+ * home. The same span for several people is one line, removed whole; a span is added for the
+ * people chosen, a period each, in the dialog's draft.
  * @param {{ rec: ItemRec, draft: import('../app/draft.js').Draft, why: string | null }} p
  */
-function LivedIn({ rec, draft, why }) {
-  const [f, setF] = useState({ from: '', to: '' });
+function ResidencePeriods({ rec, draft, why }) {
+  const people = useList('/persons');
+  const list = /** @type {any[]} */ (people.data) || [];
+  const me = list.find((p) => p.relation === 'you');
+  const [f, setF] = useState({ from: '', to: '', who: /** @type {string[] | null} */ (null) });
+  // Until someone is chosen, the one adding it.
+  const who = f.who ?? (me ? [me.id] : []);
+  const named = (/** @type {string} */ id) => {
+    const p = list.find((x) => x.id === id);
+    return !p ? 'Someone' : p.relation === 'you' ? 'You' : p.name;
+  };
   const rows = /** @type {PeriodRec[]} */ (
     draft.records.filter((r) => r instanceof PeriodRec && !r.removed)
-  ).sort((x, y) => (x.get('fromDate') < y.get('fromDate') ? -1 : 1));
+  );
+  /** @type {Map<string, PeriodRec[]>} */
+  const spans = new Map();
+  for (const p of rows) {
+    const k = `${p.get('fromDate')}|${p.get('toDate') || ''}`;
+    spans.set(k, [...(spans.get(k) || []), p]);
+  }
+  const lines = [...spans.values()].sort((x, y) =>
+    x[0].get('fromDate') < y[0].get('fromDate') ? -1 : 1
+  );
   const add = () => {
-    draft.add(PeriodRec, { itemId: rec.id, fromDate: f.from, toDate: f.to || null });
-    setF({ from: '', to: '' });
+    for (const id of who) {
+      draft.add(PeriodRec, {
+        itemId: rec.id,
+        personId: id,
+        fromDate: f.from,
+        toDate: f.to || null,
+      });
+    }
+    setF({ from: '', to: '', who: null });
   };
+  const pick = (/** @type {string} */ id) =>
+    setF({ ...f, who: who.includes(id) ? who.filter((x) => x !== id) : [...who, id] });
   const span = (/** @type {PeriodRec} */ p) =>
     `${date(p.get('fromDate'))} to ${p.get('toDate') ? date(p.get('toDate')) : 'the sale'}`;
   return html`
-    <h4 style=${{ margin: '14px 0 8px' }} data-help="lived-in">Lived In</h4>
-    ${rows.length
+    <h4 style=${{ margin: '14px 0 8px' }} data-help="residence-periods">Residence Periods</h4>
+    ${lines.length
       ? null
       : html`<${Empty}>No periods: the years lived in are the preparer's to ask</${Empty}>`}
-    ${rows.map((p) =>
-      html`
-        <div class="list-item" key=${p.key}>
-          <div class="grow">${span(p)}${p.errors.length
-            ? html`<div class="err">${p.errors.map((e) => e.message).join(' ')}</div>`
+    ${lines.map((ps) => {
+      const line = `${AND.format(ps.map((p) => named(p.get('personId'))))}, ${span(ps[0])}`;
+      const errors = ps.flatMap((p) => p.errors.map((e) => e.message));
+      return html`
+        <div class="list-item" key=${ps[0].key}>
+          <div class="grow">${line}${errors.length
+            ? html`<div class="err">${[...new Set(errors)].join(' ')}</div>`
             : null}</div>
-          <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + span(p)}
-            onClick=${() => draft.remove(p)}>
+          <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + line}
+            onClick=${() => ps.forEach((p) => draft.remove(p))}>
             <${Icon} name="x" />
             </${Action}>
             </div>
-      `
-    )}
+      `;
+    })}
     ${why
       ? html`<${Action} class="btn sm" why=${why}><${Icon} name="plus" /> Add Period</${Action}>`
       : html`
-        <div class="row">
-          <${Field} label="Lived in from" help="lived-in" id="lived-from">
-            <${TypedInput} kind="date" value=${f.from}
-              onInput=${(/** @type {string} */ x) => setF({ ...f, from: x })} />
-            </${Field}>
-            <${Field} label="Until" help="lived-in" id="lived-until">
-              <${TypedInput} kind="date" value=${f.to} placeholder="the sale"
-                onInput=${(/** @type {string} */ x) => setF({ ...f, to: x })} />
+        <${Field} label="Who" help="residence-periods">
+          <div class="chips" role="group" aria-label="Who">${list.map((p) =>
+            html`
+              <button type="button" class=${'chip' + (who.includes(p.id) ? ' on' : '')}
+                aria-pressed=${who.includes(p.id) ? 'true' : 'false'}
+                onClick=${() => pick(p.id)}>${named(p.id)}</button>
+            `
+          )}</div>
+          </${Field}>
+          <div class="row">
+            <${Field} label="Main home from" help="residence-periods" id="lived-from">
+              <${TypedInput} kind="date" value=${f.from}
+                onInput=${(/** @type {string} */ x) => setF({ ...f, from: x })} />
               </${Field}>
-              </div>
-              <button type="button" class="btn sm" disabled=${!f.from} onClick=${add}><${Icon}
-          name="plus" /> Add Period</button>
+              <${Field} label="Until" help="residence-periods" id="lived-until">
+                <${TypedInput} kind="date" value=${f.to} placeholder="the sale"
+                  onInput=${(/** @type {string} */ x) => setF({ ...f, to: x })} />
+                </${Field}>
+                </div>
+                <button type="button" class="btn sm" disabled=${!f.from || !who.length}
+                  onClick=${add}><${Icon} name="plus" /> Add Period</button>
       `}
   `;
 }

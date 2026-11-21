@@ -107,7 +107,7 @@ def details(s: Session, items: list[Item]) -> dict[str, Detail]:
 
 
 def periods_of(s: Session, item_id: str) -> list[ResidencePeriod]:
-    """The periods a home was lived in (S1.10.4), in order."""
+    """A home's residence periods, everyone's (S1.10.4), in order of their start."""
     return list(
         s.scalars(
             select(ResidencePeriod)
@@ -125,18 +125,16 @@ def five_years_before(day: dt.date) -> dt.date:
         return day.replace(year=day.year - 5, day=28)
 
 
-def years_lived_in(item: Item, periods: list[ResidencePeriod]) -> float | None:
-    """A sold home's time lived in within the five years before its sale, in years (S8.13):
-    each period kept to the days it was owned, one with no end lived in up to the sale. None
-    when no period is recorded: the preparer asks."""
-    if not periods or item.soldOn is None:
-        return None
-    start = max(five_years_before(item.soldOn), item.acquiredOn)
+def years_lived_in(item: Item, sold: dt.date, periods: list[ResidencePeriod]) -> float:
+    """One person's time lived in a home sold on `sold` within the five years before the sale,
+    in years (S8.13): each of their periods kept to the days it was owned, one with no end
+    lived in up to the sale, days in two periods counted once."""
+    start = max(five_years_before(sold), item.acquiredOn)
     days = 0
     edge = start  # the days before it are counted, so overlaps count once
     for p in sorted(periods, key=lambda p: p.fromDate):
         lo = max(p.fromDate, edge)
-        hi = min(p.toDate or item.soldOn, item.soldOn)
+        hi = min(p.toDate or sold, sold)
         if hi > lo:
             days += (hi - lo).days
             edge = hi

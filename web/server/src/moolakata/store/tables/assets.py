@@ -42,7 +42,6 @@ Item = record(
     # Real estate.
     Column("address", Text),
     Column("closingCosts", Cents),
-    Column("primaryResidence", Boolean, nullable=False, server_default=text("0")),
     # Used personally (a car, a home): a loss on its sale is not deductible (S8.13).
     Column("personalUse", Boolean, nullable=False, server_default=text("0")),
     # A sale: its day, proceeds and fees.
@@ -85,17 +84,20 @@ ItemValuation = record(
     seen=Seen.child("itemId"),
 )
 
-# A period its owners lived in a home marked their primary residence, for the years lived in
-# that its sale shows (S1.10.4, S8.13); no end: lived in still, or until the sale.
+# A span one person lived in a home as their main home (S1.10.4): whether a home is anyone's
+# main home is only ever its periods, so no column says it. No end: lived in still, or until
+# the sale. From them its sale shows each person's years lived in (S8.13).
 ResidencePeriod = record(
     "ResidencePeriod",
     "RsPrd",
     Column("itemId", Text, ForeignKey("Item.id", ondelete="CASCADE"), nullable=False),
+    Column("personId", Text, ForeignKey("Person.id", ondelete="CASCADE"), nullable=False),
     Column("fromDate", Day, nullable=False),
     Column("toDate", Day),
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint('"toDate" IS NULL OR "toDate" >= "fromDate"', name="dates"),
     Index("ix_ResidencePeriod_item", "itemId", "fromDate"),
+    Index("ix_ResidencePeriod_person", "personId", "fromDate"),
     seen=Seen.child("itemId"),
 )
 

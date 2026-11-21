@@ -853,24 +853,32 @@ def test_held_since_shows_for_a_gift_and_is_saved_with_it(browser, household):
     page.close()
 
 
-def test_a_homes_period_lived_in_is_saved_with_it(browser, household):
-    """S1.10.4: a primary residence's periods lived in are added in its General tab and saved
-    with it; no end is up to the sale."""
+def test_a_homes_residence_period_is_saved_with_it_for_each_person_chosen(browser, household):
+    """S1.10.4: a home's residence periods are added in its General tab, one for each person
+    chosen under Who (the one adding it, until others are), shown as one line and saved with
+    it; no end is up to the sale."""
     h = household
     home = h.extra["home"]
     path = f"/ui/accounts/{h.extra['homes']['id']}/items"
     page, problems = signed_in(browser, h, path, 'tr:has-text("1428 Elm St") .row-tool')
     page.click('tr:has-text("1428 Elm St") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
-    before = len(h.c.get(f"/ui/api/items/{home['id']}").json()["livedIn"])
+    before = h.c.get(f"/ui/api/items/{home['id']}").json()["residencePeriods"]
+    assert before == []
+    people = {p["name"]: p for p in h.c.get("/ui/api/persons").json()["items"]}
+    other = next(p for p in people.values() if p["relation"] != "you")
     page.fill("#x-lived-from", home["acquiredOn"])
+    page.click(f'.dialog .chips button:has-text("{other["name"]}")')
     page.click('.dialog button:has-text("Add Period")')
-    wait(page, '.dialog .list-item:has-text("to the sale")', problems)
+    line = f'.dialog .list-item:has-text("You and {other["name"]}, ")'
+    wait(page, f'{line}:has-text("to the sale")', problems)
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
-    got = h.c.get(f"/ui/api/items/{home['id']}").json()["livedIn"]
-    assert len(got) == before + 1
-    assert (got[-1]["fromDate"], got[-1]["toDate"]) == (home["acquiredOn"], None)
+    got = h.c.get(f"/ui/api/items/{home['id']}").json()["residencePeriods"]
+    me = next(p["id"] for p in people.values() if p["relation"] == "you")
+    assert sorted((p["personId"], p["fromDate"], p["toDate"]) for p in got) == sorted(
+        [(me, home["acquiredOn"], None), (other["id"], home["acquiredOn"], None)]
+    )
     assert problems == []
     page.close()
 

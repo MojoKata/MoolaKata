@@ -197,7 +197,9 @@ function Gains({ p }) {
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
-                      <td class="small">${r.acquired
+                      <td class="small">${r.inherited
+                        ? html`INHERITED<div class="dim">${date(r.acquired)}</div>`
+                        : r.acquired
                         ? date(r.acquired)
                         : r.lotMissing
                         ? html`<span class="pill warn">missing</span>`
@@ -655,10 +657,11 @@ function Property({ p }) {
             <div class="mt">
               <${Attention} tone="info"
                 icon=${html`<${Icon} name="home" />`}>${h
-                  .name} sold ${date(h.sold)} after ${h.yearsOwned} years${h.yearsLivedIn == null
-                  ? ''
-                  : `, lived in ${h.yearsLivedIn} of the five before`}: a gain of <${Amt} v=${h
-                  .gain} /></${Attention}></div>
+                  .name} sold ${date(h.sold)} after ${h
+                  .yearsOwned} years (of the five before it, lived in: ${h
+                  .livedIn.map((/** @type {any} */ x) => `${x.name} ${x.years} years`).join(
+                    ', ',
+                  )}): a gain of <${Amt} v=${h.gain} /></${Attention}></div>
           `
         )}</div>
     </div>

@@ -31,6 +31,7 @@ class RowOut(Model):
     collectable: bool
     kind: Literal["holding", "return-of-capital", "option", "item"]
     lotMissing: bool  # sold without a lot to match: `acquired` is missing, not VARIOUS
+    inherited: bool  # column (b) reads INHERITED; `acquired` is the day it came (S8.13)
 
 
 class WashOut(Model):
@@ -210,12 +211,17 @@ class LoanOut(Model):
     pointsPurpose: str | None  # purchase or refinance, when this year has any
 
 
+class LivedInOut(Model):
+    name: str
+    years: Ratio  # within the five years before the sale (S8.13)
+
+
 class ResidenceOut(Model):
     name: str
     sold: dt.date
     gain: Money
     yearsOwned: Ratio
-    yearsLivedIn: Ratio | None  # within the five years before the sale; none recorded, none
+    livedIn: list[LivedInOut]  # each person's who lived in it as their main home
 
 
 class IssueOut(Model):
@@ -408,7 +414,10 @@ def _build(s, b) -> Panels:
             )
             for x in panels.loans_panel(s, b)
         ],
-        residences=[ResidenceOut(**r.__dict__) for r in panels.residences(s, b)],
+        residences=[
+            ResidenceOut(**{**r.__dict__, "livedIn": [LivedInOut(**x.__dict__) for x in r.livedIn]})
+            for r in panels.residences(s, b)
+        ],
         issues=[IssueOut(**i.__dict__) for i in panels.issues(s, b, rows)],
         leftOut=[a.name for a in books.counted(s, b).leftOut],
         txfLeftOut=TxfLeftOut(**exports.txf_left_out(rows)),

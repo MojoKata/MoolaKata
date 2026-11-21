@@ -141,8 +141,11 @@ def build(h) -> World:
     saved(sell(c, car["id"], f"{y}-05-01", "18000"))
     homes = w.acct("homes", "TP homes", "real-estate")
     cottage = made(make(c, "Item", accountId=homes, name="TP cottage", acquiredOn="2015-06-01",
-                        costBasis="200000", primaryResidence=True))  # fmt: skip
+                        costBasis="200000"))  # fmt: skip
     saved(sell(c, cottage["id"], f"{y}-07-01", "300000"))
+    # The owner's main home from the day it was bought to its sale (S1.10.4).
+    me = c.get("/ui/api/profile").json()["personId"]
+    made(make(c, "RsPrd", itemId=cottage["id"], personId=me, fromDate="2015-06-01"))
     # Loans: a mortgage secured by the cottage with PMI and tax through escrow; a student loan.
     mort = w.acct("mortgage", "TP mortgage", "mortgage")
     saved(terms(c, mort, principal="160000", startDate=f"{y}-01-01", termMonths=360, rate="3",
@@ -520,8 +523,8 @@ def test_the_education_panel_shows_the_529_students_and_gifts(browser, world):
 
 def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
     """S8.12, S8.13: a mortgage's interest, PMI and escrowed tax under the home it's secured
-    by, a student loan's 1098-E; a collectable and a personal-use loss sold, and a primary
-    residence's gain and years owned."""
+    by, a student loan's 1098-E; a collectable and a personal-use loss sold, and a home lived
+    in: its gain, years owned and its owner's years lived in."""
     page, problems = opened(browser, world, YEAR, "property", ':text("TP cottage sold")')
     loans = _text(page, _card("Loans (1098, 1098-E)"))
     assert (
@@ -533,7 +536,10 @@ def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
     assert "TP coin May 1, 2021 · collectable +$2,000.00" in sold
     assert "TP car May 1, 2021 · a loss on personal-use property, not deductible $0.00" in sold
     assert "TP cottage Jul 1, 2021 +$100,000.00" in sold
-    assert "TP cottage sold Jul 1, 2021 after 6.1 years: a gain of $100,000.00" in sold
+    assert (
+        "TP cottage sold Jul 1, 2021 after 6.1 years (of the five before it, lived in: "
+        f"{world.person['name']} 5.0 years): a gain of $100,000.00"
+    ) in sold
     assert "10 IBM" not in sold and "SCHD" not in sold
     assert problems == []
     page.close()

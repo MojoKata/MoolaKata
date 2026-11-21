@@ -42,15 +42,15 @@ def item(c, account_id, **kw):
 
 
 def test_the_years_lived_in_count_the_five_years_before_the_sale_once():
-    """S8.13: the days lived in within the five years before the sale, each period kept to
-    the days owned, an overlap counted once, an open one to the sale; none recorded or not
-    sold, none. Five years before 29 February is the 28th."""
+    """S8.13: one person's days lived in within the five years before the sale, each period
+    kept to the days owned, an overlap counted once, an open one to the sale; none, nothing.
+    Five years before 29 February is the 28th."""
     from types import SimpleNamespace as NS
 
-    home = NS(acquiredOn=d(2019, 1, 1), soldOn=d(2024, 2, 29))
-    assert assets.five_years_before(home.soldOn) == d(2019, 2, 28)
-    assert assets.years_lived_in(home, []) is None
-    assert assets.years_lived_in(NS(acquiredOn=d(2019, 1, 1), soldOn=None), [NS()]) is None
+    home = NS(acquiredOn=d(2019, 1, 1))
+    sold = d(2024, 2, 29)
+    assert assets.five_years_before(sold) == d(2019, 2, 28)
+    assert assets.years_lived_in(home, sold, []) == 0.0
     periods = [
         NS(fromDate=d(2018, 1, 1), toDate=d(2020, 2, 28)),  # before it was owned, then a year
         NS(fromDate=d(2019, 6, 1), toDate=d(2019, 12, 31)),  # inside the first: once
@@ -58,9 +58,9 @@ def test_the_years_lived_in_count_the_five_years_before_the_sale_once():
         NS(fromDate=d(2024, 2, 29), toDate=d(2030, 1, 1)),  # from the sale: nothing
     ]
     # 365 days (Feb 28 2019 to Feb 28 2020) and 366 (Feb 28 2023 to Feb 29 2024).
-    assert assets.years_lived_in(home, periods) == round(731 / 365.25, 1) == 2.0
-    late = NS(acquiredOn=d(2023, 2, 28), soldOn=d(2024, 2, 29))
-    assert assets.years_lived_in(late, [NS(fromDate=d(2020, 1, 1), toDate=None)]) == 1.0
+    assert assets.years_lived_in(home, sold, periods) == round(731 / 365.25, 1) == 2.0
+    late = NS(acquiredOn=d(2023, 2, 28))
+    assert assets.years_lived_in(late, sold, [NS(fromDate=d(2020, 1, 1), toDate=None)]) == 1.0
 
 
 def test_purity_is_read_as_people_write_it():
@@ -189,7 +189,6 @@ def test_a_home_with_improvements_a_mortgage_and_its_equity(jane):
         costBasis="560000",
         closingCosts="8400",
         address="1428 Elm St",
-        primaryResidence=True,
     )
     r = make(
         jane,
@@ -201,7 +200,7 @@ def test_a_home_with_improvements_a_mortgage_and_its_equity(jane):
     )
     assert r.status_code == 200, r.text
     h = jane.get(f"/ui/api/items/{home['id']}").json()
-    assert h["basis"] == "606900.00" and h["primaryResidence"]
+    assert h["basis"] == "606900.00" and "primaryResidence" not in h
     make(jane, "Valtn", itemId=home["id"], date="2026-09-20", value="640000", source="estimate")
     loan = new_account(jane, name="Mortgage", type="mortgage")
     r = terms(jane, loan["id"], principal="448000", startDate="2026-09-01", termMonths=360,
@@ -269,51 +268,156 @@ def test_others_read_but_cannot_change_items(server, jane):
     assert john.get(f"/ui/api/items/{watch['id']}/history").status_code == 404
 
 
-def test_a_homes_periods_lived_in_are_kept_with_it_and_refused_outside_its_days(jane):
-    """S1.10.4: a primary residence's periods lived in, within the days it was owned and not
-    ahead, never overlapping; listed with the item in order; changed and removed."""
+def _me(c) -> str:
+    """The caller's own person (S10.10.1)."""
+    return next(p["id"] for p in c.get("/ui/api/persons").json()["items"] if p["relation"] == "you")
+
+
+def _period(c, home_id: str, person_id: str, **kw):
+    return make(c, "RsPrd", **{"itemId": home_id, "personId": person_id, **kw})
+
+
+def _made(r) -> dict:
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _codes(r) -> list[tuple[str | None, str]]:
+    assert r.status_code in (409, 422), r.text
+    return [(e["field"], e["code"]) for e in r.json()["errors"]]
+
+
+def test_a_homes_residence_periods_are_kept_with_it_and_refused_outside_its_days(jane):
+    """S1.10.4: residence periods, each one person's span of a home as their main home,
+    within the days it was owned and not ahead; listed with the item in order; changed and
+    removed. Any home may keep them, nothing else."""
+    me = _me(jane)
     homes = new_account(jane, name="Homes", type="real-estate")
-    home = item(jane, homes["id"], name="Elm St", acquiredOn="2020-01-10", costBasis="300000",
-                primaryResidence=True)  # fmt: skip
+    coins = new_account(jane, name="Coins", type="collectables")
+    home = item(jane, homes["id"], name="Elm St", acquiredOn="2020-01-10", costBasis="300000")
     rental = item(jane, homes["id"], name="Rental", acquiredOn="2020-01-10", costBasis="1")
-    first = make(jane, "RsPrd", itemId=home["id"], fromDate="2020-02-01", toDate="2022-12-31")
+    coin = item(jane, coins["id"], name="Coin")
+    first = _period(jane, home["id"], me, fromDate="2020-02-01", toDate="2022-12-31")
     assert first.status_code == 200, first.text
     first = first.json()
-    assert make(jane, "RsPrd", itemId=home["id"], fromDate="2024-03-01").status_code == 200
+    assert _period(jane, home["id"], me, fromDate="2024-03-01").status_code == 200
     page = jane.get(f"/ui/api/items/{home['id']}").json()
-    assert [(p["fromDate"], p["toDate"]) for p in page["livedIn"]] == [
-        ("2020-02-01", "2022-12-31"),
-        ("2024-03-01", None),
+    assert [(p["personId"], p["fromDate"], p["toDate"]) for p in page["residencePeriods"]] == [
+        (me, "2020-02-01", "2022-12-31"),
+        (me, "2024-03-01", None),
     ]
 
     def refusal(**kw):
-        r = make(jane, "RsPrd", **{"itemId": home["id"], "fromDate": "2023-01-01", **kw})
-        assert r.status_code in (409, 422), r.text
-        return [(e["field"], e["code"]) for e in r.json()["errors"]]
+        body = {"itemId": rental["id"], "personId": me, "fromDate": "2023-01-01", **kw}
+        return _codes(make(jane, "RsPrd", **body))
 
-    assert refusal(itemId=rental["id"]) == [("itemId", "not-a-residence")]
-    assert refusal(fromDate="2020-01-09") == [("fromDate", "before-acquired")]
+    assert refusal(itemId=coin["id"]) == [("itemId", "not-a-home")]
+    assert refusal(personId=new_id("Persn")) == [("personId", "person-invalid")]
+    days = {"fromDate": "2020-01-09", "toDate": "2020-01-20"}  # before Elm St's first: no overlap
+    assert refusal(**days) == [("fromDate", "before-acquired")]
     assert refusal(fromDate=TOMORROW) == [("fromDate", "date-ahead")]
     assert refusal(toDate="2022-12-31") == [("toDate", "dates-invalid")]
     assert refusal(toDate=TOMORROW) == [("toDate", "date-ahead")]
-    # Touching either period's days, or running on into the open one, overlaps.
-    assert refusal(fromDate="2022-12-31", toDate="2023-02-01") == [("fromDate", "periods-overlap")]
-    assert refusal(toDate="2024-03-01") == [("fromDate", "periods-overlap")]
-    # Between them it fits; a change is checked against the others, never itself.
-    between = make(jane, "RsPrd", itemId=home["id"], fromDate="2023-01-01", toDate="2024-02-29")
+    # Between the two it fits; a change is checked against the others, never itself.
+    between = _period(jane, rental["id"], me, fromDate="2023-01-01", toDate="2024-02-29")
     assert between.status_code == 200, between.text
     out = saved(change(jane, "RsPrd", {**first, "itemId": home["id"]}, toDate="2022-12-30"))
     assert out["toDate"] == "2022-12-30"
-    # Sold, a period ends by the sale.
+    # Sold, a period ends by the sale and starts no later.
     saved(sell(jane, home["id"], "2026-06-01", "400000"))
-    late = make(jane, "RsPrd", itemId=rental["id"], fromDate="2020-02-01")
-    assert late.status_code in (409, 422)
-    period = jane.get(f"/ui/api/items/{home['id']}").json()["livedIn"][-1]
+    period = jane.get(f"/ui/api/items/{home['id']}").json()["residencePeriods"][-1]
     r = change(jane, "RsPrd", {**period, "itemId": home["id"]}, toDate="2026-06-02")
-    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [("toDate", "after-sold")]
+    assert _codes(r) == [("toDate", "after-sold")]
+    r = change(jane, "RsPrd", {**period, "itemId": home["id"]}, fromDate="2026-06-02")
+    assert _codes(r) == [("fromDate", "after-sold")]
     out = saved(change(jane, "RsPrd", {**period, "itemId": home["id"]}, toDate="2026-06-01"))
     saved(remove(jane, "RsPrd", {**out, "itemId": home["id"]}))
-    assert len(jane.get(f"/ui/api/items/{home['id']}").json()["livedIn"]) == 2
+    assert len(jane.get(f"/ui/api/items/{home['id']}").json()["residencePeriods"]) == 1
+
+
+def test_one_main_home_at_a_time_for_each_person(jane):
+    """S1.10.4: a person's periods never overlap, in one home or across homes; different
+    people's may, on the same span or not; one moving out first ends their own period."""
+    me = _me(jane)
+    ann = _made(make(jane, "Persn", name="Ann Doe", sex="female"))["id"]
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01", costBasis="1")
+    oak = item(jane, homes["id"], name="Oak St", acquiredOn="2015-01-01", costBasis="1")
+    # Two people, the same span: two periods, both kept.
+    mine = _period(jane, elm["id"], me, fromDate="2015-06-01", toDate="2019-06-30")
+    assert mine.status_code == 200, mine.text
+    hers = _period(jane, elm["id"], ann, fromDate="2015-06-01", toDate="2019-06-30")
+    assert hers.status_code == 200, hers.text
+    # Ann moved out first: her period alone ends sooner, mine is as it was.
+    out = saved(change(jane, "RsPrd", {**hers.json(), "itemId": elm["id"]}, toDate="2017-03-31"))
+    assert out["toDate"] == "2017-03-31"
+    kept = jane.get(f"/ui/api/items/{elm['id']}").json()["residencePeriods"]
+    assert sorted((p["personId"] == me, p["toDate"]) for p in kept) == [
+        (False, "2017-03-31"),
+        (True, "2019-06-30"),
+    ]
+    # Ann's main home from then can be another; mine can't, over the same days.
+    assert _period(jane, oak["id"], ann, fromDate="2017-04-01").status_code == 200
+    r = _period(jane, oak["id"], me, fromDate="2019-06-30")
+    assert refused(r) == [
+        ("fromDate", "periods-overlap", "Jane's main home then was Elm St (from Jun 1, 2015).")
+    ]
+    # Nor twice in one home.
+    r = _period(jane, elm["id"], me, fromDate="2016-01-01", toDate="2016-02-01")
+    assert refused(r)[0][:2] == ("fromDate", "periods-overlap")
+    assert refused(r)[0][2].endswith("then was this home, in another period (from Jun 1, 2015).")
+    # The day after mine ended, Oak St is mine too: Ann's and mine overlap, which is allowed.
+    assert _period(jane, oak["id"], me, fromDate="2019-07-01").status_code == 200
+    # An open period runs to its home's sale: Pine St, sold, was mine until then; a later sale
+    # would run it on into Oak St's, refused at the sale day.
+    pine = item(jane, homes["id"], name="Pine St", acquiredOn="2014-01-01", costBasis="1")
+    saved(sell(jane, pine["id"], "2015-05-31", "1"))
+    assert _period(jane, pine["id"], me, fromDate="2014-02-01").status_code == 200  # no end
+    r = edit(jane, "Item", f"/ui/api/items/{pine['id']}", soldOn="2015-06-01")
+    assert refused(r) == [
+        ("soldOn", "periods-overlap", "Jane's main home then was Elm St (from Jun 1, 2015).")
+    ]
+
+
+def test_a_homes_dates_are_refused_where_a_period_falls_outside_them(jane):
+    """S1.10.4: a change of the date acquired or the sale day that leaves a period outside the
+    days owned is refused at that date, naming the period; the same save fixing the period, or
+    removing it, lets it through."""
+    me = _me(jane)
+    homes = new_account(jane, name="Homes", type="real-estate")
+    home = item(jane, homes["id"], name="Elm St", acquiredOn="2015-03-01", costBasis="1")
+    p = _made(_period(jane, home["id"], me, fromDate="2015-03-01", toDate="2020-12-31"))
+    path = f"/ui/api/items/{home['id']}"
+    r = edit(jane, "Item", path, acquiredOn="2015-06-01")
+    why = "The residence period from Mar 1, 2015 starts before this."
+    assert refused(r) == [("acquiredOn", "periods-outside", why)]
+    r = edit(jane, "Item", path, soldOn="2020-06-30", proceeds="1")
+    assert refused(r) == [
+        ("soldOn", "periods-outside", "The residence period from Mar 1, 2015 ends after this.")
+    ]
+    r = edit(jane, "Item", path, soldOn="2014-06-30", proceeds="1")
+    assert refused(r)[0][:2] == ("soldOn", "sold-before-bought")
+    # Changed in the same save as the period that fits them, the dates go in.
+    now = jane.get(path).json()
+    ops = [
+        {"op": "update", "entity": "Item", "id": home["id"], "version": now["version"],
+         "fields": {"acquiredOn": "2015-06-01"}},
+        {"op": "update", "entity": "RsPrd", "id": p["id"], "version": p["version"],
+         "fields": {"fromDate": "2015-06-01"}},
+    ]  # fmt: skip
+    r = jane.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 200, r.text
+    assert jane.get(path).json()["acquiredOn"] == "2015-06-01"
+    # Or with the period taken away.
+    now, p = jane.get(path).json(), jane.get(path).json()["residencePeriods"][0]
+    ops = [
+        {"op": "update", "entity": "Item", "id": home["id"], "version": now["version"],
+         "fields": {"soldOn": "2018-01-01", "proceeds": "1"}},
+        {"op": "delete", "entity": "RsPrd", "id": p["id"], "version": p["version"]},
+    ]  # fmt: skip
+    r = jane.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 200, r.text
+    assert jane.get(path).json()["residencePeriods"] == []
 
 
 # ---------- the rules, on plain values ----------
@@ -693,11 +797,11 @@ def test_an_item_keeps_its_words_trimmed_and_only_what_its_valuation_and_account
              "acquiredHow": "gift", "quantity": "2", "insuredValue": "50", "metal": "gold",
              "unitWeight": "1", "weightUnit": "ozt", "purity": ".999", "sellPremium": "5",
              "depreciationRate": "10", "address": " 1 Main St ", "closingCosts": "100",
-             "primaryResidence": True, "personalUse": True}  # fmt: skip
+             "personalUse": True}  # fmt: skip
     keys = ("name", "category", "description", "location", "serial", "condition", "policy",
             "notes", "acquiredHow", "quantity", "insuredValue", "metal", "unitWeight",
             "weightUnit", "purity", "sellPremium", "depreciationRate", "address", "closingCosts",
-            "primaryResidence", "personalUse", "valuation")  # fmt: skip
+            "personalUse", "valuation")  # fmt: skip
 
     def kept(account, **kw):
         return {k: item(jane, account["id"], **{**every, **kw})[k] for k in keys}
@@ -707,7 +811,7 @@ def test_an_item_keeps_its_words_trimmed_and_only_what_its_valuation_and_account
              "acquiredHow": "gift", "quantity": "2.0", "insuredValue": "50.00", "metal": None,
              "unitWeight": None, "weightUnit": None, "purity": None, "sellPremium": "0.00",
              "depreciationRate": None, "address": None, "closingCosts": None,
-             "primaryResidence": False, "personalUse": True, "valuation": "valuations"}  # fmt: skip
+             "personalUse": True, "valuation": "valuations"}  # fmt: skip
     assert kept(coll) == plain
     assert kept(coll, notes="", category=None, personalUse=False) == {
         **plain,
@@ -729,9 +833,7 @@ def test_an_item_keeps_its_words_trimmed_and_only_what_its_valuation_and_account
         **plain,
         "address": "1 Main St",
         "closingCosts": "100.00",
-        "primaryResidence": True,
     }
-    assert kept(homes, primaryResidence=False)["primaryResidence"] is False
 
 
 def refused(r, status: int = 422) -> list[tuple[str | None, str, str]]:
@@ -1093,12 +1195,9 @@ def test_an_item_changed_keeps_what_the_change_leaves_alone(jane):
     out = saved(edit(jane, "Item", f"/ui/api/items/{bar['id']}", name="Gold bar"))
     assert (out["name"], out["metal"], out["purity"]) == ("Gold bar", "gold", "0.9999")
     homes = new_account(jane, name="Home", type="real-estate")
-    home = item(jane, homes["id"], name="Home", address="1 Elm St", closingCosts="900",
-                primaryResidence=True)  # fmt: skip
+    home = item(jane, homes["id"], name="Home", address="1 Elm St", closingCosts="900")
     out = saved(edit(jane, "Item", f"/ui/api/items/{home['id']}", name="Our home"))
-    assert (out["address"], out["closingCosts"], out["primaryResidence"]) == (
-        "1 Elm St", "900.00", True
-    )  # fmt: skip
+    assert (out["address"], out["closingCosts"]) == ("1 Elm St", "900.00")
 
 
 def test_an_item_changed_to_spot_has_its_metals_price_asked_for(server, jane):

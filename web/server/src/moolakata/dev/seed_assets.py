@@ -145,15 +145,18 @@ def seed_assets(s, people: dict) -> None:
         "350000",
         address="1428 Elm St",
         closingCosts=D(7400),
-        primaryResidence=True,
         personalUse=True,
     )
-    # Lived in from a week after it was bought (S1.10.4).
-    s.add(
-        ResidencePeriod(
-            id=ids.new_id("RsPrd"), itemId=home.id, fromDate=home.acquiredOn + dt.timedelta(days=7)
+    # John and Jane's main home from a week after it was bought (S1.10.4).
+    for who in (john, jane):
+        s.add(
+            ResidencePeriod(
+                id=ids.new_id("RsPrd"),
+                itemId=home.id,
+                personId=who.personId,
+                fromDate=home.acquiredOn + dt.timedelta(days=7),
+            )
         )
-    )
     s.add(
         Improvement(
             id=ids.new_id("Imprv"),

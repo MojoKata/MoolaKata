@@ -18,6 +18,7 @@ the Form 1098 when it arrives; a refinance's points aren't on it.
 ## Physical Assets Sold
 
 Each item sold in the year with its gain; collectables are marked, and a loss on personal-use
-property isn't deductible. A sold primary residence shows its gain, the years owned and, from the
-periods lived in typed on the home, the years lived in within the five before the sale; the
-exclusion is the preparer's to apply.
+property isn't deductible. An inherited item's date acquired reads *INHERITED*, as Form 8949 asks,
+with the day it came below it. A sold home someone lived in as their main home shows its gain,
+the years owned and, from the residence periods typed on the home, each person's years lived in
+within the five before the sale; the exclusion is the preparer's to apply.

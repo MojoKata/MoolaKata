@@ -271,7 +271,6 @@ export const FIELDS = {
     depreciationRate: {"type": "money", "nullable": true},
     address: {"type": "text", "nullable": true},
     closingCosts: {"type": "money", "nullable": true},
-    primaryResidence: {"type": "bool"},
     personalUse: {"type": "bool"},
     accountId: {"type": "ref", "prefix": "Acct"},
     soldOn: {"type": "date", "nullable": true},
@@ -378,6 +377,7 @@ export const FIELDS = {
   },
   PeriodRecord: {
     itemId: {"type": "ref", "prefix": "Item"},
+    personId: {"type": "ref", "prefix": "Persn"},
     fromDate: {"type": "date"},
     toDate: {"type": "date", "nullable": true},
   },

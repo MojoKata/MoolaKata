@@ -26,6 +26,7 @@ from ..store.entities.accounts import (
     Transaction,
 )
 from ..store.entities.assets import Item
+from ..store.entities.education import Person
 from ..store.entities.receipts import ReceiptLink
 from ..store.entities.taxes import EstimatedPayment, TaxBook
 from ..store.entities.users import User
@@ -75,6 +76,9 @@ class Row:
     # an option, or a physical item; the panels group by it, never by the words.
     kind: str = "holding"
     lotMissing: bool = False  # sold without a lot to match: its day bought is missing (S8.1)
+    # Property from someone who died: column (b) reads INHERITED, not a date, as the form's
+    # instructions say; `acquired` stays the day it came (S8.13).
+    inherited: bool = False
     short: bool = False  # a short sale of shares closed (S3.4)
 
     @property
@@ -467,6 +471,7 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
             Row(
                 description=it.name,
                 acquired=held,
+                inherited=it.acquiredHow == "inherited",
                 sold=it.soldOn,
                 proceeds=proceeds,
                 basis=basis,
@@ -1115,17 +1120,24 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
 
 
 @dataclass
+class LivedIn:
+    name: str  # the person's, or "Someone" for one the reader doesn't see
+    years: float  # within the five years before the sale (S8.13)
+
+
+@dataclass
 class Residence:
     name: str
     sold: dt.date
     gain: Decimal
     yearsOwned: float
-    yearsLivedIn: float | None = None  # within the five years before the sale (S8.13)
+    livedIn: list[LivedIn]  # each person's, in order of name
 
 
 def residences(s: Session, book: TaxBook) -> list[Residence]:
-    """A sold primary residence: its gain, the years owned and, from the periods recorded, the
-    years lived in within the five before the sale (S8.13); the exclusion is the preparer's."""
+    """A sold home someone lived in as their main home: its gain, the years owned and, from its
+    residence periods, each person's years lived in within the five before the sale (S8.13);
+    the exclusion is the preparer's."""
     first, last = _span(book.year)
     out = []
     for a in books.counted(s, book).accounts:
@@ -1135,11 +1147,20 @@ def residences(s: Session, book: TaxBook) -> list[Residence]:
             select(Item).where(
                 Item.accountId == a.id,
                 Item.deleted == false(),
-                Item.primaryResidence,
                 Item.soldOn >= first,
                 Item.soldOn <= last,
             )
         ):
+            by_person: dict[str, list] = {}
+            for p in assets.periods_of(s, it.id):
+                by_person.setdefault(p.personId, []).append(p)
+            if not by_person:
+                continue
+            lived = []
+            for person_id, periods in by_person.items():
+                who = s.get(Person, person_id)
+                name = who.name if who is not None else "Someone"
+                lived.append(LivedIn(name, assets.years_lived_in(it, it.soldOn, periods)))
             g = assets.gain(it, assets.details(s, [it])[it.id]) or ZERO
             out.append(
                 Residence(
@@ -1147,7 +1168,7 @@ def residences(s: Session, book: TaxBook) -> list[Residence]:
                     it.soldOn,
                     g,
                     round((it.soldOn - it.acquiredOn).days / 365.25, 1),
-                    assets.years_lived_in(it, assets.periods_of(s, it.id)),
+                    sorted(lived, key=lambda x: x.name),
                 )
             )
     return out

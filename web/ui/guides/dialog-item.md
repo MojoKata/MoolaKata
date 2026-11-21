@@ -15,10 +15,6 @@ _2023 Subaru Outback_.
 
 Optional: a property's address, if you want it kept.
 
-## Primary residence
-
-Your main home. Its sale may be partly tax-free, which Taxes shows.
-
 ## Metal
 
 Gold, silver, platinum or palladium: the spot price that values it.
@@ -81,12 +77,16 @@ What it cost: the price plus premium, fees and shipping, or for a property the p
 gift's carried-over basis, or an inherited item's value at death. For a property, its improvements
 add to it (Improvements, on the Valuation tab).
 
-## Lived In {#lived-in}
+## Residence Periods {#residence-periods}
 
-For a home marked the primary residence: each period you lived in it, from the day you moved in to
-the day you moved out; no end means up to the sale. When it's sold, Taxes shows the years lived in
-within the five years before the sale, beside the years owned; whether the sale's gain is excluded
-is the preparer's to decide. Periods never overlap, and fall within the days you owned it.
+When a home was someone's main home: each period, for each person, from the day they moved in to
+the day they moved out; no end means up to the sale. Choose who under *Who*: a period is added for
+each, and the same span for several people shows as one line. Someone who moved out first gets a
+period of their own. A home with an open period, unsold, is the main home today. When it's sold,
+Taxes shows each person's years lived in within the five years before the sale, beside the years
+owned; whether the sale's gain is excluded is the preparer's to decide. A person's periods never
+overlap, in this home or another (one main home at a time), and fall within the days you owned
+it; changing the date acquired or the sale day is refused while a period falls outside them.
 
 ## Closing costs
 

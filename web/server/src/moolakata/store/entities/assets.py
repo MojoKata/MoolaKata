@@ -32,7 +32,6 @@ class Item(Record):
     depreciationRate: Decimal | None = None
     address: str | None = None
     closingCosts: Decimal | None = None
-    primaryResidence: bool = False
     personalUse: bool = False
     soldOn: dt.date | None = None
     proceeds: Decimal | None = None
@@ -55,6 +54,7 @@ class ItemValuation(Record):
 class ResidencePeriod(Record):
     id: str
     itemId: str
+    personId: str  # whose main home it was
     fromDate: dt.date
     toDate: dt.date | None = None  # lived in still, or until the sale
     createdById: str | None = None

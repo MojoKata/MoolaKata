@@ -375,7 +375,6 @@ def accounts(h: Household) -> dict:
             costBasis="560000",
             closingCosts="8400",
             address="1428 Elm St",
-            primaryResidence=True,
         )
     )
     made(
