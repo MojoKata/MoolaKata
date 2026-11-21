@@ -75,6 +75,12 @@
    account that holds it.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an
    optional split across categories, a memo, tags, receipts, and a reimbursable mark (S2.9).
+   1. **Tags** are **public** or **private**, chosen by whoever makes a tag, with no default.
+      A public tag is the household's: it shows with the transaction as one of its fields to
+      everyone who can see the transaction, people on a linked server among them (S11.3.1),
+      and anyone who can change the transaction adds or removes it, as tagging is an edit. A
+      private tag is its user's own: seen and set by them alone, and it never crosses a link
+      (S11.5.2).
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
@@ -85,7 +91,7 @@
       (from and to, of the amount without its sign), a direction (money in, money out, or
       either) and one account.
    2. **What it sets**, one or more of: the **category**; the **payee** shown (*Rename to*),
-      the institution's text kept beside it; and **tags**, the user's own (S2.6).
+      the institution's text kept beside it; and **tags** (S2.6.1).
    3. **On import** (a file, a statement or a connector's fetch), the rules of the user who
       imports are applied to each new row that is a bank transaction (not a trade) and not a
       transfer between the owner's accounts (S1.7). A row's category is set only when it has

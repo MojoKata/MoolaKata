@@ -140,7 +140,7 @@
    record of the dialog's draft (S12.15), made, changed or removed by its switch, and Include
    receipts is set on the grants of that server's people. When a share is
    removed, the receiver's access ends on their next request. Their own annotations, such as
-   their tags on the account's transactions, are deleted.
+   their private tags on the account's transactions (S2.6.1), are deleted.
 5. **Through a group**: every member holds the share while they are in the group and it is
    active. A user with both a direct and a group share gets the higher level.
 6. **A shared account appears in the receiver's lists** with a *shared with me* mark, the
