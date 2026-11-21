@@ -16,7 +16,7 @@
       Some types add tabs: a loan *Schedule* and *Payoff* (S1.9, S6.10); a 529
       *Contributions*, *Withdrawals* and *Goal* (S1.8); a physical-asset account *Items*
       (S1.10);
-   3. **Transactions**, with the tabs *Transactions* and *Rules*:
+   3. **Transactions**, with the tabs *Transactions*, *Rules* and *Tags*:
       1. *Transactions* (`/ui/transactions`): every account's transactions together, filtered
          by account, category, date, amount, payee and tag, with bulk categorise, split,
          attach receipt, and **Import**; `?category=<id>` opens it filtered to a category. The
@@ -43,6 +43,16 @@
          4. While the rule chosen holds changes, what acts on the saved rules (**↑**, **↓**,
             **Apply to N uncategorised**) is disabled, its tooltip saying *Save changes
             first*;
+      3. *Tags* (`/ui/transactions/tags`): the user's private tags and the household's public
+         ones (S2.6.1), by name, each with its kind (*public* or *private*) and how many
+         transactions it is on, and what may be done with it:
+         1. **Make Public**, on a private tag, asks first and says it can't be undone; when a
+            public tag has its name, it says the private tag's transactions take that one and
+            the private tag goes.
+         2. **Rename** and **Delete**, on a tag the user may change: a private tag is its
+            user's, a public one its maker's and an admin's. Another's public tag shows them
+            off, the tooltip naming who may (*Only Jane or an admin renames it*). Delete asks
+            first, naming how many transactions it comes off; a public tag comes off everyone's.
    4. **Portfolios**: the user's portfolios and those shared with them; a portfolio page with
       the charts of S5.2, its holdings, and its *Projections*;
    5. **Positions**: open and closed positions across accounts, with stocks, options and

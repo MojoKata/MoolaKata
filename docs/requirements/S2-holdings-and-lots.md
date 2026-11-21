@@ -75,7 +75,8 @@
    account that holds it.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an
    optional split across categories, a memo, tags, receipts, and a reimbursable mark (S2.9).
-   1. **Tags** are **public** or **private**, chosen by whoever makes a tag, with no default.
+   1. **Tags** are **public** or **private**: a new tag is private unless its maker turns
+      **Private** off as they make it (S12.18.12.1).
       A public tag is the household's: it shows with the transaction as one of its fields to
       everyone who can see the transaction, people on a linked server among them (S11.3.1),
       and anyone who can change the transaction adds or removes it, as tagging is an edit. A
@@ -86,7 +87,10 @@
          that public tag instead and the private one goes.
       2. **Names.** A public tag may share its name with users' private tags; a private tag
          isn't made while a public one has its name, case aside.
-      3. **Renamed or deleted** by whoever made it, and by an admin, when public.
+      3. **Renamed or deleted** by whoever made it, and by an admin, when public; a private
+         one by its user.
+      4. **Transactions › Tags** (S12.2.3.3) lists them: the user's private tags and the
+         household's public ones, each with its kind and how many transactions it is on.
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
