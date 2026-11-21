@@ -247,6 +247,7 @@ class ItemRec extends Record {
     category: null,
     description: null,
     acquiredHow: 'bought',
+    heldFrom: null,
     quantity: Dec.parse('1'),
     location: null,
     serial: null,
@@ -268,6 +269,11 @@ class ItemRec extends Record {
     proceeds: null,
     saleFees: null,
     receiptIds: [],
+  };
+  /** @override */
+  static rules = {
+    // The giver's holding counts only for a gift (S1.10.1).
+    heldFrom: { when: (/** @type {ItemRec} */ r) => r.get('acquiredHow') === 'gift' },
   };
 }
 
@@ -436,6 +442,12 @@ export function ItemDialog({ close, a, id }) {
                 <${RecField} rec=${rec} name="acquiredHow" label="How acquired"
                   id="acquired-how" options=${HOW} />
               </div>
+              ${rec.applies('heldFrom')
+                ? html`
+                  <${RecField} rec=${rec} name="heldFrom" label="Held since" id="held-from"
+                    type="date" placeholder="the day acquired" />
+                `
+                : null}
               <div class="row">
                 <${RecField} rec=${rec} name="costBasis" id="cost-basis"
                   label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'} />

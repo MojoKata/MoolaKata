@@ -253,6 +253,7 @@ export const FIELDS = {
     description: {"type": "text", "nullable": true},
     acquiredOn: {"type": "date"},
     acquiredHow: {"type": "text"},
+    heldFrom: {"type": "date", "nullable": true},
     costBasis: {"type": "money"},
     quantity: {"type": "quantity"},
     location: {"type": "text", "nullable": true},

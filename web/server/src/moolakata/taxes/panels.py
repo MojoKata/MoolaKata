@@ -454,7 +454,10 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
         d = assets.details(s, [it])[it.id]
         basis = assets.basis(it, d, it.soldOn)
         proceeds = it.proceeds - (it.saleFees or ZERO)
-        long_term = lots.long_term(it.acquiredOn, it.soldOn)
+        # Inherited, it is long-term on any sale; a gift at the giver's basis counts from the
+        # giver's holding (S1.10.1, S8.13).
+        held = it.heldFrom or it.acquiredOn
+        long_term = it.acquiredHow == "inherited" or lots.long_term(held, it.soldOn)
         collectable = assets.is_collectable(a.type, it)
         gain = proceeds - basis
         code, adj = ("C" if collectable else ""), ZERO
@@ -463,7 +466,7 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
         out.append(
             Row(
                 description=it.name,
-                acquired=it.acquiredOn,
+                acquired=held,
                 sold=it.soldOn,
                 proceeds=proceeds,
                 basis=basis,

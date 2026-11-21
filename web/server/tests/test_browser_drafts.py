@@ -831,6 +831,28 @@ def test_a_new_items_refusal_brings_its_tab_forward(browser, household):
     page.close()
 
 
+def test_held_since_shows_for_a_gift_and_is_saved_with_it(browser, household):
+    """S1.10.1: the giver's day is asked only for a gift; a gift's is saved with the item."""
+    h = household
+    coll = make(h.c, "Acct", name="Pens", type="collectables").json()
+    pen = make(h.c, "Item", accountId=coll["id"], name="Waterman", acquiredOn="2024-01-10",
+               costBasis="300").json()  # fmt: skip
+    path = f"/ui/accounts/{coll['id']}/items"
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Waterman") .row-tool')
+    page.click('tr:has-text("Waterman") .row-tool')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    assert page.locator("#f-held-from").count() == 0
+    page.select_option("#f-acquired-how", "gift")
+    wait(page, "#f-held-from", problems)
+    page.fill("#f-held-from", "2001-05-01")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    got = h.c.get(f"/ui/api/items/{pen['id']}").json()
+    assert (got["acquiredHow"], got["heldFrom"]) == ("gift", "2001-05-01")
+    assert problems == []
+    page.close()
+
+
 # ---------- what the receipts' dialog alone does ----------
 
 

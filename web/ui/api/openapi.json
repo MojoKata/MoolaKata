@@ -10244,6 +10244,18 @@
             "title": "Gain",
             "type": "number"
           },
+          "heldFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldfrom"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -10505,6 +10517,7 @@
           "loans",
           "equity",
           "version",
+          "heldFrom",
           "description",
           "costBasis",
           "location",
@@ -10672,6 +10685,19 @@
             ],
             "default": null,
             "title": "Description"
+          },
+          "heldFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Heldfrom"
           },
           "insuredValue": {
             "anyOf": [
@@ -18930,6 +18956,8 @@
               "group-delete",
               "group-inactive",
               "group-unknown",
+              "held-from-after",
+              "held-from-not-gift",
               "holiday-invalid",
               "how-invalid",
               "http-error",
@@ -19407,6 +19435,8 @@
                   "group-delete",
                   "group-inactive",
                   "group-unknown",
+                  "held-from-after",
+                  "held-from-not-gift",
                   "holiday-invalid",
                   "how-invalid",
                   "http-error",

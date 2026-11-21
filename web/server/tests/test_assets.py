@@ -215,6 +215,29 @@ def test_documents_are_receipts_kept_with_the_item(jane):
     assert saved(r)["documents"] == []
 
 
+def test_a_gifts_held_from_day_is_kept_and_refused_off_a_gift_or_after_it(jane):
+    """S1.10.1, R3.11: the giver's holding is kept on a gift, read back, and cleared with it;
+    on an item bought it is refused, as is a day after the one it was given."""
+    coll = new_account(jane, name="Coll", type="collectables")
+    pen = item(jane, coll["id"], name="Pen", acquiredOn="2024-01-10", acquiredHow="gift",
+               heldFrom="2001-05-01")  # fmt: skip
+    got = jane.get(f"/ui/api/items/{pen['id']}").json()
+    assert (got["acquiredHow"], got["heldFrom"]) == ("gift", "2001-05-01")
+    refused_at = lambda r: {(e["field"], e["code"]) for e in r.json()["errors"]}  # noqa: E731
+    r = make(jane, "Item", accountId=coll["id"], name="Cup", acquiredOn="2024-01-10",
+             costBasis="1", heldFrom="2001-05-01")  # fmt: skip
+    assert r.status_code == 422 and refused_at(r) == {("heldFrom", "held-from-not-gift")}
+    r = make(jane, "Item", accountId=coll["id"], name="Cup", acquiredOn="2024-01-10",
+             costBasis="1", acquiredHow="gift", heldFrom="2024-01-11")  # fmt: skip
+    assert r.status_code == 422 and refused_at(r) == {("heldFrom", "held-from-after")}
+    # On the day given: the same as none, and kept.
+    cup = item(jane, coll["id"], name="Cup", acquiredOn="2024-01-10", acquiredHow="gift",
+               heldFrom="2024-01-10")  # fmt: skip
+    assert jane.get(f"/ui/api/items/{cup['id']}").json()["heldFrom"] == "2024-01-10"
+    out = saved(change(jane, "Item", got, heldFrom=None))
+    assert out["heldFrom"] is None
+
+
 def test_others_read_but_cannot_change_items(server, jane):
     coll = new_account(jane, name="Collectables", type="collectables")
     watch = item(jane, coll["id"], name="Watch")

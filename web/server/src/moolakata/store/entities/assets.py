@@ -15,6 +15,7 @@ class Item(Record):
     category: str | None = None
     description: str | None = None
     acquiredHow: str = "bought"
+    heldFrom: dt.date | None = None  # a gift's, from the giver's holding (S1.10.1)
     quantity: Decimal = Decimal(1)
     location: str | None = None
     serial: str | None = None

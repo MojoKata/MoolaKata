@@ -8,8 +8,8 @@ Without a valuation, an item counts at its cost basis, depreciated when it depre
 
 ## Name
 
-What the item is called in the list: *American Gold Eagle, 1 oz*, *Rolex Submariner 124060*,
-*Home*, *2023 Subaru Outback*.
+What the item is called in the list: _American Gold Eagle, 1 oz_, _Rolex Submariner 124060_, _Home_,
+_2023 Subaru Outback_.
 
 ## Address
 
@@ -47,8 +47,9 @@ Troy ounces, grams or kilograms. A troy ounce is 31.1 grams.
 
 ## Purity
 
-The share of the weight that is the metal, as a fraction or in karats: .9999 for most gold coins and bars, .999 for silver, .925
-for sterling, 22k (.9167) for a Krugerrand. Fine weight is weight × purity × quantity.
+The share of the weight that is the metal, as a fraction or in karats: .9999 for most gold coins and
+bars, .999 for silver, .925 for sterling, 22k (.9167) for a Krugerrand. Fine weight is weight ×
+purity × quantity.
 
 ## Quantity
 
@@ -60,12 +61,19 @@ A percentage of the value lost each year; about 12% suits most cars. A valuation
 
 ## Date acquired {#acquired-on}
 
-The day it was bought, given or inherited. A sale's holding period starts here.
+The day it was bought, given or inherited. A sale's holding period starts here, except for a gift
+held since the giver's day, and an inherited item, which is long-term whenever it's sold.
 
 ## How acquired {#acquired-how}
 
 Bought, a gift or inherited. A gift's basis is usually the giver's; an inherited item's is its value
 at death.
+
+## Held since {#held-from}
+
+For a gift kept at the giver's basis: the day the giver's holding began, from their records. A
+sale's term counts from it, so a gift sold soon after it was given can still be long-term. Blank:
+the day acquired. Its value over time still starts on the day acquired.
 
 ## Cost basis {#cost-basis}
 
@@ -127,9 +135,9 @@ this server.
 ## Sale
 
 The day it was sold, the proceeds and the fees, recorded when you save the item; **Undo the Sale**
-takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of
-metals or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One
-of property you used yourself is marked **personal**: a loss on it isn't deductible.
+takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of metals
+or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One of
+property you used yourself is marked **personal**: a loss on it isn't deductible.
 
 ## Notes
 

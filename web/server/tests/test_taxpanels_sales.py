@@ -341,6 +341,33 @@ def test_physical_items_sold_in_the_year_are_8949_rows(server, jane):
     assert (coin.acquired, coin.sold) == (dt.date(2025, 5, 1), dt.date(2026, 5, 1))
 
 
+def test_an_inherited_item_is_long_term_and_a_gift_counts_the_givers_holding(server, jane):
+    """S1.10.1, S8.13: property from someone who died is long-term on any sale; a gift kept at
+    the giver's basis is held from the giver's day (its row's date acquired), and without one
+    from the day it was given. Bought, a day short of a year stays short-term."""
+    coll = new_account(jane, name="Coins", type="collectables")
+    for name, how, extra in (
+        ("Inherited", "inherited", {}),
+        ("Given", "gift", {"heldFrom": "2019-06-01"}),
+        ("Given lately", "gift", {}),
+        ("Bought", "bought", {}),
+    ):
+        thing(jane, coll["id"], "2026-09-01", "46000", name=name, acquiredOn="2026-03-01",
+              acquiredHow=how, costBasis="40000", **extra)  # fmt: skip
+    b = book(jane)
+    rows = {r["description"]: r for r in read_panels(jane, b)["rows"]}
+    got = {k: (r["longTerm"], r["box"]) for k, r in rows.items()}
+    assert got == {
+        "Inherited": (True, "F"),
+        "Given": (True, "F"),
+        "Given lately": (False, "C"),
+        "Bought": (False, "C"),
+    }
+    direct = {r.description: r.acquired for r in rows_of(server, b)}
+    assert direct["Given"] == dt.date(2019, 6, 1)
+    assert direct["Inherited"] == direct["Bought"] == dt.date(2026, 3, 1)
+
+
 def test_a_sold_primary_residence_has_its_gain_and_years_owned(jane):
     homes = new_account(jane, name="Homes", type="real-estate")
     # "Attic" sorts first: an account not real estate is passed over, never the end of the list.

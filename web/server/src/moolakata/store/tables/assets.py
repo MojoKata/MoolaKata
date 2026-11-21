@@ -15,6 +15,9 @@ Item = record(
     Column("description", Text),
     Column("acquiredOn", Day, nullable=False),
     Column("acquiredHow", Text, nullable=False, server_default=text("'bought'")),
+    # A gift kept at the giver's basis: the day the giver's holding began, from which a sale's
+    # term counts (S1.10.1); none counts from `acquiredOn`.
+    Column("heldFrom", Day),
     # Price plus premium, fees and shipping; a gift's carried-over basis; an inherited item's
     # value at death. A property's improvements add to it (Improvement).
     Column("costBasis", Cents, nullable=False),
@@ -48,6 +51,10 @@ Item = record(
     Column("saleFees", Cents),
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint("acquiredHow IN ('bought', 'gift', 'inherited')", name="acquired_how"),
+    CheckConstraint(
+        '"heldFrom" IS NULL OR ("acquiredHow" = \'gift\' AND "heldFrom" <= "acquiredOn")',
+        name="held_from",
+    ),
     CheckConstraint("valuation IN ('spot', 'valuations', 'depreciation')", name="valuation"),
     CheckConstraint(
         "metal IS NULL OR metal IN ('gold', 'silver', 'platinum', 'palladium')", name="metal"

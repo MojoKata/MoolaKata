@@ -41,6 +41,8 @@ class ItemIn(Model):
     description: str | None = None
     acquiredOn: dt.date
     acquiredHow: str = "bought"
+    # A gift at the giver's basis: the day the giver's holding began; none is `acquiredOn`.
+    heldFrom: dt.date | None = None
     costBasis: Money
     quantity: Quantity = Decimal(1)
     location: str | None = None
@@ -118,6 +120,7 @@ class ItemRow(Model):
 
 
 class ItemDetail(ItemRow):
+    heldFrom: dt.date | None
     description: str | None
     costBasis: Money
     location: str | None
@@ -299,6 +302,7 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     base = _row(a, it, d, sp.price if sp else None, sec, today)
     return ItemDetail(
         **base.model_dump(),
+        heldFrom=it.heldFrom,
         description=it.description,
         costBasis=it.costBasis,
         location=it.location,
@@ -369,6 +373,11 @@ def _values(body: ItemIn, account_type: str) -> dict:
         e.append(FieldError("acquiredHow", "how-invalid", "Bought, a gift or inherited."))
     if body.acquiredOn > clock.today():
         e.append(FieldError("acquiredOn", "date-ahead", "Not after today."))
+    # The giver's holding counts only for a gift, and began before it was given (S1.10.1).
+    if body.heldFrom is not None and body.acquiredHow != "gift":
+        e.append(FieldError("heldFrom", "held-from-not-gift", "Only for a gift."))
+    elif body.heldFrom is not None and body.heldFrom > body.acquiredOn:
+        e.append(FieldError("heldFrom", "held-from-after", "On or before the day acquired."))
     if body.costBasis < 0:
         e.append(FieldError("costBasis", "amount-invalid", "Zero or more."))
     if body.quantity <= 0:
@@ -405,6 +414,7 @@ def _values(body: ItemIn, account_type: str) -> dict:
         "description": _clean(body.description),
         "acquiredOn": body.acquiredOn,
         "acquiredHow": body.acquiredHow,
+        "heldFrom": body.heldFrom,
         "costBasis": body.costBasis,
         "quantity": body.quantity,
         "location": _clean(body.location),
