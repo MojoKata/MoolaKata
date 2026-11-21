@@ -13,7 +13,8 @@
        goes to the window already open, and it can be bookmarked. Whether it opens as a
        window or a tab is the browser's choice. It uses the same sign-in, so signing out in
        either ends both.
-    3. **The window** is the same frame, read only:
+    3. **The window** is the same frame, read only, drawn by the source's own release, which
+       a worker on this server runs (S11.10):
        1. the household's **avatar and name** in place of this household's, always as the
           source server sets them (S16.1);
        2. the sidebar tinted with **a colour each user chooses** for that household, from a
@@ -38,3 +39,7 @@
        returns to that request.
     5. **Never mixed**: nothing from a linked household appears in this household's lists,
        totals, charts, search, portfolios, budgets, taxes or Activity.
+    6. **Can't show yet**: while no worker can run the source's release (S11.10.4), the
+       window shows only the household's name and avatar, its sync line and what's missing:
+       *doe-parents runs MoolaKata 1.6, which this server can't show yet: allow downloads in
+       Settings › Linked Servers*.

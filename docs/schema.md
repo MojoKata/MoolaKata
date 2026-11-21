@@ -434,3 +434,10 @@ requirements S7.3.10) are kept under it, and a write makes them unreachable.
    first time.
 5. **One database, one series.** Kept figures are keyed by the database they were read from as
    well, so a copy opened in the same process never meets another's.
+6. **Stamped on each record.** Every table that crosses a link (requirements S11.3.1) has
+   `changeSeq`, an integer: the version its row's last write moved it to, written by the same
+   triggers in the same transaction. Nothing else sets it, and it is never shown. A link finds
+   what changed by it: the rows of its shared items with a `changeSeq` above the version the
+   receiver last took (S11.4), so each such table has an index on it. A soft delete (§4) is a
+   write like any other, so a deletion crosses as its row's change; the tables §4.4 lets
+   remove rows outright never cross.

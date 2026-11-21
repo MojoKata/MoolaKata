@@ -151,16 +151,20 @@ S10.10.1), used only for gifts.
    link at a time; while its own runs, it answers the peer's `exchange`, `next` and change
    `deliver` for that link with `busy` (section 7) rather than wait, so two servers exchanging
    with each other at once never wait on each other.
-2. The caller sends `{…directory, have, wantFull, copyKey}`: `have` is the sequence number of
-   the last change it took from the answering side, `wantFull` asks for everything (a new or
-   reset copy, an overflowed inbox, a change out of sequence), and `copyKey` is the public key
-   of the caller's linked copy for this link (S11.9.2.2), which the answering side seals its
-   change to. Before the caller's copy has an access key, `copyKey` is absent and the answer
-   carries only the change's registry (section 4.4).
-3. The answer carries `{…directory, state, version, have, wantFull, copyKey}` for the other
-   direction, and `change`, the answering side's change for the caller, when there is one, with
-   `more`, how many parts of it are still to come (section 4.4); the caller asks for each with
-   `next`, sending its `have`, until `more` is 0.
+2. The caller sends `{…directory, have, wantFull, registryOnly, copyKey}`: `have` is the
+   `upTo` of the last change it took from the answering side (section 4.4), `wantFull` asks
+   for everything (a new or reset copy, a change out of sequence, a copy at a later schema
+   revision than the change), `registryOnly` asks for the registry alone, while the caller's
+   copy can't take data (no worker for the answering side's release, section 5.5, or its
+   inbox at its cap, S11.9.5.4), and `copyKey` is the public key of the caller's linked copy
+   for this link (S11.9.2.2), which the answering side seals its change to. Before the
+   caller's copy has an access key, `copyKey` is absent and the answer carries only the
+   change's registry (section 4.4).
+3. The answer carries `{…directory, state, version, have, wantFull, registryOnly, copyKey}`
+   for the other direction, and `change`, the first part of the answering side's change for
+   the caller, when there is one, with `cursor` when more parts are to come (section 4.4.3);
+   the caller asks for each with `next`, sending its `have` and the `cursor`, until a part
+   comes without one.
 4. The caller then makes its own change for the answering side, from the `have`, `wantFull` and
    `copyKey` in the answer, and sends it with `deliver`, a part at a time, each answered with
    the new `have`. The caller's receipts for a part travel in `deliver` calls of their own
@@ -186,14 +190,17 @@ the receiving server keeps in its main database while the copy is locked (S11.9.
 
 | Field | Part | Meaning |
 |---|---|---|
-| `seq` | registry | its number in the sender's sequence for this link |
-| `asOf` | registry | when it was worked out |
+| `from` | registry | the `have` it starts from: the `upTo` of the change before it, or none for everything |
+| `upTo` | registry | the sender's data version when its first part was read (schema.md §8): the change holds what was written up to it |
+| `release` | registry | the sender's MoolaKata release and schema revision, which draw and migrate the receiver's copy (section 5.5) |
+| `asOf` | registry | when it was read |
 | `full` | registry | it replaces everything the receiver has from this link |
 | `items` | registry | items added or changed: `id`, `kind`, `ownerName`, `sharedAt`, `viewers` (the receiver's user ids it names), `includeReceipts`, `version` |
 | `removed` | registry | ids of items no longer shared |
-| `progress` | registry | in a large change's parts: `through`, the newest date the parts so far reach; `bytes`, what they hold; `total`, what the whole change holds |
+| `progress` | registry | in a large change's parts: `from`, the date of the oldest record the change holds; `through`, the newest date the parts so far reach; `bytes`, what they hold; `total`, what the sender reckoned the whole change holds when it read the first part |
+| `cursor` | registry | in a large change's parts, where the next part starts (the date and record reached); absent in the last part |
 | `fetch` | registry | the ids of the receipts the part sends, so the receiver can fetch them (or take them from the `deliver` calls before it) while its copy is locked |
-| `sealed` | sealed | the rest, sealed to the receiver's `copyKey` in the streaming format of S11.9.6 under the label `moolakata link change`, its associated data naming the link (the sender's and the receiver's fingerprints, `<sender>><receiver>`, so a change sealed for one direction opens for no other) and `seq`, in unpadded base64url: each item's `name`; `docs`, documents added or changed (`itemId`, `path`, `viewer`, `body`); `docsRemoved`; `files`, receipts' files added, when their share includes them (their id, item, type, length, hash, thumbnail and what was read from them); and `filesRemoved` (unshared, or pruned at the source, S14.10.6) |
+| `sealed` | sealed | the rest, sealed to the receiver's `copyKey` in the streaming format of S11.9.6 under the label `moolakata link change`, its associated data naming the link (the sender's and the receiver's fingerprints, `<sender>><receiver>`, so a change sealed for one direction opens for no other) and `upTo`, in unpadded base64url: each item's `name`; `rows`, records added or changed (their table, and the row whole in the sender's schema, with its `changeSeq`); `totals`, a budget's monthly totals added or changed (`itemId`, `viewer`, the key and its figures, and the stamp they were worked out at); `docs`, documents added or changed (`itemId`, `path`, `viewer`, `body`, `stamp`); `docsRemoved`; `files`, receipts' files added, when their share includes them (their id, item, type, length, hash, thumbnail and what was read from them); and `filesRemoved` (unshared, or pruned at the source, S14.10.6) |
 | `signature` | — | Ed25519 by the sender's link key over the registry and the SHA-256 of `sealed`, as canonical JSON (keys sorted, no spaces) |
 
 A receipt's bytes are sealed by the source the same way, under the label `moolakata link
@@ -201,32 +208,46 @@ receipt`, the associated data naming the link (as for a change) and the receipt,
 `deliver` or in the answer to `file`. The receiver keeps them as they came; its copy opens them
 when they are shown, and its type is found from the bytes then, never from the change.
 
-1. The sender works each item out as each person it names would see it, with the code its own
-   screens use (S11.3.1). An item's documents are its row in its list (`path` empty) and what
-   its screens read, by API path: an account's detail, balance series, holdings and its
-   transactions; a portfolio's detail, holdings, returns and series; a budget's month, trends,
-   cash flow and recurring payments; a tax book and its panels; a projection; a year's giving;
-   a person's gifts; and a person shared on their own: their row (name and birthday) and
-   their relationships to those the viewer may see (`/persons/{id}/relations`). An
-   account that isn't shared with the same people is named in a document only as *an account
+1. **What a change holds**, by kind (section 6): the records of its shared items with a
+   `changeSeq` above `from` and up to `upTo` (all of them when `full`, or for an item newly
+   shared or naming someone new); a budget's monthly totals; and the documents the sender
+   works out, each for the person it names (`viewer`), with the code its own screens use. A
+   row or figure names an account that isn't shared with the same people only as *an account
    not shared* (S11.3.1).
-2. The sender keeps a hash of each document it last sent, so only what changed travels. A
-   receiver whose `have` isn't the sender's last `seq` gets everything.
-3. **A large change travels in parts**, oldest to newest (S11.4): past 4 MB, the first part
-   carries the items and what was removed, and the records follow by date, a long document (an
-   account's transactions) split into parts of whole records up to a date, each part signed and
-   numbered as a change of its own with its `progress`. The copy fills from its earliest
-   records and is usable up to a date while the rest arrives, and the receiver shows how far it
-   has come (*Up to July 2022, 47 MB of 2 GB*). A part missed or out of turn makes the next
-   exchange ask for everything. The source keeps the parts still to send in memory, so after it
-   restarts `next` answers nothing and the caller's next exchange asks for everything.
-4. The receiver checks the signature and that `seq` follows its `have` (or that the change is
-   `full`); otherwise it asks for everything at its next exchange. It keeps the registry in its
-   main database and writes `sealed` into the link's copy's inbox as it came (S11.9.5), its
-   registry beside it sealed to the copy's key (S11.9.1), where it is applied, its signature
-   and its sequence checked again, once the copy is unlocked.
-   Until the copy has an access key (S11.9.2.1), a pull keeps the registry only; making the key
-   asks for everything at the next exchange.
+2. **Finding what changed.** Records are found by their `changeSeq` (schema.md §8), so the
+   sender keeps nothing for them but what the receiver tells it in `have`. Totals and
+   documents are worked out in the same read transaction as the records, its data version
+   read first, so all of a change is as of one `upTo`; each carries its `stamp`, that version
+   and the day. The sender keeps, for each, the stamp and hash it sent, and works it out again
+   only when the data version has moved past its stamp or the day has turned, sending it only
+   when its hash differs. A receiver whose `have` isn't an `upTo` the sender sent gets
+   everything.
+3. **A large change travels in parts**, oldest to newest across every item together (S11.4):
+   the first part carries the items and what was removed, then the records follow by date,
+   cut at about 4 MB on whole records up to a date, each part signed as a change of its own
+   with its `progress` and `cursor`; totals and documents come in the last part. The sender
+   reads each part when `next` asks for it, from the `cursor` the caller sends, in a read
+   transaction of its own, and holds nothing between parts: a restart on either side carries
+   on from the `cursor`. A record written while the parts are being read has a `changeSeq`
+   above `upTo`, so the next change holds it. The copy fills from its earliest records and is
+   usable up to a date while the rest arrives, and the receiver shows how far it has come
+   (*Up to Jul 1, 2024 (47 MB of 2 GB)*, S11.7.1).
+4. The receiver checks the signature and that `from` is its `have` (or that the change is
+   `full`); otherwise it asks for everything at its next exchange. It applies a row only when
+   its `changeSeq` is above the one its copy holds for that row, so nothing steps back. It
+   keeps the registry in its main database and writes `sealed` into the link's copy's inbox
+   as it came (S11.9.5), its registry beside it sealed to the copy's key (S11.9.1), where it
+   is applied, its signature and its `from` checked again, once the copy is unlocked.
+   Until the copy has an access key (S11.9.2.1), a pull keeps the registry only; making the
+   key asks for everything at the next exchange.
+5. **Nothing counts as sent until the receiver has it.** The sender keeps a change's totals'
+   and documents' stamps and hashes as pending, and makes them the ones it sent only when a
+   later `have` reaches that change's `upTo`. A change that never arrived is read again from
+   the same `have`.
+6. **Registry only.** A caller that sends `registryOnly` gets a change with its registry
+   alone (`items`, `removed`, the directory) and no `sealed` part, so removals and an end
+   take effect while its copy takes no data; its `have` stays where it was, and its first
+   exchange without `registryOnly` catches up from it.
 
 ### 4.5 A new certificate
 
@@ -279,12 +300,34 @@ the two servers have, and the join is refused `already-linked`. The new link pul
    other side shares something this one can't show yet.
 4. Each server shows the peer's MoolaKata version (from `MK-Link-Version`) in Settings ›
    Linked servers.
+5. **The copy follows the sender's release** (S11.10). Each change names the sender's release
+   and schema revision (`release`, section 4.4). The receiver draws and migrates the copy with
+   a worker running that release, installed from the release's bundle on GitHub (S17.10.2),
+   checked against its attestation, once its admin has allowed downloads for the link. When
+   an exchange shows the peer on a release the receiver doesn't have, it fetches it at once. A
+   change from a later revision than the copy's is applied after that release's worker
+   migrates the copy; one from an earlier revision asks for everything. A release that wasn't
+   published, or was published more than 12 months ago, isn't run: until a worker can run, the
+   receiver's exchanges send `registryOnly`, and its window says what's missing (S12.10.6).
 
 ## 6. Shared items
 
-Each shared item travels as its screens show it, worked out at its source (S11.3.1), in the
-changes of section 4.4. Items of a kind the receiver doesn't know are kept in its copy and not
-shown (section 5.3).
+Each shared item travels as its source's own release needs to draw it (S11.3.1), in the
+changes of section 4.4:
+
+| Kind | Records (`rows`) | Worked out at the source |
+|---|---|---|
+| account | the account and its type's rows, its transactions, splits, reimbursements, transfer pairs, lots, picks, corporate actions, stated holdings, holding checks, option contracts, strategies, statement balances and reconciliations; the instruments and categories they use; its transactions' public tags; the closes of what it holds or watches | — |
+| person | the person, and relationships between two people both shared with the viewer | — |
+| gift plan | the plan, its occasions and gifts; a gift's linked transaction as a small entry (date, amount, account or *an account not shared*) | — |
+| portfolio | the portfolio and which accounts it holds; the closes of its benchmark | — |
+| budget | the budget, the accounts it counts by month, its plan lines, moves and reviews | `totals`: per month and category, per month and account, per recurring series (S7.3.10) |
+| tax book | the book, its filers, the accounts it counts, dependents, filings, changes, estimated payments and documents | `docs`: each panel |
+| giving plan | the plan, its organisations and donations | `docs`: the year's giving and its donations |
+| projection | — | `docs`: the projection |
+
+Items of a kind the receiver's worker doesn't know are kept in its copy and not shown
+(section 5.3).
 
 ## 7. Refusals
 

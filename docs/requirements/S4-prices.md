@@ -71,7 +71,8 @@
    in USD, including crypto and metals spot. An instrument that trades only in another
    currency is priced by hand.
 9. **Linked servers never call price sources for each other.** A peer's shared data carries its
-   own values and their `as_of` (S11.5).
+   own stored closes, with their dates, for what its shared accounts hold or watch and for the
+   benchmarks (S11.3.1).
 10. **A typed price** is its typer's: it values their own accounts, and another user's only
     when they type one too. It is for an instrument held or watched (S4.4) in an account the
     typer can change: a holding, or the underlying of an option traded there. Where an instrument has no stored close, a holding is valued from
