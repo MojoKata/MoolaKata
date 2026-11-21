@@ -33,9 +33,9 @@ it is ahead of the plan or behind.
 
 Bank transactions of the last 90 days within 2% of the payment that aren't a transfer yet. **Link**
 makes one the transfer into this loan, split by the schedule. When the loan already holds the
-payment, recorded with *From account: None*, **Pair** makes the two one transfer and records
-nothing new; a transaction a few days from a payment of another amount isn't offered, as it is most
-likely that payment.
+payment, recorded with _From account: None_, **Pair** makes the two one transfer and records nothing
+new; a transaction a few days from a payment of another amount isn't offered, as it is most likely
+that payment.
 
 @@ settings
 
@@ -82,6 +82,21 @@ Homeowner's insurance collected with each payment. Blank: none.
 Mortgage insurance, until the loan is 80% of the home's original value (on request) or 78%
 (automatically). Blank: none, as with 20% or more down.
 
+## Points paid {#points}
+
+Points (discount points, origination points) paid at closing to lower the rate. Blank: none. Their
+day and what they paid for are then asked.
+
+## Points paid on {#points-paid-on}
+
+The closing day: by the first payment at the latest.
+
+## Points for {#points-for}
+
+**Buying the home**: the points show in Taxes in the year paid, as on Form 1098. **A refinance**:
+they are deducted over the loan, so Taxes shows each year's share, spread evenly over its payments,
+and what's left in the year it's paid off.
+
 ## Secured by {#secured-by}
 
 The property or vehicle the loan is secured by, from a physical-asset account. The Overview then
@@ -105,18 +120,18 @@ The category the whole payment counts in: _Loan payments_ unless you choose anot
 
 ## New category…
 
-At the end of the list: opens **New Category** over this dialog. The category it makes
-is chosen here when you add it, and everyone sees it: the household has one tree of categories.
+At the end of the list: opens **New Category** over this dialog. The category it makes is chosen
+here when you add it, and everyone sees it: the household has one tree of categories.
 
 ## Payments {#payments-mode}
 
 How a payment day with no payment recorded reads. **Recorded here**: every payment is recorded in
 MoolaKata from the first one, so one not recorded 15 days after its day is missed; the Overview says
 how many and what is overdue, and the balance stays what it was. The days before the first payment
-recorded count as paid as scheduled. **Assumed as scheduled**: the payments are made
-elsewhere, so a day with none recorded counts as paid as the schedule says. **Automatic** is
-recorded here once the loan has a payment recorded or a connection keeping it, and assumed until
-then; it names which applies.
+recorded count as paid as scheduled. **Assumed as scheduled**: the payments are made elsewhere, so a
+day with none recorded counts as paid as the schedule says. **Automatic** is recorded here once the
+loan has a payment recorded or a connection keeping it, and assumed until then; it names which
+applies.
 
 ## Rate resets
 

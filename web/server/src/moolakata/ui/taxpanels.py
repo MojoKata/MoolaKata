@@ -206,6 +206,8 @@ class LoanOut(Model):
     pmi: Money
     propertyTax: Money
     securedBy: str | None
+    points: Money  # deducted this year: a purchase's all, a refinance's share (S1.9.6)
+    pointsPurpose: str | None  # purchase or refinance, when this year has any
 
 
 class ResidenceOut(Model):
@@ -400,6 +402,8 @@ def _build(s, b) -> Panels:
                 pmi=x.pmi,
                 propertyTax=x.propertyTax,
                 securedBy=x.securedBy,
+                points=x.points,
+                pointsPurpose=x.pointsPurpose,
             )
             for x in panels.loans_panel(s, b)
         ],

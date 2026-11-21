@@ -1073,6 +1073,8 @@ class LoanRow:
     pmi: Decimal
     propertyTax: Decimal
     securedBy: str | None
+    points: Decimal = ZERO  # deducted this year (S1.9.6)
+    pointsPurpose: str | None = None  # purchase or refinance
 
 
 def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
@@ -1080,13 +1082,20 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
     for a in books.counted(s, book).accounts:
         if a.type not in ("mortgage", "heloc", "student-loan"):
             continue
-        payments, _ = loans.history(s, a)
+        payments, draws = loans.history(s, a)
         mine = [p for p in payments if p.date.year == book.year and not p.assumed]
         row = loans.loan_of(s, a)
         secured = None
         if row is not None and row.securedById:
             # The item a loan names is kept while it does (a deleted one too, by its name).
             secured = s.get(Item, row.securedById).name
+        points = ZERO
+        if row is not None and row.points is not None:
+            t = loans.terms_of(s, row)
+            payoff = loans.paid_off(t, payments, draws)
+            points = loans.points_in(
+                row.points, row.pointsPaidOn, row.pointsPurpose, t, payoff, book.year
+            )
         out.append(
             LoanRow(
                 a.name,
@@ -1095,6 +1104,8 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
                 sum((p.pmi for p in mine), ZERO),
                 sum((p.escrowTax for p in mine), ZERO),
                 secured,
+                points,
+                row.pointsPurpose if points else None,
             )
         )
     return out

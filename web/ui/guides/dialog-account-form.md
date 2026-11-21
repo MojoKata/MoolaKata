@@ -1,12 +1,12 @@
 # New Account: Details
 
-The new account's details, which its type decides. A physical asset's items (real estate, a
-vehicle, collectables, precious metals) are added after making the account, each with its
-purchase date, cost basis, notes and documents.
+The new account's details, which its type decides. A physical asset's items (real estate, a vehicle,
+collectables, precious metals) are added after making the account, each with its purchase date, cost
+basis, notes and documents.
 
 ## Name
 
-What it's called in your lists, such as *Individual brokerage* or *Everyday checking*.
+What it's called in your lists, such as _Individual brokerage_ or _Everyday checking_.
 
 ## Institution
 
@@ -26,7 +26,8 @@ my529, Bright Start, and so on.
 
 ## Beneficiary
 
-Who a 529 is for: one of the household's people, or **Add a Person…**, which opens **Add a Person** over this dialog: the one it adds is chosen here.
+Who a 529 is for: one of the household's people, or **Add a Person…**, which opens **Add a Person**
+over this dialog: the one it adds is chosen here.
 
 ## Opened {#opened-on}
 
@@ -39,13 +40,12 @@ What you expect to deduct on your state return each year, typed.
 ## Extended public keys or addresses {#wallet-keys}
 
 Bitcoin only; other coins come later. A self-custody wallet's public data only: an **xpub**,
-**ypub** or **zpub** (exported from the wallet as its account's extended public key), an
-**output descriptor** (`wpkh`, `tr`, a `wsh` multisig…), or bitcoin addresses, one a line. From
-a key, MoolaKata derives the wallet's receive and change addresses itself.
+**ypub** or **zpub** (exported from the wallet as its account's extended public key), an **output
+descriptor** (`wpkh`, `tr`, a `wsh` multisig…), or bitcoin addresses, one a line. From a key,
+MoolaKata derives the wallet's receive and change addresses itself.
 
-> Never enter a seed phrase or a private key. The form clears anything that looks like one (12
-> or 24 words, a WIF or 64-hex private key, an xprv) at once, and MoolaKata never stores or
-> logs it.
+> Never enter a seed phrase or a private key. The form clears anything that looks like one (12 or 24
+> words, a WIF or 64-hex private key, an xprv) at once, and MoolaKata never stores or logs it.
 
 ## Gap limit
 
@@ -87,8 +87,8 @@ In months: 360 for a 30-year mortgage, 60 for a five-year car loan.
 
 ## Interest rate
 
-The note rate, not the APR, to three places as the note states it (6.875%). An adjustable
-rate's resets, to four places, are typed when known.
+The note rate, not the APR, to three places as the note states it (6.875%). An adjustable rate's
+resets, to four places, are typed when known.
 
 ## Interest method
 
@@ -109,6 +109,21 @@ Homeowner's insurance collected with each payment. Blank: none.
 ## PMI per month {#pmi}
 
 Mortgage insurance, until it can be dropped. Blank: none.
+
+## Points paid {#points}
+
+Points (discount points, origination points) paid at closing to lower the rate. Blank: none. Their
+day and what they paid for are then asked.
+
+## Points paid on {#points-paid-on}
+
+The closing day: by the first payment at the latest.
+
+## Points for {#points-for}
+
+**Buying the home**: the points show in Taxes in the year paid, as on Form 1098. **A refinance**:
+they are deducted over the loan, so Taxes shows each year's share, spread evenly over its payments,
+and what's left in the year it's paid off.
 
 ## Secured by {#secured-by}
 
@@ -138,5 +153,5 @@ The category the whole payment counts in: _Loan payments_ unless you choose anot
 
 ## New category…
 
-At the end of the list: opens **New Category** over this dialog. The category it makes
-is chosen here when you add it, and everyone sees it: the household has one tree of categories.
+At the end of the list: opens **New Category** over this dialog. The category it makes is chosen
+here when you add it, and everyone sees it: the household has one tree of categories.

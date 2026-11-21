@@ -1121,7 +1121,7 @@ def test_a_loans_row_sums_the_years_recorded_payments_and_names_what_secures_it(
         b = _book(s, u)
         secured = {"Mortgage": it.id, "HELOC": None}
         monkeypatch.setattr(panels.loans, "loan_of", lambda s, a: (
-            NS(securedById=secured[a.name]) if a.name in secured else None
+            NS(securedById=secured[a.name], points=None) if a.name in secured else None
         ))  # fmt: skip
         rows = {r.account: r for r in panels.loans_panel(s, b)}
     assert set(rows) == {"Mortgage", "HELOC", "School"}
@@ -1135,6 +1135,39 @@ def test_a_loans_row_sums_the_years_recorded_payments_and_names_what_secures_it(
     )
     assert (rows["HELOC"].kind, rows["HELOC"].securedBy) == ("1098", None)
     assert (rows["School"].kind, rows["School"].securedBy) == ("1098-E", None)
+    assert (m.points, m.pointsPurpose) == (0, None)
+
+
+@pytest.mark.parametrize(
+    ("purpose", "year", "points"),
+    [
+        ("purchase", 2025, D(0)),  # paid in 2026: none the year before
+        ("purchase", 2026, D(2400)),  # all in the year paid
+        ("refinance", 2026, D(220)),  # 11 of the 120 payments (Feb to Dec): 2,400 x 11/120
+        ("refinance", 2027, D(240)),  # a whole year's 12
+        ("refinance", 2028, D(1940)),  # paid off on Mar 1: the 23 before counted, the rest
+        ("refinance", 2029, D(0)),  # after the payoff, none
+    ],
+)
+def test_a_mortgages_points_on_its_row_by_purpose(db, monkeypatch, purpose, year, points):
+    """S1.9.6, S8.12: points that bought the home in the year paid; a refinance's spread
+    evenly over its payments, what's left in the year it was paid off, then none."""
+    from types import SimpleNamespace as NS
+
+    from moolakata import loans as L
+
+    t = L.Terms(D(100000), d(2026, 1, 1), 120, D(6))
+    paid_off = L.Payment(d(2028, 3, 1), D(100000), principal=D(100000))
+    monkeypatch.setattr(panels.loans, "history", lambda s, a: ([paid_off], []))
+    monkeypatch.setattr(panels.loans, "terms_of", lambda s, row: t)
+    row = NS(securedById=None, points=D(2400), pointsPaidOn=d(2026, 1, 1), pointsPurpose=purpose)
+    monkeypatch.setattr(panels.loans, "loan_of", lambda s, a: row)
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", 1980)
+        _acct(s, u, "Mortgage", "mortgage")
+        b = _book(s, u, year=year)
+        [m] = panels.loans_panel(s, b)
+    assert (m.points, m.pointsPurpose) == (points, purpose if points else None)
 
 
 # ---------- the spouses whose accounts count for wash sales (S3.8) ----------

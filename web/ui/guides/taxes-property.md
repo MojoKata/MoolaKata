@@ -11,8 +11,9 @@ out.
 
 ## Loans (1098, 1098-E)
 
-Interest, PMI and property tax through escrow per loan, from the payments' splits; compare with the
-Form 1098 when it arrives.
+Interest, PMI and property tax through escrow per loan, from the payments' splits, and a mortgage's
+points from its terms: a purchase's in the year paid, a refinance's share of this year. Compare with
+the Form 1098 when it arrives; a refinance's points aren't on it.
 
 ## Physical Assets Sold
 

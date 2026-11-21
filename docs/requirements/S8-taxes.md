@@ -84,8 +84,9 @@ produces worksheets and exports. It never files, and says so (R1.16).
 11. **Gifts** (S7.8.7): each person who received more than the annual exclusion in the
     year, from cash gifts and 529 contributions, with the five-year 529 elections still
     running, as a prompt to file **Form 709**.
-12. **Loans** (S1.9.6): mortgage interest, points, PMI and property tax paid through escrow
-    (Form 1098) per property, and student-loan interest (Form 1098-E).
+12. **Loans** (S1.9.6): mortgage interest, points (a purchase's in the year paid, a
+    refinance's share of the year), PMI and property tax paid through escrow (Form 1098) per
+    property, and student-loan interest (Form 1098-E).
 13. **Physical assets** (S1.10.5): sales of items, with collectables (metals included) marked
     on Form 8949 for the collectables rate, and losses on personal-use property shown as not
     deductible. A sold primary residence shows its gain and the years owned and lived in;

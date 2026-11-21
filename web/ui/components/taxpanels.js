@@ -619,6 +619,13 @@ function Property({ p }) {
                         <div
               class="list-item"><span class="grow dim">Interest</span><${Amt} v=${l
                 .interest} /></div>
+                        ${num(l.points)
+                          ? html`<div class="list-item"><span class="grow dim">${
+                            l.pointsPurpose === 'refinance'
+                              ? 'Points (refinance): this year’s share'
+                              : 'Points'
+                          }</span><${Amt} v=${l.points} /></div>`
+                          : null}
                         ${num(l.pmi)
                           ? html`<div class="list-item"><span class="grow dim">PMI</span><${Amt} v=${l.pmi} /></div>`
                           : null}

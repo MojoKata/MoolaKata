@@ -197,6 +197,79 @@ def test_a_rate_as_the_note_states_it(server, frozen):
     assert r.status_code == 422 and "rate" in r.text
 
 
+def test_a_mortgages_points_are_kept_whole_on_its_terms(server, frozen):
+    """S1.9.1: the points paid at closing with their day and purpose, kept and read back;
+    cleared, all three go."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage")
+    home = {"principal": "300000", "startDate": "2026-01-01", "termMonths": 360, "rate": "6"}
+    points = {"points": "2400", "pointsPaidOn": "2026-01-01", "pointsPurpose": "refinance"}
+    v = saved(terms(c, loan["id"], **home, **points))
+    assert {k: v["terms"][k] for k in points} == {**points, "points": "2400.00"}
+    v = saved(terms(c, loan["id"], points=None, pointsPaidOn=None, pointsPurpose=None))
+    assert (v["terms"]["points"], v["terms"]["pointsPaidOn"], v["terms"]["pointsPurpose"]) == (
+        None,
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "sent", "field", "code"),
+    [
+        ("auto-loan", {"points": "100", "pointsPaidOn": "2026-01-01",
+                       "pointsPurpose": "purchase"}, "points", "points-not-for-loan"),
+        ("mortgage", {"points": "0", "pointsPaidOn": "2026-01-01",
+                      "pointsPurpose": "purchase"}, "points", "amount-invalid"),
+        ("mortgage", {"points": "100", "pointsPurpose": "purchase"}, "pointsPaidOn", "required"),
+        ("mortgage", {"points": "100", "pointsPaidOn": "2026-02-02",
+                      "pointsPurpose": "purchase"}, "pointsPaidOn", "points-day-invalid"),
+        ("mortgage", {"points": "100", "pointsPaidOn": "2026-01-01"}, "pointsPurpose",
+         "points-purpose-invalid"),
+        ("mortgage", {"points": "100", "pointsPaidOn": "2026-01-01",
+                      "pointsPurpose": "both"}, "pointsPurpose", "points-purpose-invalid"),
+        ("mortgage", {"pointsPaidOn": "2026-01-01"}, "points", "points-missing"),
+        ("mortgage", {"pointsPurpose": "refinance"}, "points", "points-missing"),
+    ],
+)  # fmt: skip
+def test_points_are_refused_at_their_field_unless_whole(server, frozen, kind, sent, field, code):
+    """S1.9.1, R3.11: points belong to a mortgage, are more than nothing, and come with their
+    day (by the first payment) and purpose; a day or purpose alone is never kept."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Loan", type=kind)
+    r = terms(c, loan["id"], principal="1000", startDate="2026-01-01", termMonths=12, rate="6",
+              **sent)  # fmt: skip
+    assert r.status_code == 422, r.text
+    assert (field, code) in {(e["field"], e["code"]) for e in r.json()["errors"]}
+
+
+def test_points_on_the_first_payment_day_are_kept():
+    """The latest day points can be paid: the first payment's, as at a late closing."""
+    from moolakata.ui import loans as ui
+
+    start = dt.date(2026, 1, 1)
+    body = ui.TermsIn(principal=D(1000), startDate=start, termMonths=12, rate=D(6), points=D(10),
+                      pointsPaidOn=L.add_months(start, 1), pointsPurpose="purchase")  # fmt: skip
+    assert ui._check(body, "mortgage") == []
+
+
+def test_a_refinances_points_add_up_to_what_was_paid_over_the_term():
+    """S1.9.6: each year's share of a refinance's points, over a term not paid off early,
+    adds up to the points, the last year taking what rounding left; one paid off in its first
+    year takes them all then."""
+    t = L.Terms(D(100000), dt.date(2026, 3, 15), 37, D(6))
+    years = range(2025, 2031)
+    shares = [L.points_in(D(1000), t.start, "refinance", t, None, y) for y in years]
+    assert sum(shares, D(0)) == D(1000) and shares[0] == 0 and shares[-1] == 0
+    assert shares[1] == D("243.24")  # Apr to Dec: 9 of 37
+    assert L.points_in(D(1000), t.start, "refinance", t, dt.date(2026, 9, 1), 2026) == D(1000)
+    assert L.paid_off(t, [L.Payment(dt.date(2026, 9, 1), D(1), principal=D(99999))], []) is None
+    paid = [L.Payment(dt.date(2026, 9, 1), D(1), principal=D(100000))]
+    assert L.paid_off(t, paid, []) == dt.date(2026, 9, 1)
+
+
 # ---- The payoff planner (S6.10) ----
 
 

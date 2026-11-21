@@ -621,6 +621,35 @@ def split_for(
     )
 
 
+def paid_off(t: Terms, payments: list[Payment], draws) -> dt.date | None:
+    """The day a payment left nothing owed, if one has."""
+    for p in sorted(payments, key=lambda p: p.date):
+        if balance_on(t, payments, draws, p.date) <= 0:
+            return p.date
+    return None
+
+
+def points_in(
+    points: Decimal, paid_on: dt.date, purpose: str, t: Terms, payoff: dt.date | None, year: int
+) -> Decimal:
+    """A mortgage's points deducted in a year (S1.9.6, S8.12): a purchase's in the year paid;
+    a refinance's spread evenly over the term's payments, the share of the payments in the
+    year, and what is left in the year the loan is paid off."""
+    if purpose == "purchase":
+        return points if paid_on.year == year else ZERO
+
+    def through(y: int) -> Decimal:
+        # The payment days up to the end of year y: the k-th is in the start's year + (m+k)//12.
+        n = (y - t.start.year) * 12 + 12 - t.start.month
+        return cents(points * max(0, min(n, t.months)) / t.months)
+
+    if payoff is not None and payoff.year < year:
+        return ZERO
+    if payoff is not None and payoff.year == year:
+        return points - through(year - 1)
+    return through(year) - through(year - 1)
+
+
 def _in_draw(t: Terms, day: dt.date) -> bool:
     return bool(t.drawMonths) and day < add_months(t.start, t.drawMonths)
 

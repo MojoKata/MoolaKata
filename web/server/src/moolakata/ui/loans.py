@@ -64,6 +64,10 @@ class TermsIn(Model):
     resets: list[Reset] = Field(default_factory=list)
     recasts: list[Recast] = Field(default_factory=list)
     originalValue: Money | None = None
+    # A mortgage's points (S1.9.6): the amount, the day paid, and `purchase` or `refinance`.
+    points: Money | None = None
+    pointsPaidOn: dt.date | None = None
+    pointsPurpose: str | None = None
     securedById: str | None = None  # the property or vehicle it is secured by
     # How its payments count in budgets (S1.9.7): split by the schedule, or whole.
     budgetCounting: str = "split"
@@ -98,6 +102,9 @@ class TermsOut(Model):
     resets: list[ResetView]
     recasts: list[RecastView]
     originalValue: Money | None
+    points: Money | None
+    pointsPaidOn: dt.date | None
+    pointsPurpose: str | None
     securedById: str | None
     budgetCounting: str
     budgetCategoryId: str | None
@@ -233,6 +240,9 @@ def _terms_out(s, row: Loan) -> TermsOut:
         resets=[ResetView(date=d, rate=r) for d, r in t.resets],
         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
         originalValue=row.originalValue,
+        points=row.points,
+        pointsPaidOn=row.pointsPaidOn,
+        pointsPurpose=row.pointsPurpose,
         securedById=row.securedById,
         budgetCounting=row.budgetCounting,
         budgetCategoryId=row.budgetCategoryId,
@@ -376,6 +386,39 @@ def _check(body: TermsIn, account_type: str) -> list[FieldError]:
         v = getattr(body, f)
         if v is not None and v < 0:
             e.append(FieldError(f, "amount-invalid", "Zero or more."))
+    return e + _check_points(body, account_type)
+
+
+def _check_points(body: TermsIn, account_type: str) -> list[FieldError]:
+    """A mortgage's points come whole: the amount, the day paid, and what they paid for
+    (S1.9.6); none is blank, never read as none (R3.11)."""
+    given = (body.points, body.pointsPaidOn, body.pointsPurpose)
+    if all(v is None for v in given):
+        return []
+    if account_type != "mortgage":
+        return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+    e = []
+    if body.points is None:
+        e.append(
+            FieldError(
+                "points", "points-missing", "The points paid, or clear their day and purpose."
+            )
+        )
+    elif body.points <= 0:
+        e.append(FieldError("points", "amount-invalid", "More than zero."))
+    if body.pointsPaidOn is None:
+        e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+    elif body.pointsPaidOn > loans.add_months(body.startDate, 1):
+        # Points are paid at closing: by the first payment at the latest.
+        e.append(
+            FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+        )
+    if body.pointsPurpose not in ("purchase", "refinance"):
+        e.append(
+            FieldError(
+                "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+            )
+        )
     return e
 
 
@@ -418,6 +461,9 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
         ),
         "originalValue": body.originalValue,
+        "points": body.points,
+        "pointsPaidOn": body.pointsPaidOn,
+        "pointsPurpose": body.pointsPurpose,
         "securedById": body.securedById,
         "budgetCounting": body.budgetCounting,
         "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,

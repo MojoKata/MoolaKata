@@ -12066,6 +12066,25 @@
             "title": "Pmi",
             "type": "number"
           },
+          "points": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Points",
+            "type": "number"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspurpose"
+          },
           "propertyTax": {
             "examples": [
               1234.5
@@ -12092,7 +12111,9 @@
           "interest",
           "pmi",
           "propertyTax",
-          "securedBy"
+          "securedBy",
+          "points",
+          "pointsPurpose"
         ],
         "title": "LoanOut",
         "type": "object"
@@ -12232,6 +12253,47 @@
             ],
             "default": null,
             "title": "Pmi"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Points"
+          },
+          "pointsPaidOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pointspaidon"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pointspurpose"
           },
           "principal": {
             "examples": [
@@ -19014,6 +19076,10 @@
               "plan-fixed",
               "plan-line-delete",
               "planned-elsewhere",
+              "points-day-invalid",
+              "points-missing",
+              "points-not-for-loan",
+              "points-purpose-invalid",
               "portfolio-unknown",
               "premium-invalid",
               "price-fixed",
@@ -19049,6 +19115,7 @@
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
+              "required",
               "reserve-unknown",
               "result-invalid",
               "right-invalid",
@@ -19486,6 +19553,10 @@
                   "plan-fixed",
                   "plan-line-delete",
                   "planned-elsewhere",
+                  "points-day-invalid",
+                  "points-missing",
+                  "points-not-for-loan",
+                  "points-purpose-invalid",
                   "portfolio-unknown",
                   "premium-invalid",
                   "price-fixed",
@@ -19521,6 +19592,7 @@
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
+                  "required",
                   "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
@@ -25237,6 +25309,44 @@
             ],
             "title": "Pmi"
           },
+          "points": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "pointsPaidOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspaidon"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspurpose"
+          },
           "principal": {
             "examples": [
               1234.5
@@ -25306,6 +25416,9 @@
           "resets",
           "recasts",
           "originalValue",
+          "points",
+          "pointsPaidOn",
+          "pointsPurpose",
           "securedById",
           "budgetCounting",
           "budgetCategoryId",
