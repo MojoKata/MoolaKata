@@ -521,6 +521,22 @@ def test_a_payment_recorded_on_the_loan_alone_pairs_with_its_bank_half(server, f
     assert c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"] == "297257.77"
 
 
+def test_a_payment_is_never_paired_with_a_row_of_the_loans_own_account(server, frozen):
+    """S1.9.3, S1.7: a payment's other half comes from another account. A row of the loan's own
+    account (a draw, a charge) is refused as its half, and neither is changed."""
+    c, _, loan = _a_loan_and_checking(server)
+    assert loan_payment(c, loan["id"], "2026-10-01", "1798.65").status_code == 200
+    [pay] = _rows(c, loan["id"])
+    charge = add(c, loan["id"], "-1798.65", "2026-10-02", payee="Fee")
+    r = change(c, "Txn", pay, kind="transfer", transferWithId=charge["id"])
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+        ("transferWithId", "not-a-transfer")
+    ]
+    assert [x["transferId"] for x in _rows(c, loan["id"])] == [None, None]
+    assert c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"] == []
+
+
 def test_a_debit_beside_a_payment_of_another_amount_isnt_offered(server, frozen):
     """A debit within days of an unpaired payment of a different amount is most likely that payment;
     linking it would count it twice."""
