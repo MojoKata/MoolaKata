@@ -113,5 +113,136 @@
     "moolakata/ui/accounts.py": "35908704f88208c3fd62dd48bf9bbac483144822",
     "moolakata/ui/rules.py": "d4a5a11e31706ccd4f85e1f9f93e9f69331e279d",
     "moolakata/ui/transactions.py": "ded8c7b5b55547b3cf52024dc7b2820045748989"
+  },
+  "last": {
+    "killed": 6956,
+    "timeout": 0,
+    "survived": 102,
+    "no tests": 0,
+    "not run": 0,
+    "files": {
+      "moolakata/ledger/balances.py": {
+        "killed": 106,
+        "timeout": 0,
+        "survived": 2,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/expected.py": {
+        "killed": 167,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/holdingcheck.py": {
+        "killed": 116,
+        "timeout": 0,
+        "survived": 1,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/lots.py": {
+        "killed": 1267,
+        "timeout": 0,
+        "survived": 24,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/performance.py": {
+        "killed": 175,
+        "timeout": 0,
+        "survived": 1,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/reconcile.py": {
+        "killed": 194,
+        "timeout": 0,
+        "survived": 3,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/rules.py": {
+        "killed": 94,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/transfers.py": {
+        "killed": 43,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ledger/types.py": {
+        "killed": 25,
+        "timeout": 0,
+        "survived": 0,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/accounts.py": {
+        "killed": 1416,
+        "timeout": 0,
+        "survived": 18,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/rules.py": {
+        "killed": 561,
+        "timeout": 0,
+        "survived": 2,
+        "no tests": 0,
+        "not run": 0
+      },
+      "moolakata/ui/transactions.py": {
+        "killed": 2792,
+        "timeout": 0,
+        "survived": 51,
+        "no tests": 0,
+        "not run": 0
+      }
+    }
+  },
+  "pr": 599,
+  "found": [
+    "#601",
+    "#602",
+    "#608",
+    "#609",
+    "#610",
+    "#611",
+    "#612",
+    "#613",
+    "#614",
+    "#615",
+    "#616",
+    "#617",
+    "#618",
+    "#619",
+    "#620",
+    "#621",
+    "#622",
+    "#623",
+    "#625",
+    "#626"
+  ],
+  "equivalent": 98,
+  "content": {
+    "moolakata/ledger/balances.py": "3373c3c34cbf3784fbd3c025806e92291b4ff742",
+    "moolakata/ledger/expected.py": "b3339e4f8040b5a4a4cd9fafca72e7d503227898",
+    "moolakata/ledger/holdingcheck.py": "874dc03c8bb24afbe3e1d0d65bcb57d073cf1cc2",
+    "moolakata/ledger/lots.py": "315ebe1d9c5e3c01723a7a7c6a05c25916aba60f",
+    "moolakata/ledger/performance.py": "982c3dc9e813a22ae3a1af69cc085b419dd1be71",
+    "moolakata/ledger/reconcile.py": "915b5cebe38e7444b8af05864dee914235823331",
+    "moolakata/ledger/rules.py": "d6d667e32bf31cc7d5535b0bb7dae7b813b5d5cf",
+    "moolakata/ledger/transfers.py": "84938955f082d6caac28bf28266628e5638adc1b",
+    "moolakata/ledger/types.py": "bbefefe5266a2588b9ecf615e86b48ad3fd0d3de",
+    "moolakata/ui/accounts.py": "f468cc439f8ac8be56da54d4377ba50b51109982",
+    "moolakata/ui/rules.py": "022208fabe5f296e4be2b93d74ff05fc002635b5",
+    "moolakata/ui/transactions.py": "c3f0d8becdea8b437e4796b2d333d1e888c91143"
   }
 }
