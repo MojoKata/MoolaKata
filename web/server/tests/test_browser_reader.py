@@ -225,11 +225,10 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     assert dialog.locator("#f-name").count() == 0
     assert dialog.locator("#f-address").inner_text() == "1428 Elm St"
     assert not dialog.locator("#f-condition").is_visible()
-    # A yes or no keeps the switch's footprint, a check or a dash in it, never a live switch.
-    home = dialog.locator("#f-primary-residence")
-    assert home.get_attribute("role") == "switch"
-    assert home.get_attribute("aria-readonly") == "true"
-    assert home.get_attribute("aria-checked") == "true"
+    # Its residence periods are listed, never added to, by a reader (S1.10.4).
+    assert dialog.locator('[data-help="residence-periods"]').is_visible()
+    off(dialog, "Add Period")
+    assert dialog.locator(".chips button").count() == 0
     # What belongs to it is on its Valuation tab (S1.10.6), its changes off there too.
     dialog.locator('[role=tab]:has-text("Valuation")').click()
     for name in ("Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
