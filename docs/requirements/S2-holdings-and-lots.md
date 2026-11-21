@@ -81,6 +81,12 @@
       and anyone who can change the transaction adds or removes it, as tagging is an edit. A
       private tag is its user's own: seen and set by them alone, and it never crosses a link
       (S11.5.2).
+      1. **Made public, never private.** A private tag can be made public, never the other
+         way. When a public tag of its name is there already, every transaction it is on takes
+         that public tag instead and the private one goes.
+      2. **Names.** A public tag may share its name with users' private tags; a private tag
+         isn't made while a public one has its name, case aside.
+      3. **Renamed or deleted** by whoever made it, and by an admin, when public.
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per
    user, in **Transactions › Rules**, first match wins.
    1. **What a rule matches**: the payee as the institution wrote it, by text it contains (case
@@ -91,7 +97,8 @@
       (from and to, of the amount without its sign), a direction (money in, money out, or
       either) and one account.
    2. **What it sets**, one or more of: the **category**; the **payee** shown (*Rename to*),
-      the institution's text kept beside it; and **tags** (S2.6.1).
+      the institution's text kept beside it; and **tags** (S2.6.1), a public one only on a
+      transaction the rule's user can change.
    3. **On import** (a file, a statement or a connector's fetch), the rules of the user who
       imports are applied to each new row that is a bank transaction (not a trade) and not a
       transfer between the owner's accounts (S1.7). A row's category is set only when it has

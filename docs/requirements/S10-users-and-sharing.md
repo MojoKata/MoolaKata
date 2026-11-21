@@ -235,7 +235,9 @@
        | wife, husband, widow, widower | *spouse*, ended by death for the last two |
 
        The words follow each person's sex. Adoption and guardianship are *child*. A person
-       related in a way the tree can't show is entered as *family* with a label.
+       related in a way the tree can't show is entered as *family* with a label. A relation
+       worked out through someone the viewer can't see isn't shown to them, on this server as
+       on a linked one (S11.3.1).
     6. **Shown** in the person's gift plan as their relationships, stored and worked out,
        and on the Gifts screen as the person's relation to the user (*Lisa, your
        granddaughter*). Profile lists the user's own with their dates, adds them, and changes

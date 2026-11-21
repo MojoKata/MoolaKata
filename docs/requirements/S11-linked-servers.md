@@ -68,8 +68,11 @@ preparer.
             splits, reimbursements and transfer pairs, lots, picks and corporate actions,
             stated holdings and holding checks, option contracts and strategies, statement
             balances and reconciliations, the instruments it holds or trades, the categories
-            its transactions use (their names and parents), and its transactions' **public**
-            tags (S2.6.1);
+            its transactions use (their names and parents), its transactions' **public**
+            tags (S2.6.1), and its owner's typed prices for what it holds (S4.10). A
+            self-custody wallet crosses as its balance, transactions and holdings, never its
+            keys or addresses: either would let the other side watch it on-chain for good,
+            share removed or not;
          2. **a person**: their row, and each relationship between two people both shared
             with the viewer. Relations worked out from those (a grandparent, an in-law) are
             worked out on the receiving side, so one that runs through a person not shared
@@ -79,7 +82,8 @@ preparer.
          4. **a portfolio**: the portfolio and which accounts it holds. It counts only the
             accounts its viewer can see (S5.1.1), and those cross as accounts of their own;
          5. **prices**: the source's daily closes for what its shared accounts hold or watch,
-            and for the benchmarks (S5.2.1), so a holding is valued at the source's prices.
+            and for each shared portfolio's benchmark (S5.2.1) from the earliest day of its
+            accounts, so a holding is valued at the source's prices.
       2. **A budget** as its own rows (the budget, the accounts it counts by month, its plan
          lines, moves and reviews) and **monthly totals** of the accounts it counts, which may
          not be shared themselves: for each month and category, the signed total, what moved
@@ -153,7 +157,8 @@ preparer.
       book's **Documents** tab; without it they stay home, and the tab lists the documents
       alone.
    2. **Never**: secrets, categorisation rules, imports and their mappings and layouts,
-      groups, private tags (S2.6.1), gifts for a person who is a user of that server
+      groups, private tags (S2.6.1), a self-custody wallet's keys and addresses, gifts for a
+      person who is a user of that server
       (S7.8.5), the accounts behind a shared item's figures unless they are shared too, and
       anything not shared with someone on that server. Of the source's users, only the
       active-user list (S11.3) crosses. Prices travel as the source's own stored closes
