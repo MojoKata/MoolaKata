@@ -675,6 +675,26 @@ def _level_on(t: Terms, day: dt.date, owed_on: Callable[[dt.date], Decimal], dra
     return _level_at(t, e, owed_on(e))
 
 
+def due_on(
+    t: Terms, payments: list[Payment], draws, day: dt.date, previous: dt.date
+) -> tuple[Decimal, Decimal]:
+    """On a payment day passed, from the payments made before it: the principal and interest
+    the schedule had due (the level then, S1.9.2) and the balance that scheduled payment left,
+    which PMI goes by (S1.9.5). `previous` is the payment day before, for daily interest."""
+
+    def owed_on(e: dt.date) -> Decimal:
+        return balance_on(t, payments, draws, e - dt.timedelta(days=1))
+
+    owed = owed_on(day)
+    pi = _level_on(t, day, owed_on, draws)
+    rate = t.rate_on(day) / 100
+    if t.method == "daily":
+        interest = cents(owed * rate * (day - previous).days / 365)
+    else:
+        interest = cents(owed * rate / 12)
+    return pi, owed - _scheduled_principal(t, owed, interest, day, pi)
+
+
 def _months_between(a: dt.date, b: dt.date) -> int:
     return (b.year - a.year) * 12 + b.month - a.month
 

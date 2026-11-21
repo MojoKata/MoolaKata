@@ -305,7 +305,7 @@ def view(s, a: Account) -> LoanView:
         rows=[RowOut(**r.__dict__) for r in rows],
         servicer=servicer,
         equity=_equity(s, row, terms, sm.balance, rows, today),
-        following=_following(s, a, terms, rows, sm.payment, today),
+        following=_following(s, a, terms, rows, payments, draws, today),
     )
 
 
@@ -833,7 +833,7 @@ def _saved(s, c: Caller, a: Account, p: PayoffPlan) -> SavedPlan:
     )
 
 
-def _following(s, a: Account, terms, rows, pi, today) -> Following | None:
+def _following(s, a: Account, terms, rows, payments, draws, today) -> Following | None:
     p = s.scalars(
         select(PayoffPlan).where(
             PayoffPlan.accountId == a.id,
@@ -844,7 +844,7 @@ def _following(s, a: Account, terms, rows, pi, today) -> Following | None:
     if p is None or p.followingSince is None:
         return None
     inputs = PlanIn(**exactjson.loads(p.inputs))
-    expected = payoff.expected_extra(terms, _plan(inputs), p.followingSince, today, pi)
+    expected = payoff.expected_extra(terms, _plan(inputs), p.followingSince, today, payments, draws)
     actual = sum((r.overpayment for r in rows if r.past and r.date > p.followingSince), Decimal(0))
     return Following(
         planId=p.id,
