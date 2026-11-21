@@ -134,6 +134,12 @@
    10. **Kept once worked out**: a month's figures are kept, and worked out again when
        anything they come from changes (a transaction, a plan line, a move, a leave-out, in
        that month or one before it). **Refresh** on a month works them out again at once.
+       They are worked out in two steps: the counted accounts' **monthly totals** (for each
+       month and category, the signed total, what moved out and how many are
+       uncategorised; for each month and account, its month-end balance and a card's amount
+       owed; each recurring series), then the month's figures from those totals and the
+       budget's own rows. A linked copy is sent the totals and works the figures out with the
+       same second step (S11.3.1), so both sides show the same.
    11. **One reading of a line's month**, whatever its kind (a tracking line, a reserve, an
        envelope): what it **carried** in, what it **put in** (its plan, what was assigned, a
        reserve's deposit), what was **moved** in or out, what was **spent**, and what

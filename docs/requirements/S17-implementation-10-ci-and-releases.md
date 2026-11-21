@@ -35,7 +35,10 @@
        its transparency log, and kept in GitHub's attestation store, not in the registry).
        Then it copies both joined images to Docker Hub with their digests unchanged
        (S17.8.2), and drafts the GitHub release with the tag's install files attached: the
-       compose files, the example `moolakata.toml` and the proxy examples. On a pull request that touches what goes into the images, it builds and
+       compose files, the example `moolakata.toml` and the proxy examples, and, for each
+       architecture, the **bundle** a linked server's worker runs (S11.10.1): the server's
+       wheel with its pages, every dependency's wheel and the lock file, attested as the
+       images are, so a worker is installed from GitHub alone. On a pull request that touches what goes into the images, it builds and
        smoke-runs both and pushes nothing. A new package on ghcr.io starts private: after the
        first release, an owner of MojoKata makes both public, once.
        1. **Tags and releases**: the maintainer who makes a release signs its tag with their

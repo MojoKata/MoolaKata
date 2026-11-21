@@ -146,6 +146,8 @@ The rulings the rest of the requirements apply.
     receiving household keeps in its password manager, never with the master key. The key
     protects the copy at rest; who sees what is decided by the owner's shares. The copy
     keeps syncing while it is locked, and its key is released after an hour unused (S11.9).
+    It is drawn by a worker running the source's own release, so the two servers needn't run
+    the same one (S11.10).
 19. **Beyond investments**: MoolaKata also covers **529 plans** (S1.8),
     **mortgages and other loans** with payoff and overpayment projections (S1.9, S6.10),
     **physical assets** such as precious metals, collectables, property and vehicles, with
@@ -271,7 +273,8 @@ The rulings the rest of the requirements apply.
 
 1. **One server, on the household's own LAN.** All data stays on hardware its users control.
    The only outbound calls are to price sources, the bitcoin explorer or node, the SMTP server,
-   and linked servers that a user or admin set up, and each is visible in Settings (S16). The
+   linked servers, and GitHub for a linked server's release (S11.10.2), each one that a user or
+   admin set up, and each is visible in Settings (S16). The
    MoolaKata Connector, a second service, calls the institutions its Connections name, each
    Connection's host shown in Settings › Connector (S18).
 2. **The ledger is the truth.** Holdings, balances, positions, gains and charts are derived

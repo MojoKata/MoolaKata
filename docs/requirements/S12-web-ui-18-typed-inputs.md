@@ -103,18 +103,24 @@
            past those shown; Enter or a click picks, Escape closes, and the focus goes back to
            the field.
     12. **Several of a list** (a record's tags, a gift's people): each chosen item is a chip
-        with its own ×, and after them a box to type in. Typing lists the matches below it
-        (tags most used first, people by name); Enter, or a comma, adds the one highlighted,
-        or what was typed, and the list stays open for the next; Backspace in the empty box
-        takes off the last chip; a paste of names separated by commas adds each. A click on a
-        chip, or ← at the start of the box, takes the focus to the chips: the arrows move
-        along them, Home and End to the first and back to the box, and Backspace or Delete
-        takes the chip off. What was typed becomes a chip when the field is left, not when a
-        chip takes the focus. Two names that differ only in case are one, and
-        the spelling chosen first is kept; an item already chosen is not added again.
-        1. **New items**: where the list may grow (tags), a name that matches none is a new
-           item, made with the record when it is saved. Where it can't (people, who are
-           added on their own page), a name that matches none is refused (*No match*).
+        with its own ×, and after them a box to type in. Typing lists those whose name holds
+        what was typed anywhere, case aside (tags most used first, people by name); Enter, or
+        a comma, adds the one highlighted, or the one whose name is what was typed, and the
+        list stays open for the next; Backspace in the empty box takes off the last chip; a
+        paste of names separated by commas adds each that is one. A click on a chip, or ← at
+        the start of the box, takes the focus to the chips: the arrows move along them, Home
+        and End to the first and back to the box, and Backspace or Delete takes the chip off.
+        What was typed becomes a chip when the field is left, not when a chip takes the
+        focus, if it is one's name. Two names that differ only in case are one, and the
+        spelling chosen first is kept; an item already chosen is not added again.
+        1. **New items**: a name that is none's stays in the box as typed, and is refused at
+           Save. Where the list may grow (a record's tags, never a filter), the list then
+           ends in a bar with **New Tag** on its right, which makes the tag as a chip, made
+           with the record when it is saved; until then the box's text is refused as *Not a
+           tag yet: New Tag makes it*. For a transaction's tags, and a rule's, the bar's left
+           has a **Private** switch, on to start, saying which the new tag is (S2.6.1). Where
+           the list can't grow (people, who are added on their own page), the text is refused
+           as *No match*.
         2. **Many chips**: the field grows a row at a time to three rows of chips, and then
            scrolls. A field kept to one line (a filter) scrolls sideways instead, showing its
            end (the box to type in) at rest, and a count over its left edge (‹ 3) says how

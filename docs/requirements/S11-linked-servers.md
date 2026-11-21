@@ -58,29 +58,80 @@ preparer.
    restored if they return. When the link ends, its users are soft-deleted. Shares that name a
    remote user keep pointing at the same record throughout. Each remote user is a person here
    too, for gifts (S10.10.1).
-   1. **Each item travels as its screens show it, worked out at the source.** A budget's
-      actuals, a giving plan's pace and a tax book's panels are computed from accounts that may
-      not be shared themselves. The owner's server sends the figures and the entries that make
-      them up (a donation's date, organisation and amount; a Form 8949 row), never the accounts
-      behind them: an entry names its account, by name or id, only when that account is shared
-      with the same people, and otherwise says *an account not shared*. An account shared as
-      well arrives as its own item. The receiving server never recomputes; it shows what
-      arrived, with its age.
-4. **How data moves**: the receiving server **pulls a snapshot** of each linked share on a
+   1. **Each item travels as what the source's own release needs to draw it.** A linked copy
+      is drawn by a worker running the source's exact release (S11.10), so what crosses is the
+      source's own data, by kind:
+      1. **As records**, the source's rows as its schema keeps them:
+         1. **an account**: the account and its type's own rows (a loan's terms and payoff
+            plans; a physical-asset account's items, valuations, improvements and residence
+            periods; a 529's plan, contributions and qualified expenses), its transactions,
+            splits, reimbursements and transfer pairs, lots, picks and corporate actions,
+            stated holdings and holding checks, option contracts and strategies, statement
+            balances and reconciliations, the instruments it holds or trades, the categories
+            its transactions use (their names and parents), its transactions' **public**
+            tags (S2.6.1), and its owner's typed prices for what it holds (S4.10). A
+            self-custody wallet crosses as its balance, transactions and holdings, never its
+            keys or addresses: either would let the other side watch it on-chain for good,
+            share removed or not;
+         2. **a person**: their row, and each relationship between two people both shared
+            with the viewer. Relations worked out from those (a grandparent, an in-law) are
+            worked out on the receiving side, so one that runs through a person not shared
+            isn't shown;
+         3. **a gift plan**: the plan, its occasions and its gifts, and a gift's documents when
+            the share includes receipts (S11.5.1);
+         4. **a portfolio**: the portfolio and which accounts it holds. It counts only the
+            accounts its viewer can see (S5.1.1), and those cross as accounts of their own;
+         5. **prices**: the source's daily closes for what its shared accounts hold or watch,
+            and for each shared portfolio's benchmark (S5.2.1) from the earliest day of its
+            accounts, so a holding is valued at the source's prices.
+      2. **A budget** as its own rows (the budget, the accounts it counts by month, its plan
+         lines, moves and reviews) and **monthly totals** of the accounts it counts, which may
+         not be shared themselves: for each month and category, the signed total, what moved
+         out and how many are uncategorised; for each month and account, its month-end
+         balance and a card's amount owed; and for each recurring series, its payee, amount
+         and schedule. The source's own screens are worked out from the same totals (S7.3.10),
+         so both sides show the same figures.
+      3. **A tax book** as its own rows (the book, its filers, the accounts it counts, its
+         dependents, filings, changes, estimated payments and documents) and **each panel as
+         the source works it out** (S8).
+      4. **A giving plan** as its own rows (the plan, its organisations and donations) and
+         **the year's giving and its donations as the source works them out** (S7.9).
+      5. **A projection as the source works it out**: its answer, its fan and the balance by
+         age (S6.4), so the figures shown are the source's own.
+
+      A row or figure names an account, by name or id, only when that account is shared with
+      the same people, and otherwise says *an account not shared*: an entry's account, a
+      transfer's other half, a gift's transaction. An account shared as well arrives as its
+      own item. The receiving server shows what arrived, drawn by the source's release, with
+      its age.
+4. **How data moves**: the receiving server **pulls what changed** in each linked share on a
    schedule (hourly by default, and on demand), **one pull of a link at a time**: a second
    pull of a link waits for the one under way, and a server answering the peer's pull while
    its own pull of that link runs refuses it as busy, never waiting on the peer, so two
    servers pulling each other at once never hold each other up; the refused side asks again
-   at its next exchange, unalerted. The snapshot holds each shared item as S11.3.1
-   says (for an account: balances, holdings, positions, transactions and series), and receipts
-   and documents when the share includes them. It is versioned, and only changes travel. Each
-   change is **sealed by the source to the receiving copy's public key** (S11.9.2.2), which the
-   receiver sends with each exchange, so it crosses unreadable to anyone but that copy,
-   whatever the transport; beside it, signed, travels what the receiving server keeps while the
-   copy is locked (S11.9.1). A **first full snapshot**, or a large change, travels **oldest to
-   newest**, so the copy fills from its earliest records and is usable, up to a date, while the
-   rest arrives: a change over about **4 MB** comes in parts, each whole records up to a date,
-   which the receiver fetches one after another and applies as each arrives. Each change, and
+   at its next exchange, unalerted. A pull brings each shared item as S11.3.1 says, and
+   receipts and documents when the share includes them, and only what changed travels:
+   1. **What changed** is found by the write it came from. Every record carries the number of
+      the last write that touched it (`changeSeq`, schema.md §8). Each change says how far it
+      reaches, and the receiver sends back the last one it took, so the next change holds
+      each shared row written after it: one new transaction sends that transaction, not its
+      account's history. A deletion crosses as the change to its row. An item newly shared,
+      or naming someone new, sends its rows whole. A budget's monthly totals and the
+      documents the source works out are worked out again only when something has been
+      written since they were, or the day has turned, and cross only when they differ.
+   2. **Nothing counts as sent** until the receiver says it has it, in its next pull. A pull
+      that fails part-way is asked for again from the same point.
+
+   Each change is **sealed by the source to the receiving copy's public key** (S11.9.2.2),
+   which the receiver sends with each exchange, so it crosses unreadable to anyone but that
+   copy, whatever the transport; beside it, signed, travels what the receiving server keeps
+   while the copy is locked (S11.9.1). A **first full pull**, or a large change, travels
+   **oldest to newest** across every shared item together, so the copy fills from its
+   earliest records and is usable, up to a date, while the rest arrives: a change over about
+   **4 MB** comes in parts, each whole records up to a date, which the receiver fetches one
+   after another and applies as each arrives. The source reads each part when it is asked
+   for and holds nothing between them, so a long history costs it one part's memory, and a
+   restart on either side carries on from the last part taken. Each change, and
    each part, is **signed by the source's link key**, so the receiver can check it again when
    it applies it later. The receiver keeps its last copy in the link's encrypted **linked
    copy** (S11.9) and shows its age (*as of 2 hours ago*). Pulls run whether or not anyone has
@@ -91,7 +142,10 @@ preparer.
    unreachable, the copy stays, marked stale. When the
    share or the link is removed, the other side learns at its next exchange and deletes the
    copy, or the receiving admin does at once. A Pause (S11.7.2) stops data, never a removal or
-   an end, which still cross.
+   an end, which still cross. While a copy can't take data (no release to draw it, S11.10.4,
+   or its inbox at its cap, S11.9.5.4), its pulls bring only what is shared and removed, so a
+   removal or an end still takes effect, and the first full pull after it catches up from
+   what the copy holds.
 5. **What crosses a link, and what never does**:
    1. **Receipts** cross only when the owner ticks **Include receipts** on the share to that
       link (off by default). Receipts are large and personal, so sending them is a choice made
@@ -102,11 +156,13 @@ preparer.
       the same way (a W-2, a 1099), each named by its form and issuer, opened from the linked
       book's **Documents** tab; without it they stay home, and the tab lists the documents
       alone.
-   2. **Never**: secrets, categorisation rules, groups, gifts for a person who is a user of
-      that server (S7.8.5), the accounts behind a shared item's figures unless they are
-      shared too, and anything not shared with someone on that server. Of the source's
-      users, only the active-user list (S11.3) crosses. Prices travel only as values already computed, with their
-      `as_of` (S4.9).
+   2. **Never**: secrets, categorisation rules, imports and their mappings and layouts,
+      groups, private tags (S2.6.1), a self-custody wallet's keys and addresses, gifts for a
+      person who is a user of that server
+      (S7.8.5), the accounts behind a shared item's figures unless they are shared too, and
+      anything not shared with someone on that server. Of the source's users, only the
+      active-user list (S11.3) crosses. Prices travel as the source's own stored closes
+      (S11.3.1.1.5), never fetched for the other side (S4.9).
 6. **Ending a link**: either admin ends it on their own side. The other side learns at its next
    call and deletes its copies. Only the peer's signed `link-ended` ends a link there: a
    `not-linked` answer (a peer restored from an older backup, say) marks the link broken and
@@ -122,16 +178,21 @@ preparer.
    the last pull, and
    what flows each way, with *Pull now*, *Pause* and *End link*.
    1. **Progress**: while a pull is under way, how far it has come both in time and in
-      quantity: *Up to July 2022 (47 MB of 2 GB)*, the date being the newest record applied so
-      far and the sizes what has arrived of what the source said it would send.
+      quantity: *Up to Jul 1, 2024 (47 MB of 2 GB)*, the day being the newest record applied so
+      far and the sizes what has arrived of what the source said it would send, with **two
+      thin bars** under it: one by date, from the oldest record the change holds to today,
+      filled to the day reached, and one by size.
    2. **Pause** stops pulling, and answering the peer's pulls, for a **duration** the admin
       types (S12.13), after which the link resumes on its own. The field starts empty, and
       its **default** fills in `1d` (R3.11); a blank is refused. *Resume now*
       ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
-   3. **The linked copy**: the changes waiting to be applied, when its access key was made
-      and by whom, and whether it is unlocked (by whom, and when it will lock), with *Create
-      the access key* (S11.9.2), *Lock now* and *Reset copy* (S11.9.8). The section also
-      sets **Release linked keys after** (S11.9.4), one hour unused by default.
+   3. **The linked copy**: the changes waiting to be applied (*waiting for an unlock* at the
+      inbox's cap, S11.9.5.4), when its access key was made and by whom, whether it is
+      unlocked (by whom, and when it will lock), and the source's release with whether this
+      server can draw it (*MoolaKata 1.6 · ready*, or what's missing, S11.10.4), with *Create
+      the access key* (S11.9.2), **Allow downloads** (S11.10.2), *Lock now* and *Reset copy*
+      (S11.9.8). The section also sets **Release linked keys after** (S11.9.4), one hour
+      unused by default.
 8. **Audit**: each pull is recorded on both sides (who, when, which shares, how much changed),
    and each pause and resume on the side that made it. The receiving side records who viewed
    linked data, and every unlock (who), failed unlock, release (unused, Lock now or restart),
@@ -146,10 +207,10 @@ preparer.
 
       ```
       links/<random name>/        named at random, never by the link's id (schema.md §2.5)
-        shared.db                 SQLCipher: accounts, holdings, positions, transactions,
-                                  series, budgets, gift plans and gifts, giving plans, tax
-                                  books, receipt records, the text read from receipts,
-                                  thumbnails, and what has been applied
+        shared.db                 SQLCipher: the shared items' rows in the source's own
+                                  schema (S11.3.1), budgets' monthly totals, the documents
+                                  worked out at the source, receipt records, the text read
+                                  from receipts, thumbnails, and what has been applied
         receipts/<random-id>.mkr  one encrypted file per receipt (S11.9.6)
         inbox/<sequence>.mks      sealed changes waiting to be applied (S11.9.5)
       ```
@@ -157,7 +218,8 @@ preparer.
       The main database holds only what is needed while the copy is locked: the link, the
       shared items' ids, kinds, owner's display name and the people they name (not their
       names or values), the household's name and avatar, the copy's public key, the copy's
-      folder name, and the inbox's length and newest `as_of`. File and folder names are
+      folder name, the source's release and schema revision, and the inbox's length and
+      newest `as_of`. File and folder names are
       random, so the folder shows no names, payees or dates, and not even when the link was
       made. A change waiting in the inbox is kept as it came, sealed, beside what is needed to
       check and apply it (its registry, which the source's signature covers with it, and the
@@ -183,8 +245,9 @@ preparer.
    3. **Unlocking.** The copy is unlocked for the whole server, not per user.
       1. When someone the copy's shares name opens its window (S12.10) while it is locked,
          the server asks them for the 12 words. It checks the checksum and that the words
-         derive the copy's stored public key, then holds the copy key in memory. Nothing
-         about it reaches the browser.
+         derive the copy's stored public key, then holds the copy key in memory and hands
+         the database key to the copy's worker (S11.10.1), which holds it in memory alone.
+         Nothing about it reaches the browser.
       2. While it is unlocked, **the owner's shares alone decide who sees what** (S11.3):
          each user sees only the items that name them. Anyone named can open the window
          without the words until the copy locks again. Knowing the words without a share
@@ -199,7 +262,8 @@ preparer.
       2. A sweeper task checks every minute and locks each copy past its time. Locking closes
          the copy's SQLCipher connections, which wipes SQLCipher's own copy of the key, and
          overwrites the server's copy of the key bytes, which each new connection reads, so
-         none opens after the release. Python cannot promise that no other copy lingers in
+         none opens after the release; the copy's worker closes its connections and
+         overwrites its key the same way. Python cannot promise that no other copy lingers in
          memory until it is reclaimed, so this is a release, overwritten where possible, not a
          guaranteed erasure.
       3. It also locks at **Lock now** (in the linked household's window, and in Settings ›
@@ -218,15 +282,20 @@ preparer.
          never wait in the inbox; one that arrives after its change (S11.4) reaches the copy
          as soon as it is open.
       3. The inbox is **applied** in order, in one transaction, as soon as the copy is
-         unlocked. Each change's signature is checked first, and its sequence number, sealed
-         inside it, must follow the last one applied, so an older change put back is refused; a
+         unlocked. Each change's signature is checked first, and where it starts, sealed
+         inside it, must be where the last one applied reached (S11.4), so an older change put
+         back is refused; a
          change that fails (its signature, its sequence or its shape) is set aside and
          reported, and the copy asks the source for everything. Applied files are deleted.
          While a copy stays unlocked, new pulls are applied as they arrive.
-      4. If the inbox grows past 1,000 changes or 500 MB, the server discards it and asks the
-         source for a **full snapshot**, sealed the same way.
+      4. When the inbox reaches 1,000 changes or 500 MB, the server takes no more data for
+         that link and keeps what it has: its pulls bring only what is shared and removed
+         (S11.4), and the link shows *waiting for an unlock*. Once the copy is unlocked and
+         its inbox applied, the next pull carries on from the last change it received, so
+         nothing is discarded or sent twice.
       5. A locked copy still shows its sync state from the main database: *synced 5 minutes
-         ago · 12 changes waiting · locked*.
+         ago · 12 changes waiting · locked*, or *synced 2 days ago · waiting for an unlock*
+         at the cap.
    6. **Encrypted files** (receipts and inbox changes) use one streaming format, so a 25 MB
       receipt is never held whole in memory.
       1. **Header**: magic and version (`MKR1`), a one-time X25519 public key, a random 32-byte
@@ -279,6 +348,31 @@ preparer.
        against someone with the words reading the copy's files outside the app. The source's
        owner is trusting the people they name and the household that keeps the words.
    11. **The engine**: SQLCipher through the `sqlcipher3` wheel, which bundles SQLCipher,
-       opened as a second SQLAlchemy engine for each unlocked copy. Each copy keeps its own
-       numbered history of schema revisions (as Alembic does for the main database, S14.1),
-       applied in order when it is unlocked.
+       opened by the copy's worker (S11.10). The copy's schema is the source's, at the
+       revision its last change was read at: a change from a later revision is applied once
+       the worker for that release has migrated the copy with the release's own revisions (as
+       Alembic does for the main database, S14.1), and one from an earlier revision than the
+       copy's asks for everything.
+10. **Drawn by the source's own release.** A linked copy is read and drawn by a **worker**
+    running the exact MoolaKata release its source runs, so a copy is only ever shown by the
+    code that wrote it, whichever releases the two servers run and as they move on.
+    1. **The worker** is a sandboxed process, as the receipt reader is (S9.8.4): that
+       release's server and pages, installed from the release's bundle (S17.10.2), checked
+       against the release's attestation before it is installed, with no network and nothing
+       on disk but its link's copy folder. It serves the linked window (S12.10), through this
+       server, to the people the copy's shares name, and holds the copy's database key only
+       while the copy is unlocked (S11.9.3). One worker serves every link whose source runs
+       that release, and it stops when none of its windows is open.
+    2. **Consent**: fetching a release from GitHub is a call out (R3.1), which the receiving
+       admin allows once per link with **Allow downloads** (Settings › Linked Servers,
+       S11.7.3). It covers that server's later releases until the link ends.
+    3. **Across time**: each change names the source's release and schema revision (S11.4).
+       When the source runs a release this server doesn't have, it is fetched at once, so its
+       worker is ready before the first change in the new schema is applied.
+    4. **When no worker can run**: the source runs a release that wasn't published (a
+       development build) or was published more than 12 months ago, or its release isn't yet
+       allowed or downloaded. The copy keeps what it has, its pulls bring only what is shared
+       and removed (S11.4), and its window says what's missing (S12.10.6): *doe-parents runs
+       MoolaKata 1.6, which this server can't show yet: allow downloads in Settings › Linked
+       Servers*, *…: downloading it*, or *…: a release more than 12 months old isn't shown*.
+       The first pull once a worker can run catches up from what the copy holds.
