@@ -48,6 +48,17 @@ const TRADE_KINDS = /** @type {[string, string][]} */ ([
   ['fee', 'Fee'],
 ]);
 const TRADE = ['buy', 'sell', 'reinvest', 'transfer-in', 'transfer-out', 'reward'];
+// The other half of a pair its reader doesn't see: never sent, only changed to none.
+const UNSEEN_HALF = 'unseen';
+// A physical asset's items carry their purchase, improvements and sale: its account takes
+// only the transfers that pay for or are paid by them (S1.10).
+const ASSET_KINDS = /** @type {[string, string][]} */ ([['transfer', 'Transfer']]);
+
+/**
+ * The kinds a transaction of an account of this type may be (S2.1, S1.10).
+ * @param {any} type
+ */
+const kindsFor = (type) => type.investing ? TRADE_KINDS : type.physical ? ASSET_KINDS : BANK_KINDS;
 
 /**
  * The owner's own contribution to a traditional IRA, which is deductible or not (S8.6): money
@@ -184,7 +195,7 @@ const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
  */
 function Beyond({ t, parts, type }) {
   const cats = useCategories();
-  const kinds = type.investing ? TRADE_KINDS : BANK_KINDS;
+  const kinds = kindsFor(type);
   const kind = kinds.find(([k]) => k === t.get('kind'))?.[1];
   const said = [
     kind,
@@ -249,12 +260,15 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const writable = accounts.filter((a) => canAdd('Txn', a));
   const kindsOf = (/** @type {string} */ id) => {
     const type = BY_TYPE[accounts.find((a) => a.id === id)?.type] || BY_TYPE.checking;
-    return (type.investing ? TRADE_KINDS : BANK_KINDS).map(([k]) => k);
+    return kindsFor(type).map(([k]) => k);
   };
   const f = useDraft(async (draft) => {
     if (editing) {
       const got = await api.get(`/transactions/${txn.id}`);
-      draft.load(Txn, { ...got, transferWithId: got.transferId });
+      // Paired with a half the reader doesn't see: its id unread, the pair still undone by
+      // a change to none (S1.7).
+      const pair = got.transferId ?? (got.transferPaired ? UNSEEN_HALF : null);
+      draft.load(Txn, { ...got, transferWithId: pair });
       const t = /** @type {Txn} */ (draft.records[0]);
       for (const sp of t.get('splits') || []) draft.load(Part, { ...sp, transactionId: t.id });
       for (const p of got.picks || []) draft.load(Pick, { ...p, saleId: t.id });
@@ -286,6 +300,9 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
   const type = BY_TYPE[account.type] || BY_TYPE.checking;
   const kind = t?.get('kind') || '';
   const trade = TRADE.includes(kind);
+  // What a corporate action, an assignment or an exercise made keeps the figures it made it
+  // with; its notes change (S2.4.7, S3.4).
+  const fixed = editing ? txn.figuresFixed || null : null;
   // Bitcoin is typed and shown in the person's unit, BTC or sats (S1.6.4).
   const btc = isBitcoin(t);
   const total = parts.reduce((x, r) => x.add(Dec.of(r.get('amount') ?? 0)), Dec.parse('0'));
@@ -343,7 +360,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                   }}>Delete</button>
               `
               : null}
-            ${editing && txn.transferId
+            ${editing && txn.transferPaired
               ? html`<button type="button" class="btn" disabled=${
                 save.busy || !t
               } onClick=${async () => {
@@ -355,7 +372,7 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                 if (r?.status !== 'asks' && r?.status !== 'saved') t.revert('transferWithId');
               }}>Not a Transfer</button>`
               : null}
-            ${editing && !trade && !txn.transferId && (txn.payeeRaw || txn.payee)
+            ${editing && !trade && !txn.transferPaired && (txn.payeeRaw || txn.payee)
               ? html`<button type="button" class="btn" onClick=${() =>
                 // New rule opens over this dialog, which stays as it is (S2.7.6, S12.15.7).
                 openDialog(NewRuleDialog, {
@@ -384,17 +401,20 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
                   options=${writable.map((a) => [a.id, a.name])} />
               `
               : null}
+            ${fixed ? html`<p class="small dim" style=${{ marginTop: 0 }}>${fixed}</p>` : null}
             <div class="row">
-              <${RecField} rec=${t} name="date" label="Date" />
+              <${RecField} rec=${t} name="date" label="Date" disabled=${!!fixed} why=${fixed} />
               <${RecField} rec=${t} name="kind" label="Kind"
-                options=${type.investing ? TRADE_KINDS : BANK_KINDS} />
+                options=${kindsFor(type)} disabled=${!!fixed} why=${fixed} />
             </div>
             ${trade
               ? html`
                 <div class="row">
                   <${RecField} rec=${t} name="symbol" label="Symbol" disabled=${editing} />
-                  <${RecField} rec=${t} name="quantity" label="Quantity" bitcoin=${btc} />
-                  <${RecField} rec=${t} name="price" label="Price" />
+                  <${RecField} rec=${t} name="quantity" label="Quantity" bitcoin=${btc}
+                    disabled=${!!fixed} why=${fixed} />
+                  <${RecField} rec=${t} name="price" label="Price" disabled=${!!fixed}
+                    why=${fixed} />
                 </div>
               `
               : null}
@@ -402,11 +422,21 @@ export function TransactionDialog({ close, txn, start, accounts, accountId, from
               ? html`<${LotPicks} t=${t} draft=${draft} saleId=${editing ? txn.id : null} />`
               : null}
             <div class="row">
-              <${RecField} rec=${t} name="amount" label="Amount" />
-              ${trade ? html`<${RecField} rec=${t} name="fees" label="Fees" />` : null}
+              <${RecField} rec=${t} name="amount" label="Amount" disabled=${!!fixed} why=${fixed} />
+              ${trade
+                ? html`
+                  <${RecField} rec=${t} name="fees" label="Fees" disabled=${!!fixed}
+                    why=${fixed} />
+                `
+                : null}
             </div>
             ${kind === 'transfer-in' ? html`<${TransferLots} t=${t} btc=${btc} />` : null}
-            ${!trade ? html`<${RecField} rec=${t} name="payee" label="Payee" />` : null}
+            ${!trade
+              ? html`
+                <${RecField} rec=${t} name="payee" label="Payee" disabled=${!!fixed}
+                  why=${fixed} />
+              `
+              : null}
             ${!trade && !parts.length
               ? html`<${CategoryField} rec=${t} name="categoryId" label="Category" />`
               : null}

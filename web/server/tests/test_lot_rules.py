@@ -111,6 +111,24 @@ def test_a_sales_proceeds_take_its_adjustment():
     assert sold(replay("fifo", [sale], made, [], [])) == [("A", D(1), D(55), D(10), "fifo")]
 
 
+def test_a_lot_picked_whole_is_passed_over_by_the_rest_of_the_sale():
+    """Two of three shares picked from L1 (S2.3): the third comes from the next lot in order,
+    and L1, already taken whole, makes no part of none."""
+    sale = Txn(d(2025, 3, 1), "sell", D(90), "VTI", D(-3))
+    r = replay("specific", [sale], three_lots(), [Pick(sale.id, "L1", D(2))], [])
+    assert sold(r) == [("L1", D(2), D(60), D(20), "specific"),
+                       ("L2", D(1), D(30), D(30), "specific")]  # fmt: skip
+
+
+def test_one_share_sold_over_what_is_held_keeps_its_share_of_the_proceeds():
+    """The lot held realizes its share by quantity, not all the proceeds: the share over is a
+    sale without a lot with the rest (S8.4)."""
+    made = [Lot("A", "VTI", d(2024, 1, 1), D(2), D(20))]
+    sale = Txn(d(2025, 3, 1), "sell", D(90), "VTI", D(-3))
+    r = replay("fifo", [sale], made, [], [])
+    assert sold(r) == [("A", D(2), D(60), D(20), "fifo"), (None, D(1), D(30), None, "fifo")]
+
+
 def test_more_sold_than_held_is_a_sale_without_a_lot():
     """The two held realize their share; the other three are a disposal with no lot and no
     basis, and a problem (S8.4). A transfer out has the problem only."""
@@ -158,7 +176,8 @@ def test_a_transfer_out_takes_its_lots_with_what_is_known_of_them():
     out = Txn(d(2026, 2, 1), "transfer-out", D(0), "VTI", D(-2), createdAt=at(2))
     out2 = Txn(d(2026, 2, 1), "transfer-out", D(0), "VXUS", D(-1), createdAt=at(3))
     r = replay("fifo", [into, out, out2], made, [], [snap], by_snapshots=True)
-    assert r.moved[out.id] == [lots.OpenLot(None, "VTI", d(2026, 1, 5), D(2), D(200),
+    # The lot's id goes with it, so a sale where it arrives may pick it (S2.3).
+    assert r.moved[out.id] == [lots.OpenLot("M", "VTI", d(2026, 1, 5), D(2), D(200),
                                             acquiredMissing=True)]  # fmt: skip
     assert r.moved[out2.id] == [lots.OpenLot(None, "VXUS", d(2026, 1, 6), D(1), None,
                                              standIn=True)]  # fmt: skip
@@ -226,7 +245,10 @@ def test_a_short_option_that_expires_keeps_its_credit():
         opt(d(2026, 1, 5), "sell-to-open", "200", -1, 1), opt(d(2026, 3, 20), "expire", "0", 1, 2)
     )
     (x,) = r.disposals
-    assert (x.quantity, x.proceeds, x.basis, x.written, x.gain) == (D(1), 0, D(-200), True, 200)
+    # A written option, not shares sold short (S3.8.5.1).
+    assert (x.quantity, x.proceeds, x.basis, x.written, x.short, x.gain) == (
+        D(1), 0, D(-200), True, False, 200
+    )  # fmt: skip
 
 
 def test_a_close_shares_its_cost_over_the_shorts_oldest_first():
@@ -235,9 +257,11 @@ def test_a_close_shares_its_cost_over_the_shorts_oldest_first():
         opt(d(2026, 2, 5), "sell-to-open", "300", -2, 2),
         opt(d(2026, 3, 5), "buy-to-close", "-100", 3, 3),
     )
-    assert [(x.acquiredOn, x.quantity, x.proceeds, x.basis, x.written) for x in r.disposals] == [
-        (d(2026, 1, 5), D(1), D("-33.33"), D(-200), True),
-        (d(2026, 2, 5), D(2), D("-66.67"), D(-300), True),
+    got = [(x.acquiredOn, x.quantity, x.proceeds, x.basis, x.written, x.short) for x in r.disposals]
+    # Written options bought back, not shares sold short (S3.8.5.1).
+    assert got == [
+        (d(2026, 1, 5), D(1), D("-33.33"), D(-200), True, False),
+        (d(2026, 2, 5), D(2), D("-66.67"), D(-300), True, False),
     ]
     assert r.open == [] and r.problems == []
 
@@ -278,6 +302,15 @@ def old_and_new(kind, n_new_first=True, **new):
     nxt = T(d(2026, 5, 1), kind, D(0), "NEW", D(10), transferId=old.id,
             createdAt=at(1 if n_new_first else 3), **new)  # fmt: skip
     return old, nxt
+
+
+def test_an_adjusted_contracts_new_half_without_its_old_one_opens_nothing():
+    """S3.10: the new contract's lots are the old one's carried; with its old half not in the
+    replay (before it, or gone) there are none to carry, and nothing fails."""
+    nxt = T(d(2026, 5, 1), "option-adjust", D(0), "NEW", D(20), transferId="TxnGone",
+            splitRatio=D(2), createdAt=at(1))  # fmt: skip
+    r = replay("fifo", [nxt], [], [], [])
+    assert (r.open, r.disposals, r.problems) == ([], [], [])
 
 
 def test_a_symbol_change_carries_the_lots_whole():

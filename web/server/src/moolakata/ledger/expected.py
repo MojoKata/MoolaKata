@@ -31,10 +31,8 @@ def default_interval(account_type: str, kept_by: list[str]) -> str:
 
 
 def kept_by(account) -> list[str]:
-    try:
-        return list(json.loads(account.keptBy or "[]"))
-    except ValueError:
-        return []
+    # `keptBy` is NOT NULL and always written as a list's JSON.
+    return list(json.loads(account.keptBy))
 
 
 def interval(account) -> str:

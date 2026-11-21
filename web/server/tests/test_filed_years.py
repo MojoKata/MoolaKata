@@ -354,3 +354,42 @@ def test_the_check_works_out_only_the_closed_books_a_write_can_move(world, monke
     assert counted == [], "no gains moved: no book worked out"
     w.trade("Brokerage", "2026-03-02", "buy", "IBM", 1, "50")
     assert counted == [w.book["id"]] * 2, "the household's one closed book, twice"
+
+
+def test_a_closed_years_question_is_asked_of_the_whole_save_once_its_others_are_answered(
+    world,
+):
+    """S13.8.11.5, S2.8: one save changes a sale in a reconciled period and another outside
+    it. While the reconciled period's question waits, the closed year isn't asked of what is
+    left; answered, it is asked of both sales' move, and that is the move recorded."""
+    from edits import asked, reconcile
+
+    w = world
+    w.state("filed")
+    second = w.acct["Second"]["id"]
+    for t in w.a.get("/ui/api/transactions", params={"account": second}).json()["items"]:
+        saved(change(w.a, "Txn", t, confirm=True, cleared=True))
+    rec = reconcile(w.a, second, "2025-12-31", "200.00")
+    saved(change(w.a, "Recon", rec, finished=True))
+    before = w.gains()
+    ibm = w.a.get(f"/ui/api/transactions/{w.sale['IBM']['id']}").json()
+    msft = w.a.get(f"/ui/api/transactions/{w.sale['MSFT']['id']}").json()
+    ops = [
+        {"op": "update", "entity": "Txn", "id": x["id"], "version": x["version"],
+         "fields": {"amount": amount}}
+        for x, amount in ((ibm, "710.00"), (msft, "800.00"))
+    ]  # fmt: skip
+
+    def send(confirm=()):
+        return w.a.post("/ui/api/save", json={"ops": ops, "confirm": list(confirm)})
+
+    r = send()
+    assert asked(r) == ["reconciled-period"]
+    confirm = [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    r = send(confirm)
+    assert asked(r) == ["closed-year"]
+    # IBM's sale gains $10 more and MSFT's $50: the question names both.
+    assert "realized gains of 2025 by +$60.00" in r.json()["asks"][0]["message"], r.text
+    confirm += [{"code": x["code"], "id": x["id"]} for x in r.json()["asks"]]
+    _ok(send(confirm))
+    assert w.gains() - before == w.listed() == Decimal(60)

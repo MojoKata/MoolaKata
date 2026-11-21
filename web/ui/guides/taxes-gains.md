@@ -34,4 +34,6 @@ A loss sale with the same instrument bought within 30 days either side, in any o
 accounts (IRAs included) or a spouse's: the disallowed loss, and the replacement lot with its basis
 raised by it. None is found when no loss sale was replaced within 30 days. Whether another
 instrument is substantially identical is the preparer's call: an option on the same underlying is
-marked *review*.
+marked *review*. So is a short sale's loss with another short sale of the stock within 30 days of
+its close, and a loss with shares of the stock bought within 30 days to close a short sale: the
+rules for short sales are unsettled, so nothing is disallowed.

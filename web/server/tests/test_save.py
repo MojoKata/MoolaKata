@@ -44,6 +44,8 @@ def _org_values(ctx, body: OrgIn) -> dict:
         raise refuse("name", "name-required", "Give it a name.")
     if body.name == "Ask":
         ctx.ask("test-ask", "Name it Ask?")
+    if body.name == "Verify":
+        ctx.verify("test-verify", lambda: AFTER.append("verify"))
     return {"name": body.name, "notes": body.notes, "causes": json.dumps(body.causes)}
 
 
@@ -243,6 +245,26 @@ def test_a_stale_version_refuses_the_whole_save(admin_client, server):
     (current,) = r.json()["current"]
     assert current["id"] == org and current["version"] == 2
     assert count(server, Organisation) == 1
+
+
+def test_after_a_stale_or_refused_op_nothing_is_checked_across_records(admin_client, monkeypatch):
+    """The checks that span records and the closed-year question run once every op has gone
+    in cleanly; after a stale version or a refusal they would only add noise (S13.8.11.5)."""
+    from moolakata.taxes import closed
+
+    monkeypatch.setattr(closed, "check", lambda s: AFTER.append("closed"))
+    org = new("Orgzn")
+    assert post(admin_client, [create("Orgzn", org, name="One")]).is_success
+    up = {"op": "update", "entity": "Orgzn", "id": org, "fields": {"notes": "n"}}
+    assert post(admin_client, [{**up, "version": 1}]).is_success
+    AFTER.clear()
+    stale = [create("Orgzn", new("Orgzn"), name="Verify"), {**up, "version": 1}]
+    assert post(admin_client, stale).status_code == 412
+    refused = [create("Orgzn", new(x), name=n) for x, n in (("Orgzn", "Verify"), ("Orgzn", " "))]
+    assert post(admin_client, refused).status_code == 422
+    assert [x for x in AFTER if x != "orgs"] == []
+    assert post(admin_client, [create("Orgzn", new("Orgzn"), name="Verify")]).is_success
+    assert [x for x in AFTER if x != "orgs"] == ["verify", "closed"]
 
 
 def test_questions_are_asked_together_and_confirmed_by_name(admin_client):

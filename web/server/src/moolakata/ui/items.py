@@ -11,7 +11,7 @@ from sqlalchemy import false, select
 
 from .. import access, activity, assets, clock, loans, receipts, valuation
 from ..access import Perms
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation
 from . import save
@@ -27,7 +27,6 @@ from .conventions import (
 from .deps import Caller, caller, server
 from .receipts import ReceiptRow
 from .receipts import row as receipt_row
-from .transactions import _raise
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["items"])
 
@@ -393,7 +392,7 @@ def _values(body: ItemIn, account_type: str) -> dict:
         body.depreciationRate is not None and 0 < body.depreciationRate < 100
     ):
         e.append(FieldError("depreciationRate", "rate-invalid", "A yearly percentage."))
-    _raise(e)
+    refuse_all(e)
     spot = body.valuation == "spot"
     return {
         "name": name,

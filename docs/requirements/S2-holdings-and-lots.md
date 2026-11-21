@@ -22,10 +22,19 @@
    unknown, and Taxes lists it until both are typed (S8.4). What is known of a lot goes with it
    wherever it goes: a sale from it has its term unknown and its Form 8949 date *VARIOUS*, and
    Taxes lists the sale too; a symbol change, spin-off or merger carries the mark to the new
-   shares. Editing the transfer's date moves only a lot whose day bought is missing.
+   shares. Editing the transfer's date moves only a lot whose day bought is missing. The
+   shares' basis is their lots' together, missing while any lot's is; typed lot by lot, each
+   lot takes its own. A buy, a reinvestment or coins received as income make one lot of their
+   day; a trade's lots follow it as it changes, its kind among what they follow.
+   Lots typed again change in place, in order, each keeping its identity, so a sale's pick of
+   one holds (S2.3).
 3. **Sales consume lots** by the account's **lot method**: FIFO (the default), LIFO, HIFO,
    specific identification (chosen per sale), or **average cost** (mutual funds, and crypto
-   where elected: a listed share in an account set to average cost is sold first in). The method in force at the sale is recorded on it, however the sale arrives
+   where elected: a listed share in an account set to average cost is sold first in). A sale
+   picks from any lot it holds that day, those carried in by a paired transfer among them. A
+   change that takes a picked lot away (its trade deleted, its kind changed, its shares typed
+   again as fewer lots) or leaves it less than was picked asks first, naming the sale;
+   confirmed, the sale's picks go and it takes its lots by its method. The method in force at the sale is recorded on it, however the sale arrives
    (typed, imported or synced); changing an account's method applies to the sales after the
    change, and the wash sales are worked out again (S3.8.4).
 4. **Corporate actions**: splits, reverse splits, symbol changes, spin-offs (manual basis
@@ -33,7 +42,8 @@
    Return of capital is spread over every lot of the holding by quantity, a lot without a basis
    keeping its share until its basis is entered; what exceeds a lot's basis is a capital gain.
    1. **Recorded** on Positions with **Corporate action…** (or read from a broker's file, for a
-      split): the holding, the date, and what the action needs. Each lot keeps the day it was
+      split), and nowhere else: the holding (for a split, also a stock only whose options
+      are held, S3.10.1), the date, and what the action needs. Each lot keeps the day it was
       acquired and any holding period a wash sale tacked to it.
    2. **A split** multiplies every lot's shares by its ratio, the basis unchanged.
    3. **A symbol change** moves every lot whole to the new symbol.
@@ -46,13 +56,23 @@
       gain is a row of Form 8949. A merger paid all in cash is a sale of every lot. The cash
       for each share is asked of every merger, `0` for one paid all in shares (**Min: $0.00**
       fills it in, R3.11): a blank is refused, so cash left out is never read as none.
-   6. A move between instruments is a pair of transactions, one on each; deleting either
-      deletes both, after asking. Options on the shares are adjusted as S3.10 says.
-   7. **The action is kept** as typed, its transactions made from it: deleting the action, or
+   6. **A short position** (S3.4) follows the action as a long one does: a symbol change
+      moves it whole, a spin-off moves its share of what the short brought in to a short of
+      the new shares, a merger moves it at the ratio, and a merger paid all in cash closes it
+      at the cash, its gain short-term. What the cash of a merger paid in cash and shares
+      counts for on a short is open ([G#577](https://github.com/MojoKata/MoolaKata/issues/577)):
+      the short is carried at the ratio.
+   7. A move between instruments is a pair of transactions, one on each; deleting either
+      deletes both, after asking. Options on the shares are adjusted as S3.10 says. An
+      action's transactions keep the figures it made them with: only their memo, category,
+      tags and cleared mark change.
+   8. **The action is kept** as typed, its transactions made from it: deleting the action, or
       one of its transactions, undoes it whole. One read from a broker's file is its
       transaction alone.
 5. **Dividends and interest**: qualified and ordinary dividends, reinvestment (a dividend plus
-   a buy), and capital-gain distributions, with the classification the 1099 will use.
+   a buy), and capital-gain distributions, with the classification the 1099 will use. A
+   capital-gain distribution is an investing account's alone: only a fund pays one, into the
+   account that holds it.
 6. **Bank transactions** have a payee (normalised by **payee rules**), a category (S7.2), an
    optional split across categories, a memo, tags, receipts, and a reimbursable mark (S2.9).
 7. **Categorisation rules**, which are also the **payee rules** of S2.6: an ordered list per

@@ -40,6 +40,26 @@ def test_flows_between_two_days_are_a_decimal_even_when_there_are_none():
     assert type(none) is D and none == 0
 
 
+# ---- Annualised return ----
+
+
+def test_a_return_over_years_is_annualised_over_them_and_one_over_no_days_is_as_it_is():
+    """3Y and 5Y returns are a year's (S5.2.1), a year 365.25 days: 46.41% over four years is
+    10% a year and a loss of 34.39% is 10% a year lost; a day's 0.1% compounds over the year to
+    44.06%; a span of no days is the return as it is."""
+    four_years = 1461
+    assert abs(perf.annualise(D("0.4641"), four_years) - D("0.1")) < D("1e-12")
+    assert abs(perf.annualise(D("-0.3439"), four_years) + D("0.1")) < D("1e-12")
+    assert perf.annualise(D("0.001"), 1).quantize(D("0.0001")) == D("0.4406")
+    assert perf.annualise(D("0.25"), 0) == D("0.25")
+
+
+def test_a_loss_of_everything_or_more_annualises_to_everything():
+    """Nothing left grows into nothing whatever the years; more than all lost is all lost."""
+    assert perf.annualise(D(-1), 400) == D(-1)
+    assert perf.annualise(D("-1.5"), 400) == D(-1)
+
+
 # ---- Money-weighted return (IRR) ----
 
 

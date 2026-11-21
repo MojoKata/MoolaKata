@@ -294,6 +294,10 @@
             ],
             "title": "Optionsvalue"
           },
+          "ownerActive": {
+            "title": "Owneractive",
+            "type": "boolean"
+          },
           "ownerAvatar": {
             "anyOf": [
               {
@@ -426,6 +430,7 @@
           "closedOn",
           "ownerId",
           "ownerName",
+          "ownerActive",
           "access",
           "sharedWith",
           "ownerAvatar",
@@ -854,6 +859,10 @@
             "title": "Needsanchor",
             "type": "boolean"
           },
+          "ownerActive": {
+            "title": "Owneractive",
+            "type": "boolean"
+          },
           "ownerAvatar": {
             "anyOf": [
               {
@@ -905,6 +914,7 @@
           "closedOn",
           "ownerId",
           "ownerName",
+          "ownerActive",
           "access",
           "sharedWith",
           "ownerAvatar",
@@ -14593,6 +14603,28 @@
             "title": "Term",
             "type": "string"
           },
+          "underlyingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingid"
+          },
+          "underlyingSymbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingsymbol"
+          },
           "unrealized": {
             "anyOf": [
               {
@@ -18721,6 +18753,7 @@
               "avatar-invalid",
               "bad-credentials",
               "basis-invalid",
+              "basis-on-lots",
               "benchmark-invalid",
               "beneficiary-invalid",
               "birthday-incomplete",
@@ -18874,6 +18907,7 @@
               "lot-unknown",
               "lots-unbalanced",
               "lump-incomplete",
+              "made-by-an-action",
               "made-by-an-assignment",
               "mapping-does-not-read",
               "mapping-incomplete",
@@ -18997,6 +19031,7 @@
               "rate-invalid",
               "rate-limited",
               "ratio-invalid",
+              "ratio-not-for-kind",
               "re-encrypting",
               "read-only",
               "reading-off",
@@ -19008,7 +19043,6 @@
               "receipt-unshowable",
               "receipt-uploaded",
               "reconciled",
-              "reconciled-period",
               "reconciliation-fixed",
               "reencrypt-pending",
               "reference-missing",
@@ -19191,6 +19225,7 @@
                   "avatar-invalid",
                   "bad-credentials",
                   "basis-invalid",
+                  "basis-on-lots",
                   "benchmark-invalid",
                   "beneficiary-invalid",
                   "birthday-incomplete",
@@ -19344,6 +19379,7 @@
                   "lot-unknown",
                   "lots-unbalanced",
                   "lump-incomplete",
+                  "made-by-an-action",
                   "made-by-an-assignment",
                   "mapping-does-not-read",
                   "mapping-incomplete",
@@ -19467,6 +19503,7 @@
                   "rate-invalid",
                   "rate-limited",
                   "ratio-invalid",
+                  "ratio-not-for-kind",
                   "re-encrypting",
                   "read-only",
                   "reading-off",
@@ -19478,7 +19515,6 @@
                   "receipt-unshowable",
                   "receipt-uploaded",
                   "reconciled",
-                  "reconciled-period",
                   "reconciliation-fixed",
                   "reencrypt-pending",
                   "reference-missing",
@@ -22471,10 +22507,6 @@
       "RuleOut": {
         "additionalProperties": false,
         "properties": {
-          "accountDeleted": {
-            "title": "Accountdeleted",
-            "type": "boolean"
-          },
           "accountId": {
             "anyOf": [
               {
@@ -22608,7 +22640,6 @@
           "direction",
           "accountId",
           "accountName",
-          "accountDeleted",
           "categoryId",
           "categoryPath",
           "categoryDeleted",
@@ -25992,6 +26023,17 @@
             ],
             "title": "Fees"
           },
+          "figuresFixed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figuresfixed"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -26220,6 +26262,11 @@
               }
             ],
             "title": "Transferlots"
+          },
+          "transferPaired": {
+            "default": false,
+            "title": "Transferpaired",
+            "type": "boolean"
           },
           "version": {
             "title": "Version",
@@ -27765,6 +27812,17 @@
             "title": "Review",
             "type": "boolean"
           },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
           "sold": {
             "format": "date",
             "title": "Sold",
@@ -27785,7 +27843,8 @@
           "replacementAccount",
           "replacementQty",
           "adjustedBasis",
-          "review"
+          "review",
+          "rule"
         ],
         "title": "WashOut",
         "type": "object"
@@ -39205,7 +39264,7 @@
     },
     "/ui/api/transactions/{txn_id}/both-real": {
       "post": {
-        "description": "Two identical rows on one day, or two a file gave one id: the answer *both real* is\nkept (S1.11.5).",
+        "description": "Two identical rows on one day, or two a file gave one id: the answer *both real* is\nkept (S1.11.5), on the rows of each group of possible duplicates the row is in, as the\nreconcile view groups them, and no others.",
         "operationId": "both_real_ui_api_transactions__txn_id__both_real_post",
         "parameters": [
           {

@@ -59,6 +59,13 @@ def refuse(field_name: str | None, code: str, message: str, status: int = 422) -
     return Problem(status, code, message, [FieldError(field_name, code, message)])
 
 
+def refuse_all(errors: list[FieldError]) -> None:
+    """Every refusal found at once, each at its field (R3.7); none, nothing raised. The
+    problem's own code and words are the first refusal's, for a caller that reads them."""
+    if errors:
+        raise Problem(422, errors[0].code, errors[0].message, errors)
+
+
 def new_error_id() -> str:
     return "err_" + secrets.token_hex(6)
 

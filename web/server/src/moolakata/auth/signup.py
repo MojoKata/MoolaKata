@@ -12,7 +12,7 @@ from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session as Db
 
 from .. import activity, clock, ids, settings
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..mail import Email, link
 from ..store.entities.users import SignupRequest, User, UserGroup
 from . import passwords
@@ -21,7 +21,6 @@ from .users import (
     EMAIL,
     Services,
     _name_problems,
-    _raise,
     _username_problems,
     admins_group,
     by_login,
@@ -90,7 +89,7 @@ def request(
         errors.append(FieldError("password", *why))
     if sex not in people.SEXES:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
-    _raise(errors)
+    refuse_all(errors)
     # Hashed before the address is looked up, so a known address takes as long (S10.1.4.1).
     password_hash = passwords.hash_password(password)
     if by_login(s, email) is not None or _waiting_for(s, SignupRequest.email, email):

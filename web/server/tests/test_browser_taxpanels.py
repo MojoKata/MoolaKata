@@ -9,7 +9,18 @@ from decimal import Decimal
 
 import pytest
 from browser import made, months_back, signed_in, wait
-from edits import change, create, loan_payment, make, plan529, remove, saved, sell, terms
+from edits import (
+    change,
+    create,
+    loan_payment,
+    make,
+    option_trade,
+    plan529,
+    remove,
+    saved,
+    sell,
+    terms,
+)
 
 pytestmark = pytest.mark.browser
 
@@ -88,6 +99,15 @@ def build(h) -> World:
     w.trade(brk, f"{y}-11-02", "sell", "FSKAX", 5, "90")
     w.txn(brk, f"{y}-01-12", "0.00", kind="transfer-in", symbol="VTI", quantity="5",
           costBasis="400")  # fmt: skip
+    # A short sale covered at a 600 loss, with another short sale 20 days after: flagged for
+    # review, never washed (S3.8.5.1). Each is a call written and assigned with no XYZ held.
+    for opened, assigned, strike in ((f"{y}-03-01", f"{y}-04-01", "50"),
+                                     (f"{y}-04-10", f"{y}-04-25", "55")):  # fmt: skip
+        o = saved(option_trade(c, brk, opened, "sell-to-open", "XYZ", "call", strike,
+                               f"{y}-12-17", "1", "1.00"))  # fmt: skip
+        made(c.post(f"/ui/api/accounts/{brk}/options/{o['instrumentId']}/settle",
+                    json={"how": "assign", "date": assigned, "contracts": "1"}))  # fmt: skip
+    w.trade(brk, f"{y}-04-05", "buy", "XYZ", 100, "57")
     w.trade(brk, f"{y}-03-02", "sell", "VTI", 2, "120")
     w.trade(brk, f"{y}-05-03", "sell", "MSFT", 3, "100")
     w.txn(brk, f"{y}-01-20", "0.00", kind="transfer-in", symbol="T", quantity="9",
@@ -288,13 +308,14 @@ def _rows(page) -> dict[str, list[str]]:
 
 
 def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
-    """S8.1, S8.3, S2.2: a short gain in A, a washed long loss in D with its W, a fund bought
-    before 2012 in E, coins in C before 2025, a coin in F as a collectable, a car's loss as
-    personal use; shares moved in without their day bought dated Various; a sale with nothing
-    to sell, its basis missing; Schedule D's totals with last year's carryover."""
+    """S8.1, S8.3, S2.2: a short gain in A, a short sale's loss there flagged for review
+    (S3.8.5.1), a washed long loss in D with its W, a fund bought before 2012 in E, coins in C
+    before 2025, a coin in F as a collectable, a car's loss as personal use; shares moved in
+    without their day bought dated Various; a sale with nothing to sell, its basis missing;
+    Schedule D's totals with last year's carryover."""
     page, problems = opened(browser, world, YEAR, "gains", f'{ROWS}:has-text("10 KO")')
     rows = _rows(page)
-    assert len(rows) == len(world.panels(YEAR)["rows"]) == 10
+    assert len(rows) == len(world.panels(YEAR)["rows"]) == 11
     ibm, ko = rows["10 IBM"], rows["10 KO"]
     assert (ibm[0], ibm[1], ibm[2], ibm[3]) == (
         "A",
@@ -315,10 +336,10 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
                                                     "C", "+$2,000.00")  # fmt: skip
     assert (car[6], car[7], car[8]) == ("L", "$12,000.00", "$0.00")
     facts = _text(page, ".card.facts")
-    for box, gain in (("A", "+$400.00"), ("C", "+$500.00"), ("D", "−$60.00"), ("E", "+$350.00"),
+    for box, gain in (("A", "−$200.00"), ("C", "+$500.00"), ("D", "−$60.00"), ("E", "+$350.00"),
                       ("F", "+$102,000.00")):  # fmt: skip
         assert f"Box {box} {gain}" in facts, facts
-    assert "Short term +$900.00 Long term +$102,290.00" in facts
+    assert "Short term +$300.00 Long term +$102,290.00" in facts
     assert "Of it, collectables +$2,000.00" in facts
     assert "Loss carried from last year $1,700.00" in facts
     washes = _text(page, _card("Wash Sales"))
@@ -326,6 +347,12 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
         "KO sold Sep 1, 2021 TP broker · replaced Sep 11, 2021 in TP broker (4 shares), basis "
         "now $244.00 W $40.00 of $100.00"
     ) in washes
+    assert (
+        "XYZ bought back Apr 5, 2021 TP broker · sold short Apr 25, 2021 in TP broker (100 shares) "
+        "review"
+    ) in washes
+    pill = page.locator(f'{_card("Wash Sales")} .list-item:has-text("XYZ") .pill')
+    assert "another short sale of it within 30 days" in (pill.get_attribute("data-tip") or "")
     assert problems == []
     page.close()
 
@@ -341,7 +368,7 @@ def test_form_8949_shows_one_term_at_a_time(browser, world):
     assert (
         sorted(_rows(page))
         == short
-        == ["0.5 ETH", "10 IBM", "2 VTI", "3 MSFT", "SCHD return of capital over basis"]
+        == ["0.5 ETH", "10 IBM", "100 XYZ", "2 VTI", "3 MSFT", "SCHD return of capital over basis"]
     )
     page.click('.chips button:text-is("Long term")')
     wait(page, f'{ROWS}:has-text("TP cottage")', problems)
@@ -550,7 +577,7 @@ def test_the_summary_shows_the_years_figures_and_exports(browser, world):
     page, problems = opened(browser, world, YEAR, "summary", 'text="2 acknowledgements missing"')
     kpis = [" ".join(x.split()) for x in page.locator(".card.kpi").all_inner_texts()]
     assert kpis[:4] == [
-        "Net Capital Gain or Loss +$103,190 short +$900 · long +$102,290",
+        "Net Capital Gain or Loss +$102,590 short +$300 · long +$102,290",
         "Dividends $350 qualified $300",
         "Interest $3,121 2 payers",
         "Charitable Gifts $6,800 2 acknowledgements missing",

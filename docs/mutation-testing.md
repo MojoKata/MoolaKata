@@ -259,7 +259,11 @@ takes each change's outcome from whichever job finished it; a round that leaves 
 is followed by another, numbered after it. A job stopped before its
 first change (the memory limit, or a test failing in the copy) is run again by name, with the
 `jobs` input, once the cause is fixed; `gather <first run> <rerun>` takes a later run's job over
-the earlier one's, and records no area with a job that ran nothing. A module no test file
+the earlier one's, and records no area with a job that ran nothing. A fix's run, or a sweep's
+once its fixes have changed code its run already settled, takes the `changed` input instead: a
+commit, and `mutate plan --changed` makes the changed modules' mutants and keeps those on the
+lines written since it (every line a change takes away among them), in jobs of about 100
+changes by area (`ledger.c-1`, …) that run only those. A module no test file
 reaches (one run only as a subprocess, where coverage doesn't follow) has nothing to run: its
 job says so, and `gather` names it for the area's sweep.
 
@@ -314,6 +318,22 @@ Read every survivor, by function and line, and settle it one of three ways:
    too: where a statement's other changes are caught, leave it unmarked and list its
    equivalents with the area's results instead.
 
+Three kinds of survivor are settled the same way every time:
+
+- **An access check that restates the session's scoping** (an `editable` that refuses another
+  user's record or a deleted one, when the caller's access view already hides both) is kept
+  as a second guard and tested directly, with an unscoped session (`db.read(unscoped=...)`)
+  where only the check stands between the caller and the row. Never removed or marked: should
+  the scoping ever slip, it is what still refuses.
+- **A filter the access view also applies** (`X.deleted == false()`, an owner's id, in a
+  query run in the caller's session) is kept, so the query states the rows it wants whatever
+  session runs it (server work reads unscoped), and its survivor is listed as an equivalent.
+  Never removed or marked.
+- **Code run only at import** (a class body's field built by a call, a module constant) can't
+  be changed in force: mutmut's workers fork from a process that has already imported it. Its
+  result gets a test, and the code a mark saying so, the one mark for code whose output can
+  differ.
+
 A survivor that shows a wrong answer is a bug: it gets its issue, and a test that fails on the
 code as it was.
 
@@ -332,7 +352,8 @@ instead of the last run here.
 
 `--first` keeps the first run's outcomes, in total and by file, and its modules. The second,
 after a full run once every survivor is settled (not an `--only` rerun, which holds only the
-changes it reran), keeps that run's outcomes, the pull request it is settled in, the review ids
+changes it reran), keeps that run's outcomes and any module it ran that the first skipped as
+current, the pull request it is settled in, the review ids
 of the bugs it found, the equivalents left, and each module's content as git names it. A
 module whose content on `main` differs from it has changed since its run, and its area's
 mutation counts as needing another. The records are committed with the area's work.

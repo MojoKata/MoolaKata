@@ -2,10 +2,11 @@
 
 import io
 from decimal import Decimal as D
+from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, saved, tag
+from edits import change, make, new_id, remove, saved, tag
 from PIL import Image
 from test_accounts import FIX, add, new_account, upload
 from test_receipts import upload as upload_receipt
@@ -296,3 +297,359 @@ def test_re2s_reason_is_read_whatever_form_it_comes_in(args, said):
     import re2
 
     assert match._refusal(re2.error(*args)) == said
+
+
+AMOUNT = "The amount without its sign: 0 or more."
+
+
+@pytest.mark.parametrize(
+    ("fields", "refused"),
+    [
+        ({"payeeMatch": "re:(?=a)"},
+         ("payeeMatch", "pattern-invalid", "RE2 has no look-arounds or back-references.")),
+        ({"direction": "sideways"},
+         ("direction", "direction-invalid", "Money in, out, or either.")),
+        ({"amountMin": "-0.01"}, ("amountMin", "amount-invalid", AMOUNT)),
+        ({"amountMax": "-0.01"}, ("amountMax", "amount-invalid", AMOUNT)),
+        ({"amountMin": "10", "amountMax": "9.99"},
+         ("amountMax", "range-invalid", "At least the amount it starts from.")),
+        ({"accountId": "theirs"},
+         ("accountId", "account-unknown", "One of the accounts you can change.")),
+        ({"categoryId": "gone"}, ("categoryId", "category-unknown", "Choose a category.")),
+        ({"payee": "x" * 201}, ("payee", "payee-too-long", "At most 200 characters.")),
+        ({"tags": 11}, ("tagIds", "tags-invalid", "Up to 10 tags.")),
+        ({"payee": "   ", "categoryId": None},
+         ("categoryId", "rule-sets-nothing", "A category, a payee or a tag to set.")),
+        # Each bound's own side is kept, and an account of the caller's own.
+        ({"direction": "in"}, None),
+        ({"amountMin": "0", "amountMax": "0"}, None),
+        ({"payee": " " + "x" * 200 + " "}, None),
+        ({"tags": 10}, None),
+        ({"tags": 1, "categoryId": None}, None),
+        ({"accountId": "mine"}, None),
+    ],
+)  # fmt: skip
+def test_each_part_of_a_rule_is_refused_on_its_own_field(server, jane, fields, refused):
+    """S2.7: what a rule matches and sets is checked field by field, each refusal saying what
+    the field takes (R3.11)."""
+    fields = {"payeeMatch": "acme", **fields}
+    fields.setdefault("categoryId", cats(jane)["Food › Groceries"])
+    if fields.get("accountId") == "theirs":
+        make_user(server, "john")
+        fields["accountId"] = new_account(sign_in(server, "john"), name="John's")["id"]
+    if fields.get("accountId") == "mine":
+        fields["accountId"] = new_account(jane, name="Mine")["id"]
+    if fields.get("categoryId") == "gone":
+        fields["categoryId"] = new_id("Cat")
+    if "tags" in fields:
+        fields["tagIds"] = [tag(jane, f"t{i}") for i in range(fields.pop("tags"))]
+    r = make(jane, "Rule", **fields)
+    if refused is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    (e,) = r.json()["errors"]
+    assert (e["field"], e["code"], e["message"]) == refused
+
+
+# ---- the list, its records and what each change leaves (S2.7) ----
+
+
+def rule(c, **fields) -> dict:
+    r = make(c, "Rule", **fields)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def feed(c):
+    me = c.get("/ui/api/session").json()["user"]["id"]
+    items = c.get("/ui/api/activity").json()["items"]
+    return me, [x for x in items if x["kind"].startswith("rule")]
+
+
+def test_a_rule_lists_what_it_matches_and_sets_with_the_names_it_shows(server, jane):
+    """S2.7: each rule as listed: its bounds, its account by name, its category by its path,
+    what it renames to and its tags; a rule of none of these lists none, and a rule goes with
+    the account it names."""
+    c = cats(jane)
+    a = new_account(jane, name="Joint")
+    full = rule(
+        jane,
+        payeeMatch=" acme ",
+        amountMin="5.00",
+        amountMax="50.00",
+        direction="out",
+        accountId=a["id"],
+        categoryId=c["Food › Groceries"],
+        payee=" Acme ",
+        tagIds=[tag(jane, "Work")],
+    )
+    bare = rule(jane, payeeMatch="shop", payee="Shop")
+    got = {r["id"]: r for r in jane.get("/ui/api/rules").json()["items"]}
+    f, b = got[full["id"]], got[bare["id"]]
+    assert {
+        k: f[k]
+        for k in (
+            "payeeMatch",
+            "amountMin",
+            "amountMax",
+            "direction",
+            "accountId",
+            "accountName",
+            "categoryId",
+            "categoryPath",
+            "categoryDeleted",
+            "payee",
+            "tags",
+        )
+    } == {
+        "payeeMatch": "acme",
+        "amountMin": "5.00",
+        "amountMax": "50.00",
+        "direction": "out",
+        "accountId": a["id"],
+        "accountName": "Joint",
+        "categoryId": c["Food › Groceries"],
+        "categoryPath": "Food › Groceries",
+        "categoryDeleted": False,
+        "payee": "Acme",
+        "tags": ["work"],
+    }
+    assert (b["accountId"], b["accountName"]) == (None, None)
+    assert (b["categoryId"], b["categoryPath"], b["categoryDeleted"]) == (None, None, False)
+    assert (b["amountMin"], b["amountMax"], b["tags"]) == (None, None, [])
+    saved(remove(jane, "Acct", jane.get(f"/ui/api/accounts/{a['id']}").json(), confirm=True))
+    assert [r["id"] for r in jane.get("/ui/api/rules").json()["items"]] == [bare["id"]]
+
+
+def test_each_change_to_a_rule_is_the_owners_activity_and_only_what_happened(server, jane):
+    """S2.7, S12.11: made, moved, changed and deleted are each recorded once, by the owner,
+    about themselves; a move alone is no change, and a change in place no move; applying
+    says how many changed."""
+    c = cats(jane)
+    first = rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
+    rule(jane, payeeMatch="shop", categoryId=c["Food › Groceries"])
+    me, items = feed(jane)
+    assert [x["kind"] for x in items] == ["rule.created", "rule.created"]
+    assert {(x["actorId"], x["subjectKind"], x["subjectId"]) for x in items} == {(me, "user", me)}
+    first = saved(change(jane, "Rule", first, position=1))
+    assert next(x["kind"] for x in feed(jane)[1]) == "rule.moved"
+    first = saved(change(jane, "Rule", first, payee="Acme"))
+    kinds = [x["kind"] for x in feed(jane)[1]]
+    assert kinds[0] == "rule.updated" and kinds.count("rule.moved") == 1, kinds
+    saved(remove(jane, "Rule", first))
+    assert next(x["kind"] for x in feed(jane)[1]) == "rule.deleted"
+    a = new_account(jane, name="Joint")
+    for payee in ("ACME 1", "ACME 2"):
+        add(jane, a["id"], "-5.00", payee=payee)
+    rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
+    assert jane.post("/ui/api/rules/apply").json()["changed"] == 2
+    applied = feed(jane)[1][0]
+    assert applied["kind"] == "rules.applied" and "2" in applied["text"], applied
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.query(Activity).filter(Activity.kind.like("rule%")).all()
+        assert {r.ownerId for r in rows} == {me}
+        assert {r.kind: r.detail for r in rows if r.detail != "{}"} == {
+            "rules.applied": '{"count": 2}'
+        }
+
+
+def test_a_rule_deleted_closes_the_list_up_and_its_tags_taken_off_say_by_whom(server, jane):
+    """S2.7, S2.6: the rules after a deleted one move up; a tag taken off a rule goes, marked
+    as taken off by its owner; a deleted rule, or another's, is not found."""
+    from moolakata.store.entities.accounts import RuleTag
+
+    c = cats(jane)
+    rules = [rule(jane, payeeMatch=p, categoryId=c["Food › Groceries"]) for p in ("a", "b", "c")]
+    saved(remove(jane, "Rule", rules[0]))
+    from moolakata.store.entities.accounts import Rule
+
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Rule, rules[0]["id"]).deletedById == me
+    listed = jane.get("/ui/api/rules").json()["items"]
+    assert [(r["payeeMatch"], r["position"]) for r in listed] == [("b", 0), ("c", 1)]
+    work = tag(jane, "Work")
+    b = saved(change(jane, "Rule", listed[0], tagIds={"add": [work], "remove": []}))
+    b = saved(change(jane, "Rule", b, tagIds={"add": [], "remove": [work]}))
+    assert b["tags"] == []
+    with server.db.read(unscoped="test") as s:
+        (link,) = s.query(RuleTag).filter_by(ruleId=b["id"]).all()
+        assert link.deletedById == me
+    r = change(jane, "Rule", rules[0], payee="x")
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (404, "not-found"), r.text
+    assert r.json()["errors"][0]["message"] == "No such rule."
+    make_user(server, "john")
+    r = change(sign_in(server, "john"), "Rule", b, payee="x")
+    assert (r.status_code, r.json()["errors"][0]["message"]) == (404, "No such rule."), r.text
+
+
+def test_a_rule_names_an_account_of_the_callers_own_when_changed_too(server, jane):
+    c = cats(jane)
+    r = rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
+    a = new_account(jane, name="Mine")
+    assert saved(change(jane, "Rule", r, accountId=a["id"]))["accountId"] == a["id"]
+
+
+def test_five_hundred_rules_and_no_more(server, jane):
+    """S2.7: a user keeps at most 500 rules: the 500th is made, the 501st refused."""
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Rule
+
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.tx(unscoped="test: 499 rules") as s:
+        for i in range(499):
+            s.add(
+                Rule(id=ids.new_id("Rule"), ownerId=me, position=i, payeeMatch=f"p{i}", payee="x")
+            )
+    rule(jane, payeeMatch="last", payee="x")
+    r = make(jane, "Rule", payeeMatch="over", payee="x")
+    assert r.status_code == 422, r.text
+    e = r.json()["errors"][0]
+    assert (e["code"], e["message"]) == ("too-many-rules", "At most 500 rules.")
+
+
+def test_uncategorised_counts_what_a_rule_would_set_in_the_callers_accounts_alone(server, jane):
+    """S2.7.4: the count is of live, uncategorised transactions that are neither trades nor a
+    transfer's half, in accounts the caller can change, that a rule matches by the bank's words
+    and the account the rule names."""
+    from moolakata.store.entities.accounts import Transaction
+
+    c = cats(jane)
+    a = new_account(jane, name="Joint")
+    b = new_account(jane, name="Other", mask="9999")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    counted = add(jane, a["id"], "-5.00", payee="Acme")
+    add(jane, b["id"], "-5.00", payee="Acme")  # another account than the rule names
+    gone = add(jane, a["id"], "-6.00", payee="Acme")
+    saved(remove(jane, "Txn", gone))
+    add(
+        jane,
+        brk["id"],
+        "-50.00",
+        kind="buy",
+        symbol="VTI",
+        quantity="1",
+        price="50",
+        fees="0",
+        payee="Acme",
+    )
+    out = add(jane, a["id"], "-500.00", "2026-09-15", payee="Acme")
+    add(jane, b["id"], "500.00", "2026-09-16", kind="deposit", payee="Acme")  # its pair
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    add(john, new_account(john, name="John's")["id"], "-5.00", payee="Acme")
+    with server.db.tx(unscoped="test: the bank's words, renamed") as s:
+        t = s.get(Transaction, counted["id"])
+        t.payeeRaw, t.payee = "ACME STORE 1", "Corner shop"
+    rule(jane, payeeMatch="acme store", accountId=a["id"], categoryId=c["Food › Groceries"])
+    assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"]
+    assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
+
+
+@pytest.mark.parametrize(
+    ("rule", "payee", "amount", "account", "hit"),
+    [
+        # Direction: money in is more than none, money out less; none is neither.
+        ({"direction": "in"}, "Acme", "0.01", "A", True),
+        ({"direction": "in"}, "Acme", "0", "A", False),
+        ({"direction": "out"}, "Acme", "-0.01", "A", True),
+        ({"direction": "out"}, "Acme", "0", "A", False),
+        ({"direction": "any"}, "Acme", "0", "A", True),
+        # Bounds are sizes, each its own side kept.
+        ({"amountMin": D(5)}, "Acme", "-5", "A", True),
+        ({"amountMin": D(5)}, "Acme", "-4.99", "A", False),
+        ({"amountMax": D(5)}, "Acme", "5", "A", True),
+        ({"amountMax": D(5)}, "Acme", "5.01", "A", False),
+        # The account it names, and no other.
+        ({"accountId": "A"}, "Acme", "-1", "A", True),
+        ({"accountId": "A"}, "Acme", "-1", "B", False),
+        # No payee matches nothing; a payee is read to its 500th character.
+        ({"payeeMatch": "x"}, None, "-1", "A", False),
+        ({"payeeMatch": "zz"}, "a" * 499 + "zz", "-1", "A", False),
+        ({"payeeMatch": "z"}, "a" * 499 + "z", "-1", "A", True),
+    ],
+)
+def test_a_rule_matches_by_direction_size_account_and_the_payees_first_500_characters(
+    rule, payee, amount, account, hit
+):
+    """S2.7.1."""
+    r = m(**({"payeeMatch": "acme"} | rule))
+    assert match.matches(r, payee, D(amount), account) is hit
+    assert (match.first_match([("R", r)], payee, D(amount), account) == "R") is hit
+
+
+@pytest.mark.parametrize(
+    ("pattern", "said"),
+    [
+        ("", "Some text of the payee, at most 200 characters."),
+        ("x" * 201, "Some text of the payee, at most 200 characters."),
+        ("re:", "A regular expression after re:, such as re:^AMZN."),
+        ("RE:  ", "A regular expression after re:, such as re:^AMZN."),
+    ],
+)
+def test_a_pattern_empty_or_too_long_is_refused_in_its_words(pattern, said):
+    with pytest.raises(match.Invalid) as e:
+        match.compile_pattern(pattern)
+    assert str(e.value) == said
+
+
+def test_a_pattern_of_200_characters_is_kept():
+    assert match.compile_pattern("x" * 200) is None
+    assert match.matcher(SimpleNamespace(payeeMatch="acme", amountMin=D(2), amountMax=D(9),
+                                         direction="out", accountId="A")) == match.Matcher(
+        "acme", D(2), D(9), "out", "A"
+    )  # fmt: skip
+
+
+def test_uncategorised_leaves_out_deleted_trades_transfers_and_others_accounts(server, jane):
+    """S2.7.4: of the transactions a rule matches, only the live, uncategorised ones that are
+    neither a trade nor a transfer's half, in an account the caller can change, are counted."""
+    c = cats(jane)
+    a = new_account(jane, name="Joint")
+    b = new_account(jane, name="Other", mask="9999")
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, a["id"], "-5.00", payee="Acme")  # the one counted
+    saved(remove(jane, "Txn", add(jane, a["id"], "-6.00", payee="Acme")))
+    add(jane, brk["id"], "-50.00", kind="buy", symbol="VTI", quantity="1", price="50",
+        fees="0", payee="Acme")  # fmt: skip
+    out = add(jane, a["id"], "-500.00", "2026-09-15", payee="Acme")
+    add(jane, b["id"], "500.00", "2026-09-16", kind="deposit", payee="Acme")
+    assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"]
+    from edits import share
+
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    add(john, new_account(john, name="John's")["id"], "-5.00", payee="Acme")
+    # Shared with Jane to read: she sees it, but it isn't hers to change.
+    seen = new_account(john, name="John's shared", mask="7777")
+    add(john, seen["id"], "-5.00", payee="Acme")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    saved(share(john, "account", seen["id"], users={me: "read"}))
+    assert jane.get(f"/ui/api/accounts/{seen['id']}").status_code == 200
+    rule(jane, payeeMatch="acme", categoryId=c["Food › Groceries"])
+    assert jane.get("/ui/api/rules").json()["uncategorised"] == 1
+
+
+def test_a_rule_changed_is_the_callers_own_and_live_even_read_unscoped(server):
+    """S2.7, S10.3: the save's scoped session already hides another's rules and deleted ones;
+    `_own` refuses them too, the second guard should the session ever read more."""
+    from moolakata.errors import Problem
+    from moolakata.ui import rules as ui_rules
+
+    jane = make_user(server, "jane").id
+    make_user(server, "john")
+    j, o = sign_in(server, "jane"), sign_in(server, "john")
+    mine = make(j, "Rule", payeeMatch="kroger", payee="Kroger").json()
+    theirs = make(o, "Rule", payeeMatch="aldi", payee="Aldi").json()
+    gone = make(j, "Rule", payeeMatch="costco", payee="Costco").json()
+    assert remove(j, "Rule", gone).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        caller = SimpleNamespace(id=jane)
+        assert ui_rules._own(s, caller, mine["id"]).id == mine["id"]
+        for other in (theirs["id"], gone["id"], new_id("Rule")):
+            with pytest.raises(Problem) as e:
+                ui_rules._own(s, caller, other)
+            assert (e.value.status, e.value.code) == (404, "not-found"), other

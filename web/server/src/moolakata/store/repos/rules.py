@@ -24,16 +24,14 @@ class Rules:
 
     def __init__(self, s: Session, user_id: str):
         self.s, self.user_id = s, user_id
-        self.rules = of_user(s, user_id)
-        self.matchers = []
-        live = []
-        for r in self.rules:
+        # Each rule with its matcher; one kept before the checks of today matches nothing.
+        self.matched: list[tuple[Rule, match.Matcher]] = []
+        for r in of_user(s, user_id):
             try:
-                self.matchers.append(match.matcher(r))
-                live.append(r)
+                self.matched.append((r, match.matcher(r)))
             except match.Invalid:
-                continue  # kept before the checks of today; it matches nothing
-        self.rules = live
+                continue
+        live = [r for r, _ in self.matched]
         self._cats = {
             c.id
             for c in s.scalars(
@@ -45,10 +43,10 @@ class Rules:
         }
 
     def __bool__(self) -> bool:
-        return bool(self.rules)
+        return bool(self.matched)
 
     def first(self, payee: str | None, amount, account_id: str) -> Rule | None:
-        return match.first_match(self.rules, self.matchers, payee, amount, account_id)
+        return match.first_match(self.matched, payee, amount, account_id)
 
     def apply(self, t: Transaction, only_uncategorised: bool = True) -> bool:
         """The first matching rule's settings on a bank transaction that isn't a transfer:
@@ -74,7 +72,7 @@ class Rules:
         its text, and that renames (a receipt's merchant, S9.8.2.5.3)."""
         if not payee:
             return payee
-        for rule, m in zip(self.rules, self.matchers, strict=True):
+        for rule, m in self.matched:
             if rule.payee and match.matches(
                 match.Matcher(m.payeeMatch, _regex=m._regex), payee, 0, ""
             ):

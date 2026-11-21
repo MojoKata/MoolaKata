@@ -70,6 +70,21 @@ def test_a_record_keeps_the_first_run_then_the_settling_one_with_each_files_cont
     assert done["content"] == {"moolakata/money.py": named.stdout.strip()}
 
 
+def test_a_settling_run_names_a_module_its_first_run_skipped(tmp_path):
+    """A module the area's first run left out (current then, changed since) that its settling
+    run mutates is one of the area's modules, with its content."""
+    meta(tmp_path / "a", "moolakata/money.py", [1, 0])
+    first, _, _ = mutate.outcomes(tmp_path / "a")
+    record = mutate.recorded({"name": "money"}, first, True, args())
+    meta(tmp_path / "b", "moolakata/money.py", [1, 1])
+    meta(tmp_path / "b", "moolakata/valuation.py", [1])
+    last, _, _ = mutate.outcomes(tmp_path / "b")
+    done = mutate.recorded(record, last, False, args(pr=40))
+    assert done["modules"] == ["moolakata/money.py", "moolakata/valuation.py"]
+    assert sorted(done["content"]) == done["modules"]
+    assert sorted(done["first"]["files"]) == ["moolakata/money.py"]
+
+
 def test_the_backfilled_records_name_files_that_exist():
     """Each record under docs/hardening/mutation/ names modules of the server as it is."""
     for path in sorted(mutate.RECORDS.glob("*.json")):
@@ -723,3 +738,22 @@ def test_export_keeps_each_survivors_diff_from_the_mutants_when_the_run_was_stop
         "# moolakata.money.py.x_f__mutmut_2\n def total(xs):\n-    return sum(xs)\n"
         "+    return None\n"
     )
+
+
+def test_a_fixs_run_takes_only_the_changes_on_the_lines_it_wrote():
+    """docs/mutation-testing.md: a fix's run covers the changes on the lines it added or
+    changed, every line a change takes away being one of them; a change only adding a line,
+    or touching an older line, is left to its area's sweep."""
+    from moolakata.dev import mutate
+
+    added = {"return a + b", "if a > 0:"}
+    diff = (
+        "--- f.py\n+++ f.py\n@@ -1,2 +1,2 @@\n def f(a, b):\n-    return a + b\n+    return a - b\n"
+    )
+    assert mutate.on_added(diff, added)
+    older = diff.replace("return a + b", "return a * b")
+    assert not mutate.on_added(older, added)
+    both = "-    if a > 0:\n-    x = 1\n+    if a >= 0:\n"
+    assert not mutate.on_added(both, added), "one of its lines is older"
+    assert not mutate.on_added("+    pass\n", added), "takes nothing away"
+    assert not mutate.on_added("-    \n+    x\n", added), "only a blank line"

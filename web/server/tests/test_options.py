@@ -51,6 +51,7 @@ def test_a_short_put_is_a_negative_lot_and_realizes_at_close(jane):
     v = jane.get("/ui/api/positions").json()
     row = v["open"][0]
     assert row["symbol"] == "MSFT 20NOV26 480 P" and row["side"] == "short"
+    assert row["underlyingSymbol"] == "MSFT", "a split of it reaches the option (S3.10.1)"
     assert row["quantity"] == "-2.0" and row["cost"] == "-1279.35"
     r = opt(jane, brk["id"], "buy-to-close", "2026-10-01", "2.10", contracts="2")
     assert saved(r)["amount"] == "-420.65"
@@ -201,6 +202,45 @@ def test_a_long_call_exercised_adds_its_premium_to_the_basis(jane):
         json={"how": "exercise", "date": "2026-11-20", "contracts": "1"},
     )
     assert _held(jane, brk["id"], "MSFT")["cost"] == "45300.00"
+
+
+@pytest.mark.parametrize(
+    ("side", "right", "how", "word", "payee"),
+    [
+        ("sell-to-open", "put", "assign", "assignment", "MSFT 20NOV26 480 P"),
+        ("buy-to-open", "call", "exercise", "exercise", "MSFT 20NOV26 480 C"),
+    ],
+)
+def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
+    server, jane, side, right, how, word, payee
+):
+    """S3.4: the stock trade alone isn't deleted, nor its figures changed, and says what it
+    came with, by its contract and day; its notes change; deleting the assignment or exercise
+    deletes it, both marked by who deleted them."""
+    from moolakata.store.entities.accounts import Transaction
+
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    opt(jane, brk["id"], side, "2026-09-02", "6.40", right=right, fees="0")
+    held = _held(jane, brk["id"], f"MSFT 20NOV26 480 {right[0].upper()}")
+    r = jane.post(f"/ui/api/accounts/{brk['id']}/options/{held['instrumentId']}/settle",
+                  json={"how": how, "date": "2026-11-20", "contracts": "1"})  # fmt: skip
+    end, stock = r.json()
+    told = (
+        f"This trade came with the {word} of {payee} on Nov 20, 2026: delete that, and this"
+        " goes with it."
+    )
+    assert _refused(remove(jane, "Txn", stock)) == [(None, "made-by-an-assignment", told)]
+    fixed = f"This trade came with the {word} of {payee} on Nov 20, 2026: change that."
+    for field, value in (("quantity", "50"), ("amount", "-1.00"), ("date", "2026-11-21")):
+        r = change(jane, "Txn", stock, **{field: value})
+        assert _refused(r) == [(None, "made-by-an-action", fixed)], field
+    stock = saved(change(jane, "Txn", stock, memo="assigned early", cleared=True))
+    assert (stock["memo"], stock["cleared"]) == ("assigned early", True)
+    assert stock["figuresFixed"] == fixed, "the dialog shows why its figures are fixed"
+    assert remove(jane, "Txn", end).status_code == 200
+    assert _held(jane, brk["id"], "MSFT") is None
+    with server.db.read(unscoped="test") as s:
+        assert {s.get(Transaction, x["id"]).deletedById for x in (end, stock)} == {_me(jane)}
 
 
 def test_out_of_the_money_expires_the_day_after(server, jane):
@@ -1130,6 +1170,28 @@ def test_a_corporate_action_deleted_is_marked_by_who_deleted_it(server, jane):
     assert (r.status_code, _refused_as(r)) == (404, [(None, "not-found", "Not found")])
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"kind": "symbol-change", "newSymbol": "META"},
+        {"kind": "spin-off", "newSymbol": "META", "ratio": "0.5", "basisShare": "10"},
+        {"kind": "merger", "newSymbol": "META", "ratio": "2", "cashPerShare": "0"},
+    ],
+)
+def test_a_leg_of_a_corporate_action_deleted_takes_the_other_and_the_action(server, jane, fields):
+    """S2.4: a pair goes together, and the action it was made from with it, each marked by who
+    deleted it."""
+    from moolakata.store.entities.accounts import CorporateAction, Transaction
+
+    a, fb = _holding(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=fb, date="2026-06-09", **fields))
+    old, new = act["transactions"]
+    assert remove(jane, "Txn", old).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert {s.get(Transaction, t["id"]).deletedById for t in (old, new)} == {_me(jane)}
+        assert s.get(CorporateAction, act["id"]).deletedById == _me(jane)
+
+
 def _refused_as(r):
     return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
 
@@ -1158,3 +1220,118 @@ def test_an_all_cash_merger_at_a_loss_is_a_wash_sale_with_shares_bought_elsewher
     [row] = [r for r in jane.get("/ui/api/positions").json()["closed"] if r["accountId"] == a]
     assert (row["how"], row["realized"], row["washDisallowed"]) == ("merger", "-229.00",
                                                                      "229.00")  # fmt: skip
+
+
+# ---- A short sale of shares from an assignment, and its cover (S3.4) ----
+
+
+def _assign_call(c, acct, contracts="1", strike="480"):
+    opt(c, acct, "sell-to-open", "2026-09-02", "6.40", right="call", strike=strike,
+        contracts=contracts, fees="0")  # fmt: skip
+    call = _held(c, acct, f"MSFT 20NOV26 {strike} C")
+    r = c.post(f"/ui/api/accounts/{acct}/options/{call['instrumentId']}/settle",
+               json={"how": "assign", "date": "2026-11-20", "contracts": contracts})  # fmt: skip
+    assert r.status_code == 201, r.text
+
+
+def _stock_trade(c, acct, kind, qty, price, day="2026-11-23", symbol="MSFT"):
+    amount = D(qty) * D(price)
+    r = make(c, "Txn", accountId=acct, date=day, kind=kind, symbol=symbol, quantity=qty,
+             price=price, amount=str(-amount if kind == "buy" else amount), fees="0")  # fmt: skip
+    assert r.status_code == 200, r.text
+
+
+def _shorts(server, acct):
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.repos import ledger as repo
+
+    with server.db.read(unscoped="test") as s:
+        rp = repo.load(s, s.get(Account, acct)).replay()
+        return [(x.quantity, x.basis) for x in rp.open if x.quantity < 0], rp.shorts
+
+
+def test_an_assignment_with_some_shares_held_sells_them_and_shorts_the_rest(server, jane):
+    """S3.4: 50 held of the 100 assigned: those are sold, and the other 50 are a short lot whose
+    basis is the rest of what the assignment brought in (48,640 less the held shares' 24,320)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _stock_trade(jane, brk["id"], "buy", "50", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    lots_, opened = _shorts(server, brk["id"])
+    assert lots_ == [(D(-50), D("-24320.00"))]
+    assert [q for _, _, q in opened] == [D(50)]
+
+
+def test_an_assignment_of_exactly_the_shares_held_opens_no_short(server, jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _stock_trade(jane, brk["id"], "buy", "100", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    assert _shorts(server, brk["id"]) == ([], [])
+
+
+def test_a_fraction_of_a_share_left_unheld_is_shorted(server, jane):
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _stock_trade(jane, brk["id"], "buy", "99.5", "400", day="2026-09-01")
+    _assign_call(jane, brk["id"])
+    lots_, opened = _shorts(server, brk["id"])
+    assert [q for q, _ in lots_] == [D("-0.5")] and [q for _, _, q in opened] == [D("0.5")]
+
+
+def test_a_cover_takes_its_own_shares_never_another_stocks_lots(server, jane):
+    """S3.4: shares bought while short close the short from what that buy made: the lots of
+    other stocks held stay whole, and one share bought covers one."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _stock_trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="VTI")
+    _stock_trade(jane, brk["id"], "buy", "10", "50", day="2026-09-01", symbol="KO")
+    _assign_call(jane, brk["id"])
+    _stock_trade(jane, brk["id"], "buy", "1", "470")
+    assert _shorts(server, brk["id"])[0] == [(D(-99), D("-48153.60"))]
+    _stock_trade(jane, brk["id"], "buy", "149", "470", day="2026-11-24")
+    assert _shorts(server, brk["id"])[0] == []
+    assert _held(jane, brk["id"], "MSFT")["quantity"] == "50.0"
+    for symbol in ("VTI", "KO"):
+        assert _held(jane, brk["id"], symbol)["quantity"] == "10.0"
+
+
+def test_shares_moved_in_while_short_are_held_and_the_buy_covers_the_short_alone(server, jane):
+    """S3.4, S2.2: half a share moved in while short stays held; the shares bought after cover
+    the 100 short, no more."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-09-01", kind="deposit")
+    _assign_call(jane, brk["id"])
+    r = make(jane, "Txn", accountId=brk["id"], date="2026-11-21", kind="transfer-in",
+             symbol="MSFT", quantity="0.5", amount="0.00", fees="0")  # fmt: skip
+    assert r.status_code == 200, r.text
+    _stock_trade(jane, brk["id"], "buy", "100", "470")
+    assert _shorts(server, brk["id"])[0] == []
+    assert _held(jane, brk["id"], "MSFT")["quantity"] == "0.5"
+
+
+def test_a_corporate_actions_transactions_keep_their_figures_and_take_their_notes(jane):
+    """S2.4.7, S3.10: what an action made follows from it, so a pair's half never moves to
+    another day (its new half always comes after its old) nor changes its shares; its memo,
+    category, tags and cleared mark change as any transaction's."""
+    from edits import split
+
+    a, fb = _holding(jane)
+    act = saved(create(jane, "CorpA", accountId=a, instrumentId=fb, kind="symbol-change",
+                       date="2026-06-09", newSymbol="META"))  # fmt: skip
+    saved(option_trade(jane, a, "2026-06-10", "sell-to-open", "meta", "put", "480",
+                       "2026-11-20", "1", "6.40", "0"))  # fmt: skip
+    made = split(jane, a, "2026-06-12", "2", symbol="META")
+    assert made.status_code == 200, made.text
+    words = "A corporate action's transaction changes only its memo, category, tags and mark."
+    with_split = [t for t in jane.get("/ui/api/transactions", params={"account": a}).json()[
+        "items"] if t["kind"] in ("symbol-change", "split", "option-adjust")]  # fmt: skip
+    assert {t["kind"] for t in with_split} == {"symbol-change", "split", "option-adjust"}
+    for t in with_split:
+        for field, value in (("date", "2026-06-01"), ("quantity", "3"), ("amount", "1.00")):
+            assert _refused(change(jane, "Txn", t, **{field: value})) == [
+                (None, "made-by-an-action", words)
+            ], (t["kind"], field)
+        t = saved(change(jane, "Txn", t, memo="as the broker wrote it", cleared=True))
+        assert (t["memo"], t["cleared"]) == ("as the broker wrote it", True)
+    assert act["transactions"][0]["kind"] == "symbol-change"

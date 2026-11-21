@@ -175,6 +175,23 @@ def test_changing_the_lot_method_works_the_wash_sales_out_again(server, jane):
         assert s.query(WashSale).filter_by(saleId=sale.id).count() == 1
 
 
+def test_a_trade_changed_works_the_wash_sales_out_again(server, jane):
+    """S3.8: a change to a trade reruns the household's wash sales: a buy moved past the 30
+    days after a loss replaces nothing, and the loss is allowed again."""
+    brk = new_account(jane, name="Brokerage", type="brokerage", lotMethod="fifo")
+    trade(jane, brk["id"], "2026-01-05", "buy", "10", "100")
+    trade(jane, brk["id"], "2026-06-01", "sell", "10", "80")  # a 200 loss
+    trade(jane, brk["id"], "2026-06-15", "buy", "10", "80")  # replaces all 10
+
+    def realized():
+        return jane.get("/ui/api/positions").json()["summary"]["realizedThisYear"]
+
+    assert realized() == "0.00", "all 200 disallowed"
+    replacement = next(x for x in _txns(jane, brk) if x["date"] == "2026-06-15")
+    assert saved(change(jane, "Txn", replacement, date="2026-08-15"))
+    assert realized() == "-200.00"
+
+
 # ---- Corporate actions (S2.4) ----
 
 

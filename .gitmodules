@@ -1,3 +1,6 @@
 [submodule "coworker"]
 	path = coworker
 	url = https://github.com/MojoKata/coworker.git
+[submodule "agents"]
+	path = agents
+	url = https://github.com/EpiphanySoft/agents.git

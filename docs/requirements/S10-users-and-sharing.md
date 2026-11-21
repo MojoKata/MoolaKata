@@ -64,8 +64,9 @@
       they already hold give them nothing while they are inactive. Switching it off ends their
       sessions at once and shows an *account is disabled* screen, from which they can ask to be
       reactivated (once a week), with their username and password, which count toward the
-      lockout of S13.7.5.1 as a sign-in's do. Users and groups are deactivated rather than
-      deleted.
+      lockout of S13.7.5.1 as a sign-in's do. What they shared stays shared: one it is
+      shared with still reads it, named as theirs and marked *inactive*. Users and groups
+      are deactivated rather than deleted.
    8. **Groups**: admins make named groups of users. Being an admin is membership of the
       built-in **Admins** group. The last active admin cannot be removed or deactivated.
    9. **Emails** (plain text): invitation, sign-up confirmation and decision, reset,
@@ -103,9 +104,11 @@
    2. **write**: also change what the item holds: for an account, add and edit transactions,
       import, categorise and attach receipts; for the other kinds, edit their entries. A
       write share cannot delete the item, change its sharing, change its settings or what it
-      covers (an account's name and method, a budget's or a tax book's accounts, which
-      projection is active), or see or change its secrets (keys and credentials): those stay
-      the owner's (a tax book's filers', S8.14.1).
+      covers (an account's settings are what its Settings tab holds: its name, institution,
+      mask, method, opening balance and its date, how it is kept, when it closed and whether
+      it counts in net worth; a budget's or a tax book's accounts, which projection is
+      active), or see or change its secrets (keys and credentials): those stay the owner's (a
+      tax book's filers', S8.14.1). An account's notes are among what it holds.
 
    What anyone holds of anything is decided once, for every read and every write, by each
    table's access view ([`schema.md`](schema.md) §7): read, and the permissions to change

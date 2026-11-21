@@ -13,7 +13,7 @@ from sqlalchemy import false, select
 from .. import access, activity, budgets, clock, ids
 from ..access import Perms
 from ..budgets import plan, recurring
-from ..errors import FieldError, Problem, refuse
+from ..errors import FieldError, Problem, refuse, refuse_all
 from ..money import grouped
 from ..store import scoping
 from ..store.entities.accounts import Account, Category, Transaction
@@ -401,16 +401,11 @@ def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
     )
 
 
-def _check(s, user_id: str, body) -> list[FieldError]:
+def _check(body) -> list[FieldError]:
     errors = []
     if body.name is not None and (not body.name.strip() or len(body.name) > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
     return errors
-
-
-def _raise(errors: list[FieldError]) -> None:
-    if errors:
-        raise Problem(422, errors[0].code, errors[0].message, errors)
 
 
 def _add_accounts(s, b: Budget, wanted: list[str]) -> None:
@@ -497,7 +492,7 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
             "Tracking or envelope.",
             [FieldError("method", "method-invalid", "Tracking or envelope.")],
         )
-    _raise(_check(s, c.id, body))
+    refuse_all(_check(body))
     b = Budget(
         id=budget_id,
         ownerId=c.id,
@@ -521,7 +516,7 @@ def _make_budget(s, c: Caller, body, budget_id: str) -> Budget:
 
 def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -> None:
     """The fields `sent`: its name and options. Its accounts are records of their own."""
-    _raise(_check(s, b.ownerId, body))
+    refuse_all(_check(body))
     fields = []
     if "name" in sent and body.name.strip() != b.name:
         b.name = body.name.strip()
@@ -744,7 +739,7 @@ def _line_checked(ctx, body: LineIn) -> tuple[Budget, dt.date]:
     month = budgets.month_of(body.fromMonth)
     cats = {x.id: x for x in ctx.s.scalars(select(Category).where(Category.deleted == false()))}
     elsewhere = plan.planned_elsewhere(ctx.s, b, budgets.tree(ctx.s), month.year)
-    _raise(_line_errors(ctx.s, b, body, cats, elsewhere))
+    refuse_all(_line_errors(ctx.s, b, body, cats, elsewhere))
     return b, month
 
 

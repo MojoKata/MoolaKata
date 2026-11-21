@@ -92,6 +92,12 @@ def _recompute(s: Session, user_id: str) -> int:
         for a in accounts
         if atypes.TAX.get(a.type) == "taxable" and atypes.investing(a.type)
     ]
+    # Shares a buy bought to close a short are never a replacement: whether they count is the
+    # preparer's call, flagged for review (S3.8.5.5). Only what the buy leaves long replaces.
+    covered = {k: v for led in ledgers for k, v in led.replay().covered.items()}
+    for group in buys.values():
+        for b in group:
+            b.remaining -= covered.get(b.txn.id, 0)
     from . import people
 
     spouse_on: dict[tuple[str, dt.date], str | None] = {}
@@ -146,7 +152,10 @@ def _round(ledgers, rows, classes, buys, lot_txn, by_id, counts, now) -> list[Wa
             if d.saleId and bought:
                 sold[(d.saleId, bought)] = sold.get((d.saleId, bought), Decimal(0)) + d.quantity
             raw = d.raw_gain
-            if d.instrumentId in classes and raw is not None and raw < 0 and d.saleId:
+            # A short sale's loss is the preparer's to decide, flagged and never adjusted
+            # (S3.8.5.1).
+            loss = raw is not None and raw < 0 and d.saleId
+            if d.instrumentId in classes and loss and not d.short:
                 losses.append((led.account, d))
     # Sales in the order made; a sale's shares in the order they were acquired, the earliest
     # first, so a buy of fewer shares than were sold replaces the oldest (Treas. Reg.

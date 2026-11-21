@@ -135,6 +135,16 @@ def test_a_wallet_watches_a_keys_addresses_up_to_the_gap_limit(jane):
     assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 1
 
 
+def test_a_wallet_made_with_its_keys_and_gap_limit_watches_them_from_the_start(jane):
+    """S1.6.1: a wallet's keys, addresses and gap limit sent with the new account are its own
+    as it is made."""
+    text = ZPUB + "\n3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+    w = new_account(jane, name="Cold storage", type="crypto-wallet", walletKeys=text, gapLimit=5)
+    got = jane.get(f"/ui/api/accounts/{w['id']}").json()
+    assert (got["walletKeys"], got["gapLimit"]) == (text, 5)
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 11
+
+
 def test_a_seed_phrase_or_private_key_is_refused_and_never_repeated(jane, caplog):
     w = new_account(jane, name="Cold storage", type="crypto-wallet")
     caplog.set_level(logging.DEBUG)

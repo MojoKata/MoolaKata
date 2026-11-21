@@ -291,8 +291,12 @@
 7. **Transfers** between two of a user's accounts are matched (same amount, a few days apart),
    so they count neither as spending nor as income, nor as a buy or sell of cash. Opposite
    amounts of cash, not trades, in two of the owner's accounts within 4 days of each other
-   are linked as a transfer, the closest in date; when two are equally close, neither is,
-   and the owner links one by hand. Cash taken out of a bank account pairs this way with
+   are linked as a transfer, the closest in date, however they came to match (made,
+   imported, a day or amount corrected, a half freed when its partner goes); when two are
+   equally close, neither is, and the owner links one by hand. One who writes two owners'
+   accounts (a joint account shared to a spouse, and the spouse's own) may link halves of
+   both by hand; an owner who doesn't read the other account sees the half as a transfer
+   with an account they don't see, never which, and may undo it. Cash taken out of a bank account pairs this way with
    its deposit in a `cash` account, and money sent to a payment app with its arrival there.
    1. **Shares, funds or bitcoin moved between the owner's accounts** (two brokerages, a
       wallet and an exchange, two wallets): a transfer out and a transfer in of the same
@@ -340,9 +344,11 @@
       that change it (the first after a rate reset, a recast, or a HELOC draw in its repayment
       period, a fee or charge added to what is owed being one, and a HELOC's first repayment
       day) the principal and interest due stays level; on such a day it becomes what pays off
-      the balance then owed by the term's last payment day, that day counted. Interest is
-      rounded half up to the cent, and a balance of less than $1 left by rounding goes with
-      the last payment.
+      the balance then owed by the term's last payment day, that day counted. Interest, and
+      the level principal and interest itself as a lender rounds it, are rounded half up to
+      the cent, and a balance of less than $1 left by rounding goes with the last payment.
+      Where payments are so small that their rounding adds up to a payment or more, the
+      balance is paid off that many payments before the term's last day.
    3. **Payments**: a payment transaction from a bank account (matched as a transfer, S1.7) is
       **split** into principal, interest, escrow, PMI and fees by the schedule, as is every
       payment into the loan however it arrives (imported, or typed in the loan's account): one
@@ -436,6 +442,10 @@
     6. **An account's chart** is its items' total value over time. The Items tab lists the
        items with cost basis, value, gain and age, and opens each one with its history,
        notes and documents.
+    7. **Its transactions are transfers only**: the money paid for an item, or received for
+       one, as the other half of a transfer from or to the bank account it came through, so
+       it counts neither as spending nor as income. They never change the account's value,
+       which is its items'; a purchase, an improvement or a sale is recorded on the item.
 11. **Reconciliation** keeps an account's balance in step with the institution's, for every
     account kept from files or statements: banking, cards, brokerage cash, and the retirement,
     plan, 529, HSA, DAF and exchange accounts whose statements S1.11.7 expects, each on its
@@ -463,8 +473,9 @@
        shows as such in the account and in Activity. An account with an open mismatch is
        marked in Accounts, and raises an alert after 7 days (S12.11).
     5. **Duplicate suspects** are flagged, never merged silently: two identical rows on one
-       day, or two rows a file gave the same id, ask *both real?* the first time, and the
-       answer is kept.
+       day (the same amount, holding and payee, the payee's case aside, or the bank's words
+       when there is no payee), or two rows a file gave the same id, ask *both real?* the
+       first time, and the answer is kept.
     6. **Ticking off** (optional, for accounts kept by hand): pick a statement's closing date
        and balance, tick transactions as cleared until the difference is zero, and the period
        is marked **reconciled**. Editing a transaction inside a reconciled period asks first.

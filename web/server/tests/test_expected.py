@@ -4,6 +4,7 @@ and when the next statement is overdue."""
 import datetime as dt
 from types import SimpleNamespace as NS
 
+import pytest
 from edits import edit, saved
 
 from moolakata.ledger import expected
@@ -51,6 +52,9 @@ def test_overdue_after_the_interval_and_its_grace():
     )
     y = expected.overdue(acct(every="yearly"), imp(dt.date(2025, 12, 31)), dt.date(2027, 3, 1))
     assert (y.due, y.name) == (dt.date(2027, 3, 1), "the 2026 statement")
+    # A year that ends in another month is named by its last month.
+    y = expected.overdue(acct(every="yearly"), imp(dt.date(2025, 6, 30)), dt.date(2030, 1, 1))
+    assert y.name == "the year to June 2026 statement"
     assert expected.overdue(acct(every="none"), ends, dt.date(2030, 1, 1)) is None
     assert expected.overdue(a, [], dt.date(2030, 1, 1)) is None
 
@@ -158,3 +162,32 @@ def test_the_account_sets_its_interval_and_answers_the_proposal(server):
     assert saved(edit(c, "Acct", path, statementInterval="yearly"))["statementInterval"] == "yearly"
     out = saved(edit(c, "Acct", path, statementInterval=None))
     assert out["statementInterval"] is None, "back to the type's"
+
+
+@pytest.mark.parametrize(
+    ("gap", "learned"),
+    [
+        (19, None),
+        (20, "monthly"),
+        (45, "monthly"),
+        (46, "quarterly"),
+        (135, "quarterly"),
+        (136, "yearly"),
+    ],
+)
+def test_the_typical_gap_between_three_ends_decides_the_interval(gap, learned):
+    """S1.11.7: under 20 days apart is downloads, not statements; up to 45 days monthly, up
+    to 135 quarterly, more yearly. The gap is the middle one, so one odd gap doesn't decide."""
+    first = dt.date(2025, 1, 31)
+    ends = [first, first + dt.timedelta(days=gap), first + dt.timedelta(days=2 * gap)]
+    assert expected.learned(imp(*ends)) == learned
+    # A fourth end a year late: one odd gap among three, and the middle one still decides.
+    assert expected.learned(imp(*ends, ends[-1] + dt.timedelta(days=400))) == learned
+
+
+def test_a_kept_by_not_read_is_a_fault_never_read_as_kept_by_nothing():
+    # `keptBy` is always a list's JSON: anything else is broken data, said loudly.
+    with pytest.raises(ValueError):
+        expected.kept_by(acct(kept="not json"))
+    assert expected.kept_by(acct(kept="[]")) == []
+    assert expected.interval(acct(kept="[]")) == "none"

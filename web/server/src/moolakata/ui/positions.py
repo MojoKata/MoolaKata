@@ -58,6 +58,9 @@ class OpenRow(Model):
     expiry: dt.date | None = None  # an option's
     daysToExpiry: int | None = None
     inTheMoney: bool | None = None  # by the underlying's latest close
+    # An option's stock: a split of it reaches the option, recorded on it (S3.10.1).
+    underlyingId: str | None = None
+    underlyingSymbol: str | None = None
 
 
 class ClosedRow(Model):
@@ -119,6 +122,7 @@ def _how(t: Transaction) -> str:
     """How a closing trade closed: in words, or its kind."""
     return {
         "sell": "sold",
+        "buy": "bought back",  # a buy closes only a short sale of shares (S3.4)
         "sell-to-close": "sold",
         "buy-to-close": "bought back",
         "expire": "expired",
@@ -180,10 +184,14 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
             oc = options.contract_of(s, iid)  # none for an instrument that isn't an option
             if oc is not None:
                 under = options.per_share(s, oc, today, led.account.ownerId)
+                # A contract names its stock: it is always there.
+                stock = s.get(Instrument, oc.underlyingId)
                 extra = {
                     "expiry": oc.expiry,
                     "daysToExpiry": (oc.expiry - today).days,
                     "inTheMoney": options.in_the_money(oc, under[0]) if under else None,
+                    "underlyingId": oc.underlyingId,
+                    "underlyingSymbol": stock.symbol,
                 }
             open_rows.append(
                 OpenRow(

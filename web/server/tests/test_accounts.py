@@ -175,6 +175,14 @@ def test_splits_tags_and_bulk_categorise(server):
     assert r.json()["changed"] == 2
     r = c.get("/ui/api/transactions", params={"category": groceries}).json()["items"]
     assert len(r) == 3  # two direct, one through a split
+    # Already so: none changed. Over 1,000 at once, or a category not known: refused.
+    again = {"ids": [u1["id"]], "categoryId": groceries}
+    assert c.post("/ui/api/transactions/categorise", json=again).json()["changed"] == 0
+    many = {"ids": [new_id("Txn") for _ in range(1001)], "categoryId": groceries}
+    r = c.post("/ui/api/transactions/categorise", json=many)
+    assert (r.status_code, r.json()["code"]) == (422, "too-many")
+    r = c.post("/ui/api/transactions/categorise", json={**again, "categoryId": new_id("Cat")})
+    assert (r.status_code, r.json()["code"]) == (422, "category-unknown")
     assert (
         c.get("/ui/api/transactions", params={"tag": "holiday"}).json()["items"][0]["id"] == t["id"]
     )
@@ -324,6 +332,13 @@ def test_reimports_match_by_cents_by_row_and_keep_a_repeated_id(server):
     assert job["result"]["added"] == 4 and job["result"]["matched"] == 1, job
     fine = data.replace(b"<TRNAMT>3120.00", b"<TRNAMT>3120.004")
     assert upload(c, a["id"], "fine.qfx", fine)["result"]["changed"] == 0
+    # An amount the file changed is read with the one it had before (S1.11.3).
+    moved = data.replace(b"<TRNAMT>3120.00", b"<TRNAMT>3100.00")
+    assert upload(c, a["id"], "moved.qfx", moved)["result"]["changed"] == 1
+    items = c.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    assert sorted((x["amount"], x["amountWas"]) for x in items if x["amountWas"]) == [
+        ("3100.00", "3120.00")
+    ]
     repeat = data.replace(b"<FITID>20260910-1", b"<FITID>20260903-1")
     b = new_account(c, name="Second", mask="9999")
     first = upload(c, b["id"], "repeat.qfx", repeat)["result"]
@@ -566,3 +581,1272 @@ def test_an_ofx_transfer_in_has_its_day_bought_missing(server):
     [vti] = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
     [lot] = vti["lots"]
     assert lot["acquiredMissing"] and lot["longTerm"] is None and lot["basisMissing"]
+
+
+def test_a_typed_balance_changes_in_place_and_one_from_a_file_never(server):
+    """S1.11: a balance typed by hand is changed where it is, on its own account and never in
+    the future, each refusal in its words (R3.7); one a file brought changes only with the
+    file; another user's, or one deleted, is not found, and one who only reads its account
+    (S10.3) may not change it."""
+    import datetime as dt
+
+    from edits import share
+
+    from moolakata import clock
+    from moolakata.store.entities.accounts import Anchor
+
+    john = make_user(server, "john").id
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
+    other = new_account(c, name="Other")
+    add(c, a["id"], "-20.00", "2026-09-05", payee="Cafe")
+    an = saved(create(c, "Anchr", accountId=a["id"], date="2026-09-10", balance="990.00"))
+    r = change(c, "Anchr", an, accountId=other["id"])
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [("accountId", "anchor-fixed", "A balance stays with its account.")]
+    tomorrow = (clock.today() + dt.timedelta(days=1)).isoformat()
+    future = [("date", "date-in-future", "A reported balance can't be in the future.")]
+    r = change(c, "Anchr", an, date=tomorrow)
+    assert (r.status_code, refusals(r)) == (422, future), r.text
+    r = create(c, "Anchr", accountId=a["id"], date=tomorrow, balance="980.00")
+    assert (r.status_code, refusals(r)) == (422, future), r.text
+    an = saved(change(c, "Anchr", an, balance="980.00", note="  "))
+    check = c.get(f"/ui/api/accounts/{a['id']}/reconcile").json()["checks"][-1]
+    assert (check["reported"], check["ok"]) == ("980.00", True)
+    with server.db.read(unscoped="test") as s:
+        kept = s.get(Anchor, an["id"])
+        assert (kept.note, kept.source) == (None, "typed")
+    # Today's is no balance in the future.
+    saved(create(c, "Anchr", accountId=a["id"], date=clock.today().isoformat(), balance="980.00"))
+    job = upload(c, other["id"], "statement.qfx", (FIX / "bank.ofx").read_bytes())
+    assert job["state"] == "done", job["error"]
+    with server.db.read(unscoped="test") as s:
+        filed = s.query(Anchor).filter_by(accountId=other["id"]).one()
+        filed = {"id": filed.id, "version": filed.version}
+    r = change(c, "Anchr", filed, balance="1.00")
+    assert refusals(r) == [
+        (None, "anchor-imported", "A balance from a file changes with the file.")
+    ], r.text
+    gone = [(None, "not-found", "Not found")]
+    r = change(sign_in(server, "john"), "Anchr", an, balance="1.00")
+    assert (r.status_code, refusals(r)) == (404, gone), r.text
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    r = change(sign_in(server, "john"), "Anchr", an, balance="1.00")
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
+    assert remove(c, "Anchr", an).status_code == 200
+    r = change(c, "Anchr", an, balance="1.00")
+    assert (r.status_code, refusals(r)) == (404, gone), r.text
+
+
+def test_a_typed_balance_keeps_its_note_trimmed_and_is_logged_for_its_owner(server):
+    """S1.11.2: a balance typed keeps its note without the spaces around it, or none, through
+    a change that leaves the note as it is; it is the typer's, and logged for the owner."""
+    from moolakata.store.entities.accounts import Anchor
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="1000.00", openingDate="2026-08-31")
+    day = {"accountId": a["id"], "date": "2026-09-10", "balance": "990.00"}
+    noted = saved(create(c, "Anchr", **day, note="  From the bank's site  "))
+    assert noted["note"] == "From the bank's site"
+    bare = saved(create(c, "Anchr", accountId=a["id"], date="2026-09-11", balance="990.00"))
+    assert bare["note"] is None
+    assert saved(change(c, "Anchr", bare, balance="985.00"))["note"] is None
+    assert saved(change(c, "Anchr", noted, note=" Checked "))["note"] == "Checked"
+    with server.db.read(unscoped="test") as s:
+        made = [s.get(Anchor, x["id"]) for x in (noted, bare)]
+        assert [(x.note, x.createdById) for x in made] == [("Checked", jane), (None, jane)]
+    typed = ("account.balance-typed", jane, "account", jane, {})
+    assert logged(server, a["id"]) == [typed, typed]
+
+
+INTERVAL = "statement-interval-invalid"
+# Each field's refusal, in its own words (R3.7).
+REFUSED_WORDS = {
+    "lotMethod": "FIFO, LIFO, HIFO, specific identification or average cost.",
+    "keptBy": "Imports, manual or bitcoin.",
+    "notes": "Notes are up to 20,000 characters.",
+    "closedOn": "The day it closed: today or earlier.",
+    "statementInterval": "Monthly, quarterly, yearly or none.",
+    "statementIntervalDismissed": "An interval.",
+    "withdrawalsAMonth": "A savings account's limit: 1 to 99, or empty.",
+    "hsaCoverage": "An HSA's coverage: self-only or family.",
+    "type": "An account keeps its type.",
+    "name": "Enter a name of up to 80 characters.",
+    "openingDate": "An opening balance needs its date, and a date its balance.",
+}
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields", "field", "code"),
+    [
+        ("checking", {"lotMethod": "random"}, "lotMethod", "lot-method-invalid"),
+        ("checking", {"keptBy": []}, "keptBy", "kept-by-invalid"),
+        ("checking", {"keptBy": ["manual", "fax"]}, "keptBy", "kept-by-invalid"),
+        ("checking", {"notes": "x" * 20001}, "notes", "notes-too-long"),
+        ("checking", {"notes": "x" * 20000}, None, None),
+        ("checking", {"closedOn": "tomorrow"}, "closedOn", "closed-in-future"),
+        ("checking", {"closedOn": "today"}, None, None),
+        ("checking", {"statementInterval": "weekly"}, "statementInterval", INTERVAL),
+        (
+            "checking",
+            {"statementIntervalDismissed": "weekly"},
+            "statementIntervalDismissed",
+            INTERVAL,
+        ),
+        ("checking", {"withdrawalsAMonth": 6}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 0}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 100}, "withdrawalsAMonth", "limit-invalid"),
+        ("savings", {"withdrawalsAMonth": 99}, None, None),
+        ("money-market", {"withdrawalsAMonth": 1}, None, None),
+        ("checking", {"hsaCoverage": "self"}, "hsaCoverage", "coverage-invalid"),
+        ("hsa", {"hsaCoverage": "both"}, "hsaCoverage", "coverage-invalid"),
+        ("hsa", {"hsaCoverage": "family"}, None, None),
+        ("checking", {"type": "savings"}, "type", "type-fixed"),
+        ("checking", {"name": "  "}, "name", "name-invalid"),
+        ("checking", {"openingBalance": "5.00"}, "openingDate", "opening-incomplete"),
+        ("checking", {"openingDate": "2026-01-02"}, "openingDate", "opening-incomplete"),
+    ],
+)
+def test_an_accounts_settings_are_refused_on_their_own_field(server, kind, fields, field, code):
+    """S1.2, S1.11.7, S8.6, R3.11: a change of an account's settings, each refused on its
+    field in its words, and each bound's own side kept."""
+    import datetime as dt
+
+    from moolakata import clock
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type=kind, name=kind.title())
+    days = {"today": clock.today(), "tomorrow": clock.today() + dt.timedelta(days=1)}
+    fields = {
+        k: days[v].isoformat() if v in ("today", "tomorrow") else v for k, v in fields.items()
+    }
+    r = change(c, "Acct", a, **fields)
+    if code is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    refused = [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+    assert refused == [(field, code, REFUSED_WORDS[field])]
+
+
+def logged(server, account_id: str) -> list[tuple]:
+    """What Activity holds of an account's changes since it was made (its sharing aside):
+    each entry's kind, actor, subject kind, owner and detail."""
+    import json
+
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        rows = (
+            s.query(Activity)
+            .filter(Activity.subjectId == account_id, Activity.kind.like("account.%"))
+            .filter(Activity.kind != "account.created")
+            .order_by(Activity.at, Activity.id)
+        )
+        return [(x.kind, x.actorId, x.subjectKind, x.ownerId, json.loads(x.detail)) for x in rows]
+
+
+def refusals(r) -> list[tuple]:
+    """A save's refusals: each one's field, code and words."""
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields"),
+    [
+        ("checking", {"notes": "Bills come out of this one."}),
+        ("checking", {"keptBy": ["file", "manual"]}),
+        ("checking", {"statementInterval": "quarterly"}),
+        ("savings", {"withdrawalsAMonth": 6}),
+        ("hsa", {"hsaCoverage": "family"}),
+    ],
+)
+def test_an_accounts_change_is_kept_and_logged_for_its_owner_by_the_field_changed(
+    server, kind, fields
+):
+    """S1.2, S8.6, S1.11.7: a change of an account is kept, and logged as an update for its
+    owner naming the one field it changed."""
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, type=kind, name=kind.title())
+    out = saved(change(c, "Acct", a, **fields))
+    assert {k: out[k] for k in fields} == fields
+    assert logged(server, a["id"]) == [
+        ("account.updated", jane, "account", jane, {"fields": list(fields)})
+    ]
+
+
+def test_a_write_share_changes_an_accounts_notes_and_none_of_its_settings(server):
+    """S10.3.2: one who writes an account changes what it holds, its notes among them, logged
+    for its owner as theirs; its settings (its Settings tab: the opening balance and its day
+    too) stay the owner's, each refused in the same words."""
+    from edits import share
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    accounts = {}
+    for kind in ("checking", "savings", "hsa"):
+        a = new_account(c, type=kind, name=kind.title())
+        assert share(c, "account", a["id"], users={john: "write"}).status_code == 200
+        accounts[kind] = f"/ui/api/accounts/{a['id']}"
+    settings = [
+        ("checking", "lotMethod", "lifo"),
+        ("checking", "keptBy", ["file", "manual"]),
+        ("checking", "closedOn", "2026-01-02"),
+        ("checking", "countInNetWorth", False),
+        ("checking", "name", "Joint checking"),
+        ("checking", "institution", "Second Example Bank"),
+        ("checking", "mask", "1234"),
+        ("checking", "statementInterval", "quarterly"),
+        ("checking", "statementIntervalDismissed", "quarterly"),
+        ("checking", "connectionId", new_id("Conn")),
+        ("checking", "syncAccount", "Checking ••4417"),
+        ("savings", "withdrawalsAMonth", 6),
+        ("hsa", "hsaCoverage", "family"),
+    ]
+    opening = {"openingBalance": "250.00", "openingDate": "2026-01-01"}
+    for kind, sent in [*((k, {f: v}) for k, f, v in settings), ("checking", opening)]:
+        r = edit(j, "Acct", accounts[kind], **sent)
+        assert r.status_code == 403, (sent, r.text)
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+            (None, "owner-only", "Only the account's owner changes its settings.")
+        ], sent
+    assert edit(c, "Acct", accounts["savings"], **opening).status_code == 200
+    for f, v in (("openingBalance", "300.00"), ("openingDate", "2026-01-05")):
+        r = edit(j, "Acct", accounts["savings"], **{f: v})
+        assert r.status_code == 403 and r.json()["errors"][0]["code"] == "owner-only", f
+    out = saved(edit(j, "Acct", accounts["checking"], notes="John's too."))
+    assert out["notes"] == "John's too."
+    assert logged(server, out["id"]) == [
+        ("account.updated", john, "account", jane, {"fields": ["notes"]})
+    ]
+
+
+def test_a_change_checks_its_name_and_opening_only_when_it_touches_them(server):
+    """An account kept with a name too long and an opening balance without its day (written
+    before the rules, or by an import) still takes a change to its mask: a change is checked
+    for what it touches."""
+    from moolakata.store.entities.accounts import Account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(Account, a["id"])
+        row.name, row.openingBalance = "x" * 90, Decimal("5.00")
+    out = saved(edit(c, "Acct", f"/ui/api/accounts/{a['id']}", mask="1234"))
+    assert (out["mask"], out["name"]) == ("1234", "x" * 90)
+
+
+def test_a_reconciliation_made_finished_stays_and_an_unfinished_one_may_go(server):
+    """S1.11.6: a statement ticked off in the save that makes it is reconciled at once and
+    then stays as it was; one not finished stays with its account and may be deleted, and is
+    gone after; one who only reads the account (S10.3) changes neither. Each refusal in its
+    words (R3.7)."""
+    from edits import share
+
+    from moolakata.store.entities.accounts import Reconciliation
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="0.00", openingDate="2026-08-31")
+    other = new_account(c, name="Other")
+    saved(change(c, "Txn", add(c, a["id"], "100.00", "2026-09-03", kind="deposit"), cleared=True))
+    fields = {"accountId": a["id"], "statementDate": "2026-09-30", "statementBalance": "100.00"}
+    done = saved(create(c, "Recon", finished=True, **fields))
+    assert done["finishedAt"]
+    stays = [(None, "reconciled", "A reconciled period stays as it was reconciled.")]
+    r = change(c, "Recon", done, statementBalance="90.00")
+    assert (r.status_code, refusals(r)) == (422, stays), r.text
+    r = remove(c, "Recon", done)
+    assert (r.status_code, refusals(r)) == (422, stays), r.text
+    open_ = reconcile(c, a["id"], "2026-10-31", "100.00")
+    r = change(c, "Recon", open_, accountId=other["id"])
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [("accountId", "reconciliation-fixed", "It stays with its account.")]
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    r = change(sign_in(server, "john"), "Recon", open_, statementBalance="1.00")
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
+    assert remove(c, "Recon", open_).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Reconciliation, open_["id"]).deletedById == jane
+    r = change(c, "Recon", open_, statementBalance="1.00")
+    assert (r.status_code, refusals(r)) == (404, [(None, "not-found", "Not found")]), r.text
+
+
+def test_a_statement_counts_and_reconciles_its_accounts_ticked_transactions_to_its_day(server):
+    """S1.11.6: a statement's cleared total is the opening balance and the account's own
+    transactions ticked (or reconciled before) up to and on its date; finished, it reconciles
+    those ticked and not yet reconciled, leaves the earlier statement's its own, and is logged
+    for the owner. One that doesn't balance is refused on Finished in its words."""
+    from moolakata.store.entities.accounts import Transaction
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c, openingBalance="10.00", openingDate="2026-08-31")
+    b = new_account(c, name="Other", openingBalance="0.00", openingDate="2026-08-31")
+
+    def txn(account, amount, day, ticked=True):
+        t = add(c, account["id"], amount, day, **({"kind": "deposit"} if amount[0] != "-" else {}))
+        return saved(change(c, "Txn", t, cleared=True)) if ticked else t
+
+    paid = txn(a, "100.00", "2026-09-03")
+    on_the_day = txn(a, "-40.00", "2026-09-30")
+    unticked = txn(a, "-5.00", "2026-09-10", ticked=False)
+    after = txn(a, "-7.00", "2026-10-02")
+    elsewhere = txn(b, "1000.00", "2026-09-05")
+    first = reconcile(c, a["id"], "2026-09-30", "75.00")
+    assert (first["cleared"], first["difference"]) == ("70.00", "5.00")
+    r = change(c, "Recon", first, finished=True)
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [
+        ("finished", "not-balanced", "Tick transactions until the difference is zero.")
+    ]
+    first = saved(change(c, "Recon", first, statementBalance="70.00", finished=True))
+    second = reconcile(c, a["id"], "2026-10-31", "63.00")
+    assert (second["cleared"], second["difference"]) == ("63.00", "0.00")
+    saved(change(c, "Recon", second, finished=True))
+    with server.db.read(unscoped="test") as s:
+        got = {
+            t["id"]: s.get(Transaction, t["id"]).reconciliationId
+            for t in (paid, on_the_day, unticked, after, elsewhere)
+        }
+    assert got == {
+        paid["id"]: first["id"],
+        on_the_day["id"]: first["id"],
+        unticked["id"]: None,
+        after["id"]: second["id"],
+        elsewhere["id"]: None,
+    }
+    reconciled = ("account.reconciled", jane, "account", jane, {})
+    assert logged(server, a["id"]) == [reconciled, reconciled]
+
+
+# Each refusal of a transaction's fields, in its own words (R3.7).
+TXN_REFUSED_WORDS = {
+    "kind-invalid": "Choose a kind of transaction.",
+    "note-required": "Say why the balance is adjusted.",
+    "corporate-kind": "Record it as a corporate action on Positions.",
+    "option-kind": "Record an option trade from the account's Holdings.",
+    "kind-not-for-account": "Trades belong in an investing account.",
+    "amount-sign": "Foreign tax paid is money out: a negative amount.",
+    "category-unknown": "Choose a category.",
+    "instrument-unknown": "Choose an instrument.",
+    "symbol-invalid": "Enter a symbol such as VTI.",
+    "fees-invalid": "Zero or more.",
+    "reimbursable-invalid": "Spending only, and no more than was spent.",
+    "owed-by-too-long": "At most 80 characters.",
+    "payee-too-long": "At most 200 characters.",
+    "choice-invalid": "Employee, employer, rollover or conversion.",
+    "year-invalid": "Enter a year.",
+}
+TRADE = {"kind": "buy", "quantity": "1", "price": "10", "fees": "0"}
+
+
+@pytest.mark.parametrize(
+    ("acct", "fields", "field", "code"),
+    [
+        ("checking", {"kind": "gift"}, "kind", "kind-invalid"),
+        ("checking", {"kind": "adjustment"}, "memo", "note-required"),
+        ("checking", {"kind": "adjustment", "memo": "  "}, "memo", "note-required"),
+        ("checking", {"kind": "foreign-tax"}, "kind", "kind-not-for-account"),
+        ("brokerage", {"kind": "merger"}, "kind", "corporate-kind"),
+        ("checking", {"kind": "option-adjust"}, "kind", "corporate-kind"),
+        ("brokerage", {"kind": "expire"}, "kind", "option-kind"),
+        ("brokerage", {"kind": "foreign-tax", "amount": "1.00"}, "amount", "amount-sign"),
+        ("brokerage", {"kind": "foreign-tax", "amount": "-1.00"}, None, None),
+        ("brokerage", {"kind": "foreign-tax", "amount": "0.00"}, None, None),
+        ("checking", {"categoryId": "gone"}, "categoryId", "category-unknown"),
+        (
+            "brokerage",
+            {"kind": "buy", "instrumentId": "gone", "quantity": "1", "price": "10", "fees": "0"},
+            "instrumentId",
+            "instrument-unknown",
+        ),
+        ("brokerage", {**TRADE, "symbol": "   "}, "symbol", "symbol-invalid"),
+        ("brokerage", {**TRADE, "symbol": "X" * 33}, "symbol", "symbol-invalid"),
+        ("brokerage", {**TRADE, "symbol": "X" * 32}, None, None),
+        (
+            "brokerage",
+            {"kind": "buy", "symbol": "VTI", "quantity": "1", "fees": None},
+            "fees",
+            "fees-invalid",
+        ),
+        ("checking", {"fees": "-0.01"}, "fees", "fees-invalid"),
+        (
+            "checking",
+            {"kind": "deposit", "amount": "10.00", "reimbursable": "5.00"},
+            "reimbursable",
+            "reimbursable-invalid",
+        ),
+        ("checking", {"reimbursable": "0"}, "reimbursable", "reimbursable-invalid"),
+        ("checking", {"reimbursable": "10.01"}, "reimbursable", "reimbursable-invalid"),
+        ("checking", {"reimbursable": "10.00"}, None, None),
+        ("checking", {"reimbursable": "1.00"}, None, None),
+        ("checking", {"owedBy": "x" * 81}, "owedBy", "owed-by-too-long"),
+        ("checking", {"owedBy": "x" * 80}, None, None),
+        ("checking", {"payee": "x" * 201}, "payee", "payee-too-long"),
+        ("checking", {"payee": "x" * 200}, None, None),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionSource": "boss"},
+            "contributionSource",
+            "choice-invalid",
+        ),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionYear": 1969},
+            "contributionYear",
+            "year-invalid",
+        ),
+        (
+            "ira",
+            {"kind": "deposit", "amount": "10.00", "contributionYear": 2101},
+            "contributionYear",
+            "year-invalid",
+        ),
+        ("ira", {"kind": "deposit", "amount": "10.00", "contributionYear": 2100}, None, None),
+        ("ira", {"kind": "deposit", "amount": "10.00", "contributionYear": 1970}, None, None),
+    ],
+)
+def test_a_transactions_fields_are_refused_on_their_own(server, acct, fields, field, code):
+    """S2.1, S2.9, S8.6, R3.11, R3.7: what a transaction is and carries, each refused on its
+    field in its words, and each bound's own side kept."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type=acct, name=acct.title())
+    fields = {"accountId": a["id"], "date": "2026-09-01", "amount": "-10.00", **fields}
+    if fields.get("categoryId") == "gone":
+        fields["categoryId"] = new_id("Cat")
+    if fields.get("instrumentId") == "gone":
+        fields["instrumentId"] = new_id("Instr")
+    r = make(c, "Txn", **fields)
+    if code is None:
+        assert r.status_code == 200, r.text
+        return
+    assert r.status_code == 422, r.text
+    assert refusals(r) == [(field, code, TXN_REFUSED_WORDS[code])]
+
+
+def test_both_real_answers_the_rows_grouped_with_it_and_no_others(server):
+    """S1.11.5: *both real* is kept on the rows the reconcile view grouped as possible
+    duplicates with the one answered: the same day, amount and payee, or one id a file gave
+    twice, never a row that only shares the day and amount."""
+    from moolakata.ledger import reconcile
+    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.store.repos import ledger as repo
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    cafe = add(c, a["id"], "-40.00", "2026-09-05", payee="Cafe")
+    add(c, a["id"], "-40.00", "2026-09-05", payee="Cafe")
+    bakery = add(c, a["id"], "-40.00", "2026-09-05", payee="Bakery")
+    add(c, a["id"], "-40.00", "2026-09-05", payee="Bakery")
+    b = new_account(c, name="Second", mask="9999")
+    data = (FIX / "bank.ofx").read_bytes().replace(b"<FITID>20260910-1", b"<FITID>20260903-1")
+    assert upload(c, b["id"], "repeat.qfx", data)["result"]["added"] == 5
+
+    def groups(account_id):
+        with server.db.read(unscoped="test") as s:
+            txns = repo.load(s, s.get(Account, account_id)).transactions
+            return [sorted(t.payee or "" for t in txns if t.id in g)
+                    for g in reconcile.duplicates(txns)]  # fmt: skip
+
+    assert groups(a["id"]) == [["Cafe", "Cafe"], ["Bakery", "Bakery"]]
+    r = c.post(f"/ui/api/transactions/{cafe['id']}/both-real")
+    assert r.status_code == 200, r.text
+    assert groups(a["id"]) == [["Bakery", "Bakery"]]
+    with server.db.read(unscoped="test") as s:
+        second = s.query(Transaction).filter_by(accountId=b["id"], fitId="20260903-1#2").one().id
+    assert c.post(f"/ui/api/transactions/{second}/both-real").status_code == 200
+    assert groups(b["id"]) == []
+    # Another user's row, and one deleted, are not found.
+    make_user(server, "john")
+    assert (
+        sign_in(server, "john").post(f"/ui/api/transactions/{bakery['id']}/both-real").status_code
+        == 404
+    )
+    one = c.get("/ui/api/transactions", params={"payee": "bakery"}).json()["items"][0]
+    saved(remove(c, "Txn", one))
+    assert c.post(f"/ui/api/transactions/{one['id']}/both-real").status_code == 404
+
+
+def test_keeping_a_transaction_needs_one_off_the_chain_at_the_version_read(server):
+    """S1.6.2.7: *keep* is for a transaction no longer on the chain, at the version read, by
+    one who writes its account (S10.3); one on the chain, an old version (answered with the
+    transaction as the caller reads it, their tags with it), one only read, and one deleted
+    or never made are each refused."""
+    from edits import share
+    from test_sharing import setup
+
+    u, c = setup(server)
+    jane, john = c["jane"], c["john"]
+    a = new_account(jane)
+    t = add(jane, a["id"], "-5.00", "2026-09-01", tags=["work"])
+
+    def keep(who, txn_id, version):
+        return who.post(f"/ui/api/transactions/{txn_id}/keep", headers={"If-Match": f'"{version}"'})
+
+    r = keep(jane, t["id"], t["version"])
+    assert (r.status_code, r.json()["code"]) == (422, "on-chain"), r.text
+    r = keep(jane, t["id"], t["version"] - 1)
+    assert (r.status_code, r.json()["code"]) == (412, "stale-version"), r.text
+    assert (r.json()["current"]["id"], r.json()["current"]["tags"]) == (t["id"], ["work"])
+    saved(share(jane, "account", a["id"], users={u["john"].id: "read"}))
+    r = keep(john, t["id"], t["version"])
+    assert (r.status_code, r.json()["code"]) == (403, "share-read-only"), r.text
+    gone = add(jane, a["id"], "-6.00", "2026-09-02")
+    saved(remove(jane, "Txn", gone))
+    for txn_id, version in ((new_id("Txn"), 1), (gone["id"], gone["version"])):
+        r = keep(jane, txn_id, version)
+        assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+            404,
+            "not-found",
+            "Not found",
+        ), txn_id
+
+
+def test_a_kind_changed_to_blank_is_refused_on_its_field(server):
+    """R3.11: a change that blanks a transaction's kind is refused on the field, never written
+    (it reached the database before, refused there as a missing reference)."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    t = add(c, new_account(c)["id"], "-5.00", "2026-09-01")
+    r = change(c, "Txn", t, kind="")
+    assert r.status_code == 422, r.text
+    assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
+        "kind",
+        "kind-invalid",
+    )
+
+
+def test_a_trade_changed_carries_its_lot_and_a_known_day_bought_stays(server):
+    """S2.2, S2.3: a buy changed moves its lot's quantity, cost and day with it; shares moved
+    in whose lots were typed keep each lot's day bought when the move's day changes."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+
+    def lots_(symbol):
+        held = c.get(f"/ui/api/accounts/{a['id']}/holdings").json()["holdings"]
+        lots = next(h for h in held if h["symbol"] == symbol)["lots"]
+        return [(x["quantity"], x["basis"], x["acquiredOn"]) for x in lots]
+
+    buy = add(c, a["id"], "-1000.00", "2026-09-01", kind="buy", symbol="VTI", quantity="10",
+              price="100", fees="0")  # fmt: skip
+    buy = saved(change(c, "Txn", buy, quantity="12", amount="-1260.00", date="2026-09-02"))
+    assert lots_("VTI") == [("12.0", "1260.00", "2026-09-02")]
+    # Each of the three changed alone carries the lot too, a reinvestment's as a buy's.
+    buy = saved(change(c, "Txn", buy, quantity="11"))
+    assert lots_("VTI") == [("11.0", "1260.00", "2026-09-02")]
+    buy = saved(change(c, "Txn", buy, amount="-1100.00"))
+    assert lots_("VTI") == [("11.0", "1100.00", "2026-09-02")]
+    saved(change(c, "Txn", buy, date="2026-09-03"))
+    assert lots_("VTI") == [("11.0", "1100.00", "2026-09-03")]
+    again = add(c, a["id"], "-50.00", "2026-09-04", kind="reinvest", symbol="VXUS", quantity="1",
+                price="50", fees="0")  # fmt: skip
+    saved(change(c, "Txn", again, quantity="2"))
+    assert lots_("VXUS") == [("2.0", "50.00", "2026-09-04")]
+    # Shares moved in with no lots typed: their one lot's day follows the day they arrived.
+    untyped = add(c, a["id"], "0.00", "2026-09-10", kind="transfer-in", symbol="SCHD",
+                  quantity="3")  # fmt: skip
+    saved(change(c, "Txn", untyped, date="2026-09-12"))
+    assert _lots_made(server, untyped["id"]) == [("2026-09-12", 3, None, True, True)]
+    typed = [{"acquiredOn": "2020-01-02", "quantity": "5", "costBasis": "250"}]
+    moved = add(c, a["id"], "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="5",
+                transferLots=typed)  # fmt: skip
+    saved(change(c, "Txn", moved, date="2026-09-11"))
+    assert lots_("KO") == [("5.0", "250.00", "2020-01-02")]
+
+
+def test_an_amount_changed_is_checked_as_it_is_sent(server):
+    """S2.1: a change is checked with the amount it sends, not the one it had: foreign tax
+    paid made money in is refused on its amount."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+    t = add(c, a["id"], "-10.00", "2026-09-01", kind="foreign-tax")
+    r = change(c, "Txn", t, amount="10.00")
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("amount", "amount-sign", "Foreign tax paid is money out: a negative amount.")
+    ]
+
+
+def test_a_trade_left_without_fees_keeps_them_until_its_fees_or_kind_change(server):
+    """R3.11: a trade a file brought without fees changes without its fees typed; changed in
+    kind, it is a trade typed again, and a blank is refused."""
+    from moolakata.store.entities.accounts import Transaction
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")
+    buy = add(c, a["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+              price="100", fees="0")  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        s.get(Transaction, buy["id"]).fees = None  # as a file without fees leaves it
+    path = f"/ui/api/transactions/{buy['id']}"
+    assert saved(edit(c, "Txn", path, memo="from the file"))["fees"] is None
+    r = edit(c, "Txn", path, kind="reinvest")
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("fees", "fees-invalid", "Zero or more.")
+    ]
+    assert saved(edit(c, "Txn", path, kind="reinvest", fees="0"))["kind"] == "reinvest"
+
+
+def test_a_trade_made_a_sale_takes_the_accounts_method_and_made_a_buy_none(server):
+    """S2.3: a buy changed into a sale takes the account's lot method, the one in force for
+    it; changed back into a buy, it has none."""
+    from moolakata.store.entities.accounts import Transaction
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage", lotMethod="lifo")["id"]
+    add(c, a, "-1000.00", "2026-09-01", kind="buy", symbol="VTI", quantity="10", price="100",
+        fees="0")  # fmt: skip
+    t = add(c, a, "-500.00", "2026-09-02", kind="buy", symbol="VTI", quantity="5", price="100",
+            fees="0")  # fmt: skip
+
+    def method():
+        with server.db.read(unscoped="test") as s:
+            return s.get(Transaction, t["id"]).lotMethod
+
+    assert method() is None
+    t = saved(change(c, "Txn", t, kind="sell", amount="500.00"))
+    assert method() == "lifo"
+    saved(change(c, "Txn", t, kind="buy", amount="-500.00"))
+    assert method() is None
+
+
+def test_a_transfer_changed_in_its_amount_or_its_day_is_paired_no_more(server):
+    """S1.7: a half whose amount or day changes is no longer the other's, both free unless
+    they still match: a day moved within the 4 days pairs them again."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)["id"]
+    card = new_account(c, name="Visa", type="credit-card", mask="1111")["id"]
+
+    def paired(t):
+        return c.get(f"/ui/api/transactions/{t['id']}").json()["transferId"]
+
+    for amount, fields in (("500.00", {"amount": "499.00"}), ("600.00", {"date": "2026-09-25"})):
+        out = add(c, chk, f"-{amount}", "2026-09-15")
+        paid = add(c, card, amount, "2026-09-16", kind="deposit")
+        assert paired(paid) == out["id"]
+        paid = saved(change(c, "Txn", paid, **fields))
+        assert (paired(out), paired(paid)) == (None, None), fields
+    out = add(c, chk, "-700.00", "2026-09-15")
+    paid = add(c, card, "700.00", "2026-09-16", kind="deposit")
+    saved(change(c, "Txn", paid, date="2026-09-18"))
+    assert paired(out) == paid["id"]
+
+
+def _lots_made(server, txn_id):
+    """The live lots a transaction made, as stored: day bought, quantity, basis, and whether
+    its basis and its day bought are missing."""
+    from sqlalchemy import false, select
+
+    from moolakata.store.entities.accounts import Lot
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(Lot).where(Lot.transactionId == txn_id, Lot.deleted == false()))
+        return sorted((str(x.acquiredOn), x.quantity, x.costBasis, x.basisMissing,
+                       x.acquiredMissing) for x in rows)  # fmt: skip
+
+
+def test_shares_moved_in_arrive_as_the_lots_typed_each_bought_by_that_day(server):
+    """S2.2: the lots typed add up to the shares moved in, each of some shares, bought on or
+    before the day they moved in; none typed, one lot of that day, its day bought missing, and
+    its basis missing unless typed."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    move = {"accountId": a, "date": "2026-09-10", "kind": "transfer-in", "symbol": "KO",
+            "quantity": "10", "amount": "0.00"}  # fmt: skip
+    unbalanced = ("transferLots", "lots-unbalanced", "The lots add up to the shares moved in.")
+    invalid = ("transferLots", "lot-invalid", "Each lot was bought by the day it moved in.")
+    for typed, refusal in (
+        ([("2020-01-02", "9")], unbalanced),
+        ([("2026-09-11", "10")], invalid),  # bought after it moved in
+        ([("2020-01-02", "10"), ("2021-01-04", "0")], invalid),
+        ([("2020-01-02", "12"), ("2021-01-04", "-2")], invalid),
+    ):
+        lots = [{"acquiredOn": d, "quantity": q, "costBasis": "100"} for d, q in typed]
+        r = create(c, "Txn", **move, transferLots=lots)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [refusal]
+    # Bought the day it moved in, and less than one share: both lots as typed.
+    lots = [{"acquiredOn": "2026-09-10", "quantity": "9.5", "costBasis": "950"},
+            {"acquiredOn": "2020-01-02", "quantity": "0.5"}]  # fmt: skip
+    t = add(c, a, **{**move, "amount": "0.00"}, transferLots=lots)
+    assert _lots_made(server, t["id"]) == [
+        ("2020-01-02", Decimal("0.5"), None, True, False),
+        ("2026-09-10", Decimal("9.5"), Decimal("950"), False, False),
+    ]
+    t = add(c, a, **move)
+    assert _lots_made(server, t["id"]) == [("2026-09-10", Decimal(10), None, True, True)]
+    t = add(c, a, **move, costBasis="400.00")
+    assert _lots_made(server, t["id"]) == [("2026-09-10", Decimal(10), Decimal(400), False, True)]
+
+
+def test_coins_received_as_income_open_a_lot_at_their_value_that_day(server):
+    """S8.5: a reward's lot has its value as its basis: at the price typed with it, else the
+    owner's price for its day; none known, its basis is missing."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ex = new_account(c, name="Exchange", type="crypto-exchange")["id"]
+    # The owner's own trades price ETH, before the day and after it; a price typed later
+    # wins from its day on (S4.7).
+    for day, price in (("2026-03-01", "2000"), ("2026-05-01", "3000")):
+        bought = add(c, ex, f"-{price}.00", day, kind="buy", symbol="ETH", quantity="1",
+                     price=price, fees="0")  # fmt: skip
+    eth = bought["instrumentId"]
+    saved(create(c, "TyPrc", instrumentId=eth, date="2026-06-30", close="2500"))
+    reward = {"kind": "reward", "symbol": "ETH", "quantity": "0.003"}
+    priced = add(c, ex, "0.00", "2026-04-01", **reward)
+    unknown = add(c, ex, "0.00", "2026-04-01", **{**reward, "symbol": "SOL"})
+    typed = add(c, ex, "0.00", "2026-07-01", **reward, price="1234.56")
+    assert [_lots_made(server, t["id"]) for t in (priced, unknown, typed)] == [
+        [("2026-04-01", Decimal("0.003"), Decimal("6.00"), False, False)],
+        [("2026-04-01", Decimal("0.003"), None, True, False)],
+        [("2026-07-01", Decimal("0.003"), Decimal("3.70"), False, False)],
+    ]
+    # Changed, the lot follows: more coins at the owner's price, a price typed again.
+    saved(edit(c, "Txn", f"/ui/api/transactions/{priced['id']}", quantity="0.004"))
+    saved(edit(c, "Txn", f"/ui/api/transactions/{typed['id']}", price="2000"))
+    assert [_lots_made(server, t["id"]) for t in (priced, typed)] == [
+        [("2026-04-01", Decimal("0.004"), Decimal("8.00"), False, False)],
+        [("2026-07-01", Decimal("0.003"), Decimal("6.00"), False, False)],
+    ]
+
+
+def test_a_split_is_of_a_known_transaction_not_a_trade_and_a_known_category(server):
+    """S2.6: a part names a transaction the caller writes that isn't a trade, and a category
+    there is."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    spent = add(c, a["id"], "-100.00", "2026-09-01")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    bought = add(c, brk["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+                 price="100", fees="0")  # fmt: skip
+    gone = add(c, a["id"], "-5.00", "2026-09-01")
+    saved(remove(c, "Txn", gone))
+    for txn in (new_id("Txn"), gone["id"]):  # the save finds no such record
+        assert create(c, "Split", transactionId=txn, amount="-40.00").status_code == 404
+    trade = ("transactionId", "split-trade", "A trade isn't split across categories.")
+    unknown = ("categoryId", "category-unknown", "Choose a category.")
+    for txn, fields, refusal in (
+        (bought["id"], {}, trade),
+        (spent["id"], {"categoryId": new_id("Cat")}, unknown),
+    ):
+        r = create(c, "Split", transactionId=txn, amount="-40.00", **fields)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [refusal]
+
+
+def test_a_sold_buy_deleted_leaves_its_sale_without_a_lot(server):
+    """S8.4: the shares a sale took gone with their buy, the sale has no lot to match: shown
+    as such, never taken from another lot or a basis made up."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    brk = new_account(c, name="Brokerage", type="brokerage")
+    bought = add(c, brk["id"], "-100.00", "2026-09-01", kind="buy", symbol="VTI", quantity="1",
+                 price="100", fees="0")  # fmt: skip
+    add(c, brk["id"], "120.00", "2026-09-02", kind="sell", symbol="VTI", quantity="1",
+        price="120", fees="0")  # fmt: skip
+    saved(remove(c, "Txn", c.get(f"/ui/api/transactions/{bought['id']}").json()))
+    sold = next(r for r in c.get("/ui/api/positions").json()["closed"] if r["symbol"] == "VTI")
+    assert sold["realized"] is None, sold
+
+
+# One account of each group (S1.1) and every kind (S2.1): what the transaction save takes.
+GRID_TYPES = ("checking", "credit-card", "mortgage", "brokerage", "ira", "529", "daf",
+              "crypto-exchange", "vehicle")  # fmt: skip
+HOLDING_KINDS = ("buy", "sell", "reinvest", "return-of-capital", "transfer-in", "transfer-out",
+                 "split", "foreign-tax", "reward")  # fmt: skip
+
+
+def test_every_kind_in_an_account_of_every_group_is_taken_or_refused_by_its_rule(server):
+    """S2.1, S2.4, S3.2, S3.10: a kind that moves a holding, and a capital-gain distribution,
+    is an investing account's alone; an option trade, an option's end, a corporate action (a
+    split among them) and a contract's adjustment are made where they are made, never typed
+    here; a physical asset's account takes transfers only (S1.10); every other kind goes in
+    any account."""
+    from moolakata.ledger import types as atypes
+    from moolakata.store.tables.accounts import TXN_KINDS
+    from moolakata.ui import transactions as tx
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    accts = {t: new_account(c, type=t, name=t)["id"] for t in GRID_TYPES}
+    for kind in TXN_KINDS:
+        for type_, aid in accts.items():
+            f = {"accountId": aid, "date": "2026-09-01", "amount": "-10.00", "kind": kind,
+                 "memo": "why"}  # fmt: skip
+            if kind in HOLDING_KINDS or kind in ("dividend", "capital-gain"):
+                f |= {"symbol": "VTI", "quantity": "1", "price": "10"}
+            if kind == "split":
+                f |= {"splitRatio": "2", "amount": "0.00"}
+            if kind in ("buy-to-open", "sell-to-open", "buy-to-close", "sell-to-close"):
+                want = "right-invalid"  # read as an option trade, which names its contract
+            elif kind in tx.CORPORATE_KINDS:
+                want = "corporate-kind"
+            elif kind in tx.OPTION_KINDS:
+                want = "option-kind"
+            elif (kind in (*HOLDING_KINDS, "capital-gain") and not atypes.investing(type_)) or (
+                kind != "transfer" and atypes.GROUPS[type_] == "physical-assets"
+            ):
+                want = "kind-not-for-account"
+            else:
+                want = None
+            r = make(c, "Txn", **f)
+            e = None if r.status_code == 200 else r.json()["errors"][0]
+            assert (e and e["code"]) == want, (kind, type_, r.text)
+            if want == "kind-not-for-account":
+                # In the words of the rule that refused it, at the kind.
+                if not atypes.investing(type_) and kind in HOLDING_KINDS:
+                    words = "Trades belong in an investing account."
+                elif not atypes.investing(type_) and kind == "capital-gain":
+                    words = "A capital-gain distribution belongs in an investing account."
+                else:
+                    words = "Record a purchase, improvement or sale on the item."
+                assert (e["field"], e["message"]) == ("kind", words), (kind, type_)
+
+
+def test_an_account_is_made_with_what_its_dialog_sent(server):
+    """S1.2: a new account keeps its notes, its opening balance's date, whether it counts in
+    net worth as sent, and no institution when none was given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(
+        c,
+        institution=None,
+        notes="Bills come out of this one.",
+        openingBalance="10.00",
+        openingDate="2026-08-31",
+        countInNetWorth=False,
+    )
+    got = c.get(f"/ui/api/accounts/{a['id']}").json()
+    assert {k: got[k] for k in ("institution", "notes", "openingDate", "countInNetWorth")} == {
+        "institution": None,
+        "notes": "Bills come out of this one.",
+        "openingDate": "2026-08-31",
+        "countInNetWorth": False,
+    }
+
+
+def test_an_account_is_deleted_by_its_owner_logged_and_never_by_one_who_reads_it(server):
+    """S10.3: one who only reads an account is refused its deletion in the words of a read
+    share; its owner deletes it, marked as theirs and logged for them."""
+    from edits import share
+
+    from moolakata.store.entities.accounts import Account
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    a = c.get(f"/ui/api/accounts/{a['id']}").json()
+    r = remove(sign_in(server, "john"), "Acct", a)
+    read_only = [(None, "share-read-only", "You can read this account but not change it.")]
+    assert (r.status_code, refusals(r)) == (403, read_only), r.text
+    assert remove(c, "Acct", a).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Account, a["id"]).deletedById == jane
+    assert logged(server, a["id"]) == [("account.deleted", jane, "account", jane, {})]
+
+
+def test_a_trade_names_its_holding_and_shares_each_missing_refused_on_its_own_field(server):
+    """S2.1, R3.11: every kind that moves a holding names it and how much: a holding missing
+    is refused on the symbol, shares missing on the quantity."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    words = "A trade needs its instrument and quantity."
+    for kind in ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward"):
+        trade = {"accountId": a, "date": "2026-09-01", "amount": "-10.00", "kind": kind,
+                 "price": "10"}  # fmt: skip
+        for sent, field in (({"quantity": "1"}, "symbol"), ({"symbol": "VTI"}, "quantity"),
+                            ({}, "symbol")):  # fmt: skip
+            r = make(c, "Txn", **trade, **sent)
+            assert (r.status_code, refusals(r)) == (422, [(field, "trade-incomplete", words)]), (
+                kind,
+                sent,
+            )
+
+
+def test_a_transaction_is_made_with_what_its_dialog_sent_and_by_whom(server):
+    """S2.6: a new transaction keeps its memo and its tick, its payee trimmed as the
+    institution's words too, and no payee or debtor when none was sent; it is the maker's."""
+    from moolakata.store.entities.accounts import Transaction
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    a = new_account(c)["id"]
+    sent = add(c, a, "-20.00", payee="  Acme  ", memo="rent", cleared=True,
+               reimbursable="5.00", owedBy=" Bob ")  # fmt: skip
+    bare = add(c, a, "-30.00")
+    keys = ("payee", "payeeRaw", "memo", "cleared", "owedBy")
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json() for t in (sent, bare)]
+    assert [{k: t[k] for k in keys} for t in got] == [
+        {"payee": "Acme", "payeeRaw": "Acme", "memo": "rent", "cleared": True, "owedBy": "Bob"},
+        {"payee": None, "payeeRaw": None, "memo": None, "cleared": False, "owedBy": None},
+    ]
+    with server.db.read(unscoped="test") as s:
+        assert [s.get(Transaction, t["id"]).createdById for t in (sent, bare)] == [jane, jane]
+
+
+def test_a_retirement_deposit_counts_for_the_year_typed_else_its_days(server):
+    """S1.4: a contribution to a retirement account is for the year typed with it, else the
+    year of its day; nothing else carries a year it wasn't given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ira = new_account(c, name="IRA", type="ira")["id"]
+    chk = new_account(c, name="Bank", mask="2222")["id"]
+    made = [
+        add(c, ira, "100.00", "2026-03-01", kind="deposit", contributionYear=2025),
+        add(c, ira, "100.00", "2026-03-01", kind="deposit"),
+        add(c, ira, "-100.00", "2026-03-01", kind="withdrawal"),
+        add(c, chk, "100.00", "2026-03-01", kind="deposit"),
+    ]
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json()["contributionYear"] for t in made]
+    assert got == [2025, 2026, None, None]
+
+
+def test_shares_moved_in_read_with_the_basis_typed_and_other_trades_with_none(server):
+    """S2.2, S2.6: a transfer-in is read with the basis typed with it; a buy's basis is its
+    lot's, never read as the transaction's."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    moved = add(c, a, "0.00", "2026-09-10", kind="transfer-in", symbol="KO", quantity="10",
+                costBasis="400.00")  # fmt: skip
+    bought = add(c, a, "-100.00", "2026-09-10", kind="buy", symbol="KO", quantity="1",
+                 price="100")  # fmt: skip
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json()["costBasis"] for t in (moved, bought)]
+    assert got == ["400.00", None]
+
+
+def test_a_reinvested_dividend_opens_a_lot_of_the_shares_it_bought(server):
+    """S2.5: a reinvestment is a buy: its shares are a lot bought that day at its amount."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, name="Brokerage", type="brokerage")["id"]
+    t = add(c, a, "-50.00", "2026-09-04", kind="reinvest", symbol="VXUS", quantity="1",
+            price="50")  # fmt: skip
+    assert _lots_made(server, t["id"]) == [("2026-09-04", Decimal(1), Decimal(50), False, False)]
+
+
+# ---------- an account made and read ----------
+
+
+def test_a_new_accounts_fields_are_each_refused_on_their_own_in_their_words(server):
+    """S1.2, R3.11: a new account's every field is checked, each refusal on its own field in
+    its words; a name of 80 characters is taken and one of 81 refused."""
+    import datetime as dt
+
+    from moolakata import clock
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    r = make(
+        c,
+        "Acct",
+        name="x" * 81,
+        type="yacht",
+        mask="12",
+        lotMethod="random",
+        keptBy=["fax"],
+        closedOn=(clock.today() + dt.timedelta(days=1)).isoformat(),
+        statementInterval="weekly",
+        notes="x" * 20001,
+        openingBalance="10.00",
+    )
+    assert r.status_code == 422, r.text
+    # A new account's type is chosen from the list, not kept.
+    new = {"type": "Choose an account type.", "mask": "The last four digits, such as 4821."}
+    words = REFUSED_WORDS | new
+    codes = {
+        "name": "name-invalid",
+        "type": "type-invalid",
+        "mask": "mask-invalid",
+        "lotMethod": "lot-method-invalid",
+        "keptBy": "kept-by-invalid",
+        "closedOn": "closed-in-future",
+        "statementInterval": INTERVAL,
+        "notes": "notes-too-long",
+        "openingDate": "opening-incomplete",
+    }
+    assert refusals(r) == [(f, code, words[f]) for f, code in codes.items()]
+    assert new_account(c, name="x" * 80)["name"] == "x" * 80
+
+
+def test_an_account_made_closed_with_its_interval_and_limit_keeps_them_logged_as_closed(server):
+    """S1.2, S1.11.7: an account made with the day it closed, its statements' interval and its
+    withdrawals' limit keeps them, its making logged for its owner as theirs and its closing
+    with the fields it set."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.store.entities.core import Activity
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    closed = (clock.today() - dt.timedelta(days=1)).isoformat()
+    sent = {"closedOn": closed, "statementInterval": "quarterly", "withdrawalsAMonth": 6}
+    a = new_account(c, type="savings", name="Savings", **sent)
+    got = c.get(f"/ui/api/accounts/{a['id']}").json()
+    assert {k: got[k] for k in sent} == sent
+    fields = ["closedOn", "withdrawalsAMonth", "statementInterval"]
+    assert logged(server, a["id"]) == [
+        ("account.closed", jane, "account", jane, {"fields": fields})
+    ]
+    with server.db.read(unscoped="test") as s:
+        made = s.query(Activity).filter(
+            Activity.subjectId == a["id"], Activity.kind == "account.created"
+        )
+        assert [(x.actorId, x.ownerId) for x in made] == [(jane, jane)]
+
+
+def test_an_accounts_row_reads_its_institution_owner_balance_and_change_over_30_days(server):
+    """S12.2.2: each account's row reads its institution, its owner's name and picture, its
+    balance and its change since the day 30 days ago, that day's own transactions counted
+    then; an investing account's holdings at their price count in both."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.store.entities.users import User
+
+    jane = make_user(server, "jane").id
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, jane).avatar = "avatar-jane.png"
+    c = sign_in(server, "jane")
+    today = clock.today()
+
+    def ago(days: int) -> str:
+        return (today - dt.timedelta(days=days)).isoformat()
+
+    opening = {"openingBalance": "1000.00", "openingDate": ago(100)}
+    bank = new_account(c, **opening)["id"]
+    for amount, days in (("-10.00", 31), ("-20.00", 30), ("-40.00", 29), ("-80.00", 0)):
+        add(c, bank, amount, ago(days))
+    shares = new_account(c, name="Brokerage", type="brokerage", mask="9999", **opening)["id"]
+    add(c, shares, "-100.00", ago(60), kind="buy", symbol="VTI", quantity="10", price="10")
+    add(c, shares, "50.00", ago(5), kind="deposit")
+    rows = {x["id"]: x for x in c.get("/ui/api/accounts").json()["items"]}
+    keys = ("institution", "ownerName", "ownerAvatar", "balance", "change")
+    got = {k: rows[bank][k] for k in keys}
+    assert got == {
+        "institution": "First Example Bank",
+        "ownerName": "Jane",
+        "ownerAvatar": "avatar-jane.png",
+        "balance": "850.00",
+        "change": "-120.00",
+    }
+    assert (rows[shares]["balance"], rows[shares]["change"]) == ("1050.00", "50.00")
+
+
+def test_an_accounts_detail_reads_its_tax_dismissed_interval_and_no_options_risk(server):
+    """S1.2, S1.11.7, S3.5.6: an account's detail reads its type's tax treatment and the
+    interval proposal set aside; an account that doesn't invest has no options at risk."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c, type="ira", name="IRA")
+    path = f"/ui/api/accounts/{a['id']}"
+    saved(edit(c, "Acct", path, statementIntervalDismissed="quarterly"))
+    got = c.get(path).json()
+    assert (got["tax"], got["statementIntervalDismissed"]) == ("deferred", "quarterly")
+    # Set aside, a proposal is no change worth showing in Activity (S10.8); the interval
+    # itself, set, is.
+    assert logged(server, a["id"]) == []
+    saved(edit(c, "Acct", path, statementInterval="quarterly"))
+    assert [x[4] for x in logged(server, a["id"])] == [{"fields": ["statementInterval"]}]
+    bank = c.get(f"/ui/api/accounts/{new_account(c)['id']}").json()
+    risk = ("optionsValue", "capitalAtRisk", "capitalAtRiskUnlimited")
+    assert [bank[k] for k in risk] == [None, None, False]
+
+
+def test_an_open_account_whose_statement_is_overdue_needs_one_and_a_closed_one_never(server):
+    """S1.11.7.3, S1.2: an account whose next statement is overdue asks for one, unless it is
+    closed."""
+    import datetime as dt
+
+    from moolakata import clock, ids
+    from moolakata.store.entities.accounts import Import
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    open_ = new_account(c, keptBy=["file"])["id"]
+    closed = new_account(c, keptBy=["file"], name="Old", mask="1111",
+                         closedOn=clock.today().isoformat())["id"]  # fmt: skip
+    end = clock.today() - dt.timedelta(days=200)
+    with server.db.tx(unscoped="test") as s:
+        for a in (open_, closed):
+            s.add(Import(id=ids.new_id("Imprt"), accountId=a, userId=jane, format="statement",
+                         fileName="old.pdf", fileHash=a, coveredFrom=end.replace(day=1),
+                         coveredTo=end))  # fmt: skip
+    rows = {x["id"]: x["needsAnchor"] for x in c.get("/ui/api/accounts").json()["items"]}
+    assert rows == {open_: True, closed: False}
+
+
+def test_a_receiver_reads_their_count_in_my_totals_and_a_save_answers_as_a_read(server):
+    """S10.7, S12.15: one an account is shared with reads their Count in my totals on it, its
+    record their own, and with nothing shared in it; a save of it answers with the account as
+    they read it, its last update among it."""
+    from edits import share
+
+    make_user(server, "jane")
+    john = make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    a = new_account(c)
+    add(c, a["id"], "-5.00")
+    saved(share(c, "account", a["id"], users={john: "write"}))
+    counted = saved(create(j, "CntAc", accountId=a["id"], counted=True))
+    path = f"/ui/api/accounts/{a['id']}"
+    read = j.get(path).json()
+    keys = ("counted", "countedId", "countedVersion", "sharedWith")
+    assert [read[k] for k in keys] == [True, counted["id"], counted["version"], 0]
+    assert counted["version"] > 0
+    assert read["lastUpdated"] is not None
+    out = saved(edit(j, "Acct", path, notes="John's too."))
+    assert out == j.get(path).json()
+    assert c.get(path).json()["countedId"] is None
+
+
+def test_an_account_of_an_owner_made_inactive_is_still_named_as_theirs(server, admin_client):
+    """S10.1.7, S12.2.2: what an owner made inactive shared stays shared, and theirs: one it
+    is shared with still reads it, with its owner's name and picture, marked inactive, though
+    the household no longer reads them."""
+    from edits import share
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    saved(share(c, "account", a["id"], users={john: "read"}))
+    users = admin_client.get("/ui/api/users").json()["items"]
+    saved(change(admin_client, "User", next(u for u in users if u["id"] == jane), active=False))
+    j = sign_in(server, "john")
+    rows = j.get("/ui/api/accounts").json()["items"]
+    assert [(x["id"], x["ownerName"], x["ownerActive"]) for x in rows] == [(a["id"], "Jane", False)]
+    assert j.get(f"/ui/api/accounts/{a['id']}").json()["ownerActive"] is False
+
+
+def test_an_owners_rows_read_their_mask_and_count_in_net_worth_and_detail_its_opening(server):
+    """S1.1, S1.2: the owner's row of each account reads its last four digits and whether it
+    counts in net worth as set on it; its detail reads the opening balance typed."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    counted = new_account(c, openingBalance="250.00", openingDate="2026-08-31")["id"]
+    left = new_account(c, name="Old", mask="1111", countInNetWorth=False)["id"]
+    rows = {x["id"]: (x["mask"], x["counted"]) for x in c.get("/ui/api/accounts").json()["items"]}
+    assert rows == {counted: ("4821", True), left: ("1111", False)}
+    got = c.get(f"/ui/api/accounts/{counted}").json()
+    assert (got["mask"], got["openingBalance"], got["openingDate"]) == (
+        "4821",
+        "250.00",
+        "2026-08-31",
+    )
+
+
+def test_an_accounts_interval_proposal_is_learned_from_its_own_statements_alone(server):
+    """S1.11.7: the interval proposed for an account is learned from its own statements, never
+    from another account's."""
+    import datetime as dt
+
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Import
+
+    jane = make_user(server, "jane").id
+    c = sign_in(server, "jane")
+    quarterly = new_account(c, keptBy=["file"])["id"]
+    other = new_account(c, keptBy=["file"], name="Other", mask="1111")["id"]
+    with server.db.tx(unscoped="test") as s:
+        for end in (dt.date(2026, 3, 31), dt.date(2026, 6, 30), dt.date(2026, 9, 30)):
+            s.add(Import(id=ids.new_id("Imprt"), accountId=quarterly, userId=jane,
+                         format="statement", fileName=f"{end}.pdf", fileHash=str(end),
+                         coveredFrom=end.replace(day=1), coveredTo=end))  # fmt: skip
+    got = [c.get(f"/ui/api/accounts/{a}").json()["statementIntervalProposal"]
+           for a in (quarterly, other)]  # fmt: skip
+    assert got == ["quarterly", None]
+
+
+def test_a_transaction_reads_whether_it_came_from_a_file(server):
+    """S1.3: each transaction a file brought in reads as imported; one typed, not."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    a = new_account(c)
+    assert upload(c, a["id"], "statement.qfx", (FIX / "bank.ofx").read_bytes())["state"] == "done"
+    typed = add(c, a["id"], "-1.00", "2026-09-30")
+    rows = c.get("/ui/api/transactions", params={"account": a["id"]}).json()["items"]
+    got = sorted((x["id"] == typed["id"], x["imported"]) for x in rows)
+    assert got == [(False, True)] * 5 + [(True, False)]
+
+
+def test_a_retirement_deposit_reads_where_it_came_from_and_a_dividend_its_kind(server):
+    """S8.6, S2.5: a contribution reads the source typed with it, a dividend whether it is
+    qualified or ordinary; neither reads one it wasn't given."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ira = new_account(c, name="IRA", type="ira")["id"]
+    made = [
+        add(c, ira, "100.00", "2026-03-01", kind="deposit", contributionSource="employer"),
+        add(c, ira, "100.00", "2026-03-01", kind="deposit"),
+        add(c, ira, "5.00", "2026-03-02", kind="dividend", symbol="VTI", dividendType="qualified"),
+        add(c, ira, "5.00", "2026-03-02", kind="dividend", symbol="VTI"),
+    ]
+    got = [c.get(f"/ui/api/transactions/{t['id']}").json() for t in made]
+    assert [(t["contributionSource"], t["dividendType"]) for t in got] == [
+        ("employer", None),
+        (None, None),
+        (None, "qualified"),
+        (None, None),
+    ]
+
+
+# Each field of a new account's record: the type it is valid on, a value it keeps, one it
+# refuses (None: nothing to refuse beyond the model's own type).
+MADE_WITH = {
+    "institution": ("checking", "Example Bank", None),
+    "mask": ("checking", "1234", "12"),
+    "notes": ("checking", "Joint, from 2019.", None),
+    "keptBy": ("checking", ["file"], ["yacht"]),
+    "lotMethod": ("brokerage", "lifo", "newest"),
+    "countInNetWorth": ("checking", False, None),
+    "closedOn": ("checking", "2026-01-02", "2999-01-01"),
+    "statementInterval": ("checking", "quarterly", "sometimes"),
+    "statementIntervalDismissed": ("checking", "quarterly", "sometimes"),
+    "withdrawalsAMonth": ("savings", 6, 100),
+    "hsaCoverage": ("hsa", "family", "both"),
+}
+# Fields with tests of their own: a pair, the account's name and type, a connection's
+# (test_connections), a wallet's (test_wallets).
+MADE_ELSEWHERE = {"name", "type", "openingBalance", "openingDate", "connectionId",
+                  "syncAccount", "walletKeys", "gapLimit"}  # fmt: skip
+
+
+def test_an_account_is_made_with_every_field_sent_each_kept_or_refused(server):
+    """R3.11, S1.2, S8.6, S1.11.7: a new account keeps every field its record sends, or
+    refuses it on its own field, as a change does: none is dropped unsaid."""
+    from moolakata.ui.accounts import AccountRecord
+
+    assert set(MADE_WITH) | MADE_ELSEWHERE == set(AccountRecord.model_fields)
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    for field, (type_, good, bad) in MADE_WITH.items():
+        a = new_account(c, type=type_, name=field, **{field: good})
+        assert c.get(f"/ui/api/accounts/{a['id']}").json()[field] == good, field
+        if bad is not None:
+            r = make(c, "Acct", type=type_, name=field, **{field: bad})
+            assert r.status_code == 422, (field, r.text)
+            assert [e["field"] for e in r.json()["errors"]] == [field], field
+    # An HSA's coverage on another type is refused, never kept on the wrong account.
+    r = make(c, "Acct", type="checking", name="x", hsaCoverage="family")
+    assert [e["code"] for e in r.json()["errors"]] == ["coverage-invalid"]

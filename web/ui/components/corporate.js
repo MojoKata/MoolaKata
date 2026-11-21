@@ -11,6 +11,7 @@ import { useDialogGuide } from './help.js';
 import { Field, Select } from '../kit/fields.js';
 import { money } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
+import { holdings } from '../app/holdings.js';
 
 const KINDS = [
   ['split', 'Split or reverse split'],
@@ -57,19 +58,11 @@ export function CorporateAction({ close, accountId }) {
   const fmt = useFormats();
   useDialogGuide('dialog-corporate-action');
   const pos = useApi('/positions');
-  const held = (/** @type {any[]} */ ((/** @type {any} */ (pos.data))?.open) || []).filter((
-    p,
-  ) =>
-    p.instrumentClass !== 'option' && p.side === 'long' && (!accountId || p.accountId === accountId)
-  );
   const key = (/** @type {any} */ p) => p.accountId + p.instrumentId;
   // The first holding the list offers, until another is chosen.
   const f = useDraft(async (draft) => {
     const open = /** @type {any[]} */ ((await api.get('/positions')).open);
-    const first = open.find((p) =>
-      p.instrumentClass !== 'option' && p.side === 'long' &&
-      (!accountId || p.accountId === accountId)
-    );
+    const first = holdings(open, accountId, 'split')[0];
     draft.add(ActionRec, {
       date: fmt.today(),
       accountId: first?.accountId ?? null,
@@ -77,6 +70,11 @@ export function CorporateAction({ close, accountId }) {
     });
   }, [accountId]);
   const rec = /** @type {ActionRec | undefined} */ (f.draft?.records[0]);
+  const held = holdings(
+    /** @type {any[]} */ ((/** @type {any} */ (pos.data))?.open) || [],
+    accountId,
+    rec?.get('kind') || 'split',
+  );
   const choose = (/** @type {any} */ p) => {
     rec?.set('accountId', p.accountId);
     rec?.set('instrumentId', p.instrumentId);
@@ -94,7 +92,14 @@ export function CorporateAction({ close, accountId }) {
             <${Select} value=${chosen ? key(chosen) : ''} onChange=${(/** @type {string} */ v) => {
               const p = held.find((x) => key(x) === v);
               if (p) choose(p);
-            }} options=${held.map((p) => [key(p), `${p.symbol} in ${p.accountName}`])} />
+            }} options=${held.map((
+              p,
+            ) => [
+              key(p),
+              `${p.symbol} in ${p.accountName}${
+                p.optionsOnly ? ' (its options)' : p.side === 'short' ? ' (short)' : ''
+              }`,
+            ])} />
             </${Field}>
             <div class="row">
               <${RecField} rec=${rec} name="kind" label="Action" options=${KINDS} />

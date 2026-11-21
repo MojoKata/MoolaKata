@@ -303,6 +303,27 @@ class Made:
         return self._read(record) if self._read else record
 
 
+def split(c, account_id: str, date: str, ratio: str, symbol: str = "MSFT") -> Made:
+    """A split recorded as Positions records it, a corporate action (S2.4.1), read as its
+    transaction (to delete it, its action goes with it), or as the refusal."""
+    found = c.get("/ui/api/instruments", params={"q": symbol}).json()["items"]
+    inst = next(i for i in found if i["symbol"] == symbol)
+    record_id = new_id("CorpA")
+    op = _op(
+        "CorpA",
+        {
+            "accountId": account_id,
+            "instrumentId": inst["id"],
+            "kind": "split",
+            "date": date,
+            "ratio": ratio,
+        },
+        record_id,
+    )
+    r = c.post("/ui/api/save", json={"ops": [op]})
+    return Made(r, record_id, read=lambda action: action["transactions"][0])
+
+
 def _op(entity: str, fields: dict, record_id: str | None = None) -> dict:
     return {"op": "create", "entity": entity, "id": record_id or new_id(entity), "fields": fields}
 

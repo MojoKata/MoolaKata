@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, make, option_trade, remove, saved
+from edits import create, edit, option_trade, remove, saved, split
 from sqlalchemy import false, select
 from test_accounts import new_account
 from test_options import opt
@@ -42,29 +42,39 @@ def held(c):
     }
 
 
-def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(jane):
+def test_an_action_needs_its_stock_held_but_a_split_reaches_its_options_alone(server, jane):
+    """S2.4.1: nothing of MSFT held, no action is recorded on it; held only through a put, a
+    split is (it adjusts the put, S3.10.1) and a symbol change isn't."""
+    a = new_account(jane, type="brokerage")["id"]
+    empty = new_account(jane, type="brokerage", name="Empty")["id"]
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "6.40", fees="0"))
+    r = split(jane, empty, "2026-10-01", "2")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-held"
+    found = jane.get("/ui/api/instruments", params={"q": "MSFT"}).json()["items"]
+    msft = next(i for i in found if i["symbol"] == "MSFT")["id"]
+    fields = {"accountId": a, "instrumentId": msft, "kind": "symbol-change",
+              "date": "2026-10-01", "newSymbol": "MSFX"}  # fmt: skip
+    r = create(jane, "CorpA", **fields)
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-held"
+    assert split(jane, a, "2026-10-01", "2").status_code == 200
+
+
+def test_a_whole_split_takes_the_open_options_with_it_and_undoes_with_it(server, jane):
     a = new_account(jane, type="brokerage")["id"]
     assert (
         opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    r = make(
-        jane,
-        "Txn",
-        accountId=a,
-        date="2026-10-01",
-        kind="split",
-        symbol="MSFT",
-        amount="0",
-        splitRatio="2",
-    )
+    r = split(jane, a, "2026-10-01", "2")
     assert r.status_code == 200, r.text
     after = held(jane)
     assert after == {"MSFT 20NOV26 240 P": (-4, -1280, "2026-09-01")}, "basis and days carry"
     gains = jane.get("/ui/api/positions").json()["closed"]
     assert gains == [], "nothing was sold"
-    split = r.json()
-    saved(remove(jane, "Txn", split))
+    with server.db.read(unscoped="test") as s:
+        made_by = {t.createdById for pair in _pairs(s, a) for t in pair}
+    assert made_by == {_uid(server)}, "the adjustment is the one who recorded the split's"
+    saved(remove(jane, "Txn", r.json()))
     assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
 
@@ -172,8 +182,7 @@ def test_a_strategys_leg_follows_its_contract_when_adjusted(jane):
 
     # At open, the leg is the contract it opened as.
     assert legs() == ("Short put", [("MSFT 20NOV26 480 P", -2)], "94720.00", "94720.00")
-    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
-             amount="0", splitRatio="2")  # fmt: skip
+    r = split(jane, a, "2026-10-01", "2")
     assert r.status_code == 200, r.text
     assert legs() == ("Short put", [("MSFT 20NOV26 240 P", -4)], "94720.00", "94720.00")
     saved(remove(jane, "Txn", r.json()))
@@ -214,6 +223,20 @@ def test_a_deliverables_cash_comes_with_an_assignment(server, jane):
         cash = [(t.kind, t.amount, t.payee) for t in s.query(Transaction).filter_by(
             accountId=a, kind="deposit", deleted=False)]  # fmt: skip
     assert cash == [("deposit", D("100.00"), "Deliverable cash (assigned MSFT1 20NOV26 480 P)")]
+    assert held(jane) == {"MSFT": (200, 95300, "2026-11-20")}
+
+
+def test_an_assigned_shares_trade_changed_keeps_the_deliverables_cash_off_their_basis(server, jane):
+    """S3.10.4: the shares an assignment buys are based at the strike less the deliverable's
+    cash; a change that leaves their shares, cost and day (its memo) leaves that basis."""
+    from moolakata.store.entities.accounts import Transaction
+
+    a, r = _adjusted_put(jane, cash="50")
+    assert r.status_code == 200, r.text
+    assert _settle(jane, a, "assign", "2").status_code in (200, 201)
+    with server.db.read(unscoped="test") as s:
+        buy = s.query(Transaction).filter_by(accountId=a, kind="buy", deleted=False).one().id
+    assert saved(edit(jane, "Txn", f"/ui/api/transactions/{buy}", memo="assigned at expiry"))
     assert held(jane) == {"MSFT": (200, 95300, "2026-11-20")}
 
 
@@ -258,6 +281,7 @@ def test_deleting_either_half_of_an_adjustment_undoes_it(server, jane):
 
     from moolakata.store.entities.accounts import Transaction
 
+    me = jane.get("/ui/api/session").json()["user"]["id"]
     for half in ("out", "into"):
         a, r = _adjusted_put(jane)
         assert r.status_code == 200, r.text
@@ -268,10 +292,27 @@ def test_deleting_either_half_of_an_adjustment_undoes_it(server, jane):
         with server.db.read(unscoped="test") as s:
             left = s.query(Transaction).filter_by(accountId=a, kind="option-adjust",
                                                   deleted=False).count()  # fmt: skip
+            by = {s.get(Transaction, x).deletedById for x in rows.values()}
         assert left == 0, half
+        assert by == {me}, "each half marked by who deleted the pair"
         mine = [r for r in jane.get("/ui/api/positions").json()["open"]
                 if r["accountId"] == a]  # fmt: skip
         assert [(r["symbol"], r["quantity"]) for r in mine] == [("MSFT 20NOV26 480 P", -2)]
+
+
+def test_an_assignment_deleted_frees_the_other_half_of_its_cash_paired_as_a_transfer(server, jane):
+    """S3.4, S1.7: the deliverable's cash goes with the assignment; a transfer it was paired
+    with stays, its other half free again."""
+    a, r = _adjusted_put(jane, cash="50")
+    assert r.status_code == 200, r.text
+    end, _, cash = _settle(jane, a, "assign", "2").json()
+    chk = new_account(jane, name="Checking", mask="1234")["id"]
+    out = saved(create(jane, "Txn", accountId=chk, date="2026-11-20", amount="-100.00",
+                       kind="transfer", payee="Brokerage", transferWithId=cash["id"]))  # fmt: skip
+    assert out["transferId"] == cash["id"]
+    saved(remove(jane, "Txn", end))
+    assert jane.get(f"/ui/api/transactions/{out['id']}").json()["transferId"] is None
+    assert jane.get(f"/ui/api/transactions/{cash['id']}").status_code == 404
 
 
 def test_a_split_not_a_whole_number_waits_for_the_memo(jane):
@@ -281,8 +322,7 @@ def test_a_split_not_a_whole_number_waits_for_the_memo(jane):
         opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0").status_code
         == 200
     )
-    r = make(jane, "Txn", accountId=a, date="2026-10-01", kind="split", symbol="MSFT",
-             amount="0", splitRatio="1.5")  # fmt: skip
+    r = split(jane, a, "2026-10-01", "1.5")
     assert r.status_code == 200, r.text
     assert held(jane) == {"MSFT 20NOV26 480 P": (-2, -1280, "2026-09-01")}
 
@@ -425,8 +465,7 @@ def test_a_whole_split_adjusts_an_adjusted_contract_only_when_it_delivers_just_t
     a, r = _adjusted_put(jane, deliverable=deliverable, cash=cash)
     assert r.status_code == 200, r.text
     saved(opt(jane, a, "sell-to-open", "2026-10-06", "1.00", strike="500", fees="0"))
-    r = make(jane, "Txn", accountId=a, date="2026-10-07", kind="split", symbol="MSFT",
-             amount="0", splitRatio="2")  # fmt: skip
+    r = split(jane, a, "2026-10-07", "2")
     assert r.status_code == 200, r.text
     sym = after[0]
     assert held(jane) == {
@@ -548,8 +587,7 @@ def test_deleting_one_half_of_a_pair_deletes_the_other_once(server, jane):
 
 
 def _split_msft(c, a, day="2026-10-01"):
-    r = make(c, "Txn", accountId=a, date=day, kind="split", symbol="MSFT", amount="0",
-             splitRatio="2")  # fmt: skip
+    r = split(c, a, day, "2")
     assert r.status_code == 200, r.text
 
 
