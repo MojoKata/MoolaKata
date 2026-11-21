@@ -26,7 +26,6 @@ from ..store.entities.accounts import (
     Transaction,
 )
 from ..store.entities.assets import Item
-from ..store.entities.education import Person
 from ..store.entities.receipts import ReceiptLink
 from ..store.entities.taxes import EstimatedPayment, TaxBook
 from ..store.entities.users import User
@@ -1121,7 +1120,7 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
 
 @dataclass
 class LivedIn:
-    name: str  # the person's, or "Someone" for one the reader doesn't see
+    name: str  # the person's, shared with the reader or not (R3.14)
     years: float  # within the five years before the sale (S8.13)
 
 
@@ -1156,11 +1155,11 @@ def residences(s: Session, book: TaxBook) -> list[Residence]:
                 by_person.setdefault(p.personId, []).append(p)
             if not by_person:
                 continue
-            lived = []
-            for person_id, periods in by_person.items():
-                who = s.get(Person, person_id)
-                name = who.name if who is not None else "Someone"
-                lived.append(LivedIn(name, assets.years_lived_in(it, it.soldOn, periods)))
+            names = people.names(s, list(by_person))
+            lived = [
+                LivedIn(names[person_id], assets.years_lived_in(it, it.soldOn, periods))
+                for person_id, periods in by_person.items()
+            ]
             g = assets.gain(it, assets.details(s, [it])[it.id]) or ZERO
             out.append(
                 Residence(

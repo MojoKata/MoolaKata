@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, drop, make, option_trade, saved, sell
+from edits import create, drop, make, option_trade, saved, sell, share
 from test_accounts import add, new_account
 from test_assets import item
 from test_taxpanels import book, trade
@@ -378,6 +378,26 @@ def test_an_inherited_item_is_long_term_and_a_gift_counts_the_givers_holding(ser
     csv = jane.get(f"/ui/api/tax-books/{b}/exports/8949.csv").text
     assert "F,long,Inherited,INHERITED,2026-09-01," in csv
     assert "F,long,Given,2019-06-01,2026-09-01," in csv
+
+
+def test_a_sold_homes_line_names_a_person_its_reader_cant_see(server, jane):
+    """R3.14: the residence line names each person who lived there, a private one its reader
+    isn't shared included: a record seen names whoever it names, and nothing else of them."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    pat = make(jane, "Persn", name="Pat Doe", sex="female", private=True)
+    assert pat.status_code == 200, pat.text
+    elm = thing(jane, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000")
+    r = make(jane, "RsPrd", itemId=elm["id"], personId=pat.json()["id"], fromDate="2025-01-01")
+    assert r.status_code == 200, r.text
+    saved(sell(jane, elm["id"], "2026-01-01", "350000"))
+    b = book(jane)
+    make_user(server, "rita", born=1960)
+    rita = sign_in(server, "rita")
+    rita_id = rita.get("/ui/api/session").json()["user"]["id"]
+    assert share(jane, "tax-book", b, users={rita_id: "read"}).status_code == 200
+    assert "Pat Doe" not in {x["name"] for x in rita.get("/ui/api/persons").json()["items"]}
+    lines = read_panels(rita, b)["residences"]
+    assert [[(y["name"], y["years"]) for y in x["livedIn"]] for x in lines] == [[("Pat Doe", 1.0)]]
 
 
 def test_a_sold_home_lived_in_has_its_gain_years_owned_and_each_persons_years(jane):
