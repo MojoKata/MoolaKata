@@ -3037,6 +3037,7 @@
  * @typedef {Object} PeriodOut
  * @property {string} id
  * @property {string} personId
+ * @property {string} personName
  * @property {string} fromDate
  * @property {(string | null)} toDate
  * @property {number} version

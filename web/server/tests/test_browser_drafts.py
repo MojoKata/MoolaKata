@@ -879,6 +879,24 @@ def test_a_homes_residence_period_is_saved_with_it_for_each_person_chosen(browse
     assert sorted((p["personId"], p["fromDate"], p["toDate"]) for p in got) == sorted(
         [(me, home["acquiredOn"], None), (other["id"], home["acquiredOn"], None)]
     )
+    # The other moves out: the line opened, only they left chosen, an end given, one edit; the
+    # line splits in two, and mine is as it was.
+    page.click('tr:has-text("1428 Elm St") .row-tool')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.click(f'.dialog button[aria-label^="Change You and {other["name"]}, "]')
+    page.click('.dialog .chips button:has-text("You")')
+    page.fill("#x-lived-until", "2025-06-30")
+    page.click('.dialog button:has-text("Change Period")')
+    wait(
+        page, f'.dialog .list-item:has-text("{other["name"]}, "):has-text("Jun 30, 2025")', problems
+    )
+    wait(page, '.dialog .list-item:has-text("You, "):has-text("to the sale")', problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    got = h.c.get(f"/ui/api/items/{home['id']}").json()["residencePeriods"]
+    assert sorted((p["personId"], p["toDate"]) for p in got) == sorted(
+        [(me, None), (other["id"], "2025-06-30")]
+    )
     assert problems == []
     page.close()
 

@@ -86,6 +86,7 @@ class ImprovementOut(Model):
 class PeriodOut(Model):
     id: str
     personId: str
+    personName: str  # shared with the reader or not (R3.14)
     fromDate: dt.date
     toDate: dt.date | None
     version: int
@@ -229,10 +230,20 @@ def _valuation_out(v: ItemValuation) -> ValuationOut:
     )
 
 
-def _period_out(p: ResidencePeriod) -> PeriodOut:
+def _period_out(p: ResidencePeriod, names: dict[str, str]) -> PeriodOut:
     return PeriodOut(
-        id=p.id, personId=p.personId, fromDate=p.fromDate, toDate=p.toDate, version=p.version
+        id=p.id,
+        personId=p.personId,
+        personName=names.get(p.personId, ""),
+        fromDate=p.fromDate,
+        toDate=p.toDate,
+        version=p.version,
     )
+
+
+def _period_read(s, record_id: str) -> PeriodOut:
+    p = s.get(ResidencePeriod, record_id)
+    return _period_out(p, people.names(s, [p.personId]))
 
 
 def _improvement_out(m: Improvement) -> ImprovementOut:
@@ -317,6 +328,8 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     sp = assets.spots(s, [it], today).get(it.metal)
     sec = _secured(s, [it.id], today)[it.id]
     base = _row(a, it, d, sp.price if sp else None, sec, today)
+    periods = assets.periods_of(s, it.id)
+    names = people.names(s, [p.personId for p in periods])
     return ItemDetail(
         **base.model_dump(),
         heldFrom=it.heldFrom,
@@ -340,7 +353,7 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
         spotAsOf=sp.asOf if sp else None,
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
         improvements=[_improvement_out(m) for m in reversed(d.improvements)],
-        residencePeriods=[_period_out(p) for p in assets.periods_of(s, it.id)],
+        residencePeriods=[_period_out(p, names) for p in periods],
         documents=[
             receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, it.id)
@@ -929,6 +942,6 @@ save.register(
         },
         update=_period_update,
         delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
-        read=lambda ctx, record_id: _period_out(ctx.s.get(ResidencePeriod, record_id)),
+        read=lambda ctx, record_id: _period_read(ctx.s, record_id),
     )
 )

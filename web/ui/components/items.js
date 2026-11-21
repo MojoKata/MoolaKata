@@ -556,7 +556,8 @@ const AND = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 /**
  * A home's residence periods (S1.10.4, S8.13): each one person's span of it as their main
  * home. The same span for several people is one line, removed whole; a span is added for the
- * people chosen, a period each, in the dialog's draft.
+ * people chosen, a period each, in the dialog's draft. A line opened is changed for the people
+ * left chosen, each their own period; one unticked keeps theirs, so one moving out is one edit.
  * @param {{ rec: ItemRec, draft: import('../app/draft.js').Draft, why: string | null }} p
  */
 function ResidencePeriods({ rec, draft, why }) {
@@ -564,15 +565,20 @@ function ResidencePeriods({ rec, draft, why }) {
   const list = /** @type {any[]} */ (people.data) || [];
   const me = list.find((p) => p.relation === 'you');
   const [f, setF] = useState({ from: '', to: '', who: /** @type {string[] | null} */ (null) });
+  // The line opened to change, or none: adding.
+  const [open, setOpen] = useState(/** @type {PeriodRec[] | null} */ (null));
   // Until someone is chosen, the one adding it.
   const who = f.who ?? (me ? [me.id] : []);
-  const named = (/** @type {string} */ id) => {
-    const p = list.find((x) => x.id === id);
-    return !p ? 'Someone' : p.relation === 'you' ? 'You' : p.name;
-  };
   const rows = /** @type {PeriodRec[]} */ (
     draft.records.filter((r) => r instanceof PeriodRec && !r.removed)
   );
+  // A person the reader isn't shared is named all the same, by the period's own name (R3.14).
+  const named = (/** @type {string} */ id) => {
+    const p = list.find((x) => x.id === id);
+    if (p) return p.relation === 'you' ? 'You' : p.name;
+    return rows.find((r) => r.get('personId') === id)?.get('personName') || '';
+  };
+  const chosen = [...list.map((p) => p.id), ...who.filter((id) => !list.some((p) => p.id === id))];
   /** @type {Map<string, PeriodRec[]>} */
   const spans = new Map();
   for (const p of rows) {
@@ -582,16 +588,34 @@ function ResidencePeriods({ rec, draft, why }) {
   const lines = [...spans.values()].sort((x, y) =>
     x[0].get('fromDate') < y[0].get('fromDate') ? -1 : 1
   );
+  const done = () => {
+    setF({ from: '', to: '', who: null });
+    setOpen(null);
+  };
   const add = () => {
     for (const id of who) {
-      draft.add(PeriodRec, {
-        itemId: rec.id,
-        personId: id,
-        fromDate: f.from,
-        toDate: f.to || null,
-      });
+      const was = open?.find((p) => p.get('personId') === id);
+      if (was) {
+        was.set('fromDate', f.from);
+        was.set('toDate', f.to || null);
+      } else {
+        draft.add(PeriodRec, {
+          itemId: rec.id,
+          personId: id,
+          fromDate: f.from,
+          toDate: f.to || null,
+        });
+      }
     }
-    setF({ from: '', to: '', who: null });
+    done();
+  };
+  const change = (/** @type {PeriodRec[]} */ ps) => {
+    setF({
+      from: ps[0].get('fromDate'),
+      to: ps[0].get('toDate') || '',
+      who: ps.map((p) => p.get('personId')),
+    });
+    setOpen(ps);
   };
   const pick = (/** @type {string} */ id) =>
     setF({ ...f, who: who.includes(id) ? who.filter((x) => x !== id) : [...who, id] });
@@ -610,22 +634,26 @@ function ResidencePeriods({ rec, draft, why }) {
           <div class="grow">${line}${errors.length
             ? html`<div class="err">${[...new Set(errors)].join(' ')}</div>`
             : null}</div>
-          <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + line}
-            onClick=${() => ps.forEach((p) => draft.remove(p))}>
-            <${Icon} name="x" />
+          <${Action} class="icon-btn" why=${why} aria-label=${'Change ' + line}
+            onClick=${() => change(ps)}>
+            <${Icon} name="pencil" />
             </${Action}>
-            </div>
+            <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + line}
+              onClick=${() => ps.forEach((p) => draft.remove(p))}>
+              <${Icon} name="x" />
+              </${Action}>
+              </div>
       `;
     })}
     ${why
       ? html`<${Action} class="btn sm" why=${why}><${Icon} name="plus" /> Add Period</${Action}>`
       : html`
         <${Field} label="Who" help="residence-periods">
-          <div class="chips" role="group" aria-label="Who">${list.map((p) =>
+          <div class="chips" role="group" aria-label="Who">${chosen.map((id) =>
             html`
-              <button type="button" class=${'chip' + (who.includes(p.id) ? ' on' : '')}
-                aria-pressed=${who.includes(p.id) ? 'true' : 'false'}
-                onClick=${() => pick(p.id)}>${named(p.id)}</button>
+              <button type="button" class=${'chip' + (who.includes(id) ? ' on' : '')}
+                aria-pressed=${who.includes(id) ? 'true' : 'false'}
+                onClick=${() => pick(id)}>${named(id)}</button>
             `
           )}</div>
           </${Field}>
@@ -639,8 +667,16 @@ function ResidencePeriods({ rec, draft, why }) {
                   onInput=${(/** @type {string} */ x) => setF({ ...f, to: x })} />
                 </${Field}>
                 </div>
-                <button type="button" class="btn sm" disabled=${!f.from || !who.length}
-                  onClick=${add}><${Icon} name="plus" /> Add Period</button>
+                ${open
+                  ? html`
+                    <button type="button" class="btn sm" disabled=${!f.from || !who.length}
+                      onClick=${add}>Change Period</button>
+                    <button type="button" class="btn sm" onClick=${done}>Cancel</button>
+                  `
+                  : html`
+                    <button type="button" class="btn sm" disabled=${!f.from || !who.length}
+                      onClick=${add}><${Icon} name="plus" /> Add Period</button>
+                  `}
       `}
   `;
 }

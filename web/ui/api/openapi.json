@@ -17491,6 +17491,10 @@
             "title": "Personid",
             "type": "string"
           },
+          "personName": {
+            "title": "Personname",
+            "type": "string"
+          },
           "toDate": {
             "anyOf": [
               {
@@ -17511,6 +17515,7 @@
         "required": [
           "id",
           "personId",
+          "personName",
           "fromDate",
           "toDate",
           "version"
