@@ -50,9 +50,9 @@ def test_an_item_bought_and_sold_on_a_months_first_day_has_that_day_in_its_histo
     coll = new_account(jane, name="Coll", type="collectables")
     coin = item(jane, coll["id"], name="Coin", acquiredOn="2026-10-01", costBasis="100",
                 soldOn="2026-10-01", proceeds="120", saleFees="0")  # fmt: skip
-    page = jane.get(f"/ui/api/items/{coin['id']}").json()
+    points = jane.get(f"/ui/api/items/{coin['id']}/history").json()["points"]
     # Sold that day, it is worth nothing in the account from it (S1.10.5).
-    assert [(day, str(v)) for day, v in page["history"]] == [("2026-10-01", "0.00")]
+    assert [(day, str(v)) for day, v in points] == [("2026-10-01", "0.00")]
 
 
 def test_an_item_sold_as_it_is_added_is_sold(jane):
@@ -137,8 +137,7 @@ def test_a_spot_price_on_a_months_last_day_values_that_month(server, jane):
         inst = assets.metal_instrument(s, "silver")
         for day, close in ((dt.date(2026, 8, 20), "20"), (dt.date(2026, 8, 31), "30")):
             s.add(TypedPrice(instrumentId=inst.id, userId=owner, date=day, close=D(close)))
-    page = jane.get(f"/ui/api/items/{bar['id']}").json()
-    (day, v), *_ = page["history"]
+    (day, v), *_ = jane.get(f"/ui/api/items/{bar['id']}/history").json()["points"]
     assert (day, str(v)) == ("2026-08-31", "2997.00")
 
 

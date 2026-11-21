@@ -221,6 +221,7 @@ def test_others_read_but_cannot_change_items(server, jane):
     make_user(server, "john")
     john = sign_in(server, "john")
     assert john.get(f"/ui/api/items/{watch['id']}").status_code == 404
+    assert john.get(f"/ui/api/items/{watch['id']}/history").status_code == 404
 
 
 # ---------- the rules, on plain values ----------
@@ -830,7 +831,7 @@ def test_an_items_history_is_its_value_at_each_months_end_and_today(jane):
     watch = item(jane, coll["id"], name="Watch", acquiredOn="2025-11-20")
     make(jane, "Valtn", itemId=watch["id"], date="2025-12-15", value="1100")
     make(jane, "Valtn", itemId=watch["id"], date="2026-02-01", value="1200")
-    got = jane.get(f"/ui/api/items/{watch['id']}").json()["history"]
+    got = jane.get(f"/ui/api/items/{watch['id']}/history").json()["points"]
     assert got == [
         ["2025-11-30", "1000.00"], ["2025-12-31", "1100.00"], ["2026-01-31", "1100.00"],
         ["2026-02-28", "1200.00"], ["2026-03-31", "1200.00"], ["2026-04-30", "1200.00"],
@@ -839,8 +840,20 @@ def test_an_items_history_is_its_value_at_each_months_end_and_today(jane):
     ]  # fmt: skip
     # Sold, it ends on the day of the sale, worth nothing from then.
     saved(sell(jane, watch["id"], "2026-02-10", "1300"))
-    got = jane.get(f"/ui/api/items/{watch['id']}").json()["history"]
+    got = jane.get(f"/ui/api/items/{watch['id']}/history").json()["points"]
     assert got[-2:] == [["2026-01-31", "1100.00"], ["2026-02-10", "0.00"]]
+
+
+def test_an_items_history_is_its_own_route_and_never_comes_with_the_item(jane):
+    """S1.10.6: the month-end series is asked when the Valuation tab opens; the item's own
+    answer, saved or opened, carries none. One never valued is worth its basis each month."""
+    coll = new_account(jane, name="Coll", type="collectables")
+    vase = item(jane, coll["id"], name="Vase", acquiredOn="2026-09-10", costBasis="500")
+    assert "history" not in vase
+    assert "history" not in jane.get(f"/ui/api/items/{vase['id']}").json()
+    got = jane.get(f"/ui/api/items/{vase['id']}/history").json()["points"]
+    assert got == [["2026-09-30", "500.00"], [TODAY, "500.00"]]
+    assert jane.get("/ui/api/items/Item_nothing/history").status_code == 404
 
 
 def test_an_items_history_at_spot_takes_each_months_last_price_of_its_owner(server, jane):
@@ -853,7 +866,7 @@ def test_an_items_history_at_spot_takes_each_months_last_price_of_its_owner(serv
                   (d(2026, 10, 1), 2300)]  # fmt: skip
         spot(s, owner, "gold", *points)
     got = jane.get(f"/ui/api/items/{bar['id']}").json()
-    assert got["history"] == [
+    assert jane.get(f"/ui/api/items/{bar['id']}/history").json()["points"] == [
         ["2026-07-31", "2000.00"], ["2026-08-31", "2200.00"], ["2026-09-30", "2200.00"],
         [TODAY, "2300.00"],
     ]  # fmt: skip

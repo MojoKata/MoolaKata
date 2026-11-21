@@ -10244,28 +10244,6 @@
             "title": "Gain",
             "type": "number"
           },
-          "history": {
-            "items": {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "examples": [
-                    1234.5
-                  ],
-                  "format": "money",
-                  "type": "number"
-                }
-              ],
-              "type": "array"
-            },
-            "title": "History",
-            "type": "array"
-          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -10549,10 +10527,42 @@
           "valuations",
           "improvements",
           "documents",
-          "history",
           "access"
         ],
         "title": "ItemDetail",
+        "type": "object"
+      },
+      "ItemHistory": {
+        "additionalProperties": false,
+        "description": "An item's value at each month's end, and today's or its sale's: one series, not rows.",
+        "properties": {
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "examples": [
+                    1234.5
+                  ],
+                  "format": "money",
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "ItemHistory",
         "type": "object"
       },
       "ItemRecord": {
@@ -34042,6 +34052,45 @@
           }
         },
         "summary": "Get Item",
+        "tags": [
+          "items"
+        ]
+      }
+    },
+    "/ui/api/items/{item_id}/history": {
+      "get": {
+        "description": "Asked only when the item's Valuation tab opens, never with the item (S1.10.6).",
+        "operationId": "get_history_ui_api_items__item_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get History",
         "tags": [
           "items"
         ]

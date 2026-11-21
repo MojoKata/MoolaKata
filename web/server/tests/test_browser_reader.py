@@ -219,9 +219,7 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     page.click('button[aria-label="View 1428 Elm St"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
-    for name in ("Save", "Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
-        off(dialog, name)
-    off(dialog, "Remove Kitchen remodel")
+    off(dialog, "Save")
     read_only(dialog)
     # Its row shows its name; the address isn't on the row; a blank condition isn't shown.
     assert dialog.locator("#f-name").count() == 0
@@ -232,6 +230,11 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     assert home.get_attribute("role") == "switch"
     assert home.get_attribute("aria-readonly") == "true"
     assert home.get_attribute("aria-checked") == "true"
+    # What belongs to it is on its Valuation tab (S1.10.6), its changes off there too.
+    dialog.locator('[role=tab]:has-text("Valuation")').click()
+    for name in ("Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
+        off(dialog, name)
+    off(dialog, "Remove Kitchen remodel")
     assert problems == []
     page.close()
 

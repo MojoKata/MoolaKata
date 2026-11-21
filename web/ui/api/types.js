@@ -1766,8 +1766,13 @@
  * @property {Array<ValuationOut>} valuations
  * @property {Array<ImprovementOut>} improvements
  * @property {Array<ReceiptRow>} documents
- * @property {Array<Array<unknown>>} history
  * @property {Access} access
+ */
+
+/**
+ * An item's value at each month's end, and today's or its sale's: one series, not rows.
+ * @typedef {Object} ItemHistory
+ * @property {Array<Array<unknown>>} points
  */
 
 /**

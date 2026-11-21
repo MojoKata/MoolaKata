@@ -140,7 +140,6 @@ class ItemDetail(ItemRow):
     valuations: list[ValuationOut]
     improvements: list[ImprovementOut]
     documents: list[ReceiptRow]
-    history: list[tuple[dt.date, Money]]
     access: Access
 
 
@@ -298,25 +297,6 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
     sp = assets.spots(s, [it], today).get(it.metal)
     sec = _secured(s, [it.id], today)[it.id]
     base = _row(a, it, d, sp.price if sp else None, sec, today)
-    # Its value at each month's end since it was acquired, for its history: acquired by today
-    # and sold no earlier (the save's rules), its first month ends on or after the day acquired.
-    first = it.acquiredOn
-    end = it.soldOn or today
-    history = []
-    pts = []
-    inst = assets.find_metal(s, it.metal) if it.metal else None
-    if inst is not None:
-        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId)[inst.id]
-    k = 0
-    current = None
-    # Each month by its count from year 0, so the months walked are known before the walk.
-    for n in range(first.year * 12 + first.month - 1, end.year * 12 + end.month):
-        year, month = divmod(n + 1, 12)  # the next month's, the day before whose first is the end
-        day = min(dt.date(year, month + 1, 1) - dt.timedelta(days=1), end)
-        while k < len(pts) and pts[k][0] <= day:
-            current = pts[k][1]
-            k += 1
-        history.append((day, assets.value_on(it, d, day, current)))
     return ItemDetail(
         **base.model_dump(),
         description=it.description,
@@ -344,9 +324,34 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
             receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, it.id)
         ],
-        history=history,
         access=Access.of(held.child()),
     )
+
+
+def history(s, it: Item, a: Account) -> list[tuple[dt.date, Decimal]]:
+    """Its value at each month's end since it was acquired, and today's or the sale's, for the
+    chart on its Valuation tab (S1.10.6): acquired by today and sold no earlier (the save's
+    rules), its first month ends on or after the day acquired."""
+    today = clock.today()
+    d = assets.details(s, [it])[it.id]
+    first = it.acquiredOn
+    end = it.soldOn or today
+    out = []
+    pts = []
+    inst = assets.find_metal(s, it.metal) if it.metal else None
+    if inst is not None:
+        pts = valuation.price_points(s, [inst.id], first, today, owner=a.ownerId)[inst.id]
+    k = 0
+    current = None
+    # Each month by its count from year 0, so the months walked are known before the walk.
+    for n in range(first.year * 12 + first.month - 1, end.year * 12 + end.month):
+        year, month = divmod(n + 1, 12)  # the next month's, the day before whose first is the end
+        day = min(dt.date(year, month + 1, 1) - dt.timedelta(days=1), end)
+        while k < len(pts) and pts[k][0] <= day:
+            current = pts[k][1]
+            k += 1
+        out.append((day, assets.value_on(it, d, day, current)))
+    return out
 
 
 def _clean(v: str | None) -> str | None:
@@ -438,6 +443,20 @@ def get_item(item_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         it, a, held = _item(s, c, item_id)
         return detail(s, c, it, a, held)
+
+
+class ItemHistory(Model):
+    """An item's value at each month's end, and today's or its sale's: one series, not rows."""
+
+    points: list[tuple[dt.date, Money]]
+
+
+@router.get("/items/{item_id}/history", response_model=ItemHistory)
+def get_history(item_id: str, request: Request, c: Caller = Depends(caller)):
+    """Asked only when the item's Valuation tab opens, never with the item (S1.10.6)."""
+    with server(request).db.read(user=c.id) as s:
+        it, a, _ = _item(s, c, item_id)
+        return ItemHistory(points=history(s, it, a))
 
 
 class Securable(Model):

@@ -1,6 +1,8 @@
 # An Item
 
-A physical asset: what it is, when and how it was acquired, its cost basis, and how it's valued.
+A physical asset, in three tabs. **General**: what it is, when and how it was acquired, its cost
+basis, and how it's valued. **Valuation**: its value over time, its valuations, a property's
+improvements, its photos and documents, and its sale, once it is added. **Notes**: anything else.
 
 Without a valuation, an item counts at its cost basis, depreciated when it depreciates.
 
@@ -69,7 +71,7 @@ at death.
 
 What it cost: the price plus premium, fees and shipping, or for a property the purchase price. A
 gift's carried-over basis, or an inherited item's value at death. For a property, its improvements
-add to it (Improvements, beside the fields).
+add to it (Improvements, on the Valuation tab).
 
 ## Closing costs
 
@@ -103,9 +105,9 @@ The policy that covers it.
 
 A car, a home, a watch you wear. A loss when it's sold isn't deductible.
 
-## Notes
+## Value over time
 
-Anything else, in Markdown: provenance, service history.
+Its value at each month's end since it was acquired, and today's, or the sale's once sold.
 
 ## Valuations
 
@@ -128,3 +130,7 @@ The day it was sold, the proceeds and the fees, recorded when you save the item;
 takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of
 metals or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One
 of property you used yourself is marked **personal**: a loss on it isn't deductible.
+
+## Notes
+
+Anything else, in Markdown: provenance, service history.

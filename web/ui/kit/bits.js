@@ -6,18 +6,21 @@ import { Icon } from './icon.js';
 
 /**
  * Tabs: as links, so each tab has its own address (the base and its key, or one of its own);
- * or, given `onChange`, as buttons that choose a tab in place.
+ * or, given `onChange`, as buttons that choose a tab in place, one in `off` shown off with
+ * its reason (S12.19).
  * @param {{ tabs: ([string, string] | [string, string, string])[], current: string,
- *   base?: string, onChange?: (key: string) => void }} p
+ *   base?: string, onChange?: (key: string) => void, off?: { [key: string]: string } }} p
  */
-export function Tabs({ tabs, current, base = '', onChange }) {
+export function Tabs({ tabs, current, base = '', onChange, off = {} }) {
   return html`<div class="tabs" role="tablist">${
     tabs.map(([k, l, href]) => {
       const cls = 'tab' + (k === current ? ' on' : '');
       return onChange
         ? html`
           <button type="button" role="tab" aria-selected=${k === current ? 'true' : 'false'}
-            class=${cls} data-v=${l} onClick=${() => onChange(k)}>${l}</button>
+            class=${cls} data-v=${l} aria-disabled=${off[k] ? 'true' : undefined}
+            data-tip=${off[k] || undefined} aria-description=${off[k] || undefined}
+            onClick=${() => off[k] || onChange(k)}>${l}</button>
         `
         : html`
           <a role="tab" aria-selected=${k === current ? 'true' : 'false'} class=${cls}

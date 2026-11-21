@@ -8,7 +8,8 @@ import { useApi } from '../app/hooks.js';
 import { date, quantity } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
-import { Empty, Failed, Loading } from '../kit/bits.js';
+import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { TimeChart } from '../charts/chart.js';
 import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
 import { Field, Input, Select, TypedInput } from '../kit/fields.js';
@@ -311,6 +312,26 @@ function newItem(type, accountId) {
   };
 }
 
+/** The item dialog's tabs (S1.10.6). */
+const ITEM_TABS = /** @type {[string, string][]} */ ([
+  ['general', 'General'],
+  ['valuation', 'Valuation'],
+  ['notes', 'Notes'],
+]);
+const ADD_FIRST = 'Its value, valuations and sale follow once it is added.';
+
+/** The item's fields on the Valuation tab: its sale and documents. */
+const ON_VALUATION = ['soldOn', 'proceeds', 'saleFees', 'receiptIds'];
+
+/**
+ * The tab a refused field is on: a valuation's or an improvement's on Valuation.
+ * @param {Record} r @param {string | null} field @returns {string}
+ */
+function tabOf(r, field) {
+  if (!(r instanceof ItemRec) || ON_VALUATION.includes(field || '')) return 'valuation';
+  return field === 'notes' ? 'notes' : 'general';
+}
+
 /** What an item's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
 const ITEM_ROW = ['name', 'metal', 'category', 'quantity', 'acquiredOn', 'costBasis'];
 
@@ -339,6 +360,12 @@ export function ItemDialog({ close, a, id }) {
   const canWrite = it ? it.access.writable : true;
   const t = a.type;
   const spot = rec?.get('valuation') === 'spot';
+  const [chosen, setTab] = useState('general');
+  // A refusal shows at its field: its tab comes forward when the one shown has none (S1.10.6).
+  const refused = (f.draft?.records || []).flatMap((r) =>
+    r.errors.map((/** @type {any} */ e) => tabOf(r, e.field))
+  );
+  const tab = refused.length && !refused.includes(chosen) ? refused[0] : chosen;
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This item"
       title=${it ? it.name : 'Add an Item'} label=${it ? 'Save' : 'Add'}
@@ -350,9 +377,11 @@ export function ItemDialog({ close, a, id }) {
       }}>
       ${rec
         ? html`
-          <div class="split" style=${{ alignItems: 'flex-start' }}>
-            <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
-              <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
+          <${Tabs} tabs=${ITEM_TABS} current=${tab} onChange=${setTab}
+            off=${it ? {} : { valuation: ADD_FIRST }} />
+          <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
+          ${tab === 'general'
+            ? html`
               <${RecField} rec=${rec} name="name" label="Name" />
               ${t === 'real-estate'
                 ? html`
@@ -437,10 +466,14 @@ export function ItemDialog({ close, a, id }) {
                   <${RecField} rec=${rec} name="personalUse" label="Used personally" />
                 `
                 : null}
-              <${RecField} rec=${rec} name="notes" label="Notes" rows=${3} />
-            </${Reads}></div>
-            ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
-          </div>
+            `
+            : tab === 'notes'
+            ? html`<${RecField} rec=${rec} name="notes" label="Notes" rows=${12} />`
+            : null}
+          </${Reads}>
+          ${tab === 'valuation' && it && f.draft
+            ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />`
+            : null}
         `
         : null}
     </${DraftDialog}>
@@ -454,7 +487,8 @@ export function ItemDialog({ close, a, id }) {
  */
 function Side({ a, it, rec, draft }) {
   return html`
-    <div style=${{ flex: '0 1 280px', minWidth: 0 }}>
+    <div>
+      <${History} id=${it.id} />
       <div class="list-item"><span class="grow dim">Value</span><b><${Amt} v=${it.value}
         cents=${false} /></b></div>
       ${it.valuation === 'spot'
@@ -487,6 +521,23 @@ function Side({ a, it, rec, draft }) {
       <${Documents} it=${it} rec=${rec} />
       <${SaleCard} it=${it} rec=${rec} />
     </div>
+  `;
+}
+
+/**
+ * Its value at each month's end since it was acquired, asked only when the Valuation tab
+ * opens (S1.10.6).
+ * @param {{ id: string }} p
+ */
+function History({ id }) {
+  const res = useApi(`/items/${id}/history`);
+  const h = /** @type {any} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!h) return html`<${Loading} lines=${3} />`;
+  return html`
+    <${TimeChart} label="Its value at each month's end" series=${[
+      { name: 'Value', color: '--accent', area: true, points: h.points },
+    ]} />
   `;
 }
 

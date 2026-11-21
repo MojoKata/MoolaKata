@@ -31,8 +31,11 @@
        tax tables tax at the collectables rate. A loss on personal-use property (a car, a
        home) is shown as not deductible (S8.13).
     6. **An account's chart** is its items' total value over time. The Items tab lists the
-       items with cost basis, value, gain and age, and opens each one with its history,
-       notes and documents.
+       items with cost basis, value, gain and age, and opens each one in three tabs:
+       **General**, its fields; **Valuation**, a chart of its value at each month's end since
+       it was acquired (and today's, or the sale's), its value and basis, the loans it
+       secures, its valuations, a property's improvements, its photos and documents, and its
+       sale; **Notes**, its notes. A new item's Valuation tab is off until it is added.
     7. **Its transactions are transfers only**: the money paid for an item, or received for
        one, as the other half of a transfer from or to the bank account it came through, so
        it counts neither as spending nor as income. They never change the account's value,

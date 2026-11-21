@@ -795,6 +795,9 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     page, problems = signed_in(browser, h, path, 'tr:has-text("Speedmaster") .row-tool')
     page.click('tr:has-text("Speedmaster") .row-tool')
     wait(page, ".dialog footer button.primary:enabled", problems)
+    # The valuations, the chart and the sale are on the Valuation tab (S1.10.6).
+    page.click('.dialog [role=tab]:has-text("Valuation")')
+    wait(page, ".dialog .chart-box", problems)
     page.fill("#x-valuation-value", "6200")
     page.click('.dialog button:has-text("Add")')
     page.click('.dialog button:has-text("Record the Sale…")')
@@ -805,6 +808,26 @@ def test_an_items_valuation_and_sale_are_saved_with_it(browser, household):
     assert [float(v["value"]) for v in it["valuations"]] == [6200]
     assert float(it["sale"]["proceeds"]) == 6100
     assert problems == []
+    page.close()
+
+
+def test_a_new_items_refusal_brings_its_tab_forward(browser, household):
+    """S1.10.6: a new item's Valuation tab is off until it is added; saved from Notes with no
+    name, the refusal shows at the name, its General tab forward."""
+    h = household
+    coll = make(h.c, "Acct", name="Pens", type="collectables").json()
+    path = f"/ui/accounts/{coll['id']}/items"
+    page, problems = signed_in(browser, h, path, 'button:has-text("Add an Item")')
+    page.click('button:has-text("Add an Item")')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    tab = page.locator('.dialog [role=tab]:has-text("Valuation")')
+    assert tab.get_attribute("aria-disabled") == "true" and tab.get_attribute("data-tip")
+    page.click('.dialog [role=tab]:has-text("Notes")')
+    page.fill("#f-notes", "From my grandfather.")
+    page.click(".dialog footer button.primary")
+    wait(page, '.dialog [role=tab][aria-selected=true]:has-text("General")', problems)
+    assert page.locator(".dialog .err").first.inner_text()
+    assert [p for p in problems if not p.startswith("422 for")] == []
     page.close()
 
 
