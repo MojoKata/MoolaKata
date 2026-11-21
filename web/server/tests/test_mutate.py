@@ -70,6 +70,21 @@ def test_a_record_keeps_the_first_run_then_the_settling_one_with_each_files_cont
     assert done["content"] == {"moolakata/money.py": named.stdout.strip()}
 
 
+def test_a_settling_run_names_a_module_its_first_run_skipped(tmp_path):
+    """A module the area's first run left out (current then, changed since) that its settling
+    run mutates is one of the area's modules, with its content."""
+    meta(tmp_path / "a", "moolakata/money.py", [1, 0])
+    first, _, _ = mutate.outcomes(tmp_path / "a")
+    record = mutate.recorded({"name": "money"}, first, True, args())
+    meta(tmp_path / "b", "moolakata/money.py", [1, 1])
+    meta(tmp_path / "b", "moolakata/valuation.py", [1])
+    last, _, _ = mutate.outcomes(tmp_path / "b")
+    done = mutate.recorded(record, last, False, args(pr=40))
+    assert done["modules"] == ["moolakata/money.py", "moolakata/valuation.py"]
+    assert sorted(done["content"]) == done["modules"]
+    assert sorted(done["first"]["files"]) == ["moolakata/money.py"]
+
+
 def test_the_backfilled_records_name_files_that_exist():
     """Each record under docs/hardening/mutation/ names modules of the server as it is."""
     for path in sorted(mutate.RECORDS.glob("*.json")):

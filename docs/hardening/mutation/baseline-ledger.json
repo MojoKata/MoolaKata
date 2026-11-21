@@ -91,6 +91,7 @@
     "moolakata/ledger/expected.py",
     "moolakata/ledger/holdingcheck.py",
     "moolakata/ledger/lots.py",
+    "moolakata/ledger/performance.py",
     "moolakata/ledger/reconcile.py",
     "moolakata/ledger/rules.py",
     "moolakata/ledger/transfers.py",

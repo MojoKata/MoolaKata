@@ -352,7 +352,8 @@ instead of the last run here.
 
 `--first` keeps the first run's outcomes, in total and by file, and its modules. The second,
 after a full run once every survivor is settled (not an `--only` rerun, which holds only the
-changes it reran), keeps that run's outcomes, the pull request it is settled in, the review ids
+changes it reran), keeps that run's outcomes and any module it ran that the first skipped as
+current, the pull request it is settled in, the review ids
 of the bugs it found, the equivalents left, and each module's content as git names it. A
 module whose content on `main` differs from it has changed since its run, and its area's
 mutation counts as needing another. The records are committed with the area's work.

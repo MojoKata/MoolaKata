@@ -459,7 +459,8 @@ def recorded(
 ) -> dict:
     """`record` with this run added: the first run's outcomes, modules and each one's content
     as it ran (`first_content`, the checkout's unless given), or the settling run's outcomes,
-    pull request, bugs found, equivalents and each file's content."""
+    its modules joined to the first's, pull request, bugs found, equivalents and each file's
+    content."""
     out = dict(record)
     if first:
         out["first"] = counts(by_file)
@@ -468,13 +469,13 @@ def recorded(
         out["first_content"] = content or {f: blob(SERVER / "src" / f) for f in here}
         return out
     out["last"] = counts(by_file)
+    # A module the first run skipped as current, changed since, is the area's all the same.
+    out["modules"] = sorted({*out.get("modules", []), *by_file})
     out["pr"] = args.pr
     out["found"] = sorted({*out.get("found", []), *(args.found or [])}, key=found_order)
     if args.equivalent is not None:
         out["equivalent"] = args.equivalent
-    out["content"] = {
-        f: blob(SERVER / "src" / f) for f in sorted({*out.get("modules", []), *by_file})
-    }
+    out["content"] = {f: blob(SERVER / "src" / f) for f in out["modules"]}
     return out
 
 
