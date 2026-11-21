@@ -13,6 +13,7 @@ from sqlalchemy import false, select
 from .. import access, activity, assets, clock, loans, people, receipts, valuation
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
+from ..store import scoping
 from ..store.entities.accounts import Account, Loan
 from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
 from ..store.entities.education import Person
@@ -778,33 +779,39 @@ def _period_owned(ctx, period_id: str) -> None:
 
 
 def _person_alone(ctx, person_id: str, sold: str | None = None) -> None:
-    """One main home at a time: a person's residence periods, across every home the saver
-    sees, never overlap (S1.10.4); different people's may. Refused at the period's start, or
-    at the sale day of the home `sold` when its sale moved its open periods on into another."""
-    rows = list(
-        ctx.s.execute(
-            select(ResidencePeriod, Item)
-            .join(Item, Item.id == ResidencePeriod.itemId)
-            .where(
-                ResidencePeriod.personId == person_id,
-                ResidencePeriod.deleted == false(),
-                Item.deleted == false(),
-            )
-            .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
+    """One main home at a time: a person's residence periods, across every home of the
+    household, shared with the saver or not, never overlap (S1.10.4); different people's may.
+    Refused at the period's start, or at the sale day of the home `sold` when its sale moved its
+    open periods on into another, naming the other home (R3.14)."""
+    stmt = (
+        select(
+            ResidencePeriod.id,
+            ResidencePeriod.itemId,
+            ResidencePeriod.fromDate,
+            ResidencePeriod.toDate,
+            Item.name,
+            Item.soldOn,
         )
+        .join(Item, Item.id == ResidencePeriod.itemId)
+        .where(
+            ResidencePeriod.personId == person_id,
+            ResidencePeriod.deleted == false(),
+            Item.deleted == false(),
+        )
+        .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
     )
-    for (p, p_home), (q, q_home) in itertools.pairwise(rows):
+    rows = list(ctx.s.execute(scoping.unscoped(stmt, "a person's main homes (S1.10.4)")))
+    for p, q in itertools.pairwise(rows):
         # In order of their start: one overlaps the next when it hasn't ended by then. Open
         # periods run to the sale, or for good while the home is held.
-        end = p.toDate or p_home.soldOn
+        end = p.toDate or p.soldOn
         if end is not None and end < q.fromDate:
             continue
         # Named by the period the save didn't touch, or not on the home sold: "the other".
         q_mine = q.id in _touched(ctx) or q.itemId == sold
-        other, home, mine = (p, p_home, q_home) if q_mine else (q, q_home, p_home)
-        who = ctx.s.get(Person, person_id)
-        name = who.name if who is not None else "This person"
-        where = "this home, in another period" if home.id == mine.id else home.name
+        other, mine = (p, q) if q_mine else (q, p)
+        name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+        where = "this home, in another period" if other.itemId == mine.itemId else other.name
         raise refuse(
             "soldOn" if sold else "fromDate",
             "periods-overlap",

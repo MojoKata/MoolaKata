@@ -85,7 +85,8 @@ each, and the same span for several people shows as one line. Someone who moved 
 period of their own. A home with an open period, unsold, is the main home today. When it's sold,
 Taxes shows each person's years lived in within the five years before the sale, beside the years
 owned; whether the sale's gain is excluded is the preparer's to decide. A person's periods never
-overlap, in this home or another (one main home at a time), and fall within the days you owned
+overlap, in this home or any other of the household's, yours or not (one main home at a time:
+a clash names the other home), and fall within the days you owned
 it; changing the date acquired or the sale day is refused while a period falls outside them.
 
 ## Closing costs

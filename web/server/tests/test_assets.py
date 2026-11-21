@@ -379,6 +379,31 @@ def test_one_main_home_at_a_time_for_each_person(jane):
     ]
 
 
+def test_one_main_home_at_a_time_across_the_households_homes_seen_or_not(server, jane):
+    """S1.10.4, R3.14: a person's periods never overlap across the household's homes, one its
+    saver isn't shared included, and the refusal names that home and the period's start."""
+    ann = _made(make(jane, "Persn", name="Ann Doe", sex="female"))["id"]
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    lake = new_account(john, name="Lake", type="real-estate")
+    cabin = item(john, lake["id"], name="Lake House", acquiredOn="2015-01-01", costBasis="1")
+    assert _period(john, cabin["id"], ann, fromDate="2016-03-01").status_code == 200
+    assert jane.get(f"/ui/api/items/{cabin['id']}").status_code == 404
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01", costBasis="1")
+    r = _period(jane, elm["id"], ann, fromDate="2015-06-01")
+    assert refused(r) == [
+        (
+            "fromDate",
+            "periods-overlap",
+            "Ann Doe's main home then was Lake House (from Mar 1, 2016).",
+        )
+    ]
+    # Ended the day before John's begins, it is hers.
+    ok = _period(jane, elm["id"], ann, fromDate="2015-06-01", toDate="2016-02-29")
+    assert ok.status_code == 200, ok.text
+
+
 def test_a_homes_dates_are_refused_where_a_period_falls_outside_them(jane):
     """S1.10.4: a change of the date acquired or the sale day that leaves a period outside the
     days owned is refused at that date, naming the period; the same save fixing the period, or

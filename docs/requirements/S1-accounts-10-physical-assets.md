@@ -31,7 +31,9 @@
        secured by it (S1.9.5), and its **residence periods**: each one of the household's
        people's span of it as their main home, from a day to a day (no end: up to the sale),
        within the days it was owned and not ahead. A person has one main home at a time, so
-       their periods never overlap, in one home or across homes; different people's may. The
+       their periods never overlap, in one home or across the household's homes, shared with the
+       one entering it or not, and a period refused for it names the other home and its start
+       (R3.14); different people's may. The
        same span for several people is entered once and shows as one line. A home is the main
        home today while it has an open period and is unsold; nothing else marks it. A change
        of the date acquired or the sale day that leaves a period outside the days owned is
