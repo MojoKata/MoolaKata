@@ -655,7 +655,9 @@ function Property({ p }) {
             <div class="mt">
               <${Attention} tone="info"
                 icon=${html`<${Icon} name="home" />`}>${h
-                  .name} sold ${date(h.sold)} after ${h.yearsOwned} years: a gain of <${Amt} v=${h
+                  .name} sold ${date(h.sold)} after ${h.yearsOwned} years${h.yearsLivedIn == null
+                  ? ''
+                  : `, lived in ${h.yearsLivedIn} of the five before`}: a gain of <${Amt} v=${h
                   .gain} /></${Attention}></div>
           `
         )}</div>

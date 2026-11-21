@@ -376,6 +376,11 @@ export const FIELDS = {
     inputs: {"type": "json", "schema": "PlanIn"},
     accountId: {"type": "ref", "prefix": "Acct"},
   },
+  PeriodRecord: {
+    itemId: {"type": "ref", "prefix": "Item"},
+    fromDate: {"type": "date"},
+    toDate: {"type": "date", "nullable": true},
+  },
   PersonRecord: {
     name: {"type": "text"},
     sex: {"type": "text", "nullable": true},
@@ -650,6 +655,7 @@ export const CREATES = {
   Recon: {"via": "accountId", "needs": "writable"},
   Rltn: {"who": "code"},
   Rmbrs: {"allOf": [{"via": "spendingId", "needs": "writable"}, {"via": "paybackId", "needs": "writable"}]},
+  RsPrd: {"via": "itemId", "needs": "writable"},
   Rule: {"who": "own"},
   Setng: {"who": "admin"},
   Split: {"via": "transactionId", "needs": "writable"},

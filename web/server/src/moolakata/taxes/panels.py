@@ -1120,11 +1120,12 @@ class Residence:
     sold: dt.date
     gain: Decimal
     yearsOwned: float
+    yearsLivedIn: float | None = None  # within the five years before the sale (S8.13)
 
 
 def residences(s: Session, book: TaxBook) -> list[Residence]:
-    """A sold primary residence: its gain and the years owned (S8.13); the exclusion is the
-    preparer's to apply."""
+    """A sold primary residence: its gain, the years owned and, from the periods recorded, the
+    years lived in within the five before the sale (S8.13); the exclusion is the preparer's."""
     first, last = _span(book.year)
     out = []
     for a in books.counted(s, book).accounts:
@@ -1142,7 +1143,11 @@ def residences(s: Session, book: TaxBook) -> list[Residence]:
             g = assets.gain(it, assets.details(s, [it])[it.id]) or ZERO
             out.append(
                 Residence(
-                    it.name, it.soldOn, g, round((it.soldOn - it.acquiredOn).days / 365.25, 1)
+                    it.name,
+                    it.soldOn,
+                    g,
+                    round((it.soldOn - it.acquiredOn).days / 365.25, 1),
+                    assets.years_lived_in(it, assets.periods_of(s, it.id)),
                 )
             )
     return out

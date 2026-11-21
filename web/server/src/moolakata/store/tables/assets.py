@@ -85,6 +85,20 @@ ItemValuation = record(
     seen=Seen.child("itemId"),
 )
 
+# A period its owners lived in a home marked their primary residence, for the years lived in
+# that its sale shows (S1.10.4, S8.13); no end: lived in still, or until the sale.
+ResidencePeriod = record(
+    "ResidencePeriod",
+    "RsPrd",
+    Column("itemId", Text, ForeignKey("Item.id", ondelete="CASCADE"), nullable=False),
+    Column("fromDate", Day, nullable=False),
+    Column("toDate", Day),
+    Column("createdById", Text, ForeignKey("User.id")),
+    CheckConstraint('"toDate" IS NULL OR "toDate" >= "fromDate"', name="dates"),
+    Index("ix_ResidencePeriod_item", "itemId", "fromDate"),
+    seen=Seen.child("itemId"),
+)
+
 Improvement = record(
     "Improvement",
     "Imprv",

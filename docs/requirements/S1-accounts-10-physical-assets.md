@@ -28,7 +28,10 @@
        and jewellery. A numismatic coin worth more than its metal is a collectable instead.
     4. **Real estate** keeps the address (optional), purchase price and closing costs,
        **improvements** (each added to the basis with its receipts), valuations, whether it
-       is the **primary residence**, and the loans secured by it (S1.9.5).
+       is the **primary residence**, and the loans secured by it (S1.9.5). A primary
+       residence keeps the **periods lived in**, each from a day to a day (no end: up to the
+       sale), within the days it was owned and not ahead, never overlapping; its sale shows
+       the time lived in within the five years before it (S8.13).
     5. **Selling** an item records the date, proceeds and fees, and realizes a gain or loss,
        flagged on Form 8949 as a **collectable** where it is one (metals included), which the
        tax tables tax at the collectables rate. A loss on personal-use property (a car, a

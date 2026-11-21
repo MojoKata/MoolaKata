@@ -41,6 +41,28 @@ def item(c, account_id, **kw):
     return r.json()
 
 
+def test_the_years_lived_in_count_the_five_years_before_the_sale_once():
+    """S8.13: the days lived in within the five years before the sale, each period kept to
+    the days owned, an overlap counted once, an open one to the sale; none recorded or not
+    sold, none. Five years before 29 February is the 28th."""
+    from types import SimpleNamespace as NS
+
+    home = NS(acquiredOn=d(2019, 1, 1), soldOn=d(2024, 2, 29))
+    assert assets.five_years_before(home.soldOn) == d(2019, 2, 28)
+    assert assets.years_lived_in(home, []) is None
+    assert assets.years_lived_in(NS(acquiredOn=d(2019, 1, 1), soldOn=None), [NS()]) is None
+    periods = [
+        NS(fromDate=d(2018, 1, 1), toDate=d(2020, 2, 28)),  # before it was owned, then a year
+        NS(fromDate=d(2019, 6, 1), toDate=d(2019, 12, 31)),  # inside the first: once
+        NS(fromDate=d(2023, 2, 28), toDate=None),  # open: to the sale
+        NS(fromDate=d(2024, 2, 29), toDate=d(2030, 1, 1)),  # from the sale: nothing
+    ]
+    # 365 days (Feb 28 2019 to Feb 28 2020) and 366 (Feb 28 2023 to Feb 29 2024).
+    assert assets.years_lived_in(home, periods) == round(731 / 365.25, 1) == 2.0
+    late = NS(acquiredOn=d(2023, 2, 28), soldOn=d(2024, 2, 29))
+    assert assets.years_lived_in(late, [NS(fromDate=d(2020, 1, 1), toDate=None)]) == 1.0
+
+
 def test_purity_is_read_as_people_write_it():
     assert assets.parse_purity(".9999") == D(".9999")
     assert assets.parse_purity("999.9") == D(".9999")
@@ -245,6 +267,53 @@ def test_others_read_but_cannot_change_items(server, jane):
     john = sign_in(server, "john")
     assert john.get(f"/ui/api/items/{watch['id']}").status_code == 404
     assert john.get(f"/ui/api/items/{watch['id']}/history").status_code == 404
+
+
+def test_a_homes_periods_lived_in_are_kept_with_it_and_refused_outside_its_days(jane):
+    """S1.10.4: a primary residence's periods lived in, within the days it was owned and not
+    ahead, never overlapping; listed with the item in order; changed and removed."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    home = item(jane, homes["id"], name="Elm St", acquiredOn="2020-01-10", costBasis="300000",
+                primaryResidence=True)  # fmt: skip
+    rental = item(jane, homes["id"], name="Rental", acquiredOn="2020-01-10", costBasis="1")
+    first = make(jane, "RsPrd", itemId=home["id"], fromDate="2020-02-01", toDate="2022-12-31")
+    assert first.status_code == 200, first.text
+    first = first.json()
+    assert make(jane, "RsPrd", itemId=home["id"], fromDate="2024-03-01").status_code == 200
+    page = jane.get(f"/ui/api/items/{home['id']}").json()
+    assert [(p["fromDate"], p["toDate"]) for p in page["livedIn"]] == [
+        ("2020-02-01", "2022-12-31"),
+        ("2024-03-01", None),
+    ]
+
+    def refusal(**kw):
+        r = make(jane, "RsPrd", **{"itemId": home["id"], "fromDate": "2023-01-01", **kw})
+        assert r.status_code in (409, 422), r.text
+        return [(e["field"], e["code"]) for e in r.json()["errors"]]
+
+    assert refusal(itemId=rental["id"]) == [("itemId", "not-a-residence")]
+    assert refusal(fromDate="2020-01-09") == [("fromDate", "before-acquired")]
+    assert refusal(fromDate=TOMORROW) == [("fromDate", "date-ahead")]
+    assert refusal(toDate="2022-12-31") == [("toDate", "dates-invalid")]
+    assert refusal(toDate=TOMORROW) == [("toDate", "date-ahead")]
+    # Touching either period's days, or running on into the open one, overlaps.
+    assert refusal(fromDate="2022-12-31", toDate="2023-02-01") == [("fromDate", "periods-overlap")]
+    assert refusal(toDate="2024-03-01") == [("fromDate", "periods-overlap")]
+    # Between them it fits; a change is checked against the others, never itself.
+    between = make(jane, "RsPrd", itemId=home["id"], fromDate="2023-01-01", toDate="2024-02-29")
+    assert between.status_code == 200, between.text
+    out = saved(change(jane, "RsPrd", {**first, "itemId": home["id"]}, toDate="2022-12-30"))
+    assert out["toDate"] == "2022-12-30"
+    # Sold, a period ends by the sale.
+    saved(sell(jane, home["id"], "2026-06-01", "400000"))
+    late = make(jane, "RsPrd", itemId=rental["id"], fromDate="2020-02-01")
+    assert late.status_code in (409, 422)
+    period = jane.get(f"/ui/api/items/{home['id']}").json()["livedIn"][-1]
+    r = change(jane, "RsPrd", {**period, "itemId": home["id"]}, toDate="2026-06-02")
+    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [("toDate", "after-sold")]
+    out = saved(change(jane, "RsPrd", {**period, "itemId": home["id"]}, toDate="2026-06-01"))
+    saved(remove(jane, "RsPrd", {**out, "itemId": home["id"]}))
+    assert len(jane.get(f"/ui/api/items/{home['id']}").json()["livedIn"]) == 2
 
 
 # ---------- the rules, on plain values ----------

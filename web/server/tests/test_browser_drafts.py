@@ -853,6 +853,28 @@ def test_held_since_shows_for_a_gift_and_is_saved_with_it(browser, household):
     page.close()
 
 
+def test_a_homes_period_lived_in_is_saved_with_it(browser, household):
+    """S1.10.4: a primary residence's periods lived in are added in its General tab and saved
+    with it; no end is up to the sale."""
+    h = household
+    home = h.extra["home"]
+    path = f"/ui/accounts/{h.extra['homes']['id']}/items"
+    page, problems = signed_in(browser, h, path, 'tr:has-text("1428 Elm St") .row-tool')
+    page.click('tr:has-text("1428 Elm St") .row-tool')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    before = len(h.c.get(f"/ui/api/items/{home['id']}").json()["livedIn"])
+    page.fill("#x-lived-from", home["acquiredOn"])
+    page.click('.dialog button:has-text("Add Period")')
+    wait(page, '.dialog .list-item:has-text("to the sale")', problems)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    got = h.c.get(f"/ui/api/items/{home['id']}").json()["livedIn"]
+    assert len(got) == before + 1
+    assert (got[-1]["fromDate"], got[-1]["toDate"]) == (home["acquiredOn"], None)
+    assert problems == []
+    page.close()
+
+
 # ---------- what the receipts' dialog alone does ----------
 
 

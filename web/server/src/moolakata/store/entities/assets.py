@@ -52,6 +52,15 @@ class ItemValuation(Record):
 
 
 @dataclass(kw_only=True, eq=False)
+class ResidencePeriod(Record):
+    id: str
+    itemId: str
+    fromDate: dt.date
+    toDate: dt.date | None = None  # lived in still, or until the sale
+    createdById: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
 class Improvement(Record):
     id: str
     itemId: str

@@ -215,6 +215,7 @@ class ResidenceOut(Model):
     sold: dt.date
     gain: Money
     yearsOwned: Ratio
+    yearsLivedIn: Ratio | None  # within the five years before the sale; none recorded, none
 
 
 class IssueOut(Model):

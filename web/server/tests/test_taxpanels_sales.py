@@ -397,16 +397,24 @@ def test_a_sold_primary_residence_has_its_gain_and_years_owned(jane):
     lake = new_account(jane, name="Lake", type="real-estate")
     thing(jane, lake["id"], "2026-05-01", "1", name="Cabin", primaryResidence=True)
     thing(jane, other["id"], "2026-04-01", "1", name="Shed")
+    # Oak St's periods lived in: one before the five years, a year within them, and the last
+    # one open to the sale: 366 + 365 days, 2.0 years. The others have none recorded.
+    oak = next(x for x in jane.get(f"/ui/api/accounts/{homes['id']}/items").json()["items"]
+               if x["name"] == "Oak St")  # fmt: skip
+    for start, end in (("2017-01-01", "2019-12-31"), ("2023-06-30", "2024-06-30"),
+                       ("2025-12-31", None)):  # fmt: skip
+        r = make(jane, "RsPrd", itemId=oak["id"], fromDate=start, toDate=end)
+        assert r.status_code == 200, r.text
     b = book(jane)
     saved(create(jane, "TxBkA", bookId=b, accountId=lake["id"], counted=False))
     got = sorted(
-        (x["name"], x["sold"], x["gain"], x["yearsOwned"])
+        (x["name"], x["sold"], x["gain"], x["yearsOwned"], x["yearsLivedIn"])
         for x in read_panels(jane, b)["residences"]
     )
     assert got == [
-        ("Elm St", "2026-01-20", "20000.00", 1.1),
-        ("Oak St", "2026-12-31", "0.00", 10.0),
-        ("Pine St", "2026-01-01", "10000.00", 1.0),
+        ("Elm St", "2026-01-20", "20000.00", 1.1, None),
+        ("Oak St", "2026-12-31", "0.00", 10.0, 2.0),
+        ("Pine St", "2026-01-01", "10000.00", 1.0, None),
     ]
 
 

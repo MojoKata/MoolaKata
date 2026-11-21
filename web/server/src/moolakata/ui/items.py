@@ -13,7 +13,7 @@ from .. import access, activity, assets, clock, loans, receipts, valuation
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
 from ..store.entities.accounts import Account, Loan
-from ..store.entities.assets import Improvement, Item, ItemValuation
+from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
 from . import save
 from .conventions import (
     Access,
@@ -81,6 +81,13 @@ class ImprovementOut(Model):
     version: int
 
 
+class PeriodOut(Model):
+    id: str
+    fromDate: dt.date
+    toDate: dt.date | None
+    version: int
+
+
 class SecuredLoan(Model):
     accountId: str
     name: str
@@ -142,6 +149,7 @@ class ItemDetail(ItemRow):
     spotAsOf: dt.date | None
     valuations: list[ValuationOut]
     improvements: list[ImprovementOut]
+    livedIn: list[PeriodOut]  # a primary residence's periods lived in (S1.10.4)
     documents: list[ReceiptRow]
     access: Access
 
@@ -216,6 +224,10 @@ def _valuation_out(v: ItemValuation) -> ValuationOut:
     return ValuationOut(
         id=v.id, date=v.date, value=v.value, source=v.source, note=v.note, version=v.version
     )
+
+
+def _period_out(p: ResidencePeriod) -> PeriodOut:
+    return PeriodOut(id=p.id, fromDate=p.fromDate, toDate=p.toDate, version=p.version)
 
 
 def _improvement_out(m: Improvement) -> ImprovementOut:
@@ -324,6 +336,7 @@ def detail(s, c: Caller, it: Item, a: Account, held: Perms) -> ItemDetail:
         spotAsOf=sp.asOf if sp else None,
         valuations=[_valuation_out(v) for v in reversed(d.valuations)],
         improvements=[_improvement_out(m) for m in reversed(d.improvements)],
+        livedIn=[_period_out(p) for p in assets.periods_of(s, it.id)],
         documents=[
             receipt_row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id)
             for r in receipts.of_item(s, it.id)
@@ -526,6 +539,15 @@ class ImprovementRecord(ImprovementIn):
     itemId: IdOf("Item")  # type: ignore[valid-type]
 
 
+class PeriodRecord(Model):
+    """A period a home marked the primary residence was lived in (S1.10.4): no end, lived in
+    still, or until the sale."""
+
+    itemId: IdOf("Item")  # type: ignore[valid-type]
+    fromDate: dt.date
+    toDate: dt.date | None = None
+
+
 ITEM_FIELDS = tuple(f for f in ItemIn.model_fields if f != "purity")
 
 
@@ -687,6 +709,57 @@ def _improvement_update(ctx, m: Improvement, body: ImprovementRecord) -> None:
     m.date, m.description, m.amount = body.date, body.description.strip(), body.amount
 
 
+def _period_checked(ctx, body: PeriodRecord, period_id: str) -> Item:
+    """A period lived in, made or changed: on a home marked the primary residence, within the
+    days it was owned and not ahead, never overlapping another of its periods (S1.10.4)."""
+    it, a, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+    if a.type != "real-estate" or not it.primaryResidence:
+        raise refuse("itemId", "not-a-residence", "Only for a home marked the primary residence.")
+    e: list[FieldError] = []
+    if body.fromDate < it.acquiredOn:
+        e.append(FieldError("fromDate", "before-acquired", "On or after the day acquired."))
+    if body.fromDate > clock.today():
+        e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+    end = it.soldOn or clock.today()
+    if body.toDate is not None and body.toDate < body.fromDate:
+        e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+    elif body.toDate is not None and body.toDate > end:
+        e.append(
+            FieldError(
+                "toDate",
+                "after-sold" if it.soldOn else "date-ahead",
+                "Not after the sale." if it.soldOn else "Not after today.",
+            )
+        )
+    refuse_all(e)
+    # Open periods run to the sale, or for good while it is held.
+    last = body.toDate or dt.date.max
+    for p in assets.periods_of(ctx.s, it.id):
+        if p.id != period_id and p.fromDate <= last and body.fromDate <= (p.toDate or dt.date.max):
+            raise refuse("fromDate", "periods-overlap", "It overlaps another period lived in.")
+    return it
+
+
+def _period_create(ctx, record_id: str, body: PeriodRecord) -> None:
+    it = _period_checked(ctx, body, record_id)
+    ctx.s.add(
+        ResidencePeriod(
+            id=record_id,
+            itemId=it.id,
+            fromDate=body.fromDate,
+            toDate=body.toDate,
+            createdById=ctx.caller.id,
+        )
+    )
+
+
+def _period_update(ctx, p: ResidencePeriod, body: PeriodRecord) -> None:
+    if body.itemId != p.itemId:
+        raise refuse("itemId", "period-fixed", "A period stays with its home.")
+    _period_checked(ctx, body, p.id)
+    p.fromDate, p.toDate = body.fromDate, body.toDate
+
+
 save.register(
     save.Kind(
         prefix="Item",
@@ -735,5 +808,18 @@ save.register(
         update=_improvement_update,
         delete=lambda ctx, m: m.mark_deleted(ctx.caller.id),
         read=lambda ctx, record_id: _improvement_out(ctx.s.get(Improvement, record_id)),
+    )
+)
+save.register(
+    save.Kind(
+        prefix="RsPrd",
+        entity=ResidencePeriod,
+        fields=PeriodRecord,
+        create=_period_create,
+        editable=lambda ctx, record_id: _part_of_item(ctx, ResidencePeriod, "period", record_id),
+        current=lambda ctx, p: {"itemId": p.itemId, "fromDate": p.fromDate, "toDate": p.toDate},
+        update=_period_update,
+        delete=lambda ctx, p: p.mark_deleted(ctx.caller.id),
+        read=lambda ctx, record_id: _period_out(ctx.s.get(ResidencePeriod, record_id)),
     )
 )

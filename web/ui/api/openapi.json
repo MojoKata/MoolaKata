@@ -10292,6 +10292,13 @@
               }
             ]
           },
+          "livedIn": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodOut"
+            },
+            "title": "Livedin",
+            "type": "array"
+          },
           "loans": {
             "items": {
               "$ref": "#/components/schemas/SecuredLoan"
@@ -10539,6 +10546,7 @@
           "spotAsOf",
           "valuations",
           "improvements",
+          "livedIn",
           "documents",
           "access"
         ],
@@ -17454,6 +17462,85 @@
         },
         "x-entity": "Pyoff"
       },
+      "PeriodOut": {
+        "additionalProperties": false,
+        "properties": {
+          "fromDate": {
+            "format": "date",
+            "title": "Fromdate",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todate"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "fromDate",
+          "toDate",
+          "version"
+        ],
+        "title": "PeriodOut",
+        "type": "object"
+      },
+      "PeriodRecord": {
+        "additionalProperties": false,
+        "description": "A period a home marked the primary residence was lived in (S1.10.4): no end, lived in\nstill, or until the sale.",
+        "properties": {
+          "fromDate": {
+            "format": "date",
+            "title": "Fromdate",
+            "type": "string"
+          },
+          "itemId": {
+            "pattern": "^Item_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Itemid",
+            "type": "string",
+            "x-prefix": "Item"
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Todate"
+          }
+        },
+        "required": [
+          "itemId",
+          "fromDate"
+        ],
+        "title": "PeriodRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
+        "x-entity": "RsPrd"
+      },
       "PeriodRow": {
         "additionalProperties": false,
         "properties": {
@@ -18852,6 +18939,7 @@
               "bad-credentials",
               "basis-invalid",
               "basis-on-lots",
+              "before-acquired",
               "benchmark-invalid",
               "beneficiary-invalid",
               "birthday-incomplete",
@@ -19042,6 +19130,7 @@
               "not-a-fund",
               "not-a-loan",
               "not-a-marriage",
+              "not-a-residence",
               "not-a-transfer",
               "not-a-wallet",
               "not-an-option",
@@ -19095,7 +19184,9 @@
               "people-missing",
               "percent-invalid",
               "period-backwards",
+              "period-fixed",
               "period-missing",
+              "periods-overlap",
               "person-exists",
               "person-is-user",
               "person-read-only",
@@ -19331,6 +19422,7 @@
                   "bad-credentials",
                   "basis-invalid",
                   "basis-on-lots",
+                  "before-acquired",
                   "benchmark-invalid",
                   "beneficiary-invalid",
                   "birthday-incomplete",
@@ -19521,6 +19613,7 @@
                   "not-a-fund",
                   "not-a-loan",
                   "not-a-marriage",
+                  "not-a-residence",
                   "not-a-transfer",
                   "not-a-wallet",
                   "not-an-option",
@@ -19574,7 +19667,9 @@
                   "people-missing",
                   "percent-invalid",
                   "period-backwards",
+                  "period-fixed",
                   "period-missing",
+                  "periods-overlap",
                   "person-exists",
                   "person-is-user",
                   "person-read-only",
@@ -22033,6 +22128,21 @@
             "title": "Sold",
             "type": "string"
           },
+          "yearsLivedIn": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearslivedin"
+          },
           "yearsOwned": {
             "examples": [
               12.5
@@ -22046,7 +22156,8 @@
           "name",
           "sold",
           "gain",
-          "yearsOwned"
+          "yearsOwned",
+          "yearsLivedIn"
         ],
         "title": "ResidenceOut",
         "type": "object"

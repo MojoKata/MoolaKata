@@ -18,5 +18,6 @@ the Form 1098 when it arrives; a refinance's points aren't on it.
 ## Physical Assets Sold
 
 Each item sold in the year with its gain; collectables are marked, and a loss on personal-use
-property isn't deductible. A sold primary residence shows its gain and the years owned; the
+property isn't deductible. A sold primary residence shows its gain, the years owned and, from the
+periods lived in typed on the home, the years lived in within the five before the sale; the
 exclusion is the preparer's to apply.

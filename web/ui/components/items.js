@@ -287,6 +287,16 @@ class ValuationRec extends Record {
   static ownedBy = ['itemId'];
 }
 
+/** A period a home marked the primary residence was lived in (S1.10.4). */
+class PeriodRec extends Record {
+  /** @override */
+  static prefix = 'RsPrd';
+  /** @override */
+  static fields = FIELDS.PeriodRecord;
+  /** @override */
+  static ownedBy = ['itemId'];
+}
+
 /** An improvement to a property, added to its basis (S1.10.4). */
 class ImprovementRec extends Record {
   /** @override */
@@ -334,6 +344,7 @@ const ON_VALUATION = ['soldOn', 'proceeds', 'saleFees', 'receiptIds'];
  * @param {Record} r @param {string | null} field @returns {string}
  */
 function tabOf(r, field) {
+  if (r instanceof PeriodRec) return 'general';
   if (!(r instanceof ItemRec) || ON_VALUATION.includes(field || '')) return 'valuation';
   return field === 'notes' ? 'notes' : 'general';
 }
@@ -361,6 +372,7 @@ export function ItemDialog({ close, a, id }) {
     });
     for (const v of x.valuations) draft.load(ValuationRec, { ...v, itemId: x.id });
     for (const m of x.improvements) draft.load(ImprovementRec, { ...m, itemId: x.id });
+    for (const p of x.livedIn) draft.load(PeriodRec, { ...p, itemId: x.id });
   }, [id]);
   const rec = /** @type {ItemRec | undefined} */ (f.draft?.records[0]);
   const canWrite = it ? it.access.writable : true;
@@ -455,6 +467,11 @@ export function ItemDialog({ close, a, id }) {
                   ? html`<${RecField} rec=${rec} name="closingCosts" label="Closing costs" />`
                   : html`<${RecField} rec=${rec} name="insuredValue" label="Insured value" />`}
               </div>
+              ${t === 'real-estate' && rec.get('primaryResidence') && f.draft
+                ? html`<${LivedIn} rec=${rec} draft=${f.draft} why=${
+                  canWrite ? null : READ_ONLY
+                } />`
+                : null}
               ${spot
                 ? html`
                   <${RecField} rec=${rec} name="sellPremium" label="Selling premium"
@@ -533,6 +550,59 @@ function Side({ a, it, rec, draft }) {
       <${Documents} it=${it} rec=${rec} />
       <${SaleCard} it=${it} rec=${rec} />
     </div>
+  `;
+}
+
+/**
+ * The periods a primary residence was lived in, for the years lived in its sale shows
+ * (S1.10.4, S8.13): added and removed in the dialog's draft.
+ * @param {{ rec: ItemRec, draft: import('../app/draft.js').Draft, why: string | null }} p
+ */
+function LivedIn({ rec, draft, why }) {
+  const [f, setF] = useState({ from: '', to: '' });
+  const rows = /** @type {PeriodRec[]} */ (
+    draft.records.filter((r) => r instanceof PeriodRec && !r.removed)
+  ).sort((x, y) => (x.get('fromDate') < y.get('fromDate') ? -1 : 1));
+  const add = () => {
+    draft.add(PeriodRec, { itemId: rec.id, fromDate: f.from, toDate: f.to || null });
+    setF({ from: '', to: '' });
+  };
+  const span = (/** @type {PeriodRec} */ p) =>
+    `${date(p.get('fromDate'))} to ${p.get('toDate') ? date(p.get('toDate')) : 'the sale'}`;
+  return html`
+    <h4 style=${{ margin: '14px 0 8px' }} data-help="lived-in">Lived In</h4>
+    ${rows.length
+      ? null
+      : html`<${Empty}>No periods: the years lived in are the preparer's to ask</${Empty}>`}
+    ${rows.map((p) =>
+      html`
+        <div class="list-item" key=${p.key}>
+          <div class="grow">${span(p)}${p.errors.length
+            ? html`<div class="err">${p.errors.map((e) => e.message).join(' ')}</div>`
+            : null}</div>
+          <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + span(p)}
+            onClick=${() => draft.remove(p)}>
+            <${Icon} name="x" />
+            </${Action}>
+            </div>
+      `
+    )}
+    ${why
+      ? html`<${Action} class="btn sm" why=${why}><${Icon} name="plus" /> Add Period</${Action}>`
+      : html`
+        <div class="row">
+          <${Field} label="Lived in from" help="lived-in" id="lived-from">
+            <${TypedInput} kind="date" value=${f.from}
+              onInput=${(/** @type {string} */ x) => setF({ ...f, from: x })} />
+            </${Field}>
+            <${Field} label="Until" help="lived-in" id="lived-until">
+              <${TypedInput} kind="date" value=${f.to} placeholder="the sale"
+                onInput=${(/** @type {string} */ x) => setF({ ...f, to: x })} />
+              </${Field}>
+              </div>
+              <button type="button" class="btn sm" disabled=${!f.from} onClick=${add}><${Icon}
+          name="plus" /> Add Period</button>
+      `}
   `;
 }
 

@@ -90,8 +90,10 @@ produces worksheets and exports. It never files, and says so (R1.16).
 13. **Physical assets** (S1.10.5): sales of items, with collectables (metals included) marked
     on Form 8949 for the collectables rate, and losses on personal-use property shown as not
     deductible. An inherited item is long-term on any sale; a gift held since the giver's day
-    counts its term, and its date acquired, from that day (S1.10.1). A sold primary residence shows its gain and the years owned and lived in;
-    the exclusion is the preparer's to apply.
+    counts its term, and its date acquired, from that day (S1.10.1). A sold primary
+    residence shows its gain, the years owned and, from its periods lived in (S1.10.4), the
+    years lived in within the five years before the sale; none recorded, the line says
+    nothing of them. The exclusion is the preparer's to apply.
 14. **Tax books.** A tax book is the tax record of one **tax year** for one user, or for a
     married couple filing jointly. Each household member who files has their own, and a
     couple filing separately has two.

@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from .. import assets, clock, ids, sharing
 from ..store.entities.accounts import Account, Loan
-from ..store.entities.assets import Improvement, Item, ItemValuation
+from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
 
 
 def seed_assets(s, people: dict) -> None:
@@ -147,6 +147,12 @@ def seed_assets(s, people: dict) -> None:
         closingCosts=D(7400),
         primaryResidence=True,
         personalUse=True,
+    )
+    # Lived in from a week after it was bought (S1.10.4).
+    s.add(
+        ResidencePeriod(
+            id=ids.new_id("RsPrd"), itemId=home.id, fromDate=home.acquiredOn + dt.timedelta(days=7)
+        )
     )
     s.add(
         Improvement(

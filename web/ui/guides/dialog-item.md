@@ -81,6 +81,13 @@ What it cost: the price plus premium, fees and shipping, or for a property the p
 gift's carried-over basis, or an inherited item's value at death. For a property, its improvements
 add to it (Improvements, on the Valuation tab).
 
+## Lived In {#lived-in}
+
+For a home marked the primary residence: each period you lived in it, from the day you moved in to
+the day you moved out; no end means up to the sale. When it's sold, Taxes shows the years lived in
+within the five years before the sale, beside the years owned; whether the sale's gain is excluded
+is the preparer's to decide. Periods never overlap, and fall within the days you owned it.
+
 ## Closing costs
 
 A property's costs at purchase that add to its basis.
