@@ -743,16 +743,17 @@ def _touched(ctx) -> set[str]:
     return ctx.notes.setdefault("periods-touched", set())
 
 
-def _outside(it: Item, p) -> tuple[str, str] | None:
-    """Where a residence period falls outside its home's days owned, as the field of the
-    period and the word for it, or None."""
+def _outside(it: Item, p) -> list[tuple[str, str]]:
+    """Every way a residence period falls outside its home's days owned, as the field of the
+    period and the word for it: both its ends at once, so one save says all of it."""
+    out = []
     if p.fromDate < it.acquiredOn:
-        return "fromDate", "starts before"
+        out.append(("fromDate", "starts before"))
     if it.soldOn is not None and p.fromDate > it.soldOn:
-        return "fromDate", "starts after"
+        out.append(("fromDate", "starts after"))
     if it.soldOn is not None and p.toDate is not None and p.toDate > it.soldOn:
-        return "toDate", "ends after"
-    return None
+        out.append(("toDate", "ends after"))
+    return out
 
 
 def _periods_owned(ctx, it: Item) -> None:
@@ -760,18 +761,19 @@ def _periods_owned(ctx, it: Item) -> None:
     it was still falls within the days owned (S1.10.4), refused at the date it falls outside."""
     e: list[FieldError] = []
     for p in assets.periods_of(ctx.s, it.id):
-        if p.id in _touched(ctx) or (out := _outside(it, p)) is None:
+        if p.id in _touched(ctx):
             continue
-        field = "acquiredOn" if out[1] == "starts before" else "soldOn"
-        if any(x.field == field for x in e):
-            continue
-        e.append(
-            FieldError(
-                field,
-                "periods-outside",
-                f"The residence period from {_day(p.fromDate)} {out[1]} this.",
+        for _, word in _outside(it, p):
+            field = "acquiredOn" if word == "starts before" else "soldOn"
+            if any(x.field == field for x in e):
+                continue
+            e.append(
+                FieldError(
+                    field,
+                    "periods-outside",
+                    f"The residence period from {_day(p.fromDate)} {word} this.",
+                )
             )
-        )
     refuse_all(e)
 
 
@@ -780,15 +782,21 @@ def _period_owned(ctx, period_id: str) -> None:
     the whole save has gone in (S1.10.4)."""
     p = ctx.s.get(ResidencePeriod, period_id)
     it = ctx.s.get(Item, p.itemId) if p is not None and not p.deleted else None
-    if it is None or it.deleted or (out := _outside(it, p)) is None:
+    if it is None or it.deleted:
         return
-    field, word = out
     message = {
         "starts before": "On or after the day acquired.",
         "starts after": "Not after the sale.",
         "ends after": "Not after the sale.",
-    }[word]
-    raise refuse(field, "after-sold" if word != "starts before" else "before-acquired", message)
+    }
+    refuse_all(
+        [
+            FieldError(
+                field, "after-sold" if word != "starts before" else "before-acquired", message[word]
+            )
+            for field, word in _outside(it, p)
+        ]
+    )
 
 
 def _person_alone(ctx, person_id: str, sold: str | None = None) -> None:

@@ -418,6 +418,32 @@ def test_a_dates_refusal_names_the_first_period_outside_it_once(jane):
     assert refused(r) == [("acquiredOn", "periods-outside", why)]
 
 
+def test_a_period_outside_both_ends_is_refused_at_both_at_once(jane):
+    """S1.10.4, R3.7: a residence period that falls outside a home's days owned at both ends
+    is refused at both in one save, whether the home's dates move or the period does."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    home = item(jane, homes["id"], name="Elm St", acquiredOn="2015-03-01", costBasis="1")
+    p = _made(_period(jane, home["id"], _me(jane), fromDate="2015-03-01", toDate="2020-12-31"))
+    path = f"/ui/api/items/{home['id']}"
+    r = edit(jane, "Item", path, acquiredOn="2015-06-01", soldOn="2020-06-30", proceeds="1")
+    assert refused(r) == [
+        (
+            "acquiredOn",
+            "periods-outside",
+            "The residence period from Mar 1, 2015 starts before this.",
+        ),
+        ("soldOn", "periods-outside", "The residence period from Mar 1, 2015 ends after this."),
+    ]
+    saved(edit(jane, "Item", path, soldOn="2021-06-30", proceeds="1"))
+    r = change(
+        jane, "RsPrd", {**p, "itemId": home["id"]}, fromDate="2015-01-01", toDate="2021-12-31"
+    )
+    assert refused(r) == [
+        ("fromDate", "before-acquired", "On or after the day acquired."),
+        ("toDate", "after-sold", "Not after the sale."),
+    ]
+
+
 def test_a_residence_period_stays_with_its_home(jane):
     """S1.10.4: a residence period is one person's span of one home: a change can't move it to
     another home, refused at its home, and it stays where it was."""
