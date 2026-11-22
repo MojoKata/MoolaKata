@@ -1,0 +1,345 @@
+# Batch 7: 68 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/ui/loans.py
+# Functions: _check_points, _terms
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.ui.loans.x__check_points__mutmut_9
+  _check_points line 399
+  -         return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+  +         return [FieldError("points", "points-not-for-loan", None)]
+
+moolakata.ui.loans.x__check_points__mutmut_17
+  _check_points line 399
+  -         return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+  +         return [FieldError("points", "points-not-for-loan", "XXPoints belong to a mortgage.XX")]
+
+moolakata.ui.loans.x__check_points__mutmut_18
+  _check_points line 399
+  -         return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+  +         return [FieldError("points", "points-not-for-loan", "points belong to a mortgage.")]
+
+moolakata.ui.loans.x__check_points__mutmut_19
+  _check_points line 399
+  -         return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+  +         return [FieldError("points", "points-not-for-loan", "POINTS BELONG TO A MORTGAGE.")]
+
+moolakata.ui.loans.x__check_points__mutmut_25
+  _check_points line 404
+  -                 "points", "points-missing", "The points paid, or clear their day and purpose."
+  +                 "points", "points-missing", None
+
+moolakata.ui.loans.x__check_points__mutmut_33
+  _check_points line 404
+  -                 "points", "points-missing", "The points paid, or clear their day and purpose."
+  +                 "points", "points-missing", "XXThe points paid, or clear their day and purpose.XX"
+
+moolakata.ui.loans.x__check_points__mutmut_34
+  _check_points line 404
+  -                 "points", "points-missing", "The points paid, or clear their day and purpose."
+  +                 "points", "points-missing", "the points paid, or clear their day and purpose."
+
+moolakata.ui.loans.x__check_points__mutmut_35
+  _check_points line 404
+  -                 "points", "points-missing", "The points paid, or clear their day and purpose."
+  +                 "points", "points-missing", "THE POINTS PAID, OR CLEAR THEIR DAY AND PURPOSE."
+
+moolakata.ui.loans.x__check_points__mutmut_37
+  _check_points line 407
+  -     elif body.points <= 0:
+  +     elif body.points <= 1:
+
+moolakata.ui.loans.x__check_points__mutmut_41
+  _check_points line 408
+  -         e.append(FieldError("points", "amount-invalid", "More than zero."))
+  +         e.append(FieldError("points", "amount-invalid", None))
+
+moolakata.ui.loans.x__check_points__mutmut_49
+  _check_points line 408
+  -         e.append(FieldError("points", "amount-invalid", "More than zero."))
+  +         e.append(FieldError("points", "amount-invalid", "XXMore than zero.XX"))
+
+moolakata.ui.loans.x__check_points__mutmut_50
+  _check_points line 408
+  -         e.append(FieldError("points", "amount-invalid", "More than zero."))
+  +         e.append(FieldError("points", "amount-invalid", "more than zero."))
+
+moolakata.ui.loans.x__check_points__mutmut_51
+  _check_points line 408
+  -         e.append(FieldError("points", "amount-invalid", "More than zero."))
+  +         e.append(FieldError("points", "amount-invalid", "MORE THAN ZERO."))
+
+moolakata.ui.loans.x__check_points__mutmut_56
+  _check_points line 410
+  -         e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+  +         e.append(FieldError("pointsPaidOn", "required", None))
+
+moolakata.ui.loans.x__check_points__mutmut_65
+  _check_points line 410
+  -         e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+  +         e.append(FieldError("pointsPaidOn", "required", "XXThe day they were paid.XX"))
+
+moolakata.ui.loans.x__check_points__mutmut_66
+  _check_points line 410
+  -         e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+  +         e.append(FieldError("pointsPaidOn", "required", "the day they were paid."))
+
+moolakata.ui.loans.x__check_points__mutmut_67
+  _check_points line 410
+  -         e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+  +         e.append(FieldError("pointsPaidOn", "required", "THE DAY THEY WERE PAID."))
+
+moolakata.ui.loans.x__check_points__mutmut_77
+  _check_points line 414
+  -             FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+  +             FieldError("pointsPaidOn", "points-day-invalid", None)
+
+moolakata.ui.loans.x__check_points__mutmut_86
+  _check_points line 414
+  -             FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+  +             FieldError("pointsPaidOn", "points-day-invalid", "XXBy the first payment, at closing.XX")
+
+moolakata.ui.loans.x__check_points__mutmut_87
+  _check_points line 414
+  -             FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+  +             FieldError("pointsPaidOn", "points-day-invalid", "by the first payment, at closing.")
+
+moolakata.ui.loans.x__check_points__mutmut_88
+  _check_points line 414
+  -             FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+  +             FieldError("pointsPaidOn", "points-day-invalid", "BY THE FIRST PAYMENT, AT CLOSING.")
+
+moolakata.ui.loans.x__check_points__mutmut_97
+  _check_points line 419
+  -                 "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+  +                 "pointsPurpose", "points-purpose-invalid", None
+
+moolakata.ui.loans.x__check_points__mutmut_106
+  _check_points line 419
+  -                 "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+  +                 "pointsPurpose", "points-purpose-invalid", "XXBuying the home, or a refinance.XX"
+
+moolakata.ui.loans.x__check_points__mutmut_107
+  _check_points line 419
+  -                 "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+  +                 "pointsPurpose", "points-purpose-invalid", "buying the home, or a refinance."
+
+moolakata.ui.loans.x__check_points__mutmut_108
+  _check_points line 419
+  -                 "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+  +                 "pointsPurpose", "points-purpose-invalid", "BUYING THE HOME, OR A REFINANCE."
+
+moolakata.ui.loans.x__terms__mutmut_7
+  _terms line 436
+  -         raise Problem(422, errors[0].code, errors[0].message, errors)
+  +         raise Problem(422, None, errors[0].message, errors)
+
+moolakata.ui.loans.x__terms__mutmut_8
+  _terms line 436
+  -         raise Problem(422, errors[0].code, errors[0].message, errors)
+  +         raise Problem(422, errors[0].code, None, errors)
+
+moolakata.ui.loans.x__terms__mutmut_22
+  _terms line 439
+  -         if it is None or it.deleted:
+  +         if it is None and it.deleted:
+
+moolakata.ui.loans.x__terms__mutmut_24
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse(None, "not-found", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_25
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", None, "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_26
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "not-found", None)
+
+moolakata.ui.loans.x__terms__mutmut_27
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("not-found", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_28
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_29
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "not-found", )
+
+moolakata.ui.loans.x__terms__mutmut_30
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("XXsecuredByIdXX", "not-found", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_31
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedbyid", "not-found", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_32
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("SECUREDBYID", "not-found", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_33
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "XXnot-foundXX", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_34
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "NOT-FOUND", "No such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_35
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "not-found", "XXNo such property or vehicle.XX")
+
+moolakata.ui.loans.x__terms__mutmut_36
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "not-found", "no such property or vehicle.")
+
+moolakata.ui.loans.x__terms__mutmut_37
+  _terms line 440
+  -             raise refuse("securedById", "not-found", "No such property or vehicle.")
+  +             raise refuse("securedById", "not-found", "NO SUCH PROPERTY OR VEHICLE.")
+
+moolakata.ui.loans.x__terms__mutmut_41
+  _terms line 441
+  -         access.account(s, c.id, it.accountId, "read")
+  +         access.account(s, c.id, it.accountId, None)
+
+moolakata.ui.loans.x__terms__mutmut_45
+  _terms line 441
+  -         access.account(s, c.id, it.accountId, "read")
+  +         access.account(s, c.id, it.accountId, )
+
+moolakata.ui.loans.x__terms__mutmut_53
+  _terms line 444
+  -         if cat is None or cat.deleted or cat.kind == "transfer":
+  +         if cat is None or cat.deleted and cat.kind == "transfer":
+
+moolakata.ui.loans.x__terms__mutmut_54
+  _terms line 444
+  -         if cat is None or cat.deleted or cat.kind == "transfer":
+  +         if cat is None and cat.deleted or cat.kind == "transfer":
+
+moolakata.ui.loans.x__terms__mutmut_57
+  _terms line 444
+  -         if cat is None or cat.deleted or cat.kind == "transfer":
+  +         if cat is None or cat.deleted or cat.kind == "XXtransferXX":
+
+moolakata.ui.loans.x__terms__mutmut_58
+  _terms line 444
+  -         if cat is None or cat.deleted or cat.kind == "transfer":
+  +         if cat is None or cat.deleted or cat.kind == "TRANSFER":
+
+moolakata.ui.loans.x__terms__mutmut_59
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse(None, "category-unknown", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_60
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", None, "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_61
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "category-unknown", None)
+
+moolakata.ui.loans.x__terms__mutmut_62
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("category-unknown", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_63
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_64
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "category-unknown", )
+
+moolakata.ui.loans.x__terms__mutmut_65
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("XXbudgetCategoryIdXX", "category-unknown", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_66
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetcategoryid", "category-unknown", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_67
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("BUDGETCATEGORYID", "category-unknown", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_68
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "XXcategory-unknownXX", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_69
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "CATEGORY-UNKNOWN", "Choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_70
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "category-unknown", "XXChoose a category.XX")
+
+moolakata.ui.loans.x__terms__mutmut_71
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "category-unknown", "choose a category.")
+
+moolakata.ui.loans.x__terms__mutmut_72
+  _terms line 445
+  -             raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+  +             raise refuse("budgetCategoryId", "category-unknown", "CHOOSE A CATEGORY.")
+
+moolakata.ui.loans.x__terms__mutmut_109
+  _terms line 461
+  -             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+  +             [{"XXdateXX": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+
+moolakata.ui.loans.x__terms__mutmut_110
+  _terms line 461
+  -             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+  +             [{"DATE": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+
+moolakata.ui.loans.x__terms__mutmut_111
+  _terms line 461
+  -             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+  +             [{"date": r.date.isoformat(), "XXfeeXX": str(r.fee)} for r in body.recasts]
+
+moolakata.ui.loans.x__terms__mutmut_112
+  _terms line 461
+  -             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+  +             [{"date": r.date.isoformat(), "FEE": str(r.fee)} for r in body.recasts]
+
+moolakata.ui.loans.x__terms__mutmut_113
+  _terms line 461
+  -             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
+  +             [{"date": r.date.isoformat(), "fee": str(None)} for r in body.recasts]
+
+moolakata.ui.loans.x__terms__mutmut_135
+  _terms line 469
+  -         "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
+  +         "budgetCategoryId": body.budgetCategoryId if (body.budgetCounting == "whole") or True else None,

@@ -1,0 +1,355 @@
+# Batch 5: 70 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/ui/loans.py
+# Functions: _account, _terms_out, view, _equity
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.ui.loans.x__account__mutmut_7
+  _account line 221
+  -     a, held = access.account(s, c.id, account_id, need)
+  +     a, held = access.account(s, c.id, account_id, None)
+
+moolakata.ui.loans.x__account__mutmut_11
+  _account line 221
+  -     a, held = access.account(s, c.id, account_id, need)
+  +     a, held = access.account(s, c.id, account_id, )
+
+moolakata.ui.loans.x__account__mutmut_15
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, None, "This account is not a loan.")
+
+moolakata.ui.loans.x__account__mutmut_16
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "not-a-loan", None)
+
+moolakata.ui.loans.x__account__mutmut_20
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(410, "not-a-loan", "This account is not a loan.")
+
+moolakata.ui.loans.x__account__mutmut_21
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "XXnot-a-loanXX", "This account is not a loan.")
+
+moolakata.ui.loans.x__account__mutmut_22
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "NOT-A-LOAN", "This account is not a loan.")
+
+moolakata.ui.loans.x__account__mutmut_23
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "not-a-loan", "XXThis account is not a loan.XX")
+
+moolakata.ui.loans.x__account__mutmut_24
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "not-a-loan", "this account is not a loan.")
+
+moolakata.ui.loans.x__account__mutmut_25
+  _account line 223
+  -         raise Problem(409, "not-a-loan", "This account is not a loan.")
+  +         raise Problem(409, "not-a-loan", "THIS ACCOUNT IS NOT A LOAN.")
+
+moolakata.ui.loans.x__terms_out__mutmut_11
+  _terms_out line 235
+  -         payment=row.payment,
+  +         payment=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_12
+  _terms_out line 236
+  -         escrowTax=row.escrowTax,
+  +         escrowTax=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_13
+  _terms_out line 237
+  -         escrowInsurance=row.escrowInsurance,
+  +         escrowInsurance=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_14
+  _terms_out line 238
+  -         pmi=row.pmi,
+  +         pmi=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_15
+  _terms_out line 239
+  -         drawMonths=row.drawMonths,
+  +         drawMonths=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_56
+  _terms_out line 241
+  -         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
+  +         recasts=[RecastView(date=None, fee=f) for d, f in t.recasts],
+
+moolakata.ui.loans.x__terms_out__mutmut_57
+  _terms_out line 241
+  -         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
+  +         recasts=[RecastView(date=d, fee=None) for d, f in t.recasts],
+
+moolakata.ui.loans.x__terms_out__mutmut_58
+  _terms_out line 241
+  -         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
+  +         recasts=[RecastView(fee=f) for d, f in t.recasts],
+
+moolakata.ui.loans.x__terms_out__mutmut_59
+  _terms_out line 241
+  -         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
+  +         recasts=[RecastView(date=d, ) for d, f in t.recasts],
+
+moolakata.ui.loans.x__terms_out__mutmut_18
+  _terms_out line 242
+  -         originalValue=row.originalValue,
+  +         originalValue=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_22
+  _terms_out line 246
+  -         securedById=row.securedById,
+  +         securedById=None,
+
+moolakata.ui.loans.x__terms_out__mutmut_24
+  _terms_out line 248
+  -         budgetCategoryId=row.budgetCategoryId,
+  +         budgetCategoryId=None,
+
+moolakata.ui.loans.x_view__mutmut_36
+  view line 262
+  -             balance=Decimal(0),
+  +             balance=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_38
+  view line 263
+  -             rate=Decimal(0),
+  +             rate=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_40
+  view line 264
+  -             payment=Decimal(0),
+  +             payment=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_42
+  view line 265
+  -             total=Decimal(0),
+  +             total=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_44
+  view line 269
+  -             interestPaid=Decimal(0),
+  +             interestPaid=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_46
+  view line 270
+  -             interestAhead=Decimal(0),
+  +             interestAhead=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_48
+  view line 271
+  -             principalThisYear=Decimal(0),
+  +             principalThisYear=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_50
+  view line 272
+  -             overpaid=Decimal(0),
+  +             overpaid=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_51
+  view line 273
+  -             missed=0,
+  +             missed=1,
+
+moolakata.ui.loans.x_view__mutmut_53
+  view line 274
+  -             overdue=Decimal(0),
+  +             overdue=Decimal(1),
+
+moolakata.ui.loans.x_view__mutmut_69
+  view line 280
+  -     payments, draws = loans.history(s, a, today)
+  +     payments, draws = loans.history(s, a, None)
+
+moolakata.ui.loans.x_view__mutmut_72
+  view line 280
+  -     payments, draws = loans.history(s, a, today)
+  +     payments, draws = loans.history(s, a, )
+
+moolakata.ui.loans.x_view__mutmut_90
+  view line 284
+  -         .where(Anchor.accountId == a.id, Anchor.deleted == false(), Anchor.source == "typed")
+  +         .where(Anchor.deleted == false(), Anchor.source == "typed")
+
+moolakata.ui.loans.x_view__mutmut_91
+  view line 284
+  -         .where(Anchor.accountId == a.id, Anchor.deleted == false(), Anchor.source == "typed")
+  +         .where(Anchor.accountId == a.id, Anchor.source == "typed")
+
+moolakata.ui.loans.x_view__mutmut_92
+  view line 284
+  -         .where(Anchor.accountId == a.id, Anchor.deleted == false(), Anchor.source == "typed")
+  +         .where(Anchor.accountId == a.id, Anchor.deleted == false(), )
+
+moolakata.ui.loans.x_view__mutmut_86
+  view line 285
+  -         .order_by(Anchor.date.desc())
+  +         .order_by(None)
+
+moolakata.ui.loans.x_view__mutmut_119
+  view line 292
+  -             servicer=-anchor.balance,
+  +             servicer=+anchor.balance,
+
+moolakata.ui.loans.x_view__mutmut_144
+  view line 297
+  -         version=row.version,
+
+moolakata.ui.loans.x_view__mutmut_129
+  view line 304
+  -         payoffDate=sm.payoffDate,
+  +         payoffDate=None,
+
+moolakata.ui.loans.x_view__mutmut_130
+  view line 305
+  -         originalPayoff=sm.originalPayoff,
+  +         originalPayoff=None,
+
+moolakata.ui.loans.x__equity__mutmut_7
+  _equity line 326
+  -     if it is None or it.deleted:
+  +     if it is None and it.deleted:
+
+moolakata.ui.loans.x__equity__mutmut_14
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = None
+
+moolakata.ui.loans.x__equity__mutmut_15
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = assets.spots(s, [it], today).get(None)
+
+moolakata.ui.loans.x__equity__mutmut_16
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = assets.spots(None, [it], today).get(it.metal or "")
+
+moolakata.ui.loans.x__equity__mutmut_18
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = assets.spots(s, [it], None).get(it.metal or "")
+
+moolakata.ui.loans.x__equity__mutmut_22
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = assets.spots(s, [it], today).get(it.metal and "")
+
+moolakata.ui.loans.x__equity__mutmut_23
+  _equity line 329
+  -     sp = assets.spots(s, [it], today).get(it.metal or "")
+  +     sp = assets.spots(s, [it], today).get(it.metal or "XXXX")
+
+moolakata.ui.loans.x__equity__mutmut_28
+  _equity line 330
+  -     worth = assets.value_on(it, d, today, sp.price if sp else None)
+  +     worth = assets.value_on(it, d, today, None)
+
+moolakata.ui.loans.x__equity__mutmut_33
+  _equity line 330
+  -     worth = assets.value_on(it, d, today, sp.price if sp else None)
+  +     worth = assets.value_on(it, d, today, sp.price if (sp) and False else None)
+
+moolakata.ui.loans.x__equity__mutmut_37
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(None, Loan.deleted == false(), Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_38
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.securedById == it.id, None, Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_39
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), None)
+
+moolakata.ui.loans.x__equity__mutmut_40
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.deleted == false(), Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_41
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.securedById == it.id, Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_44
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.securedById != it.id, Loan.deleted == false(), Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_45
+  _equity line 332
+  -         select(Loan).where(Loan.securedById == it.id, Loan.deleted == false(), Loan.id != row.id)
+  +         select(Loan).where(Loan.securedById == it.id, Loan.deleted != false(), Loan.id != row.id)
+
+moolakata.ui.loans.x__equity__mutmut_48
+  _equity line 334
+  -     owed_all = owed + sum(
+  +     owed_all = owed - sum(
+
+moolakata.ui.loans.x__equity__mutmut_52
+  _equity line 335
+  -         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
+  -     )
+  +         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), )
+
+moolakata.ui.loans.x__equity__mutmut_53
+  _equity line 335
+  -         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
+  +         (+loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
+
+moolakata.ui.loans.x__equity__mutmut_56
+  _equity line 335
+  -         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
+  +         (-loans.value(s, s.get(Account, o.accountId), None) for o in others), Decimal(0)
+
+moolakata.ui.loans.x__equity__mutmut_59
+  _equity line 335
+  -         (-loans.value(s, s.get(Account, o.accountId), today) for o in others), Decimal(0)
+  +         (-loans.value(s, s.get(Account, o.accountId), ) for o in others), Decimal(0)
+
+moolakata.ui.loans.x__equity__mutmut_68
+  _equity line 340
+  -     if terms.pmi and original:
+  +     if terms.pmi or original:
+
+moolakata.ui.loans.x__equity__mutmut_71
+  _equity line 342
+  -             if request is None and r.balance <= original * Decimal("0.80"):
+  +             if request is None and r.balance < original * Decimal("0.80"):
+
+moolakata.ui.loans.x__equity__mutmut_72
+  _equity line 342
+  -             if request is None and r.balance <= original * Decimal("0.80"):
+  +             if request is None and r.balance <= original / Decimal("0.80"):
+
+moolakata.ui.loans.x__equity__mutmut_76
+  _equity line 344
+  -             if r.balance <= original * Decimal("0.78"):
+  +             if r.balance < original * Decimal("0.78"):
+
+moolakata.ui.loans.x__equity__mutmut_102
+  _equity line 354
+  -         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if worth else Decimal(0),
+  +         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if (worth) or True else Decimal(0),
+
+moolakata.ui.loans.x__equity__mutmut_109
+  _equity line 354
+  -         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if worth else Decimal(0),
+  +         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if worth else Decimal(None),
+
+moolakata.ui.loans.x__equity__mutmut_110
+  _equity line 354
+  -         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if worth else Decimal(0),
+  +         ltv=(owed / worth * 100).quantize(Decimal("0.1")) if worth else Decimal(1),

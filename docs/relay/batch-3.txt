@@ -1,0 +1,285 @@
+# Batch 3: 56 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/loans/__init__.py
+# Functions: paid_off, _effects, _level_at, schedule
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.loans.x_paid_off__mutmut_2
+  paid_off line 626
+  -     for p in sorted(payments, key=lambda p: p.date):
+  +     for p in sorted(payments, key=None):
+
+moolakata.loans.x_paid_off__mutmut_4
+  paid_off line 626
+  -     for p in sorted(payments, key=lambda p: p.date):
+  +     for p in sorted(payments, ):
+
+moolakata.loans.x_paid_off__mutmut_5
+  paid_off line 626
+  -     for p in sorted(payments, key=lambda p: p.date):
+  +     for p in sorted(payments, key=lambda p: None):
+
+moolakata.loans.x_paid_off__mutmut_9
+  paid_off line 627
+  -         if balance_on(t, payments, draws, p.date) <= 0:
+  +         if balance_on(t, payments, draws, None) <= 0:
+
+moolakata.loans.x_paid_off__mutmut_13
+  paid_off line 627
+  -         if balance_on(t, payments, draws, p.date) <= 0:
+  +         if balance_on(t, payments, draws, ) <= 0:
+
+moolakata.loans.x__effects__mutmut_3
+  _effects line 677
+  -     late = [d for d, _ in draws if t.drawMonths and not _in_draw(t, d)]
+  +     late = [d for d, _ in draws if t.drawMonths or not _in_draw(t, d)]
+
+moolakata.loans.x__effects__mutmut_16
+  _effects line 679
+  -         k = max(1, _months_between(t.start, c))
+  +         k = max(2, _months_between(t.start, c))
+
+moolakata.loans.x__level_at__mutmut_20
+  _level_at line 693
+  -     return level_payment(owed, t.rate_on(day), max(1, left))
+  +     return level_payment(owed, t.rate_on(day), max(2, left))
+
+moolakata.loans.x_schedule__mutmut_5
+  schedule line 742
+  -     until = assumed_before(t, payments, today, mode)
+  +     until = assumed_before(t, payments, today, None)
+
+moolakata.loans.x_schedule__mutmut_17
+  schedule line 744
+  -     payments = settle(t, payments, draws, today, until, catch_up)
+  +     payments = settle(t, payments, draws, today, None, catch_up)
+
+moolakata.loans.x_schedule__mutmut_18
+  schedule line 744
+  -     payments = settle(t, payments, draws, today, until, catch_up)
+  +     payments = settle(t, payments, draws, today, until, None)
+
+moolakata.loans.x_schedule__mutmut_24
+  schedule line 744
+  -     payments = settle(t, payments, draws, today, until, catch_up)
+  +     payments = settle(t, payments, draws, today, until, )
+
+moolakata.loans.x_schedule__mutmut_34
+  schedule line 748
+  -     walked = _walk(t, payments, draws, catch_up, settled)
+  +     walked = _walk(t, payments, draws, None, settled)
+
+moolakata.loans.x_schedule__mutmut_35
+  schedule line 748
+  -     walked = _walk(t, payments, draws, catch_up, settled)
+  +     walked = _walk(t, payments, draws, catch_up, None)
+
+moolakata.loans.x_schedule__mutmut_39
+  schedule line 748
+  -     walked = _walk(t, payments, draws, catch_up, settled)
+  +     walked = _walk(t, payments, draws, settled)
+
+moolakata.loans.x_schedule__mutmut_40
+  schedule line 748
+  -     walked = _walk(t, payments, draws, catch_up, settled)
+  +     walked = _walk(t, payments, draws, catch_up, )
+
+moolakata.loans.x_schedule__mutmut_44
+  schedule line 750
+  -     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=True):
+  +     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=None):
+
+moolakata.loans.x_schedule__mutmut_47
+  schedule line 750
+  -     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=True):
+  +     for p, (_, owed_then, d, pi_then) in zip(payments, walked, ):
+
+moolakata.loans.x_schedule__mutmut_48
+  schedule line 750
+  -     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=True):
+  +     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=False):
+
+moolakata.loans.x_schedule__mutmut_72
+  schedule line 758
+  -             over = max(p.principal - max(d.principal - d.paidPrincipal, ZERO), ZERO)
+  +             over = max(p.principal + max(d.principal - d.paidPrincipal, ZERO), ZERO)
+
+moolakata.loans.x_schedule__mutmut_99
+  schedule line 765
+  -                 p.escrowTax + p.escrowInsurance,
+  +                 p.escrowTax - p.escrowInsurance,
+
+moolakata.loans.x_schedule__mutmut_103
+  schedule line 767
+  -                 balance_on(t, payments, draws, p.date),
+  +                 balance_on(t, payments, draws, None),
+
+moolakata.loans.x_schedule__mutmut_107
+  schedule line 767
+  -                 balance_on(t, payments, draws, p.date),
+  +                 balance_on(t, payments, draws, ),
+
+moolakata.loans.x_schedule__mutmut_132
+  schedule line 777
+  -     while add_months(t.start, k) + (GRACE if catch_up else dt.timedelta(0)) < today:
+  +     while add_months(t.start, k) + (GRACE if (catch_up) or True else dt.timedelta(0)) < today:
+
+moolakata.loans.x_schedule__mutmut_134
+  schedule line 777
+  -     while add_months(t.start, k) + (GRACE if catch_up else dt.timedelta(0)) < today:
+  +     while add_months(t.start, k) + (GRACE if catch_up else dt.timedelta(1)) < today:
+
+moolakata.loans.x_schedule__mutmut_174
+  schedule line 784
+  -     owed = balance_on(t, payments, draws, today)
+  +     owed = balance_on(t, payments, draws, None)
+
+moolakata.loans.x_schedule__mutmut_178
+  schedule line 784
+  -     owed = balance_on(t, payments, draws, today)
+  +     owed = balance_on(t, payments, draws, )
+
+moolakata.loans.x_schedule__mutmut_184
+  schedule line 785
+  -     previous = max((r.date for r in rows if r.date < day), default=t.start)
+  +     previous = max((r.date for r in rows if r.date <= day), default=t.start)
+
+moolakata.loans.x_schedule__mutmut_190
+  schedule line 789
+  -     effects = set(_effects(t, draws))
+  +     effects = set(_effects(t, ))
+
+moolakata.loans.x_schedule__mutmut_201
+  schedule line 795
+  -             if e >= day
+  +             if (e >= day) and False
+
+moolakata.loans.x_schedule__mutmut_203
+  schedule line 795
+  -             if e >= day
+  +             if e > day
+
+moolakata.loans.x_schedule__mutmut_207
+  schedule line 796
+  -             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+  +             else balance_on(t, [p for p in payments if p.date < e], draws, None)
+
+moolakata.loans.x_schedule__mutmut_211
+  schedule line 796
+  -             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+  +             else balance_on(t, [p for p in payments if p.date < e], draws, )
+
+moolakata.loans.x_schedule__mutmut_212
+  schedule line 796
+  -             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+  +             else balance_on(t, [p for p in payments if p.date <= e], draws, e - dt.timedelta(days=1))
+
+moolakata.loans.x_schedule__mutmut_213
+  schedule line 796
+  -             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+  +             else balance_on(t, [p for p in payments if p.date < e], draws, e + dt.timedelta(days=1))
+
+moolakata.loans.x_schedule__mutmut_215
+  schedule line 796
+  -             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+  +             else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=2))
+
+moolakata.loans.x_schedule__mutmut_216
+  schedule line 800
+  -     first = True
+  +     first = None
+
+moolakata.loans.x_schedule__mutmut_217
+  schedule line 800
+  -     first = True
+  +     first = False
+
+moolakata.loans.x_schedule__mutmut_219
+  schedule line 801
+  -     guard = 0
+  +     guard = 1
+
+moolakata.loans.x_schedule__mutmut_222
+  schedule line 802
+  -     while owed > 0 and guard < 1200:
+  +     while owed > 1 and guard < 1200:
+
+moolakata.loans.x_schedule__mutmut_223
+  schedule line 802
+  -     while owed > 0 and guard < 1200:
+  +     while owed > 0 and guard <= 1200:
+
+moolakata.loans.x_schedule__mutmut_224
+  schedule line 802
+  -     while owed > 0 and guard < 1200:
+  +     while owed > 0 and guard < 1201:
+
+moolakata.loans.x_schedule__mutmut_225
+  schedule line 803
+  -         guard += 1
+  +         guard = 1
+
+moolakata.loans.x_schedule__mutmut_226
+  schedule line 803
+  -         guard += 1
+  +         guard -= 1
+
+moolakata.loans.x_schedule__mutmut_227
+  schedule line 803
+  -         guard += 1
+  +         guard += 2
+
+moolakata.loans.x_schedule__mutmut_238
+  schedule line 806
+  -         first = False
+  +         first = None
+
+moolakata.loans.x_schedule__mutmut_260
+  schedule line 812
+  -         principal = ZERO if _in_draw(t, day) else min(max(pi - interest, ZERO), owed)
+  +         principal = ZERO if (_in_draw(t, day)) and False else min(max(pi - interest, ZERO), owed)
+
+moolakata.loans.x_schedule__mutmut_297
+  schedule line 819
+  -         if day >= t.end or owed - principal < 1:
+  +         if day >= t.end or owed + principal < 1:
+
+moolakata.loans.x_schedule__mutmut_298
+  schedule line 819
+  -         if day >= t.end or owed - principal < 1:
+  +         if day >= t.end or owed - principal <= 1:
+
+moolakata.loans.x_schedule__mutmut_299
+  schedule line 819
+  -         if day >= t.end or owed - principal < 1:
+  +         if day >= t.end or owed - principal < 2:
+
+moolakata.loans.x_schedule__mutmut_305
+  schedule line 823
+  -         pmi = t.pmi_due(scheduled) if owed > 0 else ZERO
+  +         pmi = t.pmi_due(scheduled) if (owed > 0) or True else ZERO
+
+moolakata.loans.x_schedule__mutmut_307
+  schedule line 823
+  -         pmi = t.pmi_due(scheduled) if owed > 0 else ZERO
+  +         pmi = t.pmi_due(scheduled) if owed >= 0 else ZERO
+
+moolakata.loans.x_schedule__mutmut_308
+  schedule line 823
+  -         pmi = t.pmi_due(scheduled) if owed > 0 else ZERO
+  +         pmi = t.pmi_due(scheduled) if owed > 1 else ZERO
+
+moolakata.loans.x_schedule__mutmut_341
+  schedule line 840
+  -         if day > add_months(t.end, 600):
+  +         if day >= add_months(t.end, 600):
+
+moolakata.loans.x_schedule__mutmut_346
+  schedule line 840
+  -         if day > add_months(t.end, 600):
+  +         if day > add_months(t.end, 601):
+
+moolakata.loans.x_schedule__mutmut_347
+  schedule line 841
+  -             break
+  +             return

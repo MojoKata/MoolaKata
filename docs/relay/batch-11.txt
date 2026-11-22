@@ -1,0 +1,297 @@
+# Batch 11: 58 survivors + 31 no-tests changes
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/ui/loans.py
+# Functions: _loan_editable, _loan_current, _loan_update, _payoff_create, _payoff_editable
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+# Also: every change in _payoff_update (21) and _loan_delete (10) was 'no tests': no fast test calls them.
+# Write tests that call them in the tests' own process; the globs in batch-11.names run them all.
+
+moolakata.ui.loans.x__loan_editable__mutmut_6
+  _loan_editable line 977
+  -     if row is None or row.deleted:
+  +     if row is None and row.deleted:
+
+moolakata.ui.loans.x__loan_editable__mutmut_8
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(None, "not-found", "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_9
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, None, "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_10
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "not-found", None)
+
+moolakata.ui.loans.x__loan_editable__mutmut_11
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem("not-found", "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_12
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_13
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "not-found", )
+
+moolakata.ui.loans.x__loan_editable__mutmut_14
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(405, "not-found", "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_15
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "XXnot-foundXX", "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_16
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "NOT-FOUND", "Not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_17
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "not-found", "XXNot foundXX")
+
+moolakata.ui.loans.x__loan_editable__mutmut_18
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "not-found", "not found")
+
+moolakata.ui.loans.x__loan_editable__mutmut_19
+  _loan_editable line 978
+  -         raise Problem(404, "not-found", "Not found")
+  +         raise Problem(404, "not-found", "NOT FOUND")
+
+moolakata.ui.loans.x__loan_current__mutmut_7
+  _loan_current line 986
+  -         "resets": exactjson.loads(row.resets or "[]"),
+  +         "resets": exactjson.loads(row.resets and "[]"),
+
+moolakata.ui.loans.x__loan_current__mutmut_8
+  _loan_current line 986
+  -         "resets": exactjson.loads(row.resets or "[]"),
+  +         "resets": exactjson.loads(row.resets or "XX[]XX"),
+
+moolakata.ui.loans.x__loan_current__mutmut_12
+  _loan_current line 987
+  -         "recasts": exactjson.loads(row.recasts or "[]"),
+  +         "recasts": exactjson.loads(row.recasts and "[]"),
+
+moolakata.ui.loans.x__loan_current__mutmut_13
+  _loan_current line 987
+  -         "recasts": exactjson.loads(row.recasts or "[]"),
+  +         "recasts": exactjson.loads(row.recasts or "XX[]XX"),
+
+moolakata.ui.loans.x__loan_update__mutmut_2
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse(None, "loan-fixed", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_3
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", None, "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_4
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "loan-fixed", None)
+
+moolakata.ui.loans.x__loan_update__mutmut_5
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("loan-fixed", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_6
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_7
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "loan-fixed", )
+
+moolakata.ui.loans.x__loan_update__mutmut_8
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("XXaccountIdXX", "loan-fixed", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_9
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountid", "loan-fixed", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_10
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("ACCOUNTID", "loan-fixed", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_11
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "XXloan-fixedXX", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_12
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "LOAN-FIXED", "The terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_13
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "loan-fixed", "XXThe terms stay with their loan.XX")
+
+moolakata.ui.loans.x__loan_update__mutmut_14
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "loan-fixed", "the terms stay with their loan.")
+
+moolakata.ui.loans.x__loan_update__mutmut_15
+  _loan_update line 994
+  -         raise refuse("accountId", "loan-fixed", "The terms stay with their loan.")
+  +         raise refuse("accountId", "loan-fixed", "THE TERMS STAY WITH THEIR LOAN.")
+
+moolakata.ui.loans.x__loan_update__mutmut_35
+  _loan_update line 998
+  -     row.updatedAt = clock.now()
+  +     row.updatedAt = None
+
+moolakata.ui.loans.x__payoff_create__mutmut_14
+  _payoff_create line 1028
+  -             createdById=ctx.caller.id,
+  +             createdById=None,
+
+moolakata.ui.loans.x__payoff_create__mutmut_19
+  _payoff_create line 1028
+  -             createdById=ctx.caller.id,
+  -         )
+  +             )
+
+moolakata.ui.loans.x__payoff_create__mutmut_33
+  _payoff_create line 1033
+  -         "loan.plan-saved",
+  +         "XXloan.plan-savedXX",
+
+moolakata.ui.loans.x__payoff_create__mutmut_34
+  _payoff_create line 1033
+  -         "loan.plan-saved",
+  +         "LOAN.PLAN-SAVED",
+
+moolakata.ui.loans.x__payoff_create__mutmut_23
+  _payoff_create line 1034
+  -         actor=ctx.caller.id,
+  +         actor=None,
+
+moolakata.ui.loans.x__payoff_create__mutmut_24
+  _payoff_create line 1035
+  -         subject_kind="account",
+  +         subject_kind=None,
+
+moolakata.ui.loans.x__payoff_create__mutmut_30
+  _payoff_create line 1035
+  -         subject_kind="account",
+
+moolakata.ui.loans.x__payoff_create__mutmut_35
+  _payoff_create line 1035
+  -         subject_kind="account",
+  +         subject_kind="XXaccountXX",
+
+moolakata.ui.loans.x__payoff_create__mutmut_36
+  _payoff_create line 1035
+  -         subject_kind="account",
+  +         subject_kind="ACCOUNT",
+
+moolakata.ui.loans.x__payoff_create__mutmut_25
+  _payoff_create line 1036
+  -         subject_id=a.id,
+  +         subject_id=None,
+
+moolakata.ui.loans.x__payoff_create__mutmut_31
+  _payoff_create line 1036
+  -         subject_id=a.id,
+
+moolakata.ui.loans.x__payoff_create__mutmut_26
+  _payoff_create line 1037
+  -         owner=a.ownerId,
+  +         owner=None,
+
+moolakata.ui.loans.x__payoff_create__mutmut_32
+  _payoff_create line 1037
+  -         owner=a.ownerId,
+  -     )
+  +         )
+
+moolakata.ui.loans.x__payoff_editable__mutmut_6
+  _payoff_editable line 1043
+  -     if p is None or p.deleted:
+  +     if p is None and p.deleted:
+
+moolakata.ui.loans.x__payoff_editable__mutmut_8
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(None, "not-found", "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_9
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, None, "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_10
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "not-found", None)
+
+moolakata.ui.loans.x__payoff_editable__mutmut_11
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem("not-found", "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_12
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_13
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "not-found", )
+
+moolakata.ui.loans.x__payoff_editable__mutmut_14
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(405, "not-found", "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_15
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "XXnot-foundXX", "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_16
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "NOT-FOUND", "No such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_17
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "not-found", "XXNo such plan.XX")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_18
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "not-found", "no such plan.")
+
+moolakata.ui.loans.x__payoff_editable__mutmut_19
+  _payoff_editable line 1044
+  -         raise Problem(404, "not-found", "No such plan.")
+  +         raise Problem(404, "not-found", "NO SUCH PLAN.")

@@ -1,0 +1,301 @@
+# Batch 13: 59 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/ui/items.py
+# Functions: _person_alone, _period_checked, _period_create, _period_update
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.ui.items.x__person_alone__mutmut_13
+  _person_alone line 808
+  -         .join(Item, Item.id == ResidencePeriod.itemId)
+  +         .join(Item, None)
+
+moolakata.ui.items.x__person_alone__mutmut_15
+  _person_alone line 808
+  -         .join(Item, Item.id == ResidencePeriod.itemId)
+  +         .join(Item, )
+
+moolakata.ui.items.x__person_alone__mutmut_10
+  _person_alone line 811
+  -             ResidencePeriod.deleted == false(),
+
+moolakata.ui.items.x__person_alone__mutmut_11
+  _person_alone line 812
+  -             Item.deleted == false(),
+  -         )
+  +             )
+
+moolakata.ui.items.x__person_alone__mutmut_3
+  _person_alone line 814
+  -         .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
+  +         .order_by(ResidencePeriod.fromDate, None)
+
+moolakata.ui.items.x__person_alone__mutmut_5
+  _person_alone line 814
+  -         .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
+  +         .order_by(ResidencePeriod.fromDate, )
+
+moolakata.ui.items.x__person_alone__mutmut_39
+  _person_alone line 816
+  -     rows = list(ctx.s.execute(scoping.unscoped(stmt, "a person's main homes (S1.10.4)")))
+  +     rows = list(ctx.s.execute(scoping.unscoped(stmt, "XXa person's main homes (S1.10.4)XX")))
+
+moolakata.ui.items.x__person_alone__mutmut_40
+  _person_alone line 816
+  -     rows = list(ctx.s.execute(scoping.unscoped(stmt, "a person's main homes (S1.10.4)")))
+  +     rows = list(ctx.s.execute(scoping.unscoped(stmt, "a person's main homes (s1.10.4)")))
+
+moolakata.ui.items.x__person_alone__mutmut_41
+  _person_alone line 816
+  -     rows = list(ctx.s.execute(scoping.unscoped(stmt, "a person's main homes (S1.10.4)")))
+  +     rows = list(ctx.s.execute(scoping.unscoped(stmt, "A PERSON'S MAIN HOMES (S1.10.4)")))
+
+moolakata.ui.items.x__person_alone__mutmut_48
+  _person_alone line 822
+  -             continue
+  +             break
+
+moolakata.ui.items.x__person_alone__mutmut_59
+  _person_alone line 826
+  -         name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+  +         name = people.names(ctx.s, [person_id]).get(person_id, None)
+
+moolakata.ui.items.x__person_alone__mutmut_61
+  _person_alone line 826
+  -         name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+  +         name = people.names(ctx.s, [person_id]).get(person_id, )
+
+moolakata.ui.items.x__person_alone__mutmut_66
+  _person_alone line 826
+  -         name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+  +         name = people.names(ctx.s, [person_id]).get(person_id, "XXThis personXX")
+
+moolakata.ui.items.x__person_alone__mutmut_67
+  _person_alone line 826
+  -         name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+  +         name = people.names(ctx.s, [person_id]).get(person_id, "this person")
+
+moolakata.ui.items.x__person_alone__mutmut_68
+  _person_alone line 826
+  -         name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+  +         name = people.names(ctx.s, [person_id]).get(person_id, "THIS PERSON")
+
+moolakata.ui.items.x__period_checked__mutmut_5
+  _period_checked line 839
+  -     it, a, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+  +     it, a, _ = _item(ctx.s, ctx.caller, body.itemId, None)
+
+moolakata.ui.items.x__period_checked__mutmut_9
+  _period_checked line 839
+  -     it, a, _ = _item(ctx.s, ctx.caller, body.itemId, "write")
+  +     it, a, _ = _item(ctx.s, ctx.caller, body.itemId, )
+
+moolakata.ui.items.x__period_checked__mutmut_17
+  _period_checked line 841
+  -         raise refuse("itemId", "not-a-home", "Only for a home.")
+  +         raise refuse("itemId", "not-a-home", None)
+
+moolakata.ui.items.x__period_checked__mutmut_26
+  _period_checked line 841
+  -         raise refuse("itemId", "not-a-home", "Only for a home.")
+  +         raise refuse("itemId", "not-a-home", "XXOnly for a home.XX")
+
+moolakata.ui.items.x__period_checked__mutmut_27
+  _period_checked line 841
+  -         raise refuse("itemId", "not-a-home", "Only for a home.")
+  +         raise refuse("itemId", "not-a-home", "only for a home.")
+
+moolakata.ui.items.x__period_checked__mutmut_28
+  _period_checked line 841
+  -         raise refuse("itemId", "not-a-home", "Only for a home.")
+  +         raise refuse("itemId", "not-a-home", "ONLY FOR A HOME.")
+
+moolakata.ui.items.x__period_checked__mutmut_35
+  _period_checked line 844
+  -     if who is None or who.deleted or not people.readable(ctx.s, ctx.caller.id, who.id):
+  +     if who is None or who.deleted and not people.readable(ctx.s, ctx.caller.id, who.id):
+
+moolakata.ui.items.x__period_checked__mutmut_48
+  _period_checked line 845
+  -         e.append(FieldError("personId", "person-invalid", "One of the household's people."))
+  +         e.append(FieldError("personId", "person-invalid", None))
+
+moolakata.ui.items.x__period_checked__mutmut_57
+  _period_checked line 845
+  -         e.append(FieldError("personId", "person-invalid", "One of the household's people."))
+  +         e.append(FieldError("personId", "person-invalid", "XXOne of the household's people.XX"))
+
+moolakata.ui.items.x__period_checked__mutmut_58
+  _period_checked line 845
+  -         e.append(FieldError("personId", "person-invalid", "One of the household's people."))
+  +         e.append(FieldError("personId", "person-invalid", "one of the household's people."))
+
+moolakata.ui.items.x__period_checked__mutmut_59
+  _period_checked line 845
+  -         e.append(FieldError("personId", "person-invalid", "One of the household's people."))
+  +         e.append(FieldError("personId", "person-invalid", "ONE OF THE HOUSEHOLD'S PEOPLE."))
+
+moolakata.ui.items.x__period_checked__mutmut_60
+  _period_checked line 846
+  -     if body.fromDate > clock.today():
+  +     if body.fromDate >= clock.today():
+
+moolakata.ui.items.x__period_checked__mutmut_64
+  _period_checked line 847
+  -         e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("fromDate", "date-ahead", None))
+
+moolakata.ui.items.x__period_checked__mutmut_73
+  _period_checked line 847
+  -         e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("fromDate", "date-ahead", "XXNot after today.XX"))
+
+moolakata.ui.items.x__period_checked__mutmut_74
+  _period_checked line 847
+  -         e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("fromDate", "date-ahead", "not after today."))
+
+moolakata.ui.items.x__period_checked__mutmut_75
+  _period_checked line 847
+  -         e.append(FieldError("fromDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("fromDate", "date-ahead", "NOT AFTER TODAY."))
+
+moolakata.ui.items.x__period_checked__mutmut_78
+  _period_checked line 848
+  -     if body.toDate is not None and body.toDate < body.fromDate:
+  +     if body.toDate is not None and body.toDate <= body.fromDate:
+
+moolakata.ui.items.x__period_checked__mutmut_82
+  _period_checked line 849
+  -         e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+  +         e.append(FieldError("toDate", "dates-invalid", None))
+
+moolakata.ui.items.x__period_checked__mutmut_91
+  _period_checked line 849
+  -         e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+  +         e.append(FieldError("toDate", "dates-invalid", "XXOn or after the day it began.XX"))
+
+moolakata.ui.items.x__period_checked__mutmut_92
+  _period_checked line 849
+  -         e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+  +         e.append(FieldError("toDate", "dates-invalid", "on or after the day it began."))
+
+moolakata.ui.items.x__period_checked__mutmut_93
+  _period_checked line 849
+  -         e.append(FieldError("toDate", "dates-invalid", "On or after the day it began."))
+  +         e.append(FieldError("toDate", "dates-invalid", "ON OR AFTER THE DAY IT BEGAN."))
+
+moolakata.ui.items.x__period_checked__mutmut_96
+  _period_checked line 850
+  -     elif body.toDate is not None and body.toDate > clock.today():
+  +     elif body.toDate is not None and body.toDate >= clock.today():
+
+moolakata.ui.items.x__period_checked__mutmut_100
+  _period_checked line 851
+  -         e.append(FieldError("toDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("toDate", "date-ahead", None))
+
+moolakata.ui.items.x__period_checked__mutmut_109
+  _period_checked line 851
+  -         e.append(FieldError("toDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("toDate", "date-ahead", "XXNot after today.XX"))
+
+moolakata.ui.items.x__period_checked__mutmut_110
+  _period_checked line 851
+  -         e.append(FieldError("toDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("toDate", "date-ahead", "not after today."))
+
+moolakata.ui.items.x__period_checked__mutmut_111
+  _period_checked line 851
+  -         e.append(FieldError("toDate", "date-ahead", "Not after today."))
+  +         e.append(FieldError("toDate", "date-ahead", "NOT AFTER TODAY."))
+
+moolakata.ui.items.x__period_checked__mutmut_115
+  _period_checked line 854
+  -     ctx.verify(f"period-owned:{period_id}", lambda: _period_owned(ctx, period_id))
+  +     ctx.verify(None, lambda: _period_owned(ctx, period_id))
+
+moolakata.ui.items.x__period_checked__mutmut_124
+  _period_checked line 855
+  -     ctx.verify(f"person-alone:{body.personId}", lambda: _person_alone(ctx, body.personId))
+  +     ctx.verify(None, lambda: _person_alone(ctx, body.personId))
+
+moolakata.ui.items.x__period_create__mutmut_14
+  _period_create line 868
+  -             createdById=ctx.caller.id,
+  +             createdById=None,
+
+moolakata.ui.items.x__period_create__mutmut_20
+  _period_create line 868
+  -             createdById=ctx.caller.id,
+  -         )
+  +             )
+
+moolakata.ui.items.x__period_update__mutmut_2
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse(None, "period-fixed", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_3
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", None, "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_4
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "period-fixed", None)
+
+moolakata.ui.items.x__period_update__mutmut_5
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("period-fixed", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_6
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_7
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "period-fixed", )
+
+moolakata.ui.items.x__period_update__mutmut_8
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("XXitemIdXX", "period-fixed", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_9
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemid", "period-fixed", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_10
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("ITEMID", "period-fixed", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_11
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "XXperiod-fixedXX", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_12
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "PERIOD-FIXED", "A period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_13
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "period-fixed", "XXA period stays with its home.XX")
+
+moolakata.ui.items.x__period_update__mutmut_14
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "period-fixed", "a period stays with its home.")
+
+moolakata.ui.items.x__period_update__mutmut_15
+  _period_update line 875
+  -         raise refuse("itemId", "period-fixed", "A period stays with its home.")
+  +         raise refuse("itemId", "period-fixed", "A PERIOD STAYS WITH ITS HOME.")

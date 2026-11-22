@@ -1,0 +1,408 @@
+# Batch 2: 81 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/loans/__init__.py
+# Functions: day_of, _days_paid, _record_starts, _owed_before, _Walker.__init__, _Walker._day_for, _Walker.look, _Walker.add, _walk, _as_scheduled, _due, balance_on, split_for
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.loans.x_day_of__mutmut_12
+  day_of line 350
+  -     k = max(1, _months_between(t.start, day) - 1)
+  +     k = max(1, _months_between(t.start, day) - 2)
+
+moolakata.loans.x_day_of__mutmut_18
+  day_of line 351
+  -     while add_months(t.start, k) + GRACE < day:
+  +     while add_months(t.start, k) + GRACE <= day:
+
+moolakata.loans.x__days_paid__mutmut_3
+  _days_paid line 365
+  -     k = 1
+  +     k = 2
+
+moolakata.loans.x__days_paid__mutmut_10
+  _days_paid line 366
+  -     while settled is not None and add_months(t.start, k) < settled:
+  +     while settled is not None and add_months(t.start, k) <= settled:
+
+moolakata.loans.x__days_paid__mutmut_14
+  _days_paid line 368
+  -         k += 1
+  +         k += 2
+
+moolakata.loans.x__days_paid__mutmut_24
+  _days_paid line 373
+  -         if catch_up and low < k and add_months(t.start, low) + GRACE < d:
+  +         if catch_up and low <= k and add_months(t.start, low) + GRACE < d:
+
+moolakata.loans.x__days_paid__mutmut_25
+  _days_paid line 373
+  -         if catch_up and low < k and add_months(t.start, low) + GRACE < d:
+  +         if catch_up and low < k and add_months(t.start, low) - GRACE < d:
+
+moolakata.loans.x__days_paid__mutmut_30
+  _days_paid line 373
+  -         if catch_up and low < k and add_months(t.start, low) + GRACE < d:
+  +         if catch_up and low < k and add_months(t.start, low) + GRACE <= d:
+
+moolakata.loans.x__days_paid__mutmut_32
+  _days_paid line 375
+  -         out.append(k)
+  +         out.append(None)
+
+moolakata.loans.x__record_starts__mutmut_1
+  _record_starts line 391
+  -     real = [p.date for p in payments if not p.assumed]
+  +     real = None
+
+moolakata.loans.x__record_starts__mutmut_2
+  _record_starts line 391
+  -     real = [p.date for p in payments if not p.assumed]
+  +     real = [p.date for p in payments if p.assumed]
+
+moolakata.loans.x__record_starts__mutmut_3
+  _record_starts line 392
+  -     return add_months(t.start, day_of(t, min(real))) if real else None
+  +     return add_months(t.start, day_of(t, min(real))) if (real) and False else None
+
+moolakata.loans.x__record_starts__mutmut_4
+  _record_starts line 392
+  -     return add_months(t.start, day_of(t, min(real))) if real else None
+  +     return add_months(t.start, day_of(t, min(real))) if (real) or True else None
+
+moolakata.loans.x__owed_before__mutmut_2
+  _owed_before line 415
+  -     before = day - dt.timedelta(days=1)
+  +     before = day + dt.timedelta(days=1)
+
+moolakata.loans.x__owed_before__mutmut_4
+  _owed_before line 415
+  -     before = day - dt.timedelta(days=1)
+  +     before = day - dt.timedelta(days=2)
+
+moolakata.loans.x__owed_before__mutmut_6
+  _owed_before line 416
+  -     owed = (t.principal if t.start <= before else ZERO) + sum(
+  +     owed = (t.principal if t.start <= before else ZERO) - sum(
+
+moolakata.loans.x__owed_before__mutmut_8
+  _owed_before line 416
+  -     owed = (t.principal if t.start <= before else ZERO) + sum(
+  +     owed = (t.principal if (t.start <= before) or True else ZERO) + sum(
+
+moolakata.loans.x__owed_before__mutmut_9
+  _owed_before line 416
+  -     owed = (t.principal if t.start <= before else ZERO) + sum(
+  +     owed = (t.principal if t.start < before else ZERO) + sum(
+
+moolakata.loans.x__owed_before__mutmut_13
+  _owed_before line 417
+  -         (amt for d, amt in draws if d <= before), ZERO
+  -     )
+  +         (amt for d, amt in draws if d <= before), )
+
+moolakata.loans.x__owed_before__mutmut_14
+  _owed_before line 417
+  -         (amt for d, amt in draws if d <= before), ZERO
+  +         (amt for d, amt in draws if d < before), ZERO
+
+moolakata.loans.xǁ_Walkerǁ__init____mutmut_6
+  _Walker.__init__ line 431
+  -     self.effects = _effects(t, draws)
+  +     self.effects = _effects(t, )
+
+moolakata.loans.xǁ_Walkerǁ__init____mutmut_12
+  _Walker.__init__ line 437
+  -     k = 1
+  +     k = 2
+
+moolakata.loans.xǁ_Walkerǁ__init____mutmut_19
+  _Walker.__init__ line 438
+  -     while settled is not None and add_months(t.start, k) < settled:
+  +     while settled is not None and add_months(t.start, k) <= settled:
+
+moolakata.loans.xǁ_Walkerǁ__init____mutmut_20
+  _Walker.__init__ line 439
+  -         self.covered.add(k)
+  +         self.covered.add(None)
+
+moolakata.loans.xǁ_Walkerǁ__init____mutmut_23
+  _Walker.__init__ line 440
+  -         k += 1
+  +         k += 2
+
+moolakata.loans.xǁ_Walkerǁ_day_for__mutmut_9
+  _Walker._day_for line 446
+  -     if self.catch_up and self.low < k and add_months(t.start, self.low) + GRACE < day:
+  +     if self.catch_up and self.low <= k and add_months(t.start, self.low) + GRACE < day:
+
+moolakata.loans.xǁ_Walkerǁ_day_for__mutmut_10
+  _Walker._day_for line 446
+  -     if self.catch_up and self.low < k and add_months(t.start, self.low) + GRACE < day:
+  +     if self.catch_up and self.low < k and add_months(t.start, self.low) - GRACE < day:
+
+moolakata.loans.xǁ_Walkerǁ_day_for__mutmut_15
+  _Walker._day_for line 446
+  -     if self.catch_up and self.low < k and add_months(t.start, self.low) + GRACE < day:
+  +     if self.catch_up and self.low < k and add_months(t.start, self.low) + GRACE <= day:
+
+moolakata.loans.xǁ_Walkerǁlook__mutmut_2
+  _Walker.look line 456
+  -         if e <= p.date and e not in self.levels:
+  +         if e <= p.date or e not in self.levels:
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_4
+  _Walker.add line 470
+  -     d = self.days.get(k)
+  +     d = None
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_5
+  _Walker.add line 470
+  -     d = self.days.get(k)
+  +     d = self.days.get(None)
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_8
+  _Walker.add line 473
+  -             p.interest if t.method == "daily" else cents(owed * t.rate_on(p.date) / 100 / 12)
+  +             p.interest if (t.method == "daily") and False else cents(owed * t.rate_on(p.date) / 100 / 12)
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_11
+  _Walker.add line 473
+  -             p.interest if t.method == "daily" else cents(owed * t.rate_on(p.date) / 100 / 12)
+  +             p.interest if t.method == "XXdailyXX" else cents(owed * t.rate_on(p.date) / 100 / 12)
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_12
+  _Walker.add line 473
+  -             p.interest if t.method == "daily" else cents(owed * t.rate_on(p.date) / 100 / 12)
+  +             p.interest if t.method == "DAILY" else cents(owed * t.rate_on(p.date) / 100 / 12)
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_32
+  _Walker.add line 476
+  -         d = self.days[k] = _Day(owed, interest, t.pmi_due(owed), sched)
+  +         d = self.days[k] = _Day(None, interest, t.pmi_due(owed), sched)
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_41
+  _Walker.add line 477
+  -     d.paidInterest += p.interest
+  +     d.paidInterest = p.interest
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_43
+  _Walker.add line 478
+  -     d.paidTax += p.escrowTax
+  +     d.paidTax = p.escrowTax
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_45
+  _Walker.add line 479
+  -     d.paidInsurance += p.escrowInsurance
+  +     d.paidInsurance = p.escrowInsurance
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_46
+  _Walker.add line 479
+  -     d.paidInsurance += p.escrowInsurance
+  +     d.paidInsurance -= p.escrowInsurance
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_47
+  _Walker.add line 480
+  -     d.paidPmi += p.pmi
+  +     d.paidPmi = p.pmi
+
+moolakata.loans.xǁ_Walkerǁadd__mutmut_49
+  _Walker.add line 481
+  -     d.paidPrincipal += p.principal
+  +     d.paidPrincipal = p.principal
+
+moolakata.loans.x__walk__mutmut_1
+  _walk line 494
+  -     if catch_up and settled is None:
+  +     if catch_up or settled is None:
+
+moolakata.loans.x__walk__mutmut_2
+  _walk line 494
+  -     if catch_up and settled is None:
+  +     if catch_up and settled is not None:
+
+moolakata.loans.x__walk__mutmut_3
+  _walk line 495
+  -         settled = _record_starts(t, payments)
+  +         settled = None
+
+moolakata.loans.x__walk__mutmut_4
+  _walk line 495
+  -         settled = _record_starts(t, payments)
+  +         settled = _record_starts(None, payments)
+
+moolakata.loans.x__walk__mutmut_5
+  _walk line 495
+  -         settled = _record_starts(t, payments)
+  +         settled = _record_starts(t, None)
+
+moolakata.loans.x__walk__mutmut_6
+  _walk line 495
+  -         settled = _record_starts(t, payments)
+  +         settled = _record_starts(payments)
+
+moolakata.loans.x__walk__mutmut_7
+  _walk line 495
+  -         settled = _record_starts(t, payments)
+  +         settled = _record_starts(t, )
+
+moolakata.loans.x__walk__mutmut_11
+  _walk line 496
+  -     w = _Walker(t, draws, catch_up, settled)
+  +     w = _Walker(t, draws, None, settled)
+
+moolakata.loans.x__walk__mutmut_12
+  _walk line 496
+  -     w = _Walker(t, draws, catch_up, settled)
+  +     w = _Walker(t, draws, catch_up, None)
+
+moolakata.loans.x__as_scheduled__mutmut_29
+  _as_scheduled line 511
+  -         escrowTax=t.escrowTax,
+
+moolakata.loans.x__as_scheduled__mutmut_30
+  _as_scheduled line 512
+  -         escrowInsurance=t.escrowInsurance,
+
+moolakata.loans.x__due__mutmut_2
+  _due line 522
+  -     prior = [p for p in before if p.date < day]
+  +     prior = [p for p in before if p.date <= day]
+
+moolakata.loans.x__due__mutmut_12
+  _due line 523
+  -     owed = balance_on(t, prior, draws, day - dt.timedelta(days=1))
+  +     owed = balance_on(t, prior, draws, day + dt.timedelta(days=1))
+
+moolakata.loans.x__due__mutmut_14
+  _due line 523
+  -     owed = balance_on(t, prior, draws, day - dt.timedelta(days=1))
+  +     owed = balance_on(t, prior, draws, day - dt.timedelta(days=2))
+
+moolakata.loans.x__due__mutmut_16
+  _due line 524
+  -     if owed <= 0:
+  +     if owed <= 1:
+
+moolakata.loans.x__due__mutmut_54
+  _due line 534
+  -         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e - dt.timedelta(days=1)),
+  +         lambda e: balance_on(t, [p for p in prior if p.date <= e], draws, e - dt.timedelta(days=1)),
+
+moolakata.loans.x__due__mutmut_55
+  _due line 534
+  -         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e - dt.timedelta(days=1)),
+  +         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e + dt.timedelta(days=1)),
+
+moolakata.loans.x__due__mutmut_57
+  _due line 534
+  -         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e - dt.timedelta(days=1)),
+  +         lambda e: balance_on(t, [p for p in prior if p.date < e], draws, e - dt.timedelta(days=2)),
+
+moolakata.loans.x__due__mutmut_69
+  _due line 538
+  -     if day >= t.end or owed - principal < 1:
+  +     if day >= t.end and owed - principal < 1:
+
+moolakata.loans.x__due__mutmut_70
+  _due line 538
+  -     if day >= t.end or owed - principal < 1:
+  +     if day > t.end or owed - principal < 1:
+
+moolakata.loans.x__due__mutmut_71
+  _due line 538
+  -     if day >= t.end or owed - principal < 1:
+  +     if day >= t.end or owed + principal < 1:
+
+moolakata.loans.x__due__mutmut_72
+  _due line 538
+  -     if day >= t.end or owed - principal < 1:
+  +     if day >= t.end or owed - principal <= 1:
+
+moolakata.loans.x__due__mutmut_73
+  _due line 538
+  -     if day >= t.end or owed - principal < 1:
+  +     if day >= t.end or owed - principal < 2:
+
+moolakata.loans.x__due__mutmut_77
+  _due line 540
+  -     pmi = t.pmi_due(owed - principal)
+  +     pmi = t.pmi_due(owed + principal)
+
+moolakata.loans.x__due__mutmut_84
+  _due line 542
+  -         day, principal + interest + t.escrow + pmi, principal, interest, t.escrow, pmi, owed, True
+  +         day, principal + interest + t.escrow + pmi, principal, interest, t.escrow, pmi, None, True
+
+moolakata.loans.x__due__mutmut_94
+  _due line 542
+  -         day, principal + interest + t.escrow + pmi, principal, interest, t.escrow, pmi, owed, True
+  +         day, principal + interest + t.escrow - pmi, principal, interest, t.escrow, pmi, owed, True
+
+moolakata.loans.x_balance_on__mutmut_12
+  balance_on line 549
+  -     owed += sum((amt for d, amt in draws if d <= day), ZERO)
+  +     owed += sum((amt for d, amt in draws if d <= day), )
+
+moolakata.loans.x_balance_on__mutmut_13
+  balance_on line 549
+  -     owed += sum((amt for d, amt in draws if d <= day), ZERO)
+  +     owed += sum((amt for d, amt in draws if d < day), ZERO)
+
+moolakata.loans.x_balance_on__mutmut_19
+  balance_on line 550
+  -     owed -= sum((p.principal for p in payments if p.date <= day), ZERO)
+  +     owed -= sum((p.principal for p in payments if p.date <= day), )
+
+moolakata.loans.x_split_for__mutmut_11
+  split_for line 570
+  -     new = Payment(day, amount)
+  +     new = Payment(day, None)
+
+moolakata.loans.x_split_for__mutmut_15
+  split_for line 573
+  -         settled = _record_starts(t, [*prior, new]) if catch_up else None
+  +         settled = None
+
+moolakata.loans.x_split_for__mutmut_16
+  split_for line 573
+  -         settled = _record_starts(t, [*prior, new]) if catch_up else None
+  +         settled = _record_starts(t, [*prior, new]) if (catch_up) and False else None
+
+moolakata.loans.x_split_for__mutmut_17
+  split_for line 573
+  -         settled = _record_starts(t, [*prior, new]) if catch_up else None
+  +         settled = _record_starts(t, [*prior, new]) if (catch_up) or True else None
+
+moolakata.loans.x_split_for__mutmut_26
+  split_for line 574
+  -         walker = _Walker(t, draws, catch_up, settled)
+  +         walker = _Walker(t, draws, catch_up, None)
+
+moolakata.loans.x_split_for__mutmut_36
+  split_for line 578
+  -     rate = t.rate_on(day) / 100
+  +     rate = t.rate_on(None) / 100
+
+moolakata.loans.x_split_for__mutmut_79
+  split_for line 590
+  -         escrow_ins = max(t.escrowInsurance - d.paidInsurance, ZERO)
+  +         escrow_ins = max(t.escrowInsurance + d.paidInsurance, ZERO)
+
+moolakata.loans.x_split_for__mutmut_91
+  split_for line 593
+  -     if rest < 0:
+  +     if rest <= 0:
+
+moolakata.loans.x_split_for__mutmut_113
+  split_for line 602
+  -         left -= escrow_ins
+  +         left = escrow_ins
+
+moolakata.loans.x_split_for__mutmut_114
+  split_for line 602
+  -         left -= escrow_ins
+  +         left += escrow_ins
+
+moolakata.loans.x_split_for__mutmut_162
+  split_for line 619
+  -         fees=fees,

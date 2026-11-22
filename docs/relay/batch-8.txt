@@ -1,0 +1,344 @@
+# Batch 8: 70 survivors
+# From: fork CI runs 44963061557 + 44989210873 (mutmut on af202cf5, records gathered Nov 22).
+# Modules: web/server/src/moolakata/ui/loans.py
+# Functions: _changed_terms, _categories, _unpaired_payments, _plan, _months, _outcome_out, _compute, _plans
+# One survivor a block: name, function and line, then the line(s) it removed (-) and added (+).
+
+moolakata.ui.loans.x__changed_terms__mutmut_15
+  _changed_terms line 477
+  -         "account.updated",
+  +         "XXaccount.updatedXX",
+
+moolakata.ui.loans.x__changed_terms__mutmut_16
+  _changed_terms line 477
+  -         "account.updated",
+  +         "ACCOUNT.UPDATED",
+
+moolakata.ui.loans.x__changed_terms__mutmut_3
+  _changed_terms line 478
+  -         actor=c.id,
+  +         actor=None,
+
+moolakata.ui.loans.x__changed_terms__mutmut_4
+  _changed_terms line 479
+  -         subject_kind="account",
+  +         subject_kind=None,
+
+moolakata.ui.loans.x__changed_terms__mutmut_11
+  _changed_terms line 479
+  -         subject_kind="account",
+
+moolakata.ui.loans.x__changed_terms__mutmut_17
+  _changed_terms line 479
+  -         subject_kind="account",
+  +         subject_kind="XXaccountXX",
+
+moolakata.ui.loans.x__changed_terms__mutmut_18
+  _changed_terms line 479
+  -         subject_kind="account",
+  +         subject_kind="ACCOUNT",
+
+moolakata.ui.loans.x__changed_terms__mutmut_5
+  _changed_terms line 480
+  -         subject_id=a.id,
+  +         subject_id=None,
+
+moolakata.ui.loans.x__changed_terms__mutmut_12
+  _changed_terms line 480
+  -         subject_id=a.id,
+
+moolakata.ui.loans.x__changed_terms__mutmut_6
+  _changed_terms line 481
+  -         owner=a.ownerId,
+  +         owner=None,
+
+moolakata.ui.loans.x__changed_terms__mutmut_13
+  _changed_terms line 481
+  -         owner=a.ownerId,
+
+moolakata.ui.loans.x__changed_terms__mutmut_7
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  +         detail=None,
+
+moolakata.ui.loans.x__changed_terms__mutmut_14
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  -     )
+  +         )
+
+moolakata.ui.loans.x__changed_terms__mutmut_19
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  +         detail={"XXfieldsXX": ["terms"]},
+
+moolakata.ui.loans.x__changed_terms__mutmut_20
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  +         detail={"FIELDS": ["terms"]},
+
+moolakata.ui.loans.x__changed_terms__mutmut_21
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  +         detail={"fields": ["XXtermsXX"]},
+
+moolakata.ui.loans.x__changed_terms__mutmut_22
+  _changed_terms line 482
+  -         detail={"fields": ["terms"]},
+  +         detail={"fields": ["TERMS"]},
+
+moolakata.ui.loans.x__categories__mutmut_4
+  _categories line 488
+  -     return {c.builtIn: c.id for c in s.scalars(select(Category).where(Category.builtIn.in_(keys)))}
+  +     return {c.builtIn: c.id for c in s.scalars(select(Category).where(None))}
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_7
+  _unpaired_payments line 632
+  -                 Transaction.accountId == a.id,
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_8
+  _unpaired_payments line 633
+  -                 Transaction.deleted == false(),
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_9
+  _unpaired_payments line 634
+  -                 Transaction.transferId.is_(None),
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_10
+  _unpaired_payments line 635
+  -                 Transaction.amount > 0,
+  -             )
+  +                 )
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_14
+  _unpaired_payments line 635
+  -                 Transaction.amount > 0,
+  +                 Transaction.amount >= 0,
+
+moolakata.ui.loans.x__unpaired_payments__mutmut_15
+  _unpaired_payments line 635
+  -                 Transaction.amount > 0,
+  +                 Transaction.amount > 1,
+
+moolakata.ui.loans.x__plan__mutmut_2
+  _plan line 741
+  -         monthlyFrom=body.monthlyFrom,
+  +         monthlyFrom=None,
+
+moolakata.ui.loans.x__plan__mutmut_13
+  _plan line 741
+  -         monthlyFrom=body.monthlyFrom,
+
+moolakata.ui.loans.x__plan__mutmut_3
+  _plan line 742
+  -         monthlyUntil=body.monthlyUntil,
+  +         monthlyUntil=None,
+
+moolakata.ui.loans.x__plan__mutmut_14
+  _plan line 742
+  -         monthlyUntil=body.monthlyUntil,
+
+moolakata.ui.loans.x__plan__mutmut_4
+  _plan line 743
+  -         yearly=body.yearly,
+  +         yearly=None,
+
+moolakata.ui.loans.x__plan__mutmut_15
+  _plan line 743
+  -         yearly=body.yearly,
+
+moolakata.ui.loans.x__plan__mutmut_5
+  _plan line 744
+  -         yearlyMonth=body.yearlyMonth,
+  +         yearlyMonth=None,
+
+moolakata.ui.loans.x__plan__mutmut_16
+  _plan line 744
+  -         yearlyMonth=body.yearlyMonth,
+
+moolakata.ui.loans.x__plan__mutmut_17
+  _plan line 745
+  -         lumps=[(x.date, x.amount) for x in body.lumps],
+
+moolakata.ui.loans.x__plan__mutmut_7
+  _plan line 746
+  -         biweekly=body.biweekly,
+  +         biweekly=None,
+
+moolakata.ui.loans.x__plan__mutmut_18
+  _plan line 746
+  -         biweekly=body.biweekly,
+
+moolakata.ui.loans.x__plan__mutmut_19
+  _plan line 747
+  -         roundTo=body.roundTo,
+
+moolakata.ui.loans.x__plan__mutmut_9
+  _plan line 748
+  -         recast=body.recast,
+  +         recast=None,
+
+moolakata.ui.loans.x__plan__mutmut_20
+  _plan line 748
+  -         recast=body.recast,
+
+moolakata.ui.loans.x__plan__mutmut_10
+  _plan line 749
+  -         recastFee=body.recastFee,
+  +         recastFee=None,
+
+moolakata.ui.loans.x__plan__mutmut_21
+  _plan line 749
+  -         recastFee=body.recastFee,
+
+moolakata.ui.loans.x__plan__mutmut_22
+  _plan line 750
+  -         investClass=body.investClass,
+  -     )
+  +         )
+
+moolakata.ui.loans.x__months__mutmut_1
+  _months line 783
+  -     if a is None or b is None:
+  +     if a is None and b is None:
+
+moolakata.ui.loans.x__months__mutmut_4
+  _months line 784
+  -         return 0
+  +         return 1
+
+moolakata.ui.loans.x__months__mutmut_5
+  _months line 785
+  -     return (b.year - a.year) * 12 + b.month - a.month
+  +     return (b.year - a.year) * 12 + b.month + a.month
+
+moolakata.ui.loans.x__months__mutmut_6
+  _months line 785
+  -     return (b.year - a.year) * 12 + b.month - a.month
+  +     return (b.year - a.year) * 12 - b.month - a.month
+
+moolakata.ui.loans.x__months__mutmut_8
+  _months line 785
+  -     return (b.year - a.year) * 12 + b.month - a.month
+  +     return (b.year + a.year) * 12 + b.month - a.month
+
+moolakata.ui.loans.x__months__mutmut_9
+  _months line 785
+  -     return (b.year - a.year) * 12 + b.month - a.month
+  +     return (b.year - a.year) * 13 + b.month - a.month
+
+moolakata.ui.loans.x__outcome_out__mutmut_1
+  _outcome_out line 790
+  -         payoffDate=o.payoffDate,
+  +         payoffDate=None,
+
+moolakata.ui.loans.x__outcome_out__mutmut_25
+  _outcome_out line 798
+  -         interestSaved=base.interest - o.interest - o.fees,
+  +         interestSaved=base.interest - o.interest + o.fees,
+
+moolakata.ui.loans.x__outcome_out__mutmut_26
+  _outcome_out line 798
+  -         interestSaved=base.interest - o.interest - o.fees,
+  +         interestSaved=base.interest + o.interest - o.fees,
+
+moolakata.ui.loans.x__outcome_out__mutmut_31
+  _outcome_out line 799
+  -         balances=[Point(date=r.date, balance=r.balance) for r in o.rows if not r.past],
+  +         balances=[Point(date=r.date, balance=r.balance) for r in o.rows if r.past],
+
+moolakata.ui.loans.x__compute__mutmut_7
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(None, "no-terms", "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_8
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, None, "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_9
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "no-terms", None)
+
+moolakata.ui.loans.x__compute__mutmut_10
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem("no-terms", "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_11
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_12
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "no-terms", )
+
+moolakata.ui.loans.x__compute__mutmut_13
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(410, "no-terms", "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_14
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "XXno-termsXX", "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_15
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "NO-TERMS", "Set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_16
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "no-terms", "XXSet the loan's terms first.XX")
+
+moolakata.ui.loans.x__compute__mutmut_17
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "no-terms", "set the loan's terms first.")
+
+moolakata.ui.loans.x__compute__mutmut_18
+  _compute line 806
+  -         raise Problem(409, "no-terms", "Set the loan's terms first.")
+  +         raise Problem(409, "no-terms", "SET THE LOAN'S TERMS FIRST.")
+
+moolakata.ui.loans.x__compute__mutmut_21
+  _compute line 807
+  -     figures = assumptions.load(s, c.id)
+  +     figures = assumptions.load(s, None)
+
+moolakata.ui.loans.x__compute__mutmut_48
+  _compute line 812
+  -         loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, mode
+  +         loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, None
+
+moolakata.ui.loans.x__compute__mutmut_55
+  _compute line 812
+  -         loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, mode
+  -     )
+  +         loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, )
+
+moolakata.ui.loans.x__compute__mutmut_56
+  _compute line 812
+  -         loans.terms_of(s, row), payments, draws, clock.today(), plan, rate, mode
+  +         loans.terms_of(None, row), payments, draws, clock.today(), plan, rate, mode
+
+moolakata.ui.loans.x__plans__mutmut_6
+  _plans line 854
+  -             .where(PayoffPlan.accountId == a.id, PayoffPlan.deleted == false())
+  +             .where(PayoffPlan.deleted == false())
+
+moolakata.ui.loans.x__plans__mutmut_7
+  _plans line 854
+  -             .where(PayoffPlan.accountId == a.id, PayoffPlan.deleted == false())
+  +             .where(PayoffPlan.accountId == a.id, )
+
+moolakata.ui.loans.x__plans__mutmut_3
+  _plans line 855
+  -             .order_by(PayoffPlan.createdAt)
+  +             .order_by(None)
