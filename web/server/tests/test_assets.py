@@ -404,6 +404,33 @@ def test_one_main_home_at_a_time_across_the_households_homes_seen_or_not(server,
     assert ok.status_code == 200, ok.text
 
 
+def test_a_dates_refusal_names_the_first_period_outside_it_once(jane):
+    """S1.10.4: when several residence periods start before a home's new date acquired, the
+    date is refused once, naming the earliest of them."""
+    ann = _made(make(jane, "Persn", name="Ann Doe", sex="female"))["id"]
+    homes = new_account(jane, name="Homes", type="real-estate")
+    home = item(jane, homes["id"], name="Elm St", acquiredOn="2015-03-01", costBasis="1")
+    _made(_period(jane, home["id"], _me(jane), fromDate="2015-03-01", toDate="2019-12-31"))
+    _made(_period(jane, home["id"], ann, fromDate="2015-04-01", toDate="2020-12-31"))
+    path = f"/ui/api/items/{home['id']}"
+    r = edit(jane, "Item", path, acquiredOn="2015-06-01")
+    why = "The residence period from Mar 1, 2015 starts before this."
+    assert refused(r) == [("acquiredOn", "periods-outside", why)]
+
+
+def test_a_residence_period_stays_with_its_home(jane):
+    """S1.10.4: a residence period is one person's span of one home: a change can't move it to
+    another home, refused at its home, and it stays where it was."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01", costBasis="1")
+    oak = item(jane, homes["id"], name="Oak St", acquiredOn="2015-01-01", costBasis="1")
+    p = _made(_period(jane, elm["id"], _me(jane), fromDate="2016-01-01"))
+    r = change(jane, "RsPrd", {**p, "itemId": elm["id"]}, itemId=oak["id"])
+    assert refused(r) == [("itemId", "period-fixed", "A period stays with its home.")]
+    assert len(jane.get(f"/ui/api/items/{elm['id']}").json()["residencePeriods"]) == 1
+    assert jane.get(f"/ui/api/items/{oak['id']}").json()["residencePeriods"] == []
+
+
 def test_a_homes_dates_are_refused_where_a_period_falls_outside_them(jane):
     """S1.10.4: a change of the date acquired or the sale day that leaves a period outside the
     days owned is refused at that date, naming the period; the same save fixing the period, or

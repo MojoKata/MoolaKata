@@ -359,6 +359,22 @@ def test_a_followed_plans_rounding_counts_pmi_only_while_it_is_due():
     assert P.expected_extra(due, plan, due.start, today, [], []) == D("56.75")
 
 
+def test_a_daily_interest_loans_pmi_goes_by_each_months_own_days():
+    """S1.9.5: a loan whose interest runs by the day owes less interest in a short month, so
+    more principal comes off and the balance PMI goes by is lower. 300,000 at 6%, nothing paid:
+    February's 28 days leave 299,582.17 by March's payment, under 78% of 384,103 (299,600.34),
+    so March's rounding leaves PMI out; the other months' 31 or 30 days leave more owed. By the
+    month, every payment leaves 299,701.35, and PMI is due on all five."""
+    plan = P.Plan(roundTo=D(100))
+    kw = dict(escrowTax=D(300), pmi=D(90), originalValue=D(384103))
+    daily = L.Terms(D(300000), d(2026, 1, 1), 360, D(6), method="daily", **kw)
+    monthly = L.Terms(D(300000), d(2026, 1, 1), 360, D(6), **kw)
+    today = d(2026, 6, 1)
+    # 2,188.65 rounds up by 11.35 on the four days PMI is due; 2,098.65 by 1.35 in March.
+    assert P.expected_extra(daily, plan, daily.start, today, [], []) == D("46.75")
+    assert P.expected_extra(monthly, plan, monthly.start, today, [], []) == D("56.75")
+
+
 def test_a_followed_plans_pmi_ends_with_the_payments_made():
     """The balance PMI goes by is what the payments made left: an extra 70,000 paid with the
     first payment takes the balance under 78% of 400,000, so from the next payment the
