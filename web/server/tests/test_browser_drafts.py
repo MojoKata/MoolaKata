@@ -831,6 +831,49 @@ def test_a_new_items_refusal_brings_its_tab_forward(browser, household):
     page.close()
 
 
+def test_an_items_history_that_fails_says_so_on_its_valuation_tab(browser, household):
+    """S1.10.6: the month-end chart is read when the Valuation tab opens; a read that fails
+    says so there, and the rest of the tab is as it was."""
+    h = household
+    coll = make(h.c, "Acct", name="Clocks", type="collectables").json()
+    make(h.c, "Item", accountId=coll["id"], name="Carriage clock", acquiredOn="2020-01-10",
+         costBasis="800")  # fmt: skip
+    path = f"/ui/accounts/{coll['id']}/items"
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Carriage clock") .row-tool')
+    page.route("**/history", lambda route: route.fulfill(status=500, body="{}"))
+    page.click('tr:has-text("Carriage clock") .row-tool')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.click('.dialog [role=tab]:has-text("Valuation")')
+    wait(page, ".dialog .notice.bad", problems)
+    assert page.locator(".dialog .chart-box").count() == 0
+    assert page.locator('.dialog button:has-text("Record the Sale…")').count() == 1
+    assert [p for p in problems if "500" not in p] == []
+    page.close()
+
+
+def test_a_residence_periods_refusal_shows_on_its_line_on_the_general_tab(browser, household):
+    """S1.10.4, S1.10.6: a residence period refused at Save shows why on its line, and the
+    General tab, where it is, comes forward from whichever tab was open."""
+    h = household
+    homes = make(h.c, "Acct", name="Cabins", type="real-estate").json()
+    make(h.c, "Item", accountId=homes["id"], name="Lake cabin", acquiredOn="2020-06-01",
+         costBasis="90000")  # fmt: skip
+    path = f"/ui/accounts/{homes['id']}/items"
+    page, problems = signed_in(browser, h, path, 'tr:has-text("Lake cabin") .row-tool')
+    page.click('tr:has-text("Lake cabin") .row-tool')
+    wait(page, ".dialog footer button.primary:enabled", problems)
+    page.fill("#x-lived-from", "2019-01-01")
+    page.click('.dialog button:has-text("Add Period")')
+    page.click('.dialog [role=tab]:has-text("Notes")')
+    page.click(".dialog footer button.primary")
+    wait(page, '.dialog [role=tab][aria-selected=true]:has-text("General")', problems)
+    line = page.locator('.dialog .list-item:has-text("You, Jan 1, 2019")')
+    wait(page, '.dialog .list-item:has-text("You, Jan 1, 2019") .err', problems)
+    assert line.locator(".err").inner_text() == "On or after the day acquired."
+    assert [p for p in problems if not p.startswith("422 for")] == []
+    page.close()
+
+
 def test_held_since_shows_for_a_gift_and_is_saved_with_it(browser, household):
     """S1.10.1: the giver's day is asked only for a gift; a gift's is saved with the item."""
     h = household

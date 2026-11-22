@@ -132,8 +132,9 @@ def build(h) -> World:
     w.txn(ex, f"{y}-04-01", "0.00", kind="reward", symbol="ETH", quantity="0.01", price="2000")
     # A coin and a car sold, a cottage lived in and sold.
     coll = w.acct("collectables", "TP collectables", "collectables")
+    # Inherited: its 8949 row reads INHERITED for its date acquired (S8.13).
     coin = made(make(c, "Item", accountId=coll, name="TP coin", acquiredOn="2015-01-01",
-                     costBasis="1000"))  # fmt: skip
+                     acquiredHow="inherited", costBasis="1000"))  # fmt: skip
     saved(sell(c, coin["id"], f"{y}-05-01", "3000"))
     cars = w.acct("cars", "TP cars", "vehicle")
     car = made(make(c, "Item", accountId=cars, name="TP car", acquiredOn="2018-01-01",
@@ -149,7 +150,8 @@ def build(h) -> World:
     # Loans: a mortgage secured by the cottage with PMI and tax through escrow; a student loan.
     mort = w.acct("mortgage", "TP mortgage", "mortgage")
     saved(terms(c, mort, principal="160000", startDate=f"{y}-01-01", termMonths=360, rate="3",
-                escrowTax="200", pmi="50", securedById=cottage["id"]))  # fmt: skip
+                escrowTax="200", pmi="50", securedById=cottage["id"], points="1600",
+                pointsPaidOn=f"{y}-01-01", pointsPurpose="purchase"))  # fmt: skip
     saved(loan_payment(c, mort, f"{y}-02-01", "1000"))
     stu = w.acct("student", "TP student loan", "student-loan")
     saved(terms(c, stu, principal="20000", startDate=f"{y}-01-01", termMonths=120, rate="5"))
@@ -337,6 +339,8 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
     coin, car = rows["TP coin"], rows["TP car"]
     assert (coin[0], coin[1], coin[6], coin[8]) == ("F", "TP coin TP collectables · collectable",
                                                     "C", "+$2,000.00")  # fmt: skip
+    # Inherited: the form's INHERITED for its date acquired, the day it came below (S8.13).
+    assert coin[2].split() == ["INHERITED", "Jan", "1,", "2015"]
     assert (car[6], car[7], car[8]) == ("L", "$12,000.00", "$0.00")
     facts = _text(page, ".card.facts")
     for box, gain in (("A", "−$200.00"), ("C", "+$500.00"), ("D", "−$60.00"), ("E", "+$350.00"),
@@ -522,14 +526,15 @@ def test_the_education_panel_shows_the_529_students_and_gifts(browser, world):
 
 
 def test_the_loans_and_property_panel_shows_interest_and_sales(browser, world):
-    """S8.12, S8.13: a mortgage's interest, PMI and escrowed tax under the home it's secured
-    by, a student loan's 1098-E; a collectable and a personal-use loss sold, and a home lived
-    in: its gain, years owned and its owner's years lived in."""
+    """S8.12, S8.13: a mortgage's interest, its points that bought the home (all in the year
+    paid), PMI and escrowed tax under the home it's secured by, a student loan's 1098-E; a
+    collectable and a personal-use loss sold, and a home lived in: its gain, years owned and
+    its owner's years lived in."""
     page, problems = opened(browser, world, YEAR, "property", ':text("TP cottage sold")')
     loans = _text(page, _card("Loans (1098, 1098-E)"))
     assert (
-        "TP mortgage · 1098 · TP cottage Interest $400.00 PMI $50.00 Property tax through "
-        "escrow $200.00"
+        "TP mortgage · 1098 · TP cottage Interest $400.00 Points $1,600.00 PMI $50.00 Property "
+        "tax through escrow $200.00"
     ) in loans
     assert "TP student loan · 1098-E Interest $83.33" in loans
     sold = _text(page, _card("Physical Assets Sold"))

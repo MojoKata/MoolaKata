@@ -8,7 +8,7 @@ import re
 import httpx
 import pytest
 from browser import PASSWORD, made, months_back, open_page, signed_in, wait
-from edits import make, plan529, remove, saved, share
+from edits import change, make, plan529, remove, saved, share
 
 from moolakata.dev.waits import idle
 
@@ -236,6 +236,32 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     off(dialog, "Remove Kitchen remodel")
     assert problems == []
     page.close()
+
+
+def test_a_readers_yes_or_no_keeps_the_switchs_footprint(browser, household, reader):
+    """S12.18: a yes or no a reader can't change keeps the switch's footprint, a check or a
+    dash in it, never a live switch: a shared gift plan's gift given in money, which its row
+    opens to read for the reader."""
+    h = household
+    gift = next(g for g in h.c.get("/ui/api/gifts").json()["items"] if g["description"] == "Watch")
+    saved(change(h.c, "Gift", gift, cash=True))
+    try:
+        page, problems = signed_in_as_reader(
+            browser, h, "/ui/gifts/gifts", 'tr:has-text("Watch") .row-tool'
+        )
+        page.click('tr:has-text("Watch") .row-tool')
+        wait(page, ".dialog #f-given-in-money", problems)
+        cash = page.locator(".dialog #f-given-in-money")
+        assert cash.get_attribute("role") == "switch"
+        assert cash.get_attribute("aria-readonly") == "true"
+        assert cash.get_attribute("aria-checked") == "true"
+        assert problems == []
+        page.close()
+    finally:
+        now = next(
+            g for g in h.c.get("/ui/api/gifts").json()["items"] if g["description"] == "Watch"
+        )
+        saved(change(h.c, "Gift", now, cash=False))
 
 
 def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household, reader):
