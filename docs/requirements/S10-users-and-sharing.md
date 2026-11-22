@@ -140,7 +140,7 @@
    record of the dialog's draft (S12.15), made, changed or removed by its switch, and Include
    receipts is set on the grants of that server's people. When a share is
    removed, the receiver's access ends on their next request. Their own annotations, such as
-   their tags on the account's transactions, are deleted.
+   their private tags on the account's transactions (S2.6.1), are deleted.
 5. **Through a group**: every member holds the share while they are in the group and it is
    active. A user with both a direct and a group share gets the higher level.
 6. **A shared account appears in the receiver's lists** with a *shared with me* mark, the
@@ -235,7 +235,9 @@
        | wife, husband, widow, widower | *spouse*, ended by death for the last two |
 
        The words follow each person's sex. Adoption and guardianship are *child*. A person
-       related in a way the tree can't show is entered as *family* with a label.
+       related in a way the tree can't show is entered as *family* with a label. A relation
+       worked out through someone the viewer can't see isn't shown to them, on this server as
+       on a linked one (S11.3.1).
     6. **Shown** in the person's gift plan as their relationships, stored and worked out,
        and on the Gifts screen as the person's relation to the user (*Lisa, your
        granddaughter*). Profile lists the user's own with their dates, adds them, and changes
