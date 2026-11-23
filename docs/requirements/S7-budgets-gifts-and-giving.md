@@ -8,6 +8,16 @@
       actuals count every transaction in its accounts. Its receivers see the figures from the
       owner's own accounts, and from an account shared with the owner only if that account is
       shared with them too, so a budget never passes on an account someone else shared (R3.4).
+      An account shared with the owner counts only while it is: once its share ends, it
+      leaves every month of the budget, past ones included, its alerts and *Where the money
+      is*, on the next request (R3.4), and it counts again if it is shared again. An account
+      not shared with a receiver is never named to them, nor its id given, nor its
+      transactions' payees, dates or ids: not as a card's payment line, nor as where a reserve
+      is held, which a `write` receiver's change to the line keeps (S11.3.1). What left or
+      entered the budget from it (S7.3.2), landed in it or moved into it (S7.10.4) reads to
+      them as *an account not shared* with the amount, its rows in one list added into one
+      (what left apart from what entered, what was kept as its own apart from what moved in),
+      so every total is the same.
    2. **The plan holds from a month on.** A change applies from the month it is made in,
       so past months keep the plan they had; a category taken out of the plan stops from
       that month. A plan line on a parent category counts its children that have no line of
@@ -26,14 +36,23 @@
       other.
    4. **Options**, chosen when the budget is made and turned on or off later in its settings,
       so a budget shows only what it uses: **reserves** (S7.10) and **moves** (S7.11). An
-      envelope budget always has moves.
+      envelope budget always has moves. Turning reserves off takes every target off from that
+      month on, as if taken off line by line, after the same question naming each reserve's
+      balance (S7.10.3); earlier months keep their plan (S7.1.2), and turned on again the
+      budget starts with none.
    5. **Estimate from history**: making a budget, or later from its plan, offers a plan line
       per category from its average over the last 3, 6 or 12 months, as the user picks:
       monthly where it was spent in most months, yearly otherwise. The recurring transactions
-      of S7.5, looked for three years back so a yearly bill has the three payments a series
-      needs, are offered as lines of their own (*Rent $1,850 a month*, *Car insurance $1,140
-      a year*), a yearly one as a reserve when reserves are on. Each proposed line is kept,
-      changed or dropped before the plan is saved.
+      of S7.5 are looked for three years back, so a yearly bill has the three payments a
+      series needs. A category with yearly or quarterly bills is proposed at those bills
+      summed plus the average of the rest of its spending, monthly bills included, its detail
+      naming each bill (*Housing › Insurance $7,140 a year: Allstate $2,400 a year, Geico
+      $1,140 a year, and $300 a month besides*). With reserves on, an expense or savings
+      category with such bills is proposed as a monthly line of a twelfth of the year, with
+      the bills' yearly total as its reserve target ($595 a month toward $3,540); without
+      reserves, or for income, as a yearly line of the year's total ($7,140 a year). Income
+      is never proposed as a reserve (S7.10). Each
+      proposed line is kept, changed or dropped before the plan is saved.
    6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
       while their history is clear: each card's **paid from** account, learned from its paired
       payments (S1.7) and changed only where the history is mixed; for each account reserves
@@ -94,8 +113,11 @@
    remains.
    1. **What counts**: the transactions in the budget's accounts, by their categories:
       spending as spent, income as received, savings as saved. A split transaction counts
-      through its splits. A refund in an expense category lowers its spending, in the month
-      it lands. A pending transaction doesn't count until it posts. Matched transfers between
+      through its splits. A transaction is **uncategorised** while it has neither a category
+      nor splits, or a split of it has none: the Transactions screen's *Uncategorised* filter
+      lists those, and a month's count of them (S7.4) leaves out what the budget leaves out
+      (S7.3.5). A refund in an expense category lowers its spending, in the month it lands.
+      A pending transaction doesn't count until it posts. Matched transfers between
       two of the budget's accounts, and transfer categories, never count (S1.7).
    2. **Money leaving or entering the budget**: a matched transfer between one of the
       budget's accounts and an account it doesn't count counts like any transaction, by the
@@ -113,7 +135,9 @@
       from its accounts (*Cash gets transfers from UMB Checking: include it?*).
    3. **Loan payments** count at the bank account they come from, as their loan says
       (S1.9.7): split by the schedule into the categories of its parts, or whole in one
-      category. A loan account is never one of a budget's accounts.
+      category. A loan account is never one of a budget's accounts. Only money out to a loan
+      is a payment: a draw (a HELOC's) or an escrow refund into one of the budget's accounts
+      is money entering the budget (S7.3.2).
    4. **Reimbursable** spending (S2.9) counts only the part neither awaited nor paid back;
       a payback paired with it doesn't count as income.
    5. **Left out**: a transaction left out of a budget (a car bought outright) counts nowhere
@@ -180,12 +204,13 @@
    2. **Missed**: the next one is more than a few days late. **Changed**: the last amount
       moved 5% or more from the usual, flagged only where the amounts are otherwise fixed
       (a subscription, rent), since a utility bill varies anyway.
-6. **Budget alerts** come from a user's active budget only (S7.12), raised as alerts to its
-   owner (S12.11):
+6. **Budget alerts** come from a user's active budget only (S7.12), raised as alerts to each
+   user whose active budget it is, its owner or one it is shared with (S12.11):
    1. **Cash before payday**, for each checking account in the budget with recurring payments
       out (S7.5): when its balance, less the recurring payments expected from it before its
       next expected money in (income landing there, or a regular transfer in), would fall
-      below zero, an alert names the account and the day (*John's Checking dips below $0 on the
+      below zero, an alert names the account (*an account not shared* to a follower it isn't
+      shared with, S7.1.1) and the day (*John's Checking dips below $0 on the
       26th, before the transfer from Joint on the 1st*). It resolves when the figures no
       longer say so. The balance is carried day by day: every payment the schedules expect
       before the money comes in is taken off on its day (a weekly one each week), payments out
@@ -284,8 +309,13 @@
        Spending beyond the balance leaves it negative, carried until money is put back or
        moved in.
     3. **Kept**: a reserve always rolls over. Taking its category out of the plan, or its
-       target off, asks first and names the balance that stops being kept; a balance is never
-       carried into a line without a target. Set to $0 a month, it puts nothing in and keeps
+       target off, asks first and names its balance; turning reserves off (S7.1.4) asks once,
+       naming every reserve's balance, and plan lines set for later months lose their targets
+       too. In a tracking budget that balance stops
+       being kept: it is never carried into a line without a target, which carries only its
+       own months. In an envelope budget it is money set aside: with the target off it stays
+       in the envelope, now an ordinary line (*$300 stays in the envelope*, S7.13.3), and with
+       the category out of the plan it goes back to *To Budget*. Set to $0 a month, it puts nothing in and keeps
        its balance. Taking out a rollover line or an envelope that holds money asks the same
        way.
     4. **Held in**: a reserve can name the account its money is kept in (*Ally Savings*), one
@@ -326,10 +356,13 @@
        a transfer from the budget's accounts, and not in a reserve's category (its interest, a
        paycheck split into it, a transfer from an account the budget doesn't count; a refund in
        a reserve's category is the reserve's own, never landed) is listed under **Where the money
-       is** as **unassigned** until the user gives it, with a line for each reserve held
-       there and one for the account's own (*not set aside*): the lines start spread among
-       the reserves by balance, any may change, and what no line takes stays unassigned. Each
-       line given something is a move (S7.11), saved together; money given to a reserve
+       is** as **unassigned** in every month until the user gives it, with a line for each
+       reserve held there and one for the account's own (*not set aside*): the lines start
+       spread among the reserves by balance, any may change, and what no line takes stays
+       unassigned. Each line given something is a move (S7.11) of the month it is given in,
+       the month it landed or a later one (a month before it is refused), saved together:
+       $40 of November's interest given from December is December's, and
+       November still shows it unassigned (R3.10). Money given to a reserve
        counts as moved in, so *to move* never asks for it again. In the budget it counts as it always does: interest as income, a
        transfer by S7.3.2.
 11. **Moves** (a budget's option, always on in an envelope budget): a **move** puts an
@@ -365,7 +398,12 @@
        what remains is what its last month leaves.
     4. **Copy as scenario…** makes a budget with the same accounts and plan, in the method
        chosen (a tracking line becomes the same amount assigned each month, and an envelope
-       line the same amount planned), with this month's moves when asked.
+       line the same amount planned), with this month's moves when asked. It counts the
+       accounts its maker can see, and a reserve held in one it doesn't count is held nowhere
+       (S7.10.4), its target kept. A move comes along only as it is, never rewritten: one
+       from or to *To Budget* or into a card's payment line into an envelope copy (a card's
+       only while the copy counts the card), and landed money given or kept (S7.10.5) into
+       either method while the copy counts the account it landed in.
     5. **Each user's own choice**: a household budget shared at `write` can be active for
        both, while one of them tries a scenario of their own; a scenario is shared as any
        budget is. A linked household's budgets are seen in its window, never made active
@@ -378,8 +416,12 @@
     1. **To Budget** is the cash in the budget's accounts, less what its categories hold and
        what is set aside for its cards (S7.13.2). It starts in the budget's first month, from
        those accounts' balances that day, and there is none in the months before. Each month the
-       plan's lines assign their amounts (a yearly line a twelfth of its amount), a move from or
-       to *To Budget* assigns more or less, and income adds to it as it lands.
+       plan's lines assign their amounts (a yearly line a twelfth of its amount; *Gifts* and
+       *Giving*, the gift and giving plans' yearly lines (S7.3.6), a twelfth of their plans'
+       year), a move from or
+       to *To Budget* assigns more or less, and income adds to it as it lands. Landed money
+       given to a reserve (S7.10.5) is assigned from *To Budget* into the reserve's envelope;
+       what is kept as the account's own stays in *To Budget*.
        Below zero it shows red: more is assigned than there is.
     2. **Cards**: each card among the budget's accounts has a **payment** line, worked out,
        never stored. A charge to the card from a category with money in it moves that much
@@ -398,6 +440,11 @@
 14. **The month's review**, offered from the 1st for the month before: what was overspent,
     what is to move (S7.10.4), what is left in *To Budget*, and what is uncategorised or left
     or entered the budget, to sort, each with its action. **Mark reviewed** records who and
-    when. A reviewed month whose figures later change (a late transaction, a recategorised
-    one, a move in it) is flagged *changed*, with what changed, until it is
-    reviewed again. Months are never locked, since history can be edited (S2.8).
+    when, for everyone the budget is shared with, and keeps the month's figures as each of
+    them sees them (S7.1.1). A reviewed month whose figures later change (a late transaction,
+    a recategorised one, a move in it) is flagged *changed* to each person whose own figures
+    changed, with what changed, until it is reviewed again; one it is shared with after the
+    review sees who reviewed it, with nothing changed, until it is marked again. What changed:
+    a planned line's spending or plan, spending in a category outside the plan, each named,
+    the count uncategorised, what left or entered the budget to sort, and each of the month's
+    totals (spent, income, saved, *To Budget*) that changed. Months are never locked, since history can be edited (S2.8).

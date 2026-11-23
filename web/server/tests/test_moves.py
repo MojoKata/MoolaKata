@@ -74,6 +74,36 @@ def test_a_move_covers_one_category_from_another_for_a_month(server, frozen):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "move-invalid"
 
 
+def test_a_move_to_or_from_a_yearly_line_counts_in_its_year(server, frozen):
+    """S7.11, S7.3.11: $40 moved from Entertainment ($100 a month) to Housing › Insurance
+    ($1,200 a year) in October is in both: Insurance's planned is the year's plus the year's
+    moves so far, in October and the months after it that year, and not the next year."""
+    c, _, cat, b = setup_budget(server)
+    fun, ins = cat["Entertainment"], cat["Housing › Insurance"]
+    lines = [
+        {"categoryId": fun, "amount": "100.00"},
+        {"categoryId": ins, "amount": "1200.00", "cadence": "year"},
+    ]
+    plan(c, b, "2026-01-01", lines)
+    moves_on(c, b)
+    r = move(c, b, month="2026-10-01", fromCategoryId=fun, toCategoryId=ins, amount="40.00")
+    assert r.status_code == 200, r.text
+    v = month(c, b, "2026-10")
+    assert (row(v, "Entertainment")["planned"], row(v, "Entertainment")["moved"]) == (
+        "60.00",
+        "-40.00",
+    )
+    i = row(v, "Housing › Insurance")
+    assert (i["planned"], i["moved"], i["remaining"]) == ("1240.00", "40.00", "1240.00")
+    assert row(month(c, b, "2026-09"), "Housing › Insurance")["planned"] == "1200.00"
+    assert row(month(c, b, "2026-12"), "Housing › Insurance")["planned"] == "1240.00"
+    assert row(month(c, b, "2027-01"), "Housing › Insurance")["planned"] == "1200.00"
+    # The other way, the yearly line gives what it moves.
+    r = move(c, b, month="2026-11-01", fromCategoryId=ins, toCategoryId=fun, amount="15.00")
+    assert r.status_code == 200, r.text
+    assert row(month(c, b, "2026-11"), "Housing › Insurance")["planned"] == "1225.00"
+
+
 def test_a_transaction_left_out_of_one_budget(server, frozen):
     c, acct, cat, b = setup_budget(server)
     car = add(

@@ -49,8 +49,15 @@ class BudgetReview(Record):
     id: str
     budgetId: str
     month: dt.date
-    figures: str
     reviewedById: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
+class BudgetReviewViewer(Record):
+    id: str = field(default_factory=lambda: new_id("BdgVw"))
+    reviewId: str
+    userId: str
+    figures: str
 
 
 @dataclass(kw_only=True, eq=False)

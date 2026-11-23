@@ -420,3 +420,99 @@ def test_a_group_and_a_written_email_open_from_their_tools(browser, household, r
     wait(page, ".dialog", problems)
     assert problems == []
     page.close()
+
+
+def test_actions_on_an_account_not_shared_with_a_writer_are_off_with_why(
+    browser, household, reader
+):
+    """S7.1.1, S12.19.1: Rita writes an envelope budget counting a card and a savings account
+    neither shared with her. The card's line owed, not backed, shows Cover from… off; in Where
+    the money is, the money landed in the savings and moved in from the budget's checking show
+    Assign and Keep as the Account's Own off; each says why."""
+    from test_budgets import cats, save_plan
+    from test_reserves import reserves_on
+
+    h = household
+    day = f"{months_back(0)}-01"
+    accounts = [
+        made(make(h.c, "Acct", name="Spare Checking", type="checking", institution="UMB")),
+        made(make(h.c, "Acct", name="Spare Card", type="credit-card", institution="Chase")),
+        made(make(h.c, "Acct", name="Spare Savings", type="savings", institution="Ally")),
+    ]
+    chk, card, savings = (a["id"] for a in accounts)
+    b = made(make(h.c, "Bdgt", name="Spare envelopes", method="envelope",
+                  accountIds=[chk, card, savings]))  # fmt: skip
+    try:
+        reserves_on(h.c, b)
+        roof = cats(h.c)["Housing › Maintenance"]
+        line = {"categoryId": roof, "amount": "50.00", "target": "900", "heldInId": savings}
+        assert save_plan(h.c, b, day, [line]).status_code == 200
+        made(make(h.c, "Txn", accountId=card, date=day, amount="-80.00", payee="Hardware"))
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="4.00", kind="interest"))
+        made(make(h.c, "Txn", accountId=chk, date=day, amount="-100.00", payee="To savings"))
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="100.00", kind="deposit"))
+        made(share(h.c, "budget", b["id"], users={reader["id"]: "write"}))
+        page, problems = signed_in_as_reader(
+            browser, h, f"/ui/budgets/{b['id']}/month", "text=owed, not backed"
+        )
+        off(
+            page,
+            "Cover from…",
+            "Only someone this account is shared with can cover its card's line",
+        )
+        page.goto(h.base + f"/ui/budgets/{b['id']}/where")
+        wait(page, "text=Unassigned", problems)
+        off(page, "Assign", "Only someone this account is shared with can give what landed in it")
+        off(
+            page,
+            "Keep as the Account's Own",
+            "Only someone this account is shared with can keep what moved into it as its own",
+        )
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Bdgt", h.c.get(f"/ui/api/budgets/{b['id']}").json(), confirm=True))
+        for a in accounts:
+            gone = h.c.get(f"/ui/api/accounts/{a['id']}").json()
+            made(remove(h.c, "Acct", gone, confirm=True))
+
+
+def test_landed_moneys_actions_are_off_for_one_who_reads_the_budget(browser, household, reader):
+    """S12.19.1: Rita reads an envelope budget whose savings and checking are shared with her:
+    in Where the money is, Assign and Keep as the Account's Own are moves she may not make,
+    shown off, saying why."""
+    from test_budgets import cats, save_plan
+    from test_reserves import reserves_on
+
+    h = household
+    day = f"{months_back(0)}-01"
+    accounts = [
+        made(make(h.c, "Acct", name="Read Checking", type="checking", institution="UMB")),
+        made(make(h.c, "Acct", name="Read Savings", type="savings", institution="Ally")),
+    ]
+    chk, savings = (a["id"] for a in accounts)
+    b = made(make(h.c, "Bdgt", name="Read envelopes", method="envelope",
+                  accountIds=[chk, savings]))  # fmt: skip
+    try:
+        reserves_on(h.c, b)
+        roof = cats(h.c)["Housing › Maintenance"]
+        line = {"categoryId": roof, "amount": "50.00", "target": "900", "heldInId": savings}
+        assert save_plan(h.c, b, day, [line]).status_code == 200
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="4.00", kind="interest"))
+        made(make(h.c, "Txn", accountId=chk, date=day, amount="-100.00", payee="To savings"))
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="100.00", kind="deposit"))
+        for a in (chk, savings):
+            made(share(h.c, "account", a, users={reader["id"]: "read"}))
+        made(share(h.c, "budget", b["id"], users={reader["id"]: "read"}))
+        page, problems = signed_in_as_reader(
+            browser, h, f"/ui/budgets/{b['id']}/where", "text=Unassigned"
+        )
+        off(page, "Assign")
+        off(page, "Keep as the Account's Own")
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Bdgt", h.c.get(f"/ui/api/budgets/{b['id']}").json(), confirm=True))
+        for a in accounts:
+            gone = h.c.get(f"/ui/api/accounts/{a['id']}").json()
+            made(remove(h.c, "Acct", gone, confirm=True))

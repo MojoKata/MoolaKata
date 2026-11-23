@@ -338,9 +338,9 @@
 
 /**
  * @typedef {Object} BetweenOut
- * @property {string} fromId
+ * @property {(string | null)} fromId
  * @property {string} fromName
- * @property {string} toId
+ * @property {(string | null)} toId
  * @property {string} toName
  * @property {import('../kit/dec.js').Dec} amount
  */
@@ -562,7 +562,7 @@
 /**
  * A card's payment line in an envelope budget (S7.13.2).
  * @typedef {Object} CardLine
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} name
  * @property {import('../kit/dec.js').Dec} setAside
  * @property {import('../kit/dec.js').Dec} owed
@@ -572,7 +572,7 @@
 
 /**
  * @typedef {Object} CardOut
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} accountName
  * @property {(string | null)} paidFromId
  * @property {(string | null)} paidFromName
@@ -1524,7 +1524,7 @@
 /**
  * An account reserves are held in, and what is to move there (S7.10.4).
  * @typedef {Object} HeldInOut
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} accountName
  * @property {(string | null)} movedFromId
  * @property {(string | null)} movedFromName
@@ -1887,8 +1887,8 @@
 
 /**
  * @typedef {Object} LandedOut
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {(string | null)} payee
  * @property {import('../kit/dec.js').Dec} amount
  * @property {import('../kit/dec.js').Dec} free
@@ -2288,7 +2288,7 @@
 /**
  * A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
  * landed money given to a reserve held where it landed, or to no category: kept as the
- * account's own (S7.10.5); its month is the transaction's.
+ * account's own (S7.10.5); its month is the one it is given in, never before it landed.
  * @typedef {Object} MoveRecord
  * @property {string} month
  * @property {(string | null)} [fromCategoryId]
@@ -2302,12 +2302,14 @@
 
 /**
  * A transfer between one of the budget's accounts and one it doesn't count, with no
- * category: it counts nowhere until sorted (S7.3.2).
+ * category: it counts nowhere until sorted (S7.3.2). One in an account not shared with the
+ * viewer has no transaction id, date, payee or other account: that account's rows that left
+ * the budget are added into one, and those that entered it into another (S7.1.1).
  * @typedef {Object} MovedRow
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {string} accountName
- * @property {string} otherAccountName
+ * @property {(string | null)} otherAccountName
  * @property {import('../kit/dec.js').Dec} amount
  * @property {(string | null)} payee
  */
@@ -4433,8 +4435,8 @@
 /**
  * A transfer in from the budget's accounts this month: the reserves' unless kept.
  * @typedef {Object} TransferIn
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {(string | null)} payee
  * @property {import('../kit/dec.js').Dec} amount
  * @property {boolean} kept

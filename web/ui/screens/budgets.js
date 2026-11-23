@@ -31,12 +31,20 @@ import {
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
+import { spreadByBalance } from '../app/reserves.js';
 import { Amt } from '../kit/amount.js';
 import { CategoriesTab, CategoryField } from '../components/categories.js';
 import { Action, Attention, StatePill } from '../kit/state.js';
 
 /** What the uncategorised count means, its pill's tooltip (S12.19.3). */
 const UNCATEGORISED = 'Transactions without a category count nowhere until sorted: open them.';
+
+/** Why an action on an account not shared with the viewer is off (S7.1.1, S12.19.1). */
+const NOT_SHARED_SORT = 'Only someone this account is shared with can sort its transfers';
+const NOT_SHARED_COVER = "Only someone this account is shared with can cover its card's line";
+const NOT_SHARED_ASSIGN = 'Only someone this account is shared with can give what landed in it';
+const NOT_SHARED_KEEP =
+  'Only someone this account is shared with can keep what moved into it as its own';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -211,8 +219,11 @@ function ThisMonth({ b, month, reloadList }) {
   // Moves are the budget's own setting; one who may not make them sees them off (S12.19.1).
   const canMove = !!b.moves;
   const moveWhy = whyNotAdd('BdgMv', b);
+  // A card not shared with the viewer comes with no id, so nothing is moved to its line: its
+  // Cover from… is off (S7.1.1).
+  const movable = v.cards.filter((/** @type {any} */ x) => x.accountId);
   const moveTo = (/** @type {string} */ to = '') =>
-    openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
+    openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: movable }).then((x) =>
       x && res.reload()
     );
   const envelope = b.method === 'envelope';
@@ -350,7 +361,7 @@ function ThisMonth({ b, month, reloadList }) {
                         ? html`
                           <div>
                             <${Action} class="linklike" data-help="cover-from"
-                              why=${moveWhy} onClick=${() =>
+                              why=${x.accountId ? moveWhy : NOT_SHARED_COVER} onClick=${() =>
                                 moveTo('card:' + x.accountId)}>Cover from…</${Action}></div>
                         `
                         : null
@@ -436,17 +447,30 @@ function ThisMonth({ b, month, reloadList }) {
       ? html`
         <div class="card mt"><h3>Left or Entered the Budget</h3>
           ${v.moved.map((/** @type {any} */ m) =>
-            html`
-              <div class="list-item">
-                <div class="grow">${date(m.date)} · ${dec(m.amount).isNegative()
-                  ? `${m.accountName} → ${m.otherAccountName}`
-                  : `${m.otherAccountName} → ${m.accountName}`}<div class="small dim">${m.payee ||
-                  'a transfer'}</div></div>
-                <span class="num amt">${money(m.amount)}</span>
-                <button type="button" class="btn sm" data-help="sort" onClick=${() =>
-                  sort(m.transactionId)}>Sort</button>
-              </div>
-            `
+            m.transactionId
+              ? html`
+                <div class="list-item">
+                  <div class="grow">${date(m.date)} · ${dec(m.amount).isNegative()
+                    ? `${m.accountName} → ${m.otherAccountName}`
+                    : `${m.otherAccountName} → ${m.accountName}`}<div class="small dim">${m.payee ||
+                    'a transfer'}</div></div>
+                  <span class="num amt">${money(m.amount)}</span>
+                  <button type="button" class="btn sm" data-help="sort" onClick=${() =>
+                    sort(m.transactionId)}>Sort</button>
+                </div>
+              `
+              // An account not shared with the viewer: its rows added into one, no
+              // transaction to sort (S7.1.1).
+              : html`
+                <div class="list-item">
+                  <div class="grow">${m.accountName}<div class="small dim">${dec(m.amount)
+                      .isNegative()
+                    ? 'left the budget'
+                    : 'entered the budget'}</div></div>
+                  <span class="num amt">${money(m.amount)}</span>
+                  <${Action} class="btn sm" data-help="sort" why=${NOT_SHARED_SORT}>Sort</${Action}>
+                </div>
+              `
           )}
         </div>
       `
@@ -934,13 +958,18 @@ function ReserveRow({ r, held }) {
  */
 function WhereMoneyIs({ b, month }) {
   const res = useApi(`/budgets/${b.id}/where`, { month }, ['import', 'refresh']);
+  // Giving landed money or keeping it as the account's own is a move: one who may not make
+  // moves sees them off, saying why (S12.19.1).
+  const moveWhy = whyNotAdd('BdgMv', b);
   const w = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!w) return html`<${Loading} lines=${6} />`;
   if (!w.heldIn.length && !w.cards.length) {
     return html`<${Empty}>No reserve held in an account, and no card</${Empty}>`;
   }
-  // A transfer in kept as the account's own: a move to no category (S7.10.4).
+  // An account not shared with the viewer comes with no id: what landed there is shown, not
+  // theirs to give or keep, its actions off (S7.1.1). A transfer in kept as the account's own:
+  // a move to no category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
     try {
       await saveNow((d) =>
@@ -957,8 +986,12 @@ function WhereMoneyIs({ b, month }) {
       toast(/** @type {any} */ (e).message);
     }
   };
+  // A row of an account not shared with the viewer has no date or payee: its rows are added
+  // into one (S7.1.1).
+  const what = (/** @type {any} */ x, /** @type {string} */ word) =>
+    x.date ? `${x.payee || word}, ${date(x.date)}` : 'in all';
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
-    openDialog(AssignDialog, { b, h, landed: x }).then((y) => y && res.reload());
+    openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
   return html`
     <div class="grid g2">${w.heldIn.map((/** @type {any} */ h) =>
       html`
@@ -986,10 +1019,13 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">${x.kept
                   ? "Kept as the account's own"
-                  : 'Moved in'}<div class="small dim">${money(x.amount)} ${x.payee ||
-                  'a transfer'}, ${date(x.date)}</div></span>${x.kept ? null : html`
-                  <button type="button" class="btn sm" data-help="keep-own"
-                    onClick=${() => keepOwn(x)}>Keep as the Account's Own</button>
+                  : 'Moved in'}<div class="small dim">${money(x.amount)} ${what(
+                    x,
+                    'a transfer',
+                  )}</div></span>${x.kept ? null : html`
+                  <${Action} class="btn sm" data-help="keep-own"
+                    why=${h.accountId ? moveWhy : NOT_SHARED_KEEP} onClick=${() =>
+                      keepOwn(x)}>Keep as the Account's Own</${Action}>
                 `}</div>
             `
           )}
@@ -998,15 +1034,15 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
                   x.free,
-                )} ${x.payee || 'landed'}, ${date(x.date)}</div></span><button type="button"
-                            class="btn sm" data-help="unassigned" onClick=${() =>
-                              assign(h, x)}>Assign</button></div>
+                )} ${what(x, 'landed')}</div></span><${Action} class="btn sm"
+                  data-help="unassigned" why=${h.accountId ? moveWhy : NOT_SHARED_ASSIGN}
+                  onClick=${() => assign(h, x)}>Assign</${Action}></div>
             `
           )}
           <div class="list-item"><span class="grow dim">The account's balance${dec(h.balance).lt(
               dec(h.total),
             )
-            ? html`<div class="small down">short of its reserves by ${
+            ? html`<div class="small down" data-help="shortfall">short of its reserves by ${
               money(
                 dec(h.total).sub(dec(h.balance)),
               )
@@ -1097,25 +1133,6 @@ class LandedRec extends Record {
   static defaults = { fromCategoryId: null, toCategoryId: null, cardId: null, note: null };
 }
 
-/**
- * An amount spread among reserves by their balances, the last taking what rounding leaves;
- * evenly when none has a balance.
- * @param {string} amount @param {any[]} reserves @returns {string[]}
- */
-function spreadByBalance(amount, reserves) {
-  const weights = reserves.map((r) => (dec(r.balance).gt(0) ? dec(r.balance) : dec(0)));
-  const total = Dec.sum(weights);
-  let left = dec(amount);
-  return reserves.map((_, i) => {
-    if (i === reserves.length - 1) return String(left);
-    const share = total.isZero()
-      ? dec(amount).div(reserves.length, 2)
-      : dec(amount).mul(weights[i]).div(total, 2);
-    left = left.sub(share);
-    return String(share);
-  });
-}
-
 /** Whether a line gives nothing: empty, or zero. @param {any} v */
 const nothing = (v) => {
   try {
@@ -1127,14 +1144,19 @@ const nothing = (v) => {
 
 /**
  * Landed money given to the reserves held where it landed, a line each, or kept as the
- * account's own (S7.10.5): a move for each line given something, saved together.
- * @param {{ close: (v?: any) => void, b: any, h: any, landed: any }} p
+ * account's own (S7.10.5): a move for each line given something, saved together, in the
+ * month shown, whatever month it landed in.
+ * @param {{ close: (v?: any) => void, b: any, h: any, landed: any, month: string }} p
  */
-function AssignDialog({ close, b, h, landed }) {
+function AssignDialog({ close, b, h, landed, month }) {
   useDialogGuide('dialog-assign');
   const free = String(landed.free);
   const f = useDraft((draft) => {
-    const base = { budgetId: b.id, month: landed.date, transactionId: landed.transactionId };
+    const base = {
+      budgetId: b.id,
+      month: month + '-01',
+      transactionId: landed.transactionId,
+    };
     const shares = spreadByBalance(free, h.reserves);
     h.reserves.forEach((/** @type {any} */ r, /** @type {number} */ i) =>
       draft.add(LandedRec, { ...base, toCategoryId: r.categoryId, amount: shares[i] })

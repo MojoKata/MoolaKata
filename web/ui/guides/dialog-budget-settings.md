@@ -11,8 +11,10 @@ Such as _Household_.
 
 ## Reserves
 
-Save toward a target in a category, month by month. Turned off, the reserves' lines stay in the plan
-as ordinary lines.
+Save toward a target in a category, month by month. Turned off, every target comes off from this
+month on, and the reserves' lines stay in the plan as ordinary lines; earlier months keep their plan.
+It asks first, naming each reserve's balance: in a tracking budget the balances stop being kept, in
+an envelope budget they stay in the envelopes. Turned on again, the budget starts with no targets.
 
 ## Moves
 

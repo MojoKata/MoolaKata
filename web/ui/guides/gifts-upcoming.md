@@ -1,7 +1,7 @@
 # Gifts: Upcoming
 
-The next 60 days of everyone's birthdays, anniversaries, holidays and other dates, each with its
-budget, the gifts planned so far, and what's still missing.
+The next 60 days of the birthdays, anniversaries, holidays and other dates in your gift plans and
+those shared with you, each with its budget, the gifts planned so far, and what's still missing.
 
 ![Upcoming occasions](shots/gifts-upcoming.png)
 

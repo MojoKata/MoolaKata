@@ -48,7 +48,8 @@ accounts never count.
 
 ## Cover from… {#cover-from}
 
-An overspent category, covered by a move from one with money left this month.
+An overspent category, covered by a move from one with money left this month. On a card's line it
+is off when the card isn't shared with you: only someone it is shared with covers its line.
 
 ## Cards
 
@@ -65,7 +66,8 @@ while the balance covers it. **Funded** puts in nothing until spending draws it 
 ## Gifts and Giving
 
 Planned by your gift plans and your giving plan, a year at a time, never typed twice: each shows the
-year so far against its plan, with a link to it.
+year so far against its plan, with a link to it. In an envelope budget each is an envelope, assigned a
+twelfth of its plan's year each month.
 
 ## Saved
 
@@ -101,5 +103,5 @@ the plan; only its owner chooses its accounts or shares it.
 
 ## Uncategorised
 
-Transactions in the budget's accounts with no category yet. Sort them on the Transactions screen,
-and they count.
+Transactions in the budget's accounts with no category yet, or with a split that has none. One left
+out of this budget isn't counted. Sort them on the Transactions screen, and they count.

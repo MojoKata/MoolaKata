@@ -534,6 +534,36 @@ def test_a_question_is_listed_and_save_anyway_confirms_it(browser, household):
     page.close()
 
 
+def test_turning_reserves_off_asks_about_their_balances_then_takes_the_targets_off(
+    browser, household
+):
+    """S7.1.4, S7.10.3: Reserves turned off in the settings dialog while a reserve holds money
+    asks first, naming its balance; Save anyway turns them off, every target off with them."""
+    from playwright.sync_api import expect
+
+    h = household
+    b = fresh_budget(h, "Reserves off")
+    settings = 'button:has-text("Settings")'
+    page, problems = signed_in(browser, h, f"/ui/budgets/{b['id']}/month", settings)
+    expect(page.locator(".pill", has_text="reserve")).to_have_count(1)
+    page.click(settings)
+    switch = '.dialog button[role="switch"][aria-label="Reserves"]'
+    wait(page, switch, problems)
+    page.click(switch)
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog .notice ol.asks li", problems)
+    asked = page.inner_text(".dialog .notice")
+    assert "Every target comes off from" in asked and "Car maintenance holds" in asked
+    assert page.inner_text(".dialog footer button.primary") == "Save anyway"
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert [x["target"] for x in plan_of(h, b)] == [None, None]
+    assert h.c.get(f"/ui/api/budgets/{b['id']}").json()["reserves"] is False
+    expect(page.locator(".pill", has_text="reserve")).to_have_count(0)
+    assert besides(problems, "409 for") == []
+    page.close()
+
+
 def test_a_record_changed_meanwhile_saves_nothing_and_reloads(browser, household):
     """S12.15.5: a line changed elsewhere after the dialog read it: nothing saved, the dialog
     says so, and Reload opens it again from the records as they stand."""

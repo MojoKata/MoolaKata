@@ -13,7 +13,7 @@ from edits import budget_accounts, drop, edit, loan_payment, share, terms
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
-from moolakata import clock
+from moolakata import alerts, clock
 
 T0 = dt.datetime(2026, 12, 20, 15, 0, tzinfo=dt.UTC)
 
@@ -80,6 +80,32 @@ def test_deleting_an_account_is_a_correction(server, frozen):
     assert review["reviewed"]["changes"]
 
 
+def test_a_reviewed_month_names_late_money_outside_the_plan_and_what_is_to_sort(server, frozen):
+    """A late transaction changes a reviewed month whatever it lands in: a category with no line,
+    no category at all, or a transfer that left the budget (S7.14)."""
+    c, acct, cat, b = setup_budget(server)
+    from test_budgets import plan
+
+    plan(c, b, "2026-11-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
+    add(c, acct["id"], "-100.00", "2026-11-04", payee="Kroger", categoryId=cat["Food"])
+    r = c.post(f"/ui/api/budgets/{b['id']}/review", json={"month": "2026-11-01"})
+    assert r.status_code == 200, r.text
+
+    def changes():
+        v = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-11"}).json()
+        return v["reviewed"]["changes"]
+
+    assert changes() == []
+    add(c, acct["id"], "-50.00", "2026-11-10", payee="Kiosk")
+    assert changes() == ["Uncategorised: 0 then, 1 now"]
+    add(c, acct["id"], "-900.00", "2026-11-12", payee="Vet", categoryId=cat["Entertainment"])
+    assert "Entertainment: spent 0.00 then, 900.00 now, outside the plan" in changes()
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    add(c, acct["id"], "-200.00", "2026-11-15", payee="To Ally")
+    add(c, ally["id"], "200.00", "2026-11-15", payee="From checking", kind="deposit")
+    assert "Left or entered the budget: 0 (0.00) then, 1 (-200.00) now" in changes()
+
+
 def test_an_account_taken_out_stays_in_the_months_before(server, frozen):
     c, acct, cat, b = setup_budget(server)
     card = new_account(c, name="Visa", type="credit-card", mask="1111")
@@ -112,6 +138,40 @@ def test_two_records_of_one_account_never_share_a_month(server, frozen):
     op = {"op": "create", "entity": "BdgAc", "id": new_id("BdgAc"), "fields": fields}
     r = c.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "months-overlap"
+
+
+def test_an_account_no_longer_shared_with_the_owner_leaves_the_budget(server, frozen):
+    """R3.4, S7.1.1: Bob takes back the share of Bob Checking that Jane's budget counts; on the
+    next request her budget neither counts nor names it, past months included, nor warns her
+    of its dips. Shared again, it counts again."""
+    c, _, cat, b = setup_budget(server)
+    jane_id = c.get("/ui/api/session").json()["user"]["id"]
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    theirs = new_account(bob, name="Bob Checking", mask="7777")
+    share(bob, "account", theirs["id"], users={jane_id: "read"})
+    assert budget_accounts(c, b, [theirs["id"]]).status_code == 200
+    for m in (9, 10, 11, 12):
+        add(bob, theirs["id"], "2000.00", f"2026-{m:02d}-01", payee="Acme Payroll")
+        add(bob, theirs["id"], "-42.00", f"2026-{m:02d}-03", payee="Secret Clinic",
+            categoryId=cat["Food"])  # fmt: skip
+    for m in (9, 10, 11):
+        add(bob, theirs["id"], "-1000.00", f"2026-{m:02d}-25", payee="Oak Street Apts")
+    add(bob, theirs["id"], "-4000.00", "2026-12-05", payee="Car repair")
+
+    def cash_short():
+        return [x.title for x in alerts.evaluate(server) if x.kind == "cash-short"]
+
+    assert month(c, b, "2026-10")["spent"] == "42.00"
+    assert cash_short() == ["Bob Checking dips below $0 on the 25th"]
+    share(bob, "account", theirs["id"], users={jane_id: "none"})
+    assert month(c, b, "2026-10")["spent"] == "0.00"
+    assert c.get(f"/ui/api/budgets/{b['id']}/recurring").json()["items"] == []
+    assert c.get(f"/ui/api/budgets/{b['id']}").json()["accountIds"] == []
+    assert cash_short() == []
+    share(bob, "account", theirs["id"], users={jane_id: "read"})
+    assert month(c, b, "2026-10")["spent"] == "42.00"
+    assert c.get(f"/ui/api/budgets/{b['id']}").json()["accountIds"] == [theirs["id"]]
 
 
 def test_a_receiver_counts_a_transfer_to_an_account_they_cant_see(server, frozen):

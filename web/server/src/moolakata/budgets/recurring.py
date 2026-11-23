@@ -135,7 +135,7 @@ class Series:
         return out
 
 
-def _key(payee: str) -> str:
+def payee_key(payee: str) -> str:
     """Payees that differ only in reference numbers are one: `NETFLIX.COM 8843` is Netflix."""
     text = re.sub(r"[#*]?\d[\d\-/]*", " ", payee.lower())
     return " ".join(w for w in re.split(r"[^a-z&]+", text) if w)
@@ -146,7 +146,7 @@ def detect(transactions, today: dt.date) -> list[Series]:
     for t in transactions:
         if not t.payee or t.amount == 0 or t.transferId or getattr(t, "instrumentId", None):
             continue
-        groups[(t.accountId, _key(t.payee), t.amount > 0)].append(t)
+        groups[(t.accountId, payee_key(t.payee), t.amount > 0)].append(t)
     out = []
     for txns in groups.values():
         if len(txns) < 3:

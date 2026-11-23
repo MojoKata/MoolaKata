@@ -215,6 +215,31 @@ def test_matched_transfers_and_splits(server, frozen):
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "60.00"
 
 
+def test_what_needs_a_category_is_what_the_pill_lists(server, frozen):
+    """A split transaction counts through its splits, so it needs a category only where a part
+    has none; a transaction left out of the budget counts nowhere in it (S7.3.1, S7.3.5). The
+    month's count and the Transactions screen's *Uncategorised* list read one rule."""
+    c, acct, cat, b = setup_budget(server)
+    split = [
+        {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
+        {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
+    ]
+    add(c, acct["id"], "-100.00", "2026-10-04", payee="Target", splits=split)
+    loose = [{"amount": "-30.00", "categoryId": cat["Food › Groceries"]},
+             {"amount": "-20.00", "categoryId": None}]  # fmt: skip
+    part = add(c, acct["id"], "-50.00", "2026-10-05", payee="Costco", splits=loose)
+    car = add(c, acct["id"], "-18000.00", "2026-10-02", payee="Honda")
+    plain = add(c, acct["id"], "-12.00", "2026-10-06", payee="Kiosk")
+    listed = {
+        x["id"] for x in c.get("/ui/api/transactions", params={"category": "none"}).json()["items"]
+    }
+    assert listed == {part["id"], car["id"], plain["id"]}
+    assert month(c, b, "2026-10")["uncategorised"] == 3
+    txn = c.get(f"/ui/api/transactions/{car['id']}").json()
+    saved(change(c, "Txn", txn, leftOutOf={"add": [b["id"]], "remove": []}))
+    assert month(c, b, "2026-10")["uncategorised"] == 2
+
+
 def test_plan_checks_its_lines(server, frozen):
     c, _, cat, b = setup_budget(server)
     r = save_plan(
@@ -378,6 +403,40 @@ def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     v = month(c, b, "2026-10")
     assert v["spent"] == "386.66" and v["saved"] == "0.00"
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [("Transportation", "386.66")]
+
+
+@pytest.mark.parametrize("counting", ["split", "whole"])
+def test_money_in_from_a_loan_is_money_entering_the_budget(server, frozen, counting):
+    """Only money out to a loan is a payment (S7.3.3): a HELOC draw or an escrow refund into a
+    budget's account enters the budget, counted by its category or listed to sort (S7.3.2)."""
+    from edits import new_id
+
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="HELOC", type="heloc", institution="UMB")
+    whole = {"budgetCounting": "whole", "budgetCategoryId": cat["Loan payments"]}
+    saved(terms(c, loan["id"], principal="50000", startDate="2026-09-01", termMonths=120,
+                rate="7", **(whole if counting == "whole" else {})))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "400.00", from_account=acct["id"]))
+
+    def draw(day, amount, **bank):
+        mine = new_id("Txn")
+        half = {"date": day, "kind": "transfer"}
+        ops = [{"op": "create", "entity": "Txn", "id": mine,
+                "fields": {**half, "accountId": acct["id"], "amount": amount, "payee": "HELOC",
+                           **bank}},
+               {"op": "create", "entity": "Txn", "id": new_id("Txn"),
+                "fields": {**half, "accountId": loan["id"], "amount": f"-{amount}",
+                           "payee": "Draw", "transferWithId": mine}}]  # fmt: skip
+        r = c.post("/ui/api/save", json={"ops": ops})
+        assert r.status_code == 200, r.text
+
+    before = month(c, b, "2026-10")
+    draw("2026-10-05", "10000.00")
+    draw("2026-10-06", "150.00", categoryId=cat["Income › Other income"])
+    v = month(c, b, "2026-10")
+    assert v["spent"] == before["spent"] and v["saved"] == before["saved"]
+    assert [m["amount"] for m in v["moved"]] == ["10000.00"]
+    assert Decimal(v["income"]) == Decimal(before["income"]) + 150
 
 
 def test_money_leaving_or_entering_the_budget(server, frozen):

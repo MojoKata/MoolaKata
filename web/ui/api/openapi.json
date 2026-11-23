@@ -1948,16 +1948,30 @@
             "type": "number"
           },
           "fromId": {
-            "title": "Fromid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromid"
           },
           "fromName": {
             "title": "Fromname",
             "type": "string"
           },
           "toId": {
-            "title": "Toid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toid"
           },
           "toName": {
             "title": "Toname",
@@ -3109,8 +3123,15 @@
         "description": "A card's payment line in an envelope budget (S7.13.2).",
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "name": {
             "title": "Name",
@@ -3164,8 +3185,15 @@
         "additionalProperties": false,
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "accountName": {
             "title": "Accountname",
@@ -8894,8 +8922,15 @@
         "description": "An account reserves are held in, and what is to move there (S7.10.4).",
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "accountName": {
             "title": "Accountname",
@@ -11379,9 +11414,16 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "free": {
             "examples": [
@@ -11403,8 +11445,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -13845,7 +13894,7 @@
       },
       "MoveRecord": {
         "additionalProperties": false,
-        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,\nlanded money given to a reserve held where it landed, or to no category: kept as the\naccount's own (S7.10.5); its month is the transaction's.",
+        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,\nlanded money given to a reserve held where it landed, or to no category: kept as the\naccount's own (S7.10.5); its month is the one it is given in, never before it landed.",
         "properties": {
           "amount": {
             "examples": [
@@ -13944,7 +13993,7 @@
       },
       "MovedRow": {
         "additionalProperties": false,
-        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2).",
+        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2). One in an account not shared with the\nviewer has no transaction id, date, payee or other account: that account's rows that left\nthe budget are added into one, and those that entered it into another (S7.1.1).",
         "properties": {
           "accountName": {
             "title": "Accountname",
@@ -13959,13 +14008,27 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "otherAccountName": {
-            "title": "Otheraccountname",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otheraccountname"
           },
           "payee": {
             "anyOf": [
@@ -13979,8 +14042,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -25865,9 +25935,16 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "kept": {
             "title": "Kept",
@@ -25885,8 +25962,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -32493,7 +32577,7 @@
         ]
       },
       "post": {
-        "description": "Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is\nflagged until it is reviewed again. Months are never locked.",
+        "description": "Mark reviewed (S7.14): who and when, and the month's figures then as each person the\nbudget is shared with sees them, so a later change is flagged to each in their own until\nit is reviewed again. Months are never locked.",
         "operationId": "mark_reviewed_ui_api_budgets__budget_id__review_post",
         "parameters": [
           {

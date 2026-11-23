@@ -151,6 +151,7 @@ def map_all() -> None:
     _versioned(bd.BudgetLine, budgets.BudgetLine)
     _versioned(bd.BudgetMove, budgets.BudgetMove)
     _versioned(bd.BudgetReview, budgets.BudgetReview)
+    _versioned(bd.BudgetReviewViewer, budgets.BudgetReviewViewer)
     _versioned(bd.BudgetAccount, budgets.BudgetAccount)
     _map(bd.BudgetLeaveOut, budgets.BudgetLeaveOuts)
     _versioned(rc.Receipt, receipts.Receipt)

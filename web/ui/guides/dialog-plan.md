@@ -36,8 +36,9 @@ the next month, or covered **from next month's To Budget**.
 
 Makes the line a reserve: it puts in its amount each month toward this, never more than reaches it,
 and spending in its category takes from it. At the target it reads **Funded** and puts in nothing
-until spending draws it down. Taking the target off asks first, since the balance stops being kept.
-Shown when the budget has reserves.
+until spending draws it down. Taking the target off asks first: in a tracking budget the balance
+stops being kept; in an envelope budget it stays in the envelope, now an ordinary line. Shown when
+the budget has reserves.
 
 ## Held in
 

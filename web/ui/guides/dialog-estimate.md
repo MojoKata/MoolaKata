@@ -1,7 +1,8 @@
 # Plan from History
 
-A plan line per category from its average over the months you pick, and the recurring payments as
-lines of their own. Nothing is saved until you save; the lines you keep replace those categories'
+A plan line per category from its average over the months you pick. A category with yearly or
+quarterly bills adds them up, plus the average of the rest of its spending, and names each bill.
+Nothing is saved until you save; the lines you keep replace those categories'
 lines from the month shown on.
 
 ## Months to average {#months}
@@ -16,5 +17,6 @@ Untick a line to leave it out of the plan.
 
 ## Amount
 
-Change any amount before saving: a month's, or a year's for a yearly line. A yearly bill is proposed
-as a reserve when the budget has reserves: a twelfth of it a month, toward the bill.
+Change any amount before saving: a month's, or a year's for a yearly line. A category with yearly
+bills is proposed as a reserve when the budget has reserves: a twelfth of its whole a month, toward
+the bills' yearly total. Income is never a reserve.

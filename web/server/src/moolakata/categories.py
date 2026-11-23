@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, fields, replace
 from decimal import ROUND_HALF_EVEN, Decimal
 
-from sqlalchemy import false, func, or_, select, update
+from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import clock, ids
@@ -50,6 +50,22 @@ def paths(cats: Iterable[Category]) -> dict[str, str]:
         x.id: f"{by[x.parentId].name} › {x.name}" if x.parentId in by else x.name
         for x in by.values()
     }
+
+
+def needs_category():
+    """A transaction still to be given a category (S7.3.1): one with neither a category nor
+    live splits, or with a live split that has none. A matched transfer and an investment trade
+    never need one. The budget's *uncategorised* count and the Transactions screen's filter
+    both read this, so the pill's list holds what it counts."""
+    live_split = select(Split.transactionId).where(Split.deleted == false())
+    return and_(
+        Transaction.transferId.is_(None),
+        Transaction.instrumentId.is_(None),
+        or_(
+            and_(Transaction.categoryId.is_(None), ~Transaction.id.in_(live_split)),
+            Transaction.id.in_(live_split.where(Split.categoryId.is_(None))),
+        ),
+    )
 
 
 def live(s: Session) -> list[Category]:

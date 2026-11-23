@@ -49,10 +49,10 @@ jobs:
           fi
           cat "$GITHUB_OUTPUT"
 
-  # The server's tests in seven parts side by side (MK_TEST_PART, split by measured time:
+  # The server's tests in eight parts side by side (MK_TEST_PART, split by measured time:
   # tests/parts.py), with the static checks in the first and the connector's tests in the last.
   tests:
-    name: server tests ${{ matrix.part }} of 7 (${{ matrix.parts }})
+    name: server tests ${{ matrix.part }} of 8 (${{ matrix.parts }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -72,9 +72,11 @@ jobs:
           - part: 6
             parts: server
           - part: 7
+            parts: server
+          - part: 8
             parts: server connector
     env:
-      MK_TEST_PART: ${{ matrix.part }}/7
+      MK_TEST_PART: ${{ matrix.part }}/8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
