@@ -903,9 +903,8 @@ def summary(
     """The loan's figures today. What is due next is the schedule's next row, the one source
     the screen, the payment dialog and the bank transactions offered all read: in a
     HELOC's draw period its interest alone, on a daily-interest loan that month's days, and at
-    the end what rounding left. Assumed as scheduled, the payments assumed count as made."""
-    until = assumed_before(t, payments, today, mode)
-    payments = settle(t, payments, draws, today, until, mode == RECORDED)
+    the end what rounding left. `payments` are settled (`history`, `settle`): assumed as
+    scheduled, the payments assumed count as made."""
     rows = schedule(t, payments, draws, today, mode=mode)
     ahead = [r for r in rows if not r.past]
     missed = [r for r in rows if r.status == "missed"]

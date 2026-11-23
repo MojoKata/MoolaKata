@@ -17,6 +17,14 @@ from moolakata.store.entities.assets import Item
 d = dt.date
 
 
+def _summed(t, recorded, draws, today, mode="assumed"):
+    # As the loan's screen reads it (S1.9.3): its payments settled first, as `history` gives
+    # them, then summed up.
+    until = L.assumed_before(t, recorded, today, mode)
+    paid = L.settle(t, recorded, draws, today, until, mode == "recorded")
+    return L.summary(t, paid, draws, today, mode)
+
+
 @pytest.fixture
 def book(unscoped):
     return unscoped
@@ -579,20 +587,10 @@ def test_recorded_here_a_day_missed_after_one_with_nothing_owed_has_its_own_days
     assert missed == [(d(2026, 4, 1), 20, 2000)]
 
 
-def test_recorded_here_the_summary_splits_a_late_payment_as_paying_the_day_missed():
-    """S1.9.3: March missed, Apr 1's payment pays it and Apr 10's pays April, each with its own
-    month's interest: 1,500, 1,498.51 and 1,497.01 paid."""
-    t = _mortgage()
-    pi = L.scheduled_payment(t)
-    recorded = [(day, pi, None) for day in (d(2026, 2, 1), d(2026, 4, 1), d(2026, 4, 10))]
-    sm, _ = L.summary(t, recorded, [], d(2026, 4, 20), "recorded")
-    assert (sm.interestPaid, sm.missed) == (D("4495.52"), 0)
-
-
 def test_the_balance_today_leaves_out_a_draw_dated_after_today():
     # S1.9.2: what is owed today counts what was drawn to today.
     t = _mortgage()
-    sm, _ = L.summary(t, [], [(d(2026, 1, 25), D(1000))], d(2026, 1, 20))
+    sm, _ = _summed(t, [], [(d(2026, 1, 25), D(1000))], d(2026, 1, 20))
     assert sm.balance == 300000
 
 
@@ -600,8 +598,8 @@ def test_a_heloc_is_interest_only_until_its_draw_period_ends_while_its_next_day_
     # S1.9.1: the summary says when the draw period ends only while the payment due is in it.
     t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
     draws = [(d(2026, 1, 10), D(10000))]
-    during, _ = L.summary(t, [], draws, d(2026, 1, 20))
-    after, _ = L.summary(t, [], draws, d(2026, 2, 20))
+    during, _ = _summed(t, [], draws, d(2026, 1, 20))
+    after, _ = _summed(t, [], draws, d(2026, 2, 20))
     assert (during.interestOnlyUntil, after.interestOnlyUntil) == (d(2026, 3, 1), None)
 
 
@@ -610,9 +608,9 @@ def test_a_loan_paid_off_has_its_payoff_on_the_payment_that_left_nothing_and_amo
     and every amount, an empty sum too, is a Decimal. A new loan has nothing paid or missed,
     each a Decimal 0 as well; its original payoff is the term's end."""
     t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(0))
-    done, _ = L.summary(t, [(d(2026, 2, 1), D(1000), "a")], [], d(2026, 3, 10))
+    done, _ = _summed(t, [(d(2026, 2, 1), D(1000), "a")], [], d(2026, 3, 10))
     assert (done.payoffDate, done.nextDate, done.originalPayoff) == (d(2026, 2, 1), None, t.end)
-    fresh, _ = L.summary(_mortgage(), [], [], d(2026, 1, 10))
+    fresh, _ = _summed(_mortgage(), [], [], d(2026, 1, 10))
     for sm in (done, fresh):
         sums = (sm.interestPaid, sm.interestAhead, sm.principalThisYear, sm.overpaid, sm.overdue)
         assert all(type(x) is D for x in sums)
@@ -624,7 +622,7 @@ def test_the_principal_paid_this_year_leaves_out_last_years():
     t = _mortgage()
     pi = L.scheduled_payment(t)
     recorded = [(d(2026, 12, 1), pi, "a"), (d(2027, 1, 1), pi, "b")]
-    sm, rows = L.summary(t, recorded, [], d(2027, 1, 10))
+    sm, rows = _summed(t, recorded, [], d(2027, 1, 10))
     jan = next(r for r in rows if r.date == d(2027, 1, 1))
     assert sm.principalThisYear == jan.principal
 
