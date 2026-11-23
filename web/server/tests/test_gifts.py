@@ -174,6 +174,40 @@ def test_a_gift_for_a_user_is_never_shown_to_them(server, jane):
     assert [p["personId"] for p in plans] == [lisa["id"]]
 
 
+def test_a_gift_plan_is_never_shown_to_its_own_person(server, jane, admin_client):
+    """S7.8.5: a plan for a user is left out of what anyone but its owner sees when that user
+    is the viewer, shared to them or to a group they are in; the other plans of the share
+    are still seen, and its owner sees it."""
+    john_user, bart_user = make_user(server, "john", sex="male"), make_user(server, "bart")
+    john, bart = sign_in(server, "john"), sign_in(server, "bart")
+    john_person = john.get("/ui/api/profile").json()["personId"]
+    lisa = person(jane)
+    him = make(jane, "GfPln", personId=john_person, giftBudget="800", notes="wants the Seiko")
+    assert him.status_code == 200, him.text
+    him = him.json()
+    for plan in (lisa["plan"]["id"], him["id"]):
+        r = share(jane, "gift-plan", plan, users={john_user.id: "write"})
+        assert r.status_code == 200, r.text
+
+    def plans(c):
+        return [p["personId"] for p in c.get("/ui/api/gift-plans").json()["items"]]
+
+    assert plans(john) == [lisa["id"]]
+    assert john.get(f"/ui/api/gift-plans/{him['id']}").status_code == 404
+    r = make(john, "Occsn", giftPlanId=him["id"], kind="holiday", holiday="christmas")
+    assert r.status_code == 404, "nor changed through the share"
+    # Through a group he is in, the same; another member sees both.
+    for plan in (lisa["plan"]["id"], him["id"]):
+        share(jane, "gift-plan", plan, users={john_user.id: "none"})
+    g = make(admin_client, "Group", name="Household", memberIds=[john_user.id, bart_user.id])
+    for plan in (lisa["plan"]["id"], him["id"]):
+        r = share(jane, "gift-plan", plan, groups={g.json()["id"]: "read"})
+        assert r.status_code == 200, r.text
+    assert plans(john) == [lisa["id"]]
+    assert sorted(plans(bart)) == sorted([lisa["id"], john_person])
+    assert sorted(plans(jane)) == sorted([lisa["id"], john_person])
+
+
 def test_deleting_a_person_keeps_what_was_given_by_name(jane):
     lisa, sam = person(jane), person(jane, name="Sam Lee", sex="male")
     gift(jane, people=[sam["id"]], description="Kite", status="idea")

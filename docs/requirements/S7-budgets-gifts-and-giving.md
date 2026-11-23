@@ -260,7 +260,9 @@
       plan (with its gifts) with another user or group, read or write, so a couple plans
       their children's gifts together. A gift for a person who is a user is **never shown
       to that user** until it is received, even through a share, nor anything kept with it
-      (a receipt, S9.6), so a surprise stays one. For a
+      (a receipt, S9.6), so a surprise stays one. Nor is a gift plan for them, however it is
+      shared (with them, or with a group they are in): its notes, budgets and dates stay with
+      its owner and the others it is shared with, and the Share dialog says so. For a
       user of a linked server, the owner's server leaves those gifts out before sending, so
       they never reach the other server.
    6. **A deleted person**: gifts bought, given or received stay, still count in past

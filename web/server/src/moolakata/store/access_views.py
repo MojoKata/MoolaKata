@@ -247,17 +247,19 @@ def _person() -> str:
 
 
 def _gift_plan() -> str:
-    """S7.8.5, S10.3: the plain rule, while its person is there; a plan for a user of a linked
-    server never reaches that server's users."""
+    """S7.8.5, S10.3: the plain rule, while its person is there; a plan is never shown to its
+    own person however it was shared (to them, or to a group they are in), and a plan for a
+    user of a linked server never reaches that server's users."""
     return (
         "SELECT a.* FROM (\n"
         + _collapse(_root_body("GiftPlan", "gift-plan"))
         + '\n) AS a\nJOIN "GiftPlanEffective" AS g ON g.id = a."targetId"\n'
         'JOIN "PersonEffective" AS p ON p.id = g."personId" AND NOT p."effectiveDeleted"\n'
         'JOIN "AccessUser" AS u ON u."userId" = a."userId"\n'
-        "WHERE u.local OR NOT EXISTS (\n"
+        'WHERE (a."userId" = g."ownerId" OR u."personId" IS NOT g."personId")\n'
+        "AND (u.local OR NOT EXISTS (\n"
         '  SELECT 1 FROM "AccessUser" AS x WHERE x."linkId" = u."linkId" '
-        'AND x."personId" = g."personId")'
+        'AND x."personId" = g."personId"))'
     )
 
 
