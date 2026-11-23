@@ -24,4 +24,5 @@ The month this review is of: last month unless you pick another.
 
 Records who reviewed the month, and when, with its figures then. A reviewed month whose figures later
 change (a late transaction, a recategorised one, a move in it) is flagged **changed**,
-with what changed, until it's reviewed again. Months are never locked.
+with what changed, until it's reviewed again: a planned line's spending or plan, spending outside
+the plan, the uncategorised count, or what left or entered the budget. Months are never locked.

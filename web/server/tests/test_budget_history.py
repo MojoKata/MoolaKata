@@ -80,6 +80,32 @@ def test_deleting_an_account_is_a_correction(server, frozen):
     assert review["reviewed"]["changes"]
 
 
+def test_a_reviewed_month_names_late_money_outside_the_plan_and_what_is_to_sort(server, frozen):
+    """A late transaction changes a reviewed month whatever it lands in: a category with no line,
+    no category at all, or a transfer that left the budget (S7.14)."""
+    c, acct, cat, b = setup_budget(server)
+    from test_budgets import plan
+
+    plan(c, b, "2026-11-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
+    add(c, acct["id"], "-100.00", "2026-11-04", payee="Kroger", categoryId=cat["Food"])
+    r = c.post(f"/ui/api/budgets/{b['id']}/review", json={"month": "2026-11-01"})
+    assert r.status_code == 200, r.text
+
+    def changes():
+        v = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-11"}).json()
+        return v["reviewed"]["changes"]
+
+    assert changes() == []
+    add(c, acct["id"], "-50.00", "2026-11-10", payee="Kiosk")
+    assert changes() == ["Uncategorised: 0 then, 1 now"]
+    add(c, acct["id"], "-900.00", "2026-11-12", payee="Vet", categoryId=cat["Entertainment"])
+    assert "Entertainment: spent 0.00 then, 900.00 now, outside the plan" in changes()
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    add(c, acct["id"], "-200.00", "2026-11-15", payee="To Ally")
+    add(c, ally["id"], "200.00", "2026-11-15", payee="From checking", kind="deposit")
+    assert "Left or entered the budget: 0 (0.00) then, 1 (-200.00) now" in changes()
+
+
 def test_an_account_taken_out_stays_in_the_months_before(server, frozen):
     c, acct, cat, b = setup_budget(server)
     card = new_account(c, name="Visa", type="credit-card", mask="1111")

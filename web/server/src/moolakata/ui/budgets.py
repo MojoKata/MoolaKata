@@ -1371,6 +1371,10 @@ def _figures(m) -> dict:
         "income": str(m.income),
         "saved": str(m.saved),
         "toBudget": None if m.toBudget is None else str(m.toBudget),
+        # What lands outside the plan or waits to be sorted changes the month too (S7.14).
+        "unplanned": {cid: [str(spent), label] for cid, label, spent in m.unplanned},
+        "uncategorised": m.uncategorised,
+        "moved": [len(m.moved), f"{sum((x.amount for x in m.moved), Decimal(0)):.2f}"],
     }
 
 
@@ -1387,6 +1391,17 @@ def _changes(then: dict, now: dict) -> list[str]:
             out.append(f"{label}: spent {a[1]} then, {b[1]} now")
         elif a[0] != b[0]:
             out.append(f"{label}: planned {a[0]} then, {b[0]} now")
+    was, got = then.get("unplanned", {}), now["unplanned"]
+    for cat_id in sorted(set(was) | set(got)):
+        a, b = was.get(cat_id), got.get(cat_id)
+        if a is None or b is None or a[0] != b[0]:
+            spent = (a or ["0.00"])[0], (b or ["0.00"])[0]
+            out.append(f"{(b or a)[1]}: spent {spent[0]} then, {spent[1]} now, outside the plan")
+    if then.get("uncategorised") != now["uncategorised"]:
+        out.append(f"Uncategorised: {then.get('uncategorised')} then, {now['uncategorised']} now")
+    if then.get("moved") != now["moved"]:
+        (n, total), (n2, total2) = then.get("moved") or [0, "0.00"], now["moved"]
+        out.append(f"Left or entered the budget: {n} ({total}) then, {n2} ({total2}) now")
     # Spending outside the plan changes the month too (S7.14).
     totals = (
         ("spent", "Spent"),
