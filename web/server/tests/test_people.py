@@ -246,6 +246,66 @@ def test_the_family_tree_is_worked_out_as_of_a_day(db):
         assert gpa["Gma"] == "widow"
 
 
+def test_a_death_keeps_the_in_laws_and_step_family_a_divorce_ends(db):
+    """S10.10.5: a marriage ended by death keeps the in-laws and step-family through it, and
+    the dead spouse's family stays joined; a divorce ends them. A survivor who remarries has
+    both families' in-laws."""
+    with db.tx(unscoped="test") as s:
+
+        def p(name, sex, died=None):
+            x = Person(id=f"Persn_{name.lower():0<26}"[:32], name=name, sex=sex, diedOn=died)
+            s.add(x)
+            return x
+
+        ann, bob = p("Ann", "female"), p("Bob", "male", dt.date(2020, 6, 1))
+        mae, kid, sib = p("Mae", "female"), p("Kid", "male"), p("Sib", "female")
+        cal, rue = p("Cal", "male"), p("Rue", "female")
+        dee, ed = p("Dee", "female"), p("Ed", "male", dt.date(2021, 3, 1))
+        xan, xma = p("Xan", "male"), p("Xma", "female")
+        s.flush()
+
+        def r(a, b, relation, since=None, until=None):
+            x, y = people.ordered(relation, a.id, b.id)
+            s.add(Relationship(id=f"Rltn_{a.name}{b.name}{relation}".ljust(31, "0")[:31],
+                               person1Id=x, person2Id=y, relation=relation, fromDate=since,
+                               toDate=until))  # fmt: skip
+
+        r(ann, xan, "spouse", dt.date(1990, 1, 1), dt.date(1999, 1, 1))
+        r(xma, xan, "child")
+        r(ann, bob, "spouse", dt.date(2000, 1, 1))
+        for x in (bob, sib):
+            r(mae, x, "child")
+        r(bob, kid, "child")
+        r(ann, cal, "spouse", dt.date(2022, 1, 1))
+        r(rue, cal, "child")
+        r(ann, dee, "child")
+        r(dee, ed, "spouse", dt.date(2010, 1, 1))
+        s.flush()
+
+        def words(who, day):
+            return {
+                s.get(Person, x.personId).name: x.word
+                for x in tree.relations(s, who.id, dt.date(*day))
+            }
+
+        before = words(ann, (2019, 1, 1))
+        after = words(ann, (2021, 1, 1))
+        assert before == {"Bob": "husband", "Kid": "stepson", "Mae": "mother-in-law",
+                          "Sib": "sister-in-law", "Dee": "daughter", "Ed": "son-in-law",
+                          "Xan": "ex-husband"}  # fmt: skip
+        assert after == before
+        assert words(kid, (2021, 1, 1))["Ann"] == "stepmother"
+        assert words(mae, (2021, 1, 1))["Ann"] == "daughter-in-law"
+        remarried = words(ann, (2023, 1, 1))
+        assert (remarried["Cal"], remarried["Rue"], remarried["Mae"], remarried["Ed"]) == (
+            "husband",
+            "mother-in-law",
+            "mother-in-law",
+            "son-in-law",
+        )
+        assert "Xma" not in remarried, "a divorce ends the in-laws through it"
+
+
 def test_wash_sales_count_the_spouse_on_the_day_of_the_sale(server, two):
     jane, john = two
     a, b = me(jane), me(john)

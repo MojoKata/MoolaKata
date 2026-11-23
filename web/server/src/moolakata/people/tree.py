@@ -108,6 +108,11 @@ class Graph:
     def _sp(self, x: str) -> set[str]:
         return self.spouses.get(x, set())
 
+    def _wed(self, x: str) -> set[str]:
+        """Spouses on the day and those a death parted: the in-laws and step-family through a
+        marriage last past a death, and end only with a divorce (S10.10.5)."""
+        return self.spouses.get(x, set()) | self.widowed.get(x, set())
+
     def siblings(self, x: str) -> tuple[set[str], set[str]]:
         """Full siblings (both parents shared) and half-siblings (one shared)."""
         full, half = set(), set()
@@ -168,28 +173,28 @@ class Graph:
                 put(n, 6, "niece-nephew")
         # Step-family: a parent's spouse who isn't a parent, and their children.
         for p in self._p(ego):
-            for sp in self._sp(p):
+            for sp in self._wed(p):
                 if sp not in self._p(ego):
                     put(sp, 5, "step-parent")
                     for sc in self._c(sp):
                         if sc not in full | half:
                             put(sc, 7, "step-sibling")
-        for sp in self._sp(ego):
+        for sp in self._wed(ego):
             for sc in self._c(sp):
                 if sc not in self._c(ego):
                     put(sc, 5, "step-child")
         # In-laws: through a spouse, or a child's or sibling's spouse.
-        for sp in self._sp(ego):
+        for sp in self._wed(ego):
             for p in self._p(sp):
                 put(p, 5, "parent-in-law")
             sf, sh = self.siblings(sp)
             for x in sf | sh:
                 put(x, 7, "sibling-in-law")
         for c in self._c(ego):
-            for x in self._sp(c):
+            for x in self._wed(c):
                 put(x, 5, "child-in-law")
         for sib in full | half:
-            for x in self._sp(sib):
+            for x in self._wed(sib):
                 put(x, 7, "sibling-in-law")
         for x in self.exes.get(ego, set()):
             put(x, 9, "ex-spouse")
@@ -238,11 +243,12 @@ class Graph:
         return sorted(out, key=in_order)
 
     def _joined(self, ego: str) -> set[str]:
-        """Everyone reached through parents, children and marriages."""
+        """Everyone reached through parents, children and marriages, those a death parted
+        among them."""
         seen, todo = {ego}, [ego]
         while todo:
             x = todo.pop()
-            for y in self._p(x) | self._c(x) | self._sp(x) | self.couples.get(x, set()):
+            for y in self._p(x) | self._c(x) | self._wed(x) | self.couples.get(x, set()):
                 if y not in seen:
                     seen.add(y)
                     todo.append(y)

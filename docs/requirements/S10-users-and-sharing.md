@@ -232,7 +232,7 @@
        | stepmother, stepfather / stepdaughter, stepson / stepsister, stepbrother | a parent's spouse who isn't a parent, and their children |
        | mother-in-law, father-in-law / daughter-in-law, son-in-law / sister-in-law, brother-in-law | through a spouse, or a child's spouse |
        | ex-wife, ex-husband | a marriage ended by divorce; the in-laws through it end with it |
-       | wife, husband, widow, widower | *spouse*, ended by death for the last two |
+       | wife, husband, widow, widower | *spouse*, ended by death for the last two; the in-laws and step-family through a marriage a death ended stay |
 
        The words follow each person's sex. Adoption and guardianship are *child*. A person
        related in a way the tree can't show is entered as *family* with a label. A relation
