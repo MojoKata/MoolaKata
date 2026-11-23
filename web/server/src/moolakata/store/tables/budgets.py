@@ -84,19 +84,30 @@ BudgetLine = record(
 )
 unique_live(BudgetLine, "budgetId", "categoryId", "fromMonth")
 
-# A budget's month marked reviewed (S7.14): by whom, when, and the figures it had then, so a
-# later change to them is flagged.
+# A budget's month marked reviewed (S7.14): by whom and when, for everyone it is shared with.
 BudgetReview = record(
     "BudgetReview",
     "BdgRv",
     Column("budgetId", Text, ForeignKey("Budget.id", ondelete="CASCADE"), nullable=False),
     Column("month", Day, nullable=False),
-    Column("figures", Text, nullable=False),
     Column("reviewedById", Text, ForeignKey("User.id")),
     CheckConstraint("strftime('%d', month) = '01'", name="month"),
     seen=Seen.child("budgetId"),
 )
 unique_live(BudgetReview, "budgetId", "month")
+
+# A reviewed month's figures as one person it was shared with saw them then, so a later change
+# is flagged to each in their own figures; theirs alone, as they may see accounts others don't
+# (S7.14, S7.1.1).
+BudgetReviewViewer = record(
+    "BudgetReviewViewer",
+    "BdgVw",
+    Column("reviewId", Text, ForeignKey("BudgetReview.id", ondelete="CASCADE"), nullable=False),
+    Column("userId", Text, ForeignKey("User.id"), nullable=False),
+    Column("figures", Text, nullable=False),
+    seen=Seen.per_user("userId"),
+)
+unique_live(BudgetReviewViewer, "reviewId", "userId")
 
 # A transaction a budget leaves out (S7.3.5): a one-off it counts nowhere, the budget's choice.
 BudgetLeaveOuts = pairs(

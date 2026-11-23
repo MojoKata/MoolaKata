@@ -1418,9 +1418,11 @@ def _changes(then: dict, now: dict) -> list[str]:
 def _reviewed(
     s, b: Budget, month: dt.date, viewer: str, figures: dict | None
 ) -> ReviewedOut | None:
+    """A reviewed month: who and when, for everyone, and what changed in the viewer's own
+    figures since, nothing for one who had none kept then (S7.14)."""
     import json
 
-    from ..store.entities.budgets import BudgetReview
+    from ..store.entities.budgets import BudgetReview, BudgetReviewViewer
 
     r = s.scalars(
         select(BudgetReview).where(
@@ -1431,14 +1433,24 @@ def _reviewed(
     ).first()
     if r is None:
         return None
-    if figures is None:
-        figures = _figures(budgets.month_view(s, b, month, clock.today(), viewer))
+    kept = s.scalars(
+        select(BudgetReviewViewer.figures).where(
+            BudgetReviewViewer.reviewId == r.id,
+            BudgetReviewViewer.userId == viewer,
+            BudgetReviewViewer.deleted == false(),
+        )
+    ).first()
+    changes = []
+    if kept is not None:
+        if figures is None:
+            figures = _figures(budgets.month_view(s, b, month, clock.today(), viewer))
+        changes = _changes(json.loads(kept), figures)
     who = s.get(User, r.reviewedById) if r.reviewedById else None
     return ReviewedOut(
         month=month,
         at=r.updatedAt,
         byName=who.displayName if who else None,
-        changes=_changes(json.loads(r.figures), figures),
+        changes=changes,
     )
 
 
@@ -1497,16 +1509,16 @@ def review(budget_id: str, request: Request, c: Caller = Depends(caller), month:
 
 @router.post("/budgets/{budget_id}/review", response_model=ReviewView)
 def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = Depends(caller)):
-    """Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is
-    flagged until it is reviewed again. Months are never locked."""
+    """Mark reviewed (S7.14): who and when, and the month's figures then as each person the
+    budget is shared with sees them, so a later change is flagged to each in their own until
+    it is reviewed again. Months are never locked."""
     import json
 
-    from ..store.entities.budgets import BudgetReview
+    from ..store.entities.budgets import BudgetReview, BudgetReviewViewer
 
     m = budgets.month_of(body.month)
     with server(request).db.tx(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id, "write")
-        figures = json.dumps(_figures(budgets.month_view(s, b, m, clock.today(), c.id)))
         r = s.scalars(
             select(BudgetReview).where(
                 BudgetReview.budgetId == b.id,
@@ -1515,17 +1527,29 @@ def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = 
             )
         ).first()
         if r is None:
-            s.add(
-                BudgetReview(
-                    id=ids.new_id("BdgRv"),
-                    budgetId=b.id,
-                    month=m,
-                    figures=figures,
-                    reviewedById=c.id,
-                )
-            )
+            r = BudgetReview(id=ids.new_id("BdgRv"), budgetId=b.id, month=m, reviewedById=c.id)
+            s.add(r)
         else:
-            r.figures, r.reviewedById, r.updatedAt = figures, c.id, clock.now()
+            r.reviewedById, r.updatedAt = c.id, clock.now()
+        # Each one's figures read as they see them, so none passes on another's account
+        # (S7.1.1); each is theirs alone.
+        figures = {}
+        for uid in access.holders_of(s, Budget, b.id):
+            with scoping.as_user(s, uid) as theirs:
+                seen = budgets.month_view(theirs, theirs.get(Budget, b.id), m, clock.today(), uid)
+                figures[uid] = json.dumps(_figures(seen))
+        with scoping.as_server(s, "a reviewed month's figures, kept for each who reads it") as srv:
+            for row in srv.scalars(
+                select(BudgetReviewViewer).where(
+                    BudgetReviewViewer.reviewId == r.id, BudgetReviewViewer.deleted == false()
+                )
+            ):
+                if row.userId in figures:
+                    row.figures, row.updatedAt = figures.pop(row.userId), clock.now()
+                else:  # no longer shared with them
+                    row.deletedAt, row.deletedById = clock.now(), c.id
+            for uid, kept in figures.items():
+                srv.add(BudgetReviewViewer(reviewId=r.id, userId=uid, figures=kept))
         activity.record(
             s,
             "budget.reviewed",

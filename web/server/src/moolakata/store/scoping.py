@@ -109,6 +109,25 @@ def as_server(s: Session, why: str, expire: bool = True) -> Iterator[Session]:
         s.expire_all()
 
 
+@contextmanager
+def as_user(s: Session, user_id: str) -> Iterator[Session]:
+    """A read as another user sees it, inside a request (a reviewed month's figures as each
+    person it is shared with sees them, S7.14): a second session on the same connection,
+    scoped to that user, so it reads only what their views give them (§7.6). What it reads is
+    kept for that user alone."""
+    s.flush()
+    with Session(
+        bind=s.connection(),
+        expire_on_commit=False,
+        autoflush=True,
+        join_transaction_mode="create_savepoint",
+    ) as theirs:
+        scope_user(theirs, user_id)
+        theirs.info["read_only"] = bool(s.info.get("read_only"))
+        yield theirs
+        theirs.rollback()
+
+
 def unscoped(statement, why: str):
     """One statement read as the server inside a user's session: what it reads is used by the
     server (a Setting's value, whether a file is kept already), never handed to the user. It

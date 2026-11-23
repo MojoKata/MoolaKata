@@ -4,7 +4,9 @@ S7.3.10, S7.6.1)."""
 import datetime as dt
 
 import pytest
-from test_accounts import add
+from conftest import make_user, sign_in
+from edits import budget_accounts, share
+from test_accounts import add, new_account
 from test_budgets import plan, setup_budget
 
 from moolakata import alerts, clock
@@ -64,6 +66,52 @@ def test_a_changed_review_names_every_total_that_changed(server, frozen):
         "Spent: 100.00 then, 120.00 now",
         "Income: 0.00 then, 3000.00 now",
     ]
+
+
+def _user(server, name):
+    make_user(server, name)
+    c = sign_in(server, name)
+    return c, c.get("/ui/api/session").json()["user"]["id"]
+
+
+def test_a_review_compares_each_viewer_with_their_own_figures(server, frozen):
+    """S7.14, S7.1.1: Carol's card is shared with Jane, not with John. Jane marks September
+    reviewed: John's flag never reads the card's spending, and each one's clears on its own;
+    one who reads the budget after the review sees who reviewed it, with nothing changed."""
+    c, acct, cat, b = setup_budget(server)
+    carol, _ = _user(server, "carol")
+    jane_id = c.get("/ui/api/session").json()["user"]["id"]
+    card = new_account(carol, name="Carol Visa", type="credit-card", mask="1111")
+    share(carol, "account", card["id"], users={jane_id: "read"})
+    assert budget_accounts(c, b, [acct["id"], card["id"]]).status_code == 200
+    plan(c, b, "2026-09-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
+    add(c, acct["id"], "-100.00", "2026-09-10", payee="Kroger", categoryId=cat["Food"])
+    add(carol, card["id"], "-457.30", "2026-09-12", payee="Bistro", categoryId=cat["Food"])
+    john, john_id = _user(server, "john")
+    share(c, "budget", b["id"], users={john_id: "write"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+
+    def changes(who):
+        v = who.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-09"}).json()
+        return v["reviewed"]["changes"]
+
+    assert c.post(f"/ui/api/budgets/{b['id']}/review", json={"month": "2026-09-01"}).is_success
+    assert changes(c) == [] and changes(john) == []
+    assert john.post(f"/ui/api/budgets/{b['id']}/review", json={"month": "2026-09-01"}).is_success
+    assert changes(c) == [] and changes(john) == []
+    # A late charge on the card changes Jane's September, not John's.
+    add(carol, card["id"], "-20.00", "2026-09-28", payee="Bistro", categoryId=cat["Food"])
+    assert changes(c)[0] == "Food: spent 557.30 then, 577.30 now"
+    assert changes(john) == []
+    # One at Checking changes both, each read in their own figures.
+    add(c, acct["id"], "-5.00", "2026-09-29", payee="Kroger", categoryId=cat["Food"])
+    assert changes(c)[0] == "Food: spent 557.30 then, 582.30 now"
+    assert changes(john)[0] == "Food: spent 100.00 then, 105.00 now"
+    # Someone the budget is shared with afterwards sees who reviewed it, and no change list.
+    amy, amy_id = _user(server, "amy")
+    share(c, "budget", b["id"], users={john_id: "write", amy_id: "read"})
+    v = amy.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-09"}).json()
+    assert v["reviewed"]["byName"] and v["reviewed"]["changes"] == []
 
 
 def test_cash_before_payday(server, frozen):

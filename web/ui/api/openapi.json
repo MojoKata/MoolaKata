@@ -32493,7 +32493,7 @@
         ]
       },
       "post": {
-        "description": "Mark reviewed (S7.14): who and when, and the month's figures then, so a later change is\nflagged until it is reviewed again. Months are never locked.",
+        "description": "Mark reviewed (S7.14): who and when, and the month's figures then as each person the\nbudget is shared with sees them, so a later change is flagged to each in their own until\nit is reviewed again. Months are never locked.",
         "operationId": "mark_reviewed_ui_api_budgets__budget_id__review_post",
         "parameters": [
           {

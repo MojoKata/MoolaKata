@@ -422,8 +422,11 @@
 14. **The month's review**, offered from the 1st for the month before: what was overspent,
     what is to move (S7.10.4), what is left in *To Budget*, and what is uncategorised or left
     or entered the budget, to sort, each with its action. **Mark reviewed** records who and
-    when. A reviewed month whose figures later change (a late transaction, a recategorised
-    one, a move in it) is flagged *changed*, with what changed, until it is reviewed again:
+    when, for everyone the budget is shared with, and keeps the month's figures as each of
+    them sees them (S7.1.1). A reviewed month whose figures later change (a late transaction,
+    a recategorised one, a move in it) is flagged *changed* to each person whose own figures
+    changed, with what changed, until it is reviewed again; one it is shared with after the
+    review sees who reviewed it, with nothing changed, until it is marked again. What changed:
     a planned line's spending or plan, spending in a category outside the plan, each named,
     the count uncategorised, what left or entered the budget to sort, and each of the month's
     totals (spent, income, saved, *To Budget*) that changed. Months are never locked, since history can be edited (S2.8).
