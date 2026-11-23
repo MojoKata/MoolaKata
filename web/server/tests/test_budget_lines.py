@@ -56,6 +56,26 @@ def test_an_envelope_parent_and_child_both_planned_take_spending_once(server, fr
     )
 
 
+def test_an_envelope_parent_and_child_both_planned_set_a_card_charge_aside_once(server, frozen):
+    """S7.13.2, S7.1.2: a $100 grocery charge on the Visa, Food and Food › Groceries both
+    planned, moves $100 from Groceries alone to the card's payment line, never twice."""
+    c, acct, cat, b = _envelopes(server, ("checking", "card"))
+    add(c, acct["checking"]["id"], "1000.00", "2026-10-01", payee="Payroll",
+        categoryId=cat["Income › Salary"])  # fmt: skip
+    both = [{"categoryId": cat["Food"], "amount": "400.00"},
+            {"categoryId": cat["Food › Groceries"], "amount": "200.00"}]  # fmt: skip
+    plan(c, b, "2026-10-01", both)
+    add(c, acct["card"]["id"], "-100.00", "2026-10-03", payee="Kroger",
+        categoryId=cat["Food › Groceries"])  # fmt: skip
+    v = month(c, b, "2026-10")
+    (card,) = v["cards"]
+    assert (card["setAside"], card["owed"]) == ("100.00", "100.00")
+    assert (row(v, "Food")["remaining"], row(v, "Food › Groceries")["remaining"]) == (
+        "400.00",
+        "100.00",
+    )
+
+
 def test_a_tracking_parent_line_counts_only_children_without_a_line(server, frozen):
     c, acct, cat, b = setup_budget(server)
     both = [{"categoryId": cat["Food"], "amount": "300.00"},
