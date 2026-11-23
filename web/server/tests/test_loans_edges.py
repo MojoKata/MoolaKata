@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from moolakata import ids
 from moolakata import loans as L
+from moolakata.loans import payoff as P
 from moolakata.store.entities.accounts import Account, Category, Loan, Split, Transaction
 from moolakata.store.entities.assets import Item
 from moolakata.store.entities.users import User
@@ -532,3 +533,139 @@ def test_ahead_a_balance_under_a_dollar_left_goes_with_the_payment_and_pmi_ends_
                 payment=D(payment), pmi=D(9))  # fmt: skip
     ahead = L.schedule(t, [], [], d(2026, 1, 10))
     assert [(r.principal, r.pmi) for r in ahead] == [(D(p), pmi) for p, pmi in rows]
+
+
+# loans.due_on, _missed, summary, split_new, payoff.plan_outcomes, payoff.expected_extra
+
+
+def test_a_day_passed_has_due_a_months_interest_on_what_its_payments_before_left():
+    """S1.9.2, S1.9.5: on Mar 1, what was owed the day before (a payment on Feb 28 counted, one
+    on Mar 1 not): 299,000, so 1,495 of interest, and the scheduled payment leaves 299,000 less
+    the principal it pays beyond that."""
+    t = _mortgage()
+    pays = [L.Payment(d(2026, 2, 28), D(1000), principal=D(1000)),
+            L.Payment(d(2026, 3, 1), D(500), principal=D(500))]  # fmt: skip
+    pi = L.scheduled_payment(t)
+    assert L.due_on(t, pays, [], d(2026, 3, 1), d(2026, 2, 1)) == (pi, 299000 - (pi - 1495))
+
+
+def test_a_daily_interest_day_passed_has_due_the_days_since_the_payment_day_before():
+    # S1.9.1: simple interest between payment days: 31 days of 6% on 20,000, 101.92, of 365.
+    t = L.Terms(principal=D(20000), start=d(2026, 1, 1), months=60, rate=D(6), method="daily")
+    pi = L.scheduled_payment(t)
+    assert L.due_on(t, [], [], d(2026, 2, 1), t.start) == (pi, 20000 - (pi - D("101.92")))
+
+
+def test_a_helocs_day_passed_has_the_level_a_draw_in_repayment_set():
+    """S1.9.2: drawn 10,000 in the draw period and 5,000 more on Apr 10, in repayment: May 1's
+    level pays 15,000 off over the 21 payments left, and its interest is a month's on it."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
+    draws = [(d(2026, 2, 10), D(10000)), (d(2026, 4, 10), D(5000))]
+    level = L.level_payment(D(15000), D(12), 21)
+    assert L.due_on(t, [], draws, d(2026, 5, 1), d(2026, 4, 1)) == (level, 15000 - (level - 150))
+
+
+def test_recorded_here_nothing_is_missed_on_the_day_the_loan_starts():
+    # S1.9.3: the first payment day is a month after the start, even with a draw before it.
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=12)
+    rows = L.schedule(t, [], [(d(2025, 12, 20), D(1000))], d(2026, 3, 1), mode="recorded")
+    assert [(r.date, r.status) for r in rows[:2]] == [
+        (d(2026, 2, 1), "assumed"), (d(2026, 3, 1), "ahead")
+    ]  # fmt: skip
+
+
+def test_recorded_here_a_day_missed_after_one_with_nothing_owed_has_its_own_days_balance():
+    """S1.9.3: a HELOC paid off on Feb 1 owes nothing on Mar 1, so that day is not missed; drawn
+    again on Mar 10, Apr 1 is, with the 2,000 owed that day (Apr 10's draw not yet)."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=12)
+    draws = [(d(2026, 1, 10), D(1000)), (d(2026, 3, 10), D(2000)), (d(2026, 4, 10), D(500))]
+    rows = L.schedule(t, [(d(2026, 2, 1), D(1010), "a")], draws, d(2026, 5, 1), mode="recorded")
+    missed = [(r.date, r.interest, r.balance) for r in rows if r.status == "missed"]
+    assert missed == [(d(2026, 4, 1), 20, 2000)]
+
+
+def test_recorded_here_the_summary_splits_a_late_payment_as_paying_the_day_missed():
+    """S1.9.3: March missed, Apr 1's payment pays it and Apr 10's pays April, each with its own
+    month's interest: 1,500, 1,498.51 and 1,497.01 paid."""
+    t = _mortgage()
+    pi = L.scheduled_payment(t)
+    recorded = [(day, pi, None) for day in (d(2026, 2, 1), d(2026, 4, 1), d(2026, 4, 10))]
+    sm, _ = L.summary(t, recorded, [], d(2026, 4, 20), "recorded")
+    assert (sm.interestPaid, sm.missed) == (D("4495.52"), 0)
+
+
+def test_the_balance_today_leaves_out_a_draw_dated_after_today():
+    # S1.9.2: what is owed today counts what was drawn to today.
+    t = _mortgage()
+    sm, _ = L.summary(t, [], [(d(2026, 1, 25), D(1000))], d(2026, 1, 20))
+    assert sm.balance == 300000
+
+
+def test_a_heloc_is_interest_only_until_its_draw_period_ends_while_its_next_day_is_in_it():
+    # S1.9.1: the summary says when the draw period ends only while the payment due is in it.
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
+    draws = [(d(2026, 1, 10), D(10000))]
+    during, _ = L.summary(t, [], draws, d(2026, 1, 20))
+    after, _ = L.summary(t, [], draws, d(2026, 2, 20))
+    assert (during.interestOnlyUntil, after.interestOnlyUntil) == (d(2026, 3, 1), None)
+
+
+def test_a_loan_paid_off_has_its_payoff_on_the_payment_that_left_nothing_and_amounts_in_decimals():
+    """S1.9.5, R1.9: paid off on Feb 1, nothing is ahead: the payoff date is that payment's,
+    and every amount, an empty sum too, is a Decimal. A new loan has nothing paid or missed,
+    each a Decimal 0 as well; its original payoff is the term's end."""
+    t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(0))
+    done, _ = L.summary(t, [(d(2026, 2, 1), D(1000), "a")], [], d(2026, 3, 10))
+    assert (done.payoffDate, done.nextDate, done.originalPayoff) == (d(2026, 2, 1), None, t.end)
+    fresh, _ = L.summary(_mortgage(), [], [], d(2026, 1, 10))
+    for sm in (done, fresh):
+        sums = (sm.interestPaid, sm.interestAhead, sm.principalThisYear, sm.overpaid, sm.overdue)
+        assert all(type(x) is D for x in sums)
+    assert (fresh.interestPaid, fresh.overdue) == (0, 0)
+
+
+def test_the_principal_paid_this_year_leaves_out_last_years():
+    # S1.9.2: Dec 1's payment is last year's; Jan 1's alone is this year's.
+    t = _mortgage()
+    pi = L.scheduled_payment(t)
+    recorded = [(d(2026, 12, 1), pi, "a"), (d(2027, 1, 1), pi, "b")]
+    sm, rows = L.summary(t, recorded, [], d(2027, 1, 10))
+    jan = next(r for r in rows if r.date == d(2027, 1, 1))
+    assert sm.principalThisYear == jan.principal
+
+
+def test_a_payment_about_to_be_recorded_catches_up_only_when_told_the_loan_is_recorded_here():
+    """S1.9.3: March missed and paid on Apr 1, recorded here; a payment on Apr 10 pays April,
+    with its own month's interest. Not told (assumed as scheduled), Apr 1 paid April, so the
+    new one pays no interest and is all principal beyond it."""
+    t = _mortgage()
+    pi = L.scheduled_payment(t)
+    recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 4, 1), pi, "b")]
+    prior = L.settle(t, recorded, [], d(2026, 4, 10), None, catch_up=True)
+    caught = L.split_new(t, prior, [], d(2026, 4, 10), pi, True)
+    plain = L.split_new(t, prior, [], d(2026, 4, 10), pi)
+    assert (caught.interest, caught.overpayment) == (D("1497.01"), 0)
+    assert (plain.interest, plain.overpayment) == (0, pi)
+
+
+def test_recorded_here_the_payoff_plans_schedules_have_the_days_missed():
+    """S6.10, S1.9.3: the schedule, the plan and its recast read the loan's Payments setting:
+    recorded here, Feb 1 paid and March to June missed, the next payment day Jul 1."""
+    t = _mortgage()
+    plan = P.Plan(lumps=[(d(2026, 8, 1), D(10000))], recast=True)
+    r = P.plan_outcomes(t, [(d(2026, 2, 1), L.scheduled_payment(t), "a")], [], d(2026, 6, 20),
+                        plan, 7.0, "recorded")  # fmt: skip
+    for o in (r.schedule, r.plan, r.recast):
+        assert [x.status for x in o.rows if x.past] == ["paid"] + ["missed"] * 4
+        assert next(x.date for x in o.rows if not x.past) == d(2026, 7, 1)
+
+
+@pytest.mark.parametrize(("value", "extra"), [(D(128100), D("0.45")), (D(127500), D("50.45"))])
+def test_a_plans_round_up_counts_pmi_by_the_balance_a_daily_interest_day_left(value, extra):
+    """S6.10.5, S1.9.5: 6% daily on 100,000; Feb 1's scheduled payment of 599.55, with 31 days'
+    interest (509.59), leaves 99,910.04. PMI of 50 is due while that is above 78% of the home's
+    value: 99,918 for 128,100, so none and 600 rounds up by 0.45; 99,450 for 127,500, so 649.55
+    by 50.45."""
+    t = L.Terms(principal=D(100000), start=d(2026, 1, 1), months=360, rate=D(6), method="daily",
+                pmi=D(50), originalValue=value)  # fmt: skip
+    assert P.expected_extra(t, P.Plan(roundTo=D(100)), t.start, d(2026, 2, 10), [], []) == extra

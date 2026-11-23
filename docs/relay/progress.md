@@ -323,3 +323,69 @@ Counts (56): killed 32, bug 7, equivalent 6, remove 11, slow 0, process only 0, 
 4. `schedule_347` (`break` → `return`) is killed by a loan whose term ended in 1970 with a
    charge in 2025; it stays passing if the date check (`_341`, `_346`) is removed.
 5. The tests call `paid_off`, `due_on` and `schedule` directly; none calls a private helper.
+
+## Batch 4
+
+File: `web/server/tests/test_loans_edges.py` (13 tests added, one parametrized; each under
+0.01 s; `payoff` imported at the top as `P`).
+
+Counts (60): killed 54, bug 1, equivalent 3, remove 2, slow 0, process only 0, still left 0.
+
+### Bug
+
+- `moolakata.loans.x__missed__mutmut_20` (`p.date <= day` for a missed day's `since`).
+  S1.9.1: a daily-interest loan accrues simple interest between payments. Recorded here, March
+  missed, a payment on Apr 1 pays March (catching up), its split taking the interest from
+  Feb 1 to Apr 1; April, missed, has its interest counted from Feb 1 again: 59 days, 191.21,
+  the same interest twice. The change accrues it from Apr 1's payment: 0. Input: 20,000 at 6%
+  daily from 2026-01-01 over 60 months, payments of 386.66 on 2026-02-01 and 2026-04-01, today
+  2026-04-20. The same question as batch 3's `schedule_184` (the first day ahead), here for a
+  day missed. Doubt: only a catch-up payment dated on a later missed day reaches it.
+
+  ```python
+  def test_recorded_here_a_daily_interest_day_missed_accrues_from_a_payment_made_that_day():
+      t = L.Terms(principal=D(20000), start=d(2026, 1, 1), months=60, rate=D(6), method="daily")
+      pi = L.scheduled_payment(t)
+      recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 4, 1), pi, "b")]
+      rows = L.schedule(t, recorded, [], d(2026, 4, 20), mode="recorded")
+      [apr] = [r for r in rows if r.status == "missed"]
+      assert (apr.date, apr.interest) == (d(2026, 4, 1), 0)
+  ```
+
+### Equivalent
+
+- `moolakata.loans.x__missed__mutmut_6`: day 1 is never missed: the record starts at the first payment recorded, which pays day 1 when the record starts there (a later start settles it, and before Feb 1 any payment toward a later day catches it up first).
+- `moolakata.loans.x__missed__mutmut_16`: a missed day always comes after the first payment recorded (its grace ends before the next payment day), so `since` always has a date and its default is never read.
+- `moolakata.loans.x__missed__mutmut_18`: the same, the default left out.
+
+### Remove
+
+- `moolakata.loans.x_summary__mutmut_54`: `owed > 0` restates `ahead`: the schedule has rows ahead only while the balance today, read from the same payments, is above 0.
+- `moolakata.loans.x_summary__mutmut_55`: the same (`>= 0`).
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/loans/__init__.py moolakata/loans/payoff.py` on the batch's
+60 names, with `tests/test_loans_edges.py` added (log `web/.dev/relay-h19/batch-4.log`, exit
+0): 54 killed, 6 survived, the 6 listed above and no others. No test was dropped as failing in
+the copy.
+
+### Doubts
+
+1. `summary_16`, `_22`, `_23` (its own `settle`'s `catch_up`) are killed by calling `summary`
+   with payments as (date, amount, id) to split, as `settle` and `schedule` take them. The
+   server passes `history`'s payments, already settled the same way, so there that `settle` adds
+   and splits nothing: if `summary` is meant to take only settled payments, its `settle` is a
+   Remove and the test `test_recorded_here_the_summary_splits_a_late_payment_as_paying_the_day_missed`
+   goes with it.
+2. `summary_117`, `_121`, `_125`, `_130`, `_134` (sums with no `ZERO` start) are killed reading
+   R1.9 (amounts are `Decimal` in Python): an empty sum gave int 0. The API's `Money` would turn
+   either into the same "0", so if R1.9 is read as the API's output only, they are equivalents.
+3. `_missed_4` (day 0 looked at) is killed with a HELOC drawn before its start date (a
+   withdrawal on the account dated before the loan's start): the only shape that has anything
+   owed the day before the start.
+4. `expected_extra_41`/`_42` need a daily-interest loan with PMI on the 78% bound and a
+   round-up (the only place the plan reads the balance left); one parametrized test, one value
+   each side of the bound.
+5. The tests call `due_on`, `schedule`, `summary`, `split_new`, `settle`, `plan_outcomes` and
+   `expected_extra` directly; none calls a private helper.
