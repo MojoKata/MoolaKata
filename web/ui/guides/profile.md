@@ -1,7 +1,7 @@
 # Profile
 
-Your name, email, password, two-step sign-in and how MoolaKata shows things to you.
-**Sign Out**, at the top right, ends your session in this browser.
+Your name, email, password, two-step sign-in and how MoolaKata shows things to you. **Sign Out**, at
+the top right, ends your session in this browser.
 
 ![Profile](shots/profile.png)
 
@@ -37,19 +37,20 @@ MoolaKata; this is only about email.
 
 ## Bitcoin in {#bitcoin-unit}
 
-How amounts of bitcoin are shown to you, and typed: **BTC** (0.12345678 BTC) or **sats** (12,345,678 sats).
-They are kept to the sat either way.
+How amounts of bitcoin are shown to you, and typed: **BTC** (0.12345678 BTC) or **sats** (12,345,678
+sats). They are kept to the sat either way.
 
 ## Relationships
 
 Your spouse, children, friends and colleagues, each from a date and, once over, to a date. Parents,
 grandparents, cousins and in-laws are worked out from them. Your spouse on the day of a sale counts
 for **wash sales** (a loss sale with a purchase of the same thing within 30 days either side), and
-your spouse on the last day of a year for a joint tax book, once you have both confirmed the
-marriage: one your spouse entered shows **Confirm** here. A marriage is marked **confirmed**
-once both have confirmed it and it counts for those, or **waiting** while someone is still to confirm it, when it counts
-for gifts only. Under **Worked Out from These** are the relatives found through them. The pencil
-at a row's end changes its dates, such as a divorce's, or removes it.
+your spouse on the last day of a year for a joint tax book, once either of you has confirmed the
+marriage: entering it confirms your side, and one an admin entered shows **Confirm** here. A
+marriage is marked **confirmed** once either has confirmed it and it counts for those, or
+**waiting** while neither has, when it counts for gifts only. Under **Worked Out from These** are
+the relatives found through them. The pencil at a row's end changes its dates, such as a divorce's,
+or removes it.
 
 ## New email address
 
@@ -70,8 +71,9 @@ At least the minimum length, and not a common password. Changing it signs out yo
 ## Two-Step Sign-In {#two-step}
 
 After your password, a code from an authenticator app on your phone, so a stolen password alone
-can't sign in. While it is on, the card shows how many recovery codes are left. **Turn On** shows a QR code to scan; **New Recovery Codes** replaces the ten codes
-that sign in when the phone is lost. Turning it on or off emails you.
+can't sign in. While it is on, the card shows how many recovery codes are left. **Turn On** shows a
+QR code to scan; **New Recovery Codes** replaces the ten codes that sign in when the phone is lost.
+Turning it on or off emails you.
 
 ## Your password {#two-step-password}
 
@@ -79,15 +81,15 @@ Asked again when you last gave it more than 10 minutes ago.
 
 ## Connections {#connections}
 
-Your sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with
-its driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the
-driver found, the accounts here it keeps current, and its state from the connector's last
-report. **New Connection** starts one; **Sign In Again** or **Change Credentials** gives the
-connector new ones, sealed in this browser to its key so MoolaKata can't read them; **Remove**
-(the click asks again) turns its accounts' sync off, and the connector deletes its credentials.
-A connection that needs a sign-in, as Schwab's does each week, alerts you. **sealed**
-marks new credentials the connector hasn't collected yet. With no
-connector paired, there are none: an admin pairs one under Settings › Connector.
+Your sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with its
+driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the driver
+found, the accounts here it keeps current, and its state from the connector's last report. **New
+Connection** starts one; **Sign In Again** or **Change Credentials** gives the connector new ones,
+sealed in this browser to its key so MoolaKata can't read them; **Remove** (the click asks again)
+turns its accounts' sync off, and the connector deletes its credentials. A connection that needs a
+sign-in, as Schwab's does each week, alerts you. **sealed** marks new credentials the connector
+hasn't collected yet. With no connector paired, there are none: an admin pairs one under Settings ›
+Connector.
 
 ## Access Tokens {#access-tokens}
 
@@ -99,8 +101,8 @@ click asks again first). Its calls are recorded in Activity under its name.
 
 ## Ignored Statement Lines {#ignored-statement-lines}
 
-The starts of statement lines you asked to ignore, with **Remember…** when checking a statement,
-by institution. **Remove** reads them again from its next statement.
+The starts of statement lines you asked to ignore, with **Remember…** when checking a statement, by
+institution. **Remove** reads them again from its next statement.
 
 ## Assumptions
 

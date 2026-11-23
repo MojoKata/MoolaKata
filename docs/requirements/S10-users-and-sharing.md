@@ -209,10 +209,13 @@
     4. **A relationship** joins two people from a date (optional) to a date (empty while it
        holds): *spouse*, *couple*, *child*, *friend*, *colleague* or *family*, the last with an
        optional label (*godmother*). *Child* runs from the parent to the child; the rest run
-       both ways. A user adds relationships they are in; an admin adds any. A spouse needs both
-       people's confirmation, the other's from their own Profile (an admin confirms for a
-       person who isn't a user); until both have confirmed, the marriage counts for gifts only,
-       not for wash sales (S3.8) or a joint tax book (S8.14.1).
+       both ways. A user adds relationships they are in; an admin adds any. A spouse needs one
+       of the two people's confirmation: whoever enters or changes a marriage they are in
+       confirms their own side, the other may confirm from their own Profile, and an admin
+       confirms for a person who isn't a user. Until either has confirmed it (one an admin
+       entered for two users), the marriage counts for gifts only, not for wash sales (S3.8) or
+       a joint tax book (S8.14.1). Nothing changes when a person becomes a user: a confirmed
+       marriage stays confirmed, and either spouse may remove it from Profile.
        1. **At most one spouse at a time**, and no one is their own ancestor.
        2. **A marriage ends** by divorce (its end date) or by death (a spouse's `diedOn`,
           which ends it on that date). The same two people can marry again: a new row.

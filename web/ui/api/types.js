@@ -3699,7 +3699,7 @@
 
 /**
  * A relationship as a draft saves it (S10.10.4): a marriage changed in any way is
- * confirmed again by the other.
+ * confirmed again, by whoever changed it for the sides they may confirm.
  * @typedef {Object} RelationshipRecord
  * @property {string} person1Id
  * @property {string} person2Id

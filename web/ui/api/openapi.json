@@ -22135,7 +22135,7 @@
       },
       "RelationshipRecord": {
         "additionalProperties": false,
-        "description": "A relationship as a draft saves it (S10.10.4): a marriage changed in any way is\nconfirmed again by the other.",
+        "description": "A relationship as a draft saves it (S10.10.4): a marriage changed in any way is\nconfirmed again, by whoever changed it for the sides they may confirm.",
         "properties": {
           "fromDate": {
             "anyOf": [
@@ -36718,7 +36718,7 @@
     },
     "/ui/api/relationships/{rel_id}/confirm": {
       "post": {
-        "description": "A spouse confirms the marriage from their own Profile, or an admin for a person who\nisn't a user (S10.10.4); once both have, it counts for wash sales and tax books.",
+        "description": "A spouse confirms the marriage from their own Profile, or an admin for a person who\nisn't a user (S10.10.4); once either has, it counts for wash sales and tax books.",
         "operationId": "confirm_relationship_ui_api_relationships__rel_id__confirm_post",
         "parameters": [
           {

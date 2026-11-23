@@ -258,13 +258,14 @@ def _named(s, person_id: str) -> Named:
 
 
 def _rel_out(s, c: Caller, r: Relationship) -> RelationshipOut:
+    # A marriage waits for either spouse while neither has confirmed it (S10.10.4).
     waiting = (
         [
             _named(s, pid)
             for pid, at in ((r.person1Id, r.confirmed1At), (r.person2Id, r.confirmed2At))
             if at is None
         ]
-        if r.relation == "spouse"
+        if r.relation == "spouse" and not people.confirmed(r)
         else []
     )
     return RelationshipOut(
@@ -371,7 +372,7 @@ def _editable(s, c: Caller, rel_id: str) -> Relationship:
 @router.post("/relationships/{rel_id}/confirm", response_model=RelationshipOut)
 def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(caller)):
     """A spouse confirms the marriage from their own Profile, or an admin for a person who
-    isn't a user (S10.10.4); once both have, it counts for wash sales and tax books."""
+    isn't a user (S10.10.4); once either has, it counts for wash sales and tax books."""
     with server(request).db.tx(user=c.id) as s:
         r = s.get(Relationship, rel_id)
         if r is None or r.deleted:
@@ -391,7 +392,7 @@ def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(call
 
 class RelationshipRecord(RelationshipIn):
     """A relationship as a draft saves it (S10.10.4): a marriage changed in any way is
-    confirmed again by the other."""
+    confirmed again, by whoever changed it for the sides they may confirm."""
 
     person1Id: IdOf("Persn")  # type: ignore[valid-type]
     person2Id: IdOf("Persn")  # type: ignore[valid-type]

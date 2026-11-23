@@ -320,20 +320,50 @@ def test_wash_sales_count_the_spouse_on_the_day_of_the_sale(server, two):
         return next(r for r in v["closed"] if r["symbol"] == "AAPL")["realized"]
 
     assert realized() == "-500.00", "not married: John's buy is his own"
+    # Jane enters it, so her side confirms it: it counts (S10.10.4).
     made = relate(jane, a, b, "spouse", fromDate="2026-07-01")
-    assert made["confirmed"] is False and [w["id"] for w in made["waitingFor"]] == [b]
+    assert made["confirmed"] is True and made["waitingFor"] == []
     assert not made["canConfirm"]
-    assert jane.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 403
-    assert john.post(f"/ui/api/relationships/{made['id']}/confirm").json()["confirmed"] is True
     assert realized() == "-500.00", "married after the sale"
     rel = jane.get("/ui/api/relationships").json()["items"][0]
     r = change(jane, "Rltn", rel, fromDate="2009-06-14")
-    assert saved(r)["confirmed"] is False, "a changed marriage is confirmed again"
-    assert realized() == "-500.00", "Jane alone can't make John's trades hers"
+    assert saved(r)["confirmed"] is True, "confirmed again by whoever changed it"
+    assert realized() == "0.00", "married on the day: the whole loss is disallowed"
+
+
+def test_a_marriage_counts_once_either_spouse_confirms_it(server, two, admin_client):
+    """S10.10.4: one side's confirmation makes a marriage count, for wash sales, a joint tax
+    book and gifts alike. One an admin entered for two users waits for either of them."""
+    jane, john = two
+    a, b = me(jane), me(john)
+    a_id = jane.get("/ui/api/session").json()["user"]["id"]
+    b_id = john.get("/ui/api/session").json()["user"]["id"]
+    mine = new_account(jane, name="Jane's brokerage", type="brokerage")
+    his = new_account(john, name="John's brokerage", type="brokerage")
+    trade(jane, mine["id"], "2025-03-01", "buy", "10", "200", "AAPL")
+    trade(jane, mine["id"], "2026-06-01", "sell", "10", "150", "AAPL")  # a 500 loss
+    trade(john, his["id"], "2026-06-10", "buy", "10", "155", "AAPL")
+    assert make(jane, "GfPln", personId=b).status_code == 200
+
+    def realized():
+        v = jane.get("/ui/api/positions").json()
+        return next(r for r in v["closed"] if r["symbol"] == "AAPL")["realized"]
+
+    def counted():
+        joint = make(jane, "TaxBk", year=2025, filers=[a_id, b_id]).status_code == 200
+        up = jane.get("/ui/api/gifts/upcoming").json()["items"]
+        wedding = any(u["key"] == "wedding" for u in up)
+        return realized() == "0.00", joint, wedding
+
+    made = relate(admin_client, a, b, "spouse", fromDate="2009-11-02")
+    assert made["confirmed"] is False and {w["id"] for w in made["waitingFor"]} == {a, b}
+    assert counted() == (False, False, True), "gifts don't wait for it"
     waiting = john.get("/ui/api/relationships").json()["items"][0]
     assert waiting["canConfirm"]
-    assert john.post(f"/ui/api/relationships/{rel['id']}/confirm").status_code == 200
-    assert realized() == "0.00", "married on the day: the whole loss is disallowed"
+    done = john.post(f"/ui/api/relationships/{made['id']}/confirm").json()
+    assert (done["confirmed"], done["waitingFor"], done["canConfirm"]) == (True, [], False)
+    assert counted() == (True, True, True), "John's confirmation alone"
+    assert not jane.get("/ui/api/relationships").json()["items"][0]["canConfirm"]
 
 
 def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(server, two):
@@ -346,8 +376,7 @@ def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(serv
     def joint(year):
         return make(jane, "TaxBk", year=year, filers=[a_id, b_id])
 
-    assert joint(2024).status_code == 422, "not yet confirmed by John"
-    assert john.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 200
+    assert made["confirmed"], "Jane's side, as she entered it"
     assert joint(2024).status_code == 200
     assert joint(2025).status_code == 422, "divorced before the year ended"
     with server.db.tx(unscoped="test") as s:
