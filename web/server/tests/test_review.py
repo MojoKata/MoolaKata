@@ -157,3 +157,26 @@ def test_cash_before_payday_goes_to_each_who_follows_the_budget(server, frozen):
     for who in (c, john):
         (a,) = [x for x in who.get("/ui/api/alerts").json()["open"] if x["kind"] == "cash-short"]
         assert a["title"] == "Checking dips below $0 on the 25th"
+
+
+def test_cash_before_payday_names_no_account_not_shared_with_its_follower(server, frozen):
+    """S7.1.1, S7.6.1: John follows Jane's budget but doesn't read her Checking: his alert says
+    the account dips, unnamed, and gives no id of it."""
+    c, acct, _, b = setup_budget(server)
+    john, john_id = _user(server, "john")
+    share(c, "budget", b["id"], users={john_id: "write"})
+    assert saved(change(john, "User", john.get("/ui/api/profile").json(), activeBudgetId=b["id"]))
+    for m in (7, 8, 9, 10):
+        add(c, acct["id"], "2000.00", f"2026-{m:02d}-01", payee="Acme Payroll")
+    for m in (7, 8, 9):
+        add(c, acct["id"], "-1000.00", f"2026-{m:02d}-25", payee="Oak Street Apts")
+    add(c, acct["id"], "-5900.00", "2026-10-05", payee="Car repair")
+    alerts.evaluate(server)
+
+    def opened(who):
+        return [x for x in who.get("/ui/api/alerts").json()["open"] if x["kind"] == "cash-short"]
+
+    assert [a["title"] for a in opened(c)] == ["Checking dips below $0 on the 25th"]
+    (a,) = opened(john)
+    assert a["title"] == "An account not shared dips below $0 on the 25th"
+    assert acct["id"] not in str(a) and acct["name"] not in str(a)

@@ -564,7 +564,7 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
 def cash_short(s: Session, server) -> Iterable[Cause]:
     """For each user's active budget, each checking account with recurring payments out whose
     balance, less those expected before its next money in, would fall below zero (S7.6.1)."""
-    from . import budgets
+    from . import access, budgets
     from .budgets import recurring
     from .store.entities.accounts import Account, Transaction
     from .store.entities.budgets import Budget
@@ -578,7 +578,10 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
         b = s.get(Budget, b_id) if b_id else None
         if b is None:
             continue
-        for aid in budgets.account_ids(s, b, u.id, today):
+        counted = budgets.account_ids(s, b, u.id, today)
+        # The owner's account not shared with this follower counts, unnamed (S7.1.1, S11.3.1).
+        theirs = {x.id for x, _ in access.accounts(s, u.id, Account.id.in_(counted))}
+        for aid in counted:
             a = s.get(Account, aid)
             if a is None or a.type != "checking":
                 continue
@@ -596,11 +599,12 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
                 continue
             dip, horizon, paid = found
             before = f"before money comes in on {horizon:%b %-d}" if paid else "this month"
+            name = a.name if a.id in theirs else "An account not shared"
             # One cause for each who follows the budget, so each is raised the alert (S7.6).
             yield Cause(
                 key=f"cash:{b.id}:{a.id}:{u.id}",
                 kind="cash-short",
-                title=f"{a.name} dips below $0 on the {_ordinal(dip.day)}",
+                title=f"{name} dips below $0 on the {_ordinal(dip.day)}",
                 about=f"{before} · the recurring payments from it",
                 user_id=u.id,
                 link=f"/ui/budgets/{b.id}/recurring",
