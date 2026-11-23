@@ -774,3 +774,183 @@ def test_a_plans_refusals_answer_with_the_first_ones_code_and_words():
             FieldError("investClass", "class-invalid", "One of the asset classes."),
         ],
     )
+
+
+# ui.loans._saved, _following, _check_name, _get_plan, _loan_account, _loan_create
+
+
+def _ctx(s, uid):
+    # A draft's handlers read only the session and the caller.
+    return type("Ctx", (), {"s": s, "caller": _caller(uid)})()
+
+
+def _plan_row(s, a, inputs="{}", following=False, since=None, deleted=False) -> PayoffPlan:
+    p = PayoffPlan(id=ids.new_id("Pyoff"), accountId=a.id, name="Extra", inputs=inputs,
+                   following=following, followingSince=since, createdAt=T0)  # fmt: skip
+    if deleted:
+        p.mark_deleted(None)
+    s.add(p)
+    s.flush()
+    return p
+
+
+def test_a_saved_plans_headline_is_its_payoff_month_and_the_interest_it_saves(book):
+    # S6.10.2, S6.10.5: a saved plan is listed by its payoff month and the interest it saves
+    # against the schedule: 334,069.82 of interest ahead less the plan's 182,118.22.
+    s, uid = book
+    a = _account(s, uid)
+    _loan(s, a)
+    p = _plan_row(s, a, inputs='{"monthly": "500"}')
+    assert (
+        UL._saved(s, _caller(uid), a, p).headline == "Paid off Mar 2044 · $151,952 interest saved"
+    )
+
+
+def test_a_plan_on_a_loan_paid_off_has_no_payoff_month_ahead(book):
+    # S6.10.2: a loan already paid off (assumed as scheduled, a year from 2020) has nothing
+    # ahead: no payoff month, no interest saved.
+    s, uid = book
+    a = _account(s, uid)
+    _loan(s, a, startDate=d(2020, 1, 1), termMonths=12)
+    assert (
+        UL._saved(s, _caller(uid), a, _plan_row(s, a)).headline == "Paid off — · $0 interest saved"
+    )
+
+
+def test_a_plan_on_a_loan_without_terms_has_no_headline(book):
+    # S6.10: without terms there is nothing to plan against, so nothing to say of the plan.
+    s, uid = book
+    a = _account(s, uid)
+    assert UL._saved(s, _caller(uid), a, _plan_row(s, a)).headline == ""
+
+
+def _overpaid(day, amount) -> L.Row:
+    return L.Row(date=day, payment=D(0), principal=D(0), interest=D(0), escrow=D(0), pmi=D(0),
+                 balance=D(0), past=day < T0.date(), overpayment=D(amount))  # fmt: skip
+
+
+def _tracked(s, a, rows=()):
+    t = L.Terms(principal=D(300000), start=d(2026, 1, 1), months=360, rate=D(6))
+    return UL._following(s, a, t, list(rows), [], [], T0.date())
+
+
+def test_the_plan_followed_counts_the_overpayments_made_after_the_day_it_was_chosen(book):
+    # S6.10.5: the screen shows whether the overpayments since the plan was chosen are ahead of
+    # it: one before that day, or on it, is not among them (as the plan's own expected extra
+    # counts the days after it), nor is one ahead of today.
+    s, uid = book
+    a = _account(s, uid)
+    p = _plan_row(s, a, following=True, since=d(2026, 6, 1))
+    rows = [_overpaid(d(2026, 3, 1), 500), _overpaid(d(2026, 6, 1), 200),
+            _overpaid(d(2026, 8, 1), 100), _overpaid(d(2026, 11, 1), 50)]  # fmt: skip
+    f = _tracked(s, a, rows)
+    assert (f.planId, f.since, f.expected, f.actual, f.ahead) == (
+        p.id,
+        d(2026, 6, 1),
+        0,
+        D(100),
+        D(100),
+    )
+
+
+def test_the_plan_followed_is_this_loans_live_one_marked_followed(book):
+    # S6.10.5: of a loan's saved plans, only the one marked followed is tracked; another
+    # loan's plan followed is not this one's.
+    s, uid = book
+    a = _account(s, uid)
+    _plan_row(s, _account(s, uid, name="Cabin"), following=True, since=d(2026, 6, 1))
+    assert _tracked(s, a) is None
+    # Made first, so it is the plan a look for any of the loan's would find.
+    _plan_row(s, a)
+    followed = _plan_row(s, a, following=True, since=d(2026, 6, 1))
+    assert _tracked(s, a).planId == followed.id
+
+
+def _name_refused(name) -> tuple | None:
+    try:
+        UL._check_name(name)
+    except Problem as e:
+        return (e.status, e.code, e.detail, e.errors)
+    return None
+
+
+@pytest.mark.parametrize(("name", "kept"), [("", False), ("   ", False), ("x" * 80, True),
+                                            ("x" * 81, False)])  # fmt: skip
+def test_a_plans_name_is_1_to_80_characters_both_kept(name, kept):
+    # S6.10.5, R3.7: a saved plan needs a name, of up to 80 characters, refused at its field.
+    refused = _problem("name", "name-invalid", "A name, up to 80 characters.")
+    assert _name_refused(name) == (None if kept else refused)
+
+
+def test_a_plans_name_is_kept_without_the_spaces_around_it():
+    # S6.10.5: spaces typed around the name are not part of it.
+    assert UL._check_name("  Extra 500 ") == "Extra 500"
+
+
+def _plan_missing(s, uid, a, plan_id) -> tuple:
+    with pytest.raises(Problem) as e:
+        UL._get_plan(s, _caller(uid), a.id, plan_id)
+    return (e.value.status, e.value.code, e.value.detail)
+
+
+def test_a_plan_is_found_only_live_and_on_its_own_loan(book):
+    # S6.10.5: plans are kept per loan; a deleted plan, another loan's or none at all is not
+    # found. Unscoped, where only this check stands between the caller and the plan.
+    s, uid = book
+    a = _account(s, uid)
+    p = _plan_row(s, a)
+    assert UL._get_plan(s, _caller(uid), a.id, p.id) == (a, p)
+    missing = (404, "not-found", "No such plan.")
+    assert _plan_missing(s, uid, a, ids.new_id("Pyoff")) == missing
+    assert _plan_missing(s, uid, a, _plan_row(s, a, deleted=True).id) == missing
+    cabin = _plan_row(s, _account(s, uid, name="Cabin"))
+    assert _plan_missing(s, uid, a, cabin.id) == missing
+
+
+def _read_only(r) -> tuple:
+    return (r.status_code, r.json()["code"], [(e["field"], e["code"]) for e in r.json()["errors"]])
+
+
+READ_ONLY = (403, "save-refused", [("accountId", "share-read-only")])
+
+
+def test_a_reader_of_a_shared_loan_cannot_set_or_change_its_terms_or_save_a_plan(server, frozen):
+    # S10.4, R3.7: a loan shared at Read is read, never changed: its terms and its plans need
+    # Write. New terms or a new plan are refused at the loan they are for; a change to terms
+    # already set is refused as a whole, asked of the loan itself (the save checks only a new
+    # record's account).
+    make_user(server, "jane")
+    john = make_user(server, "john")
+    jane = sign_in(server, "jane")
+    home = new_account(jane, name="Home", type="mortgage")
+    cabin = new_account(jane, name="Cabin", type="mortgage")
+    saved(terms(jane, cabin["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    for a in (home, cabin):
+        saved(share(jane, "account", a["id"], users={john.id: "read"}))
+    jc = sign_in(server, "john")
+    r = terms(jc, home["id"], principal="300000", startDate="2026-01-01", termMonths=360, rate="6")
+    assert _read_only(r) == READ_ONLY, r.text
+    r = terms(jc, cabin["id"], rate="5")
+    assert _read_only(r) == (403, "save-refused", [(None, "share-read-only")]), r.text
+    r = make(jc, "Pyoff", accountId=cabin["id"], name="Extra", inputs={"monthly": "300"})
+    assert _read_only(r) == READ_ONLY, r.text
+
+
+def test_a_loans_terms_are_made_once_then_changed(book):
+    # S1.9.1, R3.7: a loan with its terms takes no second set; the refusal says to change them,
+    # at the loan the terms are for.
+    s, uid = book
+    a = _account(s, uid)
+    _loan(s, a)
+    with pytest.raises(Problem) as e:
+        UL._loan_create(
+            _ctx(s, uid), ids.new_id("Loan"), UL.LoanRecord(accountId=a.id, **_body().model_dump())
+        )
+    words = "This loan has its terms; change them."
+    assert (e.value.status, e.value.code, e.value.detail, e.value.errors) == (
+        409,
+        "loan-exists",
+        words,
+        [FieldError("accountId", "loan-exists", words)],
+    )

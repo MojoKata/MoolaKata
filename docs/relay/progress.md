@@ -540,3 +540,47 @@ Counts (66): killed 66, bug 0, equivalent 0, remove 0, slow 0, process only 0, s
    (bonus month 13 and an unknown class), cited R3.7 as batch 7's `_terms` test is.
 3. The bonus month's citation is S6.10.1 ("an extra amount once a year (a bonus month)"); the
    1-to-12 range is read from the code, not stated in the section.
+
+## Batch 10
+
+File: `web/server/tests/test_loans_routes.py` (10 tests added, one parametrized; the reader's
+through the API, under 0.7 s; the rest call `ui.loans._saved`, `_following`, `_check_name`,
+`_get_plan` and `_loan_create` directly, the session ones in the unscoped session, each under
+0.2 s).
+
+Counts (65): killed 62, bug 0, equivalent 2, remove 1, slow 0, process only 0, still left 0.
+
+### Equivalent
+
+- `moolakata.ui.loans.x__following__mutmut_7`: `PayoffPlan.deleted == false()`, a filter the access view also applies (`view` reads in the caller's session).
+- `moolakata.ui.loans.x__following__mutmut_37`: `sum(…)` with no start is int 0 when nothing was overpaid since, but `Following`'s `Money` reads int 0 as `Decimal("0")`, and `ahead` is `0 - expected`, a Decimal either way.
+
+### Remove
+
+- `moolakata.ui.loans.x__saved__mutmut_23`: `- best.fees` can't matter: `best` is `r.plan`, the plan shortened, whose fees are always 0 (`plan_outcomes` passes `ZERO`; only the recast outcome carries the recast fees).
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 65 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-10.log`, exit 0): 62 killed,
+3 survived, the 3 listed above and no others. No test was dropped as failing in the copy. (A
+first run left `_loan_account_4`/`_8` as well; the reader test then gained the change to terms
+already set, doubt 2.)
+
+### Doubts
+
+1. `_saved_23`: the name `best` reads as though the headline was meant to take the better of
+   the plan shortened and the plan recast (S6.10.3 shows both). S6.10.5 doesn't say which one a
+   saved plan's headline gives; as written it is always the plan shortened, so the fees are
+   never subtracted. If it should be the better of the two, this is a bug, not a Remove.
+2. `_loan_account_4`/`_8` (a read asked for, not Write) aren't caught on a create: the save's
+   own check of a new record's account (`save._may`) refuses a reader first, at `accountId`.
+   They're killed by a reader changing terms already set (`_loan_editable`), where only
+   `_loan_account` refuses, answered as `save-refused` with no field: a whole-record refusal.
+3. `_get_plan_5`/`_9` are killed by batch 5's reader test (`follow_plan`, 403
+   `share-read-only`); nothing was added for them.
+4. `_following_8` (the "followed" filter dropped) is killed by a loan with a plan not followed
+   made before the one followed: ids are time-ordered, so it is first in both the order rows
+   were stored in and id order, and an unordered `.first()` finds it.
+5. Not this batch's: batch 9 left the comment `# ui.loans._check_plan` twice above its tests.
+   I left it as it is (the brief has me add only at the end).
