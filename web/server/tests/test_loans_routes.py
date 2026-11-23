@@ -12,6 +12,7 @@ from sqlalchemy import select
 from test_accounts import new_account
 
 from moolakata import assets, clock, ids
+from moolakata.errors import FieldError
 from moolakata.store.entities.accounts import Account, Anchor, Category, Loan
 from moolakata.store.entities.assets import Item
 from moolakata.store.entities.prices import TypedPrice
@@ -259,3 +260,82 @@ def test_pmi_can_be_dropped_on_the_day_the_balance_reaches_its_share_of_the_valu
     a = _account(s, uid)
     _loan(s, a, pmi=D(90), originalValue=D(original), securedById=home.id)
     assert getattr(UL.view(s, a).equity, field) == day
+
+
+# ui.loans._check
+
+
+def _body(**kw) -> UL.TermsIn:
+    kw = {"principal": D(1000), "startDate": d(2026, 1, 1), "termMonths": 12, "rate": D(6), **kw}
+    return UL.TermsIn(**kw)
+
+
+def _refused(field, code, message) -> list[FieldError]:
+    return [FieldError(field, code, message)]
+
+
+TERM = _refused("termMonths", "term-invalid", "Between 1 and 600 months.")
+RATE = _refused("rate", "rate-invalid", "Between 0% and 40%.")
+
+
+@pytest.mark.parametrize(("months", "refusal"), [(0, TERM), (1, []), (600, []), (601, TERM)])
+def test_a_term_is_1_to_600_months_both_kept(months, refusal):
+    # S1.9.1, R3.11: the term's bounds are kept; one month past either is refused at its field.
+    assert UL._check(_body(termMonths=months), "auto-loan") == refusal
+
+
+@pytest.mark.parametrize(
+    ("rate", "refusal"), [("-0.001", RATE), ("0", []), ("40", []), ("40.001", RATE)]
+)
+def test_a_rate_is_0_to_40_percent_both_kept(rate, refusal):
+    # S1.9.1, R3.11: to three places, the smallest step past 40% is refused.
+    assert UL._check(_body(rate=D(rate)), "auto-loan") == refusal
+
+
+def test_interest_is_amortized_monthly_or_accrued_daily_and_nothing_else():
+    # S1.9.1: the two interest methods; any other is refused at its field, in its words.
+    assert UL._check(_body(method="daily"), "auto-loan") == []
+    assert UL._check(_body(method="weekly"), "auto-loan") == _refused(
+        "method", "method-invalid", "Monthly or daily."
+    )
+
+
+@pytest.mark.parametrize(
+    ("draw", "refusal"),
+    [(0, []), (11, []), (12, _refused("drawMonths", "draw-invalid", "Shorter than the term."))],
+)
+def test_a_helocs_draw_period_is_none_up_to_a_month_short_of_the_term(draw, refusal):
+    # S1.9.1: a HELOC's draw period comes before a repayment period, so it is shorter than the
+    # term; a period of 0 months is all repayment.
+    assert UL._check(_body(principal=D(0), drawMonths=draw), "heloc") == refusal
+
+
+def test_budget_counting_is_split_or_whole_and_nothing_else():
+    # S1.9.7: a payment counts in budgets split by the schedule, or whole.
+    assert UL._check(_body(budgetCounting="whole"), "auto-loan") == []
+    assert UL._check(_body(budgetCounting="both"), "auto-loan") == _refused(
+        "budgetCounting", "counting-invalid", "Split by the schedule, or whole."
+    )
+
+
+def test_the_payments_setting_is_automatic_recorded_or_assumed_and_nothing_else():
+    # S1.9.3: Automatic is the setting left unset, so its name is no value of its own.
+    for mode in (None, "recorded", "assumed"):
+        assert UL._check(_body(paymentsMode=mode), "auto-loan") == []
+    assert UL._check(_body(paymentsMode="automatic"), "auto-loan") == _refused(
+        "paymentsMode", "payments-mode-invalid", "Automatic, recorded here, or assumed."
+    )
+
+
+AMOUNTS = ("payment", "escrowTax", "escrowInsurance", "pmi", "originalValue")
+
+
+@pytest.mark.parametrize("field", AMOUNTS)
+def test_a_typed_amount_on_the_terms_is_zero_or_more_refused_at_its_own_field(field):
+    # S1.9.1, R3.11: nothing and a part of a dollar are kept; a cent below nothing is refused
+    # at the field it was typed in.
+    for kept in ("0", "0.50"):
+        assert UL._check(_body(**{field: D(kept)}), "mortgage") == [], kept
+    assert UL._check(_body(**{field: D("-0.01")}), "mortgage") == _refused(
+        field, "amount-invalid", "Zero or more."
+    )

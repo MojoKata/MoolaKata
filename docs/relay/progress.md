@@ -427,3 +427,25 @@ Counts (70): killed 63, bug 0, equivalent 7, remove 0, slow 0, process only 0, s
 4. The view tests make rows directly (`Loan`, `Item`, `Anchor`, `TypedPrice`) in the unscoped
    session and call `view`; the PMI bounds' original values (372,347.30 and 368,635.50) are
    picked so 80% and 78% fall exactly on a row's balance.
+
+## Batch 6
+
+File: `web/server/tests/test_loans_routes.py` (7 tests added, five parametrized; each calls
+`ui.loans._check` on a `TermsIn` directly, as `test_loans.py`'s
+`test_points_on_the_first_payment_day_are_kept` does, each under 0.01 s).
+
+Counts (83): killed 83, bug 0, equivalent 0, remove 0, slow 0, process only 0, still left 0.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 83 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-6.log`, exit 0): 83 killed,
+0 survived. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. Each refusal is pinned as the whole list `_check` returns (field, code and words), on
+   both sides of its bound: term 0/1/600/601, rate -0.001/0/40/40.001, a HELOC's draw period
+   0/11/12 on a 12-month term, the five amounts at 0, 0.50 and -0.01.
+2. `paymentsMode="automatic"` is refused: Automatic is the setting left unset (None), read
+   from S1.9.3 and the code; if the API is meant to take the word too, that test is wrong.
