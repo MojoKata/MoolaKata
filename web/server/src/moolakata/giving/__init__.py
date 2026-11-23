@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .. import access, valuation
 from ..store import scoping
-from ..store.entities.accounts import Account, Category, Transaction
+from ..store.entities.accounts import Account, Category, Split, Transaction
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
 
@@ -164,27 +164,55 @@ def income(s: Session, plan: GivingPlan | None, owners: list[str], year: int) ->
 
 
 def _income(s: Session, owners: list[str], year: int) -> Decimal:
-    cats = [c.id for c in s.scalars(select(Category).where(Category.kind == "income"))]
-    accounts = [
+    cats = {c.id for c in s.scalars(select(Category).where(Category.kind == "income"))}
+    first, last = dt.date(year, 1, 1), dt.date(year, 12, 31)
+    total = sum((p.amount for p in parts(s, _accounts(s, owners), first, last, cats)), ZERO)
+    return max(total, ZERO)
+
+
+def _accounts(s: Session, owners: list[str]) -> list[str]:
+    return [
         a.id
         for a in s.scalars(
             select(Account).where(Account.ownerId.in_(owners), Account.deleted == false())
         )
     ]
+
+
+@dataclass(frozen=True)
+class Part:
+    """A transaction in one of the categories asked for, or one split part of one: a split
+    transaction counts through its splits (S7.3.1), each part in its own category."""
+
+    transaction: Transaction
+    categoryId: str
+    amount: Decimal
+
+
+def parts(
+    s: Session, accounts: list[str], first: dt.date, last: dt.date, cats: set[str]
+) -> list[Part]:
+    """The transactions, and the split parts of transactions, in `cats` over the accounts,
+    between two dates inclusive. A split transaction has no category of its own."""
     if not cats or not accounts:
-        return ZERO
-    total = ZERO
-    for t in s.scalars(
-        select(Transaction).where(
-            Transaction.accountId.in_(accounts),
-            Transaction.categoryId.in_(cats),
-            Transaction.deleted == false(),
-            Transaction.date >= dt.date(year, 1, 1),
-            Transaction.date <= dt.date(year, 12, 31),
-        )
+        return []
+    within = (
+        Transaction.accountId.in_(accounts),
+        Transaction.deleted == false(),
+        Transaction.date >= first,
+        Transaction.date <= last,
+    )
+    out = [
+        Part(t, t.categoryId, t.amount)
+        for t in s.scalars(select(Transaction).where(*within, Transaction.categoryId.in_(cats)))
+    ]
+    for sp, t in s.execute(
+        select(Split, Transaction)
+        .join(Transaction, Transaction.id == Split.transactionId)
+        .where(*within, Split.deleted == false(), Split.categoryId.in_(cats))
     ):
-        total += t.amount
-    return max(total, ZERO)
+        out.append(Part(t, sp.categoryId, sp.amount))
+    return out
 
 
 def target(plan: GivingPlan | None, earned: Decimal) -> Decimal:

@@ -262,3 +262,26 @@ def test_a_donated_replacement_is_held_from_the_sold_shares_purchase(jane):
         amount="700",
     )
     assert d["longTerm"], "held since 2025-03-20, over a year"
+
+
+def test_a_split_paycheck_counts_through_its_income_parts(jane):
+    """S7.9.2, S7.3.1: a paycheck split across Income categories is income, part by part; a
+    part in another category isn't."""
+    saved(giving_plan(jane, 2026, percent="10"))
+    bank = new_account(jane, name="Checking")
+    add(
+        jane,
+        bank["id"],
+        "4500.00",
+        "2026-01-15",
+        payee="Acme payroll",
+        splits=[
+            {"categoryId": _cat(jane, "Salary"), "amount": "4000.00"},
+            {"categoryId": _cat(jane, "Other income"), "amount": "1000.00"},
+            {"categoryId": _cat(jane, "Taxes"), "amount": "-500.00"},
+        ],
+    )
+    add(jane, bank["id"], "1000.00", "2026-02-15", categoryId=_cat(jane, "Salary"))
+    v = jane.get("/ui/api/giving").json()
+    assert v["income"] == "6000.00" and v["target"] == "600.00"
+    assert v["history"][-1] == {"year": 2026, "percent": 0.0}
