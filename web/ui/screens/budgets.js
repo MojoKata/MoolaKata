@@ -31,6 +31,7 @@ import {
 import { FIELDS } from '../api/fields.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { changes } from '../app/stream.js';
+import { spreadByBalance } from '../app/reserves.js';
 import { Amt } from '../kit/amount.js';
 import { CategoriesTab, CategoryField } from '../components/categories.js';
 import { Action, Attention, StatePill } from '../kit/state.js';
@@ -1095,25 +1096,6 @@ class LandedRec extends Record {
   static fields = FIELDS.MoveRecord;
   /** @override */
   static defaults = { fromCategoryId: null, toCategoryId: null, cardId: null, note: null };
-}
-
-/**
- * An amount spread among reserves by their balances, the last taking what rounding leaves;
- * evenly when none has a balance.
- * @param {string} amount @param {any[]} reserves @returns {string[]}
- */
-function spreadByBalance(amount, reserves) {
-  const weights = reserves.map((r) => (dec(r.balance).gt(0) ? dec(r.balance) : dec(0)));
-  const total = Dec.sum(weights);
-  let left = dec(amount);
-  return reserves.map((_, i) => {
-    if (i === reserves.length - 1) return String(left);
-    const share = total.isZero()
-      ? dec(amount).div(reserves.length, 2)
-      : dec(amount).mul(weights[i]).div(total, 2);
-    left = left.sub(share);
-    return String(share);
-  });
 }
 
 /** Whether a line gives nothing: empty, or zero. @param {any} v */
