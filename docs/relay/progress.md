@@ -482,3 +482,36 @@ Counts (68): killed 66, bug 0, equivalent 2, remove 0, slow 0, process only 0, s
 4. `_terms_135` is killed by a split payment sent with a category: the category is not kept.
    S1.9.7 says a split payment counts under each part's category; refusing the category
    instead of dropping it would be a design choice, not this batch's.
+
+## Batch 8
+
+File: `web/server/tests/test_loans_routes.py` (13 tests added, two parametrized; five through
+the API, each under 0.7 s; the rest call `ui.loans._plan`, `_outcome_out`, `_compute` and
+`_plans` directly, the last two in the unscoped session, each under 0.2 s).
+
+Counts (70): killed 68, bug 0, equivalent 2, remove 0, slow 0, process only 0, still left 0.
+
+### Equivalent
+
+- `moolakata.ui.loans.x__unpaired_payments__mutmut_8`: `Transaction.deleted == false()`, a filter the access view also applies (`candidates` reads in the caller's session).
+- `moolakata.ui.loans.x__plans__mutmut_7`: `PayoffPlan.deleted == false()`, a filter the access view also applies (`list_plans` and `follow_plan` read in the caller's session).
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 70 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-8.log`, exit 0): 68 killed,
+2 survived, the 2 listed above and no others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. `_categories_4` (`where(None)`) is SQL's `WHERE NULL`, no category at all: killed through
+   the split route, whose `categories` must name each part's built-in category.
+2. `_unpaired_payments`' filters are killed through `candidates`: a debit beside another loan's
+   payment, a charge on this loan or an entry of 0.00 is still offered; a $1.00 payment beside
+   it hides it (`> 1` kept it offered); a payment already a transfer hides no second debit.
+3. `_changed_terms` is pinned through the save with `test_accounts`' `logged` (imported at the
+   top beside `new_account`): jane makes the terms, john (a writer) changes them, both logged
+   for jane. The citation is S10.8 (Activity).
+4. `_compute_56` (`terms_of(None, …)`) is reached only by a loan secured by an item with no
+   original value typed; the test pins PMI ending at 78% of the home's basis ahead.
+5. `_plans_3` (`order_by(None)`) is killed by plans stored newest first: listed by `createdAt`.

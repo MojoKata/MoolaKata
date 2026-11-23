@@ -7,13 +7,22 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make, saved, share, terms
+from edits import loan_payment, make, saved, share, terms
 from sqlalchemy import select
-from test_accounts import new_account
+from test_accounts import add, logged, new_account
 
 from moolakata import assets, clock, ids
+from moolakata import loans as L
 from moolakata.errors import FieldError, Problem
-from moolakata.store.entities.accounts import Account, Anchor, Category, Loan
+from moolakata.loans import payoff as P
+from moolakata.store.entities.accounts import (
+    Account,
+    Anchor,
+    Category,
+    Loan,
+    PayoffPlan,
+    Transaction,
+)
 from moolakata.store.entities.assets import Item
 from moolakata.store.entities.prices import TypedPrice
 from moolakata.store.entities.users import User
@@ -465,3 +474,229 @@ def test_a_recast_is_kept_with_its_day_and_fee(book):
     s.add(Loan(id=ids.new_id("Loan"), accountId=a.id, **UL._terms(s, _caller(uid), a, body)))
     s.flush()
     assert [(r.date, r.fee) for r in UL.view(s, a).terms.recasts] == [(d(2026, 6, 15), D("250.50"))]
+
+
+# ui.loans._changed_terms, _categories, _unpaired_payments, _plan, _months, _outcome_out,
+# _compute, _plans
+
+
+def test_setting_and_changing_the_terms_is_logged_as_the_accounts_update_for_its_owner(server):
+    # S10.8: the terms made and changed are each logged as the loan account's update, naming
+    # its terms, by who changed them (a writer of a shared loan too), for the account's owner.
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c, j = sign_in(server, "jane"), sign_in(server, "john")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(share(c, "account", loan["id"], users={john: "write"}))
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    saved(terms(j, loan["id"], rate="5.5"))
+    assert logged(server, loan["id"]) == [
+        ("account.updated", jane, "account", jane, {"fields": ["terms"]}),
+        ("account.updated", john, "account", jane, {"fields": ["terms"]}),
+    ]
+
+
+def test_a_payments_split_names_each_parts_built_in_category(server, frozen):
+    # S1.9.3, S1.9.7: the split the payment dialog records files each part under its own
+    # built-in category: principal as the loan's transfer, interest, escrow, PMI and fees.
+    from moolakata import loans
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    r = c.get(f"/ui/api/accounts/{loan['id']}/loan/split",
+              params={"date": "2026-10-01", "amount": "1798.65"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    with server.db.read(unscoped="test") as s:
+        keys = set(loans.PARTS.values())
+        built = {x.builtIn: x.id for x in s.scalars(select(Category)) if x.builtIn in keys}
+    assert r.json()["categories"] == {part: built[key] for part, key in loans.PARTS.items()}
+
+
+def _mortgage_and_checking(server):
+    # 300,000 at 6% from Jan 1, 2026: a payment of 1,798.65, the amount a debit is offered for.
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    bank = new_account(c, name="Checking")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    return c, bank, loan
+
+
+def _offered(c, loan) -> list[tuple]:
+    cands = c.get(f"/ui/api/accounts/{loan['id']}/loan/candidates").json()["items"]
+    return [(x["transactionId"], x["pairWith"]) for x in cands]
+
+
+@pytest.mark.parametrize("beside", ["another loans payment", "a charge", "nothing"])
+def test_only_an_unpaired_payment_on_this_loan_hides_a_debit_beside_it(server, frozen, beside):
+    # S1.9.3, S1.7: a debit within days of a payment of another amount recorded on this loan
+    # alone is most likely that payment. A payment on another loan, a charge on this one (money
+    # out) and an entry of nothing are no payment of this loan: the debit is still offered.
+    c, bank, loan = _mortgage_and_checking(server)
+    if beside == "another loans payment":
+        other = new_account(c, name="Cabin", type="mortgage")
+        saved(terms(c, other["id"], principal="50000", startDate="2026-01-01", termMonths=120,
+                    rate="6"))  # fmt: skip
+        assert loan_payment(c, other["id"], "2026-10-02", "555.10").status_code == 200
+    elif beside == "a charge":
+        add(c, loan["id"], "-25.00", "2026-10-02", payee="Late fee")
+    else:
+        add(c, loan["id"], "0.00", "2026-10-02", payee="Statement")
+    debit = add(c, bank["id"], "-1798.65", "2026-10-01", payee="ROCKET MORTGAGE")
+    assert _offered(c, loan) == [(debit["id"], None)]
+
+
+def test_a_payment_of_a_dollar_on_this_loan_hides_a_debit_beside_it(server, frozen):
+    # S1.9.3, S1.7: a payment of any amount above nothing, a dollar too, recorded on this loan
+    # alone within days of the debit is most likely it: linking the debit would count it twice.
+    c, bank, loan = _mortgage_and_checking(server)
+    assert loan_payment(c, loan["id"], "2026-10-02", "1.00").status_code == 200
+    add(c, bank["id"], "-1798.65", "2026-10-01", payee="ROCKET MORTGAGE")
+    assert _offered(c, loan) == []
+
+
+def test_a_payment_already_linked_to_its_bank_half_hides_no_other_debit(server, frozen):
+    # S1.7: a payment that is already a transfer has its other half; a second debit of the same
+    # amount days later is offered on its own, paired with nothing.
+    c, bank, loan = _mortgage_and_checking(server)
+    r = loan_payment(c, loan["id"], "2026-10-01", "1798.65", from_account=bank["id"])
+    assert r.status_code == 200, r.text
+    debit = add(c, bank["id"], "-1798.65", "2026-10-03", payee="ROCKET MORTGAGE")
+    assert _offered(c, loan) == [(debit["id"], None)]
+
+
+def test_a_plans_every_input_reaches_the_planner():
+    # S6.10.1: each input the planner's form sends is the plan worked out, none left at its
+    # default: every one here differs from it.
+    lump = {"date": d(2028, 6, 1), "amount": D(5000)}
+    body = UL.PlanIn(monthly=D(100), monthlyFrom=d(2027, 1, 1), monthlyUntil=d(2030, 12, 1),
+                     yearly=D(1000), yearlyMonth=3, lumps=[lump], biweekly=True, roundTo=D(50),
+                     recast=True, recastFee=D(250), investClass="bonds")  # fmt: skip
+    assert UL._plan(body) == P.Plan(
+        monthly=D(100),
+        monthlyFrom=d(2027, 1, 1),
+        monthlyUntil=d(2030, 12, 1),
+        yearly=D(1000),
+        yearlyMonth=3,
+        lumps=[(d(2028, 6, 1), D(5000))],
+        biweekly=True,
+        roundTo=D(50),
+        recast=True,
+        recastFee=D(250),
+        investClass="bonds",
+    )
+
+
+def _row(day, balance, past) -> L.Row:
+    return L.Row(date=day, payment=D(0), principal=D(0), interest=D(0), escrow=D(0), pmi=D(0),
+                 balance=D(balance), past=past)  # fmt: skip
+
+
+def _outcome(payoff_date, interest, fees=0, rows=()) -> P.Outcome:
+    return P.Outcome(payoffDate=payoff_date, months=12, interest=D(interest), paid=D(0),
+                     payment=D(0), paymentAfter=D(0), fees=D(fees), rows=list(rows))  # fmt: skip
+
+
+def test_a_plan_saves_the_schedules_interest_less_its_own_and_its_fees():
+    # S6.10.2, S6.10.3: the interest saved is the schedule's interest ahead less the plan's,
+    # less the recast fees it pays; the balances drawn are those ahead, not the past's.
+    base = _outcome(d(2056, 1, 1), "1000")
+    rows = [_row(d(2026, 9, 1), "1500", True), _row(d(2026, 11, 1), "900", False)]
+    out = UL._outcome_out(_outcome(d(2054, 11, 1), "600", "50", rows), base)
+    assert (out.payoffDate, out.interestSaved) == (d(2054, 11, 1), D(350))
+    assert [(p.date, p.balance) for p in out.balances] == [(d(2026, 11, 1), D(900))]
+
+
+@pytest.mark.parametrize(
+    ("plan", "schedule", "saved"),
+    [
+        # Across a year's end, the later month numbered lower: 14 months.
+        (d(2054, 11, 1), d(2056, 1, 1), 14),
+        (d(2054, 11, 1), d(2054, 11, 1), 0),
+        # Paid off on neither, or only the plan: no months to count.
+        (None, None, 0),
+        (d(2054, 11, 1), None, 0),
+        (None, d(2056, 1, 1), 0),
+    ],
+)
+def test_the_months_saved_run_from_the_plans_payoff_to_the_schedules(plan, schedule, saved):
+    # S6.10.2: the months saved are the months between the two payoff dates; without both,
+    # none.
+    out = UL._outcome_out(_outcome(plan, "0"), _outcome(schedule, "0"))
+    assert out.monthsSaved == saved
+
+
+def test_a_plan_for_a_loan_without_terms_is_refused_in_its_words(book):
+    # S6.10: the planner works from the loan's terms; without them it says to set them.
+    s, uid = book
+    with pytest.raises(Problem) as e:
+        UL._compute(s, _caller(uid), _account(s, uid), P.Plan())
+    assert (e.value.status, e.value.code, e.value.detail) == (
+        409,
+        "no-terms",
+        "Set the loan's terms first.",
+    )
+
+
+def test_a_plans_money_invested_grows_at_the_users_own_return_for_its_class(book):
+    # S6.10.4, S6.3: the comparison invests at the return the user set for the class, not the
+    # shipped one (4% for bonds).
+    from moolakata.projections import assumptions
+
+    s, uid = book
+    assumptions.save(s, uid, {"classes": {"bonds": {"return": 5.5}}})
+    a = _account(s, uid)
+    _loan(s, a)
+    r = UL._compute(s, _caller(uid), a, P.Plan(monthly=D(100), investClass="bonds"))
+    assert r.invested.rate == 5.5
+
+
+def test_a_plan_reads_the_payments_as_the_loan_is_set_to(book):
+    # S6.10, S1.9.3: the planner's past is the loan screen's. Automatic, a loan with a payment
+    # recorded reads as recorded here: after Feb 1's payment, Mar 1 to Sep 1 are missed, not
+    # assumed paid (Oct 1 is still in its grace).
+    s, uid = book
+    a = _account(s, uid)
+    _loan(s, a)
+    s.add(Transaction(id=ids.new_id("Txn"), accountId=a.id, date=d(2026, 2, 1), kind="deposit",
+                      amount=D("1798.65")))  # fmt: skip
+    s.flush()
+    r = UL._compute(s, _caller(uid), a, P.Plan(monthly=D(100)))
+    past = [x.status for x in r.schedule.rows if x.past]
+    assert past == ["paid"] + ["missed"] * 7
+
+
+def test_a_plan_charges_pmi_until_the_balance_reaches_78_percent_of_the_homes_basis(book):
+    # S6.10, S1.9.5: with no value typed, PMI is read from the basis of the home the loan is
+    # secured by, as the loan's screen reads it: 78% of 380,500 is 296,790, which Nov 1's
+    # payment leaves the balance above (296,945.41) and Dec 1's below (296,631.49).
+    s, uid = book
+    home = _item(s, _account(s, uid, type="real-estate"), costBasis=D(380500))
+    a = _account(s, uid)
+    _loan(s, a, pmi=D(90), securedById=home.id)
+    r = UL._compute(s, _caller(uid), a, P.Plan())
+    ahead = [(x.date, x.pmi) for x in r.schedule.rows if not x.past][:2]
+    assert ahead == [(d(2026, 11, 1), D(90)), (d(2026, 12, 1), D(0))]
+
+
+def _saved_plan(s, a, name, made) -> PayoffPlan:
+    p = PayoffPlan(id=ids.new_id("Pyoff"), accountId=a.id, name=name, inputs="{}",
+                   createdAt=made)  # fmt: skip
+    s.add(p)
+    s.flush()
+    return p
+
+
+def test_a_loans_plans_are_its_own_in_the_order_they_were_made(book):
+    # S6.10.5: saved plans are kept per loan, a plan of another loan not among them, and are
+    # listed oldest first, by when each was made, not the order they were stored in.
+    s, uid = book
+    a = _account(s, uid)
+    later = _saved_plan(s, a, "Later", T0)
+    first = _saved_plan(s, a, "First", T0 - dt.timedelta(days=1))
+    _saved_plan(s, _account(s, uid, name="Cabin"), "Cabin's", T0 - dt.timedelta(days=2))
+    assert [p.id for p in UL._plans(s, a)] == [first.id, later.id]
