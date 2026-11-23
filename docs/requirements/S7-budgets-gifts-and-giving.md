@@ -33,10 +33,14 @@
    5. **Estimate from history**: making a budget, or later from its plan, offers a plan line
       per category from its average over the last 3, 6 or 12 months, as the user picks:
       monthly where it was spent in most months, yearly otherwise. The recurring transactions
-      of S7.5, looked for three years back so a yearly bill has the three payments a series
-      needs, are offered as lines of their own (*Rent $1,850 a month*, *Car insurance $1,140
-      a year*), a yearly one as a reserve when reserves are on. Each proposed line is kept,
-      changed or dropped before the plan is saved.
+      of S7.5 are looked for three years back, so a yearly bill has the three payments a
+      series needs. A category with yearly or quarterly bills is proposed at those bills
+      summed plus the average of the rest of its spending, monthly bills included, its detail
+      naming each bill (*Housing › Insurance $7,140 a year: Allstate $2,400 a year, Geico
+      $1,140 a year, and $300 a month besides*); when reserves are on, an expense or savings
+      category with such bills is a reserve toward the bills' yearly total, a twelfth of the
+      whole a month ($595 toward $3,540). Income is never proposed as a reserve (S7.10). Each
+      proposed line is kept, changed or dropped before the plan is saved.
    6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
       while their history is clear: each card's **paid from** account, learned from its paired
       payments (S1.7) and changed only where the history is mixed; for each account reserves

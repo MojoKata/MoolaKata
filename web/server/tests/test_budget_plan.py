@@ -109,6 +109,37 @@ def test_a_savings_line_shows_its_projections_monthly(server, frozen):
     assert (r["projectionName"], r["projectionMonthly"]) == ("Nest egg", "650.00")
 
 
+def test_an_estimate_adds_up_what_recurs_in_a_category(server, frozen):
+    """One line per category: its yearly and quarterly bills summed, plus the average of the rest
+    of its spending, each bill named; a reserve toward the bills, never for income (S7.1.5,
+    S7.10)."""
+    c, acct, cat, b = setup_budget(server)
+    home = cat["Housing › Insurance"]
+    for y in (2024, 2025, 2026):
+        add(c, acct["id"], "-1140.00", f"{y}-08-20", payee="Geico", categoryId=home)
+        add(c, acct["id"], "-2400.00", f"{y}-01-10", payee="Allstate", categoryId=home)
+        add(c, acct["id"], "5000.00", f"{y}-03-15", payee="Acme bonus",
+            categoryId=cat["Income › Other income"])  # fmt: skip
+    for m in range(4, 10):
+        add(c, acct["id"], "-300.00", f"2026-{m:02d}-05", payee="Acme Health", categoryId=home)
+
+    def proposed():
+        r = c.get(f"/ui/api/budgets/{b['id']}/estimate", params={"months": 6})
+        assert r.status_code == 200, r.text
+        return {x["label"]: x for x in r.json()["items"]}
+
+    got = proposed()["Housing › Insurance"]
+    assert (got["amount"], got["cadence"], got["target"]) == ("7140.00", "year", None)
+    assert got["detail"] == (
+        "recurring: Allstate $2,400 a year, Geico $1,140 a year, and $300 a month besides"
+    )
+    change(c, b, reserves=True)
+    got = proposed()
+    ins, bonus = got["Housing › Insurance"], got["Income › Other income"]
+    assert (ins["amount"], ins["cadence"], ins["target"]) == ("595.00", "month", "3540.00")
+    assert (bonus["amount"], bonus["cadence"], bonus["target"]) == ("5000.00", "year", None)
+
+
 def test_a_plan_estimated_from_history(server, frozen):
     c, acct, cat, b = setup_budget(server)
     for m in range(4, 10):

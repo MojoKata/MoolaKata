@@ -165,9 +165,9 @@ def estimate(
     s: Session, b: Budget, accounts: list[str], tr: Tree, months: int, today: dt.date
 ) -> list[Proposal]:
     """A line per category from its average over the last complete months: monthly where it
-    was spent in most of them, yearly otherwise; and the recurring transactions as lines of
-    their own, a yearly one as a reserve when the budget has reserves. Gifts and Giving are
-    planned by their own plans, so never proposed."""
+    was spent in most of them, yearly otherwise; a category with yearly or quarterly bills at
+    those bills plus the average of the rest, a reserve toward the bills when the budget has
+    reserves. Gifts and Giving are planned by their own plans, so never proposed."""
     last = add_months(month_of(today), -1)
     first = add_months(last, -(months - 1))
     per: dict[str, list[Decimal]] = defaultdict(list)
@@ -202,27 +202,60 @@ def estimate(
             Transaction.date >= today - dt.timedelta(days=3 * 366 + 15),
         )
     ).all()
+    # One line per category (S7.1.2): its yearly and quarterly bills summed, plus the average of
+    # the rest of its spending, monthly bills included, each bill named (S7.1.5).
+    bills: dict[str, list[recurring.Series]] = defaultdict(list)
     for x in recurring.detect(txns, today):
         cid = x.categoryId
         c = tr.by_id.get(cid) if cid else None
-        if c is None or c.kind == "transfer" or cid in skip:
+        if c is None or c.kind == "transfer" or cid in skip or x.every not in ("quarter", "year"):
             continue
-        per_year = {"week": 52, "2 weeks": 26, "twice a month": 24, "month": 12}.get(x.every)
-        if per_year:
-            continue  # a monthly series is in its category's average already
-        yearly = abs(x.usual) * (4 if x.every == "quarter" else 1)
+        bills[cid].append(x)
+    window = (first, month_end(last))
+    for cid, found in bills.items():
+        c = tr.by_id[cid]
+        sign = -1 if c.kind in ("expense", "savings") else 1
+        rest = sign * sum(per.get(cid, []), ZERO)
+        for x in found:
+            rest -= sign * sum((t.amount for t in _of_series(txns, x, cid, window)), ZERO)
+        monthly = max(rest, ZERO) / months
+        yearly = sum((abs(x.usual) * (4 if x.every == "quarter" else 1) for x in found), ZERO)
+        named = ", ".join(
+            f"{x.payee} ${_round(abs(x.usual)):,} a {x.every}"
+            for x in sorted(found, key=lambda x: x.payee.lower())
+        )
+        besides = f", and ${_round(monthly):,} a month besides" if _round(monthly) else ""
+        total = yearly + monthly * 12
+        # A reserve is for a cost that comes now and then, never income (S7.10).
+        reserve = b.reserves and c.kind in ("expense", "savings")
         out[cid] = Proposal(
             cid,
-            _round(yearly / 12 if b.reserves else yearly),
-            "month" if b.reserves else "year",
+            _round(total / 12 if reserve else total),
+            "month" if reserve else "year",
             "recurring",
-            f"recurring: {x.payee}, every {x.every}",
-            target=_round(yearly) if b.reserves else None,
+            f"recurring: {named}{besides}",
+            target=_round(yearly) if reserve else None,
         )
     return sorted(
         out.values(),
         key=lambda p: (tr.by_id[p.categoryId].kind != "income", tr.label(p.categoryId)),
     )
+
+
+def _of_series(txns, x: recurring.Series, cid: str, window) -> list[Transaction]:
+    """A series' own transactions in a window, filed under its category: what its bill already
+    put in the category's history."""
+    key, out_ = recurring.payee_key(x.payee), x.usual < 0
+    return [
+        t
+        for t in txns
+        if t.accountId == x.accountId
+        and t.payee
+        and recurring.payee_key(t.payee) == key
+        and (t.amount < 0) == out_
+        and t.categoryId == cid
+        and window[0] <= t.date <= window[1]
+    ]
 
 
 def _round(x: Decimal) -> Decimal:
