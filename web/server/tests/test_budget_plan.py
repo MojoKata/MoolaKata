@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from edits import budget_accounts, edit, giving_plan, make, saved
+from edits import budget_accounts, edit, giving_plan, make, new_id, saved
 from test_accounts import add, new_account
 from test_budgets import month, plan, row, save_plan, setup_budget
 
@@ -181,6 +181,37 @@ def test_an_estimate_adds_up_what_recurs_in_a_category(server, frozen):
     ins, bonus = got["Housing › Insurance"], got["Income › Other income"]
     assert (ins["amount"], ins["cadence"], ins["target"]) == ("595.00", "month", "3540.00")
     assert (bonus["amount"], bonus["cadence"], bonus["target"]) == ("5000.00", "year", None)
+
+
+def test_an_estimate_takes_a_split_bills_parts_out_of_each_categorys_rest(server, frozen):
+    """S7.1.5: Allstate's $2,400 a quarter is Insurance's bill; June's was split $2,000
+    Insurance and $400 Maintenance. Each part is taken out of its own category's rest, as a
+    whole payment is, so neither counts it again: Insurance has nothing besides the bill, and
+    Maintenance nothing to propose."""
+    c, acct, cat, b = setup_budget(server)
+    home, repairs = cat["Housing › Insurance"], cat["Housing › Maintenance"]
+    for day in ("2025-09-10", "2025-12-10", "2026-03-10", "2026-09-10"):
+        add(c, acct["id"], "-2400.00", day, payee="Allstate", categoryId=home)
+    tid = new_id("Txn")
+    fields = {"accountId": acct["id"], "date": "2026-06-10", "amount": "-2400.00",
+              "payee": "Allstate"}  # fmt: skip
+    ops = [{"op": "create", "entity": "Txn", "id": tid, "fields": fields}] + [
+        {"op": "create", "entity": "Split", "id": new_id("Split"),
+         "fields": {"transactionId": tid, "amount": amount, "categoryId": category}}
+        for amount, category in (("-2000.00", home), ("-400.00", repairs))
+    ]  # fmt: skip
+    r = c.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 200, r.text
+    r = c.get(f"/ui/api/budgets/{b['id']}/estimate", params={"months": 6})
+    assert r.status_code == 200, r.text
+    got = {x["label"]: x for x in r.json()["items"]}
+    ins = got["Housing › Insurance"]
+    assert (ins["amount"], ins["cadence"], ins["detail"]) == (
+        "9600.00",
+        "year",
+        "recurring: Allstate $2,400 a quarter",
+    )
+    assert "Housing › Maintenance" not in got
 
 
 def test_a_plan_estimated_from_history(server, frozen):

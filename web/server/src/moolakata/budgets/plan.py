@@ -11,7 +11,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
-from ..store.entities.accounts import Account, Transaction
+from ..store.entities.accounts import Account, Split, Transaction
 from ..store.entities.budgets import Budget, BudgetAccount
 from . import ZERO, Tree, add_months, amounts, month_end, month_of, recurring
 
@@ -170,16 +170,35 @@ def estimate(
     reserves. Gifts and Giving are planned by their own plans, so never proposed."""
     last = add_months(month_of(today), -1)
     first = add_months(last, -(months - 1))
+    skip = {tr.key("gifts"), tr.key("giving")}
+    txns = s.scalars(
+        select(Transaction).where(
+            Transaction.accountId.in_(accounts),
+            Transaction.deleted == false(),
+            # Three years back: a yearly bill needs three payments to be a series.
+            Transaction.date >= today - dt.timedelta(days=3 * 366 + 15),
+        )
+    ).all()
+    bills: dict[str, list[recurring.Series]] = defaultdict(list)
+    for x in recurring.detect(txns, today):
+        cid = x.categoryId
+        c = tr.by_id.get(cid) if cid else None
+        if c is None or c.kind == "transfer" or cid in skip or x.every not in ("quarter", "year"):
+            continue
+        bills[cid].append(x)
+    # What the bills' own payments put in each category's months, a split one's parts each in
+    # its own category: taken out of the rest of its spending, so none is counted twice.
+    taken = _taken(s, txns, [x for found in bills.values() for x in found], first, last)
     per: dict[str, list[Decimal]] = defaultdict(list)
     for i in range(months):
         m = add_months(first, i)
-        for cid, amt in amounts(s, accounts, m, month_end(m), tr=tr).items():
-            per[cid].append(amt)
-    skip = {tr.key("gifts"), tr.key("giving")}
+        got = amounts(s, accounts, m, month_end(m), tr=tr)
+        for cid in got.keys() | {k for k, when in taken if when == m}:
+            per[cid].append(got.get(cid, ZERO) - taken.get((cid, m), ZERO))
     out: dict[str, Proposal] = {}
     for cid, seen in per.items():
         c = tr.by_id.get(cid)
-        if c is None or c.kind == "transfer" or cid in skip:
+        if c is None or c.kind == "transfer" or cid in skip or cid in bills:
             continue
         total = sum(seen, ZERO)
         if c.kind in ("expense", "savings"):
@@ -194,30 +213,12 @@ def estimate(
             amount, cadence = (total * 12 / months), "year"
             detail = f"spent in {spent_in} of {months} months"
         out[cid] = Proposal(cid, _round(amount), cadence, "history", detail)
-    txns = s.scalars(
-        select(Transaction).where(
-            Transaction.accountId.in_(accounts),
-            Transaction.deleted == false(),
-            # Three years back: a yearly bill needs three payments to be a series.
-            Transaction.date >= today - dt.timedelta(days=3 * 366 + 15),
-        )
-    ).all()
     # One line per category (S7.1.2): its yearly and quarterly bills summed, plus the average of
     # the rest of its spending, monthly bills included, each bill named (S7.1.5).
-    bills: dict[str, list[recurring.Series]] = defaultdict(list)
-    for x in recurring.detect(txns, today):
-        cid = x.categoryId
-        c = tr.by_id.get(cid) if cid else None
-        if c is None or c.kind == "transfer" or cid in skip or x.every not in ("quarter", "year"):
-            continue
-        bills[cid].append(x)
-    window = (first, month_end(last))
     for cid, found in bills.items():
         c = tr.by_id[cid]
         sign = -1 if c.kind in ("expense", "savings") else 1
         rest = sign * sum(per.get(cid, []), ZERO)
-        for x in found:
-            rest -= sign * sum((t.amount for t in _of_series(txns, x, cid, window)), ZERO)
         monthly = max(rest, ZERO) / months
         yearly = sum((abs(x.usual) * (4 if x.every == "quarter" else 1) for x in found), ZERO)
         named = ", ".join(
@@ -242,20 +243,37 @@ def estimate(
     )
 
 
-def _of_series(txns, x: recurring.Series, cid: str, window) -> list[Transaction]:
-    """A series' own transactions in a window, filed under its category: what its bill already
-    put in the category's history."""
-    key, out_ = recurring.payee_key(x.payee), x.usual < 0
-    return [
+def _taken(
+    s: Session, txns, series: list[recurring.Series], first: dt.date, last: dt.date
+) -> dict[tuple[str, dt.date], Decimal]:
+    """What the series' own transactions in the months from `first` to `last` put in each
+    category, by category and month: a whole one in its category, a split one each part in its
+    own (S7.3.1)."""
+    keys = {(x.accountId, recurring.payee_key(x.payee), x.usual < 0) for x in series}
+    own = [
         t
         for t in txns
-        if t.accountId == x.accountId
-        and t.payee
-        and recurring.payee_key(t.payee) == key
-        and (t.amount < 0) == out_
-        and t.categoryId == cid
-        and window[0] <= t.date <= window[1]
+        if t.payee
+        and (t.accountId, recurring.payee_key(t.payee), t.amount < 0) in keys
+        and first <= t.date <= month_end(last)
     ]
+    parts: dict[str, list[Split]] = defaultdict(list)
+    if own:
+        for sp in s.scalars(
+            select(Split).where(
+                Split.transactionId.in_([t.id for t in own]), Split.deleted == false()
+            )
+        ):
+            parts[sp.transactionId].append(sp)
+    out: dict[tuple[str, dt.date], Decimal] = defaultdict(lambda: ZERO)
+    for t in own:
+        m = month_of(t.date)
+        for cid, amount in [(x.categoryId, x.amount) for x in parts.get(t.id, [])] or [
+            (t.categoryId, t.amount)
+        ]:
+            if cid:
+                out[(cid, m)] += amount
+    return out
 
 
 def _round(x: Decimal) -> Decimal:
