@@ -584,3 +584,35 @@ already set, doubt 2.)
    were stored in and id order, and an unordered `.first()` finds it.
 5. Not this batch's: batch 9 left the comment `# ui.loans._check_plan` twice above its tests.
    I left it as it is (the brief has me add only at the end).
+
+## Batch 11
+
+File: `web/server/tests/test_loans_routes.py` (6 tests added; the plan-saved one through the
+API, under 0.8 s; the rest call `ui.loans._loan_editable`, `_payoff_editable`, `_loan_current`,
+`_loan_update`, `_loan_delete` and `_payoff_update` directly in the unscoped session, each under
+0.2 s).
+
+Counts (58 survivors + 31 no-tests = 89): killed 87, bug 0, equivalent 0, remove 2, slow 0,
+process only 0, still left 0.
+
+### Remove
+
+- `moolakata.ui.loans.x__loan_current__mutmut_8`: `row.resets or "XX[]XX"`: the fallback can't matter: `loan.resets` is `NOT NULL` (default `'[]'`) and every writer (`_terms`, the dev seeds) writes a JSON list, never `""`; `loans.terms_of` reads `json.loads(row.resets)` with no fallback.
+- `moolakata.ui.loans.x__loan_current__mutmut_13`: the same for `row.recasts or "XX[]XX"`.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 58 names and the two globs
+(`_payoff_update`, `_loan_delete`), with `tests/test_loans_routes.py` added (log
+`web/.dev/relay-h19/batch-11.log`, exit 0): 87 killed, 2 survived, the 2 listed above and no
+others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. `_payoff_update` and `_loan_delete` (31 no-tests changes) are settled by direct calls: no
+   fast test reached them before. `_loan_delete` is pinned as written: a refusal with no
+   field, status 422.
+2. The `or "[]"` in `_loan_current` (the two Removes): the `and` changes on those lines
+   (`_7`, `_12`) are killed by a loan with a reset and a recast. Only the fallback text can't
+   matter. Removing `or "[]"` would match `loans.terms_of`.
+3. The plan-saved test snapshots Activity after john signs in, since a sign-in is logged too.

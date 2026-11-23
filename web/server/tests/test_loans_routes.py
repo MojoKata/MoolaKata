@@ -11,7 +11,7 @@ from edits import loan_payment, make, saved, share, terms
 from sqlalchemy import select
 from test_accounts import add, logged, new_account
 
-from moolakata import assets, clock, ids
+from moolakata import assets, clock, exactjson, ids
 from moolakata import loans as L
 from moolakata.errors import FieldError, Problem
 from moolakata.loans import payoff as P
@@ -954,3 +954,151 @@ def test_a_loans_terms_are_made_once_then_changed(book):
         words,
         [FieldError("accountId", "loan-exists", words)],
     )
+
+
+# ui.loans._loan_editable, _loan_current, _loan_update, _loan_delete, _payoff_create,
+# _payoff_editable, _payoff_update
+
+
+def _missing(editable, s, uid, record_id) -> tuple:
+    with pytest.raises(Problem) as e:
+        editable(_ctx(s, uid), record_id)
+    return (e.value.status, e.value.code, e.value.detail)
+
+
+def test_a_drafts_change_finds_only_a_live_loan_and_a_live_plan(book):
+    # S13.8.11: a change or delete asked of terms or a plan that is not there, or deleted, is
+    # not found, in its own words. Unscoped, where only this check stands between the caller
+    # and the row.
+    s, uid = book
+    a = _account(s, uid)
+    row = _loan(s, a)
+    assert UL._loan_editable(_ctx(s, uid), row.id) is row
+    gone = _loan(s, _account(s, uid, name="Cabin"))
+    gone.mark_deleted(uid)
+    s.flush()
+    for loan_id in (ids.new_id("Loan"), gone.id):
+        assert _missing(UL._loan_editable, s, uid, loan_id) == (404, "not-found", "Not found")
+    p = _plan_row(s, a)
+    assert UL._payoff_editable(_ctx(s, uid), p.id) is p
+    for plan_id in (ids.new_id("Pyoff"), _plan_row(s, a, deleted=True).id):
+        assert _missing(UL._payoff_editable, s, uid, plan_id) == (
+            404,
+            "not-found",
+            "No such plan.",
+        )
+
+
+def test_a_loans_terms_in_a_draft_carry_its_resets_and_recasts(book):
+    # S1.9.1, S13.8.6: the terms a draft changes, and a stale save shows, hold an ARM's resets
+    # and its recasts as they were set.
+    s, uid = book
+    a = _account(s, uid)
+    row = _loan(s, a, resets='[{"date": "2027-01-01", "rate": "7"}]',
+                recasts='[{"date": "2028-01-01", "fee": "250"}]')  # fmt: skip
+    current = UL._loan_current(_ctx(s, uid), row)
+    assert (current["accountId"], current["resets"], current["recasts"]) == (
+        a.id,
+        [{"date": "2027-01-01", "rate": "7"}],
+        [{"date": "2028-01-01", "fee": "250"}],
+    )
+
+
+def _refusal(call) -> tuple:
+    with pytest.raises(Problem) as e:
+        call()
+    return (e.value.status, e.value.code, e.value.detail, e.value.errors)
+
+
+def test_a_loans_terms_stay_with_their_loan_and_a_change_is_stamped(book):
+    # S1.9.1, R3.7: terms are corrected on their own loan, never moved to another account,
+    # refused at the account; a change kept is stamped when it was made.
+    s, uid = book
+    a = _account(s, uid)
+    row = _loan(s, a)
+    row.updatedAt = dt.datetime(2026, 2, 1, tzinfo=dt.UTC)
+    cabin = _account(s, uid, name="Cabin")
+    moved = UL.LoanRecord(accountId=cabin.id, **_body().model_dump())
+    words = "The terms stay with their loan."
+    assert _refusal(lambda: UL._loan_update(_ctx(s, uid), row, moved)) == _problem(
+        "accountId", "loan-fixed", words
+    )
+    UL._loan_update(
+        _ctx(s, uid), row, UL.LoanRecord(accountId=a.id, **_body(rate=D(5)).model_dump())
+    )
+    assert (row.accountId, row.rate, row.updatedAt) == (a.id, D(5), T0)
+
+
+def test_a_loans_terms_are_never_deleted_on_their_own(book):
+    # S1.9.1: a loan keeps its terms for as long as it is there; a delete is refused as a
+    # whole, saying to delete the account.
+    s, uid = book
+    row = _loan(s, _account(s, uid))
+    words = "A loan keeps its terms; delete the account instead."
+    assert _refusal(lambda: UL._loan_delete(_ctx(s, uid), row)) == (
+        422,
+        "loan-delete",
+        words,
+        [FieldError(None, "loan-delete", words)],
+    )
+
+
+def _activity_ids(server) -> set[str]:
+    from moolakata.store.entities.core import Activity
+
+    with server.db.read(unscoped="test") as s:
+        return set(s.scalars(select(Activity.id)))
+
+
+def test_a_plan_saved_is_made_by_and_logged_for_its_saver_on_the_owners_loan(server, frozen):
+    # S6.10.5, S10.8: a plan saved by a writer of a shared loan is theirs as its maker, and the
+    # save is logged as theirs, about the loan account, for the account's owner.
+    from moolakata.store.entities.core import Activity
+
+    jane, john = make_user(server, "jane").id, make_user(server, "john").id
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage")
+    saved(share(c, "account", loan["id"], users={john: "write"}))
+    jc = sign_in(server, "john")
+    before = _activity_ids(server)
+    plan = make(jc, "Pyoff", accountId=loan["id"], name="Extra", inputs={"monthly": "300"})
+    assert plan.status_code == 200, plan.text
+    with server.db.read(unscoped="test") as s:
+        assert s.get(PayoffPlan, plan.json()["id"]).createdById == john
+        new = s.scalars(select(Activity).where(Activity.id.not_in(before))).all()
+        assert [(x.kind, x.actorId, x.subjectKind, x.subjectId, x.ownerId) for x in new] == [
+            ("loan.plan-saved", john, "account", loan["id"], jane)
+        ]
+
+
+def test_a_saved_plan_stays_with_its_loan_and_a_change_is_checked_and_stamped(book):
+    # S6.10.5, R3.7: a plan is renamed and its inputs changed on its own loan, never moved to
+    # another, refused at the account; the name and inputs are checked as when it was saved,
+    # and a change kept is stamped when it was made.
+    s, uid = book
+    a = _account(s, uid)
+    p = _plan_row(s, a, inputs='{"monthly": "500"}')
+    p.updatedAt = dt.datetime(2026, 2, 1, tzinfo=dt.UTC)
+
+    def update(account_id, name="Extra", **inputs):
+        body = UL.PayoffRecord(accountId=account_id, name=name, inputs=UL.PlanIn(**inputs))
+        UL._payoff_update(_ctx(s, uid), p, body)
+
+    cabin = _account(s, uid, name="Cabin")
+    assert _refusal(lambda: update(cabin.id)) == _problem(
+        "accountId", "plan-fixed", "A plan stays with its loan."
+    )
+    assert _refusal(lambda: update(a.id, monthly=D("-0.01"))) == _problem(
+        "monthly", "amount-invalid", "Zero or more."
+    )
+    assert _refusal(lambda: update(a.id, name=" ")) == _problem(
+        "name", "name-invalid", "A name, up to 80 characters."
+    )
+    update(a.id, name="  Extra 300 ", monthly=D(300))
+    assert (p.accountId, p.name, p.inputs, p.updatedAt) == (
+        a.id,
+        "Extra 300",
+        exactjson.unmark(UL.PlanIn(monthly=D(300)).model_dump_json()),
+        T0,
+    )
+    assert exactjson.loads(p.inputs)["monthly"] == D(300)
