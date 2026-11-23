@@ -33,6 +33,12 @@ reserve's category isn't among it: it's the reserve's own already. **Assign** gi
 to the reserves held there or keeps it as the account's own. Given to a reserve, it counts as moved
 in, so nothing more is asked to move for it.
 
+## Shortfall
+
+The account holds less than its reserves' total: their balances say more is set aside there than it
+has. The shortfall is the account's, not any one reserve's: each keeps its balance, and money moved
+into the account covers them all.
+
 ## To move
 
 What the reserves gained since they began, less what the account holds for them: what was moved in

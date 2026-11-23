@@ -1006,7 +1006,7 @@ function WhereMoneyIs({ b, month }) {
           <div class="list-item"><span class="grow dim">The account's balance${dec(h.balance).lt(
               dec(h.total),
             )
-            ? html`<div class="small down">short of its reserves by ${
+            ? html`<div class="small down" data-help="shortfall">short of its reserves by ${
               money(
                 dec(h.total).sub(dec(h.balance)),
               )

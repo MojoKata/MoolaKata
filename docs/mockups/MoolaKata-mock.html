@@ -1696,7 +1696,9 @@ SCREENS.budgets = (param) => {
       <div class="list-item"><span class="grow">Moved in<div class="small dim">${money(500)} To Ally, our savings, Oct 2</div></span><button class="btn sm" data-act="toast" data-v="Kept as the account’s own">Keep as the Account’s Own</button></div>
       <div class="list-item"><span class="grow">Unassigned<div class="small dim">${money(41.2)} interest, Oct 1</div></span><button class="btn sm" data-act="dlg" data-v="assignLanded">Assign</button></div>
       <div class="list-item"><span class="grow">Unassigned<div class="small dim">${money(25)} cash-back reward, Sep 28</div></span><button class="btn sm" data-act="dlg" data-v="assignLanded">Assign</button></div>
-      <div class="list-item"><span class="grow dim">The account’s balance<div class="small">${money(23210)} of it isn’t the reserves’: savings of its own</div></span>${money(38200)}</div>
+      ${state.shortfall
+        ? `<div class="list-item" data-help="shortfall"><span class="grow dim">The account’s balance<div class="small down">short of its reserves by ${money(790)}</div></span>${money(14200)}</div>`
+        : `<div class="list-item"><span class="grow dim">The account’s balance<div class="small">${money(23210)} of it isn’t the reserves’: savings of its own</div></span>${money(38200)}</div>`}
       <div class="list-item"><span class="grow dim">Withdrawals in October</span>2 of 6 allowed</div>
       ${scenario ? `<div class="mt">${statePill('scenario', 'These are this scenario’s own figures: only the active budget says what to move.')}</div>` : `<div class="mt">${attention(`<b>${money(345)} to move</b> from Joint Household to High-Yield Savings: October’s reserves`)}</div>`}</div>
     <div><div class="card"><h3>Blue Cash Preferred<span class="spacer"></span><span class="small dim" style="font-weight:400">Jane’s · paid from Everyday Checking</span></h3>
@@ -3217,6 +3219,7 @@ const GUIDES = {
     <h2 id="h-unassigned">Unassigned</h2><p>Money that landed here other than by a transfer from the budget’s accounts: interest, a paycheck split into savings, a transfer from an account outside the budget. <b>Assign</b> gives it to the reserves or keeps it as the account’s own. In the budget it is income either way; assigning says whose it is. It is listed every month until it is assigned, and what is assigned counts in the month shown; the month it landed keeps showing it unassigned.</p>
     <h2 id="h-reserve">A reserve’s line</h2><p>What goes to each reserve held there. The lines start spread among the reserves by their balances; <b>Spread by Balance</b> spreads it so again. Change any line, or empty it: what no line takes stays unassigned. Each line given something is a move; given to a reserve, it counts as moved in, so nothing is asked to move for it.</p>
     <h2 ${hid('Kept as the account’s own')}>Kept as the account’s own</h2><p>Savings that aren’t the reserves’ (not set aside).</p>
+    <h2 id="h-shortfall">Shortfall</h2><p>The account holds less than its reserves’ total: their balances say more is set aside there than it has. The shortfall is the account’s, not any one reserve’s: each keeps its balance, and money moved into the account covers them all.</p>
     <h2 id="h-withdrawals">Withdrawals</h2><p>Counted against the account’s <b>Withdrawals allowed a month</b>. Moves back are summed into one transfer for the month, with a warning when it would go past the limit.</p>
     <h2 ${hid('To')}>To</h2><p>The category that needs it; in an envelope budget, a card’s payment line, to cover what it owes but no envelope set aside.</p>
     <h2 ${hid('Amount to move')}>Amount to move</h2><p>For this month only. With rollover, or in a reserve, it carries on as any remainder does.</p>
@@ -3788,6 +3791,7 @@ const MOCK_STATES = [
   ['tax-book-alone', 'A new tax book with no spouse and no book the year before', 'Taxes', () => !!state.taxBookAlone, (v) => { state.taxBookAlone = v; }],
   ['phrase-unchecked', 'The recovery phrase unchecked (Settings › Key Storage)', 'Settings', () => !!state.phraseUnchecked, (v) => { state.phraseUnchecked = v; }],
   ['owner-inactive', 'An owner made inactive (John): what he shared still his', 'Accounts', () => !!state.ownerInactive, (v) => { state.ownerInactive = v; }],
+  ['shortfall', 'An account short of its reserves (Where It Is)', 'Budgets', () => !!state.shortfall, (v) => { state.shortfall = v; }],
 ];
 // What only happens, never stays: [data-act, label, group].
 const MOCK_EVENTS = [['mnew', '3 new rows arrive', 'Transactions'], ['malert', 'A new alert arrives (live)', 'Alerts'], ['mupload', 'Upload a receipt (reads it)', 'Receipts']];
