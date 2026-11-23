@@ -23,7 +23,8 @@ on their own when anything they come from changes.
 
 A transfer into the account from the budget's accounts counts as money moved in for the reserves.
 When it's savings of the account's own instead, keep it as the account's own: it then doesn't count
-for the reserves, and **to move** no longer asks for it back.
+for the reserves, and **to move** no longer asks for it back. It is off on an account not shared
+with you: only someone it is shared with keeps what moved into it.
 
 ## Unassigned
 
@@ -31,7 +32,8 @@ Money that landed in the account other than by a transfer from the budget's acco
 a paycheck split into it, a transfer from an account the budget doesn't count. A refund in a
 reserve's category isn't among it: it's the reserve's own already. **Assign** gives it
 to the reserves held there or keeps it as the account's own. Given to a reserve, it counts as moved
-in, so nothing more is asked to move for it.
+in, so nothing more is asked to move for it. On an account not shared with you, what landed there is
+one amount, and **Assign** is off: only someone it is shared with gives it.
 
 ## Shortfall
 

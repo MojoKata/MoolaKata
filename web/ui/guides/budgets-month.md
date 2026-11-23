@@ -48,7 +48,8 @@ accounts never count.
 
 ## Cover from… {#cover-from}
 
-An overspent category, covered by a move from one with money left this month.
+An overspent category, covered by a move from one with money left this month. On a card's line it
+is off when the card isn't shared with you: only someone it is shared with covers its line.
 
 ## Cards
 

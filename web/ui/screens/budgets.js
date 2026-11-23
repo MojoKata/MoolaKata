@@ -39,8 +39,12 @@ import { Action, Attention, StatePill } from '../kit/state.js';
 /** What the uncategorised count means, its pill's tooltip (S12.19.3). */
 const UNCATEGORISED = 'Transactions without a category count nowhere until sorted: open them.';
 
-/** Why a row of an account not shared with the viewer can't be sorted (S7.1.1). */
+/** Why an action on an account not shared with the viewer is off (S7.1.1, S12.19.1). */
 const NOT_SHARED_SORT = 'Only someone this account is shared with can sort its transfers';
+const NOT_SHARED_COVER = "Only someone this account is shared with can cover its card's line";
+const NOT_SHARED_ASSIGN = 'Only someone this account is shared with can give what landed in it';
+const NOT_SHARED_KEEP =
+  'Only someone this account is shared with can keep what moved into it as its own';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
@@ -215,8 +219,8 @@ function ThisMonth({ b, month, reloadList }) {
   // Moves are the budget's own setting; one who may not make them sees them off (S12.19.1).
   const canMove = !!b.moves;
   const moveWhy = whyNotAdd('BdgMv', b);
-  // A card not shared with the viewer comes with no id, so nothing is moved to its line
-  // (S7.1.1).
+  // A card not shared with the viewer comes with no id, so nothing is moved to its line: its
+  // Cover from… is off (S7.1.1).
   const movable = v.cards.filter((/** @type {any} */ x) => x.accountId);
   const moveTo = (/** @type {string} */ to = '') =>
     openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: movable }).then((x) =>
@@ -353,11 +357,11 @@ function ThisMonth({ b, month, reloadList }) {
                     x.owed,
                   )} owed</span>${dec(x.notBacked).gt(0)
                     ? html`<div class="down">${money(x.notBacked)} owed, not backed</div>${
-                      canMove && x.accountId
+                      canMove
                         ? html`
                           <div>
                             <${Action} class="linklike" data-help="cover-from"
-                              why=${moveWhy} onClick=${() =>
+                              why=${x.accountId ? moveWhy : NOT_SHARED_COVER} onClick=${() =>
                                 moveTo('card:' + x.accountId)}>Cover from…</${Action}></div>
                         `
                         : null
@@ -961,8 +965,8 @@ function WhereMoneyIs({ b, month }) {
     return html`<${Empty}>No reserve held in an account, and no card</${Empty}>`;
   }
   // An account not shared with the viewer comes with no id: what landed there is shown, not
-  // theirs to give or keep (S7.1.1). A transfer in kept as the account's own: a move to no
-  // category (S7.10.4).
+  // theirs to give or keep, its actions off (S7.1.1). A transfer in kept as the account's own:
+  // a move to no category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
     try {
       await saveNow((d) =>
@@ -1015,9 +1019,10 @@ function WhereMoneyIs({ b, month }) {
                   : 'Moved in'}<div class="small dim">${money(x.amount)} ${what(
                     x,
                     'a transfer',
-                  )}</div></span>${x.kept || !h.accountId ? null : html`
-                  <button type="button" class="btn sm" data-help="keep-own"
-                    onClick=${() => keepOwn(x)}>Keep as the Account's Own</button>
+                  )}</div></span>${x.kept ? null : html`
+                  <${Action} class="btn sm" data-help="keep-own"
+                    why=${h.accountId ? null : NOT_SHARED_KEEP} onClick=${() =>
+                      keepOwn(x)}>Keep as the Account's Own</${Action}>
                 `}</div>
             `
           )}
@@ -1026,10 +1031,9 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
                   x.free,
-                )} ${what(x, 'landed')}</div></span>${h.accountId
-                  ? html`<button type="button" class="btn sm" data-help="unassigned" onClick=${() =>
-                    assign(h, x)}>Assign</button>`
-                  : null}</div>
+                )} ${what(x, 'landed')}</div></span><${Action} class="btn sm"
+                  data-help="unassigned" why=${h.accountId ? null : NOT_SHARED_ASSIGN}
+                  onClick=${() => assign(h, x)}>Assign</${Action}></div>
             `
           )}
           <div class="list-item"><span class="grow dim">The account's balance${dec(h.balance).lt(
