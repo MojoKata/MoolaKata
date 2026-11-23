@@ -416,10 +416,11 @@ class _Day:
 
 
 def _owed_before(t: Terms, draws, day: dt.date, principal_paid: Decimal) -> Decimal:
-    """What was owed the day before `day`: the principal and the draws to then, less the
-    principal paid."""
+    """What was owed just before a payment on `day`: the principal (lent from the start day,
+    so a payment that day owes on it too), the draws to the day before, less the principal
+    paid."""
     before = day - dt.timedelta(days=1)
-    owed = (t.principal if t.start <= before else ZERO) + sum(
+    owed = (t.principal if t.start <= day else ZERO) + sum(
         (amt for d, amt in draws if d <= before), ZERO
     )
     return max(owed - principal_paid, ZERO)

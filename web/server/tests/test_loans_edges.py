@@ -747,3 +747,16 @@ def test_a_daily_interest_day_accrues_from_a_catch_up_payment_made_that_day(toda
     rows = L.schedule(t, recorded, [], today, mode="recorded")
     [apr] = [r for r in rows if r.date == d(2026, 4, 1) and r.status != "paid"]
     assert apr.interest == 0
+
+
+@pytest.mark.parametrize(("amount", "split"), [
+    (D(500), (D(500), 0, 0)),
+    (D("2298.65"), (D(1500), D("798.65"), D(500))),
+])  # fmt: skip
+def test_a_payment_on_the_day_the_loan_starts_goes_toward_its_first_payment_day(amount, split):
+    """S1.9.3: a payment goes with the payment day whose grace it is made in, the first one's
+    from the start day: on Jan 1 as on Jan 2, it owes Feb 1's month of interest on the
+    principal lent that day, then the rest is principal, beyond the 298.65 due an overpayment."""
+    p = L.split_for(_mortgage(), [], [], d(2026, 1, 1), amount)
+    assert (p.interest, p.principal, p.overpayment) == split
+    assert p.fees == 0
