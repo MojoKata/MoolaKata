@@ -236,7 +236,7 @@ def test_recorded_here_a_payment_never_goes_back_to_a_month_before_the_record():
     assert [(p.interest, p.principal) for p in out[1:]] == [(D("200.00"), 0), (0, D(200))]
 
 
-# loans.day_of, _days_paid, _record_starts, _owed_before, _Walker, _walk, _as_scheduled, _due,
+# loans.day_of, _covered, _record_starts, _owed_before, _Walker, _walk, _as_scheduled, _due,
 # balance_on, split_for
 
 
