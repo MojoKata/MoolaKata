@@ -829,7 +829,12 @@ def _line_checked(ctx, body: LineIn) -> tuple[Budget, dt.date]:
     b, _ = access.budget(ctx.s, ctx.caller.id, body.budgetId, "write")
     month = budgets.month_of(body.fromMonth)
     cats = {x.id: x for x in ctx.s.scalars(select(Category).where(Category.deleted == false()))}
-    elsewhere = plan.planned_elsewhere(ctx.s, b, budgets.tree(ctx.s), month.year)
+    # The owner's gift and giving plans set Gifts and Giving whoever writes the line, though
+    # those plans aren't shared with them (S7.3.6, S7.1.1).
+    why = "the plans a budget's owner keeps, for one who writes it"
+    with scoping.as_server(ctx.s, why, False) as srv:
+        sb = srv.get(Budget, b.id)
+        elsewhere = plan.planned_elsewhere(srv, sb, budgets.tree(srv), month.year)
     refuse_all(_line_errors(ctx.s, b, body, cats, elsewhere))
     return b, month
 

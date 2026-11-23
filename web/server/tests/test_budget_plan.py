@@ -107,6 +107,25 @@ def test_a_plan_budgeted_per_occasion_counts_its_birthday_and_wedding(server, fr
     assert row(month(c, b, "2026-10"), "Gifts")["planned"] == "0.00"
 
 
+def test_one_who_writes_the_budget_cant_type_what_the_owners_plans_set(server, frozen):
+    """S7.3.6, S7.1.1: Gifts and Giving come from the owner's gift and giving plans, never
+    typed, for one the budget is shared with at Write too, though those plans aren't shared
+    with them."""
+    from conftest import make_user, sign_in
+    from edits import share
+
+    c, _, cat, b = setup_budget(server)
+    assert make(c, "GfPln", name="Lisa Doe", sex="female", giftBudget="600").status_code == 200
+    assert giving_plan(c, 2026, targetKind="amount", amount="1200").status_code == 200
+    bob_id = make_user(server, "bob").id
+    bob = sign_in(server, "bob")
+    assert share(c, "budget", b["id"], users={bob_id: "write"}).status_code == 200
+    for name in ("Gifts", "Giving"):
+        r = save_plan(bob, b, "2026-10-01", [{"categoryId": cat[name], "amount": "50"}])
+        assert r.status_code == 422, (name, r.text)
+        assert r.json()["errors"][0]["code"] == "planned-elsewhere"
+
+
 def test_a_category_under_giving_counts_in_the_giving_line(server, frozen):
     """S7.3.6, S7.1.2: a donation filed under Giving › Church counts against the giving plan's
     Giving line, and nowhere outside the plan."""
