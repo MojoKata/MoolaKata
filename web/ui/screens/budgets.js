@@ -958,6 +958,9 @@ function ReserveRow({ r, held }) {
  */
 function WhereMoneyIs({ b, month }) {
   const res = useApi(`/budgets/${b.id}/where`, { month }, ['import', 'refresh']);
+  // Giving landed money or keeping it as the account's own is a move: one who may not make
+  // moves sees them off, saying why (S12.19.1).
+  const moveWhy = whyNotAdd('BdgMv', b);
   const w = /** @type {any} */ (res.data);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!w) return html`<${Loading} lines=${6} />`;
@@ -1021,7 +1024,7 @@ function WhereMoneyIs({ b, month }) {
                     'a transfer',
                   )}</div></span>${x.kept ? null : html`
                   <${Action} class="btn sm" data-help="keep-own"
-                    why=${h.accountId ? null : NOT_SHARED_KEEP} onClick=${() =>
+                    why=${h.accountId ? moveWhy : NOT_SHARED_KEEP} onClick=${() =>
                       keepOwn(x)}>Keep as the Account's Own</${Action}>
                 `}</div>
             `
@@ -1032,7 +1035,7 @@ function WhereMoneyIs({ b, month }) {
                 class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
                   x.free,
                 )} ${what(x, 'landed')}</div></span><${Action} class="btn sm"
-                  data-help="unassigned" why=${h.accountId ? null : NOT_SHARED_ASSIGN}
+                  data-help="unassigned" why=${h.accountId ? moveWhy : NOT_SHARED_ASSIGN}
                   onClick=${() => assign(h, x)}>Assign</${Action}></div>
             `
           )}

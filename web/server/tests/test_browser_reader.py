@@ -475,3 +475,44 @@ def test_actions_on_an_account_not_shared_with_a_writer_are_off_with_why(
         for a in accounts:
             gone = h.c.get(f"/ui/api/accounts/{a['id']}").json()
             made(remove(h.c, "Acct", gone, confirm=True))
+
+
+def test_landed_moneys_actions_are_off_for_one_who_reads_the_budget(browser, household, reader):
+    """S12.19.1: Rita reads an envelope budget whose savings and checking are shared with her:
+    in Where the money is, Assign and Keep as the Account's Own are moves she may not make,
+    shown off, saying why."""
+    from test_budgets import cats, save_plan
+    from test_reserves import reserves_on
+
+    h = household
+    day = f"{months_back(0)}-01"
+    accounts = [
+        made(make(h.c, "Acct", name="Read Checking", type="checking", institution="UMB")),
+        made(make(h.c, "Acct", name="Read Savings", type="savings", institution="Ally")),
+    ]
+    chk, savings = (a["id"] for a in accounts)
+    b = made(make(h.c, "Bdgt", name="Read envelopes", method="envelope",
+                  accountIds=[chk, savings]))  # fmt: skip
+    try:
+        reserves_on(h.c, b)
+        roof = cats(h.c)["Housing › Maintenance"]
+        line = {"categoryId": roof, "amount": "50.00", "target": "900", "heldInId": savings}
+        assert save_plan(h.c, b, day, [line]).status_code == 200
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="4.00", kind="interest"))
+        made(make(h.c, "Txn", accountId=chk, date=day, amount="-100.00", payee="To savings"))
+        made(make(h.c, "Txn", accountId=savings, date=day, amount="100.00", kind="deposit"))
+        for a in (chk, savings):
+            made(share(h.c, "account", a, users={reader["id"]: "read"}))
+        made(share(h.c, "budget", b["id"], users={reader["id"]: "read"}))
+        page, problems = signed_in_as_reader(
+            browser, h, f"/ui/budgets/{b['id']}/where", "text=Unassigned"
+        )
+        off(page, "Assign")
+        off(page, "Keep as the Account's Own")
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Bdgt", h.c.get(f"/ui/api/budgets/{b['id']}").json(), confirm=True))
+        for a in accounts:
+            gone = h.c.get(f"/ui/api/accounts/{a['id']}").json()
+            made(remove(h.c, "Acct", gone, confirm=True))
