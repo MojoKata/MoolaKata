@@ -13,18 +13,13 @@ from moolakata import loans as L
 from moolakata.loans import payoff as P
 from moolakata.store.entities.accounts import Account, Category, Loan, Split, Transaction
 from moolakata.store.entities.assets import Item
-from moolakata.store.entities.users import User
 
 d = dt.date
 
 
 @pytest.fixture
-def book(server):
-    """A session on the test household, unscoped as the server's own work reads it, and the
-    first admin's id to own what a test adds; nothing it adds is kept."""
-    with server.db.tx(unscoped="test") as s:
-        yield s, s.scalars(select(User.id)).first()
-        s.rollback()
+def book(unscoped):
+    return unscoped
 
 
 def _account(s, uid, type="mortgage", **kw) -> Account:

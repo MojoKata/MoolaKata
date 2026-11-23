@@ -25,7 +25,6 @@ from moolakata.store.entities.accounts import (
 )
 from moolakata.store.entities.assets import Item
 from moolakata.store.entities.prices import TypedPrice
-from moolakata.store.entities.users import User
 from moolakata.ui import loans as UL
 
 d = dt.date
@@ -40,12 +39,8 @@ def frozen():
 
 
 @pytest.fixture
-def book(server, frozen):
-    """A session on the test household, unscoped as the server's own work reads it, and the
-    first admin's id to own what a test adds; nothing it adds is kept."""
-    with server.db.tx(unscoped="test") as s:
-        yield s, s.scalars(select(User.id)).first()
-        s.rollback()
+def book(unscoped, frozen):
+    return unscoped
 
 
 def _account(s, uid, type="mortgage", name="Home") -> Account:

@@ -247,6 +247,19 @@ def server(store, keyed_config):
     return srv
 
 
+@pytest.fixture
+def unscoped(server):
+    """A session on the test household, unscoped as the server's own work reads it, and the
+    first admin's id to own what a test adds; nothing it adds is kept."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.users import User
+
+    with server.db.tx(unscoped="test") as s:
+        yield s, s.scalars(select(User.id)).first()
+        s.rollback()
+
+
 class Exact(Decimal):
     """A number with a decimal point as a test reads it: a Decimal that also equals the exact
     text the server wrote, so `== "1234.50"` checks the digits and `== 7.5` the value."""
