@@ -242,15 +242,17 @@
       its lead time raises an alert (S12.11).
 8. **Gifts.**
    1. **A gift** is for one or more people and an occasion (and its year): a description, a
-      **status** (*idea*, *planned*, *bought*, *given*), its cost, where it was bought, a link
+      **status** (*idea*, *planned*, *bought*, *given*, or *received* for a gift to the
+      user, S7.8.3), its cost, where it was bought, a link
       (a web address, `http://` or `https://` and a host, up to 2,000 characters), notes, and
       receipts (S9). A cost is linked to its transaction, which needs write on its
       account and is recorded in Activity, or typed. One purchase can be split across several
       gifts.
    2. **Ideas** are gifts without a date: a running list per person, to pick from when an
       occasion comes.
-   3. **Gifts received** can be recorded too (from whom, for what), with a **thank-you
-      sent** tick.
+   3. **Gifts received** are recorded as gifts with the status *received*: its people are
+      whom it came from, its occasion what it was for, and it has a **thank-you sent** tick,
+      which no other status has.
    4. **History**: per person, what was given in past years (so it isn't given twice) and
       the spending per year against their budget. Per year: gift spending by person and by
       occasion. Gift transactions are categorised *Gifts* in budgets (S7.2).
