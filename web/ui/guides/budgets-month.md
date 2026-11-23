@@ -101,5 +101,5 @@ the plan; only its owner chooses its accounts or shares it.
 
 ## Uncategorised
 
-Transactions in the budget's accounts with no category yet. Sort them on the Transactions screen,
-and they count.
+Transactions in the budget's accounts with no category yet, or with a split that has none. One left
+out of this budget isn't counted. Sort them on the Transactions screen, and they count.

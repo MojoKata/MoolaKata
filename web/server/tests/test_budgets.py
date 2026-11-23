@@ -215,6 +215,31 @@ def test_matched_transfers_and_splits(server, frozen):
     assert row(month(c, b, "2026-10"), "Food")["actual"] == "60.00"
 
 
+def test_what_needs_a_category_is_what_the_pill_lists(server, frozen):
+    """A split transaction counts through its splits, so it needs a category only where a part
+    has none; a transaction left out of the budget counts nowhere in it (S7.3.1, S7.3.5). The
+    month's count and the Transactions screen's *Uncategorised* list read one rule."""
+    c, acct, cat, b = setup_budget(server)
+    split = [
+        {"amount": "-60.00", "categoryId": cat["Food › Groceries"]},
+        {"amount": "-40.00", "categoryId": cat["Personal › Clothing"]},
+    ]
+    add(c, acct["id"], "-100.00", "2026-10-04", payee="Target", splits=split)
+    loose = [{"amount": "-30.00", "categoryId": cat["Food › Groceries"]},
+             {"amount": "-20.00", "categoryId": None}]  # fmt: skip
+    part = add(c, acct["id"], "-50.00", "2026-10-05", payee="Costco", splits=loose)
+    car = add(c, acct["id"], "-18000.00", "2026-10-02", payee="Honda")
+    plain = add(c, acct["id"], "-12.00", "2026-10-06", payee="Kiosk")
+    listed = {
+        x["id"] for x in c.get("/ui/api/transactions", params={"category": "none"}).json()["items"]
+    }
+    assert listed == {part["id"], car["id"], plain["id"]}
+    assert month(c, b, "2026-10")["uncategorised"] == 3
+    txn = c.get(f"/ui/api/transactions/{car['id']}").json()
+    saved(change(c, "Txn", txn, leftOutOf={"add": [b["id"]], "remove": []}))
+    assert month(c, b, "2026-10")["uncategorised"] == 2
+
+
 def test_plan_checks_its_lines(server, frozen):
     c, _, cat, b = setup_budget(server)
     r = save_plan(

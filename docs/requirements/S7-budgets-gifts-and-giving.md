@@ -94,8 +94,11 @@
    remains.
    1. **What counts**: the transactions in the budget's accounts, by their categories:
       spending as spent, income as received, savings as saved. A split transaction counts
-      through its splits. A refund in an expense category lowers its spending, in the month
-      it lands. A pending transaction doesn't count until it posts. Matched transfers between
+      through its splits. A transaction is **uncategorised** while it has neither a category
+      nor splits, or a split of it has none: the Transactions screen's *Uncategorised* filter
+      lists those, and a month's count of them (S7.4) leaves out what the budget leaves out
+      (S7.3.5). A refund in an expense category lowers its spending, in the month it lands.
+      A pending transaction doesn't count until it posts. Matched transfers between
       two of the budget's accounts, and transfer categories, never count (S1.7).
    2. **Money leaving or entering the budget**: a matched transfer between one of the
       budget's accounts and an account it doesn't count counts like any transaction, by the

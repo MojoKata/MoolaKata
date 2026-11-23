@@ -22,7 +22,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import false, func, select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from ..store.entities.accounts import Account, Category, Split, Transaction
@@ -362,22 +362,29 @@ def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
         out[tr.key("loans")] -= rest
 
 
-def uncategorised(s: Session, accounts: list[str], start: dt.date, end: dt.date) -> int:
+def uncategorised(
+    s: Session,
+    accounts: list[str],
+    start: dt.date,
+    end: dt.date,
+    skip: frozenset[str] = frozenset(),
+) -> int:
+    """The transactions in the accounts between two dates that still need a category, less
+    those the budget leaves out (`skip`, S7.3.5)."""
+    from ..categories import needs_category
+
     if not accounts:
         return 0
-    return s.scalar(
-        select(func.count())
-        .select_from(Transaction)
-        .where(
+    ids = s.scalars(
+        select(Transaction.id).where(
             Transaction.accountId.in_(accounts),
             Transaction.deleted == false(),
-            Transaction.transferId.is_(None),
-            Transaction.categoryId.is_(None),
-            Transaction.instrumentId.is_(None),
             Transaction.date >= start,
             Transaction.date <= end,
+            needs_category(),
         )
     )
+    return sum(1 for x in ids if x not in skip)
 
 
 def lines(s: Session, budget: Budget) -> list[BudgetLine]:
@@ -680,7 +687,7 @@ def _month_view(
             ),
             ZERO,
         ),
-        uncategorised=uncategorised(s, accts, month, end),
+        uncategorised=uncategorised(s, accts, month, end, tr.skip),
         toBudget=env.toBudget if env else None,
         assigned=env.assigned if env else None,
         assignedByMoves=env.movedIn if env else None,

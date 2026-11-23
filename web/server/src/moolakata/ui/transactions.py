@@ -10,7 +10,7 @@ from pydantic import Field
 from sqlalchemy import false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
-from .. import access, activity, clock, ids, loans, reimbursements, tags, washes
+from .. import access, activity, categories, clock, ids, loans, reimbursements, tags, washes
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import lots
@@ -345,12 +345,7 @@ def list_transactions(
             Transaction.accountId.in_(wanted), Transaction.deleted == false()
         )
         if category == "none":
-            q = q.where(
-                Transaction.categoryId.is_(None),
-                Transaction.transferId.is_(None),
-                Transaction.instrumentId.is_(None),
-                ~Transaction.id.in_(select(Split.transactionId).where(Split.deleted == false())),
-            )
+            q = q.where(categories.needs_category())
         elif category:
             q = q.where(
                 or_(
