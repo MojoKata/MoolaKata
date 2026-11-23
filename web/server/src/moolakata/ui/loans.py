@@ -872,9 +872,10 @@ def _saved(s, c: Caller, a: Account, p: PayoffPlan) -> SavedPlan:
     headline = ""
     if loans.loan_of(s, a) is not None:
         r = _compute(s, c, a, _plan(plan_in))
-        best = r.plan
-        saved = r.schedule.interest - best.interest - best.fees
-        when = f"{best.payoffDate:%b %Y}" if best.payoffDate else "—"
+        # The plan shortened: only shortening moves the payoff month (S6.10.5).
+        shortened = r.plan
+        saved = r.schedule.interest - shortened.interest
+        when = f"{shortened.payoffDate:%b %Y}" if shortened.payoffDate else "—"
         headline = f"Paid off {when} · ${saved:,.0f} interest saved"
     return SavedPlan(
         id=p.id,
@@ -1018,8 +1019,8 @@ def _loan_editable(ctx, record_id: str) -> Loan:
 def _loan_current(ctx, row: Loan) -> dict:
     return {
         "accountId": row.accountId,
-        "resets": exactjson.loads(row.resets or "[]"),
-        "recasts": exactjson.loads(row.recasts or "[]"),
+        "resets": exactjson.loads(row.resets),
+        "recasts": exactjson.loads(row.recasts),
         **{f: getattr(row, f) for f in TERM_FIELDS},
     }
 

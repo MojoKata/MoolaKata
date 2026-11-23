@@ -234,7 +234,7 @@ def _period_out(p: ResidencePeriod, names: dict[str, str]) -> PeriodOut:
     return PeriodOut(
         id=p.id,
         personId=p.personId,
-        personName=names.get(p.personId, ""),
+        personName=names[p.personId],
         fromDate=p.fromDate,
         toDate=p.toDate,
         version=p.version,
@@ -780,8 +780,9 @@ def _periods_owned(ctx, it: Item) -> None:
 def _period_owned(ctx, period_id: str) -> None:
     """A residence period made or changed falls within its home's days owned, as they are once
     the whole save has gone in (S1.10.4)."""
+    # The period its op made or changed is there and live once the save is in.
     p = ctx.s.get(ResidencePeriod, period_id)
-    it = ctx.s.get(Item, p.itemId) if p is not None and not p.deleted else None
+    it = ctx.s.get(Item, p.itemId)
     if it is None or it.deleted:
         return
     message = {
@@ -831,7 +832,7 @@ def _person_alone(ctx, person_id: str, sold: str | None = None) -> None:
         # Named by the period the save didn't touch, or not on the home sold: "the other".
         q_mine = q.id in _touched(ctx) or q.itemId == sold
         other, mine = (p, q) if q_mine else (q, p)
-        name = people.names(ctx.s, [person_id]).get(person_id, "This person")
+        name = people.names(ctx.s, [person_id])[person_id]
         where = "this home, in another period" if other.itemId == mine.itemId else other.name
         raise refuse(
             "soldOn" if sold else "fromDate",
