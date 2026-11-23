@@ -206,6 +206,32 @@ def test_turning_reserves_off_leaves_the_money_in_the_envelopes(server, frozen):
     assert (r["carried"], r["target"]) == ("100.00", None)
 
 
+def test_gifts_and_giving_are_assigned_as_yearly_lines(server, frozen):
+    """S7.3.6, S7.13.1: the gift and giving plans' yearly amounts are envelopes assigned a
+    twelfth a month, so To Budget sets their money aside and their spending comes out of them."""
+    from edits import giving_plan
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
+    assert make(c, "GfPln", name="Emma Doe", sex="female", giftBudget="1200").status_code == 200
+    assert giving_plan(c, 2026, targetKind="amount", amount="600").status_code == 200
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    plan(c, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "500.00"}])
+    v = month(c, b, "2026-10")
+    gifts = row(v, "Gifts")
+    assert v["toBudget"] == "2350.00"
+    assert (gifts["planned"], gifts["putIn"], gifts["fromPlan"]) == ("100.00", "100.00", "gifts")
+    assert row(v, "Giving")["planned"] == "50.00"
+    add(c, chk["id"], "-100.00", "2026-10-05", payee="Toy store", categoryId=cat["Gifts"])
+    v = month(c, b, "2026-10")
+    assert (v["toBudget"], row(v, "Gifts")["remaining"]) == ("2350.00", "0.00")
+    # November's twelfth comes on top of what October's envelope kept.
+    assert row(month(c, b, "2026-11"), "Giving")["planned"] == "100.00"
+
+
 def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(server, frozen):
     """S7.1.1, S11.3.1: Jane's budget counts her Chase Sapphire and holds a reserve in her Ally
     Savings, neither shared with Bob, who reads the budget at write: his month and plan give

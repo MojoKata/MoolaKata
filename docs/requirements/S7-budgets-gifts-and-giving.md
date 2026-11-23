@@ -406,7 +406,9 @@
     1. **To Budget** is the cash in the budget's accounts, less what its categories hold and
        what is set aside for its cards (S7.13.2). It starts in the budget's first month, from
        those accounts' balances that day, and there is none in the months before. Each month the
-       plan's lines assign their amounts (a yearly line a twelfth of its amount), a move from or
+       plan's lines assign their amounts (a yearly line a twelfth of its amount; *Gifts* and
+       *Giving*, the gift and giving plans' yearly lines (S7.3.6), a twelfth of their plans'
+       year), a move from or
        to *To Budget* assigns more or less, and income adds to it as it lands. Landed money
        given to a reserve (S7.10.5) is assigned from *To Budget* into the reserve's envelope;
        what is kept as the account's own stays in *To Budget*.

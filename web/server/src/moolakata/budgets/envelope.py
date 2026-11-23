@@ -11,7 +11,8 @@ categories each month until none is left to hand out.
   category to the line, and a payment to the card takes from it. A charge beyond what its
   category held leaves the category at nothing and is owed, not backed: debt no category set
   aside for, shown on the card until a move into its line covers it.
-- A yearly line assigns a twelfth of its amount each month.
+- A yearly line assigns a twelfth of its amount each month, as do the gift and giving plans' years.
+  Gifts and Giving are envelopes like any other.
 """
 
 import datetime as dt
@@ -78,6 +79,16 @@ class EnvelopeMonth:
     cards: list[Card] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class _Yearly:
+    """The gift or giving plan's year (S7.3.6), assigned as a yearly line is (S7.13.1)."""
+
+    amount: Decimal
+    cadence: str = "year"
+    target: Decimal | None = None
+    overspend: str = "carry"
+
+
 def _cash(s: Session, accounts: list[Account], day: dt.date) -> Decimal:
     from ..store.repos import ledger
 
@@ -93,11 +104,14 @@ def month(
     moves: list[BudgetMove],
     target: dt.date,
 ) -> EnvelopeMonth:
+    from .plan import planned_elsewhere
+
     every_account = list(s.scalars(select(Account).where(Account.id.in_(mem.ever()))))
     first = b.startMonth or (every[0].fromMonth if every else target)
     first = min(first, target)
     bal: dict[str, Decimal] = defaultdict(lambda: ZERO)
     line: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    elsewhere: dict[int, dict[str, Decimal]] = {}
     m = first
     out = None
     while m <= target:
@@ -107,7 +121,13 @@ def month(
         cards = [a for a in rows if a.type == CARD]
         cash_accts = [a for a in rows if a.type != CARD]
         cash_ids, card_ids = [a.id for a in cash_accts], [a.id for a in cards]
-        plan = in_force(every, m)
+        plan: dict = in_force(every, m)
+        # Gifts and Giving are the year's lines of their plans, assigned like any yearly line.
+        if m.year not in elsewhere:
+            elsewhere[m.year] = planned_elsewhere(s, b, tr, m.year)
+        for cat_id, amount in elsewhere[m.year].items():
+            if cat_id not in plan and cat_id in tr.by_id:
+                plan[cat_id] = _Yearly(amount)
         cash_spend = amounts(s, cash_ids, m, month_end(m), tr=tr)
         per_card = {cid: amounts(s, [cid], m, month_end(m), tr=tr) for cid in card_ids}
         mv: dict[str, Decimal] = defaultdict(lambda: ZERO)

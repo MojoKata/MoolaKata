@@ -637,6 +637,28 @@ def _month_view(
         )
     for cat_id, amount in elsewhere.items():
         planned_cats.add(cat_id)
+        e = env.envelopes.get(cat_id) if env else None
+        if e is not None:  # an envelope, assigned a twelfth of the year a month (S7.13.1)
+            available = e.start + e.assigned + e.moved
+            rows.append(
+                Row(
+                    categoryId=cat_id,
+                    label=tr.label(cat_id),
+                    kind=tr.by_id[cat_id].kind,
+                    cadence="year",
+                    rollover=True,
+                    planned=available,
+                    carried=e.start,
+                    actual=e.spent,
+                    remaining=e.balance,
+                    state=_state(available, e.spent),
+                    fromPlan=tr.by_id[cat_id].builtIn,
+                    moved=e.moved,
+                    putIn=e.assigned,
+                    unbacked=e.unbacked,
+                )
+            )
+            continue
         actual = _actual(tr, ytd, cat_id, lines_now)
         rows.append(
             Row(

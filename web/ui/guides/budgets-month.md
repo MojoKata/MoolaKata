@@ -65,7 +65,8 @@ while the balance covers it. **Funded** puts in nothing until spending draws it 
 ## Gifts and Giving
 
 Planned by your gift plans and your giving plan, a year at a time, never typed twice: each shows the
-year so far against its plan, with a link to it.
+year so far against its plan, with a link to it. In an envelope budget each is an envelope, assigned a
+twelfth of its plan's year each month.
 
 ## Saved
 
