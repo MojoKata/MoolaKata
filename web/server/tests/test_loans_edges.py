@@ -689,3 +689,14 @@ def test_a_first_payment_short_of_the_interest_leaves_the_days_principal_as_sche
         rec = [(d(2026, 2, 1), first, None), (d(2026, 2, 1), second, None)]
         out = L.settle(t, rec, [], d(2026, 2, 10), None)
         assert [p.overpayment for p in out] == [0, D(500)]
+
+
+def test_a_second_payment_toward_a_day_ahead_is_an_overpayment_in_the_schedule_too():
+    """S1.9.3: recorded here, the record starts at the first payment recorded, dated after
+    today or not: the days before it count as paid as scheduled, and Apr 5's 500 is principal
+    beyond Apr 1's, in its split and on its row."""
+    t = _mortgage()
+    rec = [(d(2026, 4, 1), L.scheduled_payment(t), "a"), (d(2026, 4, 5), D(500), "b")]
+    rows = L.schedule(t, rec, [], d(2026, 2, 10), mode="recorded")
+    assert [r.status for r in rows if r.past] == ["assumed", "assumed", "paid", "paid"]
+    assert [r.overpayment for r in rows if r.status == "paid"] == [0, D(500)]
