@@ -307,7 +307,9 @@
        Spending beyond the balance leaves it negative, carried until money is put back or
        moved in.
     3. **Kept**: a reserve always rolls over. Taking its category out of the plan, or its
-       target off, asks first and names its balance. In a tracking budget that balance stops
+       target off, asks first and names its balance; turning reserves off (S7.1.4) asks once,
+       naming every reserve's balance, and plan lines set for later months lose their targets
+       too. In a tracking budget that balance stops
        being kept: it is never carried into a line without a target, which carries only its
        own months. In an envelope budget it is money set aside: with the target off it stays
        in the envelope, now an ordinary line (*$300 stays in the envelope*, S7.13.3), and with
