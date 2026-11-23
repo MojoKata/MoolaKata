@@ -97,8 +97,10 @@ class ReserveHeld(Model):
 
 
 class LandedOut(Model):
-    transactionId: str
-    date: dt.date
+    # No transaction id, date or payee: an account not shared with the viewer, its rows added
+    # into one (S7.1.1).
+    transactionId: str | None
+    date: dt.date | None
     payee: str | None
     amount: Money
     free: Money
@@ -107,8 +109,8 @@ class LandedOut(Model):
 class TransferIn(Model):
     """A transfer in from the budget's accounts this month: the reserves' unless kept."""
 
-    transactionId: str
-    date: dt.date
+    transactionId: str | None  # None, as date: an account not shared, as LandedOut
+    date: dt.date | None
     payee: str | None
     amount: Money
     kept: bool  # kept as the account's own: not counted for the reserves
@@ -247,12 +249,15 @@ class Unplanned(Model):
 
 class MovedRow(Model):
     """A transfer between one of the budget's accounts and one it doesn't count, with no
-    category: it counts nowhere until sorted (S7.3.2)."""
+    category: it counts nowhere until sorted (S7.3.2). One in an account not shared with the
+    viewer has no transaction id, date, payee or other account: that account's rows that left
+    the budget are added into one, and those that entered it into another (S7.1.1)."""
 
-    transactionId: str
-    date: dt.date
+    transactionId: str | None
+    date: dt.date | None
     accountName: str
-    otherAccountName: str  # *an account not shared* for one the viewer can't see (S11.3.1)
+    # *an account not shared* for one the viewer can't see (S11.3.1)
+    otherAccountName: str | None
     amount: Money  # − left the budget, + entered it
     payee: str | None
 
@@ -383,6 +388,25 @@ def _names(s, viewer: str, account_ids) -> dict[str, str]:
     if not wanted:
         return {}
     return {a.id: a.name for a, _ in access.accounts(s, viewer, Account.id.in_(wanted))}
+
+
+def _withheld(rows, amounts: tuple[str, ...]) -> list:
+    """A list's rows as `(key, row)`: one keyed None is the viewer's to see whole; those of an
+    account not shared with them keep their amounts and lose their transaction id, date and
+    payee, each key's added into one row standing where its first did, so the list's total is
+    unchanged (S7.1.1)."""
+    out, at = [], {}
+    for key, row in rows:
+        if key is None:
+            out.append(row)
+        elif key in at:
+            got = out[at[key]]
+            for f in amounts:
+                setattr(got, f, getattr(got, f) + getattr(row, f))
+        else:
+            at[key] = len(out)
+            out.append(row.model_copy(update={"transactionId": None, "date": None, "payee": None}))
+    return out
 
 
 @contextmanager
@@ -605,19 +629,27 @@ def budget_month(
             expectedIncome=m.expectedIncome,
             spent=m.spent,
             saved=m.saved,
-            moved=[
-                MovedRow(
-                    transactionId=x.transactionId,
-                    date=x.date,
-                    accountName=names.get(x.accountId, NOT_SHARED),
-                    otherAccountName="a deleted account"
-                    if x.otherDeleted
-                    else names.get(x.otherAccountId, NOT_SHARED),
-                    amount=x.amount,
-                    payee=x.payee,
-                )
-                for x in m.moved
-            ],
+            moved=_withheld(
+                (
+                    (
+                        None if x.accountId in names else (x.accountId, x.amount < 0),
+                        MovedRow(
+                            transactionId=x.transactionId,
+                            date=x.date,
+                            accountName=names.get(x.accountId, NOT_SHARED),
+                            otherAccountName=None
+                            if x.accountId not in names
+                            else "a deleted account"
+                            if x.otherDeleted
+                            else names.get(x.otherAccountId, NOT_SHARED),
+                            amount=x.amount,
+                            payee=x.payee,
+                        ),
+                    )
+                    for x in m.moved
+                ),
+                ("amount",),
+            ),
             moves=_moves_out(s, b, m.month, c.id),
             toBudget=m.toBudget,
             assigned=m.assigned,
@@ -1140,6 +1172,7 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
         for h in held:
             frm = roles.get(h.accountId)
             moved_from = frm.movedFromId if frm else None
+            hidden = h.accountId not in names
             out.append(
                 HeldInOut(
                     accountId=shown(h.accountId),
@@ -1169,17 +1202,26 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
                     withdrawals=h.withdrawals,
                     limit=h.limit,
                     overLimit=h.toMove < 0 and h.limit is not None and h.withdrawals + 1 > h.limit,
-                    unassigned=[LandedOut(**x.__dict__) for x in h.unassigned],
-                    transfers=[
-                        TransferIn(
-                            transactionId=x.transactionId,
-                            date=x.date,
-                            payee=x.payee,
-                            amount=x.amount,
-                            kept=kept,
-                        )
-                        for x, kept in h.transfers
-                    ],
+                    unassigned=_withheld(
+                        ((hidden or None, LandedOut(**x.__dict__)) for x in h.unassigned),
+                        ("amount", "free"),
+                    ),
+                    transfers=_withheld(
+                        (
+                            (
+                                kept if hidden else None,
+                                TransferIn(
+                                    transactionId=x.transactionId,
+                                    date=x.date,
+                                    payee=x.payee,
+                                    amount=x.amount,
+                                    kept=kept,
+                                ),
+                            )
+                            for x, kept in h.transfers
+                        ),
+                        ("amount",),
+                    ),
                 )
             )
         cards = []

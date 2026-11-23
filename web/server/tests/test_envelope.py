@@ -329,7 +329,7 @@ def test_where_the_money_is_names_no_account_not_shared_with_the_receiver(server
         (ally["id"], ally["name"])
     ]
     assert [(h["accountId"], h["accountName"]) for h in theirs["heldIn"]] == [(None, NOT_SHARED)]
-    kept = ("reserves", "total", "movedIn", "given", "balance", "toMove", "unassigned")
+    kept = ("reserves", "total", "movedIn", "given", "balance", "toMove")
     assert [[h[k] for k in kept] for h in theirs["heldIn"]] == [
         [h[k] for k in kept] for h in mine["heldIn"]
     ]
@@ -342,6 +342,67 @@ def test_where_the_money_is_names_no_account_not_shared_with_the_receiver(server
     mine, theirs = c.get(base).json(), bob.get(base).json()
     assert ally["id"] in [r["movedFromId"] for r in mine["roles"]]
     _unnamed(str(theirs) + bob.get(f"{base}/accounts").text, card, ally)
+
+
+def test_a_receiver_sees_the_amounts_of_an_account_not_shared_but_not_its_transactions(
+    server, frozen
+):
+    """S7.1.1: money landed in Ally, moved in from Checking, and sent between Ally and Jane's
+    brokerage with no category reaches Bob's month and Where the money is as amounts only,
+    each list's rows from Ally added into one row (left and entered apart, kept and moved in
+    apart) with no payee, date or transaction id; his own Checking's rows keep theirs, and
+    the totals are Jane's."""
+    c, bob, b, _, card, ally = _household(server)
+    chk = b["accountIds"][0]
+    brokerage = new_account(c, name="Fidelity", type="brokerage", mask="3333")
+    hidden = [add(c, ally["id"], "5.00", "2026-10-08", payee="Cash-back", kind="interest")]
+    for day, amount in (("2026-10-02", "100.00"), ("2026-10-09", "50.00")):
+        out = add(c, chk, f"-{amount}", day, payee="To Ally")
+        hidden.append(add(c, ally["id"], amount, day, payee="From checking", kind="deposit"))
+        assert hidden[-1]["transferId"] == out["id"]
+    for day, amount, back in (
+        ("2026-10-10", "-200.00", "200.00"),
+        ("2026-10-12", "-100.00", "100.00"),
+        ("2026-10-14", "60.00", "-60.00"),
+    ):
+        hidden.append(add(c, ally["id"], amount, day, payee="Fidelity sweep"))
+        kind = "deposit" if back[0] != "-" else "withdrawal"
+        pair = add(c, brokerage["id"], back, day, payee="Sweep", kind=kind)
+        assert pair["transferId"] == hidden[-1]["id"]
+    out = add(c, chk, "-25.00", "2026-10-11", payee="To Fidelity")
+    add(c, brokerage["id"], "25.00", "2026-10-11", payee="From checking", kind="deposit")
+    mine, theirs = month(c, b, "2026-10"), month(bob, b, "2026-10")
+    assert [x["amount"] for x in mine["moved"]] == ["-200.00", "-25.00", "-100.00", "60.00"]
+    # Each added row stands where its first one did.
+    assert theirs["moved"] == [
+        {"transactionId": None, "date": None, "accountName": NOT_SHARED,
+         "otherAccountName": None, "amount": "-300.00", "payee": None},
+        {"transactionId": out["id"], "date": "2026-10-11", "accountName": "Checking",
+         "otherAccountName": NOT_SHARED, "amount": "-25.00", "payee": "To Fidelity"},
+        {"transactionId": None, "date": None, "accountName": NOT_SHARED,
+         "otherAccountName": None, "amount": "60.00", "payee": None},
+    ]  # fmt: skip
+    totals = ("spent", "income", "saved", "toBudget", "available")
+    assert [theirs[k] for k in totals] == [mine[k] for k in totals]
+    path = f"/ui/api/budgets/{b['id']}/where"
+    (h,) = c.get(path, params={"month": "2026-10"}).json()["heldIn"]
+    (theirs_h,) = bob.get(path, params={"month": "2026-10"}).json()["heldIn"]
+    # What entered from the brokerage landed in Ally too.
+    assert [x["free"] for x in h["unassigned"]] == ["40.00", "5.00", "60.00"]
+    assert theirs_h["unassigned"] == [
+        {"transactionId": None, "date": None, "payee": None, "amount": "105.00", "free": "105.00"}
+    ]
+    assert [x["amount"] for x in h["transfers"]] == ["100.00", "50.00"]
+    assert theirs_h["transfers"] == [
+        {"transactionId": None, "date": None, "payee": None, "amount": "150.00", "kept": False}
+    ]
+    kept = ("total", "movedIn", "given", "balance", "toMove")
+    assert [theirs_h[k] for k in kept] == [h[k] for k in kept]
+    text = str(theirs) + str(theirs_h)
+    for t in hidden:
+        assert t["id"] not in text and t["payee"] not in text
+    assert "Interest" not in text
+    _unnamed(text, card, ally)
 
 
 def test_a_receivers_other_views_count_the_owners_accounts_not_shared_with_them(server, frozen):

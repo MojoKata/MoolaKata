@@ -39,6 +39,9 @@ import { Action, Attention, StatePill } from '../kit/state.js';
 /** What the uncategorised count means, its pill's tooltip (S12.19.3). */
 const UNCATEGORISED = 'Transactions without a category count nowhere until sorted: open them.';
 
+/** Why a row of an account not shared with the viewer can't be sorted (S7.1.1). */
+const NOT_SHARED_SORT = 'Only someone this account is shared with can sort its transfers';
+
 const TABS = /** @type {[string, string][]} */ ([
   ['month', 'Month'],
   ['cash-flow', 'Cash Flow'],
@@ -440,17 +443,30 @@ function ThisMonth({ b, month, reloadList }) {
       ? html`
         <div class="card mt"><h3>Left or Entered the Budget</h3>
           ${v.moved.map((/** @type {any} */ m) =>
-            html`
-              <div class="list-item">
-                <div class="grow">${date(m.date)} · ${dec(m.amount).isNegative()
-                  ? `${m.accountName} → ${m.otherAccountName}`
-                  : `${m.otherAccountName} → ${m.accountName}`}<div class="small dim">${m.payee ||
-                  'a transfer'}</div></div>
-                <span class="num amt">${money(m.amount)}</span>
-                <button type="button" class="btn sm" data-help="sort" onClick=${() =>
-                  sort(m.transactionId)}>Sort</button>
-              </div>
-            `
+            m.transactionId
+              ? html`
+                <div class="list-item">
+                  <div class="grow">${date(m.date)} · ${dec(m.amount).isNegative()
+                    ? `${m.accountName} → ${m.otherAccountName}`
+                    : `${m.otherAccountName} → ${m.accountName}`}<div class="small dim">${m.payee ||
+                    'a transfer'}</div></div>
+                  <span class="num amt">${money(m.amount)}</span>
+                  <button type="button" class="btn sm" data-help="sort" onClick=${() =>
+                    sort(m.transactionId)}>Sort</button>
+                </div>
+              `
+              // An account not shared with the viewer: its rows added into one, no
+              // transaction to sort (S7.1.1).
+              : html`
+                <div class="list-item">
+                  <div class="grow">${m.accountName}<div class="small dim">${dec(m.amount)
+                      .isNegative()
+                    ? 'left the budget'
+                    : 'entered the budget'}</div></div>
+                  <span class="num amt">${money(m.amount)}</span>
+                  <${Action} class="btn sm" data-help="sort" why=${NOT_SHARED_SORT}>Sort</${Action}>
+                </div>
+              `
           )}
         </div>
       `
@@ -963,6 +979,10 @@ function WhereMoneyIs({ b, month }) {
       toast(/** @type {any} */ (e).message);
     }
   };
+  // A row of an account not shared with the viewer has no date or payee: its rows are added
+  // into one (S7.1.1).
+  const what = (/** @type {any} */ x, /** @type {string} */ word) =>
+    x.date ? `${x.payee || word}, ${date(x.date)}` : 'in all';
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
     openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
   return html`
@@ -992,8 +1012,10 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">${x.kept
                   ? "Kept as the account's own"
-                  : 'Moved in'}<div class="small dim">${money(x.amount)} ${x.payee ||
-                  'a transfer'}, ${date(x.date)}</div></span>${x.kept || !h.accountId ? null : html`
+                  : 'Moved in'}<div class="small dim">${money(x.amount)} ${what(
+                    x,
+                    'a transfer',
+                  )}</div></span>${x.kept || !h.accountId ? null : html`
                   <button type="button" class="btn sm" data-help="keep-own"
                     onClick=${() => keepOwn(x)}>Keep as the Account's Own</button>
                 `}</div>
@@ -1004,7 +1026,7 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
                   x.free,
-                )} ${x.payee || 'landed'}, ${date(x.date)}</div></span>${h.accountId
+                )} ${what(x, 'landed')}</div></span>${h.accountId
                   ? html`<button type="button" class="btn sm" data-help="unassigned" onClick=${() =>
                     assign(h, x)}>Assign</button>`
                   : null}</div>

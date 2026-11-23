@@ -11414,9 +11414,16 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "free": {
             "examples": [
@@ -11438,8 +11445,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -13979,7 +13993,7 @@
       },
       "MovedRow": {
         "additionalProperties": false,
-        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2).",
+        "description": "A transfer between one of the budget's accounts and one it doesn't count, with no\ncategory: it counts nowhere until sorted (S7.3.2). One in an account not shared with the\nviewer has no transaction id, date, payee or other account: that account's rows that left\nthe budget are added into one, and those that entered it into another (S7.1.1).",
         "properties": {
           "accountName": {
             "title": "Accountname",
@@ -13994,13 +14008,27 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "otherAccountName": {
-            "title": "Otheraccountname",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otheraccountname"
           },
           "payee": {
             "anyOf": [
@@ -14014,8 +14042,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [
@@ -25900,9 +25935,16 @@
             "type": "number"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "kept": {
             "title": "Kept",
@@ -25920,8 +25962,15 @@
             "title": "Payee"
           },
           "transactionId": {
-            "title": "Transactionid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
           }
         },
         "required": [

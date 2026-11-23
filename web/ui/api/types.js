@@ -1887,8 +1887,8 @@
 
 /**
  * @typedef {Object} LandedOut
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {(string | null)} payee
  * @property {import('../kit/dec.js').Dec} amount
  * @property {import('../kit/dec.js').Dec} free
@@ -2302,12 +2302,14 @@
 
 /**
  * A transfer between one of the budget's accounts and one it doesn't count, with no
- * category: it counts nowhere until sorted (S7.3.2).
+ * category: it counts nowhere until sorted (S7.3.2). One in an account not shared with the
+ * viewer has no transaction id, date, payee or other account: that account's rows that left
+ * the budget are added into one, and those that entered it into another (S7.1.1).
  * @typedef {Object} MovedRow
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {string} accountName
- * @property {string} otherAccountName
+ * @property {(string | null)} otherAccountName
  * @property {import('../kit/dec.js').Dec} amount
  * @property {(string | null)} payee
  */
@@ -4433,8 +4435,8 @@
 /**
  * A transfer in from the budget's accounts this month: the reserves' unless kept.
  * @typedef {Object} TransferIn
- * @property {string} transactionId
- * @property {string} date
+ * @property {(string | null)} transactionId
+ * @property {(string | null)} date
  * @property {(string | null)} payee
  * @property {import('../kit/dec.js').Dec} amount
  * @property {boolean} kept
