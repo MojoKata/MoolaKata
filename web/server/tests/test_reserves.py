@@ -193,6 +193,37 @@ def test_landed_money_is_listed_until_given_and_given_in_the_month_shown(server,
     assert (r["moved"], r["balance"]) == ("0.00", "100.00")
 
 
+def test_turning_reserves_off_takes_every_target_off_from_this_month(server, frozen):
+    """Turning reserves off asks as taking one target off does, naming each balance, then takes
+    every target off from this month on; past months keep their plan, and turned on again the
+    budget starts with none (S7.1.4, S7.10.3)."""
+    c, _, cat, b = setup_budget(server)
+    reserves_on(c, b)
+    roof, repair = cat["Housing › Maintenance"], cat["Transportation › Car maintenance"]
+    lines = [{"categoryId": roof, "amount": "150", "target": "5000"},
+             {"categoryId": repair, "amount": "100", "target": "500"}]  # fmt: skip
+    assert put_plan(c, b, "2026-10-01", lines).status_code == 200
+    later = [{"categoryId": roof, "amount": "200", "target": "6000"}, lines[1]]
+    assert put_plan(c, b, "2027-02-01", later).status_code == 200
+    path = f"/ui/api/budgets/{b['id']}"
+    r = edit(c, "Bdgt", path, reserves=False)
+    assert r.status_code == 409, r.text
+    assert r.json()["asks"][0]["message"] == (
+        "Every target comes off from December 2026: Housing › Maintenance holds 300.00,"
+        " Transportation › Car maintenance holds 200.00; the balances stop being kept."
+    )
+    assert edit(c, "Bdgt", path, True, reserves=False).status_code == 200
+    labels = ("Housing › Maintenance", "Transportation › Car maintenance")
+    for m in ("2026-12", "2027-02"):
+        v = month(c, b, m)
+        assert [row(v, x)["target"] for x in labels] == [None, None]
+    # A line carries only its own months, never the reserve's (S7.10.3).
+    assert row(month(c, b, "2026-12"), "Housing › Maintenance")["carried"] == "0.00"
+    assert row(month(c, b, "2026-11"), "Housing › Maintenance")["target"] == "5000.00"
+    reserves_on(c, b)
+    assert row(month(c, b, "2027-02"), "Housing › Maintenance")["target"] is None
+
+
 def test_a_balance_is_never_carried_into_a_line_without_a_target(server, frozen):
     """Taking a reserve's target off asks, naming the balance that stops being kept; the line
     then carries only its own months, never the reserve's (S7.10.3)."""

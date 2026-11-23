@@ -1714,6 +1714,48 @@ def _budget_update(ctx, b: Budget, body: BudgetRecord) -> None:
     sent = {f for f in ("name", "reserves", "moves") if getattr(body, f) != current[f]}
     _, held = access.budget(ctx.s, ctx.caller.id, b.id, "write")
     _change_budget(ctx.s, ctx.caller, b, held, body, sent)
+    if "reserves" in sent and not body.reserves:
+        _targets_off(ctx, b)
+
+
+def _targets_off(ctx, b: Budget) -> None:
+    """Reserves turned off: every target comes off from this month on, as if taken off line by
+    line, after the same question, naming each balance (S7.1.4, S7.10.3). Past months keep
+    their plan (S7.1.2); in an envelope budget the balances stay in the envelopes."""
+    month = budgets.month_of(clock.today())
+    every = budgets.lines(ctx.s, b)
+    now = budgets.in_force(every, month)
+    reserves = [ln for ln in now.values() if ln.target is not None]
+    later = [ln for ln in every if ln.fromMonth > month and ln.target is not None]
+    tr = budgets.tree(ctx.s)
+    held = [(tr.label(ln.categoryId), _balance_kept(ctx.s, b, ln.categoryId, month))
+            for ln in reserves]  # fmt: skip
+    held = sorted((label, amount) for label, amount in held if amount)
+    if held:
+        names = ", ".join(f"{label} holds {grouped(amount)}" for label, amount in held)
+        then = (
+            "the balances stay in their envelopes"
+            if b.method == "envelope"
+            else "the balances stop being kept"
+        )
+        when = f"{month:%B %Y}"
+        ctx.ask("balance-dropped", f"Every target comes off from {when}: {names}; {then}.")
+    for ln in [*reserves, *later]:
+        if ln.fromMonth >= month:
+            ln.target, ln.heldInId = None, None
+            continue
+        values = {f: getattr(ln, f) for f in LINE_FIELDS} | {"target": None, "heldInId": None}
+        ctx.s.add(
+            BudgetLine(
+                id=ids.new_id("BdgLn"),
+                budgetId=b.id,
+                categoryId=ln.categoryId,
+                fromMonth=month,
+                **values,
+            )
+        )
+    if reserves or later:
+        _planned(ctx, b)
 
 
 def _budget_delete(ctx, b: Budget) -> None:

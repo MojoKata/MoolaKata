@@ -26,7 +26,10 @@
       other.
    4. **Options**, chosen when the budget is made and turned on or off later in its settings,
       so a budget shows only what it uses: **reserves** (S7.10) and **moves** (S7.11). An
-      envelope budget always has moves.
+      envelope budget always has moves. Turning reserves off takes every target off from that
+      month on, as if taken off line by line, after the same question naming each reserve's
+      balance (S7.10.3); earlier months keep their plan (S7.1.2), and turned on again the
+      budget starts with none.
    5. **Estimate from history**: making a budget, or later from its plan, offers a plan line
       per category from its average over the last 3, 6 or 12 months, as the user picks:
       monthly where it was spent in most months, yearly otherwise. The recurring transactions

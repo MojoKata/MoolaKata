@@ -176,3 +176,31 @@ def test_a_reserves_envelope_keeps_its_money_when_the_target_comes_off(server, f
     assert put_plan(c, b, "2026-11-01", [plain], confirm=True).status_code == 200
     r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
     assert (r["carried"], r["remaining"], r["target"]) == ("100.00", "200.00", None)
+
+
+def test_turning_reserves_off_leaves_the_money_in_the_envelopes(server, frozen):
+    """Turning reserves off takes every target off from this month; in an envelope budget the
+    balances stay in the envelopes (S7.1.4, S7.10.3)."""
+    from edits import edit
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
+    reserves_on(c, b)
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    repair = cat["Transportation › Car maintenance"]
+    line = {"categoryId": repair, "amount": "100", "target": "1000"}
+    assert put_plan(c, b, "2026-10-01", [line]).status_code == 200
+    clock.fix(T0 + dt.timedelta(days=12))  # November 1st
+    c = sign_in(server, "jane")
+    path = f"/ui/api/budgets/{b['id']}"
+    r = edit(c, "Bdgt", path, reserves=False)
+    assert r.status_code == 409 and r.json()["asks"][0]["message"] == (
+        "Every target comes off from November 2026: Transportation › Car maintenance holds 100.00;"
+        " the balances stay in their envelopes."
+    )
+    assert edit(c, "Bdgt", path, True, reserves=False).status_code == 200
+    r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
+    assert (r["carried"], r["target"]) == ("100.00", None)
