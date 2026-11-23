@@ -2463,7 +2463,7 @@ DIALOGS.person = (d) => {
   const x = personById(d.who) || { name: '', rel: '' };
   return { title: x.name ? `Gift Plan for ${x.name}` : 'New Gift Plan', body: `${state.joinable && x.id === 'parents' ? `<div style="margin-bottom:12px">${attention('Candace Doe on doe-parents may be Candace Doe', '<button class="btn sm" data-act="mjoined">Join Them</button>', '', 'link')}</div>` : ''}<div class="card" style="margin:0 0 12px;padding:10px 12px"><div class="small dim" style="margin-bottom:6px">The person${x.private ? ` ${statePill('private', 'Seen only by whoever added them and whoever they share them with.')}` : ''}</div>
     <div class="row">${field('Name', inp(x.name))}${field('Sex', `<div class="seg">${['Female', 'Male'].map((l) => `<button class="${l === (x.id === 'john' ? 'Male' : 'Female') ? 'on' : ''}" data-act="seg">${l}</button>`).join('')}</div>`)}${field('Birthday', inp(x.id === 'lisa' ? '2018-10-20' : '', '', 'text'))}</div>
-    <div class="row">${field('Died on', inp('', 'living'))}<div class="field"><label>Private</label><div class="list-item"><span class="grow"></span>${sw(!!x.private)}</div></div></div>
+    <div class="row">${field('Died on', inp('', 'living'))}${x.user ? '' : `<div class="field"><label>Private</label><div class="list-item"><span class="grow"></span>${sw(!!x.private)}</div></div>`}</div>
     <div class="small">${x.rel ? `<b>${x.rel.split(' ·')[0]}</b> to you. ` : ''}<a data-act="dlg" data-v="relationship">Add a Relationship</a></div>${x.id === 'lisa' ? '<div class="small dim" style="margin-top:6px">Lisa’s family and friends: Jane Doe (mother), John Doe (father), Bart Doe (sister), Candace Doe (grandmother)</div>' : ''}</div>
     <div class="row">${field('Anniversary', inp(''))}${field('Anniversary budget', inp('', 'none'))}</div>
     <div class="field"><label>Holidays</label><div class="chips">${['Christmas', 'Hanukkah', 'Diwali', 'Lunar New Year', 'Eid al-Fitr', 'Valentine’s Day', 'Mother’s Day', 'Father’s Day'].map((h) => `<button class="chip ${(x.dates || '').includes(h) ? 'on' : ''}" data-act="switch">${h}</button>`).join('')}<button class="chip" data-act="toast" data-v="Custom occasion added (mock)">+ Custom</button></div></div>
@@ -3052,7 +3052,7 @@ const GUIDES = {
     <h2 ${hid('Sex')}>Sex</h2><p>Chooses the words for the family tree: mother or father, niece or nephew.</p>
     <h2 ${hid('Birthday')}>Birthday</h2><p>The year is optional; with it, the age shows.</p>
     <h2 ${hid('Died on')}>Died on</h2><p>The day they died; empty while they live. It ends a marriage on that day; their gifts stay in your history.</p>
-    <h2 ${hid('Private')}>Private</h2><p>Seen only by you and whoever you share them with. Only whoever added them makes them private.</p>
+    <h2 ${hid('Private')}>Private</h2><p>Seen only by you and whoever you share them with. Only whoever added them makes them private, and never someone who uses this server.</p>
     <h2>Delete Plan, Delete Person</h2><p>Delete plan removes your gift plan; the person stays. Delete person removes them for everyone, asking first: gifts bought, given or received stay in the history as <i>Lisa (deleted)</i>.</p>
     <h2 ${hid('Birth year')}>Birth year</h2><p>Tells two people with the same name apart: a different person with the same name is added once both have birth years, and they differ.</p>
     <h2 ${hid('Anniversary')}>Anniversary</h2><p>Any anniversary other than a wedding: its date and what it is for. A wedding anniversary comes from the marriage.</p>

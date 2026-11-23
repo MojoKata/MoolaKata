@@ -198,7 +198,8 @@
        person only when a local user who can change that person confirms it, which never
        changes whether the person is private.
     2. **People are the household's.** A new person is seen by every local user. Its creator
-       may make it **private**, and then share it as any item (S10.3). A person is changed by
+       may make it **private**, and then share it as any item (S10.3); a person who is a user
+       here is never made private, by anyone. A person is changed by
        that person once they are a user here, by its creator until then (and for a linked
        server's user, who never signs in here), and by an admin.
     3. **One person, once.** Adding a person whose name matches one already here, ignoring

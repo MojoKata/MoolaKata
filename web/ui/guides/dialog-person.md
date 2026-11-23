@@ -39,7 +39,8 @@ their gifts stay in your history.
 
 ## Private
 
-Seen only by you and those you share them with. Only whoever added them makes them private.
+Seen only by you and those you share them with. Only whoever added them makes them private, and
+never someone who uses this server.
 
 ## Their relationships {#their-relationships}
 

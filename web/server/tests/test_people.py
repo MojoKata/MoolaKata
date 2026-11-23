@@ -384,6 +384,28 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     assert john.get(f"/ui/api/persons/{pid}").json()["private"]
 
 
+def test_a_person_who_is_a_user_is_never_made_private(server, two, admin_client):
+    """S10.10.1, S10.10.2: every user is a person the household sees; neither whoever added
+    them before they became a user, nor an admin, nor the user, makes them private."""
+    from moolakata import ids
+    from moolakata.store.entities.users import User
+
+    jane, john = two
+    bob = add(admin_client, "Bob Ray", sex="male")
+    with server.db.tx(unscoped="test: Bob Ray signs in, as the person the admin added") as s:
+        s.add(User(id=ids.new_id("User"), personId=bob["id"], username="bob",
+                   displayName="Bob Ray", email="bob@home.lan", passwordHash="x"))  # fmt: skip
+    seen = admin_client.get(f"/ui/api/persons/{bob['id']}").json()
+    assert seen["userId"] and not seen["canMakePrivate"]
+    for c, pid in ((admin_client, bob["id"]), (john, me(john))):
+        r = change(c, "Persn", c.get(f"/ui/api/persons/{pid}").json(), private=True)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+            ("private", "person-is-user")
+        ]
+    assert not jane.get(f"/ui/api/persons/{bob['id']}").json()["private"]
+
+
 def test_a_relationship_is_changed_and_removed_with_its_version(two):
     jane, john = two
     a, b = me(jane), me(john)

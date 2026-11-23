@@ -75,7 +75,7 @@ def _rows(s, c: Caller) -> list[PersonRow]:
                 userId=u.id if u else None,
                 relation=rel.word if rel else ("you" if p.id == me.personId else None),
                 wedding=gifts.wedding_of(s, p.id),
-                canMakePrivate=p.ownerId == c.id,
+                canMakePrivate=p.ownerId == c.id and not (u is not None and u.linkId is None),
                 sameAs=[_remote(s, r) for r in people.may_join(s, c.id, p)],
                 access=Access.of(held),
                 createdBy=creator.displayName if creator else None,
@@ -475,11 +475,21 @@ def _person_current(ctx, p: Person) -> dict:
     }
 
 
+def _local_user(s, person_id: str) -> bool:
+    """A person who is a user of this server (a linked server's user stays as private as the
+    person they were joined to, S10.10.1)."""
+    u = people.user_of(s, person_id)
+    return u is not None and u.linkId is None
+
+
 def _person_update(ctx, p: Person, body: PersonRecord) -> None:
     s, c = ctx.s, ctx.caller
     values = check_person_fields(body)
     if (values["name"], values["birthYear"]) != (p.name, p.birthYear):
         refuse_clash(s, c, values["name"], values["birthYear"], exclude=p.id)
+    if body.private != p.private and _local_user(s, p.id):
+        # Every user is a person the household sees (S10.10.1), whoever added them first.
+        raise refuse("private", "person-is-user", "A user is seen by the whole household.")
     if body.private != p.private and p.ownerId != c.id:
         raise refuse("private", "not-creator", "Only whoever added them makes them private.")
     died = p.diedOn != body.diedOn
