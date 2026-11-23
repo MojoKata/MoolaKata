@@ -80,8 +80,11 @@ def test_a_move_to_or_from_a_yearly_line_counts_in_its_year(server, frozen):
     moves so far, in October and the months after it that year, and not the next year."""
     c, _, cat, b = setup_budget(server)
     fun, ins = cat["Entertainment"], cat["Housing › Insurance"]
-    plan(c, b, "2026-01-01", [{"categoryId": fun, "amount": "100.00"},
-                              {"categoryId": ins, "amount": "1200.00", "cadence": "year"}])  # fmt: skip
+    lines = [
+        {"categoryId": fun, "amount": "100.00"},
+        {"categoryId": ins, "amount": "1200.00", "cadence": "year"},
+    ]
+    plan(c, b, "2026-01-01", lines)
     moves_on(c, b)
     r = move(c, b, month="2026-10-01", fromCategoryId=fun, toCategoryId=ins, amount="40.00")
     assert r.status_code == 200, r.text
