@@ -729,3 +729,21 @@ def test_ahead_a_day_in_its_grace_that_re_levels_has_the_level_its_payment_is_sp
     split = L.split_for(t, paid, draws, d(2026, 4, 12), apr.payment, True)
     assert (split.interest, split.principal, split.overpayment) == (apr.interest, apr.principal, 0)
     assert may.principal + may.interest == L.level_payment(apr.balance, D(12), 21)
+
+
+def _daily(**kw) -> L.Terms:
+    return L.Terms(principal=D(20000), start=d(2026, 1, 1), months=60, rate=D(6), method="daily",
+                   **kw)  # fmt: skip
+
+
+@pytest.mark.parametrize("today", [d(2026, 4, 1), d(2026, 4, 20)])
+def test_a_daily_interest_day_accrues_from_a_catch_up_payment_made_that_day(today):
+    """S1.9.1: daily interest accrues between payments. March missed, Apr 1's payment pays it
+    and the interest to Apr 1, so April's own row, ahead on Apr 1 or missed by Apr 20, has no
+    days left to accrue."""
+    t = _daily()
+    pi = L.scheduled_payment(t)
+    recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 4, 1), pi, "b")]
+    rows = L.schedule(t, recorded, [], today, mode="recorded")
+    [apr] = [r for r in rows if r.date == d(2026, 4, 1) and r.status != "paid"]
+    assert apr.interest == 0

@@ -534,7 +534,7 @@ def _due(t: Terms, before: list[Payment], draws, day: dt.date, since: dt.date) -
         return None
     rate = t.rate_on(day) / 100
     if t.method == "daily":
-        interest = cents(owed * rate * (day - since).days / 365)
+        interest = cents(owed * rate * max((day - since).days, 0) / 365)
     else:
         interest = cents(owed * rate / 12)
     pi = _level_on(
@@ -794,7 +794,8 @@ def schedule(
     # Ahead, from what is owed today, as a payment made then would be split (`split_for`):
     # every payment counted, each paying a day before the first ahead, dated after today or not.
     owed = balance_on(t, payments, [(x, amt) for x, amt in draws if x <= today])
-    previous = max((r.date for r in rows if r.date < day), default=t.start)
+    # Daily interest accrues from the last payment, one made on or after a day passed included.
+    previous = max((r.date for r in rows), default=t.start)
     # The payment stays level between the days that change it: a recast, a rate reset, or a
     # HELOC's draw period ending (`_level_on`, as the rows passed have it), each levelling what
     # was owed the day before it (S1.9.2), the first day ahead too: a draw since, in its grace,
@@ -817,7 +818,7 @@ def schedule(
         first = False
         rate = t.rate_on(day) / 100
         if t.method == "daily":
-            interest = cents(owed * rate * (day - previous).days / 365)
+            interest = cents(owed * rate * max((day - previous).days, 0) / 365)
         else:
             interest = cents(owed * rate / 12)
         principal = ZERO if _in_draw(t, day) else min(max(pi - interest, ZERO), owed)
@@ -845,7 +846,7 @@ def schedule(
                 bonus,
             )
         )
-        previous = day
+        previous = max(previous, day)
         k += 1
         day = add_months(t.start, k)
         if day > add_months(t.end, 600):
@@ -862,8 +863,11 @@ def _missed(t: Terms, payments: list[Payment], draws, paid: set[int], ahead: int
         if k in paid:
             continue
         day = add_months(t.start, k)
+        # Daily interest accrues from the last payment, one made on the day or after it toward
+        # an older day included (S1.9.1): it paid the interest to its own day.
+        nxt = add_months(t.start, k + 1)
         since = max(
-            [p.date for p in payments if p.date < day] + [r.date for r in rows], default=t.start
+            [p.date for p in payments if p.date < nxt] + [r.date for r in rows], default=t.start
         )
         due = _due(t, payments, draws, day, since)
         if due is None:
