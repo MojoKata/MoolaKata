@@ -596,8 +596,9 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
                 continue
             dip, horizon, paid = found
             before = f"before money comes in on {horizon:%b %-d}" if paid else "this month"
+            # One cause for each who follows the budget, so each is raised the alert (S7.6).
             yield Cause(
-                key=f"cash:{b.id}:{a.id}",
+                key=f"cash:{b.id}:{a.id}:{u.id}",
                 kind="cash-short",
                 title=f"{a.name} dips below $0 on the {_ordinal(dip.day)}",
                 about=f"{before} · the recurring payments from it",

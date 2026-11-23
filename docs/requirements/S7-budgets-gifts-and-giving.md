@@ -195,8 +195,8 @@
    2. **Missed**: the next one is more than a few days late. **Changed**: the last amount
       moved 5% or more from the usual, flagged only where the amounts are otherwise fixed
       (a subscription, rent), since a utility bill varies anyway.
-6. **Budget alerts** come from a user's active budget only (S7.12), raised as alerts to its
-   owner (S12.11):
+6. **Budget alerts** come from a user's active budget only (S7.12), raised as alerts to each
+   user whose active budget it is, its owner or one it is shared with (S12.11):
    1. **Cash before payday**, for each checking account in the budget with recurring payments
       out (S7.5): when its balance, less the recurring payments expected from it before its
       next expected money in (income landing there, or a regular transfer in), would fall

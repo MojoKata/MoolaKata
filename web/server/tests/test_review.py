@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import budget_accounts, share
+from edits import budget_accounts, change, saved, share
 from test_accounts import add, new_account
 from test_budgets import plan, setup_budget
 
@@ -125,3 +125,21 @@ def test_cash_before_payday(server, frozen):
     (a,) = [x for x in opened if x.kind == "cash-short"]
     assert a.title == "Checking dips below $0 on the 25th"
     assert "before money comes in on Nov 1" in a.about
+
+
+def test_cash_before_payday_goes_to_each_who_follows_the_budget(server, frozen):
+    """S7.6: a household budget active for Jane and for John raises the alert to each."""
+    c, acct, _, b = setup_budget(server)
+    john, john_id = _user(server, "john")
+    share(c, "budget", b["id"], users={john_id: "write"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+    assert saved(change(john, "User", john.get("/ui/api/profile").json(), activeBudgetId=b["id"]))
+    for m in (7, 8, 9, 10):
+        add(c, acct["id"], "2000.00", f"2026-{m:02d}-01", payee="Acme Payroll")
+    for m in (7, 8, 9):
+        add(c, acct["id"], "-1000.00", f"2026-{m:02d}-25", payee="Oak Street Apts")
+    add(c, acct["id"], "-5900.00", "2026-10-05", payee="Car repair")
+    alerts.evaluate(server)
+    for who in (c, john):
+        (a,) = [x for x in who.get("/ui/api/alerts").json()["open"] if x["kind"] == "cash-short"]
+        assert a["title"] == "Checking dips below $0 on the 25th"
