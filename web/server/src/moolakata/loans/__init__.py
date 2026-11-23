@@ -851,12 +851,9 @@ def _missed(t: Terms, payments: list[Payment], draws, paid: set[int], ahead: int
         if k in paid:
             continue
         day = add_months(t.start, k)
-        # Daily interest accrues from the last payment, one made on the day or after it toward
-        # an older day included (S1.9.1): it paid the interest to its own day.
-        nxt = add_months(t.start, k + 1)
-        since = max(
-            [p.date for p in payments if p.date < nxt] + [r.date for r in rows], default=t.start
-        )
+        # Daily interest accrues from the last payment, whatever its date (S1.9.1): one made on
+        # the day or after it, toward an older day, paid the interest to its own day.
+        since = max([p.date for p in payments] + [r.date for r in rows], default=t.start)
         due = _due(t, payments, draws, day, since)
         if due is None:
             continue

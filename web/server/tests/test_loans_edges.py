@@ -803,3 +803,18 @@ def test_the_schedule_ahead_counts_a_draw_made_today():
     t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
     rows = L.schedule(t, [], [(today, D(10000))], today)
     assert (rows[0].date, rows[0].interest, rows[0].balance) == (d(2026, 2, 1), D("66.67"), 10000)
+
+
+# loans._missed: a catch-up payment's interest
+
+
+@pytest.mark.parametrize("paid", [d(2026, 5, 1), d(2026, 5, 5)])
+def test_recorded_here_a_daily_interest_day_missed_accrues_from_a_later_catch_up_payment(paid):
+    """S1.9.1: March missed, a payment on May 1 or 5 catches it up and pays the interest to
+    its own day; April, still missed, has none left to accrue, wherever that payment falls."""
+    t = _daily()
+    pi = L.scheduled_payment(t)
+    rows = L.schedule(t, [(d(2026, 2, 1), pi, "a"), (paid, pi, "b")], [], d(2026, 5, 10),
+                      mode="recorded")  # fmt: skip
+    [apr] = [r for r in rows if r.status == "missed"]
+    assert (apr.date, apr.interest) == (d(2026, 4, 1), 0)
