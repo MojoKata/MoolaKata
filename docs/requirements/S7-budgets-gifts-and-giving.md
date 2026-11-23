@@ -116,7 +116,9 @@
       from its accounts (*Cash gets transfers from UMB Checking: include it?*).
    3. **Loan payments** count at the bank account they come from, as their loan says
       (S1.9.7): split by the schedule into the categories of its parts, or whole in one
-      category. A loan account is never one of a budget's accounts.
+      category. A loan account is never one of a budget's accounts. Only money out to a loan
+      is a payment: a draw (a HELOC's) or an escrow refund into one of the budget's accounts
+      is money entering the budget (S7.3.2).
    4. **Reimbursable** spending (S2.9) counts only the part neither awaited nor paid back;
       a payback paired with it doesn't count as income.
    5. **Left out**: a transaction left out of a budget (a car bought outright) counts nowhere

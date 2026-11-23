@@ -247,7 +247,9 @@ def amounts(
         other = others.get(t.transferId) if t.transferId else None
         if other is not None and other.accountId in inside:
             continue  # between two of the budget's accounts: no money moved in or out
-        if other is not None and other.type in _loan_types() and not other.deleted:
+        # Only money out to a loan is a payment (S7.3.3); a draw or an escrow refund in from
+        # one is money entering the budget (S7.3.2).
+        if other is not None and other.type in _loan_types() and not other.deleted and t.amount < 0:
             loan_account = s.get(Account, other.accountId)
             if loan_account is not None:
                 _count_loan_payment(s, tr, out, t, (other, loan_account), loans_seen)

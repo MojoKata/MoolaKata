@@ -405,6 +405,40 @@ def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     assert [(u["label"], u["spent"]) for u in v["unplanned"]] == [("Transportation", "386.66")]
 
 
+@pytest.mark.parametrize("counting", ["split", "whole"])
+def test_money_in_from_a_loan_is_money_entering_the_budget(server, frozen, counting):
+    """Only money out to a loan is a payment (S7.3.3): a HELOC draw or an escrow refund into a
+    budget's account enters the budget, counted by its category or listed to sort (S7.3.2)."""
+    from edits import new_id
+
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="HELOC", type="heloc", institution="UMB")
+    whole = {"budgetCounting": "whole", "budgetCategoryId": cat["Loan payments"]}
+    saved(terms(c, loan["id"], principal="50000", startDate="2026-09-01", termMonths=120,
+                rate="7", **(whole if counting == "whole" else {})))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "400.00", from_account=acct["id"]))
+
+    def draw(day, amount, **bank):
+        mine = new_id("Txn")
+        half = {"date": day, "kind": "transfer"}
+        ops = [{"op": "create", "entity": "Txn", "id": mine,
+                "fields": {**half, "accountId": acct["id"], "amount": amount, "payee": "HELOC",
+                           **bank}},
+               {"op": "create", "entity": "Txn", "id": new_id("Txn"),
+                "fields": {**half, "accountId": loan["id"], "amount": f"-{amount}",
+                           "payee": "Draw", "transferWithId": mine}}]  # fmt: skip
+        r = c.post("/ui/api/save", json={"ops": ops})
+        assert r.status_code == 200, r.text
+
+    before = month(c, b, "2026-10")
+    draw("2026-10-05", "10000.00")
+    draw("2026-10-06", "150.00", categoryId=cat["Income › Other income"])
+    v = month(c, b, "2026-10")
+    assert v["spent"] == before["spent"] and v["saved"] == before["saved"]
+    assert [m["amount"] for m in v["moved"]] == ["10000.00"]
+    assert Decimal(v["income"]) == Decimal(before["income"]) + 150
+
+
 def test_money_leaving_or_entering_the_budget(server, frozen):
     """A transfer between two of the budget's accounts counts nowhere; one to an account the
     budget doesn't count counts by its category, or waits to be sorted (S7.3.2)."""
