@@ -47,9 +47,11 @@
       series needs. A category with yearly or quarterly bills is proposed at those bills
       summed plus the average of the rest of its spending, monthly bills included, its detail
       naming each bill (*Housing › Insurance $7,140 a year: Allstate $2,400 a year, Geico
-      $1,140 a year, and $300 a month besides*); when reserves are on, an expense or savings
-      category with such bills is a reserve toward the bills' yearly total, a twelfth of the
-      whole a month ($595 toward $3,540). Income is never proposed as a reserve (S7.10). Each
+      $1,140 a year, and $300 a month besides*). With reserves on, an expense or savings
+      category with such bills is proposed as a monthly line of a twelfth of the year, with
+      the bills' yearly total as its reserve target ($595 a month toward $3,540); without
+      reserves, or for income, as a yearly line of the year's total ($7,140 a year). Income
+      is never proposed as a reserve (S7.10). Each
       proposed line is kept, changed or dropped before the plan is saved.
    6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
       while their history is clear: each card's **paid from** account, learned from its paired
