@@ -449,3 +449,36 @@ Counts (83): killed 83, bug 0, equivalent 0, remove 0, slow 0, process only 0, s
    0/11/12 on a 12-month term, the five amounts at 0, 0.50 and -0.01.
 2. `paymentsMode="automatic"` is refused: Automatic is the setting left unset (None), read
    from S1.9.3 and the code; if the API is meant to take the word too, that test is wrong.
+
+## Batch 7
+
+File: `web/server/tests/test_loans_routes.py` (7 tests added, two parametrized; the points
+tests call `ui.loans._check` on a `TermsIn`, the rest call `ui.loans._terms` in the unscoped
+session with a stand-in caller that has only an id, each under 0.1 s).
+
+Counts (68): killed 66, bug 0, equivalent 2, remove 0, slow 0, process only 0, still left 0.
+
+### Equivalent
+
+- `moolakata.ui.loans.x__terms__mutmut_41`: `access.account(…, None)`: `_want(None)` is None, as `_want("read")` is, so the same read is asked for.
+- `moolakata.ui.loans.x__terms__mutmut_45`: `access.account(…)` with no permission: its default is `"read"`.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 68 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-7.log`, exit 0): 66 killed,
+2 survived, the 2 listed above and no others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. Each refusal is pinned whole: `_check`'s list for the points (field, code, words), and for
+   `_terms` the Problem's status, code, detail and errors. The points' amount is pinned at 0
+   refused and 0.01, 0.50 and 1 kept (`<= 1` refused the last two).
+2. The deleted item and the deleted category are refused in the unscoped session, where only
+   `_terms`' own check stands between them and the terms (as the doc says for checks that
+   restate the scoping). A transfer category is refused live.
+3. The recast's `date`/`fee` keys and `str(fee)` are pinned by a round trip: `_terms`' columns
+   saved as a `Loan`, then `view`'s terms read back with the recast's day and a fee of 250.50.
+4. `_terms_135` is killed by a split payment sent with a category: the category is not kept.
+   S1.9.7 says a split payment counts under each part's category; refusing the category
+   instead of dropping it would be a design choice, not this batch's.

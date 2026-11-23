@@ -12,7 +12,7 @@ from sqlalchemy import select
 from test_accounts import new_account
 
 from moolakata import assets, clock, ids
-from moolakata.errors import FieldError
+from moolakata.errors import FieldError, Problem
 from moolakata.store.entities.accounts import Account, Anchor, Category, Loan
 from moolakata.store.entities.assets import Item
 from moolakata.store.entities.prices import TypedPrice
@@ -339,3 +339,129 @@ def test_a_typed_amount_on_the_terms_is_zero_or_more_refused_at_its_own_field(fi
     assert UL._check(_body(**{field: D("-0.01")}), "mortgage") == _refused(
         field, "amount-invalid", "Zero or more."
     )
+
+
+# ui.loans._check_points, _terms
+
+
+def _points(**kw) -> UL.TermsIn:
+    return _body(**{"points": D(10), "pointsPaidOn": d(2026, 1, 1), "pointsPurpose": "purchase",
+                    **kw})  # fmt: skip
+
+
+NOT_FOR_LOAN = _refused("points", "points-not-for-loan", "Points belong to a mortgage.")
+NO_POINTS = _refused("points", "points-missing", "The points paid, or clear their day and purpose.")
+NONE_PAID = _refused("points", "amount-invalid", "More than zero.")
+NO_DAY = _refused("pointsPaidOn", "required", "The day they were paid.")
+LATE = _refused("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+PURPOSE = _refused("pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance.")
+
+
+@pytest.mark.parametrize(
+    ("kind", "kw", "refusal"),
+    [
+        ("auto-loan", {}, NOT_FOR_LOAN),
+        ("mortgage", {"points": None}, NO_POINTS),
+        ("mortgage", {"points": D(0)}, NONE_PAID),
+        ("mortgage", {"pointsPaidOn": None}, NO_DAY),
+        ("mortgage", {"pointsPaidOn": d(2026, 2, 2)}, LATE),
+        ("mortgage", {"pointsPurpose": "both"}, PURPOSE),
+    ],
+)
+def test_points_not_whole_are_refused_at_their_field_in_their_words(kind, kw, refusal):
+    # S1.9.6, R3.11: a mortgage's points come whole, the amount, the day and the purpose; each
+    # part missing or wrong is refused at its own field, and points on any other loan at theirs.
+    assert UL._check(_points(**kw), kind) == refusal
+
+
+@pytest.mark.parametrize("points", ["0.01", "0.50", "1"])
+def test_points_of_any_amount_above_nothing_are_kept(points):
+    # S1.9.6: points are more than zero, a part of a dollar or one dollar as much as more.
+    assert UL._check(_points(points=D(points)), "mortgage") == []
+
+
+def _caller(uid):
+    # `_terms` reads only the caller's id.
+    return type("Caller", (), {"id": uid})()
+
+
+def _problem(field, code, message) -> tuple:
+    return (422, code, message, [FieldError(field, code, message)])
+
+
+def _terms_refused(s, uid, body) -> tuple:
+    with pytest.raises(Problem) as e:
+        UL._terms(s, _caller(uid), _account(s, uid), body)
+    p = e.value
+    return (p.status, p.code, p.detail, p.errors)
+
+
+def test_terms_refused_answer_with_the_first_refusals_code_and_words(book):
+    # R3.7: every refusal at its field, the problem's own code and words the first one's.
+    s, uid = book
+    p = _terms_refused(s, uid, _body(termMonths=0, rate=D(41)))
+    assert p == (
+        422,
+        "term-invalid",
+        "Between 1 and 600 months.",
+        TERM + RATE,
+    )
+
+
+NO_ITEM = _problem("securedById", "not-found", "No such property or vehicle.")
+
+
+def test_a_loan_is_secured_only_by_a_live_item(book):
+    # S1.9.5: what secures a loan is a property or vehicle that is there: an unknown id and a
+    # deleted item are both refused at the field. Unscoped, the deleted item is still read, so
+    # the check itself is what refuses it.
+    s, uid = book
+    assert _terms_refused(s, uid, _body(securedById="Item_none")) == NO_ITEM
+    gone = _item(s, _account(s, uid, type="real-estate"))
+    gone.mark_deleted(uid)
+    s.flush()
+    assert _terms_refused(s, uid, _body(securedById=gone.id)) == NO_ITEM
+
+
+def _category(s, **kw) -> Category:
+    cat = Category(id=ids.new_id("Cat"), **{"name": "Housing", "kind": "expense", **kw})
+    s.add(cat)
+    s.flush()
+    return cat
+
+
+NO_CATEGORY = _problem("budgetCategoryId", "category-unknown", "Choose a category.")
+
+
+def test_a_whole_payment_counts_under_a_live_category_that_is_not_a_transfer(book):
+    # S1.9.7: counted whole, a payment counts under a budget category; an unknown, a deleted or
+    # a transfer category is refused at the field. A live expense one is kept.
+    s, uid = book
+    gone = _category(s)
+    gone.mark_deleted(uid)
+    s.flush()
+    for cat in ("Cat_none", gone.id, _category(s, kind="transfer").id):
+        body = _body(budgetCounting="whole", budgetCategoryId=cat)
+        assert _terms_refused(s, uid, body) == NO_CATEGORY, cat
+    cat = _category(s).id
+    out = UL._terms(s, _caller(uid), _account(s, uid), _body(budgetCounting="whole",
+                                                             budgetCategoryId=cat))  # fmt: skip
+    assert out["budgetCategoryId"] == cat
+
+
+def test_a_split_payment_keeps_no_budget_category(book):
+    # S1.9.7: split by the schedule, a payment counts under each part's category, so a category
+    # sent with it is not kept.
+    s, uid = book
+    body = _body(budgetCounting="split", budgetCategoryId=_category(s).id)
+    assert UL._terms(s, _caller(uid), _account(s, uid), body)["budgetCategoryId"] is None
+
+
+def test_a_recast_is_kept_with_its_day_and_fee(book):
+    # S1.9.1: the terms as saved read back on the screen, each recast with its day and fee.
+    s, uid = book
+    a = _account(s, uid)
+    body = _body(recasts=[{"date": d(2026, 6, 15), "fee": D("250.50")}])
+    s.add(Loan(id=ids.new_id("Loan"), accountId=a.id, **UL._terms(s, _caller(uid), a, body)))
+    s.flush()
+    assert [(r.date, r.fee) for r in UL.view(s, a).terms.recasts] == [(d(2026, 6, 15), D("250.50"))]
