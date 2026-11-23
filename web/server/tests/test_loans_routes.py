@@ -1140,3 +1140,26 @@ def test_a_loan_starting_after_its_first_payment_or_draw_is_refused_at_its_start
     r = terms(c, loan["id"], startDate="2026-01-11")
     words = "A payment or draw is dated before this start (Jan 10, 2026)."
     assert _refused_at(r) == (422, [("startDate", "start-after-payment", words)])
+
+
+def test_each_loans_start_saved_together_is_checked_against_its_own_first_payment(server, frozen):
+    """S1.9.3, S12.15: two loans' terms changed in one save each have their start checked: the
+    cabin's, moved past its first draw, is refused naming that day, the earliest of its rows
+    whatever order they were recorded in."""
+    c, _, home = _mortgage_and_checking(server)
+    cabin = new_account(c, name="Cabin", type="mortgage")
+    saved(terms(c, cabin["id"], principal="100000", startDate="2026-01-01", termMonths=120,
+                rate="7"))  # fmt: skip
+    add(c, cabin["id"], "500.00", "2026-01-20", payee="Payment")
+    add(c, cabin["id"], "-25.00", "2026-01-10", payee="Fee")
+
+    def op(account, **fields):
+        have = c.get(f"/ui/api/accounts/{account['id']}/loan").json()["terms"]
+        return {"op": "update", "entity": "Loan", "id": have["id"], "version": have["version"],
+                "fields": fields}  # fmt: skip
+
+    r = c.post(
+        "/ui/api/save", json={"ops": [op(home, rate="5"), op(cabin, startDate="2026-01-15")]}
+    )
+    words = "A payment or draw is dated before this start (Jan 10, 2026)."
+    assert _refused_at(r) == (422, [("startDate", "start-after-payment", words)])

@@ -758,3 +758,48 @@ def test_a_payment_on_the_day_the_loan_starts_goes_toward_its_first_payment_day(
     p = L.split_for(_mortgage(), [], [], d(2026, 1, 1), amount)
     assert (p.interest, p.principal, p.overpayment) == split
     assert p.fees == 0
+
+
+# loans._owed_before, _Walker.add, schedule: what is owed on a day, and a day's dues
+
+
+def test_before_the_loan_starts_nothing_is_owed_on_a_payment_dated_then():
+    # S1.9.3: the principal is lent on the start day; a payment dated the day before owes no
+    # interest on it and pays none of it.
+    p = L.split_for(_mortgage(), [], [], d(2025, 12, 31), D(500))
+    assert (p.interest, p.principal) == (0, 0)
+
+
+def test_a_daily_interest_days_principal_due_is_what_its_days_interest_leaves():
+    """S1.9.1, S1.9.3: 20,000 at 6% accrued daily, 386.66 due on Feb 1: 31 days' interest,
+    101.92, leaves 284.74 of principal due. A first payment of 200 pays 98.08 of it, so a second
+    of 300 that day is 186.66 of principal due and 113.34 beyond it."""
+    t = _daily()
+    rec = [(d(2026, 2, 1), D(200), None), (d(2026, 2, 1), D(300), None)]
+    out = L.settle(t, rec, [], d(2026, 2, 10), None)
+    assert [(p.interest, p.principal, p.overpayment) for p in out] == [
+        (D("101.92"), D("98.08"), 0), (0, D(300), D("113.34"))
+    ]  # fmt: skip
+
+
+def test_recorded_here_a_record_starting_after_today_never_catches_up_a_day_with_nothing_owed():
+    """S1.9.3: a payment dated after today counts on its day and starts the record there. A
+    HELOC to be drawn on Apr 10, its record starting Jun 1 (today Feb 10): May is assumed, and
+    Feb to Apr had nothing owed, so Jun 10's payment is toward June, after Jun 1 paid its
+    interest and principal: all of it beyond the schedule."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(8), drawMonths=2)
+    draws = [(d(2026, 4, 10), D(30000))]
+    level = L.level_payment(D(30000), D(8), 21)
+    recorded = [(d(2026, 6, 1), level, "a"), (d(2026, 6, 10), D(200), "b")]
+    rows = L.schedule(t, recorded, draws, d(2026, 2, 10), mode="recorded")
+    assert [(r.date, r.status, r.overpayment) for r in rows] == [
+        (d(2026, 5, 1), "assumed", 0), (d(2026, 6, 1), "paid", 0), (d(2026, 6, 10), "paid", 200)
+    ]  # fmt: skip
+
+
+def test_the_schedule_ahead_counts_a_draw_made_today():
+    # S1.9.2: the balance ahead is what is owed today, a draw made today included.
+    today = d(2026, 1, 20)
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
+    rows = L.schedule(t, [], [(today, D(10000))], today)
+    assert (rows[0].date, rows[0].interest, rows[0].balance) == (d(2026, 2, 1), D("66.67"), 10000)
