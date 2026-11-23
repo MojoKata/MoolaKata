@@ -256,6 +256,9 @@ def history(
     recorded: list[Payment | tuple[dt.date, Decimal, str]] = []
     draws: list[tuple[dt.date, Decimal]] = []
     for t in txns:
+        if t.amount == 0:
+            # A row of nothing pays nothing: no payment, as Automatic reads it (S1.9.3).
+            continue
         if t.amount < 0:
             draws.append((t.date, -t.amount))
             continue

@@ -664,3 +664,18 @@ def test_a_plans_round_up_counts_pmi_by_the_balance_a_daily_interest_day_left(va
     t = L.Terms(principal=D(100000), start=d(2026, 1, 1), months=360, rate=D(6), method="daily",
                 pmi=D(50), originalValue=value)  # fmt: skip
     assert P.expected_extra(t, P.Plan(roundTo=D(100)), t.start, d(2026, 2, 10), [], []) == extra
+
+
+# loans.history, _owed_before, _Walker.add, schedule, _missed: the rules at a payment's edges
+
+
+def test_a_row_of_nothing_is_no_payment(book):
+    """S1.9.3: a row of 0.00 pays nothing, so it is no payment: assumed as scheduled, its
+    payment day is assumed like any with none recorded."""
+    s, uid = book
+    a = _account(s, uid)
+    _loan(s, a)
+    _txn(s, a, d(2026, 3, 1), "0.00")
+    pays = L.history(s, a, d(2026, 10, 13))[0]
+    assert [p.date.month for p in pays if p.assumed] == list(range(2, 11))
+    assert all(p.transactionId is None for p in pays)
