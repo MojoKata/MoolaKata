@@ -5,9 +5,10 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make
+from edits import budget_accounts, make
 from test_accounts import add, new_account
 from test_budgets import cats, month, plan, row
+from test_reserves import landed, put_plan, reserves_on
 
 from moolakata import clock
 
@@ -124,3 +125,30 @@ def test_an_overspent_envelope_carried_or_taken_from_next_month(server, frozen):
     assert nov["toBudget"] == "1170.00"
     bad = make(c, "BdgMv", budgetId=b["id"], month="2026-10-01", amount="5", cardId=chk["id"])
     assert bad.status_code == 422
+
+
+def test_landed_money_given_to_a_reserve_comes_out_of_to_budget(server, frozen):
+    """Money given to a reserve is a move into it (S7.10.5): its envelope gains it and To
+    Budget, whose cash it already raised, loses it; what is kept as the account's own moves
+    nothing (S7.13.1)."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
+    assert budget_accounts(c, b, [chk["id"], ally["id"]]).status_code == 200
+    reserves_on(c, b)
+    repair = cat["Transportation › Car maintenance"]
+    line = {"categoryId": repair, "amount": "100", "target": "1000", "heldInId": ally["id"]}
+    assert put_plan(c, b, "2026-10-01", [line]).status_code == 200
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    interest = add(c, ally["id"], "40.00", "2026-10-03", payee="Interest", kind="interest")
+    v = month(c, b, "2026-10")
+    label = "Transportation › Car maintenance"
+    assert (v["toBudget"], row(v, label)["balance"]) == ("2940.00", "100.00")
+    assert landed(c, b, interest, {repair: "30.00", None: "10.00"}).status_code == 200
+    v = month(c, b, "2026-10")
+    r = row(v, label)
+    assert (v["toBudget"], v["assignedByMoves"]) == ("2910.00", "30.00")
+    assert (r["moved"], r["balance"]) == ("30.00", "130.00")

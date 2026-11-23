@@ -114,7 +114,9 @@ def month(
         to_card: dict[str, Decimal] = defaultdict(lambda: ZERO)
         from_tb = ZERO
         for x in moves:
-            if x.month != m or x.transactionId:
+            # Landed money given to a reserve is money from To Budget's cash into its envelope;
+            # kept as the account's own, it is in no envelope and moves nothing (S7.10.5).
+            if x.month != m or (x.transactionId and not x.toCategoryId):
                 continue
             if x.toCategoryId:
                 mv[x.toCategoryId] += x.amount
