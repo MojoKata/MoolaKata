@@ -446,7 +446,7 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
     if body.securedById:
         it = s.get(Item, body.securedById)
         if it is None or it.deleted:
-            raise refuse("securedById", "not-found", "No such property or vehicle.")
+            raise refuse("securedById", "not-found", "No such item.")
         access.account(s, c.id, it.accountId, "read")
     if body.budgetCategoryId:
         cat = s.get(Category, body.budgetCategoryId)

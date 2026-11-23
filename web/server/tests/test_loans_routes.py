@@ -412,7 +412,7 @@ def test_terms_refused_answer_with_the_first_refusals_code_and_words(book):
     )
 
 
-NO_ITEM = _problem("securedById", "not-found", "No such property or vehicle.")
+NO_ITEM = _problem("securedById", "not-found", "No such item.")
 
 
 def test_a_loan_is_secured_only_by_a_live_item(book):
