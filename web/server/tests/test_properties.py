@@ -61,7 +61,7 @@ def test_a_loans_payment_is_its_schedules_next_row_and_the_rows_pay_what_is_owed
     exactly what is owed today."""
     t, payments, draws, today = case
     # The summary sums the payments as settled, as the loan's screen gives them.
-    paid = L.settle(t, payments, draws, today, L.assumed_before(t, payments, today, L.ASSUMED))
+    paid = L.settle(t, payments, draws, L.assumed_before(t, payments, today, L.ASSUMED))
     sm, rows = L.summary(t, paid, draws, today)
     ahead = [r for r in rows if not r.past]
     assert all(r.balance >= 0 for r in rows)

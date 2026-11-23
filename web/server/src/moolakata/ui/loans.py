@@ -1031,7 +1031,6 @@ def _loan_update(ctx, row: Loan, body: LoanRecord) -> None:
     a = _loan_account(ctx, row.accountId)
     for k, v in _terms(ctx.s, ctx.caller, a, body).items():
         setattr(row, k, v)
-    row.updatedAt = clock.now()
     _changed_terms(ctx.s, ctx.caller, a)
     _start_fits(ctx, row)
 
