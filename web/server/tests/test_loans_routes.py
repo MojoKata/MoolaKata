@@ -700,3 +700,77 @@ def test_a_loans_plans_are_its_own_in_the_order_they_were_made(book):
     first = _saved_plan(s, a, "First", T0 - dt.timedelta(days=1))
     _saved_plan(s, _account(s, uid, name="Cabin"), "Cabin's", T0 - dt.timedelta(days=2))
     assert [p.id for p in UL._plans(s, a)] == [first.id, later.id]
+
+
+# ui.loans._check_plan
+
+
+def _plan_refused(**kw) -> tuple | None:
+    """The plan's refusal as (status, code, words, refusals), or None when it is kept."""
+    try:
+        UL._check_plan(UL.PlanIn(**kw))
+    except Problem as e:
+        return (e.status, e.code, e.detail, e.errors)
+    return None
+
+
+@pytest.mark.parametrize("field", ("monthly", "yearly", "roundTo", "recastFee"))
+def test_a_plans_typed_amount_is_zero_or_more_refused_at_its_own_field(field):
+    # S6.10.1, R3.11: each amount is none while blank, so nothing is kept; a cent below nothing
+    # is refused at the field it was typed in.
+    assert _plan_refused(**{field: D(0)}) is None
+    assert _plan_refused(**{field: D("-0.01")}) == _problem(
+        field, "amount-invalid", "Zero or more."
+    )
+
+
+@pytest.mark.parametrize(("month", "kept"), [(0, False), (1, True), (12, True), (13, False)])
+def test_a_plans_bonus_month_is_1_to_12_both_kept(month, kept):
+    # S6.10.1: the extra amount once a year falls in a month of the year, January to December.
+    refused = _problem("yearlyMonth", "month-invalid", "A month, 1 to 12.")
+    assert _plan_refused(yearly=D(1000), yearlyMonth=month) == (None if kept else refused)
+
+
+def test_a_plans_monthly_extra_may_end_the_month_it_starts_never_before():
+    # S6.10.1: an extra amount every month from a date, until a date; either may be left open,
+    # and a span of one month is kept.
+    start = d(2027, 3, 1)
+    assert _plan_refused(monthly=D(100), monthlyFrom=start) is None
+    assert _plan_refused(monthly=D(100), monthlyUntil=start) is None
+    assert _plan_refused(monthly=D(100), monthlyFrom=start, monthlyUntil=start) is None
+    assert _plan_refused(
+        monthly=D(100), monthlyFrom=start, monthlyUntil=d(2027, 2, 28)
+    ) == _problem("monthlyUntil", "until-before-from", "After the start.")
+
+
+def test_a_plans_lump_sum_is_more_than_zero_refused_at_its_own_amount():
+    # S6.10.1, R3.11: a lump sum of nothing is no lump sum; a cent is kept. Each is refused at
+    # its own place in the list.
+    day = d(2028, 6, 1)
+    assert _plan_refused(lumps=[{"date": day, "amount": D("0.01")}]) is None
+    lumps = [{"date": day, "amount": D(5000)}, {"date": day, "amount": D(0)}]
+    assert _plan_refused(lumps=lumps) == _problem(
+        "lumps.1.amount", "amount-invalid", "More than zero."
+    )
+
+
+def test_a_plans_invested_extra_is_in_one_of_the_asset_classes():
+    # S6.10.4, S6.3: the money is invested in an asset class the user picks, at their return
+    # for it; any other name is refused at its field.
+    assert _plan_refused(investClass="bonds") is None
+    assert _plan_refused(investClass="lottery") == _problem(
+        "investClass", "class-invalid", "One of the asset classes."
+    )
+
+
+def test_a_plans_refusals_answer_with_the_first_ones_code_and_words():
+    # R3.7: every refusal at its field, the problem's own code and words the first one's.
+    assert _plan_refused(yearlyMonth=13, investClass="lottery") == (
+        422,
+        "month-invalid",
+        "A month, 1 to 12.",
+        [
+            FieldError("yearlyMonth", "month-invalid", "A month, 1 to 12."),
+            FieldError("investClass", "class-invalid", "One of the asset classes."),
+        ],
+    )

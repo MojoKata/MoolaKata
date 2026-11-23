@@ -515,3 +515,28 @@ Counts (70): killed 68, bug 0, equivalent 2, remove 0, slow 0, process only 0, s
 4. `_compute_56` (`terms_of(None, …)`) is reached only by a loan secured by an item with no
    original value typed; the test pins PMI ending at 78% of the home's basis ahead.
 5. `_plans_3` (`order_by(None)`) is killed by plans stored newest first: listed by `createdAt`.
+
+## Batch 9
+
+File: `web/server/tests/test_loans_routes.py` (6 tests added, two parametrized; each calls
+`ui.loans._check_plan` on a `PlanIn` directly and reads the Problem it raises, each under 0.01 s).
+
+Counts (66): killed 66, bug 0, equivalent 0, remove 0, slow 0, process only 0, still left 0.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 66 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-9.log`, exit 0): 66 killed,
+0 survived. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. Each refusal is pinned whole, as the Problem's (status, code, words, refusals), on both
+   sides of its bound: the four amounts at 0 kept and -0.01 refused; the bonus month 0/1/12/13;
+   the monthly extra with only a start, only an end, the same month (kept) and an end a day
+   before the start; a lump sum of 0.01 kept and 0 refused at `lumps.1.amount` (its place in the
+   list); `bonds` kept and an unknown class refused.
+2. The Problem's code and words are pinned as the first refusal's with two refusals at once
+   (bonus month 13 and an unknown class), cited R3.7 as batch 7's `_terms` test is.
+3. The bonus month's citation is S6.10.1 ("an extra amount once a year (a bonus month)"); the
+   1-to-12 range is read from the code, not stated in the section.
