@@ -389,3 +389,41 @@ the copy.
    each side of the bound.
 5. The tests call `due_on`, `schedule`, `summary`, `split_new`, `settle`, `plan_outcomes` and
    `expected_extra` directly; none calls a private helper.
+
+## Batch 5
+
+File: `web/server/tests/test_loans_routes.py` (new; 12 tests, one parametrized; two through
+the API, under 0.7 s each with the app's first start; the rest call `ui.loans.view` in an
+unscoped session, each under 0.2 s).
+
+Counts (70): killed 63, bug 0, equivalent 7, remove 0, slow 0, process only 0, still left 0.
+
+### Equivalent
+
+- `moolakata.ui.loans.x_view__mutmut_69`: `loans.history(s, a, None)` reads None as `clock.today()`, which is `view`'s `today`.
+- `moolakata.ui.loans.x_view__mutmut_72`: the same, `today` left out.
+- `moolakata.ui.loans.x_view__mutmut_91`: `Anchor.deleted == false()`, a filter the access view also applies.
+- `moolakata.ui.loans.x__equity__mutmut_18`: `assets.spots(…, None)`: `valuation.prices` reads None as `clock.today()`, which is `view`'s `today`.
+- `moolakata.ui.loans.x__equity__mutmut_23`: `it.metal or "XXXX"` differs only for an item with no metal, which is never at spot (the table's check), and `spots` holds only spot items' metals: neither "" nor "XXXX" is a key.
+- `moolakata.ui.loans.x__equity__mutmut_41`: `Loan.deleted == false()`, a filter the access view also applies; unscoped too, a deleted loan's account values at 0 (`loans.value` reads only its live loan, and a loan's terms are never deleted alone).
+- `moolakata.ui.loans.x__equity__mutmut_52`: `sum(…)` with no start is int 0 when no other loan is on the item, and `owed + 0` is the same Decimal.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/loans.py` on the batch's 70 names, with
+`tests/test_loans_routes.py` added (log `web/.dev/relay-h19/batch-5.log`, exit 0): 63 killed,
+7 survived, the 7 listed above and no others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. `_account_7`/`_11` (the permission asked for dropped) are killed through `follow_plan` by a
+   reader of a loan shared at Read (S10.4): 403 `share-read-only`.
+2. `_equity_14`–`_33` (spot) are killed by a personal loan secured by gold at spot: `_terms`
+   lets any item secure a loan, though S1.9.5 names a home. If only a property or vehicle may
+   secure one, the metal branch can't be reached through the API and those are Remove.
+3. Two deleted-row filters (`view_91`, `_equity_41`) are listed as equivalents, as the doc
+   says; the servicer test leaves out a deleted anchor on purpose, which would kill `view_91`
+   in the unscoped session.
+4. The view tests make rows directly (`Loan`, `Item`, `Anchor`, `TypedPrice`) in the unscoped
+   session and call `view`; the PMI bounds' original values (372,347.30 and 368,635.50) are
+   picked so 80% and 78% fall exactly on a row's balance.
