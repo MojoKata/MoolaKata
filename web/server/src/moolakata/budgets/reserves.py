@@ -285,9 +285,10 @@ def held_in(
             ),
             ZERO,
         )
+        # Listed in every month until it is given, whatever month it landed in (S7.10.5).
         unassigned = []
         for f in flows:
-            if f.kind != "landed" or month_of(f.date) != month:
+            if f.kind != "landed":
                 continue
             free = f.amount - by_txn.get(f.transactionId, ZERO)
             if free > 0:

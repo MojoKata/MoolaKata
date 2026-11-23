@@ -1153,7 +1153,8 @@ def _card_month(s, a: Account, month: dt.date) -> dict:
 
 def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     """Landed money given to a reserve held where it landed, or kept as the account's own
-    (S7.10.5): a move the budget keeps, of no more than is unassigned of it, in its month."""
+    (S7.10.5): a move the budget keeps, of no more than is unassigned of it, in the month it is
+    given, so the month it landed keeps what it showed (R3.10)."""
     from ..budgets import reserves
 
     t = s.get(Transaction, body.transactionId)
@@ -1166,7 +1167,9 @@ def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
         raise refuse("transactionId", "not-found", "No such money landed.")
     if body.fromCategoryId is not None or body.cardId is not None:
         raise refuse("fromCategoryId", "move-invalid", "Landed money comes from where it landed.")
-    m = budgets.month_of(t.date)
+    m = budgets.month_of(body.month)
+    if m < budgets.month_of(t.date):
+        raise refuse("month", "month-invalid", "The month it landed, or one after.")
     tr = budgets.tree(s, b)
     held = {
         h.accountId: h
@@ -1657,7 +1660,7 @@ class BudgetAccountOut(BudgetAccountRecord):
 class MoveRecord(MoveIn):
     """A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
     landed money given to a reserve held where it landed, or to no category: kept as the
-    account's own (S7.10.5); its month is the transaction's."""
+    account's own (S7.10.5); its month is the one it is given in, never before it landed."""
 
     budgetId: IdOf("Bdgt")  # type: ignore[valid-type]
     transactionId: IdOf("Txn") | None = None  # type: ignore[valid-type]

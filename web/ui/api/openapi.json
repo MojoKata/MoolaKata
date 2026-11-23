@@ -13845,7 +13845,7 @@
       },
       "MoveRecord": {
         "additionalProperties": false,
-        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,\nlanded money given to a reserve held where it landed, or to no category: kept as the\naccount's own (S7.10.5); its month is the transaction's.",
+        "description": "A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,\nlanded money given to a reserve held where it landed, or to no category: kept as the\naccount's own (S7.10.5); its month is the one it is given in, never before it landed.",
         "properties": {
           "amount": {
             "examples": [

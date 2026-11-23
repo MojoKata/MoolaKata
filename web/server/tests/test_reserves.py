@@ -29,11 +29,12 @@ def reserves_on(c, b):
     saved(edit(c, "Bdgt", f"/ui/api/budgets/{b['id']}", reserves=True))
 
 
-def landed(c, b, txn, parts: dict):
+def landed(c, b, txn, parts: dict, month_=None):
     """Landed money given as the assign dialog's draft gives it (S7.10.5): a move for each
-    reserve's line, or to no category for the account's own."""
+    reserve's line, or to no category for the account's own, in the month shown (`month_`,
+    else the month it landed)."""
     ops = [{"op": "create", "entity": "BdgMv", "id": new_id("BdgMv"),
-            "fields": {"budgetId": b["id"], "month": txn["date"], "toCategoryId": cat,
+            "fields": {"budgetId": b["id"], "month": month_ or txn["date"], "toCategoryId": cat,
                        "amount": amount, "transactionId": txn["id"]}}
            for cat, amount in parts.items()]  # fmt: skip
     return c.post("/ui/api/save", json={"ops": ops})
@@ -161,3 +162,32 @@ def test_where_the_money_is(server, frozen):
     assert h["withdrawals"] == 1 and h["overLimit"]
     bad = edit(c, "Acct", f"/ui/api/accounts/{acct['id']}", withdrawalsAMonth=3)
     assert bad.status_code == 422
+
+
+def test_landed_money_is_listed_until_given_and_given_in_the_month_shown(server, frozen):
+    """Landed money is unassigned in every month until it is given; the gift is a move of the
+    month it is given in, so the month it landed keeps what it showed (S7.10.5, R3.10)."""
+    c, acct, cat, b = setup_budget(server)
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    assert budget_accounts(c, b, [acct["id"], ally["id"]]).status_code == 200
+    reserves_on(c, b)
+    repair = cat["Transportation › Car maintenance"]
+    line = {"categoryId": repair, "amount": "100", "target": "5000", "heldInId": ally["id"]}
+    assert put_plan(c, b, "2026-11-01", [line]).status_code == 200
+    interest = add(c, ally["id"], "40.00", "2026-11-03", payee="Interest", kind="interest")
+
+    def held(m):
+        (h,) = c.get(f"/ui/api/budgets/{b['id']}/where", params={"month": m}).json()["heldIn"]
+        return h
+
+    for m in ("2026-11", "2026-12"):
+        assert [(x["payee"], x["free"]) for x in held(m)["unassigned"]] == [("Interest", "40.00")]
+    bad = landed(c, b, interest, {repair: "40.00"}, "2026-10-01")
+    assert bad.status_code == 422 and bad.json()["errors"][0]["field"] == "month"
+    assert landed(c, b, interest, {repair: "40.00"}, "2026-12-01").status_code == 200
+    assert held("2026-12")["unassigned"] == []
+    assert [x["free"] for x in held("2026-11")["unassigned"]] == ["40.00"]
+    r = row(month(c, b, "2026-12"), "Transportation › Car maintenance")
+    assert (r["moved"], r["balance"]) == ("40.00", "240.00")
+    r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
+    assert (r["moved"], r["balance"]) == ("0.00", "100.00")

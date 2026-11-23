@@ -958,7 +958,7 @@ function WhereMoneyIs({ b, month }) {
     }
   };
   const assign = (/** @type {any} */ h, /** @type {any} */ x) =>
-    openDialog(AssignDialog, { b, h, landed: x }).then((y) => y && res.reload());
+    openDialog(AssignDialog, { b, h, landed: x, month }).then((y) => y && res.reload());
   return html`
     <div class="grid g2">${w.heldIn.map((/** @type {any} */ h) =>
       html`
@@ -1127,14 +1127,19 @@ const nothing = (v) => {
 
 /**
  * Landed money given to the reserves held where it landed, a line each, or kept as the
- * account's own (S7.10.5): a move for each line given something, saved together.
- * @param {{ close: (v?: any) => void, b: any, h: any, landed: any }} p
+ * account's own (S7.10.5): a move for each line given something, saved together, in the
+ * month shown, whatever month it landed in.
+ * @param {{ close: (v?: any) => void, b: any, h: any, landed: any, month: string }} p
  */
-function AssignDialog({ close, b, h, landed }) {
+function AssignDialog({ close, b, h, landed, month }) {
   useDialogGuide('dialog-assign');
   const free = String(landed.free);
   const f = useDraft((draft) => {
-    const base = { budgetId: b.id, month: landed.date, transactionId: landed.transactionId };
+    const base = {
+      budgetId: b.id,
+      month: month + '-01',
+      transactionId: landed.transactionId,
+    };
     const shares = spreadByBalance(free, h.reserves);
     h.reserves.forEach((/** @type {any} */ r, /** @type {number} */ i) =>
       draft.add(LandedRec, { ...base, toCategoryId: r.categoryId, amount: shares[i] })

@@ -329,10 +329,12 @@
        a transfer from the budget's accounts, and not in a reserve's category (its interest, a
        paycheck split into it, a transfer from an account the budget doesn't count; a refund in
        a reserve's category is the reserve's own, never landed) is listed under **Where the money
-       is** as **unassigned** until the user gives it, with a line for each reserve held
-       there and one for the account's own (*not set aside*): the lines start spread among
-       the reserves by balance, any may change, and what no line takes stays unassigned. Each
-       line given something is a move (S7.11), saved together; money given to a reserve
+       is** as **unassigned** in every month until the user gives it, with a line for each
+       reserve held there and one for the account's own (*not set aside*): the lines start
+       spread among the reserves by balance, any may change, and what no line takes stays
+       unassigned. Each line given something is a move (S7.11) of the month it is given in,
+       saved together: $40 of November's interest given from December is December's, and
+       November still shows it unassigned (R3.10). Money given to a reserve
        counts as moved in, so *to move* never asks for it again. In the budget it counts as it always does: interest as income, a
        transfer by S7.3.2.
 11. **Moves** (a budget's option, always on in an envelope budget): a **move** puts an

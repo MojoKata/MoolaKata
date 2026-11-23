@@ -2288,7 +2288,7 @@
 /**
  * A move as a draft makes it (S7.11): made, or deleted to undo it. With a transaction,
  * landed money given to a reserve held where it landed, or to no category: kept as the
- * account's own (S7.10.5); its month is the transaction's.
+ * account's own (S7.10.5); its month is the one it is given in, never before it landed.
  * @typedef {Object} MoveRecord
  * @property {string} month
  * @property {(string | null)} [fromCategoryId]
