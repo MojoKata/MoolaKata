@@ -232,11 +232,14 @@ def test_gifts_and_giving_are_assigned_as_yearly_lines(server, frozen):
     assert row(month(c, b, "2026-11"), "Giving")["planned"] == "100.00"
 
 
-def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(server, frozen):
-    """S7.1.1, S11.3.1: Jane's budget counts her Chase Sapphire and holds a reserve in her Ally
-    Savings, neither shared with Bob, who reads the budget at write: his month and plan give
-    neither's name nor id, and his change to the reserve's line keeps where it is held."""
-    from edits import share
+NOT_SHARED = "an account not shared"
+
+
+def _household(server):
+    """Jane's envelope budget counts her Checking, her Chase Sapphire card and her Ally Savings,
+    where the roof's reserve is held and $40 of interest has landed, and chooses Ally as where
+    Checking's money moves from; Bob follows it at write and reads only Checking (S7.1.1)."""
+    from edits import change, saved, share
 
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -245,7 +248,8 @@ def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(se
     ally = new_account(c, name="Ally Savings", type="savings", mask="2222")
     cat = cats(c)
     b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
-    assert budget_accounts(c, b, [chk["id"], card["id"], ally["id"]]).status_code == 200
+    roles = {chk["id"]: {"movedFromId": ally["id"]}}
+    assert budget_accounts(c, b, [chk["id"], card["id"], ally["id"]], roles=roles).is_success
     reserves_on(c, b)
     roof = cat["Housing › Maintenance"]
     lines = [
@@ -255,24 +259,55 @@ def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(se
     assert put_plan(c, b, "2026-10-01", lines).status_code == 200
     add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
     add(c, card["id"], "-150.00", "2026-10-04", payee="Whole Foods", categoryId=cat["Food"])
+    add(c, ally["id"], "40.00", "2026-10-03", payee="Interest", kind="interest")
     make_user(server, "bob")
     bob = sign_in(server, "bob")
     bob_id = bob.get("/ui/api/session").json()["user"]["id"]
     share(c, "budget", b["id"], users={bob_id: "write"})
     share(c, "account", chk["id"], users={bob_id: "read"})
-    assert row(month(c, b, "2026-10"), "Housing › Maintenance")["heldInId"] == ally["id"]
-    v = month(bob, b, "2026-10")
-    assert row(v, "Housing › Maintenance")["heldInId"] is None
+    saved(change(bob, "User", bob.get("/ui/api/profile").json(), activeBudgetId=b["id"]))
+    return c, bob, b, cat, card, ally
+
+
+def _unnamed(text: str, *hidden: dict) -> None:
+    for a in hidden:
+        assert a["id"] not in text and a["name"] not in text
+
+
+def test_a_receiver_sees_the_owners_figures_but_no_account_not_shared_with_them(server, frozen):
+    """S7.1.1, S11.3.1: Bob's month counts Jane's card and her Ally Savings as hers does, spent,
+    To Budget and the reserve alike, but names neither, nor gives either's id: not as the
+    card's payment line, nor in a move into it, nor where the reserve is held; and his change
+    to the reserve's line keeps where it is held."""
+    from edits import new_id
+
+    c, bob, b, cat, card, ally = _household(server)
+    roof = cat["Housing › Maintenance"]
+    fields = {"budgetId": b["id"], "month": "2026-10-01", "cardId": card["id"], "amount": "10.00"}
+    op = {"op": "create", "entity": "BdgMv", "id": new_id("BdgMv"), "fields": fields}
+    r = c.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 200, r.text
+    mine, theirs = month(c, b, "2026-10"), month(bob, b, "2026-10")
+    totals = ("spent", "income", "toBudget", "assigned", "assignedByMoves", "available", "left")
+    assert mine["spent"] == "150.00"
+    assert [theirs[k] for k in totals] == [mine[k] for k in totals]
+    assert [{**x, "heldInId": None} for x in mine["rows"]] == theirs["rows"]
+    assert row(mine, "Housing › Maintenance")["heldInId"] == ally["id"]
+    assert [(x["accountId"], x["name"]) for x in mine["cards"]] == [(card["id"], card["name"])]
+    assert [(x["accountId"], x["name"]) for x in theirs["cards"]] == [(None, NOT_SHARED)]
+    figures = ("setAside", "owed", "paid", "notBacked")
+    assert [[x[k] for k in figures] for x in theirs["cards"]] == [
+        [x[k] for k in figures] for x in mine["cards"]
+    ]
+    assert [x["toLabel"] for x in mine["moves"]] == ["Chase Sapphire's payment"]
+    assert [x["toLabel"] for x in theirs["moves"]] == [f"the payment of {NOT_SHARED}"]
     plan_path = f"/ui/api/budgets/{b['id']}/plan"
-    theirs = bob.get(plan_path, params={"month": "2026-10"}).json()["lines"]
-    assert [x["heldInId"] for x in theirs] == [None, None]
-    where = bob.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-10"}).text
-    for hidden in (card, ally):
-        assert hidden["id"] not in str(v) + where
-        assert hidden["name"] not in str(v) + where
+    lines = bob.get(plan_path, params={"month": "2026-10"}).json()["lines"]
+    assert [x["heldInId"] for x in lines] == [None, None]
+    _unnamed(str(theirs) + str(lines), card, ally)
     # Bob's draft sends only what he changed: the reserve stays held in Ally.
-    (mine,) = [x for x in theirs if x["categoryId"] == roof]
-    op = {"op": "update", "entity": "BdgLn", "id": mine["id"], "version": mine["version"],
+    (line,) = [x for x in lines if x["categoryId"] == roof]
+    op = {"op": "update", "entity": "BdgLn", "id": line["id"], "version": line["version"],
           "fields": {"amount": "175.00"}}  # fmt: skip
     r = bob.post("/ui/api/save", json={"ops": [op]})
     assert r.status_code == 200, r.text
@@ -280,3 +315,85 @@ def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(se
     assert [(x["amount"], x["heldInId"]) for x in lines if x["categoryId"] == roof] == [
         ("175.00", ally["id"])
     ]
+
+
+def test_where_the_money_is_names_no_account_not_shared_with_the_receiver(server, frozen):
+    """S7.1.1, S7.10.4: Bob's Where the money is holds the reserve in Ally Savings, with the
+    interest landed there, and the card's payments, as Jane's does, each account not shared
+    with him unnamed and without its id."""
+    c, bob, b, _, card, ally = _household(server)
+    path = f"/ui/api/budgets/{b['id']}/where"
+    mine = c.get(path, params={"month": "2026-10"}).json()
+    theirs = bob.get(path, params={"month": "2026-10"}).json()
+    assert [(h["accountId"], h["accountName"]) for h in mine["heldIn"]] == [
+        (ally["id"], ally["name"])
+    ]
+    assert [(h["accountId"], h["accountName"]) for h in theirs["heldIn"]] == [(None, NOT_SHARED)]
+    kept = ("reserves", "total", "movedIn", "given", "balance", "toMove", "unassigned")
+    assert [[h[k] for k in kept] for h in theirs["heldIn"]] == [
+        [h[k] for k in kept] for h in mine["heldIn"]
+    ]
+    assert [x["free"] for x in theirs["heldIn"][0]["unassigned"]] == ["40.00"]
+    assert [(x["accountId"], x["accountName"]) for x in theirs["cards"]] == [(None, NOT_SHARED)]
+    assert [x["owed"] for x in theirs["cards"]] == [x["owed"] for x in mine["cards"]] == ["150.00"]
+    _unnamed(str(theirs), card, ally)
+    # Nor do the budget and its accounts name Ally as where Checking's money moves from.
+    base = f"/ui/api/budgets/{b['id']}"
+    mine, theirs = c.get(base).json(), bob.get(base).json()
+    assert ally["id"] in [r["movedFromId"] for r in mine["roles"]]
+    _unnamed(str(theirs) + bob.get(f"{base}/accounts").text, card, ally)
+
+
+def test_a_receivers_other_views_count_the_owners_accounts_not_shared_with_them(server, frozen):
+    """S7.1.1: Bob's review, its loose ends and what changed since Jane reviewed it, his
+    dashboard's budget card, cash flow, trends, a comparison and an estimate count Jane's card
+    and Ally Savings as hers do, and name neither."""
+    c, bob, b, cat, card, ally = _household(server)
+    base = f"/ui/api/budgets/{b['id']}"
+    assert c.post(f"{base}/review", json={"month": "2026-10-01"}).is_success
+    add(c, card["id"], "-20.00", "2026-10-06", payee="Bistro", categoryId=cat["Food"])
+
+    def review(who):
+        return who.get(f"{base}/review", params={"month": "2026-10"}).json()
+
+    mine, theirs = review(c), review(bob)
+    assert mine["reviewed"]["changes"][0] == "Food: spent 150.00 then, 170.00 now"
+    assert theirs["reviewed"]["changes"] == mine["reviewed"]["changes"]
+    assert [x["over"] for x in theirs["overspent"]] == [x["over"] for x in mine["overspent"]]
+    assert theirs["toBudget"] == mine["toBudget"]
+    assert [x["toMove"] for x in theirs["toMove"]] == [x["toMove"] for x in mine["toMove"]]
+    assert {x["accountName"] for x in mine["toMove"]} == {ally["name"]}
+    assert {x["accountName"] for x in theirs["toMove"]} == {NOT_SHARED}
+    _unnamed(str(theirs), card, ally)
+    card_ = c.get("/ui/api/dashboard").json()["budget"]
+    assert bob.get("/ui/api/dashboard").json()["budget"] == card_
+    assert card_["spent"] == "170.00"
+    for path, params in (
+        ("cash-flow", {"month": "2026-10"}),
+        ("trends", {"month": "2026-10"}),
+        ("compare", {"other": b["id"], "month": "2026-10"}),
+        ("estimate", {}),
+    ):
+        got = [who.get(f"{base}/{path}", params=params) for who in (c, bob)]
+        assert all(r.status_code == 200 for r in got), [r.text for r in got]
+        assert got[1].json() == got[0].json(), path
+
+
+def test_a_transfer_between_the_budgets_accounts_comes_out_of_no_envelope(server, frozen):
+    """S7.3.2, S7.1.2: $80 from the Visa to Checking, both counted, moves no money in or out,
+    whatever its category: no envelope spends it and the card's line sets nothing aside."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    card = new_account(c, name="Visa", type="credit-card", mask="1111")
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"], card["id"]])
+    b = b.json()
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    plan(c, b, "2026-10-01", [{"categoryId": cat["Food"], "amount": "500.00"}])
+    out = add(c, card["id"], "-80.00", "2026-10-05", payee="Cash advance", categoryId=cat["Food"])
+    back = add(c, chk["id"], "80.00", "2026-10-05", payee="From Visa", kind="deposit")
+    assert back["transferId"] == out["id"]
+    v = month(c, b, "2026-10")
+    assert (v["spent"], row(v, "Food")["actual"]) == ("0.00", "0.00")
+    assert [x["setAside"] for x in v["cards"]] == ["0.00"]

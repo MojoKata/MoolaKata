@@ -136,6 +136,20 @@ def test_a_savings_line_shows_its_projections_monthly(server, frozen):
     v = plan(c, b, "2026-10-01", [line])
     r = row(v, "Savings › Investing")
     assert (r["projectionName"], r["projectionMonthly"]) == ("Nest egg", "650.00")
+    # One the budget is shared with, not the projection, sees the line's figures, not it.
+    from conftest import make_user, sign_in
+    from edits import share
+
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
+    share(c, "budget", b["id"], users={bob_id: "read"})
+    theirs = row(month(bob, b, "2026-10"), "Savings › Investing")
+    assert (theirs["planned"], theirs["projectionName"], theirs["projectionMonthly"]) == (
+        "500.00",
+        None,
+        None,
+    )
 
 
 def test_an_estimate_adds_up_what_recurs_in_a_category(server, frozen):

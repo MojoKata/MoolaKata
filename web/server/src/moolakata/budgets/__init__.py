@@ -142,10 +142,12 @@ def active_id(s: Session, user_id: str) -> str | None:
 @dataclass
 class Tree:
     """The categories, each with its parent and kind; and, while one budget's figures are
-    worked out, the transactions it leaves out (S7.3.5)."""
+    worked out, the transactions it leaves out (S7.3.5) and the loans its viewer can see: a
+    payment to another counts whole, so its split never shows (S7.3.2). None: every loan."""
 
     by_id: dict[str, Category]
     skip: frozenset[str] = frozenset()
+    loans: frozenset[str] | None = None
 
     def key(self, builtin: str) -> str | None:
         """A shipped category's id, by its key."""
@@ -165,11 +167,13 @@ class Tree:
         return c.name
 
 
-def tree(s: Session, budget: Budget | None = None) -> Tree:
-    """The categories; for a budget, with the transactions it leaves out."""
+def tree(s: Session, budget: Budget | None = None, viewer: str | None = None) -> Tree:
+    """The categories; for a budget, with the transactions it leaves out and the loans its
+    viewer (else its owner) can see."""
+    from .. import access
     from ..store.entities.budgets import BudgetLeaveOut
 
-    skip = frozenset()
+    skip, loans = frozenset(), None
     if budget is not None:
         skip = frozenset(
             s.scalars(
@@ -178,8 +182,12 @@ def tree(s: Session, budget: Budget | None = None) -> Tree:
                 )
             )
         )
+        who = viewer or budget.ownerId
+        loans = frozenset(a.id for a, _ in access.accounts(s, who, Account.type.in_(_loan_types())))
     return Tree(
-        {c.id: c for c in s.scalars(select(Category).where(Category.deleted == false()))}, skip
+        {c.id: c for c in s.scalars(select(Category).where(Category.deleted == false()))},
+        skip,
+        loans,
     )
 
 
@@ -215,13 +223,16 @@ def amounts(
     end: dt.date,
     moved: list[Moved] | None = None,
     tr: Tree | None = None,
+    inside: set[str] | None = None,
 ) -> dict[str, Decimal]:
     """The signed total per category over the accounts, between two dates inclusive. Transfers
-    that leave or enter the accounts with no category to count them by go to `moved`."""
+    that leave or enter the accounts with no category to count them by go to `moved`.
+    `inside`: every account the budget counts then, when `accounts` are only some of them (an
+    envelope budget's cards, each on its own): a transfer to another moves no money (S7.3.2)."""
     if not accounts:
         return {}
     tr = tr or tree(s)
-    inside = set(accounts)
+    inside = set(accounts) | (inside or set())
     out: dict[str, Decimal] = defaultdict(lambda: ZERO)
     txns = s.scalars(
         select(Transaction).where(
@@ -255,7 +266,8 @@ def amounts(
         # Only money out to a loan is a payment (S7.3.3); a draw or an escrow refund in from
         # one is money entering the budget (S7.3.2).
         if other is not None and other.type in _loan_types() and not other.deleted and t.amount < 0:
-            loan_account = s.get(Account, other.accountId)
+            seen = tr.loans is None or other.accountId in tr.loans
+            loan_account = s.get(Account, other.accountId) if seen else None
             if loan_account is not None:
                 _count_loan_payment(s, tr, out, t, (other, loan_account), loans_seen)
                 continue
@@ -503,9 +515,14 @@ def _state(planned: Decimal, actual: Decimal) -> str:
 def month_view(
     s: Session, budget: Budget, month: dt.date, today: dt.date, viewer: str | None = None
 ) -> Month:
-    """A month's figures, kept once worked out until what they come from changes (S7.3.10)."""
+    """A month's figures, kept once worked out until what they come from changes (S7.3.10).
+    Worked out as the server reads them, the viewer choosing only which accounts count
+    (`members`, S7.1.1), so what is kept under the viewer is the same whoever's session asks."""
+    from ..store import scoping
     from . import cache
 
+    if scoping.user_of(s) is not None:
+        raise scoping.Unscoped("a budget's figures are worked out as the server reads them")
     return cache.month(
         s, (budget.id, month, today, viewer), lambda: _month_view(s, budget, month, today, viewer)
     )
@@ -516,7 +533,7 @@ def _month_view(
 ) -> Month:
     from . import plan, reserves
 
-    tr = tree(s, budget)
+    tr = tree(s, budget, viewer)
     mem = members(s, budget, viewer)
     accts = mem.at(month)
     every = lines(s, budget)
@@ -794,7 +811,7 @@ def _summed(by_month: dict[dt.date, dict[str, Decimal]]) -> dict[str, Decimal]:
 def cash_flow(s: Session, budget: Budget, month: dt.date, viewer: str | None = None) -> dict:
     """Income by category into spending by top-level category, and what was left: the
     month's Sankey."""
-    tr = tree(s, budget)
+    tr = tree(s, budget, viewer)
     totals = amounts(s, account_ids(s, budget, viewer, month), month, month_end(month), tr=tr)
     sources: dict[str, Decimal] = defaultdict(lambda: ZERO)
     uses: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -828,7 +845,7 @@ def trends(
 ) -> list[tuple[dt.date, Decimal, Decimal]]:
     """For each of the last months: planned and actual spending, for one category (with its
     children) or every expense category."""
-    tr = tree(s, budget)
+    tr = tree(s, budget, viewer)
     mem = members(s, budget, viewer)
     every = lines(s, budget)
     out = []

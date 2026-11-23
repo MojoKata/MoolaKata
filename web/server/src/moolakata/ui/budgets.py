@@ -3,12 +3,15 @@ recurring transactions in its accounts. A budget is owned by a user and shared l
 a household budget is one shared with a group at write (S10.3)."""
 
 import datetime as dt
+from collections.abc import Iterator
+from contextlib import contextmanager
 from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import false, select
+from sqlalchemy.orm import Session
 
 from .. import access, activity, budgets, clock, ids
 from ..access import Perms
@@ -31,6 +34,9 @@ from .conventions import (
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["budgets"])
+
+# An account a viewer may not see, never named nor its id given (S7.1.1, S11.3.1).
+NOT_SHARED = "an account not shared"
 
 
 class RoleOut(Model):
@@ -109,9 +115,9 @@ class TransferIn(Model):
 
 
 class BetweenOut(Model):
-    fromId: str
+    fromId: str | None  # None for an account not shared with the viewer (S7.1.1)
     fromName: str
-    toId: str
+    toId: str | None
     toName: str
     amount: Money
 
@@ -119,7 +125,7 @@ class BetweenOut(Model):
 class HeldInOut(Model):
     """An account reserves are held in, and what is to move there (S7.10.4)."""
 
-    accountId: str
+    accountId: str | None  # None for an account not shared with the viewer (S7.1.1)
     accountName: str
     movedFromId: str | None
     movedFromName: str | None
@@ -141,7 +147,7 @@ class HeldInOut(Model):
 
 
 class CardOut(Model):
-    accountId: str
+    accountId: str | None  # None for an account not shared with the viewer (S7.1.1)
     accountName: str
     paidFromId: str | None
     paidFromName: str | None
@@ -289,7 +295,7 @@ class InBudget(Model):
 class CardLine(Model):
     """A card's payment line in an envelope budget (S7.13.2)."""
 
-    accountId: str
+    accountId: str | None  # None for an account not shared with the viewer (S7.1.1)
     name: str
     setAside: Money
     owed: Money
@@ -370,12 +376,23 @@ def _accounts_of(s, b: Budget, viewer: str | None = None) -> list[str]:
     return budgets.account_ids(s, b, viewer, clock.today())
 
 
-def _names(s, viewer: str, account_ids: set[str]) -> dict[str, str]:
+def _names(s, viewer: str, account_ids) -> dict[str, str]:
     """The names of the accounts a viewer may see: their own and those shared with them, so a
     shared budget never names another account (S7.1.1, S11.3.1)."""
-    if not account_ids:
+    wanted = {x for x in account_ids if x}
+    if not wanted:
         return {}
-    return {a.id: a.name for a, _ in access.accounts(s, viewer, Account.id.in_(account_ids))}
+    return {a.id: a.name for a, _ in access.accounts(s, viewer, Account.id.in_(wanted))}
+
+
+@contextmanager
+def _as_server(s, b: Budget) -> Iterator[tuple[Session, Budget]]:
+    """The budget, once the caller's access to it is checked, in a session reading as the
+    server: its figures count every account `members` gives the viewer, the owner's own among
+    them, whoever may see them (S7.1.1). What names or ids an account is read in the viewer's
+    own session (`_names`)."""
+    with scoping.as_server(s, "a budget's figures, for one who reads it", False) as srv:
+        yield srv, srv.get(Budget, b.id)
 
 
 def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
@@ -383,6 +400,13 @@ def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
     shared = len(access.holders_of(s, Budget, b.id)) - 1 if held.shareable else 0
     accts = _accounts_of(s, b, viewer)
     rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
+    roles = plan.roles(s, b, rows, clock.today())
+    if viewer is not None:
+        # A role chosen by the owner may name an account the viewer can't see (S7.1.1).
+        seen = _names(s, viewer, {x for r in roles for x in (r.paidFromId, r.movedFromId)})
+        for r in roles:
+            r.paidFromId = r.paidFromId if r.paidFromId in seen else None
+            r.movedFromId = r.movedFromId if r.movedFromId in seen else None
     return BudgetRow(
         id=b.id,
         name=b.name,
@@ -395,7 +419,7 @@ def shape(s, b: Budget, held: Perms, viewer: str | None = None) -> BudgetRow:
         reserves=b.reserves,
         moves=b.moves,
         startMonth=b.startMonth,
-        roles=[RoleOut(**r.__dict__) for r in plan.roles(s, b, rows, clock.today())],
+        roles=[RoleOut(**r.__dict__) for r in roles],
         active=viewer is not None and budgets.active_id(s, viewer) == b.id,
         version=b.version,
     )
@@ -544,21 +568,35 @@ def _change_budget(s, c: Caller, b: Budget, held: Perms, body, sent: set[str]) -
 def budget_month(
     budget_id: str, request: Request, c: Caller = Depends(caller), month: str | None = None
 ):
+    from ..store.entities.projections import Projection
+
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        m = budgets.month_view(s, b, _month(month), clock.today(), c.id)
+        with _as_server(s, b) as (srv, sb):
+            m = budgets.month_view(srv, sb, _month(month), clock.today(), c.id)
         names = _names(
-            s, c.id, {x.accountId for x in m.moved} | {x.otherAccountId for x in m.moved}
+            s,
+            c.id,
+            {x.accountId for x in m.moved}
+            | {x.otherAccountId for x in m.moved}
+            | {x.accountId for x in m.cards}
+            | {r.heldInId for r in m.rows},
         )
-        seen = _seen(s, c.id, (r.heldInId for r in m.rows))
+        # A projection is named only to one who may read it (S7.2.1).
+        pids = {r.projectionId for r in m.rows if r.projection}
+        readable = set(s.scalars(select(Projection.id).where(Projection.id.in_(pids))))
         return MonthView(
             month=m.month,
             rows=[
                 MonthRow(
                     **{k: v for k, v in r.__dict__.items() if k not in ("projection", "heldInId")},
-                    heldInId=r.heldInId if r.heldInId in seen else None,
-                    projectionName=r.projection[0] if r.projection else None,
-                    projectionMonthly=r.projection[1] if r.projection else None,
+                    heldInId=r.heldInId if r.heldInId in names else None,
+                    projectionName=r.projection[0]
+                    if r.projection and r.projectionId in readable
+                    else None,
+                    projectionMonthly=r.projection[1]
+                    if r.projection and r.projectionId in readable
+                    else None,
                 )
                 for r in m.rows
             ],
@@ -571,23 +609,23 @@ def budget_month(
                 MovedRow(
                     transactionId=x.transactionId,
                     date=x.date,
-                    accountName=names.get(x.accountId, "an account not shared"),
+                    accountName=names.get(x.accountId, NOT_SHARED),
                     otherAccountName="a deleted account"
                     if x.otherDeleted
-                    else names.get(x.otherAccountId, "an account not shared"),
+                    else names.get(x.otherAccountId, NOT_SHARED),
                     amount=x.amount,
                     payee=x.payee,
                 )
                 for x in m.moved
             ],
-            moves=_moves_out(s, b, m.month),
+            moves=_moves_out(s, b, m.month, c.id),
             toBudget=m.toBudget,
             assigned=m.assigned,
             assignedByMoves=m.assignedByMoves,
             cards=[
                 CardLine(
-                    accountId=x.accountId,
-                    name=x.name,
+                    accountId=x.accountId if x.accountId in names else None,
+                    name=names.get(x.accountId, NOT_SHARED),
                     setAside=x.setAside,
                     owed=x.owed,
                     paid=x.paid,
@@ -654,11 +692,13 @@ def _budget_accounts(s, b: Budget, month: dt.date) -> list[str]:
         return budgets.account_ids(srv, srv.get(Budget, b.id), None, month)
 
 
-def _balance_kept(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
-    """What a category's line carries into a month: a reserve's balance, a rollover line's
-    remainder, an envelope's balance. Kept no longer once the category is taken out of the plan
-    (or a reserve's target goes), so that is asked first (S7.10.3)."""
-    before = budgets.month_view(s, b, budgets.add_months(month, -1), clock.today())
+def _balance_kept(s, b: Budget, cat_id: str, month: dt.date, viewer: str) -> Decimal:
+    """What a category's line carries into a month, as the viewer's figures have it: a
+    reserve's balance, a rollover line's remainder, an envelope's balance. Kept no longer once
+    the category is taken out of the plan (or a reserve's target goes), so that is asked first
+    (S7.10.3)."""
+    with _as_server(s, b) as (srv, sb):
+        before = budgets.month_view(srv, sb, budgets.add_months(month, -1), clock.today(), viewer)
     row = next((r for r in before.rows if r.categoryId == cat_id), None)
     return row.remaining if row is not None and row.rollover else Decimal(0)
 
@@ -860,7 +900,7 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
     values = _values(body)
     stops = (values["out"] and not ln.out) or (ln.target is not None and values["target"] is None)
     if stops:
-        held = _balance_kept(ctx.s, b, ln.categoryId, month)
+        held = _balance_kept(ctx.s, b, ln.categoryId, month, ctx.caller.id)
         if held:
             label = budgets.tree(ctx.s).label(ln.categoryId)
             # An envelope's balance is money set aside: with only its target off, it stays in
@@ -925,7 +965,9 @@ save.register(
 )
 
 
-def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
+def _moves_out(s, b: Budget, month: dt.date, viewer: str) -> list[MoveOut]:
+    """The month's moves, a card's payment line named only to a viewer who may see the card
+    (S7.1.1)."""
     tr = budgets.tree(s)
     rows = s.scalars(
         select(BudgetMove)
@@ -937,14 +979,13 @@ def _moves_out(s, b: Budget, month: dt.date) -> list[MoveOut]:
         .order_by(BudgetMove.createdAt)
     ).all()
     users = {u.id: u.displayName for u in s.scalars(select(User))}
-
-    cards = {a.id: a.name for a in s.scalars(select(Account).where(Account.type == "credit-card"))}
+    cards = _names(s, viewer, {m.cardId for m in rows})
 
     def label(cat_id: str | None, landed: bool, side: str, card: str | None = None) -> str:
         if cat_id and cat_id in tr.by_id:
             return tr.label(cat_id)
         if card and side == "to":
-            return f"{cards.get(card, 'a card')}'s payment"
+            return f"{cards[card]}'s payment" if card in cards else f"the payment of {NOT_SHARED}"
         if landed:
             return "money landed" if side == "from" else "the account's own"
         return "To Budget"
@@ -1073,23 +1114,38 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
     today = clock.today()
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        tr = budgets.tree(s, b)
-        mem = budgets.members(s, b, c.id)
-        accts = mem.at(m)
-        rows = list(s.scalars(select(Account).where(Account.id.in_(accts))))
-        names = {a.id: a.name for a in rows}
-        roles = {r.accountId: r for r in plan.roles(s, b, rows, today)}
-        held = reserves.held_in(s, b, mem, tr, budgets.lines(s, b), reserves.moves(s, b), m)
+        with _as_server(s, b) as (srv, sb):
+            tr = budgets.tree(srv, sb, c.id)
+            mem = budgets.members(srv, sb, c.id)
+            rows = list(srv.scalars(select(Account).where(Account.id.in_(mem.at(m)))))
+            roles = {r.accountId: r for r in plan.roles(srv, sb, rows, today)}
+            held = reserves.held_in(
+                srv, sb, mem, tr, budgets.lines(srv, sb), reserves.moves(srv, sb), m
+            )
+            owed = {a.id: _card_month(srv, a, m) for a in rows if a.type == "credit-card"}
+        names = _names(
+            s,
+            c.id,
+            {a.id for a in rows}
+            | {x for r in roles.values() for x in (r.paidFromId, r.movedFromId)},
+        )
+
+        def named(account_id: str | None) -> str | None:
+            return names.get(account_id, NOT_SHARED) if account_id else None
+
+        def shown(account_id: str | None) -> str | None:
+            return account_id if account_id in names else None
+
         out = []
         for h in held:
             frm = roles.get(h.accountId)
             moved_from = frm.movedFromId if frm else None
             out.append(
                 HeldInOut(
-                    accountId=h.accountId,
-                    accountName=names.get(h.accountId, "an account not shared"),
-                    movedFromId=moved_from,
-                    movedFromName=names.get(moved_from) if moved_from else None,
+                    accountId=shown(h.accountId),
+                    accountName=named(h.accountId),
+                    movedFromId=shown(moved_from),
+                    movedFromName=named(moved_from),
                     reserves=[
                         ReserveHeld(categoryId=k, label=tr.label(k), balance=v)
                         for k, v in h.reserves
@@ -1102,10 +1158,10 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
                     toMove=h.toMove,
                     between=[
                         BetweenOut(
-                            fromId=x.fromId,
-                            fromName=names.get(x.fromId, "an account not shared"),
-                            toId=x.toId,
-                            toName=names.get(x.toId, "an account not shared"),
+                            fromId=shown(x.fromId),
+                            fromName=named(x.fromId),
+                            toId=shown(x.toId),
+                            toName=named(x.toId),
                             amount=x.amount,
                         )
                         for x in h.between
@@ -1128,17 +1184,16 @@ def where(budget_id: str, request: Request, c: Caller = Depends(caller), month: 
             )
         cards = []
         for a in rows:
-            if a.type != "credit-card":
+            if a.id not in owed:
                 continue
-            r = roles.get(a.id)
-            got = _card_month(s, a, m)
+            paid_from = roles[a.id].paidFromId if a.id in roles else None
             cards.append(
                 CardOut(
-                    accountId=a.id,
-                    accountName=a.name,
-                    paidFromId=r.paidFromId if r else None,
-                    paidFromName=names.get(r.paidFromId) if r and r.paidFromId else None,
-                    **got,
+                    accountId=shown(a.id),
+                    accountName=named(a.id),
+                    paidFromId=shown(paid_from),
+                    paidFromName=named(paid_from),
+                    **owed[a.id],
                 )
             )
         # Only the budget the caller follows says what to move (S7.12.2).
@@ -1178,29 +1233,26 @@ def _card_month(s, a: Account, month: dt.date) -> dict:
 def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     """Landed money given to a reserve held where it landed, or kept as the account's own
     (S7.10.5): a move the budget keeps, of no more than is unassigned of it, in the month it is
-    given, so the month it landed keeps what it showed (R3.10)."""
+    given, so the month it landed keeps what it showed (R3.10). Only money landed in an account
+    the giver can see: the transaction is read in their own session."""
     from ..budgets import reserves
 
     t = s.get(Transaction, body.transactionId)
-    if (
-        t is None
-        or t.deleted
-        or t.accountId not in budgets.account_ids(s, b, c.id, t.date)
-        or t.amount <= 0
-    ):
+    m = budgets.month_of(body.month)
+    # What is unassigned of it is what Where the money is shows them (S7.1.1).
+    with _as_server(s, b) as (srv, sb):
+        mem = budgets.members(srv, sb, c.id)
+        lines = budgets.lines(srv, sb)
+        found = reserves.held_in(
+            srv, sb, mem, budgets.tree(srv, sb, c.id), lines, reserves.moves(srv, sb), m
+        )
+    if t is None or t.deleted or not mem.counts(t.accountId, t.date) or t.amount <= 0:
         raise refuse("transactionId", "not-found", "No such money landed.")
     if body.fromCategoryId is not None or body.cardId is not None:
         raise refuse("fromCategoryId", "move-invalid", "Landed money comes from where it landed.")
-    m = budgets.month_of(body.month)
     if m < budgets.month_of(t.date):
         raise refuse("month", "month-invalid", "The month it landed, or one after.")
-    tr = budgets.tree(s, b)
-    held = {
-        h.accountId: h
-        for h in reserves.held_in(
-            s, b, budgets.members(s, b, c.id), tr, budgets.lines(s, b), reserves.moves(s, b), m
-        )
-    }
+    held = {h.accountId: h for h in found}
     h = held.get(t.accountId)
     own = body.toCategoryId is None
     free = next((x.free for x in h.unassigned if x.transactionId == t.id), None) if h else None
@@ -1344,10 +1396,15 @@ def compare(
         sums: dict[str, dict[str, list]] = {}
         labels: dict[str, str] = {}
         to_budget = {}
+        views = {}
         for key, bud in (("a", a), ("b", b)):
-            m = first
-            while m <= last:
-                v = budgets.month_view(s, bud, m, today, c.id)
+            with _as_server(s, bud) as (srv, sb):
+                m, views[key] = first, []
+                while m <= last:
+                    views[key].append((m, budgets.month_view(srv, sb, m, today, c.id)))
+                    m = budgets.add_months(m, 1)
+        for key, months in views.items():
+            for m, v in months:
                 for r in v.rows:
                     if r.kind == "income" or (r.cadence == "year" and m != last):
                         continue
@@ -1360,7 +1417,6 @@ def compare(
                     got[0] += r.planned - r.carried
                     got[1] += r.actual
                 to_budget[key] = getattr(v, "toBudget", None)
-                m = budgets.add_months(m, 1)
         rows = [
             CompareRow(
                 categoryId=k,
@@ -1463,7 +1519,8 @@ def _reviewed(
     changes = []
     if kept is not None:
         if figures is None:
-            figures = _figures(budgets.month_view(s, b, month, clock.today(), viewer))
+            with _as_server(s, b) as (srv, sb):
+                figures = _figures(budgets.month_view(srv, sb, month, clock.today(), viewer))
         changes = _changes(json.loads(kept), figures)
     who = s.get(User, r.reviewedById) if r.reviewedById else None
     return ReviewedOut(
@@ -1483,28 +1540,38 @@ def review(budget_id: str, request: Request, c: Caller = Depends(caller), month:
     m = _month(month) if month else budgets.add_months(budgets.month_of(clock.today()), -1)
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        v = budgets.month_view(s, b, m, clock.today(), c.id)
+        active = budgets.active_id(s, c.id) == b.id
+        held = []
+        with _as_server(s, b) as (srv, sb):
+            v = budgets.month_view(srv, sb, m, clock.today(), c.id)
+            if active:
+                mem = budgets.members(srv, sb, c.id)
+                held = reserves.held_in(
+                    srv,
+                    sb,
+                    mem,
+                    budgets.tree(srv, sb, c.id),
+                    budgets.lines(srv, sb),
+                    reserves.moves(srv, sb),
+                    m,
+                )
+        ends = {y for h in held for x in h.between for y in (x.fromId, x.toId)}
+        names = _names(s, c.id, {h.accountId for h in held} | ends)
         to_move = []
-        if budgets.active_id(s, c.id) == b.id:
-            mem = budgets.members(s, b, c.id)
-            accts = mem.at(m)
-            names = {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}
-            for h in reserves.held_in(
-                s, b, mem, budgets.tree(s, b), budgets.lines(s, b), reserves.moves(s, b), m
-            ):
-                if h.toMove:
+        for h in held:
+            if h.toMove:
+                to_move.append(
+                    ToMoveOut(accountName=names.get(h.accountId, NOT_SHARED), toMove=h.toMove)
+                )
+            for x in h.between:
+                if x.toId == h.accountId:
                     to_move.append(
-                        ToMoveOut(accountName=names.get(h.accountId, ""), toMove=h.toMove)
-                    )
-                for x in h.between:
-                    if x.toId == h.accountId:
-                        to_move.append(
-                            ToMoveOut(
-                                accountName=names.get(x.toId, ""),
-                                toMove=x.amount,
-                                fromName=names.get(x.fromId, ""),
-                            )
+                        ToMoveOut(
+                            accountName=names.get(x.toId, NOT_SHARED),
+                            toMove=x.amount,
+                            fromName=names.get(x.fromId, NOT_SHARED),
                         )
+                    )
         history = []
         for k in range(1, 7):
             earlier = budgets.add_months(m, -k)
@@ -1551,14 +1618,14 @@ def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = 
             s.add(r)
         else:
             r.reviewedById, r.updatedAt = c.id, clock.now()
-        # Each one's figures read as they see them, so none passes on another's account
-        # (S7.1.1); each is theirs alone.
-        figures = {}
-        for uid in access.holders_of(s, Budget, b.id):
-            with scoping.as_user(s, uid) as theirs:
-                seen = budgets.month_view(theirs, theirs.get(Budget, b.id), m, clock.today(), uid)
-                figures[uid] = json.dumps(_figures(seen))
         with scoping.as_server(s, "a reviewed month's figures, kept for each who reads it") as srv:
+            # Each one's figures as they are given them, so none passes on another's account
+            # (S7.1.1); each is theirs alone.
+            sb = srv.get(Budget, b.id)
+            figures = {
+                uid: json.dumps(_figures(budgets.month_view(srv, sb, m, clock.today(), uid)))
+                for uid in access.holders_of(s, Budget, b.id)
+            }
             for row in srv.scalars(
                 select(BudgetReviewViewer).where(
                     BudgetReviewViewer.reviewId == r.id, BudgetReviewViewer.deleted == false()
@@ -1603,9 +1670,14 @@ def estimate(
     months: int = Query(6, ge=3, le=12),
 ):
     """A plan from the last 3, 6 or 12 complete months (S7.1.5): nothing is saved."""
+    today = clock.today()
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id, "write")
-        tr = budgets.tree(s, b)
+        with _as_server(s, b) as (srv, sb):
+            tr = budgets.tree(srv, sb, c.id)
+            found = plan.estimate(
+                srv, sb, budgets.account_ids(srv, sb, c.id, today), tr, months, today
+            )
         return [
             Proposal(
                 categoryId=x.categoryId,
@@ -1616,9 +1688,7 @@ def estimate(
                 detail=x.detail,
                 target=x.target,
             )
-            for x in plan.estimate(
-                s, b, budgets.account_ids(s, b, c.id, clock.today()), tr, months, clock.today()
-            )
+            for x in found
         ]
 
 
@@ -1629,7 +1699,8 @@ def budget_cash_flow(
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         m = _month(month)
-        f = budgets.cash_flow(s, b, m, c.id)
+        with _as_server(s, b) as (srv, sb):
+            f = budgets.cash_flow(srv, sb, m, c.id)
         return CashFlow(
             month=m,
             sources=[Flow(name=n, amount=a) for n, a in f["sources"]],
@@ -1650,10 +1721,9 @@ def budget_trends(
 ):
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        return [
-            TrendPoint(month=m, planned=p, actual=a)
-            for m, p, a in budgets.trends(s, b, _month(month), category, months, c.id)
-        ]
+        with _as_server(s, b) as (srv, sb):
+            found = budgets.trends(srv, sb, _month(month), category, months, c.id)
+        return [TrendPoint(month=m, planned=p, actual=a) for m, p, a in found]
 
 
 @router.get("/budgets/{budget_id}/recurring", response_model=list[RecurringRow])
@@ -1687,7 +1757,7 @@ def _recurring(s, c: Caller, b: Budget) -> list[RecurringRow]:
         RecurringRow(
             payee=x.payee,
             accountId=x.accountId if x.accountId in names else None,
-            accountName=names.get(x.accountId, "an account not shared"),
+            accountName=names.get(x.accountId, NOT_SHARED),
             every=x.every,
             last=x.last,
             next=x.next,
@@ -1772,7 +1842,7 @@ def _targets_off(ctx, b: Budget) -> None:
     reserves = [ln for ln in now.values() if ln.target is not None]
     later = [ln for ln in every if ln.fromMonth > month and ln.target is not None]
     tr = budgets.tree(ctx.s)
-    held = [(tr.label(ln.categoryId), _balance_kept(ctx.s, b, ln.categoryId, month))
+    held = [(tr.label(ln.categoryId), _balance_kept(ctx.s, b, ln.categoryId, month, ctx.caller.id))
             for ln in reserves]  # fmt: skip
     held = sorted((label, amount) for label, amount in held if amount)
     if held:
@@ -1847,7 +1917,7 @@ def _move_delete(ctx, mv: BudgetMove) -> None:
 def _move_read(ctx, record_id: str) -> MoveOut:
     mv = ctx.s.get(BudgetMove, record_id)
     b = ctx.s.get(Budget, mv.budgetId)
-    return next(x for x in _moves_out(ctx.s, b, mv.month) if x.id == mv.id)
+    return next(x for x in _moves_out(ctx.s, b, mv.month, ctx.caller.id) if x.id == mv.id)
 
 
 # ---------- a budget's accounts, over months (S7.1.7) ----------
@@ -1882,7 +1952,11 @@ def budget_accounts(budget_id: str, request: Request, c: Caller = Depends(caller
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
         seen = {a.id for a, _ in access.accounts(s, c.id)}
-        return [_ba_out(m) for m in _ba_rows(s, b) if m.accountId in seen]
+        out = [_ba_out(m) for m in _ba_rows(s, b) if m.accountId in seen]
+        for x in out:  # a role may name one the caller can't see
+            x.paidFromId = x.paidFromId if x.paidFromId in seen else None
+            x.movedFromId = x.movedFromId if x.movedFromId in seen else None
+        return out
 
 
 def _ba_checked(ctx, body: BudgetAccountRecord, record_id: str) -> Budget:

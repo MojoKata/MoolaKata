@@ -338,9 +338,9 @@
 
 /**
  * @typedef {Object} BetweenOut
- * @property {string} fromId
+ * @property {(string | null)} fromId
  * @property {string} fromName
- * @property {string} toId
+ * @property {(string | null)} toId
  * @property {string} toName
  * @property {import('../kit/dec.js').Dec} amount
  */
@@ -562,7 +562,7 @@
 /**
  * A card's payment line in an envelope budget (S7.13.2).
  * @typedef {Object} CardLine
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} name
  * @property {import('../kit/dec.js').Dec} setAside
  * @property {import('../kit/dec.js').Dec} owed
@@ -572,7 +572,7 @@
 
 /**
  * @typedef {Object} CardOut
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} accountName
  * @property {(string | null)} paidFromId
  * @property {(string | null)} paidFromName
@@ -1524,7 +1524,7 @@
 /**
  * An account reserves are held in, and what is to move there (S7.10.4).
  * @typedef {Object} HeldInOut
- * @property {string} accountId
+ * @property {(string | null)} accountId
  * @property {string} accountName
  * @property {(string | null)} movedFromId
  * @property {(string | null)} movedFromName

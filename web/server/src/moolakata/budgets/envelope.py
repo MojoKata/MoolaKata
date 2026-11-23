@@ -128,8 +128,8 @@ def month(
         for cat_id, amount in elsewhere[m.year].items():
             if cat_id not in plan and cat_id in tr.by_id:
                 plan[cat_id] = _Yearly(amount)
-        cash_spend = amounts(s, cash_ids, m, month_end(m), tr=tr)
-        per_card = {cid: amounts(s, [cid], m, month_end(m), tr=tr) for cid in card_ids}
+        cash_spend = amounts(s, cash_ids, m, month_end(m), tr=tr, inside=now)
+        per_card = {cid: amounts(s, [cid], m, month_end(m), tr=tr, inside=now) for cid in card_ids}
         mv: dict[str, Decimal] = defaultdict(lambda: ZERO)
         to_card: dict[str, Decimal] = defaultdict(lambda: ZERO)
         from_tb = ZERO

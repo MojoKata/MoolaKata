@@ -1948,16 +1948,30 @@
             "type": "number"
           },
           "fromId": {
-            "title": "Fromid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromid"
           },
           "fromName": {
             "title": "Fromname",
             "type": "string"
           },
           "toId": {
-            "title": "Toid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toid"
           },
           "toName": {
             "title": "Toname",
@@ -3109,8 +3123,15 @@
         "description": "A card's payment line in an envelope budget (S7.13.2).",
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "name": {
             "title": "Name",
@@ -3164,8 +3185,15 @@
         "additionalProperties": false,
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "accountName": {
             "title": "Accountname",
@@ -8894,8 +8922,15 @@
         "description": "An account reserves are held in, and what is to move there (S7.10.4).",
         "properties": {
           "accountId": {
-            "title": "Accountid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
           },
           "accountName": {
             "title": "Accountname",

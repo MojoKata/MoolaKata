@@ -11,6 +11,7 @@ from .. import access, budgets, figures, valuation
 from ..ledger import expected, reconcile
 from ..ledger import types as atypes
 from ..prices import refresh as pricing
+from ..store import scoping
 from ..store.entities.accounts import Lot, Split, Transaction
 from ..store.entities.budgets import Budget
 from ..store.repos import ledger as repo
@@ -116,7 +117,10 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         active = budgets.active_id(s, c.id)
         if active:
             b = s.get(Budget, active)
-            v = budgets.month_view(s, b, budgets.month_of(today), today, c.id)
+            # The budget's figures count the owner's accounts not shared with the caller too
+            # (S7.1.1), and name none.
+            with scoping.as_server(s, "the budget's figures, for one who follows it", False) as w:
+                v = budgets.month_view(w, w.get(Budget, b.id), budgets.month_of(today), today, c.id)
             card = BudgetCard(
                 id=b.id,
                 name=b.name,

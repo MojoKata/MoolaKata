@@ -381,10 +381,10 @@ ever read for them.
    checked (an item's figures over the accounts its own rules count, wash sales across
    spouses, an import matching the rows the owner deleted), runs in a second session on the
    same connection, unscoped and named (`scoping.as_server`), in a savepoint of the same
-   transaction; the user's session reads afresh what it changed. Work that must read as
-   another user sees it (a reviewed month's figures, kept for each person the budget is
-   shared with) reads in a second session on the same connection scoped to that user
-   (`scoping.as_user`), and what it reads is kept for that user alone.
+   transaction; the user's session reads afresh what it changed. A budget's figures are
+   worked out this way for whoever reads them, the reader deciding only which accounts count
+   (requirements S7.1.1), so figures kept for a reader are the same whichever session asks;
+   what names or ids an account is read in the reader's own session.
 7. **Writes are checked too.** In a user's session, changing a record needs `writable` on it,
    `configurable` when one of its declared settings changes (an account's name, method and
    connection; which projection is active), and `deletable` to delete it, asked of its view

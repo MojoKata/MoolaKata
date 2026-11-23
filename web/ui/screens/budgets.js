@@ -212,8 +212,11 @@ function ThisMonth({ b, month, reloadList }) {
   // Moves are the budget's own setting; one who may not make them sees them off (S12.19.1).
   const canMove = !!b.moves;
   const moveWhy = whyNotAdd('BdgMv', b);
+  // A card not shared with the viewer comes with no id, so nothing is moved to its line
+  // (S7.1.1).
+  const movable = v.cards.filter((/** @type {any} */ x) => x.accountId);
   const moveTo = (/** @type {string} */ to = '') =>
-    openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: v.cards }).then((x) =>
+    openDialog(MoveDialog, { b, month, rows: v.rows, to, cards: movable }).then((x) =>
       x && res.reload()
     );
   const envelope = b.method === 'envelope';
@@ -347,7 +350,7 @@ function ThisMonth({ b, month, reloadList }) {
                     x.owed,
                   )} owed</span>${dec(x.notBacked).gt(0)
                     ? html`<div class="down">${money(x.notBacked)} owed, not backed</div>${
-                      canMove
+                      canMove && x.accountId
                         ? html`
                           <div>
                             <${Action} class="linklike" data-help="cover-from"
@@ -941,7 +944,9 @@ function WhereMoneyIs({ b, month }) {
   if (!w.heldIn.length && !w.cards.length) {
     return html`<${Empty}>No reserve held in an account, and no card</${Empty}>`;
   }
-  // A transfer in kept as the account's own: a move to no category (S7.10.4).
+  // An account not shared with the viewer comes with no id: what landed there is shown, not
+  // theirs to give or keep (S7.1.1). A transfer in kept as the account's own: a move to no
+  // category (S7.10.4).
   const keepOwn = async (/** @type {any} */ x) => {
     try {
       await saveNow((d) =>
@@ -988,7 +993,7 @@ function WhereMoneyIs({ b, month }) {
                 class="list-item"><span class="grow">${x.kept
                   ? "Kept as the account's own"
                   : 'Moved in'}<div class="small dim">${money(x.amount)} ${x.payee ||
-                  'a transfer'}, ${date(x.date)}</div></span>${x.kept ? null : html`
+                  'a transfer'}, ${date(x.date)}</div></span>${x.kept || !h.accountId ? null : html`
                   <button type="button" class="btn sm" data-help="keep-own"
                     onClick=${() => keepOwn(x)}>Keep as the Account's Own</button>
                 `}</div>
@@ -999,9 +1004,10 @@ function WhereMoneyIs({ b, month }) {
               <div
                 class="list-item"><span class="grow">Unassigned<div class="small dim">${money(
                   x.free,
-                )} ${x.payee || 'landed'}, ${date(x.date)}</div></span><button type="button"
-                            class="btn sm" data-help="unassigned" onClick=${() =>
-                              assign(h, x)}>Assign</button></div>
+                )} ${x.payee || 'landed'}, ${date(x.date)}</div></span>${h.accountId
+                  ? html`<button type="button" class="btn sm" data-help="unassigned" onClick=${() =>
+                    assign(h, x)}>Assign</button>`
+                  : null}</div>
             `
           )}
           <div class="list-item"><span class="grow dim">The account's balance${dec(h.balance).lt(
