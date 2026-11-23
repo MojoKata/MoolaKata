@@ -360,7 +360,8 @@
        reserve held there and one for the account's own (*not set aside*): the lines start
        spread among the reserves by balance, any may change, and what no line takes stays
        unassigned. Each line given something is a move (S7.11) of the month it is given in,
-       saved together: $40 of November's interest given from December is December's, and
+       the month it landed or a later one (a month before it is refused), saved together:
+       $40 of November's interest given from December is December's, and
        November still shows it unassigned (R3.10). Money given to a reserve
        counts as moved in, so *to move* never asks for it again. In the budget it counts as it always does: interest as income, a
        transfer by S7.3.2.
