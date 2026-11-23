@@ -191,7 +191,8 @@ function InBudgets({ rec }) {
 }
 
 /**
- * The property or vehicle the loan is secured by, and a mortgage's original home value.
+ * The item the loan is secured by (S1.9.5: a home, a vehicle or any other), and a mortgage's
+ * original home value.
  * @param {{ rec: LoanRec, type: string }} p
  */
 function SecuredBy({ rec, type }) {
@@ -201,7 +202,7 @@ function SecuredBy({ rec, type }) {
     <div class="row">
       <${RecField} rec=${rec} name="securedById" label="Secured by" id="secured-by"
         options=${[
-          ['', items.length ? 'Nothing' : 'Nothing yet: add the property or vehicle first'],
+          ['', items.length ? 'Nothing' : 'Nothing yet: add the item first'],
           ...items.map((i) => [i.id, `${i.name} · ${i.accountName}`]),
         ]} />
       ${type === 'mortgage'

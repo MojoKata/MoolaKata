@@ -18,7 +18,7 @@
       principal, escrow and remaining balance. It is recomputed when a payment differs
       from the schedule, the rate resets, or the loan is **recast**. Between the payment days
       that change it (the first after a rate reset, a recast, or a HELOC draw in its repayment
-      period, a fee or charge added to what is owed being one, and a HELOC's first repayment
+      period (a fee or charge added to what it owes being one), and a HELOC's first repayment
       day) the principal and interest due stays level; on such a day it becomes what pays off
       the balance then owed by the term's last payment day, that day counted. Interest, and
       the level principal and interest itself as a lender rounds it, are rounded half up to
@@ -29,7 +29,9 @@
       **split** into principal, interest, escrow, PMI and fees by the schedule, as is every
       payment into the loan however it arrives (imported, or typed in the loan's account): one
       with no split of its own is split by the schedule whenever the loan's figures are
-      worked out, never counted wholly as principal. The user can
+      worked out, never counted wholly as principal. A row of 0.00 is no payment. A payment
+      or draw is dated on or after the loan's start: one dated before it is refused at its
+      date, and a start moved past one at the start, naming its day. The user can
       correct a split from the servicer's statement. Principal beyond the schedule is
       recorded as an **overpayment**. Bank transactions of the last 90 days within 2% of the
       payment, not yet a transfer and not filed under another category, are offered on the
@@ -44,7 +46,8 @@
       1. **Recorded here**: every payment is recorded in MoolaKata from the first one recorded,
          so one not recorded 15 days after its day (a servicer's usual grace period) is
          **missed**; the payment days before that first one count as paid as scheduled (a loan
-         entered years in has nothing missed before its record starts). The schedule shows
+         entered years in has nothing missed before its record starts). A payment dated after
+         today counts on its day: the first one recorded starts the record there too. The schedule shows
          the row as missed with what was due; the loan's screen says how many are missed and
          what is overdue (their payments: the interest of the missed months is owed with them,
          not added to the balance); the balance owed stays what it was, and the schedule ahead
@@ -57,7 +60,7 @@
          statements; *Assumed as scheduled* until then. The screen names which applies.
 
       A payment goes with the payment day whose grace it is made in, from 15 days after one
-      day to 15 days after the next; recorded here, a payment made after a missed day pays the
+      day to 15 days after the next (the first day's from the loan's start); recorded here, a payment made after a missed day pays the
       oldest one missed first, as a servicer applies one. A payment day's interest, escrow and
       PMI are due once: a later payment toward the same day pays what the earlier ones left of
       them, and the rest is principal, an overpayment. A payment short of them pays the
@@ -69,11 +72,12 @@
       next row, which the payment dialog and the bank transactions offered read too; in a
       HELOC's draw period its interest alone, noted *interest only until* the period's end),
       the payoff date, interest paid to date and still to pay, principal paid this year, the
-      schedule, and the **payoff
-      planner** (S6.10). A mortgage linked to a `real-estate` item shows the **equity** and the
-      **loan-to-value**, and when PMI can be dropped (on request at 80% of the original
-      value; automatically at 78%, when the schedule stops charging it). The original value is
-      the one typed, else the home's basis when the loan was made.
+      schedule, and the **payoff planner** (S6.10). A loan may be secured by one of the
+      household's items (S1.10), a home, a vehicle or any other: its screen names the item and
+      shows the **equity** in it and the **loan-to-value**; a mortgage's also shows when PMI
+      can be dropped (on request at 80% of the original value; automatically at 78%, when the
+      schedule stops charging it). The original value is the one typed, else the home's basis
+      when the loan was made.
    6. **Taxes**: mortgage interest, points and PMI (Form 1098), and student-loan interest
       (Form 1098-E) appear in Taxes (S8.12). Points that bought the home show in the year
       paid (Form 1098's box 6); a refinance's are spread evenly over the term's payments, so

@@ -131,11 +131,11 @@
 10. **Loan payoff planner** (on each loan's *Payoff* tab, S1.9.5). It compares the schedule
     with the user's **overpayment** plans:
     1. **Plans**, combined freely: an extra amount every month (from a date, until a date),
-       an extra amount once a year (a bonus month), one-time **lump sums** on dates,
-       **biweekly** payments (26 half-payments a year), and rounding each payment up. Each
-       amount is *none* while blank. A lump sum needs its date and its amount: one missing
-       either is left out of the results while it is being filled, and refused when the plan
-       is saved.
+       an extra amount once a year in the month chosen (a bonus month), one-time **lump sums**
+       on dates, **biweekly** payments (26 half-payments a year), and rounding each payment
+       up. Each amount is *none* while blank. A lump sum needs its date and its amount: one
+       missing either is left out of the results while it is being filled, and refused when
+       the plan is saved.
     2. **Results** for each plan against the schedule: the new payoff date, months saved,
        **interest saved**, total paid, and the balance over time as two lines on one chart,
        with the amortization table of each.
@@ -145,7 +145,7 @@
        picks, at their expected return for it (S6.3), shows its value at the payoff date
        next to the interest saved.
        It is a comparison, not advice, and says so (R1.16).
-    5. **Saved plans** are kept per loan. One can be marked **the plan I'm following**, and
-       the loan's screen then shows whether actual overpayments since it was chosen are
-       ahead of it or behind. The *Payoff* tab opens on that plan.
+    5. **Saved plans** are kept per loan, each listed with its payoff month and interest saved
+       as shortened. One can be marked **the plan I'm following**, and the loan's screen then
+       shows whether actual overpayments since it was chosen are ahead of it or behind. The *Payoff* tab opens on that plan.
     6. Rates for an ARM's future resets are the user's assumption, shown as such.

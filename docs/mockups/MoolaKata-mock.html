@@ -2951,7 +2951,7 @@ const GUIDES = {
     <h2 id="h-active">Active</h2><p>Switch off when you close the account. It stays for history and taxes.</p>
     <h2>Loans</h2><p>A loan’s terms give its schedule. Payments from checking are split into principal, interest and escrow by it, and anything beyond the schedule is an overpayment. A payment that differs from the schedule, a rate reset or a recast recomputes it; correct a split from the servicer’s statement. The Schedule marks each payment day passed <b>paid</b>, <b>assumed as scheduled</b> or <b>missed</b>, as the loan’s Payments setting reads one with no payment recorded; the Overview says how many are missed and what is overdue.</p>
     <h2 ${hid('Original principal')}>Original principal</h2><p>What was borrowed, from the closing disclosure or the loan agreement: more than $0. A HELOC's may be $0, a line opened with nothing drawn: <b>Min</b> fills it in.</p>
-    <h2 ${hid('Start date')}>Start date</h2><p>The day the loan was made; the first payment is due a month later.</p>
+    <h2 ${hid('Start date')}>Start date</h2><p>The day the loan was made; the first payment is due a month later. Not after a payment or draw already recorded: a later start is refused, naming that day.</p>
     <h2 ${hid('Term (months)')}>Term</h2><p>In months: 360 for a 30-year mortgage, 60 for a five-year car loan.</p>
     <h2 ${hid('Interest rate')}>Interest rate</h2><p>The note rate, not the APR, to three places as the note states it (6.875%). An adjustable rate’s resets, to four places, are typed when known.</p>
     <h2 ${hid('Rate type')}>Rate type</h2><p>Fixed, or adjustable (an ARM): its resets are typed with their dates and rates when known.</p>
@@ -2960,14 +2960,14 @@ const GUIDES = {
     <h2 ${hid('Property tax escrow per payment')}>Property tax escrow per payment</h2><p>Property tax collected with each payment. Not principal; shown in Taxes. Blank: none.</p>
     <h2 ${hid('Insurance escrow per payment')}>Insurance escrow per payment</h2><p>Homeowner’s insurance collected with each payment. Blank: none.</p>
     <h2 ${hid('PMI per month')}>PMI per month</h2><p>Mortgage insurance, until it can be dropped. Blank: none.</p>
-    <h2 ${hid('Secured by')}>Secured by</h2><p>The property or vehicle the loan is secured by, from a physical-asset account. The Overview then shows your equity in it and the loan-to-value.</p>
+    <h2 ${hid('Secured by')}>Secured by</h2><p>The item the loan is secured by, from a physical-asset account: a home, a vehicle, gold or any other. The Overview then shows your equity in it and the loan-to-value.</p>
     <h2 ${hid('Home’s original value')}>Home’s original value</h2><p>The appraisal or price when the loan was made; blank, the home’s cost then.</p>
     <h2 ${hid('Points paid')}>Points paid</h2><p>Points (discount points, origination points) paid at closing to lower the rate. Blank: none. Their day and what they paid for are then asked.</p>
     <h2 ${hid('Points paid on')}>Points paid on</h2><p>The closing day: by the first payment at the latest.</p>
     <h2 ${hid('Points for')}>Points for</h2><p><b>Buying the home</b>: the points show in Taxes in the year paid, as on Form 1098. <b>A refinance</b>: they are deducted over the loan, so Taxes shows each year’s share, spread evenly over its payments, and what’s left in the year it’s paid off.</p>
     <h2>Record a Payment</h2><p>A payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. Bank transactions that look like the payment are offered to link instead. When the From account already holds the payment, it is paired with it, not recorded again.</p>
     <h2>Looks like a Payment</h2><p>Bank transactions of the last 90 days within 2% of the payment that aren’t a transfer yet. <b>Link</b> makes one the transfer into this loan; <b>Pair</b> joins one to a payment already recorded here with <i>From account: None</i>, recording nothing new. A transaction a few days from a payment of another amount isn’t offered: it is most likely that payment.</p>
-    <h2 ${hid('Paid on')}>Paid on</h2><p>The day the servicer received it.</p>
+    <h2 ${hid('Paid on')}>Paid on</h2><p>The day the servicer received it, on or after the day the loan started: an earlier one is refused. A payment dated ahead counts on its day.</p>
     <h2 ${hid('Amount')}>Amount</h2><p>What was paid, escrow included. Anything beyond the scheduled payment goes to principal as an overpayment.</p>
     <h2 ${hid('From account')}>From account</h2><p>The bank account it came from: its half of the transfer is recorded as well.</p>
     <h2 ${hid('Principal')}>Principal</h2><p>The parts as the schedule splits them; correct one from the servicer’s statement when it differs. The parts must add up to the amount.</p>
@@ -2977,7 +2977,7 @@ const GUIDES = {
     <h2 ${hid('Extra each month')}>Extra each month</h2><p>Principal paid with every payment beyond the schedule. The payoff planner shows the new payoff date and the interest saved, worked out again as you leave each field. Blank: none.</p>
     <h2 ${hid('From')}>From</h2><p>The first payment the monthly extra goes with. Blank: the next one.</p>
     <h2 ${hid('Until')}>Until</h2><p>The last payment it goes with. Blank: until the loan is paid.</p>
-    <h2 ${hid('Extra once a year')}>Extra once a year</h2><p>A bonus payment each December, such as from a year-end bonus.</p>
+    <h2 ${hid('Extra once a year')}>Extra once a year</h2><p>A bonus payment each year in the month chosen under <i>In</i>, such as December for a year-end bonus.</p>
     <h2 ${hid('In')}>In</h2><p>The month the yearly extra goes with.</p>
     <h2 ${hid('Lump sum')}>Lump sum</h2><p>A one-time payment toward principal on a date. One missing its date or amount is left out while you fill it in; <b>Save Plan</b> refuses it until it has both.</p>
     <h2>Biweekly payments</h2><p>Half a payment every two weeks makes 26 half-payments, one extra payment a year.</p>
@@ -3082,7 +3082,7 @@ const GUIDES = {
     <h2 ${hid("A new share's price that day")}>A new share’s price that day</h2><p>With cash and shares, the cash is a gain only as far as the gain goes (IRC §356), and the acquirer’s price that day tells the gain.</p>`,
   editTx: `<h1>Transaction</h1><p>A transaction as you see it; the bank’s own text stays beside what you change.</p>
     <h2 ${hid('Account')}>Account</h2><p>The account it belongs to. Only an account you keep by hand takes one typed in; the others fill from their imports.</p>
-    <h2 ${hid('Date')}>Date</h2><p>The day it posted, as the bank wrote it. Type it as <code>10/3/2026</code>, <code>10/3</code> (this year), <code>oct 3</code>, <code>today</code>, <code>yesterday</code> or <code>tomorrow</code>, or press ↓ for the calendar.</p>
+    <h2 ${hid('Date')}>Date</h2><p>The day it posted, as the bank wrote it. Type it as <code>10/3/2026</code>, <code>10/3</code> (this year), <code>oct 3</code>, <code>today</code>, <code>yesterday</code> or <code>tomorrow</code>, or press ↓ for the calendar. In a loan’s account, a payment or a draw is dated on or after the day the loan started: an earlier one is refused.</p>
     <h2 ${hid('Amount')}>Amount</h2><p>Money in is positive, money out negative. It is typed from the cents, as a cash register takes it: <code>4250</code> is $42.50, and <code>-</code> makes it money out.</p>
     <h2 ${hid('Payee')}>Payee</h2><p>Who it was paid to or came from, as you want it shown. The bank’s text is kept, and your rules match on it.</p>
     <h2 ${hid('Category')}>Category</h2><p>Where the money went, for budgets and taxes. <b>New category…</b>, at the end of the list, opens <b>New Category</b> over this dialog; the one it makes is chosen here, and everyone sees it: the household has one tree of categories.</p>

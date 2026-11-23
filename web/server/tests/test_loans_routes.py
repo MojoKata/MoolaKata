@@ -416,7 +416,7 @@ NO_ITEM = _problem("securedById", "not-found", "No such item.")
 
 
 def test_a_loan_is_secured_only_by_a_live_item(book):
-    # S1.9.5: what secures a loan is a property or vehicle that is there: an unknown id and a
+    # S1.9.5: what secures a loan is an item that is there: an unknown id and a
     # deleted item are both refused at the field. Unscoped, the deleted item is still read, so
     # the check itself is what refuses it.
     s, uid = book
