@@ -616,3 +616,65 @@ others. No test was dropped as failing in the copy.
    (`_7`, `_12`) are killed by a loan with a reset and a recast. Only the fallback text can't
    matter. Removing `or "[]"` would match `loans.terms_of`.
 3. The plan-saved test snapshots Activity after john signs in, since a sign-in is logged too.
+
+## Batch 12
+
+File: `web/server/tests/test_assets_edges.py` (new; 15 tests, each under 0.6 s and most under
+0.1 s but the first's session setup; plain values for `_outside`, `years_lived_in`,
+`five_years_before`, `_period_out` and `_values`, rows in the unscoped session with a stand-in
+ctx (`NS(s=..., notes={})`) for `periods_of`, `series`, `_secured`, `_periods_owned` and
+`_period_owned`, and the save for `_item_update`'s two checks).
+
+Counts (56): killed 33, bug 0, equivalent 18, remove 5, slow 0, process only 0, still left 0.
+
+### Equivalent
+
+- `moolakata.assets.x_periods_of__mutmut_4`: `order_by(fromDate, None)`: ResidencePeriod is a WITHOUT ROWID table, read by `ix_ResidencePeriod_item` (itemId, fromDate), whose entries end in the key: a tie on the start comes in id order unasked (the test inserts them the other way round).
+- `moolakata.assets.x_periods_of__mutmut_6`: `order_by(fromDate, )`: the same.
+- `moolakata.assets.x_periods_of__mutmut_10`: `ResidencePeriod.deleted == false()`, a filter the access view also applies.
+- `moolakata.assets.x_years_lived_in__mutmut_26`: `hi >= lo` adds nothing when they are equal and moves `edge` to `lo`, which no later period (sorted by start) reads differently: its own `max(fromDate, edge)` is the same.
+- `moolakata.assets.x_basis__mutmut_7`: `sum(…)` with no `ZERO` start is added to `costBasis`, a Decimal: Decimal + 0 is the same Decimal.
+- `moolakata.assets.x_metals__mutmut_24`: `held` is never empty there (`continue` above), so the sum of Decimals is a Decimal with or without the start.
+- `moolakata.assets.x_metals__mutmut_30`: the same.
+- `moolakata.assets.x_metals__mutmut_41`: the same.
+- `moolakata.ui.items.x__secured__mutmut_5`: `order_by(None)`: Loan is a WITHOUT ROWID table with no index on `securedById`, scanned by its key, so its rows come in id order unasked (the test gives the accounts' ids the other way round).
+- `moolakata.ui.items.x__secured__mutmut_9`: `Account.deleted == false()`, a filter the access view also applies.
+- `moolakata.ui.items.x__secured__mutmut_11`: `join(Account, None)`: Loan's one foreign key to Account (`accountId`) is the join SQLAlchemy infers.
+- `moolakata.ui.items.x__secured__mutmut_13`: `join(Account, )`: the same.
+- `moolakata.ui.items.x_view__mutmut_15`: `spots(…, None)`: `valuation.prices` reads a day of None as `clock.today()`, the day `view` took.
+- `moolakata.ui.items.x_detail__mutmut_11`: the same, in `detail`.
+- `moolakata.ui.items.x__item_current__mutmut_7`: purity "None" for an item with none: only a spot item has a purity, and `_values` parses it only for spot; switched to spot without one, "None" and None are both refused at `purity` in the same words.
+- `moolakata.ui.items.x__touched__mutmut_1`: `_touched` is the only reader and writer of its note, so any key no other note uses (None) is the same set.
+- `moolakata.ui.items.x__touched__mutmut_5`: the same ("XXperiods-touchedXX").
+- `moolakata.ui.items.x__touched__mutmut_6`: the same ("PERIODS-TOUCHED").
+
+### Remove
+
+- `moolakata.ui.items.x__period_out__mutmut_14`: the `""` default of `names.get(p.personId, "")` is never taken: every period's person is a row (its foreign key, cascading), and `people.names` reads every row, deleted or not, unscoped. `names[p.personId]` would do.
+- `moolakata.ui.items.x__period_out__mutmut_16`: the same.
+- `moolakata.ui.items.x__period_out__mutmut_17`: the same.
+- `moolakata.ui.items.x__period_owned__mutmut_8`: `p is not None and not p.deleted` can't matter: the period whose op asked is always there and live once the save is in (made or changed by that op, one change per record, and a delete never asks). `it = ctx.s.get(Item, p.itemId)` would do.
+- `moolakata.ui.items.x__period_owned__mutmut_13`: the same.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/assets/__init__.py moolakata/ui/items.py` on `batch-12.names`
+(with `_outside`, `_periods_owned` and `_period_owned` whole at the head), with
+`tests/test_assets_edges.py` added (log `web/.dev/relay-h19/batch-12.log`, exit 0): assets 6
+killed, 8 survived; ui/items 128 killed, 15 survived. The 23 left are the 23 listed above and
+no others; of the three functions run whole, only `_period_owned_8` and `_13` survived, with
+the same diffs as their names in `batch-12.txt`. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. `periods_of_4`/`_6` and `_secured_5` are equivalents in SQLite only: they rest on
+   WITHOUT ROWID tables reading in key order. The order is kept in the code, stated.
+2. `series_52` (an empty sum with no `ZERO` start) is killed reading R1.9 as batch 4 did: an
+   account with no items is worth `Decimal(0)` each day, not int 0, pinned with `type(v) is D`.
+   If R1.9 is read as the API's output only, it is an equivalent.
+3. `_period_out_14`/`_16`/`_17` and `_period_owned_8`/`_13` are listed as Remove (a default and
+   a guard no save reaches), not killed by a direct call with a missing person or period.
+4. `_item_update_36` and `_52` (a check's key dropped) are killed through the save: two homes'
+   dates changed in one save, and two people's open periods in one home whose sale moves, where
+   the second check was the one that refused. The second test sorts the two person ids so the
+   one checked second is the one whose period overlaps.
