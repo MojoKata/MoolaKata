@@ -679,3 +679,13 @@ def test_a_row_of_nothing_is_no_payment(book):
     pays = L.history(s, a, d(2026, 10, 13))[0]
     assert [p.date.month for p in pays if p.assumed] == list(range(2, 11))
     assert all(p.transactionId is None for p in pays)
+
+
+def test_a_first_payment_short_of_the_interest_leaves_the_days_principal_as_scheduled():
+    """S1.9.3: Feb 1 is due 1,500 of interest and 298.65 of principal; 2,298.65 paid toward it
+    overpays 500 however it is split up."""
+    t = _mortgage()
+    for first, second in ((D(1500), D("798.65")), (D(1000), D("1298.65"))):
+        rec = [(d(2026, 2, 1), first, None), (d(2026, 2, 1), second, None)]
+        out = L.settle(t, rec, [], d(2026, 2, 10), None)
+        assert [p.overpayment for p in out] == [0, D(500)]

@@ -435,6 +435,7 @@ class _Walker:
         self.levels: dict[dt.date, Decimal] = {}
         self.days: dict[int, _Day] = {}
         self.paid = ZERO  # principal paid so far
+        self.last = t.start  # the last payment's day, which daily interest accrues from
         # The days paid or settled (before `settled`), and the oldest not paid (`_days_paid`).
         self.covered: set[int] = set()
         k = 1
@@ -472,10 +473,14 @@ class _Walker:
         k, owed, before, pi = self.look(p)
         d = self.days.get(k)
         if d is None:
-            interest = (
-                p.interest if t.method == "daily" else cents(owed * t.rate_on(p.date) / 100 / 12)
-            )
-            sched = _scheduled_principal(t, owed, p.interest, p.date, pi)
+            # The day's interest as due, not what its first payment paid of it: a first payment
+            # short of it leaves the day's principal as scheduled (S1.9.3).
+            rate = t.rate_on(p.date) / 100
+            if t.method == "daily":
+                interest = cents(owed * rate * (p.date - self.last).days / 365)
+            else:
+                interest = cents(owed * rate / 12)
+            sched = _scheduled_principal(t, owed, interest, p.date, pi)
             d = self.days[k] = _Day(owed, interest, t.pmi_due(owed), sched)
         d.paidInterest += p.interest
         d.paidTax += p.escrowTax
@@ -483,6 +488,7 @@ class _Walker:
         d.paidPmi += p.pmi
         d.paidPrincipal += p.principal
         self.paid += p.principal
+        self.last = p.date
         self.covered.add(k)
         while self.low in self.covered:
             self.low += 1
