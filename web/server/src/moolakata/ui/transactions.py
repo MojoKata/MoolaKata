@@ -10,7 +10,7 @@ from pydantic import Field
 from sqlalchemy import false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
-from .. import access, activity, clock, ids, reimbursements, tags, washes
+from .. import access, activity, clock, ids, loans, reimbursements, tags, washes
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import lots
@@ -1283,6 +1283,26 @@ def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
     if body.transferWithId:
         _transfer_with(ctx, t, body.transferWithId)
     _parts_add_up(ctx, t)
+    _within_loan(ctx, t)
+
+
+def _within_loan(ctx, t: Transaction) -> None:
+    """Once every op is in: a loan's payment or draw dated before the loan starts is a date
+    mistyped, refused rather than read as anything (S1.9.3)."""
+
+    def check() -> None:
+        a = ctx.s.get(Account, t.accountId)
+        row = loans.loan_of(ctx.s, a) if a is not None and loans.is_loan(a.type) else None
+        if row is None or t.deleted or t.amount == 0 or t.date >= row.startDate:
+            return
+        what = "payment" if t.amount > 0 else "draw"
+        raise refuse(
+            "date",
+            "date-before-loan",
+            f"A loan's {what} can't be dated before it starts ({row.startDate:%b %-d, %Y}).",
+        )
+
+    ctx.verify(f"within-loan:{t.id}", check)
 
 
 def _transfer_with(ctx, t: Transaction, other_id: str) -> None:
@@ -1381,6 +1401,8 @@ def _txn_update(ctx, t: Transaction, body: TxnRecord) -> None:
     if "leftOutOf" in sent:
         _set_left_out(ctx.s, ctx.caller, t, current["leftOutOf"], body.leftOutOf)
     _parts_add_up(ctx, t)
+    if "date" in sent or "amount" in sent:
+        _within_loan(ctx, t)
 
 
 def _txn_delete(ctx, t: Transaction) -> None:

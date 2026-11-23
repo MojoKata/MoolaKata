@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import loan_payment, make, saved, share, terms
+from edits import change, loan_payment, make, saved, share, terms
 from sqlalchemy import select
 from test_accounts import add, logged, new_account
 
@@ -775,8 +775,9 @@ def test_a_plans_refusals_answer_with_the_first_ones_code_and_words():
 
 
 def _ctx(s, uid):
-    # A draft's handlers read only the session and the caller.
-    return type("Ctx", (), {"s": s, "caller": _caller(uid)})()
+    # A draft's handlers read only the session and the caller; with one op, a check run once
+    # every op is in runs at once.
+    return type("Ctx", (), {"s": s, "caller": _caller(uid), "verify": lambda _, k, fn: fn()})()
 
 
 def _plan_row(s, a, inputs="{}", following=False, since=None, deleted=False) -> PayoffPlan:
@@ -1097,3 +1098,39 @@ def test_a_saved_plan_stays_with_its_loan_and_a_change_is_checked_and_stamped(bo
         T0,
     )
     assert exactjson.loads(p.inputs)["monthly"] == D(300)
+
+
+# ui.transactions._within_loan, ui.loans._start_fits
+
+
+def _refused_at(r) -> tuple[int, list]:
+    return r.status_code, [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def test_a_loans_payment_or_draw_dated_before_it_starts_is_refused_at_its_date(server, frozen):
+    """S1.9.3: a payment or draw dated before the loan starts is a date mistyped, refused at
+    its date in its words; one on the start day, and a row of nothing before it, are kept."""
+    c, bank, loan = _mortgage_and_checking(server)
+    words = "A loan's {} can't be dated before it starts (Jan 1, 2026)."
+    r = loan_payment(c, loan["id"], "2025-12-31", "500.00", from_account=bank["id"])
+    assert _refused_at(r) == (422, [("date", "date-before-loan", words.format("payment"))])
+    r = make(c, "Txn", accountId=loan["id"], date="2025-12-31", amount="-25.00", payee="Fee")
+    assert _refused_at(r) == (422, [("date", "date-before-loan", words.format("draw"))])
+    assert loan_payment(c, loan["id"], "2026-01-01", "500.00").status_code == 200
+    add(c, loan["id"], "0.00", "2025-12-01", payee="Statement")
+    # A payment kept, moved to before the start, is refused the same way.
+    t = add(c, loan["id"], "100.00", "2026-01-10", payee="Extra")
+    r = change(c, "Txn", t, date="2025-12-20")
+    assert _refused_at(r) == (422, [("date", "date-before-loan", words.format("payment"))])
+
+
+def test_a_loan_starting_after_its_first_payment_or_draw_is_refused_at_its_start(server, frozen):
+    """S1.9.3: the terms' start can't move past a payment or draw already recorded, refused at
+    the start naming its day; a row of nothing is no payment."""
+    c, _, loan = _mortgage_and_checking(server)
+    add(c, loan["id"], "0.00", "2026-01-05", payee="Statement")
+    add(c, loan["id"], "-25.00", "2026-01-10", payee="Fee")
+    assert terms(c, loan["id"], startDate="2026-01-10").status_code == 200
+    r = terms(c, loan["id"], startDate="2026-01-11")
+    words = "A payment or draw is dated before this start (Jan 10, 2026)."
+    assert _refused_at(r) == (422, [("startDate", "start-after-payment", words)])

@@ -964,12 +964,38 @@ def _loan_account(ctx, account_id: str) -> Account:
     return _account(ctx.s, ctx.caller, account_id, "write")[0]
 
 
+def _start_fits(ctx, row: Loan) -> None:
+    """Once every op is in: the loan starts on or before its first payment or draw (S1.9.3), a
+    start after one refused at the start, naming that day."""
+
+    def check() -> None:
+        first = ctx.s.scalars(
+            select(Transaction.date)
+            .where(
+                Transaction.accountId == row.accountId,
+                Transaction.deleted == false(),
+                Transaction.amount != 0,
+            )
+            .order_by(Transaction.date)
+        ).first()
+        if first is not None and first < row.startDate:
+            raise refuse(
+                "startDate",
+                "start-after-payment",
+                f"A payment or draw is dated before this start ({first:%b %-d, %Y}).",
+            )
+
+    ctx.verify(f"start-fits:{row.accountId}", check)
+
+
 def _loan_create(ctx, record_id: str, body: LoanRecord) -> None:
     a = _loan_account(ctx, body.accountId)
     if loans.loan_of(ctx.s, a) is not None:
         raise refuse("accountId", "loan-exists", "This loan has its terms; change them.", 409)
-    ctx.s.add(Loan(id=record_id, accountId=a.id, **_terms(ctx.s, ctx.caller, a, body)))
+    row = Loan(id=record_id, accountId=a.id, **_terms(ctx.s, ctx.caller, a, body))
+    ctx.s.add(row)
     _changed_terms(ctx.s, ctx.caller, a)
+    _start_fits(ctx, row)
 
 
 def _loan_editable(ctx, record_id: str) -> Loan:
@@ -997,6 +1023,7 @@ def _loan_update(ctx, row: Loan, body: LoanRecord) -> None:
         setattr(row, k, v)
     row.updatedAt = clock.now()
     _changed_terms(ctx.s, ctx.caller, a)
+    _start_fits(ctx, row)
 
 
 def _loan_delete(ctx, row: Loan) -> None:
