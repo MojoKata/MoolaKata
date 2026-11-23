@@ -700,3 +700,32 @@ def test_a_second_payment_toward_a_day_ahead_is_an_overpayment_in_the_schedule_t
     rows = L.schedule(t, rec, [], d(2026, 2, 10), mode="recorded")
     assert [r.status for r in rows if r.past] == ["assumed", "assumed", "paid", "paid"]
     assert [r.overpayment for r in rows if r.status == "paid"] == [0, D(500)]
+
+
+def test_ahead_the_balance_counts_a_payment_dated_ahead_whose_day_it_paid():
+    """S1.9.2: the first row ahead starts from what the last day paid left, a payment dated
+    after today counted: Mar 1 leaves 299,401.21, so Apr 1 pays 301.64 and leaves 299,099.57."""
+    t = _mortgage()
+    rows = L.schedule(t, [(d(2026, 3, 1), L.scheduled_payment(t), "a")], [], d(2026, 2, 10))
+    mar, apr = rows[1:3]
+    assert (mar.past, apr.past) == (True, False)
+    assert (apr.principal, apr.balance) == (D("301.64"), D("299099.57"))
+
+
+def test_ahead_a_day_in_its_grace_that_re_levels_has_the_level_its_payment_is_split_by():
+    """S1.9.2: a day that works the level out again levels the balance then owed. Apr 1, in its
+    grace on Apr 10, levels the 10,611.14 owed on Mar 31 over 22 payments; the 5,000 drawn on
+    Apr 3 is owed with its interest, and levelled from May 1, the next such day. The row is the
+    split of its payment made now."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
+    level = L.level_payment(D(10000), D(12), 23)
+    draws = [(d(2026, 2, 10), D(10000)), (d(2026, 3, 20), D(1000)), (d(2026, 4, 3), D(5000))]
+    recorded = [(d(2026, 3, 1), level, "a")]
+    rows = L.schedule(t, recorded, draws, d(2026, 4, 10), mode="recorded")
+    apr, may = [r for r in rows if not r.past][:2]
+    assert apr.date == d(2026, 4, 1)
+    assert apr.principal + apr.interest == L.level_payment(D("10611.14"), D(12), 22)
+    paid = L.settle(t, recorded, draws, d(2026, 4, 10), None, True)
+    split = L.split_for(t, paid, draws, d(2026, 4, 12), apr.payment, True)
+    assert (split.interest, split.principal, split.overpayment) == (apr.interest, apr.principal, 0)
+    assert may.principal + may.interest == L.level_payment(apr.balance, D(12), 21)

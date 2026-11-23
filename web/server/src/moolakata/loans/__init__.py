@@ -791,19 +791,20 @@ def schedule(
     if catch_up:
         rows += _missed(t, payments, draws, paid, k)
         rows.sort(key=lambda r: r.date)
-    owed = balance_on(t, payments, draws, today)
+    # Ahead, from what is owed today, as a payment made then would be split (`split_for`):
+    # every payment counted, each paying a day before the first ahead, dated after today or not.
+    owed = balance_on(t, payments, [(x, amt) for x, amt in draws if x <= today])
     previous = max((r.date for r in rows if r.date < day), default=t.start)
     # The payment stays level between the days that change it: a recast, a rate reset, or a
-    # HELOC's draw period ending (`_level_on`, as the rows passed have it). Overpayments in
-    # between shorten the loan.
+    # HELOC's draw period ending (`_level_on`, as the rows passed have it), each levelling what
+    # was owed the day before it (S1.9.2), the first day ahead too: a draw since, in its grace,
+    # waits for the next such day. Overpayments in between shorten the loan.
     effects = set(_effects(t, draws))
     pi = _level_on(
         t,
         day,
-        lambda e: (
-            owed
-            if e >= day
-            else balance_on(t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1))
+        lambda e: balance_on(
+            t, [p for p in payments if p.date < e], draws, e - dt.timedelta(days=1)
         ),
         draws,
     )
