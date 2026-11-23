@@ -138,6 +138,15 @@ class GiftYear:
     fromElection: int | None  # the year of the five-year election this comes from
 
 
+def counted_years(s: Session, r: ContributionRow) -> dict[int, Decimal]:
+    """What one contribution counts against the annual gift exclusion, by year: all of it in
+    its year, or a five-year election a fifth in its year and each of the next four (S1.8.2).
+    Gift spending's Form 709 flag counts 529s by it too (S7.8.7)."""
+    if r.fiveYear:
+        return {r.date.year + k: (r.amount / 5).quantize(Decimal("0.01")) for k in range(5)}
+    return {r.date.year: r.amount}
+
+
 def gift_years(s: Session, rows: list[ContributionRow]) -> list[GiftYear]:
     """Per contributor per year, what counts against the annual gift exclusion: a five-year
     election counts a fifth in its year and each of the next four (S1.8.2). The owner's own
@@ -148,14 +157,10 @@ def gift_years(s: Session, rows: list[ContributionRow]) -> list[GiftYear]:
     election: dict[tuple[str, int], int] = {}
     for r in rows:
         names[r.contributor] = r.name
-        if r.fiveYear:
-            for k in range(5):
-                counted[(r.contributor, r.date.year + k)] += (r.amount / 5).quantize(
-                    Decimal("0.01")
-                )
-                election[(r.contributor, r.date.year + k)] = r.date.year
-        else:
-            counted[(r.contributor, r.date.year)] += r.amount
+        for y, amount in counted_years(s, r).items():
+            counted[(r.contributor, y)] += amount
+            if r.fiveYear:
+                election[(r.contributor, y)] = r.date.year
     out = []
     for (who, year), amount in sorted(counted.items(), key=lambda x: (-x[0][1], x[0][0])):
         limit = Decimal(str(taxtables.figures(s, year)["giftExclusion"]))

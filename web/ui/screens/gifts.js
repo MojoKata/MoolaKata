@@ -255,9 +255,7 @@ function GiftList() {
                     <td style=${{ whiteSpace: 'nowrap' }}>${g.status === 'received'
                       ? 'From '
                       : ''}${g
-                      .people.map((/** @type {any} */ p) =>
-                        p.deleted ? `${p.name} (deleted)` : p.name
-                      ).join(', ')}</td>
+                      .people.map(named).join(', ')}</td>
                     <td class="small" style=${{ whiteSpace: 'nowrap' }}>${g
                       .occasionLabel}${g.occasionYear ? ` ${g.occasionYear}` : ''}</td>
                     <td>${g.description}${g.status === 'received' && g.thankYou
@@ -291,6 +289,10 @@ function GiftList() {
   `;
 }
 
+/** A person by name, a deleted one as *Lisa (deleted)* (S7.8.6). */
+const named = (/** @type {{ name: string, deleted?: boolean }} */ p) =>
+  p.deleted ? `${p.name} (deleted)` : p.name;
+
 function Spending() {
   const fmt = useFormats();
   const now = fmt.thisYear();
@@ -307,7 +309,7 @@ function Spending() {
     </div>
     ${v.flagged.length
       ? v.flagged.map((/** @type {any} */ f) =>
-        html`<${Attention} icon=${html`<${Icon} name="alert" />`}>${f.person.name}: <${Amt}
+        html`<${Attention} icon=${html`<${Icon} name="alert" />`}>${named(f.person)}: <${Amt}
           v=${f.given} cents=${false} /> given in ${v.year}, above the <${Amt} v=${f.exclusion}
           cents=${false} /> exclusion · Form 709</${Attention}>`
       )
@@ -318,7 +320,7 @@ function Spending() {
           const share = p.budget ? Math.min(100, (num(p.spent) / num(p.budget)) * 100) : 0;
           return html`
             <div class="list-item">
-              <div class="grow">${p.person.name}${p.budget
+              <div class="grow">${named(p.person)}${p.budget
                 ? html`<div class="bar" style=${{ marginTop: '6px' }}><i style=${{
                   width: `${share}%`,
                 }}></i></div>`

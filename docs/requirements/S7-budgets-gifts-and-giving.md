@@ -254,8 +254,8 @@
       whom it came from, its occasion what it was for, and it has a **thank-you sent** tick,
       which no other status has.
    4. **History**: per person, what was given in past years (so it isn't given twice) and
-      the spending per year against their budget. Per year: gift spending by person and by
-      occasion. Gift transactions are categorised *Gifts* in budgets (S7.2).
+      the spending per year against their budget (S7.7.1). Per year: gift spending by person,
+      everyone it was spent on with a row, and by occasion. Gift transactions are categorised *Gifts* in budgets (S7.2).
    5. **Privacy**: gift plans and gifts are their owner's alone. A user may share a gift
       plan (with its gifts) with another user or group, read or write, so a couple plans
       their children's gifts together. A gift for a person who is a user is **never shown

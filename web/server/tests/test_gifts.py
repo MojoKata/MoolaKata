@@ -201,6 +201,37 @@ def test_deleting_a_person_keeps_what_was_given_by_name(jane):
     assert [x["personId"] for x in plans] == [lisa["id"]]
 
 
+def test_spending_by_person_keeps_a_deleted_person_and_a_plan_budgeted_per_occasion(jane):
+    """S7.8.4, S7.8.6, S7.7.1: by person adds up with by year: a deleted person keeps a row,
+    named as deleted, as does one whose plan is gone; a plan budgeted per occasion is
+    compared with its occasions' budgets together. Money given above the exclusion to a
+    deleted person is still flagged."""
+    christmas = {"kind": "holiday", "holiday": "christmas", "budget": "100"}
+    lisa = person(jane, birthMonth=10, birthDay=20, birthdayBudget="50", occasions=[christmas])
+    sam = person(jane, name="Sam Lee", sex="male")
+    leo = person(jane, name="Leo Doe", sex="male")
+    for who, cost in ((lisa, "30"), (sam, "20"), (leo, "15")):
+        gift(jane, people=[who["id"]], description="Book", status="given", cost=cost,
+             occasion="birthday", occasionYear=2026)  # fmt: skip
+    gift(jane, people=[sam["id"]], description="Cash", status="given", cash=True, cost="20000",
+         occasion="birthday", occasionYear=2026)  # fmt: skip
+    r = remove(jane, "Persn", jane.get(f"/ui/api/persons/{sam['id']}").json())
+    assert r.status_code == 200, r.text
+    r = remove(jane, "GfPln", jane.get(f"/ui/api/gift-plans/{leo['plan']['id']}").json())
+    assert r.status_code == 200, r.text
+    sp = jane.get("/ui/api/gifts/spending?year=2026").json()
+    assert [(x["person"]["name"], x["person"]["deleted"], x["spent"], x["budget"])
+            for x in sp["byPerson"]] == [
+        ("Leo Doe", False, "15.00", None),
+        ("Lisa Doe", False, "30.00", "150.00"),
+        ("Sam Lee", True, "20020.00", None),
+    ]  # fmt: skip
+    assert sp["byYear"] == [{"label": "2026", "amount": "20065.00"}]
+    assert [(f["person"]["name"], f["person"]["deleted"]) for f in sp["flagged"]] == [
+        ("Sam Lee", True)
+    ]
+
+
 def test_a_linked_purchase_is_categorised_and_spending_is_summed(jane):
     lisa = person(jane, giftBudget="600")
     card = new_account(jane, name="Card", type="credit-card")

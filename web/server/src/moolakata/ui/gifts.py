@@ -700,13 +700,17 @@ def get_spending(request: Request, year: int | None = None, c: Caller = Depends(
         return SpendingOut(
             year=sp.year,
             byPerson=[
-                PersonSpend(person=PersonRef(id=p.id, name=p.name), spent=a, budget=b)
+                PersonSpend(
+                    person=PersonRef(id=p.id, name=p.name, deleted=p.deleted), spent=a, budget=b
+                )
                 for p, a, b in sp.byPerson
             ],
             byOccasion=[Amount(label=k, amount=v) for k, v in sp.byOccasion],
             byYear=[Amount(label=str(k), amount=v) for k, v in sp.byYear],
             flagged=[
-                Flag(person=PersonRef(id=p.id, name=p.name), given=a, exclusion=x)
+                Flag(
+                    person=PersonRef(id=p.id, name=p.name, deleted=p.deleted), given=a, exclusion=x
+                )
                 for p, a, x in sp.flagged
             ],
         )

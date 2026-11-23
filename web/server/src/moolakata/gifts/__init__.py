@@ -277,13 +277,32 @@ def gift_day(g: Gift, s: Session) -> int | None:
     return None
 
 
+@dataclass(frozen=True)
+class Named:
+    """A person a spending row names, deleted ones too (S7.8.6)."""
+
+    id: str
+    name: str
+    deleted: bool
+
+
 @dataclass
 class Spending:
     year: int
-    byPerson: list[tuple[Person, Decimal, Decimal | None]]  # spent, budget
+    byPerson: list[tuple[Named, Decimal, Decimal | None]]  # spent, budget
     byOccasion: list[tuple[str, Decimal]]
     byYear: list[tuple[int, Decimal]]
-    flagged: list[tuple[Person, Decimal, Decimal]]  # given in money above the exclusion
+    flagged: list[tuple[Named, Decimal, Decimal]]  # given in money above the exclusion
+
+
+def _named(s: Session, person_ids) -> dict[str, Named]:
+    """The people a reader's gifts and 529s name, by name, deleted ones too: read as the
+    server, since a record the reader sees names whoever it names (R3.14)."""
+    from ..store import scoping
+
+    q = select(Person.id, Person.name, Person.deletedAt).where(Person.id.in_(list(person_ids)))
+    rows = s.execute(scoping.unscoped(q, "the people a reader's gift spending names"))
+    return {r.id: Named(r.id, r.name, r.deletedAt is not None) for r in rows}
 
 
 def spending(s: Session, user_id: str, year: int) -> Spending:
@@ -335,23 +354,27 @@ def spending(s: Session, user_id: str, year: int) -> Spending:
             continue
         a = s.get(Account, plan.accountId)
         for r in education.contributions(s, a):
-            if r.contributor != "owner":
-                continue
-            if r.fiveYear and r.date.year <= year <= r.date.year + 4:
-                money[plan.beneficiaryId] += (r.amount / 5).quantize(Decimal("0.01"))
-            elif not r.fiveYear and r.date.year == year:
-                money[plan.beneficiaryId] += r.amount
+            if r.contributor == "owner":
+                money[plan.beneficiaryId] += education.counted_years(s, r).get(year, ZERO)
     limit = Decimal(str(taxtables.figures(s, year)["giftExclusion"]))
+    # A row for everyone the year's spending names, so by person adds up with by year: a
+    # deleted person, or one whose plan is gone, keeps theirs with no budget (S7.8.6).
+    whom = (set(plans) | set(by_person)) - ({me.personId} if me is not None else set())
+    named = _named(s, whom | set(money))
+    occs = occasions_of(s, [x.plan.id for x in plans.values()])
+    budget = {
+        pid: year_budget(x.plan, x.person, occs[x.plan.id], year, wedding_of(s, pid))
+        for pid, x in plans.items()
+    }
     return Spending(
         year=year,
-        byPerson=[
-            (x.person, by_person.get(pid, ZERO), x.plan.giftBudget)
-            for pid, x in plans.items()
-            if me is None or pid != me.personId
-        ],
+        byPerson=sorted(
+            ((named[pid], by_person.get(pid, ZERO), budget.get(pid)) for pid in whom),
+            key=lambda x: (x[0].name, x[0].id),
+        ),
         byOccasion=sorted(by_occasion.items(), key=lambda x: -x[1]),
         byYear=sorted(by_year.items()),
-        flagged=[(s.get(Person, pid), amt, limit) for pid, amt in money.items() if amt > limit],
+        flagged=[(named[pid], amt, limit) for pid, amt in money.items() if amt > limit],
     )
 
 
