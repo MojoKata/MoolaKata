@@ -8,7 +8,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make, sell
+from edits import make, new_id, sell, share
 from sqlalchemy import select
 from test_accounts import new_account
 
@@ -353,3 +353,183 @@ def test_a_period_on_a_home_deleted_in_the_same_save_is_not_checked(book):
     s.flush()
     UI._period_owned(NS(s=s, notes={}), p.id)
     assert s.get(ResidencePeriod, p.id).fromDate == d(2015, 2, 1)
+
+
+# ui.items._person_alone, _period_checked, _period_create, _period_update
+
+
+@pytest.fixture
+def jane_book(server, frozen):
+    """An unscoped session as `book`'s, with Jane, a user who isn't an admin, made first: the
+    first admin's id and hers."""
+    jane_id = make_user(server, "jane").id
+    with server.db.tx(unscoped="test") as s:
+        yield s, s.scalars(select(User.id).where(User.id != jane_id)).first(), jane_id
+        s.rollback()
+
+
+def _checked(s, caller_id, home, who, start, end=None):
+    """A period's own checks, as a save's op runs them, for the caller."""
+    ctx = NS(s=s, caller=NS(id=caller_id), notes={}, verify=lambda key, fn: None)
+    body = UI.PeriodRecord(itemId=home.id, personId=who.id, fromDate=start, toDate=end)
+    return UI._period_checked(ctx, body, ids.new_id("RsPrd"))
+
+
+def test_only_live_periods_on_live_homes_hold_a_persons_main_home(book):
+    """S1.10.4: one main home at a time counts the periods kept: one deleted, or on a home
+    deleted, overlaps nothing."""
+    s, uid = book
+    a = _account(s, uid)
+    elm, oak = _home(s, a), _home(s, a, name="Oak St")
+    ann = _person(s, uid)
+    _lived(s, elm, ann, d(2015, 6, 1))
+    gone = _lived(s, oak, ann, d(2016, 1, 1))
+    ctx = NS(s=s, notes={})
+    why = "Ann Doe's main home then was Oak St (from Jan 1, 2016)."
+    assert _raised(lambda: UI._person_alone(ctx, ann.id)) == (
+        422, "periods-overlap", why, [("fromDate", "periods-overlap", why)]
+    )  # fmt: skip
+    gone.mark_deleted(None)
+    s.flush()
+    UI._person_alone(ctx, ann.id)
+    gone.restore()
+    oak.mark_deleted(None)
+    s.flush()
+    UI._person_alone(ctx, ann.id)
+
+
+def test_a_persons_overlap_is_found_past_periods_that_dont(book):
+    """S1.10.4: every period is checked against the next, so two that overlap are refused
+    though an earlier pair is apart."""
+    s, uid = book
+    a = _account(s, uid)
+    elm, oak = _home(s, a), _home(s, a, name="Oak St")
+    ann = _person(s, uid)
+    _lived(s, elm, ann, d(2015, 6, 1), d(2015, 12, 31))
+    _lived(s, elm, ann, d(2017, 1, 1), d(2018, 12, 31))
+    _lived(s, oak, ann, d(2018, 6, 1))
+    why = "Ann Doe's main home then was Oak St (from Jun 1, 2018)."
+    assert _raised(lambda: UI._person_alone(NS(s=s, notes={}), ann.id))[3] == [
+        ("fromDate", "periods-overlap", why)
+    ]
+
+
+def test_a_period_is_only_for_a_home_refused_at_its_home_in_its_words(book):
+    """S1.10.4, R3.7: residence periods are a home's; on another item, refused at the item."""
+    s, uid = book
+    cup = _home(s, _account(s, uid, type="collectables", name="Coll"), name="Cup")
+    why = "Only for a home."
+    assert _raised(lambda: _checked(s, uid, cup, _person(s, uid), d(2016, 1, 1))) == (
+        422, "not-a-home", why, [("itemId", "not-a-home", why)]
+    )  # fmt: skip
+
+
+def test_a_period_is_for_one_of_the_households_people_the_saver_reads(jane_book):
+    """S1.10.4, R3.7: a period's person is one the saver reads; one kept private by another
+    user, or deleted, is refused at the person in its words, whatever the session shows."""
+    s, admin, jane = jane_book
+    home = _home(s, _account(s, jane))
+    ann = _person(s, jane)
+    hidden = Person(id=ids.new_id("Persn"), name="Bob Doe", sex="male", ownerId=admin,
+                    private=True)  # fmt: skip
+    gone = _person(s, jane, "Cy Doe")
+    gone.mark_deleted(None)
+    s.add(hidden)
+    s.flush()
+    why = "One of the household's people."
+    for who in (hidden, gone):
+        assert _raised(lambda who=who: _checked(s, jane, home, who, d(2016, 1, 1))) == (
+            422, "person-invalid", why, [("personId", "person-invalid", why)]
+        )  # fmt: skip
+    assert _checked(s, jane, home, ann, d(2016, 1, 1)) is home
+
+
+def test_a_period_runs_from_a_day_not_ahead_to_one_not_before_it_nor_ahead(book):
+    """S1.10.4, R3.7: a period may start and end today, on one day; one starting ahead, ending
+    before it starts or ending ahead is refused at that date in its words, all at once."""
+    s, uid = book
+    home, ann = _home(s, _account(s, uid)), _person(s, uid)
+    today = clock.today()
+    later = today + dt.timedelta(days=1)
+    assert _checked(s, uid, home, ann, today, today) is home
+    ahead = ("fromDate", "date-ahead", "Not after today.")
+    before = ("toDate", "dates-invalid", "On or after the day it began.")
+    ends_ahead = ("toDate", "date-ahead", "Not after today.")
+    assert _raised(lambda: _checked(s, uid, home, ann, later)) == (422, *ahead[1:], [ahead])
+    assert _raised(lambda: _checked(s, uid, home, ann, today, today - dt.timedelta(days=1))) == (
+        422, *before[1:], [before]
+    )  # fmt: skip
+    assert _raised(lambda: _checked(s, uid, home, ann, today, later)) == (
+        422, *ends_ahead[1:], [ends_ahead]
+    )  # fmt: skip
+    assert _raised(lambda: _checked(s, uid, home, ann, later, today))[3] == [ahead, before]
+
+
+def test_a_reader_of_a_homes_account_adds_no_period_to_it(server, jane):
+    """S1.10.4, S10.4: a period is a change to its home; one shared at Read can't make one.
+    The save refuses a reader at the item first, so the period's own check is called alone."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = _item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01")
+    john_id = make_user(server, "john").id
+    john = sign_in(server, "john")
+    assert share(jane, "account", homes["id"], users={john_id: "read"}).status_code == 200
+    me = _me(john)
+    with server.db.read(unscoped="test") as s:
+        home, john_p = s.get(Item, elm["id"]), s.get(Person, me)
+        no = "You can read this account but not change it."
+        assert _raised(lambda: _checked(s, john_id, home, john_p, d(2016, 1, 1))) == (
+            403, "share-read-only", no, []
+        )  # fmt: skip
+
+
+def _creates(*fields) -> list[dict]:
+    """A create op for each period's fields, as one save's draft makes them."""
+    return [{"op": "create", "entity": "RsPrd", "id": new_id("RsPrd"), "fields": f} for f in fields]
+
+
+def test_each_period_made_in_one_save_is_checked_against_its_own_home(jane):
+    """S1.10.4: two periods made in one save are each checked against their home's days
+    owned: the second's refused though the first's fit."""
+    me = _me(jane)
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = _item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01")
+    oak = _item(jane, homes["id"], name="Oak St", acquiredOn="2016-06-01")
+    ops = _creates(
+        {"itemId": elm["id"], "personId": me, "fromDate": "2015-06-01", "toDate": "2015-12-31"},
+        {"itemId": oak["id"], "personId": me, "fromDate": "2016-01-01"},
+    )
+    r = jane.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"], e["id"]) for e in r.json()["errors"]] == [
+        ("fromDate", "before-acquired", "On or after the day acquired.", ops[1]["id"])
+    ]
+
+
+def test_each_persons_periods_made_in_one_save_are_checked_against_their_others(jane):
+    """S1.10.4: two people's periods made in one save are each checked against that person's
+    other periods: the second person's refused though the first's fit."""
+    me = _me(jane)
+    ann = _made(make(jane, "Persn", name="Ann Doe", sex="female"))["id"]
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = _item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01")
+    oak = _item(jane, homes["id"], name="Oak St", acquiredOn="2015-01-01")
+    _period(jane, elm["id"], me, fromDate="2015-06-01")
+    ops = _creates(
+        {"itemId": elm["id"], "personId": ann, "fromDate": "2015-06-01"},
+        {"itemId": oak["id"], "personId": me, "fromDate": "2016-01-01"},
+    )
+    r = jane.post("/ui/api/save", json={"ops": ops})
+    assert r.status_code == 422, r.text
+    why = "Jane's main home then was Elm St (from Jun 1, 2015)."
+    assert [(e["field"], e["code"], e["message"], e["id"]) for e in r.json()["errors"]] == [
+        ("fromDate", "periods-overlap", why, ops[1]["id"])
+    ]
+
+
+def test_a_period_records_who_made_it(server, jane):
+    """S1.10.4: a residence period, like an item's other parts, keeps who made it."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    elm = _item(jane, homes["id"], name="Elm St", acquiredOn="2015-01-01")
+    p = _period(jane, elm["id"], _me(jane), fromDate="2016-01-01")
+    with server.db.read(unscoped="test") as s:
+        assert s.get(ResidencePeriod, p["id"]).createdById == s.get(Account, homes["id"]).ownerId

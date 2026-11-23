@@ -678,3 +678,55 @@ the same diffs as their names in `batch-12.txt`. No test was dropped as failing 
    dates changed in one save, and two people's open periods in one home whose sale moves, where
    the second check was the one that refused. The second test sorts the two person ids so the
    one checked second is the one whose period overlaps.
+
+## Batch 13
+
+File: `web/server/tests/test_assets_edges.py` (9 tests added, each under 0.6 s; rows in the
+unscoped session with a stand-in ctx for `_person_alone` and `_period_checked`, a new
+`jane_book` fixture for a caller who isn't an admin, and the save for the two keyed checks and
+who made a period).
+
+Counts (59): killed 47, bug 0, equivalent 7, remove 5, slow 0, process only 0, still left 0.
+
+The 14 `_period_update` survivors are killed by `test_assets.py`'s
+`test_a_residence_period_stays_with_its_home` (field, code and words), added after the
+baseline's commit; no second test was written for them.
+
+### Equivalent
+
+- `moolakata.ui.items.x__person_alone__mutmut_13`: `join(Item, None)`: ResidencePeriod's one foreign key to Item (`itemId`) is the join SQLAlchemy infers.
+- `moolakata.ui.items.x__person_alone__mutmut_15`: `join(Item, )`: the same.
+- `moolakata.ui.items.x__person_alone__mutmut_3`: `order_by(fromDate, None)`: the query is read by `ix_ResidencePeriod_person` (personId, fromDate) (EXPLAIN QUERY PLAN: `SEARCH r USING INDEX ix_ResidencePeriod_person`) on a WITHOUT ROWID table, whose entries end in the key: a tie on the start comes in id order unasked (tried with the periods inserted the other way round: not caught).
+- `moolakata.ui.items.x__person_alone__mutmut_5`: `order_by(fromDate, )`: the same.
+- `moolakata.ui.items.x__person_alone__mutmut_39`: the `unscoped` reason is read only for being there (`if state.execution_options.get("unscoped")`, scoping.py): any non-empty words are the same.
+- `moolakata.ui.items.x__person_alone__mutmut_40`: the same ("(s1.10.4)").
+- `moolakata.ui.items.x__person_alone__mutmut_41`: the same (upper case).
+
+### Remove
+
+- `moolakata.ui.items.x__person_alone__mutmut_59`: the `"This person"` default of `names.get(person_id, …)` is never taken: a refusal needs two of the person's periods, each a row whose person is a row (its foreign key, cascading; a period for a missing person is refused at `personId` before its check is asked for), and `people.names` reads every row, deleted or not, unscoped. `names[person_id]` would do.
+- `moolakata.ui.items.x__person_alone__mutmut_61`: the same.
+- `moolakata.ui.items.x__person_alone__mutmut_66`: the same.
+- `moolakata.ui.items.x__person_alone__mutmut_67`: the same.
+- `moolakata.ui.items.x__person_alone__mutmut_68`: the same.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/ui/items.py` on `batch-13.names`, with
+`tests/test_assets_edges.py` added (log `web/.dev/relay-h19/batch-13.log`, exit 0): 47 killed,
+12 survived, the 12 listed above and no others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. `_period_checked_5`/`_9` (`_item(…, "write")` asking for read): the save refuses a reader
+   at the item first (`share-read-only` at `itemId`, "this item"), so through the API the
+   check restates the save's. It is killed by a direct call with a reader of the shared
+   account, refused with no field in the account's words (403).
+2. `_period_checked_35` (`or` → `and`): through the API a person the saver doesn't read, or a
+   deleted one, isn't found in their session at all, so it is killed directly in an unscoped
+   session: a private person of another user, and a deleted one, both refused.
+3. `_person_alone_3`/`_5` are equivalents in SQLite only, as batch 12's: they rest on the
+   person index's entries ending in the key. The order is kept in the code, stated.
+4. The 14 `_period_update` survivors are counted as killed by the existing
+   `test_a_residence_period_stays_with_its_home` (test_assets.py, newer than the baseline),
+   with no new test in this batch's file.
