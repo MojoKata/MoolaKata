@@ -10,7 +10,10 @@
       shared with them too, so a budget never passes on an account someone else shared (R3.4).
       An account shared with the owner counts only while it is: once its share ends, it
       leaves every month of the budget, past ones included, its alerts and *Where the money
-      is*, on the next request (R3.4), and it counts again if it is shared again.
+      is*, on the next request (R3.4), and it counts again if it is shared again. An account
+      not shared with a receiver is never named to them, nor its id given: not as a card's
+      payment line, nor as where a reserve is held, which a `write` receiver's change to the
+      line keeps (S11.3.1).
    2. **The plan holds from a month on.** A change applies from the month it is made in,
       so past months keep the plan they had; a category taken out of the plan stops from
       that month. A plan line on a parent category counts its children that have no line of

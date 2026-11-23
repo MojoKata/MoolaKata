@@ -204,3 +204,53 @@ def test_turning_reserves_off_leaves_the_money_in_the_envelopes(server, frozen):
     assert edit(c, "Bdgt", path, True, reserves=False).status_code == 200
     r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
     assert (r["carried"], r["target"]) == ("100.00", None)
+
+
+def test_a_receiver_is_given_no_name_or_id_of_an_account_not_shared_with_them(server, frozen):
+    """S7.1.1, S11.3.1: Jane's budget counts her Chase Sapphire and holds a reserve in her Ally
+    Savings, neither shared with Bob, who reads the budget at write: his month and plan give
+    neither's name nor id, and his change to the reserve's line keeps where it is held."""
+    from edits import share
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    card = new_account(c, name="Chase Sapphire", type="credit-card", mask="1111")
+    ally = new_account(c, name="Ally Savings", type="savings", mask="2222")
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
+    assert budget_accounts(c, b, [chk["id"], card["id"], ally["id"]]).status_code == 200
+    reserves_on(c, b)
+    roof = cat["Housing › Maintenance"]
+    lines = [
+        {"categoryId": cat["Food"], "amount": "500.00"},
+        {"categoryId": roof, "amount": "150.00", "target": "5000", "heldInId": ally["id"]},
+    ]
+    assert put_plan(c, b, "2026-10-01", lines).status_code == 200
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    add(c, card["id"], "-150.00", "2026-10-04", payee="Whole Foods", categoryId=cat["Food"])
+    make_user(server, "bob")
+    bob = sign_in(server, "bob")
+    bob_id = bob.get("/ui/api/session").json()["user"]["id"]
+    share(c, "budget", b["id"], users={bob_id: "write"})
+    share(c, "account", chk["id"], users={bob_id: "read"})
+    assert row(month(c, b, "2026-10"), "Housing › Maintenance")["heldInId"] == ally["id"]
+    v = month(bob, b, "2026-10")
+    assert row(v, "Housing › Maintenance")["heldInId"] is None
+    plan_path = f"/ui/api/budgets/{b['id']}/plan"
+    theirs = bob.get(plan_path, params={"month": "2026-10"}).json()["lines"]
+    assert [x["heldInId"] for x in theirs] == [None, None]
+    where = bob.get(f"/ui/api/budgets/{b['id']}/where", params={"month": "2026-10"}).text
+    for hidden in (card, ally):
+        assert hidden["id"] not in str(v) + where
+        assert hidden["name"] not in str(v) + where
+    # Bob's draft sends only what he changed: the reserve stays held in Ally.
+    (mine,) = [x for x in theirs if x["categoryId"] == roof]
+    op = {"op": "update", "entity": "BdgLn", "id": mine["id"], "version": mine["version"],
+          "fields": {"amount": "175.00"}}  # fmt: skip
+    r = bob.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 200, r.text
+    lines = c.get(plan_path, params={"month": "2026-10"}).json()["lines"]
+    assert [(x["amount"], x["heldInId"]) for x in lines if x["categoryId"] == roof] == [
+        ("175.00", ally["id"])
+    ]

@@ -550,11 +550,13 @@ def budget_month(
         names = _names(
             s, c.id, {x.accountId for x in m.moved} | {x.otherAccountId for x in m.moved}
         )
+        seen = _seen(s, c.id, (r.heldInId for r in m.rows))
         return MonthView(
             month=m.month,
             rows=[
                 MonthRow(
-                    **{k: v for k, v in r.__dict__.items() if k != "projection"},
+                    **{k: v for k, v in r.__dict__.items() if k not in ("projection", "heldInId")},
+                    heldInId=r.heldInId if r.heldInId in seen else None,
                     projectionName=r.projection[0] if r.projection else None,
                     projectionMonthly=r.projection[1] if r.projection else None,
                 )
@@ -635,13 +637,21 @@ def _line_errors(s, b: Budget, ln, cats: dict, elsewhere: set, at: str = "") -> 
                 "A monthly line in a budget with reserves, aiming above zero.",
             )
         )
-    if ln.heldInId and ln.heldInId not in budgets.account_ids(s, b, None, ln.fromMonth):
+    if ln.heldInId and ln.heldInId not in _budget_accounts(s, b, ln.fromMonth):
         errors.append(
             FieldError(f"{at}heldInId", "account-unknown", "One of the budget's accounts.")
         )
     if ln.projectionId and not _projection_ok(s, b, ln.projectionId):
         errors.append(FieldError(f"{at}projectionId", "projection-unknown", "Choose a projection."))
     return errors
+
+
+def _budget_accounts(s, b: Budget, month: dt.date) -> list[str]:
+    """The accounts the budget counts in a month, as its owner chose them, whoever asks: a
+    `write` receiver's change to a reserve's line keeps the account it is held in, one they
+    may not see (S7.1.1)."""
+    with scoping.as_server(s, "a budget's accounts, to check a line against", False) as srv:
+        return budgets.account_ids(srv, srv.get(Budget, b.id), None, month)
 
 
 def _balance_kept(s, b: Budget, cat_id: str, month: dt.date) -> Decimal:
@@ -677,7 +687,15 @@ class PlanOut(Model):
     lines: list[LineOut]
 
 
-def _line_out(ln: BudgetLine) -> LineOut:
+def _seen(s, viewer: str, account_ids) -> set[str]:
+    """Of these accounts, those the viewer may see: a reserve held in another is given to them
+    with no account (S7.1.1, S11.3.1)."""
+    return set(_names(s, viewer, {x for x in account_ids if x}))
+
+
+def _line_out(ln: BudgetLine, seen: set[str]) -> LineOut:
+    """`seen`: the accounts the reader may see; a line held in another names none. A save
+    merges what the draft changed into the line as stored, so it keeps it all the same."""
     return LineOut(
         id=ln.id,
         version=ln.version,
@@ -690,7 +708,7 @@ def _line_out(ln: BudgetLine) -> LineOut:
         overspend=ln.overspend,
         projectionId=ln.projectionId,
         target=ln.target,
-        heldInId=ln.heldInId,
+        heldInId=ln.heldInId if ln.heldInId in seen else None,
     )
 
 
@@ -709,7 +727,8 @@ def get_plan(
         lines = budgets.in_force(budgets.lines(s, b), m)
         tr = budgets.tree(s)
         ordered = sorted(lines.values(), key=lambda ln: tr.label(ln.categoryId))
-        return PlanOut(month=m, lines=[_line_out(ln) for ln in ordered])
+        seen = _seen(s, c.id, (ln.heldInId for ln in ordered))
+        return PlanOut(month=m, lines=[_line_out(ln, seen) for ln in ordered])
 
 
 # ---------- plan lines in a dialog's draft (S12.15, S13.8.11) ----------
@@ -864,7 +883,7 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
         if later is not None:
             # A line from that month made since this one was read (by another change, or a
             # taking out): this one no longer holds then, so the change is stale (S13.8.6).
-            raise stale(_line_out(later))
+            raise stale(_line_out(later, _seen(ctx.s, ctx.caller.id, [later.heldInId])))
         else:
             ctx.s.add(
                 BudgetLine(
@@ -887,7 +906,8 @@ def _line_delete(ctx, ln: BudgetLine) -> None:
 
 
 def _line_read(ctx, record_id: str) -> LineOut:
-    return _line_out(ctx.s.get(BudgetLine, record_id))
+    ln = ctx.s.get(BudgetLine, record_id)
+    return _line_out(ln, _seen(ctx.s, ctx.caller.id, [ln.heldInId]))
 
 
 save.register(
