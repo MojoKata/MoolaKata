@@ -453,11 +453,17 @@ def test_a_whole_payment_counts_under_a_live_category_that_is_not_a_transfer(boo
     assert out["budgetCategoryId"] == cat
 
 
-def test_a_split_payment_keeps_no_budget_category(book):
+def test_a_split_payment_is_refused_a_budget_category(book):
     # S1.9.7: split by the schedule, a payment counts under each part's category, so a category
-    # sent with it is not kept.
+    # sent with it is refused at the field rather than dropped; none is kept.
     s, uid = book
     body = _body(budgetCounting="split", budgetCategoryId=_category(s).id)
+    assert _terms_refused(s, uid, body) == _problem(
+        "budgetCategoryId",
+        "category-not-for-split",
+        "A category is named only when payments count whole.",
+    )
+    body = _body(budgetCounting="split", budgetCategoryId=None)
     assert UL._terms(s, _caller(uid), _account(s, uid), body)["budgetCategoryId"] is None
 
 

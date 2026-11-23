@@ -376,6 +376,15 @@ def _check(body: TermsIn, account_type: str) -> list[FieldError]:
         e.append(
             FieldError("budgetCounting", "counting-invalid", "Split by the schedule, or whole.")
         )
+    elif body.budgetCounting == "split" and body.budgetCategoryId:
+        # Split, each part counts in its own category (S1.9.7): one sent is refused, not dropped.
+        e.append(
+            FieldError(
+                "budgetCategoryId",
+                "category-not-for-split",
+                "A category is named only when payments count whole.",
+            )
+        )
     if body.paymentsMode is not None and body.paymentsMode not in loans.MODES:
         e.append(
             FieldError(
@@ -466,7 +475,7 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
         "pointsPurpose": body.pointsPurpose,
         "securedById": body.securedById,
         "budgetCounting": body.budgetCounting,
-        "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
+        "budgetCategoryId": body.budgetCategoryId,
         "paymentsMode": body.paymentsMode,
     }
 
