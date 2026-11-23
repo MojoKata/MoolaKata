@@ -91,6 +91,35 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "planned-elsewhere"
 
 
+def test_a_category_under_giving_counts_in_the_giving_line(server, frozen):
+    """S7.3.6, S7.1.2: a donation filed under Giving › Church counts against the giving plan's
+    Giving line, and nowhere outside the plan."""
+    c, acct, cat, b = setup_budget(server)
+    assert giving_plan(c, 2026, targetKind="amount", amount="1200").status_code == 200
+    church = make(c, "Cat", name="Church", kind="expense", parentId=cat["Giving"]).json()
+    add(c, acct["id"], "-500.00", "2026-10-04", payee="St Mary's", categoryId=church["id"])
+    v = month(c, b, "2026-10")
+    assert (row(v, "Giving")["actual"], row(v, "Giving")["remaining"]) == ("500.00", "700.00")
+    assert v["unplanned"] == []
+
+
+def test_a_kept_month_follows_a_category_moved_to_another_parent(server, frozen, admin_client):
+    """S7.3.10: a month kept once worked out is worked out again when a category it counts
+    moves: Vet, under Health, leaves Health's line for outside the plan."""
+    from edits import change as save_change
+
+    c, acct, cat, b = setup_budget(server)
+    plan(c, b, "2026-10-01", [{"categoryId": cat["Health"], "amount": "300.00"}])
+    vet = make(c, "Cat", name="Vet", kind="expense", parentId=cat["Health"]).json()
+    add(c, acct["id"], "-120.00", "2026-10-04", payee="Paws Clinic", categoryId=vet["id"])
+    assert row(month(c, b, "2026-10"), "Health")["actual"] == "120.00"
+    pets = make(c, "Cat", name="Pets", kind="expense").json()
+    assert saved(save_change(admin_client, "Cat", vet, parentId=pets["id"]))
+    v = month(c, b, "2026-10")
+    assert row(v, "Health")["actual"] == "0.00"
+    assert [(x["label"], x["spent"]) for x in v["unplanned"]] == [("Pets › Vet", "120.00")]
+
+
 def test_a_savings_line_shows_its_projections_monthly(server, frozen):
     c, acct, cat, b = setup_budget(server)
     r = make(

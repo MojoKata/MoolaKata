@@ -127,6 +127,20 @@ def test_cash_before_payday(server, frozen):
     assert "before money comes in on Nov 1" in a.about
 
 
+def test_cash_before_payday_expects_a_quarterly_payment_on_its_day(server, frozen):
+    """S7.6.1, S7.5.1: a quarterly premium due on the 25th, before November's pay, dips the
+    account though no monthly payment does."""
+    c, acct, _, _ = setup_budget(server)
+    for m in (7, 8, 9, 10):
+        add(c, acct["id"], "2000.00", f"2026-{m:02d}-01", payee="Acme Payroll")
+    for m in (1, 4, 7):
+        add(c, acct["id"], "-1500.00", f"2026-{m:02d}-25", payee="State Farm")
+    add(c, acct["id"], "-2500.00", "2026-10-05", payee="Car repair")
+    (a,) = [x for x in alerts.evaluate(server) if x.kind == "cash-short"]
+    assert a.title == "Checking dips below $0 on the 25th"
+    assert "before money comes in on Nov 1" in a.about
+
+
 def test_cash_before_payday_goes_to_each_who_follows_the_budget(server, frozen):
     """S7.6: a household budget active for Jane and for John raises the alert to each."""
     c, acct, _, b = setup_budget(server)
