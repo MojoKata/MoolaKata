@@ -1227,7 +1227,8 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
         s.add(b)
         s.flush()
         mine = {a.id for a, _ in access.accounts(s, c.id)}
-        _add_accounts(s, b, [a for a in budgets.account_ids(s, src, c.id, month) if a in mine])
+        counted = [a for a in budgets.account_ids(s, src, c.id, month) if a in mine]
+        _add_accounts(s, b, counted)
         for ln in budgets.in_force(budgets.lines(s, src), month).values():
             s.add(
                 BudgetLine(
@@ -1241,7 +1242,8 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
                     overspend=ln.overspend,
                     projectionId=ln.projectionId,
                     target=ln.target,
-                    heldInId=ln.heldInId,
+                    # A reserve is held in one of the budget's accounts, else nowhere (S7.10.4).
+                    heldInId=ln.heldInId if ln.heldInId in counted else None,
                 )
             )
         if body.withMoves:

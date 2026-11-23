@@ -1,7 +1,8 @@
 # Copy as Scenario
 
 A new budget of yours with the same accounts and plan from this month, to try another method or
-plan beside the one you follow, which doesn't change.
+plan beside the one you follow, which doesn't change. Only the accounts you can see come along; a
+reserve held in one that doesn't keeps its target and is held _in the budget's accounts_.
 
 ## Name
 

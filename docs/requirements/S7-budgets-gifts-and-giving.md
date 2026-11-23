@@ -368,7 +368,9 @@
        what remains is what its last month leaves.
     4. **Copy as scenario…** makes a budget with the same accounts and plan, in the method
        chosen (a tracking line becomes the same amount assigned each month, and an envelope
-       line the same amount planned), with this month's moves when asked.
+       line the same amount planned), with this month's moves when asked. It counts the
+       accounts its maker can see, and a reserve held in one it doesn't count is held nowhere
+       (S7.10.4), its target kept.
     5. **Each user's own choice**: a household budget shared at `write` can be active for
        both, while one of them tries a scenario of their own; a scenario is shared as any
        budget is. A linked household's budgets are seen in its window, never made active
