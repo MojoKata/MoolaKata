@@ -109,6 +109,9 @@ Run from `/home/dev/kata/MoolaKata/web/server`:
 
    While you're writing tests, try one change at a time with
    `web/dev.sh mutate check <name> tests/<your file>` (the doc's *Checking one change by hand*).
+   It reads the mutants the last run built in the shared copy, so it answers "not caught" for
+   every change of a module no run there has mutated yet: while the copy holds another
+   module's, rely on the batch run instead.
    Only run one mutation run at a time: the copy it works in is shared. Don't change
    `--workers` or `--limit` (the machine is shared; the defaults keep inside its budget).
 
