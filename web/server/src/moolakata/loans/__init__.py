@@ -212,6 +212,11 @@ def _category_keys(s: Session) -> dict[str, str]:
     }
 
 
+def before_start(what: str, start: dt.date) -> str:
+    """The words refusing a loan's payment or draw dated before the loan starts (S1.9.3)."""
+    return f"A loan's {what} can't be dated before it starts ({start:%b %-d, %Y})."
+
+
 def automatic(recorded: bool, connected: bool) -> str:
     """What Automatic reads as (S1.9.3): recorded here once the loan has a payment recorded or
     a connection importing its statements; assumed as scheduled until then. A bank account
@@ -281,14 +286,13 @@ def history(
     mode = row.paymentsMode or automatic(paid, account.connectionId is not None)
     today = today or clock.today()
     until = assumed_before(terms, recorded, today, mode)
-    return settle(terms, recorded, draws, today, until, catch_up=mode == RECORDED), draws
+    return settle(terms, recorded, draws, until, catch_up=mode == RECORDED), draws
 
 
 def settle(
     t: Terms,
     recorded: list,
     draws,
-    today: dt.date,
     assume_before: dt.date | None,
     catch_up: bool = False,
 ) -> list[Payment]:
@@ -303,10 +307,10 @@ def settle(
     events: list[tuple[dt.date, int, object]] = [(_dated(x), 0, x) for x in recorded]
     if assume:
         # Recorded here, the days before the record's start count as paid as scheduled, a
-        # start dated after today too (S1.9.3); assumed as scheduled, the days until today.
-        end = assume_before if catch_up else min(assume_before, today)
+        # start dated after today too (S1.9.3); assumed as scheduled, the days until today
+        # (`assumed_before`).
         k, day = 1, add_months(t.start, 1)
-        while day < end:
+        while day < assume_before:
             if k not in covered:
                 events.append((day, 1, None))
             k += 1
@@ -741,11 +745,11 @@ def schedule(
     overpayment on a payment's day, from the principal and interest due."""
     until = assumed_before(t, payments, today, mode)
     catch_up = mode == RECORDED
-    payments = settle(t, payments, draws, today, until, catch_up)
+    payments = settle(t, payments, draws, until, catch_up)
     # The days before `until` are settled: assumed, or nothing was owed (a HELOC not yet
     # drawn), so a late payment never goes back to one. Recorded here, that is the record's
     # start, where `settle` split the payments from, dated after today or not (S1.9.3).
-    settled = until if catch_up else min(until, today)
+    settled = until
     walked = _walk(t, payments, draws, catch_up, settled)
     rows: list[Row] = []
     for p, (_, owed_then, d, pi_then) in zip(payments, walked, strict=True):
@@ -851,12 +855,9 @@ def _missed(t: Terms, payments: list[Payment], draws, paid: set[int], ahead: int
         if k in paid:
             continue
         day = add_months(t.start, k)
-        # Daily interest accrues from the last payment, one made on the day or after it toward
-        # an older day included (S1.9.1): it paid the interest to its own day.
-        nxt = add_months(t.start, k + 1)
-        since = max(
-            [p.date for p in payments if p.date < nxt] + [r.date for r in rows], default=t.start
-        )
+        # Daily interest accrues from the last payment, whatever its date (S1.9.1): one made on
+        # the day or after it, toward an older day, paid the interest to its own day.
+        since = max([p.date for p in payments] + [r.date for r in rows], default=t.start)
         due = _due(t, payments, draws, day, since)
         if due is None:
             continue

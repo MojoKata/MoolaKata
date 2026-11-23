@@ -514,6 +514,9 @@ def suggest_split(
         row = loans.loan_of(s, a)
         if row is None:
             raise Problem(409, "no-terms", "Set the loan's terms first.")
+        if date < row.startDate:
+            # Refused as the save refuses it, so no split is offered for it (S1.9.3).
+            raise refuse("date", "date-before-loan", loans.before_start("payment", row.startDate))
         payments, draws = loans.history(s, a)
         # Recording it makes Automatic read as recorded here: a late one pays the oldest day
         # missed (S1.9.3).
@@ -1031,7 +1034,6 @@ def _loan_update(ctx, row: Loan, body: LoanRecord) -> None:
     a = _loan_account(ctx, row.accountId)
     for k, v in _terms(ctx.s, ctx.caller, a, body).items():
         setattr(row, k, v)
-    row.updatedAt = clock.now()
     _changed_terms(ctx.s, ctx.caller, a)
     _start_fits(ctx, row)
 

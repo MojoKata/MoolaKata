@@ -1291,11 +1291,7 @@ def _within_loan(ctx, t: Transaction) -> None:
         if row is None or t.deleted or t.amount == 0 or t.date >= row.startDate:
             return
         what = "payment" if t.amount > 0 else "draw"
-        raise refuse(
-            "date",
-            "date-before-loan",
-            f"A loan's {what} can't be dated before it starts ({row.startDate:%b %-d, %Y}).",
-        )
+        raise refuse("date", "date-before-loan", loans.before_start(what, row.startDate))
 
     ctx.verify(f"within-loan:{t.id}", check)
 

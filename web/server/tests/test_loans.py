@@ -19,7 +19,7 @@ def _summed(t, recorded, draws, today, mode="assumed"):
     # As the loan's screen reads it (S1.9.3): its payments settled first, as `history` gives
     # them, then summed up.
     until = L.assumed_before(t, recorded, today, mode)
-    paid = L.settle(t, recorded, draws, today, until, mode == "recorded")
+    paid = L.settle(t, recorded, draws, until, mode == "recorded")
     return L.summary(t, paid, draws, today, mode)
 
 
@@ -729,8 +729,8 @@ def test_a_daily_interest_loans_missed_and_assumed_days():
 def test_settling_twice_adds_nothing_and_a_payment_recorded_takes_the_assumed_ones_place():
     t = mortgage_terms(start=dt.date(2026, 1, 1))
     today = dt.date(2026, 10, 13)
-    once = L.settle(t, [], [], today, today)
-    assert len(once) == 9 and L.settle(t, once, [], today, today) == once
+    once = L.settle(t, [], [], today)
+    assert len(once) == 9 and L.settle(t, once, [], today) == once
     pi = L.scheduled_payment(t)
     # Recorded for Jun 3, whatever the setting: June's assumed payment goes, and those before
     # stay (assumed; recorded here, the days before the first payment recorded are too), so
@@ -741,7 +741,7 @@ def test_settling_twice_adds_nothing_and_a_payment_recorded_takes_the_assumed_on
     # Settled with it, it is the one on June's day, the days before it still assumed.
     p.transactionId = "Txn_june"
     for mode in ("assumed", "recorded"):
-        after = L.settle(t, [p], [], today, L.assumed_before(t, [p], today, mode))
+        after = L.settle(t, [p], [], L.assumed_before(t, [p], today, mode))
         assert [x.date.month for x in after if x.assumed] == (
             [2, 3, 4, 5, 7, 8, 9, 10] if mode == "assumed" else [2, 3, 4, 5]
         )
@@ -797,7 +797,7 @@ def test_recorded_here_counts_from_the_first_payment_recorded():
     assert sm.missed == 0 and {r.status for r in rows if r.past} == {"assumed"}
     assert sm.nextDate == dt.date(2026, 11, 1)
     # Recorded from Jun 2026, with July left out.
-    assumed = L.settle(t, [], [], dt.date(2026, 6, 1), dt.date(2026, 6, 1))
+    assumed = L.settle(t, [], [], dt.date(2026, 6, 1))
     pays = list(assumed)
     for m in (6, 8, 9):
         pays.append(L.split_for(t, pays, [], dt.date(2026, m, 1), L.scheduled_payment(t)))

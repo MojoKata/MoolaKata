@@ -21,7 +21,7 @@ def _summed(t, recorded, draws, today, mode="assumed"):
     # As the loan's screen reads it (S1.9.3): its payments settled first, as `history` gives
     # them, then summed up.
     until = L.assumed_before(t, recorded, today, mode)
-    paid = L.settle(t, recorded, draws, today, until, mode == "recorded")
+    paid = L.settle(t, recorded, draws, until, mode == "recorded")
     return L.summary(t, paid, draws, today, mode)
 
 
@@ -195,7 +195,7 @@ def test_settled_the_payments_are_in_date_order_and_on_one_day_as_recorded():
     t = L.Terms(principal=D(300000), start=d(2026, 1, 1), months=360, rate=D(6))
     recorded = [(d(2026, 3, 1), D(5000), "Txn_c"), (d(2026, 2, 1), D(2000), "Txn_a"),
                 (d(2026, 2, 1), D(1000), "Txn_b")]  # fmt: skip
-    out = L.settle(t, recorded, [], d(2026, 3, 10), None)
+    out = L.settle(t, recorded, [], None)
     assert [p.transactionId for p in out] == ["Txn_a", "Txn_b", "Txn_c"]
     # The first of the two on Feb 1 pays the day's interest.
     assert (out[0].interest, out[1].interest) == (D("1500.00"), 0)
@@ -204,7 +204,7 @@ def test_settled_the_payments_are_in_date_order_and_on_one_day_as_recorded():
 def test_a_payment_day_on_today_is_not_yet_assumed():
     # S1.9.3: a day is assumed paid once it has passed; today it may still be paid.
     t = L.Terms(principal=D(300000), start=d(2026, 1, 1), months=360, rate=D(6))
-    assert [p.date for p in L.settle(t, [], [], d(2026, 3, 1), d(2026, 3, 1))] == [d(2026, 2, 1)]
+    assert [p.date for p in L.settle(t, [], [], d(2026, 3, 1))] == [d(2026, 2, 1)]
 
 
 def test_settling_catches_up_a_late_payment_only_when_told_the_loan_is_recorded_here():
@@ -213,9 +213,9 @@ def test_settling_catches_up_a_late_payment_only_when_told_the_loan_is_recorded_
     t = L.Terms(principal=D(300000), start=d(2026, 1, 1), months=360, rate=D(6))
     pi = L.scheduled_payment(t)
     recorded = [(day, pi, None) for day in (d(2026, 2, 1), d(2026, 3, 25), d(2026, 4, 1))]
-    today, starts = d(2026, 4, 10), d(2026, 2, 1)
-    assert L.settle(t, recorded, [], today, starts)[-1].interest == 0
-    caught_up = L.settle(t, recorded, [], today, starts, catch_up=True)
+    starts = d(2026, 2, 1)
+    assert L.settle(t, recorded, [], starts)[-1].interest == 0
+    caught_up = L.settle(t, recorded, [], starts, catch_up=True)
     assert caught_up[-1].interest == L.cents((t.principal - caught_up[0].principal
                                               - caught_up[1].principal) / 200)  # fmt: skip
 
@@ -229,7 +229,7 @@ def test_recorded_here_a_payment_never_goes_back_to_a_month_before_the_record():
     recorded = [(d(2026, 6, 1), D(200), "Txn_a"), (d(2026, 6, 10), D(200), "Txn_b")]
     today = d(2026, 7, 10)
     starts = L.assumed_before(t, recorded, today, "recorded")
-    out = L.settle(t, recorded, draws, today, starts, catch_up=True)
+    out = L.settle(t, recorded, draws, starts, catch_up=True)
     assert [(p.date, p.assumed) for p in out] == [
         (d(2026, 5, 1), True), (d(2026, 6, 1), False), (d(2026, 6, 10), False)
     ]  # fmt: skip
@@ -290,7 +290,7 @@ def test_owed_before_a_payment_day_counts_the_draws_to_the_day_before_and_the_ba
     paid = L.split_for(t, [], draws, d(2026, 3, 1), D(1000))
     assert (paid.interest, paid.principal) == (D("100.00"), D(900))
     assert paid.overpayment == 900 - (level - 100)
-    [assumed] = L.settle(t, [], draws, d(2026, 3, 2), d(2026, 3, 2))
+    [assumed] = L.settle(t, [], draws, d(2026, 3, 2))
     assert (assumed.date, assumed.interest, assumed.principal) == (d(2026, 3, 1), 100, level - 100)
     assert L.balance_on(t, [], draws, d(2026, 3, 1)) == 15000
 
@@ -318,7 +318,7 @@ def test_after_a_rate_reset_the_level_is_worked_out_from_what_was_owed_then():
     t = _mortgage(resets=[(d(2026, 3, 15), D(7))])
     pi = L.scheduled_payment(t)
     recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 3, 1), pi, "b"), (d(2026, 4, 1), D(3000), "c")]
-    out = L.settle(t, recorded, [], d(2026, 4, 10), None)
+    out = L.settle(t, recorded, [], None)
     owed = 300000 - out[0].principal - out[1].principal
     assert out[2].interest == L.cents(owed * 7 / 1200)
     assert out[2].overpayment == 3000 - L.level_payment(owed, D(7), 358)
@@ -330,7 +330,7 @@ def test_small_payments_toward_one_day_pay_its_interest_escrow_and_pmi_once():
     the rest is principal. Each is split whole, and the parts come to what was due."""
     t = _mortgage(escrowTax=D(300), escrowInsurance=D(120), pmi=D(90))
     amounts = [D(70)] * 40 + [D("8.65")]
-    out = L.settle(t, [(d(2026, 2, 1), a, None) for a in amounts], [], d(2026, 2, 10), None)
+    out = L.settle(t, [(d(2026, 2, 1), a, None) for a in amounts], [], None)
 
     def total(part):
         return sum(getattr(p, part) for p in out)
@@ -345,14 +345,14 @@ def test_principal_beyond_the_days_schedule_is_an_overpayment_across_its_payment
     three more pay 100, 100 and 500 of principal: 501.35 beyond the schedule, from the third."""
     t = _mortgage()
     amounts = [D(1600), D(100), D(100), D(500)]
-    out = L.settle(t, [(d(2026, 2, 1), a, None) for a in amounts], [], d(2026, 2, 10), None)
+    out = L.settle(t, [(d(2026, 2, 1), a, None) for a in amounts], [], None)
     assert [p.overpayment for p in out] == [0, 0, D("1.35"), D(500)]
 
 
 def test_an_assumed_payment_has_the_escrow_and_pmi_the_schedule_charges():
     # S1.9.3: assumed as scheduled, a payment day's payment is the schedule's whole.
     t = _mortgage(escrowTax=D(300), escrowInsurance=D(120), pmi=D(90))
-    [p] = L.settle(t, [], [], d(2026, 2, 10), d(2026, 2, 10))
+    [p] = L.settle(t, [], [], d(2026, 2, 10))
     assert (p.escrowTax, p.escrowInsurance, p.pmi) == (300, 120, 90)
     assert p.total == p.principal + p.interest + 300 + 120 + 90 == L.scheduled_payment(t) + 510
 
@@ -371,7 +371,7 @@ def test_an_assumed_payment_takes_a_balance_under_a_dollar_left_and_on_the_last_
     t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=months, rate=D(0),
                 payment=D(100), pmi=D(9))  # fmt: skip
     feb = L.Payment(d(2026, 2, 1), 1000 - D(owed), principal=1000 - D(owed))
-    p = L.settle(t, [feb], [], d(2026, 3, 2), d(2026, 3, 2))[-1]
+    p = L.settle(t, [feb], [], d(2026, 3, 2))[-1]
     assert (p.date, p.principal) == (d(2026, 3, 1), D(principal))
     assert p.pmi == (0 if p.principal == D(owed) else 9)
 
@@ -634,7 +634,7 @@ def test_a_payment_about_to_be_recorded_catches_up_only_when_told_the_loan_is_re
     t = _mortgage()
     pi = L.scheduled_payment(t)
     recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 4, 1), pi, "b")]
-    prior = L.settle(t, recorded, [], d(2026, 4, 10), None, catch_up=True)
+    prior = L.settle(t, recorded, [], None, catch_up=True)
     caught = L.split_new(t, prior, [], d(2026, 4, 10), pi, True)
     plain = L.split_new(t, prior, [], d(2026, 4, 10), pi)
     assert (caught.interest, caught.overpayment) == (D("1497.01"), 0)
@@ -685,7 +685,7 @@ def test_a_first_payment_short_of_the_interest_leaves_the_days_principal_as_sche
     t = _mortgage()
     for first, second in ((D(1500), D("798.65")), (D(1000), D("1298.65"))):
         rec = [(d(2026, 2, 1), first, None), (d(2026, 2, 1), second, None)]
-        out = L.settle(t, rec, [], d(2026, 2, 10), None)
+        out = L.settle(t, rec, [], None)
         assert [p.overpayment for p in out] == [0, D(500)]
 
 
@@ -723,7 +723,7 @@ def test_ahead_a_day_in_its_grace_that_re_levels_has_the_level_its_payment_is_sp
     apr, may = [r for r in rows if not r.past][:2]
     assert apr.date == d(2026, 4, 1)
     assert apr.principal + apr.interest == L.level_payment(D("10611.14"), D(12), 22)
-    paid = L.settle(t, recorded, draws, d(2026, 4, 10), None, True)
+    paid = L.settle(t, recorded, draws, None, True)
     split = L.split_for(t, paid, draws, d(2026, 4, 12), apr.payment, True)
     assert (split.interest, split.principal, split.overpayment) == (apr.interest, apr.principal, 0)
     assert may.principal + may.interest == L.level_payment(apr.balance, D(12), 21)
@@ -758,3 +758,63 @@ def test_a_payment_on_the_day_the_loan_starts_goes_toward_its_first_payment_day(
     p = L.split_for(_mortgage(), [], [], d(2026, 1, 1), amount)
     assert (p.interest, p.principal, p.overpayment) == split
     assert p.fees == 0
+
+
+# loans._owed_before, _Walker.add, schedule: what is owed on a day, and a day's dues
+
+
+def test_before_the_loan_starts_nothing_is_owed_on_a_payment_dated_then():
+    # S1.9.3: the principal is lent on the start day; a payment dated the day before owes no
+    # interest on it and pays none of it.
+    p = L.split_for(_mortgage(), [], [], d(2025, 12, 31), D(500))
+    assert (p.interest, p.principal) == (0, 0)
+
+
+def test_a_daily_interest_days_principal_due_is_what_its_days_interest_leaves():
+    """S1.9.1, S1.9.3: 20,000 at 6% accrued daily, 386.66 due on Feb 1: 31 days' interest,
+    101.92, leaves 284.74 of principal due. A first payment of 200 pays 98.08 of it, so a second
+    of 300 that day is 186.66 of principal due and 113.34 beyond it."""
+    t = _daily()
+    rec = [(d(2026, 2, 1), D(200), None), (d(2026, 2, 1), D(300), None)]
+    out = L.settle(t, rec, [], None)
+    assert [(p.interest, p.principal, p.overpayment) for p in out] == [
+        (D("101.92"), D("98.08"), 0), (0, D(300), D("113.34"))
+    ]  # fmt: skip
+
+
+def test_recorded_here_a_record_starting_after_today_never_catches_up_a_day_with_nothing_owed():
+    """S1.9.3: a payment dated after today counts on its day and starts the record there. A
+    HELOC to be drawn on Apr 10, its record starting Jun 1 (today Feb 10): May is assumed, and
+    Feb to Apr had nothing owed, so Jun 10's payment is toward June, after Jun 1 paid its
+    interest and principal: all of it beyond the schedule."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(8), drawMonths=2)
+    draws = [(d(2026, 4, 10), D(30000))]
+    level = L.level_payment(D(30000), D(8), 21)
+    recorded = [(d(2026, 6, 1), level, "a"), (d(2026, 6, 10), D(200), "b")]
+    rows = L.schedule(t, recorded, draws, d(2026, 2, 10), mode="recorded")
+    assert [(r.date, r.status, r.overpayment) for r in rows] == [
+        (d(2026, 5, 1), "assumed", 0), (d(2026, 6, 1), "paid", 0), (d(2026, 6, 10), "paid", 200)
+    ]  # fmt: skip
+
+
+def test_the_schedule_ahead_counts_a_draw_made_today():
+    # S1.9.2: the balance ahead is what is owed today, a draw made today included.
+    today = d(2026, 1, 20)
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
+    rows = L.schedule(t, [], [(today, D(10000))], today)
+    assert (rows[0].date, rows[0].interest, rows[0].balance) == (d(2026, 2, 1), D("66.67"), 10000)
+
+
+# loans._missed: a catch-up payment's interest
+
+
+@pytest.mark.parametrize("paid", [d(2026, 5, 1), d(2026, 5, 5)])
+def test_recorded_here_a_daily_interest_day_missed_accrues_from_a_later_catch_up_payment(paid):
+    """S1.9.1: March missed, a payment on May 1 or 5 catches it up and pays the interest to
+    its own day; April, still missed, has none left to accrue, wherever that payment falls."""
+    t = _daily()
+    pi = L.scheduled_payment(t)
+    rows = L.schedule(t, [(d(2026, 2, 1), pi, "a"), (paid, pi, "b")], [], d(2026, 5, 10),
+                      mode="recorded")  # fmt: skip
+    [apr] = [r for r in rows if r.status == "missed"]
+    assert (apr.date, apr.interest) == (d(2026, 4, 1), 0)
