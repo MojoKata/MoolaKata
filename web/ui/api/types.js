@@ -1345,6 +1345,8 @@
  * @property {string} id
  * @property {string} personId
  * @property {(import('../kit/dec.js').Dec | null)} giftBudget
+ * @property {(import('../kit/dec.js').Dec | null)} birthdayBudget
+ * @property {(import('../kit/dec.js').Dec | null)} weddingBudget
  * @property {number} leadDays
  * @property {(string | null)} notes
  * @property {Array<OccasionOut>} occasions
@@ -3176,6 +3178,8 @@
  * @typedef {Object} PlanRecord
  * @property {string} personId
  * @property {(import('../kit/dec.js').Dec | null)} [giftBudget]
+ * @property {(import('../kit/dec.js').Dec | null)} [birthdayBudget]
+ * @property {(import('../kit/dec.js').Dec | null)} [weddingBudget]
  * @property {number} [leadDays]
  * @property {(string | null)} [notes]
  */

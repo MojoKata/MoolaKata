@@ -7894,6 +7894,21 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
+          "birthdayBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthdaybudget"
+          },
           "giftBudget": {
             "anyOf": [
               {
@@ -7975,12 +7990,29 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "weddingBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weddingbudget"
           }
         },
         "required": [
           "id",
           "personId",
           "giftBudget",
+          "birthdayBudget",
+          "weddingBudget",
           "leadDays",
           "notes",
           "occasions",
@@ -18298,6 +18330,22 @@
         "additionalProperties": false,
         "description": "A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so\neach keeps its id, and the gifts planned for it stay with it.",
         "properties": {
+          "birthdayBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthdaybudget"
+          },
           "giftBudget": {
             "anyOf": [
               {
@@ -18336,6 +18384,22 @@
             "title": "Personid",
             "type": "string",
             "x-prefix": "Persn"
+          },
+          "weddingBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weddingbudget"
           }
         },
         "required": [

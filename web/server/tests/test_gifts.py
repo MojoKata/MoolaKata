@@ -83,6 +83,40 @@ def test_a_person_with_occasions_and_their_next_date(jane):
     assert bad.json()["errors"][0]["field"] == "holiday"
 
 
+def test_a_birthday_and_a_wedding_anniversary_carry_budgets_of_their_own(jane):
+    """S7.7.1, S7.7.3: a plan budgeted per occasion gives the birthday and the wedding
+    anniversary, which come from the person, budgets of their own, shown with each date."""
+    from test_people import me, relate
+
+    bob = person(
+        jane,
+        name="Bob Lee",
+        sex="male",
+        birthMonth=10,
+        birthDay=20,
+        birthYear=1980,
+        birthdayBudget="60",
+        weddingBudget="90",
+        occasions=[{"kind": "holiday", "holiday": "christmas", "budget": "40"}],
+    )
+    relate(jane, me(jane), bob["id"], "spouse", fromDate="2009-11-02")
+    plan = jane.get(f"/ui/api/gift-plans/{bob['plan']['id']}").json()
+    assert (plan["giftBudget"], plan["birthdayBudget"], plan["weddingBudget"]) == (
+        None,
+        "60.00",
+        "90.00",
+    )
+    up = jane.get("/ui/api/gifts/upcoming").json()["items"]
+    assert [(u["label"], u["budget"]) for u in up] == [
+        ("Birthday", "60.00"),
+        ("Wedding anniversary", "90.00"),
+    ]
+    bad = make(jane, "GfPln", name="Cy Lee", sex="male", birthdayBudget="-1")
+    assert [(e["field"], e["code"]) for e in bad.json()["errors"]] == [
+        ("birthdayBudget", "amount-invalid")
+    ]
+
+
 def test_upcoming_with_the_reminder_on_the_dashboard_and_as_an_alert(server, jane):
     lisa = person(jane, birthMonth=10, birthDay=20, birthYear=2018)
     up = jane.get("/ui/api/gifts/upcoming").json()["items"]

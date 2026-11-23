@@ -91,6 +91,22 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "planned-elsewhere"
 
 
+def test_a_plan_budgeted_per_occasion_counts_its_birthday_and_wedding(server, frozen):
+    """S7.3.6, S7.7.1: with no yearly budget, the Gifts line plans the year's occasion
+    budgets, the birthday's and the wedding anniversary's among them; a yearly budget, even
+    of nothing, is the plan's whole year."""
+    from test_people import me, relate
+
+    c, _, _, b = setup_budget(server)
+    christmas = {"kind": "holiday", "holiday": "christmas", "budget": "40"}
+    bob = make(c, "GfPln", name="Bob Lee", sex="male", birthMonth=5, birthDay=1,
+               birthdayBudget="60", weddingBudget="90", occasions=[christmas]).json()  # fmt: skip
+    relate(c, me(c), bob["personId"], "spouse", fromDate="2009-06-14")
+    assert row(month(c, b, "2026-10"), "Gifts")["planned"] == "190.00"
+    saved(edit(c, "GfPln", f"/ui/api/gift-plans/{bob['id']}", giftBudget="0"))
+    assert row(month(c, b, "2026-10"), "Gifts")["planned"] == "0.00"
+
+
 def test_a_category_under_giving_counts_in_the_giving_line(server, frozen):
     """S7.3.6, S7.1.2: a donation filed under Giving › Church counts against the giving plan's
     Giving line, and nowhere outside the plan."""

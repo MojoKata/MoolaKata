@@ -383,7 +383,13 @@ class PlanRec extends Rec {
   /** @override */
   static fields = FIELDS.PlanRecord;
   /** @override */
-  static defaults = { giftBudget: null, leadDays: 14, notes: null };
+  static defaults = {
+    giftBudget: null,
+    birthdayBudget: null,
+    weddingBudget: null,
+    leadDays: 14,
+    notes: null,
+  };
   /** @override */
   static ownedBy = ['personId'];
 }
@@ -454,6 +460,8 @@ function PersonDialog({ close, row }) {
       access: x.access,
       personId: x.personId,
       giftBudget: x.giftBudget,
+      birthdayBudget: x.birthdayBudget,
+      weddingBudget: x.weddingBudget,
       leadDays: x.leadDays,
       notes: x.notes,
     });
@@ -470,6 +478,10 @@ function PersonDialog({ close, row }) {
     (draft?.records || []).filter((r) => r instanceof OccasionRec)
   );
   const dated = occasions.filter((o) => !o.removed && o.get('kind') !== 'holiday');
+  // A plan budgeted per occasion: each holiday it gives for has a budget of its own (S7.7.1).
+  const chosen = occasions.filter((o) => !o.removed && o.get('kind') === 'holiday');
+  const holidayLabel = (/** @type {string} */ key) =>
+    (/** @type {any[]} */ (hols.data) || []).find((h) => h.key === key)?.label || key;
   const canWrite = !planRow || planRow.access.writable;
   const ownPerson = !p || p.access.writable;
   // One person, once (S10.10.3): a name already here shows that person instead.
@@ -673,6 +685,10 @@ function PersonDialog({ close, row }) {
             <div class="row">
               <${RecField} rec=${plan} name="giftBudget" label="Yearly gift budget" id="gift-budget"
                 placeholder="none" />
+              <${RecField} rec=${plan} name="birthdayBudget" label="Birthday budget"
+                id="birthday-budget" placeholder="none" />
+              <${RecField} rec=${plan} name="weddingBudget" label="Wedding anniversary budget"
+                id="wedding-budget" placeholder="none" />
             </div>
             <div class="field" data-help="holidays" id="x-holidays"><label>Holidays</label>
               ${canWrite
@@ -691,6 +707,20 @@ function PersonDialog({ close, row }) {
                     holiday(h.key) && !holiday(h.key)?.removed
                   ).map((h) => h.label).join(', ') || '—'
                 } />`}</div>
+            ${chosen.length
+              ? html`
+                <div class="row" style=${{ flexWrap: 'wrap' }}>${chosen.map((o) => {
+                  const label = `${holidayLabel(o.get('holiday'))} budget`;
+                  return html`
+                    <${Field} key=${o.key} label=${label} help="holiday-budget"
+                      id=${'holiday-budget-' + o.get('holiday')} error=${o.error('budget')}>
+                      <${RecField} rec=${o} name="budget" bare label=${label}
+                        placeholder="none" />
+                      </${Field}>
+                  `;
+                })}</div>
+              `
+              : null}
             <div class="toolbar"><b class="small" data-help="dates">Anniversaries and other
                 dates</b><span class="spacer"></span><${Action} class="btn sm"
                 why=${canWrite ? null : READ_ONLY} onClick=${() =>

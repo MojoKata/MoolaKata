@@ -414,6 +414,8 @@ export const FIELDS = {
   PlanRecord: {
     personId: {"type": "ref", "prefix": "Persn"},
     giftBudget: {"type": "money", "nullable": true},
+    birthdayBudget: {"type": "money", "nullable": true},
+    weddingBudget: {"type": "money", "nullable": true},
     leadDays: {"type": "int"},
     notes: {"type": "text", "nullable": true},
   },

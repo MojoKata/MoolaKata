@@ -86,6 +86,8 @@ class GiftPlanRow(Model):
     id: str
     personId: str
     giftBudget: Money | None
+    birthdayBudget: Money | None
+    weddingBudget: Money | None
     leadDays: int
     notes: str | None
     occasions: list[OccasionOut]
@@ -182,6 +184,8 @@ def plans_view(s, c: Caller) -> list[GiftPlanRow]:
                 id=gp.id,
                 personId=p.id,
                 giftBudget=gp.giftBudget,
+                birthdayBudget=gp.birthdayBudget,
+                weddingBudget=gp.weddingBudget,
                 leadDays=gp.leadDays,
                 notes=gp.notes,
                 occasions=[_occasion_out(o, today) for o in occs[gp.id]],
@@ -716,7 +720,9 @@ class PlanRecord(Model):
     each keeps its id, and the gifts planned for it stay with it."""
 
     personId: IdOf("Persn")  # type: ignore[valid-type]
-    giftBudget: Money | None = None
+    giftBudget: Money | None = None  # a year's, for all its occasions
+    birthdayBudget: Money | None = None  # with no yearly budget, the birthday's own (S7.7.1)
+    weddingBudget: Money | None = None  # and the wedding anniversary's
     leadDays: int = 14
     notes: str | None = None
 
@@ -735,15 +741,23 @@ class OccasionRecord(Model):
     budget: Money | None = None
 
 
+PLAN_BUDGETS = ("giftBudget", "birthdayBudget", "weddingBudget")
+
+
 def _plan_values(body: PlanRecord) -> dict:
     e: list[FieldError] = []
-    if body.giftBudget is not None and body.giftBudget < 0:
-        e.append(FieldError("giftBudget", "amount-invalid", "Zero or more."))
+    for k in PLAN_BUDGETS:
+        if getattr(body, k) is not None and getattr(body, k) < 0:
+            e.append(FieldError(k, "amount-invalid", "Zero or more."))
     if not 0 <= body.leadDays <= 120:
         e.append(FieldError("leadDays", "lead-invalid", "0 to 120 days."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
+    return {
+        **{k: getattr(body, k) for k in PLAN_BUDGETS},
+        "leadDays": body.leadDays,
+        "notes": body.notes or None,
+    }
 
 
 def _plan_create(ctx, record_id: str, body: PlanRecord) -> None:
@@ -767,8 +781,8 @@ def _plan_editable(ctx, record_id: str) -> GiftPlan:
 
 
 def _plan_current(ctx, gp: GiftPlan) -> dict:
-    return {"personId": gp.personId, "giftBudget": gp.giftBudget, "leadDays": gp.leadDays,
-            "notes": gp.notes}  # fmt: skip
+    return {"personId": gp.personId, **{k: getattr(gp, k) for k in PLAN_BUDGETS},
+            "leadDays": gp.leadDays, "notes": gp.notes}  # fmt: skip
 
 
 def _plan_update(ctx, gp: GiftPlan, body: PlanRecord) -> None:

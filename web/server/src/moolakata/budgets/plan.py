@@ -105,22 +105,22 @@ def roles(s: Session, b: Budget, accounts: list[Account], today: dt.date) -> lis
 def planned_elsewhere(s: Session, b: Budget, tr: Tree, year: int) -> dict[str, Decimal]:
     """The yearly amounts the owner's gift plans and giving plan set, by category id."""
     from .. import giving
-    from ..gifts import occasions_of, visible_plans
+    from ..gifts import occasions_of, visible_plans, wedding_of, year_budget
 
     out: dict[str, Decimal] = {}
     gifts_cat, giving_cat = tr.key("gifts"), tr.key("giving")
     if gifts_cat:
-        total, any_plan = ZERO, False
         plans = [x for x in visible_plans(s, b.ownerId) if x.plan.ownerId == b.ownerId]
         occs = occasions_of(s, [x.plan.id for x in plans])
-        for x in plans:
-            any_plan = True
-            if x.plan.giftBudget:
-                total += x.plan.giftBudget
-            else:
-                total += sum((o.budget or ZERO for o in occs.get(x.plan.id, [])), ZERO)
-        if any_plan:
-            out[gifts_cat] = total
+        if plans:
+            out[gifts_cat] = sum(
+                (
+                    year_budget(x.plan, x.person, occs[x.plan.id], year, wedding_of(s, x.person.id))
+                    or ZERO
+                    for x in plans
+                ),
+                ZERO,
+            )
     if giving_cat:
         plan, _ = giving.plan_for(s, b.ownerId, year)
         if plan is not None and plan.ownerId == b.ownerId:

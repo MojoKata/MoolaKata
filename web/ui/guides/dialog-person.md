@@ -47,12 +47,29 @@ Their family and friends, entered and worked out, as of today.
 
 ## Yearly gift budget {#gift-budget}
 
-What you mean to spend on them in a year, all occasions together.
+What you mean to spend on them in a year, all occasions together. Left blank, the plan is budgeted
+per occasion instead: the year's budget is the birthday's, the wedding anniversary's and each
+holiday's and date's together.
+
+## Birthday budget {#birthday-budget}
+
+What you mean to spend on their birthday, shown with it in Upcoming. Counts in a year only without
+a yearly gift budget.
+
+## Wedding anniversary budget {#wedding-budget}
+
+What you mean to spend on their wedding anniversary while they're married, shown with it in
+Upcoming. Counts in a year only without a yearly gift budget.
 
 ## Holidays
 
 The holidays they get gifts for. Dates are worked out each year: fixed ones, rule-based ones like
 Mother's Day, and lunar or lunisolar ones like Diwali from shipped tables.
+
+## Holiday budgets {#holiday-budget}
+
+What you mean to spend on each holiday they get gifts for, shown with it in Upcoming. Counts in a
+year only without a yearly gift budget.
 
 ## Anniversaries and other dates {#dates}
 

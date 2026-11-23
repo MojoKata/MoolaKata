@@ -124,10 +124,15 @@ def wedding_of(s: Session, person_id: str) -> dt.date | None:
 
 
 def dates_in(
-    p: Person, occs: list[Occasion], year: int, wedding: dt.date | None = None
+    p: Person,
+    occs: list[Occasion],
+    year: int,
+    wedding: dt.date | None = None,
+    plan: GiftPlan | None = None,
 ) -> list[Date]:
     """A person's dated occasions in a year: their birthday, their wedding anniversary, and
-    the plan's own occasions."""
+    the plan's own occasions, each with its budget (the birthday's and the wedding's are the
+    plan's, S7.7.1)."""
     out = []
     if p.birthMonth and p.birthDay and not p.diedOn:
         out.append(
@@ -135,7 +140,7 @@ def dates_in(
                 "birthday",
                 "Birthday",
                 _safe(year, p.birthMonth, p.birthDay),
-                None,
+                plan.birthdayBudget if plan else None,
                 "birthday",
                 year - p.birthYear if p.birthYear else None,
             )
@@ -146,7 +151,7 @@ def dates_in(
                 "wedding",
                 "Wedding anniversary",
                 _safe(year, wedding.month, wedding.day),
-                None,
+                plan.weddingBudget if plan else None,
                 "anniversary",
                 year - wedding.year,
             )
@@ -170,6 +175,17 @@ def dates_in(
                 )
             )
     return out
+
+
+def year_budget(
+    plan: GiftPlan, p: Person, occs: list[Occasion], year: int, wedding: dt.date | None
+) -> Decimal | None:
+    """What a plan means to spend on its person in a year (S7.7.1): its yearly budget when it
+    has one, else the budgets of that year's occasions together; none when it has neither."""
+    if plan.giftBudget is not None:
+        return plan.giftBudget
+    each = [d.budget for d in dates_in(p, occs, year, wedding, plan) if d.budget is not None]
+    return sum(each, ZERO) if each else None
 
 
 def label_of(key: str | None, occs: list[Occasion]) -> str:
@@ -211,7 +227,7 @@ def upcoming(s: Session, user_id: str, today: dt.date, days: int = UPCOMING_DAYS
             continue  # your own dates are for others to plan
         wedding = wedding_of(s, p.id)
         for year in {today.year, end.year}:
-            for d in dates_in(p, occs[x.plan.id], year, wedding):
+            for d in dates_in(p, occs[x.plan.id], year, wedding, x.plan):
                 if not today <= d.date <= end:
                     continue
                 left = (d.date - today).days

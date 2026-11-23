@@ -755,7 +755,7 @@ const PEOPLE = [
   { id: 'lisa', name: 'Lisa Doe', rel: 'Daughter', dates: 'Birthday Oct 20 (turns 8) · Christmas', next: 'Birthday', when: 'Tue Oct 20', days: 9, occBudget: 150, budget: 600, spent: 212, last: 'Bike helmet · Christmas 2025' },
   { id: 'john', name: 'John Doe', rel: 'Husband · user', user: 'john', dates: 'Birthday Oct 28 · Wedding anniversary Jun 14 · Christmas', next: 'Birthday', when: 'Wed Oct 28', days: 17, occBudget: 200, budget: 800, spent: 360, last: 'Weekend in Galena · anniversary 2026' },
   { id: 'parents', name: 'Candace Doe', rel: 'Mother-in-law · doe-parents', dates: 'Wedding anniversary Nov 2 (with Jeremy) · Christmas', next: 'Anniversary (45th)', when: 'Mon Nov 2', days: 22, occBudget: 75, budget: 300, spent: 85, last: 'Photo book · Christmas 2025' },
-  { id: 'jsmith', name: 'John Smith', rel: 'Friend', private: true, dates: 'Birthday Feb 9 · Diwali', next: 'Diwali', when: 'Sun Nov 8', days: 28, occBudget: 50, budget: 150, spent: 40, last: 'Cookbook · birthday 2026' },
+  { id: 'jsmith', name: 'John Smith', rel: 'Friend', private: true, dates: 'Birthday Feb 9 · Diwali', next: 'Diwali', when: 'Sun Nov 8', days: 28, occBudget: 50, perOccasion: { Birthday: 100, Diwali: 50 }, budget: 150, spent: 40, last: 'Cookbook · birthday 2026' },
   { id: 'bart', name: 'Bart Doe', rel: 'Son · user', user: 'bart', dates: 'Birthday Mar 3 · Christmas', next: 'Christmas', when: 'Fri Dec 25', days: 75, occBudget: 200, budget: 600, spent: 180, last: 'Concert tickets · birthday 2026' },
 ];
 const GIFTS = [
@@ -2452,15 +2452,20 @@ DIALOGS.copyKey = (d) => {
   return { title: `Access Key for ${link}`, note: 'They are shown once.', body: `<div class="words">${COPY_WORDS.map((w, i) => `<div class="word"><span>${i + 1}</span><b>${w}</b></div>`).join('')}</div>
   <label class="list-item" style="cursor:pointer"><input type="checkbox"> <span class="grow">I have saved the 12 words</span></label>`, ok: 'Done, Words Saved' };
 };
+// A plan budgeted per occasion (S7.7.1): the holidays it gives for, and each date's budget.
+const heldHolidays = (x) => ['Christmas', 'Hanukkah', 'Diwali', 'Lunar New Year', 'Eid al-Fitr', 'Valentine’s Day', 'Mother’s Day', 'Father’s Day'].filter((h) => (x.dates || '').includes(h));
+const occBudget = (x, o) => (x.perOccasion && x.perOccasion[o] ? String(x.perOccasion[o]) : '');
 DIALOGS.person = (d) => {
   const x = personById(d.who) || { name: '', rel: '' };
   return { title: x.name ? `Gift Plan for ${x.name}` : 'New Gift Plan', body: `${state.joinable && x.id === 'parents' ? `<div style="margin-bottom:12px">${attention('Candace Doe on doe-parents may be Candace Doe', '<button class="btn sm" data-act="mjoined">Join Them</button>', '', 'link')}</div>` : ''}<div class="card" style="margin:0 0 12px;padding:10px 12px"><div class="small dim" style="margin-bottom:6px">The person${x.private ? ` ${statePill('private', 'Seen only by whoever added them and whoever they share them with.')}` : ''}</div>
     <div class="row">${field('Name', inp(x.name))}${field('Sex', `<div class="seg">${['Female', 'Male'].map((l) => `<button class="${l === (x.id === 'john' ? 'Male' : 'Female') ? 'on' : ''}" data-act="seg">${l}</button>`).join('')}</div>`)}${field('Birthday', inp(x.id === 'lisa' ? '2018-10-20' : '', '', 'text'))}</div>
     <div class="row">${field('Died on', inp('', 'living'))}<div class="field"><label>Private</label><div class="list-item"><span class="grow"></span>${sw(!!x.private)}</div></div></div>
     <div class="small">${x.rel ? `<b>${x.rel.split(' ·')[0]}</b> to you. ` : ''}<a data-act="dlg" data-v="relationship">Add a Relationship</a></div>${x.id === 'lisa' ? '<div class="small dim" style="margin-top:6px">Lisa’s family and friends: Jane Doe (mother), John Doe (father), Bart Doe (sister), Candace Doe (grandmother)</div>' : ''}</div>
-    ${field('Anniversary', inp(''))}
+    <div class="row">${field('Anniversary', inp(''))}${field('Anniversary budget', inp('', 'none'))}</div>
     <div class="field"><label>Holidays</label><div class="chips">${['Christmas', 'Hanukkah', 'Diwali', 'Lunar New Year', 'Eid al-Fitr', 'Valentine’s Day', 'Mother’s Day', 'Father’s Day'].map((h) => `<button class="chip ${(x.dates || '').includes(h) ? 'on' : ''}" data-act="switch">${h}</button>`).join('')}<button class="chip" data-act="toast" data-v="Custom occasion added (mock)">+ Custom</button></div></div>
-    <div class="row">${field('Yearly gift budget', inp(x.budget ? String(x.budget) : ''))}${field('Remind me', sel(['7 days before', '14 days before', '30 days before'], '14 days before'))}</div>
+    <div class="row">${field('Yearly gift budget', inp(x.budget && !x.perOccasion ? String(x.budget) : '', 'none'))}${field('Remind me', sel(['7 days before', '14 days before', '30 days before'], '14 days before'))}</div>
+    <div class="small dim" style="margin-bottom:6px">Or a budget per occasion:</div>
+    <div class="row">${['Birthday', ...((x.dates || '').includes('Wedding anniversary') ? ['Wedding anniversary'] : [])].map((o) => field(`${o} budget`, inp(occBudget(x, o), 'none'))).join('')}${heldHolidays(x).length ? field('Holiday budgets', `<div class="row" style="gap:8px">${heldHolidays(x).map((h) => `<label class="small dim" style="flex:1">${h}${inp(occBudget(x, h), 'none').replace('<input', `<input aria-label="${h} budget"`)}</label>`).join('')}</div>`) : ''}</div>
     ${field('Notes', `<textarea class="in" rows="3">${x.id === 'lisa' ? 'Loves drawing and horses. Shoe size 1. Already has the LEGO castle.' : ''}</textarea>`)}`, ok: 'Save', note: x.name ? `<button class="btn danger" data-act="confirm" data-v="Delete the plan?||Plan deleted (mock)">Delete Plan</button> <button class="btn danger" data-act="confirm" data-v="Delete ${x.name} for everyone?||${x.name} deleted (mock)">Delete Person</button>` : '' };
 };
 // S7.7.1, S12.15.4: an occasion taken away while a gift is planned for it asks first.
@@ -3047,9 +3052,13 @@ const GUIDES = {
     <h2>Delete Plan, Delete Person</h2><p>Delete plan removes your gift plan; the person stays. Delete person removes them for everyone, asking first: gifts bought, given or received stay in the history as <i>Lisa (deleted)</i>.</p>
     <h2 ${hid('Birth year')}>Birth year</h2><p>Tells two people with the same name apart: a different person with the same name is added once both have birth years, and they differ.</p>
     <h2 ${hid('Anniversary')}>Anniversary</h2><p>Any anniversary other than a wedding: its date and what it is for. A wedding anniversary comes from the marriage.</p>
+    <h2 ${hid('Anniversary budget')}>Anniversary budget</h2><p>What you mean to spend on the anniversary, shown with it in Upcoming. Counts in a year only without a yearly gift budget.</p>
     <h2>A deleted person</h2><p>Gifts bought, given or received stay in the history and spending, marked <i>(deleted)</i>. Ideas and planned gifts for them alone go with them.</p>
     <h2>Holidays</h2><p>Which holidays they get gifts for. Dates are worked out each year, including lunar ones such as Diwali and Lunar New Year.</p>
-    <h2 ${hid('Yearly gift budget')}>Yearly gift budget</h2><p>For all their occasions in a year, or set one per occasion.</p>
+    <h2 ${hid('Yearly gift budget')}>Yearly gift budget</h2><p>For all their occasions in a year. Left blank, the plan is budgeted per occasion instead: the year’s budget is the birthday’s, the wedding anniversary’s and each holiday’s and date’s together.</p>
+    <h2 ${hid('Birthday budget')}>Birthday budget</h2><p>What you mean to spend on their birthday, shown with it in Upcoming. Counts in a year only without a yearly gift budget.</p>
+    <h2 ${hid('Wedding anniversary budget')}>Wedding anniversary budget</h2><p>What you mean to spend on their wedding anniversary while they’re married, shown with it in Upcoming. Counts in a year only without a yearly gift budget.</p>
+    <h2 ${hid('Holiday budgets')}>Holiday budgets</h2><p>What you mean to spend on each holiday they get gifts for, shown with it in Upcoming. Counts in a year only without a yearly gift budget.</p>
     <h2 ${hid('Remind me')}>Remind me</h2><p>How far ahead an occasion reaches the Dashboard.</p>
     <h2 ${hid('Occasion')}>Occasion</h2><p>What the gift is for. <i>No date</i> keeps it as an idea.</p>
     <h2>Status</h2><p><b>Idea</b>, <b>planned</b>, <b>bought</b>, <b>given</b>, or <b>received</b> for a gift to you, with a thank-you tick.</p>

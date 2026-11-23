@@ -37,6 +37,8 @@ class GiftPlan(Record):
     ownerId: str
     personId: str
     giftBudget: Decimal | None = None
+    birthdayBudget: Decimal | None = None
+    weddingBudget: Decimal | None = None
     leadDays: int = 14
     notes: str | None = None
 

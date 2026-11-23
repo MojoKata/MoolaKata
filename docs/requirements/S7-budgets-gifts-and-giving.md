@@ -225,7 +225,10 @@
       occasion, a reminder lead time (14 days by default), and notes (sizes, likes, what
       they already have). The person's **birthday**, their **wedding anniversary** (the start
       of a *spouse* relationship) and their relation to the user (*your granddaughter*,
-      S10.10.5) come from the person. Adding a gift plan for someone new adds the person
+      S10.10.5) come from the person; the plan holds the birthday's and the wedding
+      anniversary's budgets as it holds each holiday's and anniversary's. A plan's budget for
+      a year is its yearly one, or without it its occasions' budgets in that year together.
+      Adding a gift plan for someone new adds the person
       first, as S10.10.3 says. Changing an occasion keeps the gifts planned for it; taking
       away an anniversary or other occasion that has gifts planned asks first, and they
       become ideas, with no occasion.

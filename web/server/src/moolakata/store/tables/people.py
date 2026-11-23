@@ -71,13 +71,16 @@ Relationship = record(
 unique_live(Relationship, "person1Id", "person2Id", "relation", "fromDate")
 
 # One user's gift plan for a person (S7.7.1): their budget, lead time and notes, with the
-# holidays and anniversaries they give for.
+# holidays and anniversaries they give for. A plan budgeted per occasion keeps the birthday's
+# and the wedding anniversary's here, since those come from the person.
 GiftPlan = record(
     "GiftPlan",
     "GfPln",
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("personId", Text, ForeignKey("Person.id", ondelete="CASCADE"), nullable=False),
     Column("giftBudget", Cents),  # a year
+    Column("birthdayBudget", Cents),
+    Column("weddingBudget", Cents),
     Column("leadDays", Integer, nullable=False, server_default=text("14")),
     Column("notes", Text),
     CheckConstraint('"leadDays" >= 0', name="lead_days"),
