@@ -397,3 +397,138 @@ def test_what_a_payment_brings_beyond_the_balance_and_the_days_dues_is_fees():
     t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(12))
     p = L.split_for(t, [], [], d(2026, 2, 1), D(1500))
     assert (p.interest, p.principal, p.fees) == (D("10.00"), D(1000), D(490))
+
+
+# loans.paid_off, _effects, _level_at, schedule
+
+
+def test_a_loan_is_paid_off_on_the_first_day_in_date_order_that_leaves_nothing_owed():
+    # S1.9.5: the payoff date is the payment's that left nothing owed, read in date order and
+    # each from the balance on its own day.
+    t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(0))
+    paid = [L.Payment(day, D(x), principal=D(x)) for day, x in
+            [(d(2026, 4, 1), 50), (d(2026, 3, 1), 600), (d(2026, 2, 1), 400)]]  # fmt: skip
+    assert L.paid_off(t, paid, []) == d(2026, 3, 1)
+    assert L.paid_off(t, paid[:2], []) is None
+
+
+def test_a_reset_in_the_first_month_or_the_last_works_out_the_next_payment_days_level():
+    """S1.9.2: a reset on Jan 15 sets Feb 1's level at its rate over all 360 payments; one on
+    the 12-month loan's last month sets the last day's, that day counted: all that is owed,
+    with its interest."""
+    t = _mortgage(resets=[(d(2026, 1, 15), D(7))])
+    assert L.due_on(t, [], [], d(2026, 2, 1), t.start)[0] == L.level_payment(D(300000), D(7), 360)
+    t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(12),
+                resets=[(d(2026, 12, 15), D(12))])  # fmt: skip
+    assert L.due_on(t, [], [], d(2027, 1, 1), d(2026, 12, 1))[0] == D("1010.00")
+
+
+def test_a_charge_added_to_a_mortgage_leaves_its_level_payment():
+    # S1.9.2: only a HELOC's draw in its repayment period works the level out again.
+    t = _mortgage()
+    pi, _ = L.due_on(t, [], [(d(2026, 3, 10), D(1000))], d(2026, 4, 1), d(2026, 3, 1))
+    assert pi == L.scheduled_payment(t)
+
+
+def test_assumed_as_scheduled_the_days_after_a_payment_recorded_are_assumed_until_today():
+    # S1.9.3: a payment recorded doesn't start a record: each day with none recorded is paid.
+    t = _mortgage()
+    rows = L.schedule(t, [(d(2026, 2, 1), L.scheduled_payment(t), "a")], [], d(2026, 6, 10))
+    assert [r.status for r in rows if r.past] == ["paid"] + ["assumed"] * 4
+
+
+def test_recorded_here_the_schedule_splits_and_reads_a_late_payment_as_paying_the_day_missed():
+    """S1.9.3: March missed, Apr 1's payment pays it, so Apr 10's pays April: each owes its own
+    day's interest, and none is an overpayment; nothing is missed."""
+    t = _mortgage()
+    pi = L.scheduled_payment(t)
+    recorded = [(day, pi, None) for day in (d(2026, 2, 1), d(2026, 4, 1), d(2026, 4, 10))]
+    rows = L.schedule(t, recorded, [], d(2026, 4, 20), mode="recorded")
+    past = [(r.status, r.interest, r.overpayment) for r in rows if r.past]
+    assert past == [("paid", D(x), 0) for x in ("1500.00", "1498.51", "1497.01")]
+
+
+def test_assumed_as_scheduled_a_payment_ahead_never_goes_back_to_a_day_before_its_own():
+    """S1.9.3: only recorded here does a payment pay the oldest day missed. Payments dated
+    Jun 20 and Jun 25 both go with July, so the second, 500, is all an overpayment."""
+    t = _mortgage()
+    pi = L.scheduled_payment(t)
+    recorded = [(d(2026, 4, 1), pi, "a"), (d(2026, 6, 20), pi, "b"), (d(2026, 6, 25), D(500), "c")]
+    rows = L.schedule(t, recorded, [], d(2026, 4, 10))
+    assert [r.overpayment for r in rows if r.past][-2:] == [0, D(500)]
+
+
+def test_the_schedules_rows_show_an_overpayment_only_past_the_days_principal_due():
+    # S1.9.3: the day's 298.65 of principal is due across its payments: the third's 500 of
+    # principal is 401.35 beyond what the first two left of it.
+    t = _mortgage()
+    recorded = [(d(2026, 2, 1), D(x), None) for x in (1600, 100, 500)]
+    rows = L.schedule(t, recorded, [], d(2026, 2, 10), mode="recorded")
+    assert [r.overpayment for r in rows if r.past] == [0, 0, D("401.35")]
+
+
+def test_each_row_passed_has_its_escrow_and_the_balance_on_its_own_day():
+    # S1.9.2: each payment's escrow (tax and insurance) and the balance it left.
+    t = _mortgage(escrowTax=D(300), escrowInsurance=D(120))
+    rows = [r for r in L.schedule(t, [], [], d(2026, 4, 10)) if r.past]
+    assert [r.escrow for r in rows] == [420] * 3
+    principal = [r.principal for r in rows]
+    assert [r.balance for r in rows] == [300000 - sum(principal[: i + 1]) for i in range(3)]
+
+
+def test_a_helocs_draw_period_ahead_pays_interest_only():
+    # S1.9.1: in the draw period the payments are interest only.
+    t = L.Terms(principal=D(10000), start=d(2026, 1, 1), months=240, rate=D(8), drawMonths=120)
+    row = L.schedule(t, [], [], d(2026, 1, 10))[0]
+    assert (row.principal, row.interest, row.payment) == (0, D("66.67"), D("66.67"))
+
+
+def test_ahead_a_helocs_level_is_worked_out_again_the_day_after_a_draw_in_repayment():
+    """S1.9.2: repayment starts Mar 1 on the 10,000 drawn, and Mar 1 is paid. Drawn 5,000 more
+    on Apr 3, the level stays what Mar 1 set for Apr 1 (in its grace, today Apr 10), and from
+    May 1 is what pays the balance then owed off over the 21 payments left."""
+    t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
+    level = L.level_payment(D(10000), D(12), 23)
+    draws = [(d(2026, 2, 10), D(10000)), (d(2026, 4, 3), D(5000))]
+    rows = L.schedule(t, [(d(2026, 3, 1), level, "a")], draws, d(2026, 4, 10), mode="recorded")
+    apr, may = [r for r in rows if not r.past][:2]
+    assert (apr.date, apr.principal + apr.interest) == (d(2026, 4, 1), level)
+    assert may.principal + may.interest == L.level_payment(apr.balance, D(12), 21)
+
+
+def test_ahead_the_level_set_by_a_reset_is_from_what_was_owed_the_day_before_it_took_effect():
+    """S1.9.2: reset to 7% on Feb 15, so Mar 1 sets the level, from what was owed on Feb 28: a
+    charge of 100 that day counted, one of 1,000 on Mar 2 not. Apr 1, ahead, keeps it."""
+    t = _mortgage(resets=[(d(2026, 2, 15), D(7))])
+    draws = [(d(2026, 2, 28), D(100)), (d(2026, 3, 2), D(1000))]
+    rows = L.schedule(t, [], draws, d(2026, 3, 10))
+    feb, mar, apr = rows[:3]
+    level = L.level_payment(feb.balance + 100, D(7), 359)
+    assert (mar.date, apr.date) == (d(2026, 3, 1), d(2026, 4, 1))
+    assert mar.principal + mar.interest == apr.principal + apr.interest == level
+
+
+def test_whatever_is_owed_long_after_the_terms_end_is_due_whole_on_the_next_payment_day():
+    # S1.9.2: a charge on a loan whose term ended decades ago is paid by its next payment day.
+    t = L.Terms(principal=D(500), start=d(1970, 1, 1), months=1, rate=D(6))
+    rows = L.schedule(t, [], [(d(2025, 12, 1), D(1000))], d(2026, 1, 1))
+    assert [(r.date, r.principal, r.status) for r in rows] == [
+        (d(1970, 2, 1), 500, "assumed"), (d(2026, 1, 1), 1000, "ahead")
+    ]  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("payment", "rows"),
+    [("999.50", [("1000", 0)]), ("999", [("999", 9), ("1", 0)]),
+     ("998.50", [("998.50", 9), ("1.50", 0)])],
+)  # fmt: skip
+def test_ahead_a_balance_under_a_dollar_left_goes_with_the_payment_and_pmi_ends_with_it(
+    payment, rows
+):
+    """S1.9.2, S1.9.5: at no interest, the first payment ahead leaves 0.50, 1.00 or 1.50 of the
+    1,000 owed. Under $1 goes with it, and nothing is owed so it has no PMI; a dollar or more
+    is the next payment's, and PMI is due while it is owed."""
+    t = L.Terms(principal=D(1000), start=d(2026, 1, 1), months=12, rate=D(0),
+                payment=D(payment), pmi=D(9))  # fmt: skip
+    ahead = L.schedule(t, [], [], d(2026, 1, 10))
+    assert [(r.principal, r.pmi) for r in ahead] == [(D(p), pmi) for p, pmi in rows]

@@ -205,3 +205,121 @@ Counts (81): killed 47, bug 6, equivalent 12, remove 16, slow 0, process only 0,
 
 4. The tests call `split_for`, `settle`, `schedule`, `day_of` and `balance_on` directly; none
    calls a private helper.
+
+## Batch 3
+
+File: `web/server/tests/test_loans_edges.py` (13 tests added, one parametrized; each under
+0.01 s).
+
+Counts (56): killed 32, bug 7, equivalent 6, remove 11, slow 0, process only 0, still left 0.
+
+### Bug
+
+- `moolakata.loans.x_schedule__mutmut_35` and `moolakata.loans.x_schedule__mutmut_40` (the
+  walk's `settled` dropped, so `_walk` starts the record at `_record_starts`). The same
+  question as batch 2's doubt 1 (`_walk_1`, `_walk_2`): they differ only when the first payment
+  recorded here is dated after today, and then they give batch 2's test its answer (Apr 5's
+  row an overpayment of 500, as its split has it). Batch 2's test is the one to write:
+  `test_a_second_payment_toward_a_day_ahead_is_an_overpayment_in_the_schedule_too`.
+- `moolakata.loans.x_schedule__mutmut_174` and `moolakata.loans.x_schedule__mutmut_178`
+  (`owed` read from every payment, not those to today). S1.9.2: the schedule ahead starts
+  after the last day paid (`max(paid) + 1`), a payment dated after today counted, but from
+  today's balance, which leaves that payment's principal out: the first row ahead repeats it.
+  Input: 300,000 at 6% from 2026-01-01, assumed as scheduled, today 2026-02-10, a payment of
+  1,798.65 dated 2026-03-01. Output: Mar 1 (paid) leaves 299,401.21; Apr 1 (ahead) pays 300.14
+  of principal and leaves 299,401.21 again. The changes start from 299,401.21 (Apr 1 pays
+  301.64, leaves 299,099.57). Doubt: whether a payment dated after today is meant to count
+  (the same question as batch 2's).
+
+  ```python
+  def test_ahead_the_balance_counts_a_payment_dated_ahead_whose_day_it_paid():
+      t = _mortgage()
+      rows = L.schedule(t, [(d(2026, 3, 1), L.scheduled_payment(t), "a")], [], d(2026, 2, 10))
+      mar, apr = rows[1:3]
+      assert apr.balance == mar.balance - apr.principal
+  ```
+
+- `moolakata.loans.x_schedule__mutmut_184` (`previous` taking a row on the first day ahead).
+  S1.9.1: a daily-interest loan accrues simple interest between payments. Recorded here,
+  March missed, a payment on Apr 1 pays March (catching up) and has paid the interest to Apr 1;
+  today Apr 1,
+  April is the first day ahead, but its interest is counted from Feb 1's payment again: 59
+  days, 189.32, on 19,519.81. The change gives 0 days, 0. Input: 20,000 at 6% daily from
+  2026-01-01 over 60 months, payments of 386.66 on 2026-02-01 and 2026-04-01, today
+  2026-04-01. Doubt: only a catch-up payment dated on the first day ahead reaches it.
+
+  ```python
+  def test_a_daily_interest_day_ahead_accrues_from_a_payment_made_that_day():
+      t = L.Terms(principal=D(20000), start=d(2026, 1, 1), months=60, rate=D(6), method="daily")
+      pi = L.scheduled_payment(t)
+      recorded = [(d(2026, 2, 1), pi, "a"), (d(2026, 4, 1), pi, "b")]
+      rows = L.schedule(t, recorded, [], d(2026, 4, 1), mode="recorded")
+      apr = [r for r in rows if not r.past][0]
+      assert (apr.date, apr.interest) == (d(2026, 4, 1), 0)
+  ```
+
+- `moolakata.loans.x_schedule__mutmut_201` and `moolakata.loans.x_schedule__mutmut_203` (the
+  level on the first day ahead, when that day works it out again, from what was owed the day
+  before rather than today). S1.9.2: on such a day the level "becomes what pays off the
+  balance then owed". Recorded here, the first day ahead can be one passed, in its grace; a
+  draw since then is in today's balance, so the row ahead's level counts it, while the split
+  of the payment once made (`_Walker.look`, from `_owed_before(e)`) doesn't. Input: a HELOC of
+  24 months at 12% from 2026-01-01, drawn 10,000 on Feb 10, 1,000 on Mar 20 (in repayment, so
+  Apr 1 re-levels) and 5,000 on Apr 3; Mar 1 paid 488.86; today Apr 10. Output: Apr 1 ahead
+  is 794.04 of principal and interest (15,611.14 over 22); paid on Apr 12, its split's level is
+  539.72 (10,611.14 over 22). The changes give 539.72. Doubt: which balance the screen's
+  payment due next should level from while that day is in its grace.
+
+  ```python
+  def test_ahead_a_day_in_its_grace_that_re_levels_has_the_level_its_payment_is_split_by():
+      t = L.Terms(principal=D(0), start=d(2026, 1, 1), months=24, rate=D(12), drawMonths=2)
+      level = L.level_payment(D(10000), D(12), 23)
+      draws = [(d(2026, 2, 10), D(10000)), (d(2026, 3, 20), D(1000)), (d(2026, 4, 3), D(5000))]
+      rows = L.schedule(t, [(d(2026, 3, 1), level, "a")], draws, d(2026, 4, 10), mode="recorded")
+      apr = [r for r in rows if not r.past][0]
+      assert apr.principal + apr.interest == L.level_payment(D("10611.14"), D(12), 22)
+  ```
+
+### Equivalent
+
+- `moolakata.loans.x_schedule__mutmut_44`: `zip(…, strict=None)`: `walked` is built one per payment, so the lengths always match.
+- `moolakata.loans.x_schedule__mutmut_47`: the same, `strict` left out.
+- `moolakata.loans.x_schedule__mutmut_48`: the same, `strict=False`.
+- `moolakata.loans.x_schedule__mutmut_132`: not recorded here, `paid` holds every day before today (`settled` is today), so `max(paid) + 1` is never below the loop's `k`: the grace (or none) can't move it.
+- `moolakata.loans.x_schedule__mutmut_134`: the same, a day for none.
+- `moolakata.loans.x_schedule__mutmut_212`: `balance_on(…, e - 1)` leaves a payment on `e` out anyway.
+
+### Remove
+
+- `moolakata.loans.x_schedule__mutmut_216`: `first` can't matter: on the first day ahead, a day that works the level out again gives `_level_on` (`e == day`, `owed`) the same `_level_at(t, day, owed)` the loop would.
+- `moolakata.loans.x_schedule__mutmut_217`: the same.
+- `moolakata.loans.x_schedule__mutmut_238`: the same (`None` is as falsy as `False`).
+- `moolakata.loans.x_schedule__mutmut_219`: the 1,200-row guard restates the term's end: the term is 1 to 600 months (S1.9.1, refused past it in `ui/loans.py`) and a row on or after the end takes all that is owed, so the loop ends within 600 rounds.
+- `moolakata.loans.x_schedule__mutmut_223`: the same.
+- `moolakata.loans.x_schedule__mutmut_224`: the same.
+- `moolakata.loans.x_schedule__mutmut_225`: the same.
+- `moolakata.loans.x_schedule__mutmut_226`: the same.
+- `moolakata.loans.x_schedule__mutmut_227`: the same.
+- `moolakata.loans.x_schedule__mutmut_341`: the date check past `t.end + 600` months can't end a loop that wouldn't end anyway: its day is past the end only after a row on or after the end, which left nothing owed.
+- `moolakata.loans.x_schedule__mutmut_346`: the same.
+
+### Batch check
+
+`web/dev.sh mutate run moolakata/loans/__init__.py` on the batch's 56 names, with
+`tests/test_loans_edges.py` added (log `web/.dev/relay-h19/batch-3.log`, exit 0): 32 killed,
+24 survived, the 24 listed above and no others. No test was dropped as failing in the copy.
+
+### Doubts
+
+1. Three of the bugs turn on payments or draws dated after today, or a first day ahead still
+   in its grace (`schedule_35`/`_40` with batch 2's doubt 1, `_174`/`_178`, `_201`/`_203`): the
+   schedule ahead reads today's balance where the splits read the balance on the day.
+2. `first` (`_216`, `_217`, `_238`) is listed as Remove only while `_201`/`_203` stand: if the
+   first day ahead levels from what was owed the day before, `first` is what keeps the loop
+   from levelling it again from today's balance, and its survivors need a test then.
+3. `_effects_3` is killed reading S1.9.2's "a fee or charge added to what is owed being one" as
+   a HELOC draw in its repayment period (the code's reading): a charge on a mortgage leaves its
+   level payment. If a mortgage's charge is meant to re-level too, that test is wrong.
+4. `schedule_347` (`break` → `return`) is killed by a loan whose term ended in 1970 with a
+   charge in 2025; it stays passing if the date check (`_341`, `_346`) is removed.
+5. The tests call `paid_off`, `due_on` and `schedule` directly; none calls a private helper.
