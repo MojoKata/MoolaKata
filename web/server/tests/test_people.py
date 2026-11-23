@@ -406,6 +406,17 @@ def test_a_person_who_is_a_user_is_never_made_private(server, two, admin_client)
     assert not jane.get(f"/ui/api/persons/{bob['id']}").json()["private"]
 
 
+def test_a_change_that_leaves_private_out_keeps_it(two, admin_client):
+    """S10.10.2: a save of a private person without `private` changes what it names and
+    leaves them private, whether its creator or an admin saves it."""
+    jane, _ = two
+    ruth = add(jane, "Ruth Doe", private=True, birthYear=1940)
+    for c in (jane, admin_client):
+        r = change(c, "Persn", c.get(f"/ui/api/persons/{ruth['id']}").json(), birthYear=1941)
+        assert saved(r)["private"]
+    assert jane.get(f"/ui/api/persons/{ruth['id']}").json()["private"]
+
+
 def test_a_relationship_is_changed_and_removed_with_its_version(two):
     jane, john = two
     a, b = me(jane), me(john)
