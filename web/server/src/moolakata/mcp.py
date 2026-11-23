@@ -235,7 +235,7 @@ def _gifts(srv, w, args):
 def _giving(srv, w, args):
     from .ui import giving
 
-    return _dump(giving.get_giving(_req(srv), args.get("year"), w.caller))
+    return _dump(giving.get_giving(_req(srv), args.get("year"), c=w.caller))
 
 
 @tool("list_tax_books", "The tax books the user can see: one a tax year.", whole=True)

@@ -48,34 +48,61 @@ export default function Giving({ tab }) {
   const current = TABS.some(([k]) => k === tab) ? /** @type {string} */ (tab) : 'overview';
   const now = fmt.thisYear();
   const [year, setYear] = useState(String(now));
+  // The plan shown: one's own (''), or one shared with the user that year (S7.9.1).
+  const [planId, setPlanId] = useState('');
   useTitle('Giving');
   useGuide('giving-' + current);
-  const res = useApi('/giving', { year }, ['import']);
+  const res = useApi('/giving', planId ? { year, plan: planId } : { year }, ['import']);
   const v = /** @type {any} */ (res.data);
+  /** @type {Shown} */
+  const shown = {
+    planId: planId || null,
+    // What is added goes into the plan shown: not one shared with the user to read.
+    why: planId && v?.plan ? whyRead(v.plan) : null,
+  };
   return html`
     <div class="toolbar"><${Tabs} tabs=${TABS} current=${current} base="/ui/giving" /><span
-      class="spacer"></span><${Chips} label="Year" value=${year} onChange=${setYear}
-      options=${[now - 1, now].map((y) => [String(y), String(y)])} /></div>
+      class="spacer"></span>${v?.shared?.length
+        ? html`
+          <${Chips} label="Plan" value=${planId} onChange=${setPlanId} options=${[
+            ['', 'Mine'],
+            ...v.shared.map((/** @type {any} */ p) => [p.id, `${p.ownerName}’s`]),
+          ]} />
+        `
+        : null}<${Chips} label="Year" value=${year} onChange=${(/** @type {string} */ y) => {
+        setPlanId('');
+        setYear(y);
+      }} options=${[now - 1, now].map((y) => [String(y), String(y)])} /></div>
     ${res.error
       ? html`<${Failed} error=${res.error} />`
       : !v
       ? html`<${Loading} lines=${6} />`
       : current === 'overview'
-      ? html`<${Overview} v=${v} reload=${res.reload} />`
+      ? html`<${Overview} v=${v} shown=${shown} reload=${res.reload} />`
       : current === 'donations'
-      ? html`<${Donations} year=${year} reload=${res.reload} />`
+      ? html`<${Donations} year=${year} shown=${shown} reload=${res.reload} />`
       : current === 'organisations'
-      ? html`<${Organisations} />`
-      : html`<${Fund} v=${v} year=${year} />`}
+      ? html`<${Organisations} shown=${shown} />`
+      : html`<${Fund} v=${v} year=${year} shown=${shown} />`}
   `;
 }
 
-/** @param {{ v: any, reload: () => void }} p */
-function Overview({ v, reload }) {
+/**
+ * The plan shown and whether what is added may go into it.
+ * @typedef {{ planId: string | null, why: string | null }} Shown
+ */
+
+/** @param {Shown} shown */
+function withPlan(shown) {
+  return shown.planId ? { plan: shown.planId } : {};
+}
+
+/** @param {{ v: any, shown: Shown, reload: () => void }} p */
+function Overview({ v, shown, reload }) {
   const fmt = useFormats();
   const plan = v.plan;
   const editPlan = () => openDialog(PlanDialog, { v }).then((x) => x && reload());
-  const record = () => openDialog(DonationDialog, {}).then((x) => x && reload());
+  const record = () => openDialog(DonationDialog, { shown }).then((x) => x && reload());
   const behind = dec(v.pace).sub(dec(v.given));
   const months = v.byMonth.map((/** @type {string} */ x, /** @type {number} */ i) => [
     new Date(Date.UTC(v.year, i + 1, 0)).toISOString().slice(0, 10),
@@ -113,7 +140,7 @@ function Overview({ v, reload }) {
               agi: 'estimated AGI',
             }[/** @type {'take-home'|'gross'|'agi'} */ (plan.incomeBasis)]
           }`
-          : 'a fixed amount'} · ${plan.access.writable
+          : 'a fixed amount'} · ${plan.access.mine
           ? null
           : `shared by ${plan.ownerName} · `}<${Action} class="linklike" why=${whyRead(plan)}
             onClick=${() => editPlan()}>Edit</${Action}>${plan.access.shareable
@@ -177,8 +204,9 @@ function Overview({ v, reload }) {
     )}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Given against the Target<span class="spacer"></span><button
-        class="btn sm primary" onClick=${record}><${Icon} name="plus" /> Record a Donation</button></h3>
+        <h3>Given against the Target<span class="spacer"></span><${Action}
+        class="btn sm primary" why=${shown.why} onClick=${record}><${Icon} name="plus" /> Record a
+        Donation</${Action}></h3>
         <${TimeChart} label=${`Given in ${v.year} against the target`} series=${[
           { name: 'Given', color: '--hue-giving', points: months },
           { name: 'Even pace to the target', color: '--fg-muted', dash: true, points: pace },
@@ -220,23 +248,24 @@ function Overview({ v, reload }) {
   `;
 }
 
-/** @param {{ year: string, reload: () => void }} p */
-function Donations({ year, reload }) {
-  const res = useList('/giving/donations', { year }, ['import']);
+/** @param {{ year: string, shown: Shown, reload: () => void }} p */
+function Donations({ year, shown, reload }) {
+  const res = useList('/giving/donations', { year, ...withPlan(shown) }, ['import']);
   const rows = /** @type {any[]} */ (res.data);
   const again = () => {
     res.reload();
     reload();
   };
   const record = (/** @type {any} */ from) =>
-    openDialog(DonationDialog, { from }).then((x) => x && again());
+    openDialog(DonationDialog, { from, shown }).then((x) => x && again());
   const open = (/** @type {any} */ d) =>
     d.id ? openDialog(DonationView, { d }).then((x) => x && again()) : record(d);
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} />`;
   return html`
-    <div class="toolbar"><span class="spacer"></span><button class="btn primary"
-      onClick=${() => record(null)}><${Icon} name="plus" /> Record a Donation</button></div>
+    <div class="toolbar"><span class="spacer"></span><${Action} class="btn primary"
+      why=${shown.why} onClick=${() => record(null)}><${Icon} name="plus" /> Record a
+      Donation</${Action}></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -304,17 +333,19 @@ function Donations({ year, reload }) {
   `;
 }
 
-function Organisations() {
-  const res = useList('/giving/organisations');
+/** @param {{ shown: Shown }} p */
+function Organisations({ shown }) {
+  const res = useList('/giving/organisations', withPlan(shown));
   const rows = /** @type {any[]} */ (res.data);
   const open = (/** @type {any} */ o) =>
-    openDialog(OrganisationDialog, { o }).then((x) => x && res.reload());
+    openDialog(OrganisationDialog, { o, shown }).then((x) => x && res.reload());
   if (res.error) return html`<${Failed} error=${res.error} />`;
   if (!rows) return html`<${Loading} />`;
   return html`
     <div
-      class="toolbar"><span class="spacer"></span><button class="btn primary" onClick=${() =>
-        open(null)}><${Icon} name="plus" /> Add an Organisation</button></div>
+      class="toolbar"><span class="spacer"></span><${Action} class="btn primary"
+        why=${shown.why} onClick=${() => open(null)}><${Icon} name="plus" /> Add an
+        Organisation</${Action}></div>
     ${rows.length
       ? html`
         <div class="card" style=${{ padding: '4px 8px' }}>
@@ -369,9 +400,9 @@ function Organisations() {
   `;
 }
 
-/** @param {{ v: any, year: string }} p */
-function Fund({ v, year }) {
-  const res = useList('/giving/donations', { year });
+/** @param {{ v: any, year: string, shown: Shown }} p */
+function Fund({ v, year, shown }) {
+  const res = useList('/giving/donations', { year, ...withPlan(shown) });
   const grants = (/** @type {any[]} */ (res.data) || []).filter((d) => d.kind === 'daf-grant');
   if (!v.funds.length) {
     return html`<${Empty}>No donor-advised fund. Add one as an account of
@@ -523,6 +554,7 @@ class DonationRec extends Rec {
     granted: null,
     notes: null,
     receiptIds: [],
+    planId: null,
   };
   /** @override */
   static rules = {
@@ -544,17 +576,18 @@ class DonationRec extends Rec {
   };
 }
 
-/** @param {{ close: (v?: any) => void, from?: any }} p */
-function DonationDialog({ close, from }) {
+/** @param {{ close: (v?: any) => void, from?: any, shown: Shown }} p */
+function DonationDialog({ close, from, shown }) {
   const fmt = useFormats();
   useDialogGuide('dialog-donation');
-  const orgs = useList('/giving/organisations');
+  const orgs = useList('/giving/organisations', withPlan(shown));
   const accounts = useList('/accounts');
   const f = useDraft((draft) => {
     const d = draft.add(DonationRec, {
       kind: 'cash',
       date: from?.date || fmt.today(),
       transactionId: from?.transactionId || null,
+      planId: shown.planId,
     });
     if (from?.amount) d.input('amount', String(from.amount));
   }, []);
@@ -763,6 +796,7 @@ class OrganisationRec extends Rec {
     pledge: null,
     pledgeEvery: 'month',
     notes: null,
+    planId: null,
   };
   /** @override */
   static rules = {
@@ -775,12 +809,12 @@ const ORG_ROW = ['name', 'ein', 'deductible', 'causes', 'pledge', 'pledgeEvery']
 /** What a donation's row shows. */
 const DONATION_ROW = ['acknowledged'];
 
-/** @param {{ close: (v?: any) => void, o: any }} p */
-function OrganisationDialog({ close, o }) {
+/** @param {{ close: (v?: any) => void, o: any, shown: Shown }} p */
+function OrganisationDialog({ close, o, shown }) {
   useDialogGuide('dialog-organisation');
   const f = useDraft((draft) => {
     if (o) draft.load(OrganisationRec, o);
-    else draft.add(OrganisationRec, { name: '' });
+    else draft.add(OrganisationRec, { name: '', planId: shown.planId });
   }, [o?.id]);
   const rec = /** @type {OrganisationRec | undefined} */ (f.draft?.records[0]);
   const canWrite = !o || o.access.writable;

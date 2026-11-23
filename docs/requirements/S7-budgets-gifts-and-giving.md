@@ -276,7 +276,12 @@
    1. **A giving plan** per year, per user or per group (as budgets are): a **target** as a
       **percentage of income** (10% by default when one is set), or a fixed amount. It counts
       its owner's accounts only: sharing it shows them, and never reads the accounts of those
-      it is shared with.
+      it is shared with. A user may keep their own plan in any year, whatever is shared with
+      them: the Giving screen shows their own giving and plan, and beside the year a choice of
+      the plans shared with them that year. A donation or organisation added goes into the plan
+      shown: one's own, or one shared to write, whose entries are its owner's and which its
+      writers change and delete as its owner does (S10.3.2); to one shared to read, adding is
+      shown off (S10.3.1).
    2. **Income**, for the percentage, is one of: the year's transactions in *Income*
       categories (take-home pay, the default), a typed **gross income** (from a W-2 or a pay
       stub), or a typed estimate of AGI. The plan says which it uses.

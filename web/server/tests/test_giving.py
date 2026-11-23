@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, giving_plan, make, saved, share
+from edits import change, giving_plan, make, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -236,7 +236,152 @@ def test_a_shared_plan_counts_its_owners_accounts_only(server, jane):
     v = jane.get("/ui/api/giving").json()
     assert v["income"] == "9000.00" and v["given"] == "0.00"
     assert jane.get("/ui/api/giving/donations").json()["items"] == []
-    assert john.get("/ui/api/giving").json()["income"] == "9000.00", "he sees her plan"
+    assert john.get("/ui/api/giving", params={"plan": plan["id"]}).json()["income"] == "9000.00"
+
+
+def _john(server):
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    return john, john.get("/ui/api/session").json()["user"]["id"]
+
+
+def test_ones_own_plan_comes_first_with_the_plans_shared_that_year_to_choose(server, jane):
+    """S7.9.1: a plan shared with John doesn't stop him keeping his own that year; his Giving
+    screen shows his own, and hers when he chooses it."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    v = john.get("/ui/api/giving").json()
+    assert v["plan"] is None
+    assert [(p["id"], p["ownerName"]) for p in v["shared"]] == [(hers["id"], "Jane")]
+    assert john.get("/ui/api/giving", params={"plan": hers["id"]}).json()["target"] == "5000.00"
+    his = saved(giving_plan(john, 2026, targetKind="amount", amount="800"))
+    v = john.get("/ui/api/giving").json()
+    assert v["plan"]["id"] == his["id"] and v["target"] == "800.00"
+    assert [p["id"] for p in v["shared"]] == [hers["id"]]
+    assert john.get("/ui/api/giving", params={"plan": hers["id"]}).json()["target"] == "5000.00"
+    # Another year's plan, or one he doesn't read, isn't his to choose.
+    assert john.get("/ui/api/giving", params={"year": 2025, "plan": hers["id"]}).status_code == 404
+    assert jane.get("/ui/api/giving", params={"plan": his["id"]}).status_code == 404
+    assert jane.get("/ui/api/giving").json()["shared"] == []
+
+
+def test_a_plan_sent_across_a_link_is_the_plan_itself(server, jane):
+    """S11.4, S7.9.1: what a link sends for a shared giving plan is that plan, though its
+    viewer keeps one of their own that year."""
+    from moolakata.links import serve
+    from moolakata.store.entities.users import User
+    from moolakata.ui.deps import Caller
+
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    saved(giving_plan(john, 2026, targetKind="amount", amount="800"))
+    it = serve.Item(hers["id"], "giving-plan", "2026", "Jane", "2026-10-13")
+    with server.db.read(unscoped="test: the viewer") as s:
+        viewer = Caller(s.get(User, john_id), None, False)
+        s.expunge(viewer.user)
+    docs = {path: serve._document(fn(viewer)) for path, fn in serve._paths(server, it)}
+    assert docs["/giving?year=2026"]["plan"]["id"] == hers["id"]
+    assert docs["/giving/donations?year=2026"]["items"] == []
+
+
+def test_a_reader_gives_from_his_own_and_adds_nothing_to_the_plan_he_reads(server, jane):
+    """S7.9.1, S10.3.1: John reads Jane's plan; what he records is his own giving, and the
+    plan he reads takes nothing from him."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, percent="10"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    shelter = org(john, "Night Shelter")
+    assert shelter["access"]["writable"]
+    d = donate(john, date="2026-03-01", kind="cash", organisationId=shelter["id"], amount="250")
+    assert d["organisationId"] == shelter["id"] and d["access"]["writable"]
+    assert [x["id"] for x in john.get("/ui/api/giving/donations").json()["items"]] == [d["id"]]
+    assert john.get("/ui/api/giving").json()["given"] == "250.00"
+    assert jane.get("/ui/api/giving/donations").json()["items"] == []
+    into_hers = make(john, "Orgzn", name="Food Bank", planId=hers["id"])
+    assert into_hers.status_code == 403, into_hers.text
+    into_hers = make(
+        john,
+        "Dnatn",
+        date="2026-03-02",
+        kind="cash",
+        organisationId=shelter["id"],
+        amount="10",
+        planId=hers["id"],
+    )
+    assert into_hers.status_code == 403, into_hers.text
+
+
+def test_a_writer_adds_to_the_plan_shown_as_its_owners(server, jane):
+    """S7.9.1, S10.3.2: what John adds to Jane's plan, shared with him to write, is the plan's:
+    hers, counted and listed there."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, percent="10"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "write"})
+    food = org(john, "Food Bank", planId=hers["id"])
+    assert [o["id"] for o in jane.get("/ui/api/giving/organisations").json()["items"]] == [
+        food["id"]
+    ]
+    assert john.get("/ui/api/giving/organisations").json()["items"] == []
+    listed = john.get("/ui/api/giving/organisations", params={"plan": hers["id"]}).json()
+    assert [o["id"] for o in listed["items"]] == [food["id"]]
+    d = donate(
+        john,
+        date="2026-04-01",
+        kind="cash",
+        organisationId=food["id"],
+        amount="300",
+        planId=hers["id"],
+    )
+    assert d["name"] == "Food Bank" and d["counted"]
+    assert [x["id"] for x in jane.get("/ui/api/giving/donations").json()["items"]] == [d["id"]]
+    assert jane.get("/ui/api/giving").json()["given"] == "300.00"
+    assert john.get("/ui/api/giving").json()["given"] == "0.00", "his own giving"
+    # Her plan is for 2026: a donation of 2025 isn't one of its entries.
+    other_year = make(
+        john,
+        "Dnatn",
+        date="2025-12-01",
+        kind="cash",
+        organisationId=food["id"],
+        amount="5",
+        planId=hers["id"],
+    )
+    assert other_year.json()["errors"][0]["field"] == "date"
+    # He changes her plan, and keeps one of his own.
+    assert saved(change(john, "GvPln", hers, percent="12"))["percent"] == "12.00"
+    assert saved(giving_plan(john, 2026, percent="5"))["percent"] == "5.00"
+
+
+def test_a_writer_changes_and_deletes_the_plans_entries_a_reader_cant(server, jane):
+    """S10.3.2: a giving plan shared to write lets John change its donations and
+    organisations, Jane's or those he added; at read he can't."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, percent="10"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "write"})
+    church = org(jane, "Parish")
+    food = org(jane, "Food Bank")
+    d = donate(jane, date="2026-03-01", kind="cash", organisationId=church["id"], amount="500")
+    seen = john.get("/ui/api/giving/donations", params={"plan": hers["id"]}).json()["items"]
+    assert seen[0]["access"]["writable"]
+    d = saved(change(john, "Dnatn", d, acknowledged=True, organisationId=food["id"]))
+    assert d["acknowledged"] and d["name"] == "Food Bank"
+    food = saved(change(john, "Orgzn", food, pledge="50", pledgeEvery="month"))
+    assert food["pledge"] == "50.00" and food["access"]["writable"]
+    assert remove(john, "Dnatn", d).status_code == 200
+    assert remove(john, "Orgzn", food).status_code == 200
+    assert jane.get("/ui/api/giving/donations").json()["items"] == []
+    assert [o["name"] for o in jane.get("/ui/api/giving/organisations").json()["items"]] == [
+        "Parish"
+    ]
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    d = donate(jane, date="2026-03-02", kind="cash", organisationId=church["id"], amount="20")
+    seen = john.get("/ui/api/giving/donations", params={"plan": hers["id"]}).json()["items"]
+    assert not seen[0]["access"]["writable"]
+    assert change(john, "Dnatn", d, acknowledged=True).status_code in (403, 404)
+    assert change(john, "Orgzn", church, notes="x").status_code in (403, 404)
+    assert remove(john, "Dnatn", d).status_code in (403, 404)
 
 
 def test_a_donated_replacement_is_held_from_the_sold_shares_purchase(jane):

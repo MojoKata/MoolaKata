@@ -8,6 +8,12 @@ Every donation in the year: those recorded here, and transactions categorised Gi
 
 The year shown.
 
+## Plan
+
+Shown when someone shares their giving plan for the year with you: **Mine** shows your own giving,
+their name theirs. What you add goes into the plan shown; into one shared with you to read, you
+can't add.
+
 ## Record a Donation
 
 Cash, goods, appreciated shares, a qualified charitable distribution from an IRA, a contribution

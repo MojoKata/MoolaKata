@@ -175,8 +175,12 @@ def _paths(srv, it: Item) -> list[tuple[str, callable]]:
     if it.kind == "giving-plan":
         year = int(it.name) if it.name.isdigit() else None
         return [
-            (f"/giving?year={year}", lambda c: giving.get_giving(r, year, c)),
-            (f"/giving/donations?year={year}", lambda c: giving.list_donations(r, year, c)),
+            # The plan itself, though the viewer keeps one of their own that year (S7.9.1).
+            (f"/giving?year={year}", lambda c: giving.get_giving(r, year, plan=i, c=c)),
+            (
+                f"/giving/donations?year={year}",
+                lambda c: giving.list_donations(r, year, plan=i, c=c),
+            ),
         ]
     if it.kind == "person":
         # A private person: their name and birthday (the row) and their relationships, to

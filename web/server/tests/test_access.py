@@ -505,6 +505,8 @@ UNTRIED = {
     ("BdgMv", "budgetId", "Budget", 403),
     # A gift others read, and a 529's qualified expenses: none in the household.
     ("RcLnk", "itemId", "Gift", 403),
+    # Every donation others read is in a giving plan shared with them to write (S10.3.2).
+    ("RcLnk", "itemId", "Donation", 403),
     ("RcLnk", "itemId", "QualifiedExpense", 403),
     ("RcLnk", "itemId", "QualifiedExpense", 404),
 }

@@ -3,7 +3,7 @@ to the token's chosen items, rate limited, and recorded in Activity."""
 
 import pytest
 from conftest import make_user, new_client, sign_in
-from edits import make, remove, saved
+from edits import giving_plan, make, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import mcp
@@ -88,6 +88,13 @@ def test_tools_read_what_the_user_can_see_and_record_each_call(server, jane, age
     assert any("access token Claude read list accounts" in x for x in texts), texts[:5]
     listed = jane.get("/ui/api/profile/tokens").json()["items"][0]
     assert listed["lastUsedAt"]
+
+
+def test_giving_reads_the_users_own_plan(jane, agent):
+    saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    out = call(agent, token(jane), "get_giving", year=2026)
+    assert not out["isError"], out
+    assert out["structuredContent"]["result"]["plan"]["targetKind"] == "amount"
 
 
 def test_a_chosen_items_token_reads_only_its_items(server, jane, agent):

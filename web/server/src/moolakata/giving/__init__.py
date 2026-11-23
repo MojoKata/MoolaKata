@@ -39,11 +39,23 @@ def plans(s: Session, user_id: str) -> list[tuple[GivingPlan, access.Perms]]:
     return access.listing(s, GivingPlan, user_id, order_by=GivingPlan.year.desc())
 
 
-def plan_for(s: Session, user_id: str, year: int) -> tuple[GivingPlan | None, access.Perms | None]:
-    """The year's plan: the user's own, else one shared with them."""
-    rows = [(p, held) for p, held in plans(s, user_id) if p.year == year]
-    rows.sort(key=lambda x: not x[1].mine)
-    return rows[0] if rows else (None, None)
+def plan_for(
+    s: Session, user_id: str, year: int | None, plan_id: str | None = None
+) -> tuple[GivingPlan | None, access.Perms | None]:
+    """The plan shown: the user's own for the year, which comes first in any year, or the
+    one chosen from those they read; None when there is none, or the one chosen is not theirs
+    to read or (with a year) not that year's (S7.9.1)."""
+    for p, held in plans(s, user_id):
+        if plan_id is None and held.mine and p.year == year:
+            return p, held
+        if p.id == plan_id and (year is None or p.year == year):
+            return p, held
+    return None, None
+
+
+def shared(s: Session, user_id: str, year: int) -> list[tuple[GivingPlan, access.Perms]]:
+    """The year's plans shared with the user, to choose beside their own (S7.9.1)."""
+    return [(p, held) for p, held in plans(s, user_id) if p.year == year and not held.mine]
 
 
 def givers(s: Session, plan: GivingPlan | None, user_id: str) -> list[str]:
@@ -92,6 +104,17 @@ def organisations(s: Session, owners: list[str]) -> dict[str, Organisation]:
     }
 
 
+def gift(s: Session, d: Donation, orgs: dict[str, Organisation]) -> Gift:
+    """A recorded donation as a gift, its organisation one of `orgs` (its owner's)."""
+    org = orgs.get(d.organisationId or "")
+    if d.kind == "daf-contribution":
+        fund = s.get(Account, d.dafAccountId) if d.dafAccountId else None
+        name = fund.name if fund else "Donor-advised fund"
+    else:
+        name = org.name if org else "An organisation"
+    return Gift(d.id, d.date, d.kind, d.amount, org, name, d.transactionId, d.acknowledged, d)
+
+
 def donations(s: Session, owners: list[str], year: int) -> list[Gift]:
     first, last = dt.date(year, 1, 1), dt.date(year, 12, 31)
     orgs = organisations(s, owners)
@@ -106,15 +129,7 @@ def donations(s: Session, owners: list[str], year: int) -> list[Gift]:
             Donation.date <= last,
         )
     ):
-        org = orgs.get(d.organisationId or "")
-        if d.kind == "daf-contribution":
-            fund = s.get(Account, d.dafAccountId) if d.dafAccountId else None
-            name = fund.name if fund else "Donor-advised fund"
-        else:
-            name = org.name if org else "An organisation"
-        out.append(
-            Gift(d.id, d.date, d.kind, d.amount, org, name, d.transactionId, d.acknowledged, d)
-        )
+        out.append(gift(s, d, orgs))
         if d.transactionId:
             linked.add(d.transactionId)
     # Transactions categorised Giving that no donation records yet count as cash (S7.9.3).

@@ -80,7 +80,8 @@ class FundOut(Model):
 
 class GivingView(Model):
     year: int
-    plan: PlanOut | None
+    plan: PlanOut | None  # the plan shown: one's own, or the one chosen of `shared`
+    shared: list[PlanOut]  # the year's plans shared with the caller, to choose (S7.9.1)
     income: Money
     target: Money
     given: Money  # counted toward the target
@@ -119,12 +120,27 @@ def _shares(d: dict[str, Decimal]) -> list[Share]:
     return [Share(label=k, amount=v) for k, v in sorted(d.items(), key=lambda x: -x[1]) if v]
 
 
+def _shown(s, c: Caller, year: int | None, plan_id: str | None):
+    """The plan shown: one's own for the year, else the one chosen, which the caller reads
+    (S7.9.1)."""
+    plan, held = giving.plan_for(s, c.id, year, plan_id)
+    if plan_id is not None and plan is None:
+        raise Problem(404, "not-found", "Not found")
+    return plan, held
+
+
 @router.get("/giving", response_model=GivingView)
-def get_giving(request: Request, year: int | None = None, c: Caller = Depends(caller)):
+def get_giving(
+    request: Request,
+    year: int | None = None,
+    plan: IdOf("GvPln") | None = None,  # type: ignore[valid-type]
+    c: Caller = Depends(caller),
+):
     today = clock.today()
     year = year or today.year
+    plan_id = plan
     with server(request).db.read(user=c.id) as s:
-        plan, held = giving.plan_for(s, c.id, year)
+        plan, held = _shown(s, c, year, plan_id)
         who = giving.givers(s, plan, c.id)
         gifts = giving.donations(s, who, year)
         counted = [g for g in gifts if giving.counts(plan, g)]
@@ -164,6 +180,7 @@ def get_giving(request: Request, year: int | None = None, c: Caller = Depends(ca
         return GivingView(
             year=year,
             plan=_plan_out(s, plan, held) if plan else None,
+            shared=[_plan_out(s, p, h) for p, h in giving.shared(s, c.id, year)],
             income=earned,
             target=goal,
             given=given,
@@ -230,28 +247,38 @@ class OrganisationOut(OrganisationIn):
     version: int
 
 
-def _orgs_view(s, c: Caller) -> list[OrganisationOut]:
-    year = clock.today().year
-    plan, _ = giving.plan_for(s, c.id, year)
-    who = giving.givers(s, plan, c.id)
+def _given_to(s, owners: list[str]) -> dict[str, Decimal]:
+    """What was given to each of the owners' organisations this year."""
     given: dict[str, Decimal] = {}
-    for g in giving.donations(s, who, year):
+    for g in giving.donations(s, owners, clock.today().year):
         if g.organisation is not None and g.kind != "daf-contribution":
             given[g.organisation.id] = given.get(g.organisation.id, Decimal(0)) + g.amount
+    return given
+
+
+def _org_out(s, c: Caller, o: Organisation, given: dict[str, Decimal]) -> OrganisationOut:
+    return OrganisationOut(
+        id=o.id,
+        name=o.name,
+        ein=o.ein,
+        deductible=o.deductible,
+        causes=json.loads(o.causes),
+        pledge=o.pledge,
+        pledgeEvery=o.pledgeEvery,
+        notes=o.notes,
+        given=given.get(o.id, Decimal(0)),
+        access=Access.of(access.perms(s, Organisation, o.id, c.id) or access.READ),
+        version=o.version,
+    )
+
+
+def _orgs_view(s, c: Caller, plan_id: str | None = None) -> list[OrganisationOut]:
+    """The organisations of the plan shown: one's own, or those of the plan chosen."""
+    plan, _ = _shown(s, c, None if plan_id else clock.today().year, plan_id)
+    who = giving.givers(s, plan, c.id)
+    given = _given_to(s, who)
     return [
-        OrganisationOut(
-            id=o.id,
-            name=o.name,
-            ein=o.ein,
-            deductible=o.deductible,
-            causes=json.loads(o.causes),
-            pledge=o.pledge,
-            pledgeEvery=o.pledgeEvery,
-            notes=o.notes,
-            given=given.get(o.id, Decimal(0)),
-            access=Access.of(access.perms(s, Organisation, o.id, c.id) or access.READ),
-            version=o.version,
-        )
+        _org_out(s, c, o, given)
         for o in sorted(giving.organisations(s, who).values(), key=lambda o: o.name.lower())
     ]
 
@@ -282,16 +309,18 @@ def _org_values(body: OrganisationIn) -> dict:
 
 
 @router.get("/giving/organisations", response_model=list[OrganisationOut])
-def list_organisations(request: Request, c: Caller = Depends(caller)):
+def list_organisations(
+    request: Request,
+    plan: IdOf("GvPln") | None = None,  # type: ignore[valid-type]
+    c: Caller = Depends(caller),
+):
     with server(request).db.read(user=c.id) as s:
-        return _orgs_view(s, c)
+        return _orgs_view(s, c, plan)
 
 
-def _own_org(s, c: Caller, org_id: str) -> Organisation:
-    o = s.get(Organisation, org_id)
-    if o is None or o.deleted or o.ownerId != c.id:
-        raise Problem(404, "not-found", "Not found")
-    return o
+def _writable_org(s, c: Caller, org_id: str) -> Organisation:
+    """Its owner's to change, and a writer's of one of the owner's plans (S10.3.2)."""
+    return access.need(s, Organisation, org_id, c.id, "writable", "organisation")[0]
 
 
 # ---- Donations (S7.9.3, S8.9) ----
@@ -374,16 +403,21 @@ def _donation_out(s, c: Caller, plan, g: giving.Gift) -> DonationOut:
     )
 
 
-def donations_view(s, c: Caller, year: int) -> list[DonationOut]:
-    plan, _ = giving.plan_for(s, c.id, year)
+def donations_view(s, c: Caller, year: int, plan_id: str | None = None) -> list[DonationOut]:
+    plan, _ = _shown(s, c, year, plan_id)
     who = giving.givers(s, plan, c.id)
     return [_donation_out(s, c, plan, g) for g in giving.donations(s, who, year)]
 
 
 @router.get("/giving/donations", response_model=list[DonationOut])
-def list_donations(request: Request, year: int | None = None, c: Caller = Depends(caller)):
+def list_donations(
+    request: Request,
+    year: int | None = None,
+    plan: IdOf("GvPln") | None = None,  # type: ignore[valid-type]
+    c: Caller = Depends(caller),
+):
     with server(request).db.read(user=c.id) as s:
-        return donations_view(s, c, year or clock.today().year)
+        return donations_view(s, c, year or clock.today().year, plan)
 
 
 def _giving_category(s) -> str | None:
@@ -506,13 +540,9 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
     org = None
-    plan, held = giving.plan_for(s, c.id, body.date.year)
-    # Recorded in the plan the caller writes to: its owner's giving (S7.9.1).
-    owner = plan.ownerId if plan is not None and held.writable and not held.mine else c.id
+    owner = _adding_to(s, c, body.planId, body.date.year)
     if body.organisationId:
-        org = s.get(Organisation, body.organisationId)
-        if org is None or org.deleted or org.ownerId not in giving.givers(s, plan, c.id):
-            raise refuse("organisationId", "organisation-unknown", "Choose an organisation.")
+        org = _org_of(s, owner, body.organisationId)
     fund = None
     if body.dafAccountId:
         fund, _ = access.account(s, c.id, body.dafAccountId, "write")
@@ -562,22 +592,41 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
 
 
 def _out(s, c: Caller, d: Donation) -> DonationOut:
-    return next(x for x in donations_view(s, c, d.date.year) if x.id == d.id)
+    """A donation read by its id, counted as the plan it is in counts (S7.9.4)."""
+    plan = next(
+        (p for p, _ in giving.plans(s, c.id) if p.ownerId == d.ownerId and p.year == d.date.year),
+        None,
+    )
+    return _donation_out(s, c, plan, giving.gift(s, d, giving.organisations(s, [d.ownerId])))
 
 
-def _own(s, c: Caller, donation_id: str) -> Donation:
-    d = s.get(Donation, donation_id)
-    if d is None or d.deleted or d.ownerId != c.id:
-        raise Problem(404, "not-found", "Not found")
-    return d
+def _writable(s, c: Caller, donation_id: str) -> Donation:
+    """Its owner's to change, and a writer's of the owner's plan for its year (S10.3.2)."""
+    return access.need(s, Donation, donation_id, c.id, "writable", "donation")[0]
 
 
-def _org_of(s, c: Caller, org_id: str, year: int) -> Organisation:
+def _org_of(s, owner: str, org_id: str) -> Organisation:
+    """One of the organisations of the giving a donation is in: its owner's (S7.9.1)."""
     o = s.get(Organisation, org_id)
-    plan, _ = giving.plan_for(s, c.id, year)
-    if o is None or o.deleted or o.ownerId not in giving.givers(s, plan, c.id):
+    if o is None or o.deleted or o.ownerId != owner:
         raise refuse("organisationId", "organisation-unknown", "Choose an organisation.")
     return o
+
+
+def _adding_to(s, c: Caller, plan_id: str | None, year: int | None) -> str:
+    """Whose giving a donation or organisation added goes into: the caller's own, or that of
+    the plan shown, chosen from those shared with them, when they may write to it; a write
+    share's entries are its owner's (S7.9.1, S10.3)."""
+    if plan_id is None:
+        return c.id
+    plan, held = giving.plan_for(s, c.id, None, plan_id)
+    if plan is None:
+        raise refuse("planId", "not-found", "Not found", 404)
+    if not held.writable:
+        raise Problem(403, "read-only", "This plan is shared with you to read.")
+    if year is not None and plan.year != year:
+        raise refuse("date", "date-outside-plan", f"In {plan.year}, the plan's year.")
+    return plan.ownerId
 
 
 # ---------- the plan, organisations and donations in a dialog's draft (S12.15, S13.8.11) ----------
@@ -597,10 +646,10 @@ def _gplan_create(ctx, record_id: str, body: GivingPlanRecord) -> None:
 
 def _gplan_editable(ctx, record_id: str) -> GivingPlan:
     p = ctx.s.get(GivingPlan, record_id)
-    if p is None or p.deleted:
+    held = access.perms(ctx.s, GivingPlan, record_id, ctx.caller.id)
+    if p is None or p.deleted or held is None:
         raise Problem(404, "not-found", "Not found")
-    _, held = giving.plan_for(ctx.s, ctx.caller.id, p.year)
-    if held is None or not held.writable:
+    if not held.writable:
         raise Problem(403, "read-only", "This plan is shared with you to read.")
     return p
 
@@ -615,16 +664,25 @@ def _gplan_update(ctx, p: GivingPlan, body: GivingPlanRecord) -> None:
 
 def _gplan_read(ctx, record_id: str) -> PlanOut:
     p = ctx.s.get(GivingPlan, record_id)
-    _, held = giving.plan_for(ctx.s, ctx.caller.id, p.year)
+    held = access.perms(ctx.s, GivingPlan, record_id, ctx.caller.id)
     return _plan_out(ctx.s, p, held or access.OWNER)
 
 
 class OrganisationRecord(OrganisationIn):
-    """An organisation as a draft saves it (S7.9.5)."""
+    """An organisation as a draft saves it (S7.9.5), added to the plan shown."""
+
+    # One shared with the caller; none, their own (S7.9.1).
+    planId: IdOf("GvPln") | None = None  # type: ignore[valid-type]
 
 
 def _org_create(ctx, record_id: str, body: OrganisationRecord) -> None:
-    ctx.s.add(Organisation(id=record_id, ownerId=ctx.caller.id, **_org_values(body)))
+    owner = _adding_to(ctx.s, ctx.caller, body.planId, None)
+    ctx.s.add(Organisation(id=record_id, ownerId=owner, **_org_values(body)))
+
+
+def _org_read(ctx, record_id: str) -> OrganisationOut:
+    o = ctx.s.get(Organisation, record_id)
+    return _org_out(ctx.s, ctx.caller, o, _given_to(ctx.s, [o.ownerId]))
 
 
 def _org_update(ctx, o: Organisation, body: OrganisationRecord) -> None:
@@ -641,6 +699,8 @@ class DonationRecord(DonationIn):
     receiptIds: list[IdOf("Rcpt")] = Field(  # type: ignore[valid-type]
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
+    # The plan shown, to add it to: one shared with the caller; none, their own (S7.9.1).
+    planId: IdOf("GvPln") | None = None  # type: ignore[valid-type]
 
 
 AFTER = ("acknowledged", "granted", "notes", "organisationId", "receiptIds")
@@ -651,13 +711,14 @@ def _donation_create(ctx, record_id: str, body: DonationRecord) -> None:
     d = _record(s, c, body, record_id)
     if body.receiptIds:
         receipts.keep_set(s, c.id, "donation", d.id, [], body.receiptIds)
-    activity.record(s, "donation.recorded", actor=c.id, owner=c.id)
+    activity.record(s, "donation.recorded", actor=c.id, owner=d.ownerId)
 
 
 def _donation_current(ctx, d: Donation) -> dict:
     out = {f: getattr(d, f, None) for f in DonationIn.model_fields}
     out["amount"] = d.amount
     out["receiptIds"] = [r.id for r in receipts.of_item(ctx.s, d.id, "donation")]
+    out["planId"] = None  # where it was added: nothing to change once it is
     return out
 
 
@@ -665,7 +726,9 @@ def _donation_update(ctx, d: Donation, body: DonationRecord) -> None:
     s, c = ctx.s, ctx.caller
     current = _donation_current(ctx, d)
     fixed = [
-        f for f in DonationRecord.model_fields if f not in AFTER and getattr(body, f) != current[f]
+        f
+        for f in DonationRecord.model_fields
+        if f not in (*AFTER, "planId") and getattr(body, f) != current[f]
     ]
     if fixed:
         raise refuse(
@@ -676,7 +739,7 @@ def _donation_update(ctx, d: Donation, body: DonationRecord) -> None:
         d.granted = body.granted
     d.notes = body.notes or None
     if body.organisationId != current["organisationId"] and d.kind != "daf-contribution":
-        d.organisationId = _org_of(s, c, body.organisationId, d.date.year).id
+        d.organisationId = _org_of(s, d.ownerId, body.organisationId).id
     if body.receiptIds != current["receiptIds"]:
         receipts.keep_set(s, c.id, "donation", d.id, current["receiptIds"], body.receiptIds)
         if set(body.receiptIds) - set(current["receiptIds"]):
@@ -703,16 +766,14 @@ save.register(
         entity=Organisation,
         fields=OrganisationRecord,
         create=_org_create,
-        editable=lambda ctx, record_id: _own_org(ctx.s, ctx.caller, record_id),
+        editable=lambda ctx, record_id: _writable_org(ctx.s, ctx.caller, record_id),
         current=lambda ctx, o: {
             **{f: getattr(o, f) for f in OrganisationIn.model_fields if f != "causes"},
             "causes": json.loads(o.causes or "[]"),
         },
         update=_org_update,
         delete=lambda ctx, o: o.mark_deleted(ctx.caller.id),
-        read=lambda ctx, record_id: next(
-            x for x in _orgs_view(ctx.s, ctx.caller) if x.id == record_id
-        ),
+        read=_org_read,
     )
 )
 save.register(
@@ -721,7 +782,7 @@ save.register(
         entity=Donation,
         fields=DonationRecord,
         create=_donation_create,
-        editable=lambda ctx, record_id: _own(ctx.s, ctx.caller, record_id),
+        editable=lambda ctx, record_id: _writable(ctx.s, ctx.caller, record_id),
         current=_donation_current,
         update=_donation_update,
         delete=lambda ctx, d: d.mark_deleted(ctx.caller.id),

@@ -12,6 +12,12 @@ it.
 
 The year shown.
 
+## Plan
+
+Shown when someone shares their giving plan for the year with you: **Mine** shows your own giving
+and plan, which you may keep in any year; their name shows theirs. A donation or organisation you
+add goes into the plan shown; into one shared with you to read, you can't add.
+
 ## Target
 
 The year's target, as a percentage of income or a fixed amount, from the giving plan. **Edit**

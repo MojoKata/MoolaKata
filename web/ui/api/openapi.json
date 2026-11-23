@@ -6215,6 +6215,20 @@
             "default": null,
             "title": "Organisationid"
           },
+          "planId": {
+            "anyOf": [
+              {
+                "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "GvPln"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planid"
+          },
           "quantity": {
             "anyOf": [
               {
@@ -8631,6 +8645,13 @@
             "title": "Projected",
             "type": "number"
           },
+          "shared": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__giving__PlanOut"
+            },
+            "title": "Shared",
+            "type": "array"
+          },
           "target": {
             "examples": [
               1234.5
@@ -8647,6 +8668,7 @@
         "required": [
           "year",
           "plan",
+          "shared",
           "income",
           "target",
           "given",
@@ -15186,7 +15208,7 @@
       },
       "OrganisationRecord": {
         "additionalProperties": false,
-        "description": "An organisation as a draft saves it (S7.9.5).",
+        "description": "An organisation as a draft saves it (S7.9.5), added to the plan shown.",
         "properties": {
           "causes": {
             "items": {
@@ -15227,6 +15249,20 @@
             ],
             "default": null,
             "title": "Notes"
+          },
+          "planId": {
+            "anyOf": [
+              {
+                "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "GvPln"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planid"
           },
           "pledge": {
             "anyOf": [
@@ -19151,6 +19187,7 @@
               "date-in-future",
               "date-invalid",
               "date-missing",
+              "date-outside-plan",
               "date-past",
               "dates-invalid",
               "day-invalid",
@@ -19638,6 +19675,7 @@
                   "date-in-future",
                   "date-invalid",
                   "date-missing",
+                  "date-outside-plan",
                   "date-past",
                   "dates-invalid",
                   "day-invalid",
@@ -33574,6 +33612,24 @@
               ],
               "title": "Year"
             }
+          },
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
+            }
           }
         ],
         "responses": {
@@ -33618,6 +33674,24 @@
                 }
               ],
               "title": "Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
             }
           },
           {
@@ -33672,6 +33746,24 @@
       "get": {
         "operationId": "list_organisations_ui_api_giving_organisations_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
+            }
+          },
           {
             "in": "query",
             "name": "offset",

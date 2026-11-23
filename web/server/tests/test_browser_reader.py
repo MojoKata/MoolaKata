@@ -304,8 +304,17 @@ def test_a_readers_budget_shows_its_changes_off(browser, household, reader):
 
 def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, household, reader):
     h = household
-    page, problems = signed_in_as_reader(browser, h, "/ui/giving", "text=shared by")
+    # Her own giving comes first; the plan shared with her is chosen beside the year (S7.9.1).
+    page, problems = signed_in_as_reader(browser, h, "/ui/giving", "text=Set a Target")
+    page.click('.chips[aria-label="Plan"] button:not(:has-text("Mine"))')
+    wait(page, "text=shared by", problems)
     off(page, "Edit")
+    off(page, "Record a Donation")
+    page.goto(h.base + "/ui/giving/organisations")
+    wait(page, '.chips[aria-label="Plan"]', problems)
+    page.click('.chips[aria-label="Plan"] button:not(:has-text("Mine"))')
+    wait(page, "table", problems)
+    off(page, "Add an Organisation")
     page.goto(h.base + "/ui/gifts/people")
     wait(page, "text=Lisa Doe", problems)
     page.click('button[aria-label="View the gift plan for Lisa Doe"]')
@@ -397,8 +406,10 @@ def test_a_readers_giving_rows_that_show_all_have_no_tool(browser, household, re
     """S12.19.5: an organisation with nothing more than its row, read, has no tool."""
     h = household
     page, problems = signed_in_as_reader(
-        browser, h, "/ui/giving/organisations", 'tr:has-text("St. Mark")'
+        browser, h, "/ui/giving/organisations", '.chips[aria-label="Plan"]'
     )
+    page.click('.chips[aria-label="Plan"] button:not(:has-text("Mine"))')
+    wait(page, 'tr:has-text("St. Mark")', problems)
     assert page.locator('tr:has-text("St. Mark") .row-tool').count() == 0
     assert problems == []
     page.close()
