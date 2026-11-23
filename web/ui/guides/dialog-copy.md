@@ -15,4 +15,6 @@ Such as _Household, envelope_.
 ## Bring this month's moves {#bring-this-month-s-moves}
 
 This month's moves come along, so the scenario starts from where the budget stands. Moves to or from
-To Budget come along only into an envelope budget.
+To Budget, or into a card's payment line, come along only into an envelope budget, and a card's only
+when you can see the card. Landed money given to a reserve or kept as the account's own comes along
+when you can see the account it landed in.

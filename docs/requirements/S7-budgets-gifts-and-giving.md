@@ -375,7 +375,10 @@
        chosen (a tracking line becomes the same amount assigned each month, and an envelope
        line the same amount planned), with this month's moves when asked. It counts the
        accounts its maker can see, and a reserve held in one it doesn't count is held nowhere
-       (S7.10.4), its target kept.
+       (S7.10.4), its target kept. A move comes along only as it is, never rewritten: one
+       from or to *To Budget* or into a card's payment line into an envelope copy (a card's
+       only while the copy counts the card), and landed money given or kept (S7.10.5) into
+       either method while the copy counts the account it landed in.
     5. **Each user's own choice**: a household budget shared at `write` can be active for
        both, while one of them tries a scenario of their own; a scenario is shared as any
        budget is. A linked household's budgets are seen in its window, never made active

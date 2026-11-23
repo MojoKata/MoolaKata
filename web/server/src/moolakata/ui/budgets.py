@@ -1210,6 +1210,19 @@ def _give_landed(s, c: Caller, b: Budget, body, move_id: str) -> BudgetMove:
     return mv
 
 
+def _copies(s, m: BudgetMove, method: str, counted: list[str]) -> bool:
+    """Whether a copy as scenario can hold a move as it is, never rewritten as another
+    (S7.12.4): a card's payment line only in an envelope copy that counts the card (S7.13.2);
+    landed money given or kept, in either method, while the copy counts the account it landed
+    in (S7.10.5); To Budget only in an envelope copy (S7.13.1)."""
+    if m.cardId:
+        return method == "envelope" and m.cardId in counted
+    if m.transactionId:
+        t = s.get(Transaction, m.transactionId)
+        return t is not None and t.accountId in counted
+    return method == "envelope" or bool(m.fromCategoryId and m.toCategoryId)
+
+
 @router.post("/budgets/{budget_id}/copy", response_model=BudgetRow, status_code=201)
 def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depends(caller)):
     """Copy as scenario (S7.12.4): the same accounts and plan from this month, in the method
@@ -1261,8 +1274,8 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
                     BudgetMove.deleted == false(),
                 )
             ):
-                if b.method != "envelope" and not (m.fromCategoryId and m.toCategoryId):
-                    continue  # To Budget is an envelope budget's alone
+                if not _copies(s, m, b.method, counted):
+                    continue
                 s.add(
                     BudgetMove(
                         id=ids.new_id("BdgMv"),
@@ -1273,6 +1286,7 @@ def copy_budget(budget_id: str, body: CopyIn, request: Request, c: Caller = Depe
                         amount=m.amount,
                         note=m.note,
                         transactionId=m.transactionId,
+                        cardId=m.cardId,
                         createdById=c.id,
                     )
                 )
