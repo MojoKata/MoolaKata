@@ -207,7 +207,8 @@
    1. **Cash before payday**, for each checking account in the budget with recurring payments
       out (S7.5): when its balance, less the recurring payments expected from it before its
       next expected money in (income landing there, or a regular transfer in), would fall
-      below zero, an alert names the account and the day (*John's Checking dips below $0 on the
+      below zero, an alert names the account (*an account not shared* to a follower it isn't
+      shared with, S7.1.1) and the day (*John's Checking dips below $0 on the
       26th, before the transfer from Joint on the 1st*). It resolves when the figures no
       longer say so. The balance is carried day by day: every payment the schedules expect
       before the money comes in is taken off on its day (a weekly one each week), payments out
