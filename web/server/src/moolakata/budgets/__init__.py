@@ -80,9 +80,10 @@ class Members:
 
 def members(s: Session, budget: Budget, viewer: str | None = None) -> Members:
     """The budget's accounts by month, less any loan: a loan's payments are counted at the
-    bank. For a receiver (`viewer`), the owner's own accounts, and one shared with the owner
-    only if it is shared with them too, so a budget never passes on an account someone else
-    shared (S7.1.1)."""
+    bank. Only while the owner can still see one: a share taken back ends it on the next
+    request (R3.4), and it counts again if shared again. For a receiver (`viewer`), the owner's
+    own accounts, and one shared with the owner only if it is shared with them too, so a
+    budget never passes on an account someone else shared (S7.1.1)."""
     from .. import access
     from ..loans import TYPES
 
@@ -97,6 +98,10 @@ def members(s: Session, budget: Budget, viewer: str | None = None) -> Members:
         )
         .order_by(BudgetAccount.fromMonth)
     ).all()
+    others = [a.id for _, a in rows if a.ownerId != budget.ownerId]
+    if others:
+        held = {a.id for a, _ in access.accounts(s, budget.ownerId, Account.id.in_(others))}
+        rows = [(m, a) for m, a in rows if a.ownerId == budget.ownerId or a.id in held]
     if viewer is not None and viewer != budget.ownerId:
         ids = [a.id for _, a in rows]
         theirs = {a.id for a, _ in access.accounts(s, viewer, Account.id.in_(ids))}
