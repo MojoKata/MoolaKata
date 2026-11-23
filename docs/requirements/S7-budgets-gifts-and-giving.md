@@ -287,8 +287,11 @@
        Spending beyond the balance leaves it negative, carried until money is put back or
        moved in.
     3. **Kept**: a reserve always rolls over. Taking its category out of the plan, or its
-       target off, asks first and names the balance that stops being kept; a balance is never
-       carried into a line without a target. Set to $0 a month, it puts nothing in and keeps
+       target off, asks first and names its balance. In a tracking budget that balance stops
+       being kept: it is never carried into a line without a target, which carries only its
+       own months. In an envelope budget it is money set aside: with the target off it stays
+       in the envelope, now an ordinary line (*$300 stays in the envelope*, S7.13.3), and with
+       the category out of the plan it goes back to *To Budget*. Set to $0 a month, it puts nothing in and keeps
        its balance. Taking out a rollover line or an envelope that holds money asks the same
        way.
     4. **Held in**: a reserve can name the account its money is kept in (*Ally Savings*), one

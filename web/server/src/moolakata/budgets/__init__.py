@@ -724,7 +724,9 @@ def _carry(
     m = start
     while m < month:
         ln = in_force(mine, m).get(cat_id)
-        if ln is None or not ln.rollover or ln.cadence != "month":
+        # A reserve's months are its own (S7.10.1): a line without a target that follows one
+        # carries only what came after (S7.10.3).
+        if ln is None or not ln.rollover or ln.cadence != "month" or ln.target is not None:
             carry = ZERO
         else:
             carry = (

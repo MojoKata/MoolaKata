@@ -844,7 +844,11 @@ def _line_update(ctx, ln: BudgetLine, body: LineIn) -> None:
         held = _balance_kept(ctx.s, b, ln.categoryId, month)
         if held:
             label = budgets.tree(ctx.s).label(ln.categoryId)
-            ctx.ask("balance-dropped", f"{label} holds {grouped(held)}: it stops being kept.")
+            # An envelope's balance is money set aside: with only its target off, it stays in
+            # the envelope, now an ordinary line (S7.10.3, S7.13.3).
+            kept = b.method == "envelope" and not values["out"]
+            then = "it stays in the envelope" if kept else "it stops being kept"
+            ctx.ask("balance-dropped", f"{label} holds {grouped(held)}: {then}.")
     if month == ln.fromMonth:
         for f, v in values.items():
             setattr(ln, f, v)

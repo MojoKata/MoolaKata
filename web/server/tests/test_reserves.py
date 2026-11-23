@@ -191,3 +191,21 @@ def test_landed_money_is_listed_until_given_and_given_in_the_month_shown(server,
     assert (r["moved"], r["balance"]) == ("40.00", "240.00")
     r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
     assert (r["moved"], r["balance"]) == ("0.00", "100.00")
+
+
+def test_a_balance_is_never_carried_into_a_line_without_a_target(server, frozen):
+    """Taking a reserve's target off asks, naming the balance that stops being kept; the line
+    then carries only its own months, never the reserve's (S7.10.3)."""
+    c, _, cat, b = setup_budget(server)
+    reserves_on(c, b)
+    repair = cat["Transportation › Car maintenance"]
+    line = {"categoryId": repair, "amount": "100", "target": "1000"}
+    assert put_plan(c, b, "2026-08-01", [line]).status_code == 200
+    plain = {"categoryId": repair, "amount": "100", "rollover": True}
+    r = put_plan(c, b, "2026-12-01", [plain])
+    assert r.status_code == 409 and "400.00" in r.json()["asks"][0]["message"]
+    assert "stops being kept" in r.json()["asks"][0]["message"]
+    assert put_plan(c, b, "2026-12-01", [plain], confirm=True).status_code == 200
+    r = row(month(c, b, "2026-12"), "Transportation › Car maintenance")
+    assert (r["carried"], r["planned"], r["target"]) == ("0.00", "100.00", None)
+    assert row(month(c, b, "2027-01"), "Transportation › Car maintenance")["carried"] == "100.00"

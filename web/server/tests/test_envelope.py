@@ -152,3 +152,27 @@ def test_landed_money_given_to_a_reserve_comes_out_of_to_budget(server, frozen):
     r = row(v, label)
     assert (v["toBudget"], v["assignedByMoves"]) == ("2910.00", "30.00")
     assert (r["moved"], r["balance"]) == ("30.00", "130.00")
+
+
+def test_a_reserves_envelope_keeps_its_money_when_the_target_comes_off(server, frozen):
+    """In an envelope budget the balance is money set aside: taking a reserve's target off
+    asks, saying the money stays in the envelope, now an ordinary line (S7.10.3, S7.13.3)."""
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    chk = new_account(c)
+    cat = cats(c)
+    b = make(c, "Bdgt", name="Envelopes", method="envelope", accountIds=[chk["id"]]).json()
+    reserves_on(c, b)
+    add(c, chk["id"], "3000.00", "2026-10-01", payee="Payroll", categoryId=cat["Income › Salary"])
+    repair = cat["Transportation › Car maintenance"]
+    line = {"categoryId": repair, "amount": "100", "target": "1000"}
+    assert put_plan(c, b, "2026-10-01", [line]).status_code == 200
+    plain = {"categoryId": repair, "amount": "100"}
+    r = put_plan(c, b, "2026-11-01", [plain])
+    assert r.status_code == 409
+    assert r.json()["asks"][0]["message"] == (
+        "Transportation › Car maintenance holds 100.00: it stays in the envelope."
+    )
+    assert put_plan(c, b, "2026-11-01", [plain], confirm=True).status_code == 200
+    r = row(month(c, b, "2026-11"), "Transportation › Car maintenance")
+    assert (r["carried"], r["remaining"], r["target"]) == ("100.00", "200.00", None)
