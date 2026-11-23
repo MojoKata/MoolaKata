@@ -354,3 +354,7 @@ The rulings the rest of the requirements apply.
     row's name is in the text's own weight and full colour, standing out only from the row's
     other parts, which are dimmed, never competing with its card's heading; one style in the kit
     draws every such row.
+14. **People are named.** A record that names a person shows that person's name wherever the
+    record is seen, whether or not the person is shared with the one looking: a person kept
+    private is out of sight to keep lists short, not to keep the name secret. Nothing else of a
+    person not shared is shown, and a gift for a user is still never shown to that user (S7.8.5).

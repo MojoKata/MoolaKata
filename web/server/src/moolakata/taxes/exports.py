@@ -62,8 +62,15 @@ def csv_8949(rows: list[Row], year: int, bitcoin_fees: str) -> str:
                 r.box,
                 "long" if r.longTerm else "short",
                 r.description,
-                # Blank when sold without a lot to match: no day to write.
-                r.acquired.isoformat() if r.acquired else "" if r.lotMissing else "VARIOUS",
+                # Blank when sold without a lot to match: no day to write. Inherited, the
+                # form's word in place of a date (S8.13).
+                "INHERITED"
+                if r.inherited
+                else r.acquired.isoformat()
+                if r.acquired
+                else ""
+                if r.lotMissing
+                else "VARIOUS",
                 r.sold.isoformat(),
                 _money(r.proceeds),
                 _money(r.basis),

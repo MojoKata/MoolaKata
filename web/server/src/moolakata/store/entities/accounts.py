@@ -292,6 +292,9 @@ class Loan(Record):
     resets: str = "[]"
     recasts: str = "[]"
     originalValue: Decimal | None = None
+    points: Decimal | None = None  # a mortgage's, with their day and purpose (S1.9.1)
+    pointsPaidOn: dt.date | None = None
+    pointsPurpose: str | None = None
     securedById: str | None = None
     budgetCounting: str = "split"
     budgetCategoryId: str | None = None

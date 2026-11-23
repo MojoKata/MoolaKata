@@ -8,7 +8,7 @@ import re
 import httpx
 import pytest
 from browser import PASSWORD, made, months_back, open_page, signed_in, wait
-from edits import make, plan529, remove, saved, share
+from edits import change, make, plan529, remove, saved, share
 
 from moolakata.dev.waits import idle
 
@@ -219,21 +219,49 @@ def test_a_readers_item_shows_its_changes_off(browser, household, reader):
     page.click('button[aria-label="View 1428 Elm St"]')
     wait(page, ".dialog", problems)
     dialog = page.locator(".dialog")
-    for name in ("Save", "Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
-        off(dialog, name)
-    off(dialog, "Remove Kitchen remodel")
+    off(dialog, "Save")
     read_only(dialog)
     # Its row shows its name; the address isn't on the row; a blank condition isn't shown.
     assert dialog.locator("#f-name").count() == 0
     assert dialog.locator("#f-address").inner_text() == "1428 Elm St"
     assert not dialog.locator("#f-condition").is_visible()
-    # A yes or no keeps the switch's footprint, a check or a dash in it, never a live switch.
-    home = dialog.locator("#f-primary-residence")
-    assert home.get_attribute("role") == "switch"
-    assert home.get_attribute("aria-readonly") == "true"
-    assert home.get_attribute("aria-checked") == "true"
+    # Its residence periods are listed, never added to, by a reader (S1.10.4).
+    assert dialog.locator('[data-help="residence-periods"]').is_visible()
+    off(dialog, "Add Period")
+    assert dialog.locator(".chips button").count() == 0
+    # What belongs to it is on its Valuation tab (S1.10.6), its changes off there too.
+    dialog.locator('[role=tab]:has-text("Valuation")').click()
+    for name in ("Add a Valuation", "Add Improvement", "Add", "Record the Sale…"):
+        off(dialog, name)
+    off(dialog, "Remove Kitchen remodel")
     assert problems == []
     page.close()
+
+
+def test_a_readers_yes_or_no_keeps_the_switchs_footprint(browser, household, reader):
+    """S12.18: a yes or no a reader can't change keeps the switch's footprint, a check or a
+    dash in it, never a live switch: a shared gift plan's gift given in money, which its row
+    opens to read for the reader."""
+    h = household
+    gift = next(g for g in h.c.get("/ui/api/gifts").json()["items"] if g["description"] == "Watch")
+    saved(change(h.c, "Gift", gift, cash=True))
+    try:
+        page, problems = signed_in_as_reader(
+            browser, h, "/ui/gifts/gifts", 'tr:has-text("Watch") .row-tool'
+        )
+        page.click('tr:has-text("Watch") .row-tool')
+        wait(page, ".dialog #f-given-in-money", problems)
+        cash = page.locator(".dialog #f-given-in-money")
+        assert cash.get_attribute("role") == "switch"
+        assert cash.get_attribute("aria-readonly") == "true"
+        assert cash.get_attribute("aria-checked") == "true"
+        assert problems == []
+        page.close()
+    finally:
+        now = next(
+            g for g in h.c.get("/ui/api/gifts").json()["items"] if g["description"] == "Watch"
+        )
+        saved(change(h.c, "Gift", now, cash=False))
 
 
 def test_a_readers_529_shows_its_contribution_and_expense_off(browser, household, reader):

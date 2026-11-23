@@ -1,21 +1,19 @@
 # An Item
 
-A physical asset: what it is, when and how it was acquired, its cost basis, and how it's valued.
+A physical asset, in three tabs. **General**: what it is, when and how it was acquired, its cost
+basis, and how it's valued. **Valuation**: its value over time, its valuations, a property's
+improvements, its photos and documents, and its sale, once it is added. **Notes**: anything else.
 
 Without a valuation, an item counts at its cost basis, depreciated when it depreciates.
 
 ## Name
 
-What the item is called in the list: *American Gold Eagle, 1 oz*, *Rolex Submariner 124060*,
-*Home*, *2023 Subaru Outback*.
+What the item is called in the list: _American Gold Eagle, 1 oz_, _Rolex Submariner 124060_, _Home_,
+_2023 Subaru Outback_.
 
 ## Address
 
 Optional: a property's address, if you want it kept.
-
-## Primary residence
-
-Your main home. Its sale may be partly tax-free, which Taxes shows.
 
 ## Metal
 
@@ -45,8 +43,9 @@ Troy ounces, grams or kilograms. A troy ounce is 31.1 grams.
 
 ## Purity
 
-The share of the weight that is the metal, as a fraction or in karats: .9999 for most gold coins and bars, .999 for silver, .925
-for sterling, 22k (.9167) for a Krugerrand. Fine weight is weight × purity × quantity.
+The share of the weight that is the metal, as a fraction or in karats: .9999 for most gold coins and
+bars, .999 for silver, .925 for sterling, 22k (.9167) for a Krugerrand. Fine weight is weight ×
+purity × quantity.
 
 ## Quantity
 
@@ -58,18 +57,38 @@ A percentage of the value lost each year; about 12% suits most cars. A valuation
 
 ## Date acquired {#acquired-on}
 
-The day it was bought, given or inherited. A sale's holding period starts here.
+The day it was bought, given or inherited. A sale's holding period starts here, except for a gift
+held since the giver's day, and an inherited item, which is long-term whenever it's sold.
 
 ## How acquired {#acquired-how}
 
 Bought, a gift or inherited. A gift's basis is usually the giver's; an inherited item's is its value
 at death.
 
+## Held since {#held-from}
+
+For a gift kept at the giver's basis: the day the giver's holding began, from their records. A
+sale's term counts from it, so a gift sold soon after it was given can still be long-term. Blank:
+the day acquired. Its value over time still starts on the day acquired.
+
 ## Cost basis {#cost-basis}
 
 What it cost: the price plus premium, fees and shipping, or for a property the purchase price. A
 gift's carried-over basis, or an inherited item's value at death. For a property, its improvements
-add to it (Improvements, beside the fields).
+add to it (Improvements, on the Valuation tab).
+
+## Residence Periods {#residence-periods}
+
+When a home was someone's main home: each period, for each person, from the day they moved in to
+the day they moved out; no end means up to the sale. Choose who under *Who*: a period is added for
+each, and the same span for several people shows as one line. Its ✎ opens a line to change it: the
+change is made for those left chosen, so when one person moves out first, open the line, leave
+only them chosen and give their end; everyone else's period stays as it was. A home with an open period, unsold, is the main home today. When it's sold,
+Taxes shows each person's years lived in within the five years before the sale, beside the years
+owned; whether the sale's gain is excluded is the preparer's to decide. A person's periods never
+overlap, in this home or any other of the household's, yours or not (one main home at a time:
+a clash names the other home), and fall within the days you owned
+it; changing the date acquired or the sale day is refused while a period falls outside them.
 
 ## Closing costs
 
@@ -103,9 +122,9 @@ The policy that covers it.
 
 A car, a home, a watch you wear. A loss when it's sold isn't deductible.
 
-## Notes
+## Value over time
 
-Anything else, in Markdown: provenance, service history.
+Its value at each month's end since it was acquired, and today's, or the sale's once sold.
 
 ## Valuations
 
@@ -125,6 +144,10 @@ this server.
 ## Sale
 
 The day it was sold, the proceeds and the fees, recorded when you save the item; **Undo the Sale**
-takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of
-metals or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One
-of property you used yourself is marked **personal**: a loss on it isn't deductible.
+takes it back, also when you save. The gain or loss is realized and shown in Taxes. A sale of metals
+or collectables is marked **collectable**: taxed as a collectable, flagged on Form 8949. One of
+property you used yourself is marked **personal**: a loss on it isn't deductible.
+
+## Notes
+
+Anything else, in Markdown: provenance, service history.

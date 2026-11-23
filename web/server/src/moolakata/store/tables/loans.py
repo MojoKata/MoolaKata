@@ -28,6 +28,11 @@ Loan = record(
     Column("recasts", Text, nullable=False, server_default=text("'[]'")),
     # For a mortgage, the original value of the home (for when PMI can go).
     Column("originalValue", Cents),
+    # A mortgage's points paid at closing, the day paid, and whether they bought the home or
+    # refinanced it, which sets the year they are deducted in (S1.9.6, S8.12).
+    Column("points", Cents),
+    Column("pointsPaidOn", Day),
+    Column("pointsPurpose", Text),
     # The property or vehicle it is secured by, for equity and loan-to-value (S1.9.5).
     Column("securedById", Text, ForeignKey("Item.id", ondelete="SET NULL")),
     # How its payments count in budgets (S1.9.7): split by the schedule into the shipped Loan
@@ -45,6 +50,15 @@ Loan = record(
         name="payments_mode",
     ),
     CheckConstraint('"termMonths" > 0', name="term"),
+    CheckConstraint(
+        "\"pointsPurpose\" IS NULL OR \"pointsPurpose\" IN ('purchase', 'refinance')",
+        name="points_purpose",
+    ),
+    CheckConstraint(
+        '(points IS NULL) = ("pointsPaidOn" IS NULL) '
+        'AND (points IS NULL) = ("pointsPurpose" IS NULL)',
+        name="points",
+    ),
     seen=Seen.child("accountId"),
 )
 unique_live(Loan, "accountId")

@@ -197,7 +197,9 @@ function Gains({ p }) {
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
-                      <td class="small">${r.acquired
+                      <td class="small">${r.inherited
+                        ? html`INHERITED<div class="dim">${date(r.acquired)}</div>`
+                        : r.acquired
                         ? date(r.acquired)
                         : r.lotMissing
                         ? html`<span class="pill warn">missing</span>`
@@ -619,6 +621,13 @@ function Property({ p }) {
                         <div
               class="list-item"><span class="grow dim">Interest</span><${Amt} v=${l
                 .interest} /></div>
+                        ${num(l.points)
+                          ? html`<div class="list-item"><span class="grow dim">${
+                            l.pointsPurpose === 'refinance'
+                              ? 'Points (refinance): this year’s share'
+                              : 'Points'
+                          }</span><${Amt} v=${l.points} /></div>`
+                          : null}
                         ${num(l.pmi)
                           ? html`<div class="list-item"><span class="grow dim">PMI</span><${Amt} v=${l.pmi} /></div>`
                           : null}
@@ -648,8 +657,11 @@ function Property({ p }) {
             <div class="mt">
               <${Attention} tone="info"
                 icon=${html`<${Icon} name="home" />`}>${h
-                  .name} sold ${date(h.sold)} after ${h.yearsOwned} years: a gain of <${Amt} v=${h
-                  .gain} /></${Attention}></div>
+                  .name} sold ${date(h.sold)} after ${h
+                  .yearsOwned} years (of the five before it, lived in: ${h
+                  .livedIn.map((/** @type {any} */ x) => `${x.name} ${x.years} years`).join(
+                    ', ',
+                  )}): a gain of <${Amt} v=${h.gain} /></${Attention}></div>
           `
         )}</div>
     </div>

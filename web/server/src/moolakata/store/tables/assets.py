@@ -15,6 +15,9 @@ Item = record(
     Column("description", Text),
     Column("acquiredOn", Day, nullable=False),
     Column("acquiredHow", Text, nullable=False, server_default=text("'bought'")),
+    # A gift kept at the giver's basis: the day the giver's holding began, from which a sale's
+    # term counts (S1.10.1); none counts from `acquiredOn`.
+    Column("heldFrom", Day),
     # Price plus premium, fees and shipping; a gift's carried-over basis; an inherited item's
     # value at death. A property's improvements add to it (Improvement).
     Column("costBasis", Cents, nullable=False),
@@ -39,7 +42,6 @@ Item = record(
     # Real estate.
     Column("address", Text),
     Column("closingCosts", Cents),
-    Column("primaryResidence", Boolean, nullable=False, server_default=text("0")),
     # Used personally (a car, a home): a loss on its sale is not deductible (S8.13).
     Column("personalUse", Boolean, nullable=False, server_default=text("0")),
     # A sale: its day, proceeds and fees.
@@ -48,6 +50,10 @@ Item = record(
     Column("saleFees", Cents),
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint("acquiredHow IN ('bought', 'gift', 'inherited')", name="acquired_how"),
+    CheckConstraint(
+        '"heldFrom" IS NULL OR ("acquiredHow" = \'gift\' AND "heldFrom" <= "acquiredOn")',
+        name="held_from",
+    ),
     CheckConstraint("valuation IN ('spot', 'valuations', 'depreciation')", name="valuation"),
     CheckConstraint(
         "metal IS NULL OR metal IN ('gold', 'silver', 'platinum', 'palladium')", name="metal"
@@ -75,6 +81,23 @@ ItemValuation = record(
     Column("createdById", Text, ForeignKey("User.id")),
     CheckConstraint("source IN ('appraisal', 'sale', 'guide', 'estimate')", name="source"),
     Index("ix_ItemValuation_item", "itemId", "date"),
+    seen=Seen.child("itemId"),
+)
+
+# A span one person lived in a home as their main home (S1.10.4): whether a home is anyone's
+# main home is only ever its periods, so no column says it. No end: lived in still, or until
+# the sale. From them its sale shows each person's years lived in (S8.13).
+ResidencePeriod = record(
+    "ResidencePeriod",
+    "RsPrd",
+    Column("itemId", Text, ForeignKey("Item.id", ondelete="CASCADE"), nullable=False),
+    Column("personId", Text, ForeignKey("Person.id", ondelete="CASCADE"), nullable=False),
+    Column("fromDate", Day, nullable=False),
+    Column("toDate", Day),
+    Column("createdById", Text, ForeignKey("User.id")),
+    CheckConstraint('"toDate" IS NULL OR "toDate" >= "fromDate"', name="dates"),
+    Index("ix_ResidencePeriod_item", "itemId", "fromDate"),
+    Index("ix_ResidencePeriod_person", "personId", "fromDate"),
     seen=Seen.child("itemId"),
 )
 

@@ -32,12 +32,17 @@ const MODES = /** @type {{ [mode: string]: string }} */ ({
   assumed: 'Assumed as scheduled',
 });
 
+const POINTS = [['purchase', 'Buying the home'], ['refinance', 'A refinance']];
+
 /** "2055-01-01" as "Jan 2055". */
 const month = (/** @type {string} */ iso) => date(iso).replace(/ \d+,/, '');
 
 const clean = (
   /** @type {any} */ s,
 ) => (s ? String(s).replace(/[$,%\s]/g, '').replace('−', '-') : '');
+
+/** Whether a mortgage's points are typed. @param {LoanRec} r */
+const hasPoints = (r) => r.get('points') != null;
 
 /** A loan's terms (S1.9), as the draft of New account or of its Settings edits them. */
 export class LoanRec extends Record {
@@ -55,6 +60,9 @@ export class LoanRec extends Record {
     resets: [],
     recasts: [],
     originalValue: null,
+    points: null,
+    pointsPaidOn: null,
+    pointsPurpose: null,
     securedById: null,
     budgetCounting: 'split',
     budgetCategoryId: null,
@@ -64,6 +72,14 @@ export class LoanRec extends Record {
   static rules = {
     // A whole payment counts in the category chosen; split, by the schedule (S1.9.7).
     budgetCategoryId: { when: (/** @type {LoanRec} */ r) => r.get('budgetCounting') === 'whole' },
+    // Points come whole: the day paid and what they paid for, once an amount is typed (S1.9.6).
+    pointsPaidOn: { when: hasPoints, requiredWhen: hasPoints },
+    pointsPurpose: {
+      when: hasPoints,
+      requiredWhen: hasPoints,
+      setWhen: (/** @type {LoanRec} */ r) => hasPoints(r) && r.get('pointsPurpose') == null,
+      value: 'purchase',
+    },
   };
 }
 
@@ -119,8 +135,22 @@ export function TermsFields({ rec, type }) {
           <${RecField} rec=${rec} name="escrowInsurance" label="Insurance escrow per payment"
             id="escrow-insurance" negative=${false} placeholder="none" />
         </div>
-        <${RecField} rec=${rec} name="pmi" label="PMI per month" id="pmi" negative=${false}
-          placeholder="none" />
+        <div class="row">
+          <${RecField} rec=${rec} name="pmi" label="PMI per month" id="pmi" negative=${false}
+            placeholder="none" />
+          <${RecField} rec=${rec} name="points" label="Points paid" id="points" above=${0}
+            placeholder="none" />
+        </div>
+        ${rec.applies('pointsPaidOn')
+          ? html`
+            <div class="row">
+              <${RecField} rec=${rec} name="pointsPaidOn" label="Points paid on" type="date"
+                id="points-paid-on" />
+              <${RecField} rec=${rec} name="pointsPurpose" label="Points for" id="points-for"
+                options=${POINTS} />
+            </div>
+          `
+          : null}
       `
       : null}
     ${['mortgage', 'heloc', 'auto-loan', 'loan'].includes(type)
@@ -161,7 +191,8 @@ function InBudgets({ rec }) {
 }
 
 /**
- * The property or vehicle the loan is secured by, and a mortgage's original home value.
+ * The item the loan is secured by (S1.9.5: a home, a vehicle or any other), and a mortgage's
+ * original home value.
  * @param {{ rec: LoanRec, type: string }} p
  */
 function SecuredBy({ rec, type }) {
@@ -171,7 +202,7 @@ function SecuredBy({ rec, type }) {
     <div class="row">
       <${RecField} rec=${rec} name="securedById" label="Secured by" id="secured-by"
         options=${[
-          ['', items.length ? 'Nothing' : 'Nothing yet: add the property or vehicle first'],
+          ['', items.length ? 'Nothing' : 'Nothing yet: add the item first'],
           ...items.map((i) => [i.id, `${i.name} · ${i.accountName}`]),
         ]} />
       ${type === 'mortgage'

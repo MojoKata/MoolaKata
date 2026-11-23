@@ -145,6 +145,15 @@ def visible(s: Session, user_id: str) -> list[tuple[Person, str]]:
     ]
 
 
+def names(s: Session, person_ids: list[str]) -> dict[str, str]:
+    """Each person's name, whether or not the reader may see the person: a record the reader
+    sees names whoever it names (R3.14), and only the name is read."""
+    stmt = select(Person.id, Person.name).where(Person.id.in_(person_ids))
+    return dict(
+        s.execute(scoping.unscoped(stmt, "the names a record the reader sees names (R3.14)")).all()
+    )
+
+
 def readable(s: Session, user_id: str, person_id: str) -> bool:
     return access.perms(s, Person, person_id, user_id) is not None
 

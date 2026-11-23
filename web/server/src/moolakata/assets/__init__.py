@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from .. import valuation
 from ..store.entities.accounts import Account, Instrument
-from ..store.entities.assets import Improvement, Item, ItemValuation
+from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
 from ..store.repos import ledger as repo
 
 TYPES = ("precious-metals", "collectables", "real-estate", "vehicle", "other-asset")
@@ -104,6 +104,41 @@ def details(s: Session, items: list[Item]) -> dict[str, Detail]:
     ):
         out[m.itemId].improvements.append(m)
     return out
+
+
+def periods_of(s: Session, item_id: str) -> list[ResidencePeriod]:
+    """A home's residence periods, everyone's (S1.10.4), in order of their start."""
+    return list(
+        s.scalars(
+            select(ResidencePeriod)
+            .where(ResidencePeriod.itemId == item_id, ResidencePeriod.deleted == false())
+            .order_by(ResidencePeriod.fromDate, ResidencePeriod.id)
+        )
+    )
+
+
+def five_years_before(day: dt.date) -> dt.date:
+    """The same day five years before; a 29 February's is the 28th."""
+    try:
+        return day.replace(year=day.year - 5)
+    except ValueError:
+        return day.replace(year=day.year - 5, day=28)
+
+
+def years_lived_in(item: Item, sold: dt.date, periods: list[ResidencePeriod]) -> float:
+    """One person's time lived in a home sold on `sold` within the five years before the sale,
+    in years (S8.13): each of their periods kept to the days it was owned, one with no end
+    lived in up to the sale, days in two periods counted once."""
+    start = max(five_years_before(sold), item.acquiredOn)
+    days = 0
+    edge = start  # the days before it are counted, so overlaps count once
+    for p in sorted(periods, key=lambda p: p.fromDate):
+        lo = max(p.fromDate, edge)
+        hi = min(p.toDate or sold, sold)
+        if hi > lo:
+            days += (hi - lo).days
+            edge = hi
+    return round(days / 365.25, 1)
 
 
 def items_of(s: Session, account: Account) -> list[Item]:

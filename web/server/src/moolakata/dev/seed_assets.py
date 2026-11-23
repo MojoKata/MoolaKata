@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from .. import assets, clock, ids, sharing
 from ..store.entities.accounts import Account, Loan
-from ..store.entities.assets import Improvement, Item, ItemValuation
+from ..store.entities.assets import Improvement, Item, ItemValuation, ResidencePeriod
 
 
 def seed_assets(s, people: dict) -> None:
@@ -145,9 +145,18 @@ def seed_assets(s, people: dict) -> None:
         "350000",
         address="1428 Elm St",
         closingCosts=D(7400),
-        primaryResidence=True,
         personalUse=True,
     )
+    # John and Jane's main home from a week after it was bought (S1.10.4).
+    for who in (john, jane):
+        s.add(
+            ResidencePeriod(
+                id=ids.new_id("RsPrd"),
+                itemId=home.id,
+                personId=who.personId,
+                fromDate=home.acquiredOn + dt.timedelta(days=7),
+            )
+        )
     s.add(
         Improvement(
             id=ids.new_id("Imprv"),

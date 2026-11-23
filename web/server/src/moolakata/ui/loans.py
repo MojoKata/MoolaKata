@@ -64,6 +64,10 @@ class TermsIn(Model):
     resets: list[Reset] = Field(default_factory=list)
     recasts: list[Recast] = Field(default_factory=list)
     originalValue: Money | None = None
+    # A mortgage's points (S1.9.6): the amount, the day paid, and `purchase` or `refinance`.
+    points: Money | None = None
+    pointsPaidOn: dt.date | None = None
+    pointsPurpose: str | None = None
     securedById: str | None = None  # the property or vehicle it is secured by
     # How its payments count in budgets (S1.9.7): split by the schedule, or whole.
     budgetCounting: str = "split"
@@ -98,6 +102,9 @@ class TermsOut(Model):
     resets: list[ResetView]
     recasts: list[RecastView]
     originalValue: Money | None
+    points: Money | None
+    pointsPaidOn: dt.date | None
+    pointsPurpose: str | None
     securedById: str | None
     budgetCounting: str
     budgetCategoryId: str | None
@@ -233,6 +240,9 @@ def _terms_out(s, row: Loan) -> TermsOut:
         resets=[ResetView(date=d, rate=r) for d, r in t.resets],
         recasts=[RecastView(date=d, fee=f) for d, f in t.recasts],
         originalValue=row.originalValue,
+        points=row.points,
+        pointsPaidOn=row.pointsPaidOn,
+        pointsPurpose=row.pointsPurpose,
         securedById=row.securedById,
         budgetCounting=row.budgetCounting,
         budgetCategoryId=row.budgetCategoryId,
@@ -305,7 +315,7 @@ def view(s, a: Account) -> LoanView:
         rows=[RowOut(**r.__dict__) for r in rows],
         servicer=servicer,
         equity=_equity(s, row, terms, sm.balance, rows, today),
-        following=_following(s, a, terms, rows, sm.payment, today),
+        following=_following(s, a, terms, rows, payments, draws, today),
     )
 
 
@@ -366,6 +376,15 @@ def _check(body: TermsIn, account_type: str) -> list[FieldError]:
         e.append(
             FieldError("budgetCounting", "counting-invalid", "Split by the schedule, or whole.")
         )
+    elif body.budgetCounting == "split" and body.budgetCategoryId:
+        # Split, each part counts in its own category (S1.9.7): one sent is refused, not dropped.
+        e.append(
+            FieldError(
+                "budgetCategoryId",
+                "category-not-for-split",
+                "A category is named only when payments count whole.",
+            )
+        )
     if body.paymentsMode is not None and body.paymentsMode not in loans.MODES:
         e.append(
             FieldError(
@@ -376,6 +395,39 @@ def _check(body: TermsIn, account_type: str) -> list[FieldError]:
         v = getattr(body, f)
         if v is not None and v < 0:
             e.append(FieldError(f, "amount-invalid", "Zero or more."))
+    return e + _check_points(body, account_type)
+
+
+def _check_points(body: TermsIn, account_type: str) -> list[FieldError]:
+    """A mortgage's points come whole: the amount, the day paid, and what they paid for
+    (S1.9.6); none is blank, never read as none (R3.11)."""
+    given = (body.points, body.pointsPaidOn, body.pointsPurpose)
+    if all(v is None for v in given):
+        return []
+    if account_type != "mortgage":
+        return [FieldError("points", "points-not-for-loan", "Points belong to a mortgage.")]
+    e = []
+    if body.points is None:
+        e.append(
+            FieldError(
+                "points", "points-missing", "The points paid, or clear their day and purpose."
+            )
+        )
+    elif body.points <= 0:
+        e.append(FieldError("points", "amount-invalid", "More than zero."))
+    if body.pointsPaidOn is None:
+        e.append(FieldError("pointsPaidOn", "required", "The day they were paid."))
+    elif body.pointsPaidOn > loans.add_months(body.startDate, 1):
+        # Points are paid at closing: by the first payment at the latest.
+        e.append(
+            FieldError("pointsPaidOn", "points-day-invalid", "By the first payment, at closing.")
+        )
+    if body.pointsPurpose not in ("purchase", "refinance"):
+        e.append(
+            FieldError(
+                "pointsPurpose", "points-purpose-invalid", "Buying the home, or a refinance."
+            )
+        )
     return e
 
 
@@ -394,7 +446,7 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
     if body.securedById:
         it = s.get(Item, body.securedById)
         if it is None or it.deleted:
-            raise refuse("securedById", "not-found", "No such property or vehicle.")
+            raise refuse("securedById", "not-found", "No such item.")
         access.account(s, c.id, it.accountId, "read")
     if body.budgetCategoryId:
         cat = s.get(Category, body.budgetCategoryId)
@@ -418,9 +470,12 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
             [{"date": r.date.isoformat(), "fee": str(r.fee)} for r in body.recasts]
         ),
         "originalValue": body.originalValue,
+        "points": body.points,
+        "pointsPaidOn": body.pointsPaidOn,
+        "pointsPurpose": body.pointsPurpose,
         "securedById": body.securedById,
         "budgetCounting": body.budgetCounting,
-        "budgetCategoryId": body.budgetCategoryId if body.budgetCounting == "whole" else None,
+        "budgetCategoryId": body.budgetCategoryId,
         "paymentsMode": body.paymentsMode,
     }
 
@@ -817,9 +872,10 @@ def _saved(s, c: Caller, a: Account, p: PayoffPlan) -> SavedPlan:
     headline = ""
     if loans.loan_of(s, a) is not None:
         r = _compute(s, c, a, _plan(plan_in))
-        best = r.plan
-        saved = r.schedule.interest - best.interest - best.fees
-        when = f"{best.payoffDate:%b %Y}" if best.payoffDate else "—"
+        # The plan shortened: only shortening moves the payoff month (S6.10.5).
+        shortened = r.plan
+        saved = r.schedule.interest - shortened.interest
+        when = f"{shortened.payoffDate:%b %Y}" if shortened.payoffDate else "—"
         headline = f"Paid off {when} · ${saved:,.0f} interest saved"
     return SavedPlan(
         id=p.id,
@@ -833,7 +889,7 @@ def _saved(s, c: Caller, a: Account, p: PayoffPlan) -> SavedPlan:
     )
 
 
-def _following(s, a: Account, terms, rows, pi, today) -> Following | None:
+def _following(s, a: Account, terms, rows, payments, draws, today) -> Following | None:
     p = s.scalars(
         select(PayoffPlan).where(
             PayoffPlan.accountId == a.id,
@@ -844,7 +900,7 @@ def _following(s, a: Account, terms, rows, pi, today) -> Following | None:
     if p is None or p.followingSince is None:
         return None
     inputs = PlanIn(**exactjson.loads(p.inputs))
-    expected = payoff.expected_extra(terms, _plan(inputs), p.followingSince, today, pi)
+    expected = payoff.expected_extra(terms, _plan(inputs), p.followingSince, today, payments, draws)
     actual = sum((r.overpayment for r in rows if r.past and r.date > p.followingSince), Decimal(0))
     return Following(
         planId=p.id,
@@ -918,12 +974,38 @@ def _loan_account(ctx, account_id: str) -> Account:
     return _account(ctx.s, ctx.caller, account_id, "write")[0]
 
 
+def _start_fits(ctx, row: Loan) -> None:
+    """Once every op is in: the loan starts on or before its first payment or draw (S1.9.3), a
+    start after one refused at the start, naming that day."""
+
+    def check() -> None:
+        first = ctx.s.scalars(
+            select(Transaction.date)
+            .where(
+                Transaction.accountId == row.accountId,
+                Transaction.deleted == false(),
+                Transaction.amount != 0,
+            )
+            .order_by(Transaction.date)
+        ).first()
+        if first is not None and first < row.startDate:
+            raise refuse(
+                "startDate",
+                "start-after-payment",
+                f"A payment or draw is dated before this start ({first:%b %-d, %Y}).",
+            )
+
+    ctx.verify(f"start-fits:{row.accountId}", check)
+
+
 def _loan_create(ctx, record_id: str, body: LoanRecord) -> None:
     a = _loan_account(ctx, body.accountId)
     if loans.loan_of(ctx.s, a) is not None:
         raise refuse("accountId", "loan-exists", "This loan has its terms; change them.", 409)
-    ctx.s.add(Loan(id=record_id, accountId=a.id, **_terms(ctx.s, ctx.caller, a, body)))
+    row = Loan(id=record_id, accountId=a.id, **_terms(ctx.s, ctx.caller, a, body))
+    ctx.s.add(row)
     _changed_terms(ctx.s, ctx.caller, a)
+    _start_fits(ctx, row)
 
 
 def _loan_editable(ctx, record_id: str) -> Loan:
@@ -937,8 +1019,8 @@ def _loan_editable(ctx, record_id: str) -> Loan:
 def _loan_current(ctx, row: Loan) -> dict:
     return {
         "accountId": row.accountId,
-        "resets": exactjson.loads(row.resets or "[]"),
-        "recasts": exactjson.loads(row.recasts or "[]"),
+        "resets": exactjson.loads(row.resets),
+        "recasts": exactjson.loads(row.recasts),
         **{f: getattr(row, f) for f in TERM_FIELDS},
     }
 
@@ -951,6 +1033,7 @@ def _loan_update(ctx, row: Loan, body: LoanRecord) -> None:
         setattr(row, k, v)
     row.updatedAt = clock.now()
     _changed_terms(ctx.s, ctx.caller, a)
+    _start_fits(ctx, row)
 
 
 def _loan_delete(ctx, row: Loan) -> None:

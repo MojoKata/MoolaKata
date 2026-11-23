@@ -15,6 +15,7 @@ class Item(Record):
     category: str | None = None
     description: str | None = None
     acquiredHow: str = "bought"
+    heldFrom: dt.date | None = None  # a gift's, from the giver's holding (S1.10.1)
     quantity: Decimal = Decimal(1)
     location: str | None = None
     serial: str | None = None
@@ -31,7 +32,6 @@ class Item(Record):
     depreciationRate: Decimal | None = None
     address: str | None = None
     closingCosts: Decimal | None = None
-    primaryResidence: bool = False
     personalUse: bool = False
     soldOn: dt.date | None = None
     proceeds: Decimal | None = None
@@ -47,6 +47,16 @@ class ItemValuation(Record):
     value: Decimal
     source: str = "estimate"
     note: str | None = None
+    createdById: str | None = None
+
+
+@dataclass(kw_only=True, eq=False)
+class ResidencePeriod(Record):
+    id: str
+    itemId: str
+    personId: str  # whose main home it was
+    fromDate: dt.date
+    toDate: dt.date | None = None  # lived in still, or until the sale
     createdById: str | None = None
 
 

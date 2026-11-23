@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from . import ASSUMED, ZERO, Payment, Row, Terms, add_months, cents, schedule
+from . import ASSUMED, ZERO, Payment, Row, Terms, add_months, cents, due_on, schedule
 
 
 @dataclass
@@ -163,15 +163,19 @@ def plan_outcomes(
     )
 
 
-def expected_extra(t: Terms, plan: Plan, since: dt.date, today: dt.date, pi: Decimal) -> Decimal:
-    """What the plan has the borrower overpay on the payment days after `since` up to today."""
+def expected_extra(
+    t: Terms, plan: Plan, since: dt.date, today: dt.date, payments: list[Payment], draws
+) -> Decimal:
+    """What the plan has the borrower overpay on the payment days after `since` up to today,
+    each from that day's principal and interest due and its balance, as the schedule ahead
+    works it out: the level after a reset or recast, PMI only while due (S6.10.5, S1.9.5)."""
     extras = _Extras(dataclasses.replace(plan, lumps=[x for x in plan.lumps if x[0] > since]), t)
     total = ZERO
     k = 1
     day = add_months(t.start, k)
     while day <= today:
         if day > since:
-            total += extras(day, pi)
+            total += extras(day, *due_on(t, payments, draws, day, add_months(t.start, k - 1)))
         k += 1
         day = add_months(t.start, k)
     return cents(total)

@@ -75,6 +75,9 @@ class Row:
     # an option, or a physical item; the panels group by it, never by the words.
     kind: str = "holding"
     lotMissing: bool = False  # sold without a lot to match: its day bought is missing (S8.1)
+    # Property from someone who died: column (b) reads INHERITED, not a date, as the form's
+    # instructions say; `acquired` stays the day it came (S8.13).
+    inherited: bool = False
     short: bool = False  # a short sale of shares closed (S3.4)
 
     @property
@@ -454,7 +457,10 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
         d = assets.details(s, [it])[it.id]
         basis = assets.basis(it, d, it.soldOn)
         proceeds = it.proceeds - (it.saleFees or ZERO)
-        long_term = lots.long_term(it.acquiredOn, it.soldOn)
+        # Inherited, it is long-term on any sale; a gift at the giver's basis counts from the
+        # giver's holding (S1.10.1, S8.13).
+        held = it.heldFrom or it.acquiredOn
+        long_term = it.acquiredHow == "inherited" or lots.long_term(held, it.soldOn)
         collectable = assets.is_collectable(a.type, it)
         gain = proceeds - basis
         code, adj = ("C" if collectable else ""), ZERO
@@ -463,7 +469,8 @@ def _items(s: Session, accounts: list[Account], first: dt.date, last: dt.date) -
         out.append(
             Row(
                 description=it.name,
-                acquired=it.acquiredOn,
+                acquired=held,
+                inherited=it.acquiredHow == "inherited",
                 sold=it.soldOn,
                 proceeds=proceeds,
                 basis=basis,
@@ -1073,6 +1080,8 @@ class LoanRow:
     pmi: Decimal
     propertyTax: Decimal
     securedBy: str | None
+    points: Decimal = ZERO  # deducted this year (S1.9.6)
+    pointsPurpose: str | None = None  # purchase or refinance
 
 
 def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
@@ -1080,13 +1089,20 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
     for a in books.counted(s, book).accounts:
         if a.type not in ("mortgage", "heloc", "student-loan"):
             continue
-        payments, _ = loans.history(s, a)
+        payments, draws = loans.history(s, a)
         mine = [p for p in payments if p.date.year == book.year and not p.assumed]
         row = loans.loan_of(s, a)
         secured = None
         if row is not None and row.securedById:
             # The item a loan names is kept while it does (a deleted one too, by its name).
             secured = s.get(Item, row.securedById).name
+        points = ZERO
+        if row is not None and row.points is not None:
+            t = loans.terms_of(s, row)
+            payoff = loans.paid_off(t, payments, draws)
+            points = loans.points_in(
+                row.points, row.pointsPaidOn, row.pointsPurpose, t, payoff, book.year
+            )
         out.append(
             LoanRow(
                 a.name,
@@ -1095,9 +1111,17 @@ def loans_panel(s: Session, book: TaxBook) -> list[LoanRow]:
                 sum((p.pmi for p in mine), ZERO),
                 sum((p.escrowTax for p in mine), ZERO),
                 secured,
+                points,
+                row.pointsPurpose if points else None,
             )
         )
     return out
+
+
+@dataclass
+class LivedIn:
+    name: str  # the person's, shared with the reader or not (R3.14)
+    years: float  # within the five years before the sale (S8.13)
 
 
 @dataclass
@@ -1106,11 +1130,13 @@ class Residence:
     sold: dt.date
     gain: Decimal
     yearsOwned: float
+    livedIn: list[LivedIn]  # each person's, in order of name
 
 
 def residences(s: Session, book: TaxBook) -> list[Residence]:
-    """A sold primary residence: its gain and the years owned (S8.13); the exclusion is the
-    preparer's to apply."""
+    """A sold home someone lived in as their main home: its gain, the years owned and, from its
+    residence periods, each person's years lived in within the five before the sale (S8.13);
+    the exclusion is the preparer's."""
     first, last = _span(book.year)
     out = []
     for a in books.counted(s, book).accounts:
@@ -1120,15 +1146,28 @@ def residences(s: Session, book: TaxBook) -> list[Residence]:
             select(Item).where(
                 Item.accountId == a.id,
                 Item.deleted == false(),
-                Item.primaryResidence,
                 Item.soldOn >= first,
                 Item.soldOn <= last,
             )
         ):
+            by_person: dict[str, list] = {}
+            for p in assets.periods_of(s, it.id):
+                by_person.setdefault(p.personId, []).append(p)
+            if not by_person:
+                continue
+            names = people.names(s, list(by_person))
+            lived = [
+                LivedIn(names[person_id], assets.years_lived_in(it, it.soldOn, periods))
+                for person_id, periods in by_person.items()
+            ]
             g = assets.gain(it, assets.details(s, [it])[it.id]) or ZERO
             out.append(
                 Residence(
-                    it.name, it.soldOn, g, round((it.soldOn - it.acquiredOn).days / 365.25, 1)
+                    it.name,
+                    it.soldOn,
+                    g,
+                    round((it.soldOn - it.acquiredOn).days / 365.25, 1),
+                    sorted(lived, key=lambda x: x.name),
                 )
             )
     return out

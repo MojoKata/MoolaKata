@@ -2,6 +2,7 @@
 pins a rule whose figures in the broader tests happen to come out the same either way."""
 
 import datetime as dt
+import math
 from decimal import Decimal as D
 
 from moolakata import loans as L
@@ -322,18 +323,87 @@ def test_expected_extra_counts_the_payment_days_after_since_up_to_today():
     to today, both counted when they are payment days; lump sums dated after it."""
     t = L.Terms(D(200000), d(2026, 1, 1), 360, D(6))
     since, today = d(2026, 1, 1), d(2026, 4, 1)  # Feb, Mar and Apr
-    assert P.expected_extra(t, P.Plan(monthly=D(100)), since, today, D(1200)) == D(300)
+
+    def extra(plan, chosen=since, terms=t):
+        return P.expected_extra(terms, plan, chosen, today, [], [])
+
+    assert extra(P.Plan(monthly=D(100))) == D(300)
     # Chosen on a payment day, that day's payment came before it: Mar and Apr.
-    feb = d(2026, 2, 1)
-    assert P.expected_extra(t, P.Plan(monthly=D(100)), feb, today, D(1200)) == D(200)
+    assert extra(P.Plan(monthly=D(100)), d(2026, 2, 1)) == D(200)
     # A lump on `since` or before it was already counted; one after it counts.
     lumps = [(d(2025, 12, 1), D(7)), (since, D(10)), (d(2026, 3, 1), D(1000))]
-    assert P.expected_extra(t, P.Plan(lumps=lumps), since, today, D(1200)) == D(1000)
-    # Yearly in March, biweekly a twelfth of 1,200 each payment day.
-    yearly = P.Plan(yearly=D(500), yearlyMonth=3)
-    assert P.expected_extra(t, yearly, since, today, D(1200)) == D(500)
-    biweekly = P.Plan(biweekly=True)
-    assert P.expected_extra(t, biweekly, since, today, D(1200)) == D(300)
-    # Rounding 1,200 + 130 escrow + 80 PMI up to 1,500, on three payment days.
-    up = P.Plan(roundTo=D(100))
-    assert P.expected_extra(_terms(), up, since, today, D(1200)) == D(270)  # 3 x 90
+    assert extra(P.Plan(lumps=lumps)) == D(1000)
+    # Yearly in March; biweekly a twelfth of the 1,199.10 due each payment day.
+    assert extra(P.Plan(yearly=D(500), yearlyMonth=3)) == D(500)
+    assert extra(P.Plan(biweekly=True)) == 3 * D("99.93")
+    # Rounding 1,199.10 + 130 escrow + 80 PMI up to 1,500, on three payment days.
+    assert extra(P.Plan(roundTo=D(100)), terms=_terms()) == 3 * D("90.90")
+
+
+def test_a_followed_plans_rounding_counts_pmi_only_while_it_is_due():
+    """S1.9.5, S6.10.5: PMI that has ended (the balance under 78% of the home's original value)
+    isn't rounded up with the payment. 300,000 at 6% (1,798.65) with 300 escrow and a 90 PMI
+    that ended: five payments of 2,098.65 rounded up to 2,100 is 6.75, the planner's own
+    figure, never 56.75 from 2,188.65."""
+    t = L.Terms(
+        D(300000), d(2026, 1, 1), 360, D(6), escrowTax=D(300), pmi=D(90),
+        originalValue=D(400000),
+    )  # fmt: skip
+    plan = P.Plan(roundTo=D(100))
+    today = d(2026, 6, 1)
+    assert P.expected_extra(t, plan, t.start, today, [], []) == D("6.75")
+    planned = P.plan_outcomes(t, [], [], t.start, plan, 0.0).plan.rows
+    assert sum((r.overpayment for r in planned if r.date <= today), D(0)) == D("6.75")
+    # Still due (no original value to end it): each payment rounds 2,188.65 up.
+    due = L.Terms(D(300000), d(2026, 1, 1), 360, D(6), escrowTax=D(300), pmi=D(90))
+    assert P.expected_extra(due, plan, due.start, today, [], []) == D("56.75")
+
+
+def test_a_daily_interest_loans_pmi_goes_by_each_months_own_days():
+    """S1.9.5: a loan whose interest runs by the day owes less interest in a short month, so
+    more principal comes off and the balance PMI goes by is lower. 300,000 at 6%, nothing paid:
+    February's 28 days leave 299,582.17 by March's payment, under 78% of 384,103 (299,600.34),
+    so March's rounding leaves PMI out; the other months' 31 or 30 days leave more owed. By the
+    month, every payment leaves 299,701.35, and PMI is due on all five."""
+    plan = P.Plan(roundTo=D(100))
+    kw = dict(escrowTax=D(300), pmi=D(90), originalValue=D(384103))
+    daily = L.Terms(D(300000), d(2026, 1, 1), 360, D(6), method="daily", **kw)
+    monthly = L.Terms(D(300000), d(2026, 1, 1), 360, D(6), **kw)
+    today = d(2026, 6, 1)
+    # 2,188.65 rounds up by 11.35 on the four days PMI is due; 2,098.65 by 1.35 in March.
+    assert P.expected_extra(daily, plan, daily.start, today, [], []) == D("46.75")
+    assert P.expected_extra(monthly, plan, monthly.start, today, [], []) == D("56.75")
+
+
+def test_a_followed_plans_pmi_ends_with_the_payments_made():
+    """The balance PMI goes by is what the payments made left: an extra 70,000 paid with the
+    first payment takes the balance under 78% of 400,000, so from the next payment the
+    rounding leaves PMI out."""
+    t = L.Terms(
+        D(380000), d(2026, 1, 1), 360, D(6), escrowTax=D(300), pmi=D(90),
+        originalValue=D(400000),
+    )  # fmt: skip
+    pi = L.scheduled_payment(t)
+    feb = d(2026, 2, 1)
+    big = L.Payment(feb, D(72000), principal=D(70000))  # 310,000 left: under 312,000
+    plan = P.Plan(roundTo=D(100))
+
+    def up(total):
+        return D(math.ceil(total / 100)) * 100 - total
+
+    # Chosen on Feb 1: March's payment is the one counted.
+    assert P.expected_extra(t, plan, feb, d(2026, 3, 1), [big], []) == up(pi + t.escrow)
+    assert P.expected_extra(t, plan, feb, d(2026, 3, 1), [], []) == up(pi + t.escrow + t.pmi)
+
+
+def test_a_followed_plans_biweekly_extra_follows_the_level_after_a_reset():
+    """S1.9.2: after a rate reset the payment is worked out again and stays level, so a plan's
+    twelfth of it each payment day is a twelfth of the new level, not of the first."""
+    t = L.Terms(D(200000), d(2026, 1, 1), 360, D(6), resets=[(d(2026, 3, 15), D(8))])
+    plan = P.Plan(biweekly=True)
+    before = L.scheduled_payment(t)
+    owed = L.balance_on(t, [], [], d(2026, 3, 31))
+    after = L.level_payment(owed, D(8), 360 - 3 + 1)
+    got = P.expected_extra(t, plan, t.start, d(2026, 5, 1), [], [])
+    assert after != before
+    assert got == L.cents(before / 12) * 2 + L.cents(after / 12) * 2

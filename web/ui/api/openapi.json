@@ -10244,27 +10244,17 @@
             "title": "Gain",
             "type": "number"
           },
-          "history": {
-            "items": {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "examples": [
-                    1234.5
-                  ],
-                  "format": "money",
-                  "type": "number"
-                }
-              ],
-              "type": "array"
-            },
-            "title": "History",
-            "type": "array"
+          "heldFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heldfrom"
           },
           "id": {
             "title": "Id",
@@ -10361,10 +10351,6 @@
             ],
             "title": "Policy"
           },
-          "primaryResidence": {
-            "title": "Primaryresidence",
-            "type": "boolean"
-          },
           "purity": {
             "anyOf": [
               {
@@ -10387,6 +10373,13 @@
             "format": "decimal",
             "title": "Quantity",
             "type": "number"
+          },
+          "residencePeriods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodOut"
+            },
+            "title": "Residenceperiods",
+            "type": "array"
           },
           "sale": {
             "anyOf": [
@@ -10527,6 +10520,7 @@
           "loans",
           "equity",
           "version",
+          "heldFrom",
           "description",
           "costBasis",
           "location",
@@ -10542,17 +10536,49 @@
           "depreciationRate",
           "address",
           "closingCosts",
-          "primaryResidence",
           "personalUse",
           "spot",
           "spotAsOf",
           "valuations",
           "improvements",
+          "residencePeriods",
           "documents",
-          "history",
           "access"
         ],
         "title": "ItemDetail",
+        "type": "object"
+      },
+      "ItemHistory": {
+        "additionalProperties": false,
+        "description": "An item's value at each month's end, and today's or its sale's: one series, not rows.",
+        "properties": {
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "examples": [
+                    1234.5
+                  ],
+                  "format": "money",
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "ItemHistory",
         "type": "object"
       },
       "ItemRecord": {
@@ -10663,6 +10689,19 @@
             "default": null,
             "title": "Description"
           },
+          "heldFrom": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Heldfrom"
+          },
           "insuredValue": {
             "anyOf": [
               {
@@ -10735,11 +10774,6 @@
             ],
             "default": null,
             "title": "Policy"
-          },
-          "primaryResidence": {
-            "default": false,
-            "title": "Primaryresidence",
-            "type": "boolean"
           },
           "proceeds": {
             "anyOf": [
@@ -12039,6 +12073,29 @@
         "title": "Listener",
         "type": "object"
       },
+      "LivedInOut": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "years": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Years",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "years"
+        ],
+        "title": "LivedInOut",
+        "type": "object"
+      },
       "LoanOut": {
         "additionalProperties": false,
         "properties": {
@@ -12066,6 +12123,25 @@
             "title": "Pmi",
             "type": "number"
           },
+          "points": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Points",
+            "type": "number"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspurpose"
+          },
           "propertyTax": {
             "examples": [
               1234.5
@@ -12092,7 +12168,9 @@
           "interest",
           "pmi",
           "propertyTax",
-          "securedBy"
+          "securedBy",
+          "points",
+          "pointsPurpose"
         ],
         "title": "LoanOut",
         "type": "object"
@@ -12232,6 +12310,47 @@
             ],
             "default": null,
             "title": "Pmi"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Points"
+          },
+          "pointsPaidOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pointspaidon"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pointspurpose"
           },
           "principal": {
             "examples": [
@@ -17356,6 +17475,102 @@
         },
         "x-entity": "Pyoff"
       },
+      "PeriodOut": {
+        "additionalProperties": false,
+        "properties": {
+          "fromDate": {
+            "format": "date",
+            "title": "Fromdate",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "personName": {
+            "title": "Personname",
+            "type": "string"
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todate"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "personName",
+          "fromDate",
+          "toDate",
+          "version"
+        ],
+        "title": "PeriodOut",
+        "type": "object"
+      },
+      "PeriodRecord": {
+        "additionalProperties": false,
+        "description": "A residence period (S1.10.4): one person's span of a home as their main home; no end,\nlived in still, or until the sale.",
+        "properties": {
+          "fromDate": {
+            "format": "date",
+            "title": "Fromdate",
+            "type": "string"
+          },
+          "itemId": {
+            "pattern": "^Item_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Itemid",
+            "type": "string",
+            "x-prefix": "Item"
+          },
+          "personId": {
+            "pattern": "^Persn_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Personid",
+            "type": "string",
+            "x-prefix": "Persn"
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Todate"
+          }
+        },
+        "required": [
+          "itemId",
+          "personId",
+          "fromDate"
+        ],
+        "title": "PeriodRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "itemId"
+        },
+        "x-entity": "RsPrd"
+      },
       "PeriodRow": {
         "additionalProperties": false,
         "properties": {
@@ -18771,6 +18986,7 @@
               "cash-missing",
               "category-in-use",
               "category-kept",
+              "category-not-for-split",
               "category-twice",
               "category-unknown",
               "choice-invalid",
@@ -18797,6 +19013,7 @@
               "coverage-invalid",
               "daf-invalid",
               "date-ahead",
+              "date-before-loan",
               "date-in-future",
               "date-invalid",
               "date-missing",
@@ -18858,6 +19075,8 @@
               "group-delete",
               "group-inactive",
               "group-unknown",
+              "held-from-after",
+              "held-from-not-gift",
               "holiday-invalid",
               "how-invalid",
               "http-error",
@@ -18940,6 +19159,7 @@
               "not-a-529",
               "not-a-deposit",
               "not-a-fund",
+              "not-a-home",
               "not-a-loan",
               "not-a-marriage",
               "not-a-transfer",
@@ -18995,8 +19215,12 @@
               "people-missing",
               "percent-invalid",
               "period-backwards",
+              "period-fixed",
               "period-missing",
+              "periods-outside",
+              "periods-overlap",
               "person-exists",
+              "person-invalid",
               "person-is-user",
               "person-read-only",
               "person-unknown",
@@ -19014,6 +19238,10 @@
               "plan-fixed",
               "plan-line-delete",
               "planned-elsewhere",
+              "points-day-invalid",
+              "points-missing",
+              "points-not-for-loan",
+              "points-purpose-invalid",
               "portfolio-unknown",
               "premium-invalid",
               "price-fixed",
@@ -19049,6 +19277,7 @@
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
+              "required",
               "reserve-unknown",
               "result-invalid",
               "right-invalid",
@@ -19092,6 +19321,7 @@
               "splits-unbalanced",
               "stale",
               "stale-version",
+              "start-after-payment",
               "statement-does-not-add-up",
               "statement-interval-invalid",
               "statement-kept-already",
@@ -19243,6 +19473,7 @@
                   "cash-missing",
                   "category-in-use",
                   "category-kept",
+                  "category-not-for-split",
                   "category-twice",
                   "category-unknown",
                   "choice-invalid",
@@ -19269,6 +19500,7 @@
                   "coverage-invalid",
                   "daf-invalid",
                   "date-ahead",
+                  "date-before-loan",
                   "date-in-future",
                   "date-invalid",
                   "date-missing",
@@ -19330,6 +19562,8 @@
                   "group-delete",
                   "group-inactive",
                   "group-unknown",
+                  "held-from-after",
+                  "held-from-not-gift",
                   "holiday-invalid",
                   "how-invalid",
                   "http-error",
@@ -19412,6 +19646,7 @@
                   "not-a-529",
                   "not-a-deposit",
                   "not-a-fund",
+                  "not-a-home",
                   "not-a-loan",
                   "not-a-marriage",
                   "not-a-transfer",
@@ -19467,8 +19702,12 @@
                   "people-missing",
                   "percent-invalid",
                   "period-backwards",
+                  "period-fixed",
                   "period-missing",
+                  "periods-outside",
+                  "periods-overlap",
                   "person-exists",
+                  "person-invalid",
                   "person-is-user",
                   "person-read-only",
                   "person-unknown",
@@ -19486,6 +19725,10 @@
                   "plan-fixed",
                   "plan-line-delete",
                   "planned-elsewhere",
+                  "points-day-invalid",
+                  "points-missing",
+                  "points-not-for-loan",
+                  "points-purpose-invalid",
                   "portfolio-unknown",
                   "premium-invalid",
                   "price-fixed",
@@ -19521,6 +19764,7 @@
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
+                  "required",
                   "reserve-unknown",
                   "result-invalid",
                   "right-invalid",
@@ -19564,6 +19808,7 @@
                   "splits-unbalanced",
                   "stale",
                   "stale-version",
+                  "start-after-payment",
                   "statement-does-not-add-up",
                   "statement-interval-invalid",
                   "statement-kept-already",
@@ -21912,6 +22157,13 @@
             "title": "Gain",
             "type": "number"
           },
+          "livedIn": {
+            "items": {
+              "$ref": "#/components/schemas/LivedInOut"
+            },
+            "title": "Livedin",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -21934,7 +22186,8 @@
           "name",
           "sold",
           "gain",
-          "yearsOwned"
+          "yearsOwned",
+          "livedIn"
         ],
         "title": "ResidenceOut",
         "type": "object"
@@ -25237,6 +25490,44 @@
             ],
             "title": "Pmi"
           },
+          "points": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "pointsPaidOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspaidon"
+          },
+          "pointsPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointspurpose"
+          },
           "principal": {
             "examples": [
               1234.5
@@ -25306,6 +25597,9 @@
           "resets",
           "recasts",
           "originalValue",
+          "points",
+          "pointsPaidOn",
+          "pointsPurpose",
           "securedById",
           "budgetCounting",
           "budgetCategoryId",
@@ -29643,6 +29937,10 @@
             ],
             "title": "Gain"
           },
+          "inherited": {
+            "title": "Inherited",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "holding",
@@ -29689,7 +29987,8 @@
           "account",
           "collectable",
           "kind",
-          "lotMissing"
+          "lotMissing",
+          "inherited"
         ],
         "title": "RowOut",
         "type": "object"
@@ -33929,6 +34228,45 @@
           }
         },
         "summary": "Get Item",
+        "tags": [
+          "items"
+        ]
+      }
+    },
+    "/ui/api/items/{item_id}/history": {
+      "get": {
+        "description": "Asked only when the item's Valuation tab opens, never with the item (S1.10.6).",
+        "operationId": "get_history_ui_api_items__item_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Get History",
         "tags": [
           "items"
         ]

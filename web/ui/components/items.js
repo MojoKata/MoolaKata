@@ -4,11 +4,12 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useApi } from '../app/hooks.js';
+import { useApi, useList } from '../app/hooks.js';
 import { date, quantity } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
-import { Empty, Failed, Loading } from '../kit/bits.js';
+import { Empty, Failed, Loading, Tabs } from '../kit/bits.js';
+import { TimeChart } from '../charts/chart.js';
 import { openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
 import { Field, Input, Select, TypedInput } from '../kit/fields.js';
@@ -246,6 +247,7 @@ class ItemRec extends Record {
     category: null,
     description: null,
     acquiredHow: 'bought',
+    heldFrom: null,
     quantity: Dec.parse('1'),
     location: null,
     serial: null,
@@ -261,12 +263,16 @@ class ItemRec extends Record {
     depreciationRate: null,
     address: null,
     closingCosts: null,
-    primaryResidence: false,
     personalUse: false,
     soldOn: null,
     proceeds: null,
     saleFees: null,
     receiptIds: [],
+  };
+  /** @override */
+  static rules = {
+    // The giver's holding counts only for a gift (S1.10.1).
+    heldFrom: { when: (/** @type {ItemRec} */ r) => r.get('acquiredHow') === 'gift' },
   };
 }
 
@@ -276,6 +282,16 @@ class ValuationRec extends Record {
   static prefix = 'Valtn';
   /** @override */
   static fields = FIELDS.ValuationRecord;
+  /** @override */
+  static ownedBy = ['itemId'];
+}
+
+/** A residence period: one person's span of a home as their main home (S1.10.4). */
+class PeriodRec extends Record {
+  /** @override */
+  static prefix = 'RsPrd';
+  /** @override */
+  static fields = FIELDS.PeriodRecord;
   /** @override */
   static ownedBy = ['itemId'];
 }
@@ -306,9 +322,29 @@ function newItem(type, accountId) {
     weightUnit: metals ? 'ozt' : null,
     purity: metals ? '.9999' : null,
     depreciationRate: type === 'vehicle' ? Dec.parse('12') : null,
-    primaryResidence: type === 'real-estate',
     personalUse: ['vehicle', 'real-estate'].includes(type),
   };
+}
+
+/** The item dialog's tabs (S1.10.6). */
+const ITEM_TABS = /** @type {[string, string][]} */ ([
+  ['general', 'General'],
+  ['valuation', 'Valuation'],
+  ['notes', 'Notes'],
+]);
+const ADD_FIRST = 'Its value, valuations and sale follow once it is added.';
+
+/** The item's fields on the Valuation tab: its sale and documents. */
+const ON_VALUATION = ['soldOn', 'proceeds', 'saleFees', 'receiptIds'];
+
+/**
+ * The tab a refused field is on: a valuation's or an improvement's on Valuation.
+ * @param {Record} r @param {string | null} field @returns {string}
+ */
+function tabOf(r, field) {
+  if (r instanceof PeriodRec) return 'general';
+  if (!(r instanceof ItemRec) || ON_VALUATION.includes(field || '')) return 'valuation';
+  return field === 'notes' ? 'notes' : 'general';
 }
 
 /** What an item's row shows: read from it, the dialog leaves them out (S12.18.6.5). */
@@ -334,11 +370,18 @@ export function ItemDialog({ close, a, id }) {
     });
     for (const v of x.valuations) draft.load(ValuationRec, { ...v, itemId: x.id });
     for (const m of x.improvements) draft.load(ImprovementRec, { ...m, itemId: x.id });
+    for (const p of x.residencePeriods) draft.load(PeriodRec, { ...p, itemId: x.id });
   }, [id]);
   const rec = /** @type {ItemRec | undefined} */ (f.draft?.records[0]);
   const canWrite = it ? it.access.writable : true;
   const t = a.type;
   const spot = rec?.get('valuation') === 'spot';
+  const [chosen, setTab] = useState('general');
+  // A refusal shows at its field: its tab comes forward when the one shown has none (S1.10.6).
+  const refused = (f.draft?.records || []).flatMap((r) =>
+    r.errors.map((/** @type {any} */ e) => tabOf(r, e.field))
+  );
+  const tab = refused.length && !refused.includes(chosen) ? refused[0] : chosen;
   return html`
     <${DraftDialog} f=${f} wide close=${close} what="This item"
       title=${it ? it.name : 'Add an Item'} label=${it ? 'Save' : 'Add'}
@@ -350,14 +393,15 @@ export function ItemDialog({ close, a, id }) {
       }}>
       ${rec
         ? html`
-          <div class="split" style=${{ alignItems: 'flex-start' }}>
-            <div style=${{ flex: '1 1 320px', minWidth: 0 }}>
-              <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
+          <${Tabs} tabs=${ITEM_TABS} current=${tab} onChange=${setTab}
+            off=${it ? {} : { valuation: ADD_FIRST }} />
+          <${Reads} why=${!canWrite} row=${id ? ITEM_ROW : []}>
+          ${tab === 'general'
+            ? html`
               <${RecField} rec=${rec} name="name" label="Name" />
               ${t === 'real-estate'
                 ? html`
                   <${RecField} rec=${rec} name="address" label="Address" />
-                  <${RecField} rec=${rec} name="primaryResidence" label="Primary residence" />
                 `
                 : null}
               ${t === 'precious-metals'
@@ -407,6 +451,12 @@ export function ItemDialog({ close, a, id }) {
                 <${RecField} rec=${rec} name="acquiredHow" label="How acquired"
                   id="acquired-how" options=${HOW} />
               </div>
+              ${rec.applies('heldFrom')
+                ? html`
+                  <${RecField} rec=${rec} name="heldFrom" label="Held since" id="held-from"
+                    type="date" placeholder="the day acquired" />
+                `
+                : null}
               <div class="row">
                 <${RecField} rec=${rec} name="costBasis" id="cost-basis"
                   label=${t === 'real-estate' ? 'Purchase price' : 'Cost basis'} />
@@ -414,6 +464,11 @@ export function ItemDialog({ close, a, id }) {
                   ? html`<${RecField} rec=${rec} name="closingCosts" label="Closing costs" />`
                   : html`<${RecField} rec=${rec} name="insuredValue" label="Insured value" />`}
               </div>
+              ${t === 'real-estate' && f.draft
+                ? html`<${ResidencePeriods} rec=${rec} draft=${f.draft} why=${
+                  canWrite ? null : READ_ONLY
+                } />`
+                : null}
               ${spot
                 ? html`
                   <${RecField} rec=${rec} name="sellPremium" label="Selling premium"
@@ -437,10 +492,14 @@ export function ItemDialog({ close, a, id }) {
                   <${RecField} rec=${rec} name="personalUse" label="Used personally" />
                 `
                 : null}
-              <${RecField} rec=${rec} name="notes" label="Notes" rows=${3} />
-            </${Reads}></div>
-            ${it && f.draft ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />` : null}
-          </div>
+            `
+            : tab === 'notes'
+            ? html`<${RecField} rec=${rec} name="notes" label="Notes" rows=${12} />`
+            : null}
+          </${Reads}>
+          ${tab === 'valuation' && it && f.draft
+            ? html`<${Side} a=${a} it=${it} rec=${rec} draft=${f.draft} />`
+            : null}
         `
         : null}
     </${DraftDialog}>
@@ -454,7 +513,8 @@ export function ItemDialog({ close, a, id }) {
  */
 function Side({ a, it, rec, draft }) {
   return html`
-    <div style=${{ flex: '0 1 280px', minWidth: 0 }}>
+    <div>
+      <${History} id=${it.id} />
       <div class="list-item"><span class="grow dim">Value</span><b><${Amt} v=${it.value}
         cents=${false} /></b></div>
       ${it.valuation === 'spot'
@@ -487,6 +547,154 @@ function Side({ a, it, rec, draft }) {
       <${Documents} it=${it} rec=${rec} />
       <${SaleCard} it=${it} rec=${rec} />
     </div>
+  `;
+}
+
+/** "You and Jane", "Jane, John and Ann". */
+const AND = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+
+/**
+ * A home's residence periods (S1.10.4, S8.13): each one person's span of it as their main
+ * home. The same span for several people is one line, removed whole; a span is added for the
+ * people chosen, a period each, in the dialog's draft. A line opened is changed for the people
+ * left chosen, each their own period; one unticked keeps theirs, so one moving out is one edit.
+ * @param {{ rec: ItemRec, draft: import('../app/draft.js').Draft, why: string | null }} p
+ */
+function ResidencePeriods({ rec, draft, why }) {
+  const people = useList('/persons');
+  const list = /** @type {any[]} */ (people.data) || [];
+  const me = list.find((p) => p.relation === 'you');
+  const [f, setF] = useState({ from: '', to: '', who: /** @type {string[] | null} */ (null) });
+  // The line opened to change, or none: adding.
+  const [open, setOpen] = useState(/** @type {PeriodRec[] | null} */ (null));
+  // Until someone is chosen, the one adding it.
+  const who = f.who ?? (me ? [me.id] : []);
+  const rows = /** @type {PeriodRec[]} */ (
+    draft.records.filter((r) => r instanceof PeriodRec && !r.removed)
+  );
+  // A person the reader isn't shared is named all the same, by the period's own name (R3.14).
+  const named = (/** @type {string} */ id) => {
+    const p = list.find((x) => x.id === id);
+    if (p) return p.relation === 'you' ? 'You' : p.name;
+    return rows.find((r) => r.get('personId') === id)?.get('personName') || '';
+  };
+  const chosen = [...list.map((p) => p.id), ...who.filter((id) => !list.some((p) => p.id === id))];
+  /** @type {Map<string, PeriodRec[]>} */
+  const spans = new Map();
+  for (const p of rows) {
+    const k = `${p.get('fromDate')}|${p.get('toDate') || ''}`;
+    spans.set(k, [...(spans.get(k) || []), p]);
+  }
+  const lines = [...spans.values()].sort((x, y) =>
+    x[0].get('fromDate') < y[0].get('fromDate') ? -1 : 1
+  );
+  const done = () => {
+    setF({ from: '', to: '', who: null });
+    setOpen(null);
+  };
+  const add = () => {
+    for (const id of who) {
+      const was = open?.find((p) => p.get('personId') === id);
+      if (was) {
+        was.set('fromDate', f.from);
+        was.set('toDate', f.to || null);
+      } else {
+        draft.add(PeriodRec, {
+          itemId: rec.id,
+          personId: id,
+          fromDate: f.from,
+          toDate: f.to || null,
+        });
+      }
+    }
+    done();
+  };
+  const change = (/** @type {PeriodRec[]} */ ps) => {
+    setF({
+      from: ps[0].get('fromDate'),
+      to: ps[0].get('toDate') || '',
+      who: ps.map((p) => p.get('personId')),
+    });
+    setOpen(ps);
+  };
+  const pick = (/** @type {string} */ id) =>
+    setF({ ...f, who: who.includes(id) ? who.filter((x) => x !== id) : [...who, id] });
+  const span = (/** @type {PeriodRec} */ p) =>
+    `${date(p.get('fromDate'))} to ${p.get('toDate') ? date(p.get('toDate')) : 'the sale'}`;
+  return html`
+    <h4 style=${{ margin: '14px 0 8px' }} data-help="residence-periods">Residence Periods</h4>
+    ${lines.length
+      ? null
+      : html`<${Empty}>No periods: the years lived in are the preparer's to ask</${Empty}>`}
+    ${lines.map((ps) => {
+      const line = `${AND.format(ps.map((p) => named(p.get('personId'))))}, ${span(ps[0])}`;
+      const errors = ps.flatMap((p) => p.errors.map((e) => e.message));
+      return html`
+        <div class="list-item" key=${ps[0].key}>
+          <div class="grow">${line}${errors.length
+            ? html`<div class="err">${[...new Set(errors)].join(' ')}</div>`
+            : null}</div>
+          <${Action} class="icon-btn" why=${why} aria-label=${'Change ' + line}
+            onClick=${() => change(ps)}>
+            <${Icon} name="pencil" />
+            </${Action}>
+            <${Action} class="icon-btn" why=${why} aria-label=${'Remove ' + line}
+              onClick=${() => ps.forEach((p) => draft.remove(p))}>
+              <${Icon} name="x" />
+              </${Action}>
+              </div>
+      `;
+    })}
+    ${why
+      ? html`<${Action} class="btn sm" why=${why}><${Icon} name="plus" /> Add Period</${Action}>`
+      : html`
+        <${Field} label="Who" help="residence-periods">
+          <div class="chips" role="group" aria-label="Who">${chosen.map((id) =>
+            html`
+              <button type="button" class=${'chip' + (who.includes(id) ? ' on' : '')}
+                aria-pressed=${who.includes(id) ? 'true' : 'false'}
+                onClick=${() => pick(id)}>${named(id)}</button>
+            `
+          )}</div>
+          </${Field}>
+          <div class="row">
+            <${Field} label="Main home from" help="residence-periods" id="lived-from">
+              <${TypedInput} kind="date" value=${f.from}
+                onInput=${(/** @type {string} */ x) => setF({ ...f, from: x })} />
+              </${Field}>
+              <${Field} label="Until" help="residence-periods" id="lived-until">
+                <${TypedInput} kind="date" value=${f.to} placeholder="the sale"
+                  onInput=${(/** @type {string} */ x) => setF({ ...f, to: x })} />
+                </${Field}>
+                </div>
+                ${open
+                  ? html`
+                    <button type="button" class="btn sm" disabled=${!f.from || !who.length}
+                      onClick=${add}>Change Period</button>
+                    <button type="button" class="btn sm" onClick=${done}>Cancel</button>
+                  `
+                  : html`
+                    <button type="button" class="btn sm" disabled=${!f.from || !who.length}
+                      onClick=${add}><${Icon} name="plus" /> Add Period</button>
+                  `}
+      `}
+  `;
+}
+
+/**
+ * Its value at each month's end since it was acquired, asked only when the Valuation tab
+ * opens (S1.10.6).
+ * @param {{ id: string }} p
+ */
+function History({ id }) {
+  const res = useApi(`/items/${id}/history`);
+  const h = /** @type {any} */ (res.data);
+  if (res.error) return html`<${Failed} error=${res.error} />`;
+  if (!h) return html`<${Loading} lines=${3} />`;
+  return html`
+    <${TimeChart} label="Its value at each month's end" series=${[
+      { name: 'Value', color: '--accent', area: true, points: h.points },
+    ]} />
   `;
 }
 

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import make_user, sign_in
-from edits import create, drop, make, option_trade, saved, sell
+from edits import create, drop, make, option_trade, saved, sell, share
 from test_accounts import add, new_account
 from test_assets import item
 from test_taxpanels import book, trade
@@ -341,45 +341,133 @@ def test_physical_items_sold_in_the_year_are_8949_rows(server, jane):
     assert (coin.acquired, coin.sold) == (dt.date(2025, 5, 1), dt.date(2026, 5, 1))
 
 
-def test_a_sold_primary_residence_has_its_gain_and_years_owned(jane):
+def test_an_inherited_item_is_long_term_and_a_gift_counts_the_givers_holding(server, jane):
+    """S1.10.1, S8.13: property from someone who died is long-term on any sale; a gift kept at
+    the giver's basis is held from the giver's day (its row's date acquired), and without one
+    from the day it was given. Bought, a day short of a year stays short-term."""
+    coll = new_account(jane, name="Coins", type="collectables")
+    for name, how, extra in (
+        ("Inherited", "inherited", {}),
+        ("Given", "gift", {"heldFrom": "2019-06-01"}),
+        ("Given lately", "gift", {}),
+        ("Bought", "bought", {}),
+    ):
+        thing(jane, coll["id"], "2026-09-01", "46000", name=name, acquiredOn="2026-03-01",
+              acquiredHow=how, costBasis="40000", **extra)  # fmt: skip
+    b = book(jane)
+    rows = {r["description"]: r for r in read_panels(jane, b)["rows"]}
+    got = {k: (r["longTerm"], r["box"]) for k, r in rows.items()}
+    assert got == {
+        "Inherited": (True, "F"),
+        "Given": (True, "F"),
+        "Given lately": (False, "C"),
+        "Bought": (False, "C"),
+    }
+    direct = {r.description: r.acquired for r in rows_of(server, b)}
+    assert direct["Given"] == dt.date(2019, 6, 1)
+    assert direct["Inherited"] == direct["Bought"] == dt.date(2026, 3, 1)
+    # Inherited, column (b) reads INHERITED, as the form's instructions say: the row says so
+    # beside the day it came, and the export writes the word (S8.13).
+    assert {k: r["inherited"] for k, r in rows.items()} == {
+        "Inherited": True,
+        "Given": False,
+        "Given lately": False,
+        "Bought": False,
+    }
+    assert rows["Inherited"]["acquired"] == "2026-03-01"
+    csv = jane.get(f"/ui/api/tax-books/{b}/exports/8949.csv").text
+    assert "F,long,Inherited,INHERITED,2026-09-01," in csv
+    assert "F,long,Given,2019-06-01,2026-09-01," in csv
+
+
+def test_a_sold_homes_line_names_a_person_its_reader_cant_see(server, jane):
+    """R3.14: the residence line names each person who lived there, a private one its reader
+    isn't shared included: a record seen names whoever it names, and nothing else of them."""
+    homes = new_account(jane, name="Homes", type="real-estate")
+    pat = make(jane, "Persn", name="Pat Doe", sex="female", private=True)
+    assert pat.status_code == 200, pat.text
+    elm = thing(jane, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000")
+    r = make(jane, "RsPrd", itemId=elm["id"], personId=pat.json()["id"], fromDate="2025-01-01")
+    assert r.status_code == 200, r.text
+    saved(sell(jane, elm["id"], "2026-01-01", "350000"))
+    b = book(jane)
+    make_user(server, "rita", born=1960)
+    rita = sign_in(server, "rita")
+    rita_id = rita.get("/ui/api/session").json()["user"]["id"]
+    assert share(jane, "tax-book", b, users={rita_id: "read"}).status_code == 200
+    assert "Pat Doe" not in {x["name"] for x in rita.get("/ui/api/persons").json()["items"]}
+    lines = read_panels(rita, b)["residences"]
+    assert [[(y["name"], y["years"]) for y in x["livedIn"]] for x in lines] == [[("Pat Doe", 1.0)]]
+
+
+def test_a_sold_home_lived_in_has_its_gain_years_owned_and_each_persons_years(jane):
+    """S8.13: a home sold in the year with residence periods shows its gain, the years owned
+    and each person's years lived in within the five before the sale; a home sold with none
+    recorded, nothing."""
+    me = next(p["id"] for p in jane.get("/ui/api/persons").json()["items"]
+              if p["relation"] == "you")  # fmt: skip
     homes = new_account(jane, name="Homes", type="real-estate")
     # "Attic" sorts first: an account not real estate is passed over, never the end of the list.
     other = new_account(jane, name="Attic", type="other-asset")
+
+    def person(name: str) -> str:
+        r = make(jane, "Persn", name=name, sex="female")
+        assert r.status_code == 200, r.text
+        return r.json()["id"]
+
+    def lived(home: dict, who: str, start: str, end: str | None = None) -> None:
+        r = make(jane, "RsPrd", itemId=home["id"], personId=who, fromDate=start, toDate=end)
+        assert r.status_code == 200, r.text
+
     # 384 days: 1.05 years and a little, to the tenth.
-    home = thing(jane, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000",
-                 closingCosts="4000", primaryResidence=True)  # fmt: skip
-    r = make(jane, "Imprv", itemId=home["id"], date="2025-06-01", description="Deck",
+    elm = thing(jane, homes["id"], name="Elm St", acquiredOn="2025-01-01", costBasis="300000",
+                closingCosts="4000")  # fmt: skip
+    r = make(jane, "Imprv", itemId=elm["id"], date="2025-06-01", description="Deck",
              amount="6000")  # fmt: skip
     assert r.status_code == 200, r.text
-    saved(sell(jane, home["id"], "2026-01-20", "350000", "20000"))
+    lived(elm, me, "2025-01-15", "2025-06-30")  # 166 days: 0.5
+    saved(sell(jane, elm["id"], "2026-01-20", "350000", "20000"))
     # Sold on the year's first day and its last.
-    thing(jane, homes["id"], "2026-01-01", "100000", name="Pine St", acquiredOn="2025-01-01",
-          costBasis="90000", primaryResidence=True)  # fmt: skip
-    thing(jane, homes["id"], "2026-12-31", "200000", name="Oak St", acquiredOn="2016-12-31",
-          costBasis="200000", primaryResidence=True)  # fmt: skip
-    # Not a sold residence of the year: a rental, one sold the year before or after, one kept,
-    # one deleted, one in a real-estate account the book leaves out, and the attic's things.
+    pine = thing(jane, homes["id"], name="Pine St", acquiredOn="2025-01-01", costBasis="90000")
+    lived(pine, me, "2025-07-01")  # open: to the sale, 184 days: 0.5
+    saved(sell(jane, pine["id"], "2026-01-01", "100000"))
+    oak = thing(jane, homes["id"], name="Oak St", acquiredOn="2016-12-31", costBasis="200000")
+    # Ann's: one before the five years, a year within them, and the last one open to the
+    # sale: 366 + 365 days, 2.0 years. Mine from the day after Elm St's sale: 344 days, 0.9.
+    ann = person("Ann Doe")
+    for start, end in (("2017-01-01", "2019-12-31"), ("2023-06-30", "2024-06-30"),
+                       ("2025-12-31", None)):  # fmt: skip
+        lived(oak, ann, start, end)
+    lived(oak, me, "2026-01-21")
+    saved(sell(jane, oak["id"], "2026-12-31", "200000"))
+    # Not a sold home lived in that year: a rental with no periods, one sold the year before
+    # or after, one kept, one deleted, one in a real-estate account the book leaves out, and
+    # the attic's things. Each lived in by someone of its own.
     thing(jane, homes["id"], "2026-03-01", "90000", name="Rental", acquiredOn="2020-01-01")
-    thing(jane, homes["id"], "2025-12-31", "90000", name="Before", acquiredOn="2020-01-01",
-          primaryResidence=True)  # fmt: skip
-    thing(jane, homes["id"], "2027-01-02", "90000", name="After", acquiredOn="2020-01-01",
-          primaryResidence=True)  # fmt: skip
-    thing(jane, homes["id"], name="Kept", acquiredOn="2020-01-01", primaryResidence=True)
-    gone = thing(jane, homes["id"], "2026-02-01", "1", name="Gone", primaryResidence=True)
-    saved(drop(jane, "Item", f"/ui/api/items/{gone['id']}"))
+    for name, sold in (("Before", "2025-12-31"), ("After", "2027-01-02"), ("Kept", None),
+                       ("Gone", "2026-02-01")):  # fmt: skip
+        it = thing(jane, homes["id"], name=name, acquiredOn="2020-01-01")
+        lived(it, person(f"{name} Doe"), "2020-01-01")
+        if sold:
+            saved(sell(jane, it["id"], sold, "90000"))
+        if name == "Gone":
+            saved(drop(jane, "Item", f"/ui/api/items/{it['id']}"))
     lake = new_account(jane, name="Lake", type="real-estate")
-    thing(jane, lake["id"], "2026-05-01", "1", name="Cabin", primaryResidence=True)
+    cabin = thing(jane, lake["id"], name="Cabin", acquiredOn="2020-01-01")
+    lived(cabin, person("Cabin Doe"), "2020-01-01")
+    saved(sell(jane, cabin["id"], "2026-05-01", "1"))
     thing(jane, other["id"], "2026-04-01", "1", name="Shed")
     b = book(jane)
     saved(create(jane, "TxBkA", bookId=b, accountId=lake["id"], counted=False))
     got = sorted(
-        (x["name"], x["sold"], x["gain"], x["yearsOwned"])
+        (x["name"], x["sold"], x["gain"], x["yearsOwned"],
+         [(y["name"], y["years"]) for y in x["livedIn"]])
         for x in read_panels(jane, b)["residences"]
-    )
+    )  # fmt: skip
     assert got == [
-        ("Elm St", "2026-01-20", "20000.00", 1.1),
-        ("Oak St", "2026-12-31", "0.00", 10.0),
-        ("Pine St", "2026-01-01", "10000.00", 1.0),
+        ("Elm St", "2026-01-20", "20000.00", 1.1, [("Jane", 0.5)]),
+        ("Oak St", "2026-12-31", "0.00", 10.0, [("Ann Doe", 2.0), ("Jane", 0.9)]),
+        ("Pine St", "2026-01-01", "10000.00", 1.0, [("Jane", 0.5)]),
     ]
 
 
