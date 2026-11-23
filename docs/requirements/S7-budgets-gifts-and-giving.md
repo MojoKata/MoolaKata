@@ -425,4 +425,5 @@
     when. A reviewed month whose figures later change (a late transaction, a recategorised
     one, a move in it) is flagged *changed*, with what changed, until it is reviewed again:
     a planned line's spending or plan, spending in a category outside the plan, each named,
-    the count uncategorised, and what left or entered the budget to sort. Months are never locked, since history can be edited (S2.8).
+    the count uncategorised, what left or entered the budget to sort, and each of the month's
+    totals (spent, income, saved, *To Budget*) that changed. Months are never locked, since history can be edited (S2.8).

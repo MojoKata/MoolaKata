@@ -1367,10 +1367,10 @@ def _figures(m) -> dict:
     """What a review keeps of a month, to flag a later change (S7.14)."""
     return {
         "rows": {r.categoryId: [str(r.planned), str(r.actual), r.label] for r in m.rows},
-        "spent": str(m.spent),
-        "income": str(m.income),
-        "saved": str(m.saved),
-        "toBudget": None if m.toBudget is None else str(m.toBudget),
+        "spent": f"{m.spent:.2f}",
+        "income": f"{m.income:.2f}",
+        "saved": f"{m.saved:.2f}",
+        "toBudget": None if m.toBudget is None else f"{m.toBudget:.2f}",
         # What lands outside the plan or waits to be sorted changes the month too (S7.14).
         "unplanned": {cid: [str(spent), label] for cid, label, spent in m.unplanned},
         "uncategorised": m.uncategorised,
@@ -1402,7 +1402,7 @@ def _changes(then: dict, now: dict) -> list[str]:
     if then.get("moved") != now["moved"]:
         (n, total), (n2, total2) = then.get("moved") or [0, "0.00"], now["moved"]
         out.append(f"Left or entered the budget: {n} ({total}) then, {n2} ({total2}) now")
-    # Spending outside the plan changes the month too (S7.14).
+    # Each total that changed is named, even beside a row that explains part of it (S7.14).
     totals = (
         ("spent", "Spent"),
         ("income", "Income"),
@@ -1410,7 +1410,7 @@ def _changes(then: dict, now: dict) -> list[str]:
         ("toBudget", "To Budget"),
     )
     for k, name in totals:
-        if then.get(k) != now.get(k) and not out:
+        if then.get(k) != now.get(k):
             out.append(f"{name}: {then.get(k)} then, {now.get(k)} now")
     return out
 

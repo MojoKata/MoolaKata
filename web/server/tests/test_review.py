@@ -36,10 +36,34 @@ def test_a_reviewed_month_is_flagged_when_it_changes(server, frozen):
     # A late transaction lands in September: the month is flagged, with what changed.
     add(c, acct["id"], "-20.00", "2026-09-28", payee="Kroger", categoryId=cat["Food › Groceries"])
     changed = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-09"}).json()
-    assert changed["reviewed"]["changes"] == ["Food: spent 340.00 then, 360.00 now"]
+    assert changed["reviewed"]["changes"] == [
+        "Food: spent 340.00 then, 360.00 now",
+        "Spent: 340.00 then, 360.00 now",
+    ]
     # October's review lists September among the months before.
     oct_ = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-10"}).json()
     assert [(h["month"], bool(h["changes"])) for h in oct_["history"]] == [("2026-09-01", True)]
+
+
+def test_a_changed_review_names_every_total_that_changed(server, frozen):
+    """S7.14: what changed lists each changed total, beside a changed row, not just the first."""
+    c, acct, cat, b = setup_budget(server)
+    plan(c, b, "2026-09-01", [{"categoryId": cat["Food"], "amount": "300.00"}])
+    add(c, acct["id"], "-100.00", "2026-09-10", payee="Kroger", categoryId=cat["Food"])
+    assert c.post(f"/ui/api/budgets/{b['id']}/review", json={"month": "2026-09-01"}).is_success
+
+    def changes():
+        v = c.get(f"/ui/api/budgets/{b['id']}/review", params={"month": "2026-09"}).json()
+        return v["reviewed"]["changes"]
+
+    add(c, acct["id"], "3000.00", "2026-09-28", payee="Acme Payroll", categoryId=cat["Income"])
+    assert changes() == ["Income: 0.00 then, 3000.00 now"]
+    add(c, acct["id"], "-20.00", "2026-09-29", payee="Kroger", categoryId=cat["Food"])
+    assert changes() == [
+        "Food: spent 100.00 then, 120.00 now",
+        "Spent: 100.00 then, 120.00 now",
+        "Income: 0.00 then, 3000.00 now",
+    ]
 
 
 def test_cash_before_payday(server, frozen):
