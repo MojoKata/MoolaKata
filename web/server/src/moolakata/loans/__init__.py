@@ -212,6 +212,11 @@ def _category_keys(s: Session) -> dict[str, str]:
     }
 
 
+def before_start(what: str, start: dt.date) -> str:
+    """The words refusing a loan's payment or draw dated before the loan starts (S1.9.3)."""
+    return f"A loan's {what} can't be dated before it starts ({start:%b %-d, %Y})."
+
+
 def automatic(recorded: bool, connected: bool) -> str:
     """What Automatic reads as (S1.9.3): recorded here once the loan has a payment recorded or
     a connection importing its statements; assumed as scheduled until then. A bank account

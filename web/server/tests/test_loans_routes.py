@@ -1163,3 +1163,14 @@ def test_each_loans_start_saved_together_is_checked_against_its_own_first_paymen
     )
     words = "A payment or draw is dated before this start (Jan 10, 2026)."
     assert _refused_at(r) == (422, [("startDate", "start-after-payment", words)])
+
+
+def test_the_split_offered_for_a_payment_dated_before_the_loan_starts_is_refused(server, frozen):
+    """S1.9.3: the payment dialog's split is refused for a day before the loan starts, at its
+    date in the save's words; the start day itself is split."""
+    c, _, loan = _mortgage_and_checking(server)
+    path = f"/ui/api/accounts/{loan['id']}/loan/split"
+    r = c.get(path, params={"date": "2025-12-31", "amount": "500.00"})
+    words = "A loan's payment can't be dated before it starts (Jan 1, 2026)."
+    assert _refused_at(r) == (422, [("date", "date-before-loan", words)])
+    assert c.get(path, params={"date": "2026-01-01", "amount": "500.00"}).status_code == 200

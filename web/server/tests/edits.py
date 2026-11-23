@@ -242,8 +242,10 @@ def loan_payment(c, loan_id: str, date: str, amount, from_account: str | None = 
     by the schedule (or by `parts`), with its bank half made from `from_account`, or paired
     with the bank `transaction` already recorded. The save's answer."""
     amount = str(amount)
-    split = c.get(f"/ui/api/accounts/{loan_id}/loan/split",
-                  params={"date": date, "amount": amount}).json()  # fmt: skip
+    r = c.get(f"/ui/api/accounts/{loan_id}/loan/split", params={"date": date, "amount": amount})
+    # A split refused (a date before the loan starts) leaves the draft its transaction alone,
+    # for the save to refuse in its turn.
+    split = r.json() if r.status_code == 200 else {"categories": {}}
     values = parts or {k: split[k] for k in split["categories"]}
     txn = {"accountId": loan_id, "date": date, "amount": amount, "payee": "Payment",
            "kind": "transfer" if from_account or transaction else "deposit"}  # fmt: skip
