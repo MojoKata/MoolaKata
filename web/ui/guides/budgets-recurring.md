@@ -6,8 +6,8 @@ keep to the calendar: a bill on the 1st is next due on the 1st, one on the 15th 
 on those days, whatever the month's length.
 
 **missed** means the next one is late; **higher** or **lower** means the last one moved from the
-usual amount by 5% or more. A payee needs three or more payments at a weekly, two-weekly, monthly,
-quarterly or yearly interval to show here.
+usual amount by 5% or more. A payee needs three or more payments at a weekly, two-weekly, twice-monthly,
+monthly, quarterly or yearly interval to show here.
 
 ## Month
 

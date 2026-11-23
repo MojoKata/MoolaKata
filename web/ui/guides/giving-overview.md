@@ -15,7 +15,8 @@ The year shown.
 ## Target
 
 The year's target, as a percentage of income or a fixed amount, from the giving plan. **Edit**
-changes it; **Share** shares the plan, so a household gives toward one target.
+changes it; **Share** shows the plan and its progress to others. It counts your own accounts only,
+never those of the people it is shared with.
 
 ## Given
 
