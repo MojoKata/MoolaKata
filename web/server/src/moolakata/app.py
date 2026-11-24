@@ -320,8 +320,9 @@ def create_app(server: Server) -> FastAPI:
     # Last: its catch-alls answer for paths no route above has.
     app.include_router(static.router(static.Static(server.version, server.config.dev)))
 
-    # The last added runs first: the client's address, then the log, the headers, the Origin
-    # check, the body limit, and last the gate that answers for a locked server.
+    # The last added runs first: the client's address, then the log, the headers, the address
+    # ranges (inside the log and the headers, so their 404 has both: S13.7.7, S13.7.9), the
+    # Origin check, the body limit, and last the gate that answers for a locked server.
     # Locked: no store and not ready. A test's bare server (no store, ready) is not locked.
     app.add_middleware(middleware.Confirmations)
     app.add_middleware(middleware.Created)
@@ -334,9 +335,9 @@ def create_app(server: Server) -> FastAPI:
         session_user=server.session_user,
     )
     app.add_middleware(middleware.OriginCheck)
+    app.add_middleware(middleware.AddressRanges, ranges=server.network_ranges)
     app.add_middleware(middleware.SecurityHeaders, tls=server.config.mode == "tls")
     app.add_middleware(middleware.AccessLog)
-    app.add_middleware(middleware.AddressRanges, ranges=server.network_ranges)
     app.add_middleware(
         middleware.ClientAddress, mode=server.config.mode, trusted=server.config.trusted_proxies
     )

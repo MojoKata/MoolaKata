@@ -775,6 +775,23 @@ def test_network_ranges_decide_who_reaches_each_path(server, admin):
     assert not AddressRanges._allowed("8.8.8.8", settings.LAN_AND_OVERLAY)
 
 
+def test_an_address_outside_the_ranges_gets_its_404_with_the_headers_and_a_log_line(
+    server, admin, caplog
+):
+    """S13.7.7, S13.7.9: the refusal of an address Settings › Network leaves out carries the
+    headers every response does, and is logged as every request is."""
+    assert save_settings(admin, {"networkLinkRanges": ["10.0.0.0/8"]}).status_code == 200
+    with new_client(server) as c, caplog.at_level("INFO", logger="moolakata.access"):
+        r = c.get("/link/v1/hello")
+    assert r.status_code == 404
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert any(
+        rec.name == "moolakata.access" and rec.getMessage().startswith("GET /link/v1/hello 404")
+        for rec in caplog.records
+    ), caplog.text
+
+
 def activity_rows(server):
     from moolakata.store.entities.core import Activity
 
