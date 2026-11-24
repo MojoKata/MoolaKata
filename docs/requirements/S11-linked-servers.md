@@ -288,9 +288,11 @@ preparer.
          never wait in the inbox; one that arrives after its change (S11.4) reaches the copy
          as soon as it is open.
       3. The inbox is **applied** in order, in one transaction, as soon as the copy is
-         unlocked. Each change's signature is checked first, and where it starts, sealed
-         inside it, must be where the last one applied reached (S11.4), so an older change put
-         back is refused; a
+         unlocked. Each change's signature is checked first. Where it starts is in its
+         registry, which the signature covers and which waits beside it sealed to the copy's
+         key (S11.9.1), and must be where the last one applied reached (S11.4); where it
+         reaches is named in its sealed part's associated data, so the sealed part opens only
+         as the change the registry says. An older change put back is therefore refused; a
          change that fails (its signature, its sequence or its shape) is set aside and
          reported, and the copy asks the source for everything. Applied files are deleted.
          While a copy stays unlocked, new pulls are applied as they arrive.
