@@ -107,8 +107,8 @@ preparer.
       transfer's other half, a gift's transaction. An account shared as well arrives as its
       own item. The receiving server shows what arrived, drawn by the source's release, with
       its age.
-4. **How data moves**: the receiving server **pulls what changed** in each linked share on a
-   schedule (hourly by default, and on demand), **one pull of a link at a time**: a second
+4. **How data moves**: the receiving server **pulls what changed** in each linked share every
+   hour, and on demand (*Pull now*), **one pull of a link at a time**: a second
    pull of a link waits for the one under way, and a server answering the peer's pull while
    its own pull of that link runs refuses it as busy, never waiting on the peer, so two
    servers pulling each other at once never hold each other up; the refused side asks again
