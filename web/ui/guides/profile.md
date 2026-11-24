@@ -82,7 +82,7 @@ Asked again when you last gave it more than 10 minutes ago.
 ## Connections {#connections}
 
 Your sign-ins at institutions, kept by the MoolaKata Connector and never by MoolaKata: each with its
-driver (Schwab, OFX Direct Connect or a folder of downloads), the institution accounts the driver
+driver (Schwab or OFX Direct Connect), the institution accounts the driver
 found, the accounts here it keeps current, and its state from the connector's last report. **New
 Connection** starts one; **Sign In Again** or **Change Credentials** gives the connector new ones,
 sealed in this browser to its key so MoolaKata can't read them; **Remove** (the click asks again)

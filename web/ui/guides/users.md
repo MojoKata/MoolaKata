@@ -45,5 +45,6 @@ while they're inactive. Users are made inactive, never deleted. The last active 
 
 ## New Group
 
-A named set of users that accounts and portfolios can be shared with. **Admins** is built in: its
-members manage users, groups and Settings, and see others' money only when it's shared with them.
+A named set of users that any item can be shared with, of any of the eight kinds. **Admins** is
+built in: its members manage users, groups and Settings, and see others' money only when it's
+shared with them.
