@@ -360,5 +360,7 @@ The rulings the rest of the requirements apply.
     refers to them keeps the reference: it can be read, used and saved again, and it shows
     their name. Private exists to keep everyone's lists to their own circle, not to hide that
     someone exists. Nothing else of a person not shared with the one looking is shown beyond
-    their name. A gift for a user is still never shown to that user, nor a gift plan for them
+    their name; what a record needs of the person it names is used, never shown as their
+    details (a college projection's first year of school counts from its beneficiary's birth
+    year). A gift for a user is still never shown to that user, nor a gift plan for them
     (S7.8.5).
