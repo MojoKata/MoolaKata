@@ -225,8 +225,8 @@ Records are never removed from the database: they are marked deleted. The except
       receipt waiting to reach the copy once it has (`LinkFile`, S11.4);
    4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent
       or when their link expires), the background tasks' last runs, the data version (§8), and
-      the live stream's state (attempt counters, of sign-ins and access keys among them, are
-      held in memory, requirements S13.7.5.5);
+      the live stream's state. Attempt counters, of sign-ins and access keys among them, are no
+      table's: they are held in memory (requirements S13.7.5.5);
    5. **caches**, rebuilt from the records: thumbnails, computed series kept for speed, and
       wash sales, worked out again from the trades whenever they change, and a bitcoin
       wallet's addresses, derived again from its keys and its explorer or node, a budget's
