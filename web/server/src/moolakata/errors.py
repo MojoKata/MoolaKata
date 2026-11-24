@@ -78,15 +78,11 @@ class ProblemResponse(JSONResponse):
         return exactjson.unmark_bytes(super().render(exactjson.marked(content)))
 
 
-def problem_response(
-    status: int,
-    code: str,
-    detail: str,
-    errors=(),
-    headers=None,
-    extra=None,
-    error_id: str | None = None,
-) -> JSONResponse:
+def problem_body(
+    status: int, code: str, detail: str, errors=(), extra=None, error_id: str | None = None
+) -> dict:
+    """A problem document, its id in the log: the one way every problem is made, a route's
+    or the middleware's (S13.8.3)."""
     error_id = error_id or new_error_id()
     # Every problem is in the log by its id, with its status and code, refusals included, so
     # an admin can find what a user saw (S13.7.8); never its detail, which may name a value.
@@ -108,6 +104,19 @@ def problem_response(
     }
     if extra:
         body.update(extra)
+    return body
+
+
+def problem_response(
+    status: int,
+    code: str,
+    detail: str,
+    errors=(),
+    headers=None,
+    extra=None,
+    error_id: str | None = None,
+) -> JSONResponse:
+    body = problem_body(status, code, detail, errors, extra, error_id)
     return ProblemResponse(body, status_code=status, headers=headers or {}, media_type=PROBLEM)
 
 

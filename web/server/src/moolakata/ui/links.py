@@ -288,7 +288,9 @@ def join(body: JoinIn, request: Request, c: Caller = Depends(admin)):
     from urllib.parse import urlsplit
 
     host = (urlsplit(c_["a"]).hostname or "").lower()
-    srv.guard.allow(hosts | {host}, named | ({host} if srv.config.dev else set()))
+    if srv.config.dev:
+        named["link"] = named.get("link", set()) | {host}
+    srv.guard.allow(hosts | {host}, named)
     try:
         link = manage.join(srv, body.code, c.id)
     except LinkError as e:

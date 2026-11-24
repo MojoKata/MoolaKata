@@ -84,7 +84,7 @@ class Config:
 class Esplora:
     def __init__(self, cfg: Config, guard: net.Guard):
         self.base = cfg.esploraUrl.rstrip("/")
-        self.client = net.Client(guard)
+        self.client = net.Client(guard, use="bitcoin")
 
     def _get(self, path: str):
         try:
@@ -193,7 +193,7 @@ class Electrum:
     def _connect(self):
         try:
             # To the address the guard checked, never a second lookup (S13.5).
-            address = self.guard.check(self.cfg.host, self.cfg.port)
+            address = self.guard.check(self.cfg.host, self.cfg.port, "bitcoin")
             s = socket.create_connection((address, self.cfg.port), timeout=20)
             if self.cfg.tls:
                 # Electrum servers mostly use a certificate they made themselves.
@@ -314,7 +314,7 @@ class Core:
         scheme = "https" if cfg.tls else "http"
         self.url = f"{scheme}://{cfg.host}:{cfg.port}"
         auth = base64.b64encode(f"{cfg.rpcUser or ''}:{cfg.password or ''}".encode()).decode()
-        self.client = net.Client(guard, headers={"Authorization": "Basic " + auth})
+        self.client = net.Client(guard, use="bitcoin", headers={"Authorization": "Basic " + auth})
 
     def call(self, method: str, *params, wallet: str | None = None):
         url = self.url + (f"/wallet/{wallet}" if wallet else "/")

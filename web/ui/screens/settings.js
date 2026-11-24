@@ -352,7 +352,7 @@ function Plain({ section }) {
     html`
       <h3>Imports</h3>
       <${Field} label="Largest file (MB)" error=${errAt(e, 'importMaxMb')}>
-        <${SpinInput} min=${1} max=${200} step=${5} value=${f.importMaxMb}
+        <${SpinInput} min=${1} max=${100} step=${5} value=${f.importMaxMb}
           onInput=${set('importMaxMb', true)} />
         </${Field}>
         <${SwitchRow} label="Read statements" on=${f.readStatements}

@@ -312,11 +312,15 @@ def connector(s: Session, server) -> Iterable[Cause]:
                 icon="lock" if needs else "sync",
                 since=c.lastRunAt,
             )
+        # The admins' copy names whose Connection it is (S12.11.1.1).
+        owner = s.get(User, c.ownerId)
         yield Cause(
             key=f"connection:{c.id}:{c.state}",
             kind="connection-failing",
             title=title,
-            about=about,
+            about=f"Connection · {owner.displayName}'s · {c.message or c.driver}"
+            if owner is not None
+            else about,
             link="/ui/settings/connector",
             fix="Connector Settings",
             icon="lock" if needs else "sync",
@@ -462,10 +466,10 @@ def recovery_phrase(s: Session, server) -> Iterable[Cause]:
 @check
 def accounts(s: Session, server) -> Iterable[Cause]:
     """For each account's owner: a statement overdue at its account's interval (S1.11.7), and a
-    balance the institution reported that has disagreed for 7 days (S1.11)."""
+    balance the institution (or a loan's servicer) reported that has disagreed for 7 days
+    (S1.11, S1.9.4): the accounts the Dashboard checks, each linked to where it is reconciled."""
     from .ledger import expected, reconcile
-    from .ledger import types as atypes
-    from .store.entities.accounts import Account, Import
+    from .store.entities.accounts import Account
     from .store.repos import ledger as repo
 
     today = clock.today()
@@ -473,14 +477,11 @@ def accounts(s: Session, server) -> Iterable[Cause]:
         select(Account).where(Account.deleted == false(), Account.closedOn.is_(None))
     ).all()
     for a in rows:
-        # A loan is checked on its Overview, against its servicer's balance (S1.11, S1.9.4).
-        where = f"/ui/accounts/{a.id}" + ("/reconcile" if atypes.reconcilable(a.type) else "")
-        imports = s.scalars(
-            select(Import).where(Import.accountId == a.id, Import.deleted == false())
-        ).all()
-        if not imports:
+        if not reconcile.checked(a.type):
             continue
-        late = expected.overdue(a, imports, today)
+        where = reconcile.page(a)
+        ledger = repo.load(s, a)
+        late = expected.overdue(a, ledger.imports, today)
         if late is not None:
             yield Cause(
                 # One alert per missing statement: it clears when one covering it arrives.
@@ -496,19 +497,16 @@ def accounts(s: Session, server) -> Iterable[Cause]:
                 icon="receipt",
                 since=dt.datetime.combine(late.due, dt.time(), dt.UTC),
             )
-        ledger = repo.load(s, a)
-        checks = reconcile.checks(
-            ledger.opening(), ledger.transactions, ledger.anchors, reconcile.coverage(imports)
-        )
-        if checks and not checks[-1].ok:
+        since = reconcile.mismatch(s, a, ledger)
+        if since is not None:
             yield Cause(
                 key=f"mismatch:{a.id}",
                 kind="reconcile-mismatch",
                 title=f"{a.name}: the balance disagrees with the institution's",
-                about=f"since {checks[-1].date:%b %-d, %Y}",
+                about=f"since {since:%b %-d, %Y}",
                 user_id=a.ownerId,
-                link=f"/ui/accounts/{a.id}/reconcile",
-                fix="Reconcile",
+                link=where,
+                fix="Reconcile" if where.endswith("/reconcile") else "See the Balance",
                 icon="alert",
                 delay=dt.timedelta(days=MISMATCH_DAYS),
             )
@@ -736,31 +734,33 @@ def options_expiring(s: Session, server) -> Iterable[Cause]:
 
 @check
 def pledges_due(s: Session, server) -> Iterable[Cause]:
-    """A pledge not yet met (S7.9.5): a monthly one from the 25th of the month, a yearly one
-    from December 1, while less than it has been given to the organisation in that month or
-    year. It resolves when the donation is recorded."""
+    """A pledge not yet met (S7.9.5): each month's from its 25th, a yearly one's from December
+    1, counted from the period it was set in against what has been given to the organisation
+    since, recorded or a charitable transaction to its name. It stays until the shortfall is
+    made up, or the pledge is changed or cleared."""
     from . import giving
     from .store.entities.giving import Organisation
 
     today = clock.today()
-    gifts: dict[str, list[giving.Gift]] = {}
+    gifts: dict[tuple[str, int], list[giving.Gift]] = {}
     for o in s.scalars(
         select(Organisation).where(Organisation.deleted == false(), Organisation.pledge > 0)
     ):
-        if o.pledgeEvery == "month" and today.day >= 25:
-            first, period = today.replace(day=1), f"{today:%B}"
-        elif o.pledgeEvery == "year" and today.month == 12:
-            first, period = today.replace(month=1, day=1), str(today.year)
-        else:
+        # Every pledge has the period it was set in: the database refuses one without.
+        given: list[giving.Gift] = []
+        for year in range(o.pledgeFrom.year, today.year + 1):
+            if (o.ownerId, year) not in gifts:
+                gifts[o.ownerId, year] = giving.donations(s, [o.ownerId], year)
+            given += gifts[o.ownerId, year]
+        unmet = giving.pledge_unmet(o, given, today)
+        if not unmet:
             continue
-        # Met as the Giving screen's projection counts it: what was given to it, recorded or
-        # a charitable transaction to its name, in the month or year.
-        if o.ownerId not in gifts:
-            gifts[o.ownerId] = giving.donations(s, [o.ownerId], today.year)
-        if not giving.pledge_short(o, gifts[o.ownerId], today):
-            continue
+        period = _period(o.pledgeEvery, unmet[0], today) + (
+            f" to {_period(o.pledgeEvery, unmet[-1], today)}" if len(unmet) > 1 else ""
+        )
         yield Cause(
-            key=f"pledge:{o.id}:{first.isoformat()}",
+            # One alert while the pledge stands as set: changing it starts the count again.
+            key=f"pledge:{o.id}:{o.pledgeFrom.isoformat()}",
             kind="pledge-due",
             title=f"Your pledge to {o.name} is due",
             about=f"for {period}",
@@ -769,6 +769,13 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
             fix="Record a Donation",
             icon="heart",
         )
+
+
+def _period(every: str, first: dt.date, today: dt.date) -> str:
+    """A pledge's month or year as its alert names it: *September*, *December 2025*, *2025*."""
+    if every == "year":
+        return str(first.year)
+    return f"{first:%B}" if first.year == today.year else f"{first:%B %Y}"
 
 
 @check
@@ -873,7 +880,7 @@ def evaluate(server) -> list[Alert]:
     alerts that opened."""
     now = clock.now()
     holding: dict[str, Cause] = {}
-    failed: set[str] = set()
+    failed: set[str] = set()  # the key stems of the checks that failed
     with server.db.read(unscoped="alerts: evaluate") as s:
         for fn in CHECKS:
             try:
@@ -882,17 +889,17 @@ def evaluate(server) -> list[Alert]:
             except Exception:
                 # A check that fails says nothing: its alerts stay as they are.
                 log.exception("the alert check %s failed", fn.__name__)
-                failed |= _KINDS[fn.__name__]
+                failed |= _KEYS[fn.__name__]
         current = [
-            (a.id, a.causeKey, a.kind, (a.title, a.about, a.link, a.fix), a.openedAt, a.seenSince)
+            (a.id, a.causeKey, (a.title, a.about, a.link, a.fix), a.openedAt, a.seenSince)
             for a in _unresolved(s)
         ]
     resolve: list[str] = []
     change: dict[str, tuple[Cause, bool]] = {}
-    for alert_id, key, kind, shown, opened_at, seen in current:
+    for alert_id, key, shown, opened_at, seen in current:
         cause = holding.pop(key, None)
         if cause is None:
-            if kind not in failed:
+            if not _held_back(key, failed):
                 resolve.append(alert_id)
             continue
         opens = opened_at is None and seen + cause.delay <= now
@@ -942,30 +949,37 @@ def evaluate(server) -> list[Alert]:
     return opened
 
 
-# The kinds each check raises: when it fails, these stay as they are.
-_KINDS = {
-    "price_sources": {"source-failing"},
-    "email": {"source-failing"},
-    "bitcoin_source": {"source-failing"},
-    "linked_servers": {"source-failing", "link-broken", "link-certificate", "link-key-waiting"},
-    "backups": {"backup-failed"},
+# The stems of the cause keys each check raises: when a check fails, its alerts stay as they
+# are and every other check's still resolve (S12.11.2). Kinds can't say whose an alert is:
+# several checks raise *source failing*. A key has a stem when it is the stem or starts with
+# the stem and a colon.
+_KEYS = {
+    "price_sources": {"prices"},
+    "email": {"mail"},
+    "bitcoin_source": {"bitcoin"},
+    "linked_servers": {"link-broken", "link-cert", "link", "link-key"},
+    "backups": {"backups"},
     "reader_sandbox": {"reader-sandbox"},
-    "recovery_phrase": {"phrase-check"},
-    "key_rotation": {"key-rotation"},
-    "break_glass": {"break-glass"},
-    "accounts": {"statement-overdue", "reconcile-mismatch"},
-    "statement_values": {"statement-value-old"},
-    "projections_behind": {"projection-behind"},
-    "cash_short": {"cash-short"},
-    "bitcoin_certificate": {"node-certificate"},
+    "recovery_phrase": {"keys:phrase"},
+    "key_rotation": {"keys:rotation"},
+    "break_glass": {"keys:break-glass"},
+    "accounts": {"statement", "mismatch"},
+    "statement_values": {"statement-value"},
+    "projections_behind": {"behind"},
+    "cash_short": {"cash"},
+    "bitcoin_certificate": {"bitcoin-certificate"},
     "bitcoin_off_chain": {"off-chain"},
-    "connector": {"connector-silent", "connector-locked", "connector-moved", "connection-failing"},
+    "connector": {"connector", "connection"},
     "options_expired": {"option-expired"},
     "options_expiring": {"option-expiring"},
-    "pledges_due": {"pledge-due"},
+    "pledges_due": {"pledge"},
     "occasions": {"occasion"},
     "share_asked": {"share-asked"},
 }
+
+
+def _held_back(key: str, stems: set[str]) -> bool:
+    return any(key == stem or key.startswith(stem + ":") for stem in stems)
 
 
 def _unresolved(s: Session) -> list[Alert]:

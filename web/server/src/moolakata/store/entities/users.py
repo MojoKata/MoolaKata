@@ -2,7 +2,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from ...ids import new_id
-from . import Record, SoftDeleted
+from . import Kept, Record, SoftDeleted
 
 
 @dataclass(kw_only=True, eq=False)
@@ -50,7 +50,7 @@ class UserGroup(SoftDeleted):
 
 
 @dataclass(kw_only=True, eq=False)
-class Session:
+class Session(Kept):
     id: str = field(default_factory=lambda: new_id("Sessn"))
     tokenHash: str
     userId: str
@@ -64,7 +64,7 @@ class Session:
 
 
 @dataclass(kw_only=True, eq=False)
-class OneTimeToken:
+class OneTimeToken(Kept):
     id: str = field(default_factory=lambda: new_id("OTTkn"))
     tokenHash: str
     purpose: str
@@ -75,7 +75,7 @@ class OneTimeToken:
 
 
 @dataclass(kw_only=True, eq=False)
-class RecoveryCode:
+class RecoveryCode(Kept):
     id: str = field(default_factory=lambda: new_id("RCode"))
     codeHash: str
     userId: str

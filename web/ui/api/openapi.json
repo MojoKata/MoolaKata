@@ -9144,6 +9144,68 @@
         "title": "HeldInOut",
         "type": "object"
       },
+      "HeldOn": {
+        "additionalProperties": false,
+        "description": "A holding as it stood on a day, that a corporate action may be recorded on.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "instrumentClass": {
+            "title": "Instrumentclass",
+            "type": "string"
+          },
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "underlyingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingid"
+          },
+          "underlyingSymbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingsymbol"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "instrumentId",
+          "symbol",
+          "instrumentClass",
+          "side"
+        ],
+        "title": "HeldOn",
+        "type": "object"
+      },
       "HoldingCheckRow": {
         "additionalProperties": false,
         "properties": {
@@ -14821,6 +14883,18 @@
             ],
             "title": "Name"
           },
+          "priceAsOf": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priceasof"
+          },
           "priceSource": {
             "anyOf": [
               {
@@ -14851,6 +14925,10 @@
           "side": {
             "title": "Side",
             "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
           },
           "symbol": {
             "title": "Symbol",
@@ -14941,6 +15019,8 @@
           "averageCost",
           "value",
           "priceSource",
+          "priceAsOf",
+          "stale",
           "unrealized",
           "unrealizedPct",
           "realized",
@@ -15962,6 +16042,37 @@
           "limit"
         ],
         "title": "Page[GroupRow]",
+        "type": "object"
+      },
+      "Page_HeldOn_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HeldOn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[HeldOn]",
         "type": "object"
       },
       "Page_HolidayOut_": {
@@ -19136,10 +19247,12 @@
               "account-unknown",
               "accounts-unknown",
               "action-fixed",
+              "address-invalid",
               "admin-exists",
               "admins-only",
               "already-attached",
               "already-joined",
+              "already-linked",
               "amends-itself",
               "amount-invalid",
               "amount-mismatch",
@@ -19148,10 +19261,12 @@
               "ancestor-loop",
               "anchor-fixed",
               "anchor-imported",
+              "answer-unsigned",
               "assumption-invalid",
               "assumptions-exist",
               "avatar-invalid",
               "bad-credentials",
+              "bad-signature",
               "basis-invalid",
               "basis-on-lots",
               "benchmark-invalid",
@@ -19163,6 +19278,7 @@
               "budget-unknown",
               "built-in",
               "built-on-invalid",
+              "busy",
               "cadence-invalid",
               "cannot-join",
               "cannot-unlock",
@@ -19174,12 +19290,19 @@
               "category-not-for-split",
               "category-twice",
               "category-unknown",
+              "certificate-changed",
+              "certificate-unread",
+              "change-failed",
+              "change-refused",
               "choice-invalid",
               "claimed-as-invalid",
               "class-invalid",
               "class-not-served",
+              "clock-skew",
               "closed-in-future",
               "closed-year",
+              "code-invalid",
+              "code-used",
               "code-wrong",
               "colour-chosen",
               "colour-fixed",
@@ -19215,6 +19338,10 @@
               "dependent-fixed",
               "dependent-twice",
               "description-missing",
+              "descriptor-checksum",
+              "descriptor-ending",
+              "descriptor-invalid",
+              "descriptor-unsupported",
               "died-on-invalid",
               "direction-invalid",
               "document-fixed",
@@ -19242,6 +19369,7 @@
               "figure-shipped",
               "file-empty",
               "file-pruned",
+              "file-refused",
               "filed-on-missing",
               "filer-has-a-book",
               "filer-unknown",
@@ -19251,6 +19379,7 @@
               "filing-missing",
               "filing-unknown",
               "fingerprint-invalid",
+              "fingerprint-mismatch",
               "form-missing",
               "fund-missing",
               "gap-invalid",
@@ -19282,6 +19411,7 @@
               "items-missing",
               "jurisdiction-invalid",
               "kept-by-invalid",
+              "key-exists",
               "key-invalid",
               "key-needed",
               "kind-invalid",
@@ -19295,11 +19425,18 @@
               "legs-differ",
               "legs-missing",
               "legs-twice",
+              "limit",
               "limit-invalid",
               "line-fixed",
+              "link-active",
+              "link-ended",
               "link-invalid",
+              "link-invited",
               "link-not-active",
               "link-not-valid",
+              "link-paused",
+              "link-pending",
+              "link-requested",
               "link-unchanged",
               "loan-delete",
               "loan-exists",
@@ -19318,6 +19455,10 @@
               "mapping-incomplete",
               "margin-invalid",
               "mask-invalid",
+              "merge-children",
+              "merge-itself",
+              "merge-kind",
+              "merge-level",
               "metal-invalid",
               "method-fixed",
               "method-invalid",
@@ -19335,7 +19476,9 @@
               "name-invalid",
               "name-missing",
               "name-taken",
+              "no-address",
               "no-beneficiary",
+              "no-certificate",
               "no-connector",
               "no-email",
               "no-key",
@@ -19358,9 +19501,13 @@
               "not-found",
               "not-in-budget",
               "not-in-it",
+              "not-linked",
               "not-married",
+              "not-moolakata",
+              "not-named",
               "not-physical",
               "not-reimbursable",
+              "not-requested",
               "not-shared",
               "not-signed-in",
               "not-told-apart",
@@ -19435,8 +19582,10 @@
               "price-negative",
               "price-typed",
               "principal-invalid",
+              "private-key",
               "progress-invalid",
               "projection-unknown",
+              "protocol-unsupported",
               "public-url-needed",
               "purity-invalid",
               "quantity-invalid",
@@ -19460,9 +19609,11 @@
               "reconciliation-fixed",
               "reencrypt-pending",
               "reference-missing",
+              "refused",
               "reimbursable-invalid",
               "relation-invalid",
               "relationship-exists",
+              "replayed",
               "required",
               "reserve-unknown",
               "result-invalid",
@@ -19480,6 +19631,7 @@
               "server-only",
               "session-expired",
               "setting-fixed",
+              "setting-internal",
               "setting-saved",
               "setting-unknown",
               "settings-invalid",
@@ -19508,6 +19660,8 @@
               "stale",
               "stale-version",
               "start-after-payment",
+              "starting",
+              "state-invalid",
               "statement-does-not-add-up",
               "statement-interval-invalid",
               "statement-kept-already",
@@ -19526,6 +19680,7 @@
               "target-invalid",
               "tax-tag-invalid",
               "term-invalid",
+              "testnet",
               "theme-invalid",
               "token-fixed",
               "token-refused",
@@ -19534,6 +19689,8 @@
               "too-many",
               "too-many-ops",
               "too-many-rules",
+              "too-many-tries",
+              "too-many-wrong",
               "trade-incomplete",
               "transaction-fixed",
               "transaction-unknown",
@@ -19548,6 +19705,8 @@
               "unit-invalid",
               "unknown-setting",
               "unlocked-already",
+              "unreachable",
+              "unsigned",
               "unsupported-type",
               "until-before-from",
               "upload-gone",
@@ -19625,10 +19784,12 @@
                   "account-unknown",
                   "accounts-unknown",
                   "action-fixed",
+                  "address-invalid",
                   "admin-exists",
                   "admins-only",
                   "already-attached",
                   "already-joined",
+                  "already-linked",
                   "amends-itself",
                   "amount-invalid",
                   "amount-mismatch",
@@ -19637,10 +19798,12 @@
                   "ancestor-loop",
                   "anchor-fixed",
                   "anchor-imported",
+                  "answer-unsigned",
                   "assumption-invalid",
                   "assumptions-exist",
                   "avatar-invalid",
                   "bad-credentials",
+                  "bad-signature",
                   "basis-invalid",
                   "basis-on-lots",
                   "benchmark-invalid",
@@ -19652,6 +19815,7 @@
                   "budget-unknown",
                   "built-in",
                   "built-on-invalid",
+                  "busy",
                   "cadence-invalid",
                   "cannot-join",
                   "cannot-unlock",
@@ -19663,12 +19827,19 @@
                   "category-not-for-split",
                   "category-twice",
                   "category-unknown",
+                  "certificate-changed",
+                  "certificate-unread",
+                  "change-failed",
+                  "change-refused",
                   "choice-invalid",
                   "claimed-as-invalid",
                   "class-invalid",
                   "class-not-served",
+                  "clock-skew",
                   "closed-in-future",
                   "closed-year",
+                  "code-invalid",
+                  "code-used",
                   "code-wrong",
                   "colour-chosen",
                   "colour-fixed",
@@ -19704,6 +19875,10 @@
                   "dependent-fixed",
                   "dependent-twice",
                   "description-missing",
+                  "descriptor-checksum",
+                  "descriptor-ending",
+                  "descriptor-invalid",
+                  "descriptor-unsupported",
                   "died-on-invalid",
                   "direction-invalid",
                   "document-fixed",
@@ -19731,6 +19906,7 @@
                   "figure-shipped",
                   "file-empty",
                   "file-pruned",
+                  "file-refused",
                   "filed-on-missing",
                   "filer-has-a-book",
                   "filer-unknown",
@@ -19740,6 +19916,7 @@
                   "filing-missing",
                   "filing-unknown",
                   "fingerprint-invalid",
+                  "fingerprint-mismatch",
                   "form-missing",
                   "fund-missing",
                   "gap-invalid",
@@ -19771,6 +19948,7 @@
                   "items-missing",
                   "jurisdiction-invalid",
                   "kept-by-invalid",
+                  "key-exists",
                   "key-invalid",
                   "key-needed",
                   "kind-invalid",
@@ -19784,11 +19962,18 @@
                   "legs-differ",
                   "legs-missing",
                   "legs-twice",
+                  "limit",
                   "limit-invalid",
                   "line-fixed",
+                  "link-active",
+                  "link-ended",
                   "link-invalid",
+                  "link-invited",
                   "link-not-active",
                   "link-not-valid",
+                  "link-paused",
+                  "link-pending",
+                  "link-requested",
                   "link-unchanged",
                   "loan-delete",
                   "loan-exists",
@@ -19807,6 +19992,10 @@
                   "mapping-incomplete",
                   "margin-invalid",
                   "mask-invalid",
+                  "merge-children",
+                  "merge-itself",
+                  "merge-kind",
+                  "merge-level",
                   "metal-invalid",
                   "method-fixed",
                   "method-invalid",
@@ -19824,7 +20013,9 @@
                   "name-invalid",
                   "name-missing",
                   "name-taken",
+                  "no-address",
                   "no-beneficiary",
+                  "no-certificate",
                   "no-connector",
                   "no-email",
                   "no-key",
@@ -19847,9 +20038,13 @@
                   "not-found",
                   "not-in-budget",
                   "not-in-it",
+                  "not-linked",
                   "not-married",
+                  "not-moolakata",
+                  "not-named",
                   "not-physical",
                   "not-reimbursable",
+                  "not-requested",
                   "not-shared",
                   "not-signed-in",
                   "not-told-apart",
@@ -19924,8 +20119,10 @@
                   "price-negative",
                   "price-typed",
                   "principal-invalid",
+                  "private-key",
                   "progress-invalid",
                   "projection-unknown",
+                  "protocol-unsupported",
                   "public-url-needed",
                   "purity-invalid",
                   "quantity-invalid",
@@ -19949,9 +20146,11 @@
                   "reconciliation-fixed",
                   "reencrypt-pending",
                   "reference-missing",
+                  "refused",
                   "reimbursable-invalid",
                   "relation-invalid",
                   "relationship-exists",
+                  "replayed",
                   "required",
                   "reserve-unknown",
                   "result-invalid",
@@ -19969,6 +20168,7 @@
                   "server-only",
                   "session-expired",
                   "setting-fixed",
+                  "setting-internal",
                   "setting-saved",
                   "setting-unknown",
                   "settings-invalid",
@@ -19997,6 +20197,8 @@
                   "stale",
                   "stale-version",
                   "start-after-payment",
+                  "starting",
+                  "state-invalid",
                   "statement-does-not-add-up",
                   "statement-interval-invalid",
                   "statement-kept-already",
@@ -20015,6 +20217,7 @@
                   "target-invalid",
                   "tax-tag-invalid",
                   "term-invalid",
+                  "testnet",
                   "theme-invalid",
                   "token-fixed",
                   "token-refused",
@@ -20023,6 +20226,8 @@
                   "too-many",
                   "too-many-ops",
                   "too-many-rules",
+                  "too-many-tries",
+                  "too-many-wrong",
                   "trade-incomplete",
                   "transaction-fixed",
                   "transaction-unknown",
@@ -20037,6 +20242,8 @@
                   "unit-invalid",
                   "unknown-setting",
                   "unlocked-already",
+                  "unreachable",
+                  "unsigned",
                   "unsupported-type",
                   "until-before-from",
                   "upload-gone",
@@ -23858,6 +24065,46 @@
         "title": "Share",
         "type": "object"
       },
+      "ShareToo": {
+        "additionalProperties": false,
+        "description": "Who Share these accounts too shares accounts with: a group, or a person (S5.1.2).",
+        "properties": {
+          "accountIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accountids",
+            "type": "array"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "accountIds"
+        ],
+        "title": "ShareToo",
+        "type": "object"
+      },
       "ShareView": {
         "additionalProperties": false,
         "properties": {
@@ -23904,6 +24151,13 @@
             "title": "Links",
             "type": "array"
           },
+          "shareToo": {
+            "items": {
+              "$ref": "#/components/schemas/ShareToo"
+            },
+            "title": "Sharetoo",
+            "type": "array"
+          },
           "users": {
             "items": {
               "$ref": "#/components/schemas/UserGrant"
@@ -23920,6 +24174,7 @@
           "groups",
           "links",
           "hidden",
+          "shareToo",
           "accounts"
         ],
         "title": "ShareView",
@@ -33129,6 +33384,69 @@
         ]
       }
     },
+    "/ui/api/corporate-actions/holdings": {
+      "get": {
+        "description": "What the caller's investing accounts held at the end of a day, as the dialog offers it:\nan action recorded late reaches a holding sold since (S2.4.1, S2.8).",
+        "operationId": "held_on_ui_api_corporate_actions_holdings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_HeldOn_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Held On",
+        "tags": [
+          "options"
+        ]
+      }
+    },
     "/ui/api/dashboard": {
       "get": {
         "operationId": "dashboard_ui_api_dashboard_get",
@@ -35068,7 +35386,7 @@
     },
     "/ui/api/password-reset": {
       "post": {
-        "description": "The answer is the same whether or not the user exists (S10.1.5).",
+        "description": "The answer is the same whether or not the user exists (S10.1.5). Each request counts\ntoward the lockout of its address as a failed sign-in does, by Settings' figures, so the\ntenth locks sign-in and resets alike (S13.7.5.1).",
         "operationId": "password_reset_ui_api_password_reset_post",
         "requestBody": {
           "content": {

@@ -144,21 +144,25 @@ export function ShareDialog({ close, kind, id, name }) {
       if (r && !r.removed) r.set('includeReceipts', on);
     }
   };
-  // Share these accounts too (S5.1.2): each hidden account the owner holds, at Read, saved
-  // with the rest.
+  // Share these accounts too (S5.1.2): each hidden account the owner holds, at Read, to the
+  // group or person the portfolio is shared with (a group's, so its members hold the
+  // accounts while they are in it, S10.5), saved with the rest.
   const yours = new Set(
     (view?.accounts || []).filter((/** @type {any} */ a) => a.yours).map((/** @type {any} */ a) =>
       a.id
     ),
   );
-  const pending = Object.entries(view?.hidden || {}).flatMap(([uid, accts]) =>
-    /** @type {string[]} */ (accts).filter((a) => yours.has(a) && !grant('userId', uid, a)).map((
-      a,
-    ) => [uid, a])
-  );
+  const pending = (view?.shareToo || []).flatMap((/** @type {any} */ to) => {
+    const key = to.groupId ? 'groupId' : 'userId';
+    const who = to.groupId || to.userId;
+    return /** @type {string[]} */ (to.accountIds).filter((a) =>
+      yours.has(a) && !grant(key, who, a)
+    )
+      .map((a) => [key, who, a]);
+  });
   const accountsToo = () => {
-    for (const [uid, a] of pending) {
-      draft?.add(shareRec('account'), { targetId: a, userId: uid, allow: 'read' });
+    for (const [key, who, a] of pending) {
+      draft?.add(shareRec('account'), { targetId: a, [key]: who, allow: 'read' });
     }
   };
   const users = Object.fromEntries(
@@ -183,8 +187,13 @@ export function ShareDialog({ close, kind, id, name }) {
     }
   };
   const hidden = view?.hidden || {};
+  // A linked server's people are named too (S13.7.2).
+  const everyone = [
+    ...view?.users || [],
+    ...(view?.links || []).flatMap((/** @type {any} */ l) => l.users),
+  ];
   const hiddenNames = Object.entries(hidden).map(([uid, accts]) => ({
-    who: view.users.find((/** @type {any} */ u) => u.id === uid)?.displayName,
+    who: everyone.find((/** @type {any} */ u) => u.id === uid)?.displayName,
     accounts: /** @type {string[]} */ (accts).map((a) =>
       view.accounts.find((/** @type {any} */ x) => x.id === a)?.name
     ),

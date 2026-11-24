@@ -4,6 +4,7 @@ so a new route can't drift from them."""
 import json
 import re
 
+import pytest
 from fastapi.routing import APIRoute
 
 from moolakata.app import Server, create_app
@@ -116,6 +117,61 @@ def test_the_document_lists_the_problems_and_their_codes():
                 method,
                 path,
             )
+
+
+def test_the_codes_an_error_carries_are_in_the_openapi_document():
+    # S13.8.3: a code a route passes on from an error (a link's, a copy's, a wallet key's, the
+    # connector's, a merge's) or the locked gate answers is listed as the literal ones are.
+    from moolakata import categories, contract
+    from moolakata.bitcoin import keys
+    from moolakata.connector.manage import ConnectorError
+    from moolakata.links import lifecycle
+    from moolakata.links.client import REFUSALS, UNSIGNED, LinkError
+    from moolakata.links.copy import CopyError
+    from moolakata.middleware import Locked
+
+    codes = set(contract.problem_codes())  # the document's enum
+    for cls in (LinkError, CopyError, ConnectorError, keys.Refused, categories.Refused):
+        assert set(cls.CODES) <= codes, cls
+    assert set(Locked.ANSWERS) <= codes
+    links = {f"link-{s}" for s in lifecycle.STATES} | set(REFUSALS) | set(UNSIGNED.values())
+    links |= {code for code, _ in lifecycle.REFUSED.values()}
+    assert links <= set(LinkError.CODES)
+    assert {"not-moolakata", "unreachable", "certificate-changed", "words-wrong"} <= codes
+
+
+@pytest.mark.parametrize(
+    "cls, where, arg",
+    [
+        ("LinkError", "links/", 0),
+        ("CopyError", "links/", 0),
+        ("ConnectorError", "connector/", 0),
+        ("Refused", "bitcoin/", 0),
+        ("Refused", "categories.py", 1),
+    ],
+)
+def test_an_error_is_made_only_with_a_code_it_declares(cls, where, arg):
+    """Each literal code an error is made with is in its CODES, so the document lists it."""
+    import ast
+
+    from moolakata import paths
+
+    declared, used = None, set()
+    for path in paths.PACKAGE.rglob("*.py"):
+        if not str(path.relative_to(paths.PACKAGE)).startswith(where):
+            continue
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ClassDef) and node.name == cls:
+                for item in node.body:
+                    if isinstance(item, ast.Assign) and item.targets[0].id == "CODES":
+                        declared = set(ast.literal_eval(item.value))
+            f = getattr(node, "func", None)
+            name = getattr(f, "id", None) or getattr(f, "attr", None)
+            if isinstance(node, ast.Call) and name == cls and len(node.args) > arg:
+                a = node.args[arg]
+                if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                    used.add(a.value)
+    assert declared is not None and used and used <= declared, used - (declared or set())
 
 
 def test_what_the_reader_may_do_never_travels_back():

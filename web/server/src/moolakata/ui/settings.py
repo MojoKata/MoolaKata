@@ -41,16 +41,19 @@ class SettingsView(Model):
 
 
 def view(s) -> SettingsView:
-    values = {k: settings.get(s, k) for k in settings.DEFINITIONS}
+    shown = {k: d for k, d in settings.DEFINITIONS.items() if not d.internal}
+    values = {k: settings.get(s, k) for k in shown}
     sections: dict[str, list[str]] = {}
-    for k, d in settings.DEFINITIONS.items():
+    for k, d in shown.items():
         sections.setdefault(d.section, []).append(k)
     rows = s.scalars(select(Setting).where(Setting.deleted == false()))
     return SettingsView(
         values=values,
         sections=sections,
         serverZone=timezones.host_zone(),
-        records={r.key: SettingRef(id=r.id, version=r.version) for r in rows},
+        records={
+            r.key: SettingRef(id=r.id, version=r.version) for r in rows if not _internal(r.key)
+        },
     )
 
 
@@ -68,6 +71,8 @@ def _secrets():
 # The passwords a section saves with its keys: written, never read back (S14.4), each bound to
 # the host its section names, which clears it when it changes (S16.2, S16.7).
 SECRETS = {"smtpPassword": "smtpHost", "bitcoinPassword": "bitcoinNodeHost"}
+# The settings that name a host the egress guard allows (S13.5), with every bitcoin one.
+EGRESS = {"smtpHost", "linkAddress", "publicUrl"}
 
 
 @router.get("/settings", response_model=SettingsView)
@@ -87,11 +92,6 @@ class Listener(Model):
     certificate: str | None
 
 
-def _address(net) -> str:
-    """A proxy's own address as written, a range as a range."""
-    return str(net.network_address) if net.num_addresses == 1 else str(net)
-
-
 @router.get("/settings/listener", response_model=Listener)
 def get_listener(request: Request, c: Caller = Depends(admin)):
     cfg = server(request).config
@@ -99,7 +99,7 @@ def get_listener(request: Request, c: Caller = Depends(admin)):
     return Listener(
         mode=cfg.mode,
         port=cfg.port,
-        trustedProxies=[] if tls else [_address(n) for n in cfg.trusted_proxies],
+        trustedProxies=[] if tls else [str(a) for a in cfg.trusted_proxies],
         certificate=("given" if cfg.tls_cert else "own") if tls else None,
     )
 
@@ -123,10 +123,23 @@ def _setting_admin(ctx) -> Caller:
     return ctx.caller
 
 
+def _internal(key: str) -> bool:
+    d = settings.DEFINITIONS.get(key)
+    return d is not None and d.internal
+
+
+def _refuse_internal(key: str) -> None:
+    """A certificate pin or the key told to peers is the server's own, written by its own route
+    or task (S1.6.2.4, link-protocol.md §4.5), never by a save."""
+    if _internal(key):
+        raise refuse("key", "setting-internal", "The server keeps this itself.")
+
+
 def _setting_create(ctx, record_id: str, body: SettingRecord) -> None:
     _setting_admin(ctx)
     if body.key not in settings.DEFINITIONS and body.key not in SECRETS:
         raise refuse("key", "setting-unknown", "Not a setting.")
+    _refuse_internal(body.key)
     if settings.row_of(ctx.s, body.key) is not None:
         raise refuse("key", "setting-saved", "It is saved: change it.", 409)
     row = Setting(id=record_id, key=body.key, value="null", updatedById=ctx.caller.id)
@@ -154,6 +167,7 @@ def _setting_update(ctx, row: Setting, body: SettingRecord) -> None:
 
 def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
     """The value checked and kept; what spans keys is checked once all are (`_settings_after`)."""
+    _refuse_internal(body.key)
     s, c = ctx.s, ctx.caller
     srv = server(ctx.request)
     notes = ctx.notes.setdefault("settings", {"changed": [], "secrets": set(), "ids": {}})
@@ -222,7 +236,7 @@ def _settings_after(ctx) -> None:
     if changed:
         activity.record(s, "settings.changed", actor=c.id, for_admins=True,
                         detail={"fields": sorted(set(changed + cleared))})  # fmt: skip
-    if any(k == "smtpHost" or k.startswith("bitcoin") for k in changed):
+    if any(k in EGRESS or k.startswith("bitcoin") for k in changed):
         from .prices import apply_egress
 
         ctx.after("egress", lambda: apply_egress(srv))
@@ -455,7 +469,8 @@ def bitcoin_test(request: Request, c: Caller = Depends(admin)):
     if hosts and not srv.config.stubs:
         # The host is allowed for this test even before a wallet needs it.
         current_hosts, current_named = srv.guard.snapshot()
-        srv.guard.allow(current_hosts | set(hosts), current_named | set(named))
+        current_named["bitcoin"] = current_named.get("bitcoin", set()) | set(named)
+        srv.guard.allow(current_hosts | set(hosts), current_named)
     from .prices import apply_egress
 
     try:

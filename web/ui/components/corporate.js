@@ -53,25 +53,30 @@ class ActionRec extends Record {
   };
 }
 
+const HELD = '/corporate-actions/holdings';
+
 /** @param {{ close: (v?: any) => void, accountId?: string }} p */
 export function CorporateAction({ close, accountId }) {
   const fmt = useFormats();
   useDialogGuide('dialog-corporate-action');
-  const pos = useApi('/positions');
   const key = (/** @type {any} */ p) => p.accountId + p.instrumentId;
   // The first holding the list offers, until another is chosen.
   const f = useDraft(async (draft) => {
-    const open = /** @type {any[]} */ ((await api.get('/positions')).open);
+    const today = fmt.today();
+    const open = /** @type {any[]} */ ((await api.get(HELD, { on: today })).items);
     const first = holdings(open, accountId, 'split')[0];
     draft.add(ActionRec, {
-      date: fmt.today(),
+      date: today,
       accountId: first?.accountId ?? null,
       instrumentId: first?.instrumentId ?? null,
     });
   }, [accountId]);
   const rec = /** @type {ActionRec | undefined} */ (f.draft?.records[0]);
+  // What was held on the action's day: one recorded late reaches a holding sold since.
+  const on = rec?.get('date');
+  const pos = useApi(on ? HELD : null, { on });
   const held = holdings(
-    /** @type {any[]} */ ((/** @type {any} */ (pos.data))?.open) || [],
+    /** @type {any[]} */ ((/** @type {any} */ (pos.data))?.items) || [],
     accountId,
     rec?.get('kind') || 'split',
   );

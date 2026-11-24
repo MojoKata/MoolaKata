@@ -67,7 +67,9 @@
       interest, then the escrow, then PMI, and no principal.
    4. **Reconciling**: the servicer's statement balance can be typed in on a date, and a
       difference from the computed balance is shown until it is explained (a fee, a missed
-      payment, a wrong rate).
+      payment, a wrong rate). The loan is then marked in Accounts and on the Dashboard, as any
+      account with a mismatch, and a difference left for 7 days raises the mismatch alert
+      (S1.11.4); each leads to the loan's Overview.
    5. **The loan's screen** shows the balance, the rate, the payment due next (the schedule's
       next row, which the payment dialog and the bank transactions offered read too; in a
       HELOC's draw period its interest alone, noted *interest only until* the period's end),

@@ -48,8 +48,63 @@ def refusal(code: str, status: int, protocols=None) -> str:
     return REFUSALS.get(code, f"The other server refused the call ({code}, HTTP {status}).")
 
 
+def peer_code(code) -> str:
+    """A peer's refusal code as this server's own (S13.8.3): one in link-protocol.md §7's table,
+    a `link-<state>` among them, is kept; any other is `refused`, so a peer never decides
+    this server's codes."""
+    from .lifecycle import STATES
+
+    if not isinstance(code, str):
+        return "refused"
+    if code in REFUSALS or (code.startswith("link-") and code.removeprefix("link-") in STATES):
+        return code
+    return "refused"
+
+
 class LinkError(Exception):
     """The linked server couldn't be reached, or refused: the message says which."""
+
+    # Every code it carries: its own, a signed answer's checks', and a peer's as `peer_code`
+    # keeps them. The routes answer them, so the OpenAPI document lists them (S13.8.3).
+    CODES = (
+        "address-invalid",
+        "already-linked",
+        "answer-unsigned",
+        "bad-signature",
+        "busy",
+        "certificate-changed",
+        "certificate-unread",
+        "change-failed",
+        "change-refused",
+        "clock-skew",
+        "code-invalid",
+        "code-used",
+        "file-refused",
+        "fingerprint-mismatch",
+        "limit",
+        "link-active",
+        "link-ended",
+        "link-invited",
+        "link-paused",
+        "link-pending",
+        "link-requested",
+        "locked",
+        "no-address",
+        "no-certificate",
+        "not-found",
+        "not-linked",
+        "not-moolakata",
+        "not-requested",
+        "not-shared",
+        "protocol-unsupported",
+        "refused",
+        "replayed",
+        "server-error",
+        "state-invalid",
+        "too-large",
+        "unreachable",
+        "unsigned",
+    )
 
     def __init__(self, code: str, message: str, offered: str | None = None):
         super().__init__(message)
@@ -79,7 +134,7 @@ def _url(address: str, path: str) -> str:
 
 
 def _client(srv, pins, max_bytes: int = net.MAX_RESPONSE) -> net.Client:
-    return net.Client(srv.guard, max_bytes=max_bytes, pins=pins)
+    return net.Client(srv.guard, max_bytes=max_bytes, pins=pins, use="link")
 
 
 def _unreachable(address: str, e: Exception) -> LinkError:
@@ -98,7 +153,7 @@ def _own(srv):
 
 
 def hello(srv, address: str, pins=None) -> dict:
-    """The unsigned hello: the peer's protocol, version and fingerprint."""
+    """The unsigned hello: the peer's protocol, fingerprint and key."""
     try:
         r = _client(srv, pins).get(_url(address, "/link/v1/hello"))
     except net.httpx.HTTPError as e:
@@ -153,12 +208,19 @@ def call(
         seen.append(key)
     out = exactjson.loads(content) if content else {}
     if r.status_code >= 400:
-        code = out.get("code")
-        code = code if isinstance(code, str) and _CODE.match(code) else "refused"
-        # The peer's own words go to the log only, never into an alert or email (S13.7.9).
-        log.info("%s refused %s: %s %r", address, path, code, str(out.get("message", ""))[:200])
-        raise LinkError(code, refusal(code, r.status_code, out.get("protocols")))
+        raise _refused(address, path, r.status_code, out)
     return out
+
+
+def _refused(address: str, path: str, status: int, out) -> LinkError:
+    """A peer's signed refusal as this server's own: its code as `peer_code` keeps it, and the
+    peer's own words in the log only, never in an alert or email (S13.7.9)."""
+    out = out if isinstance(out, dict) else {}
+    sent = out.get("code")
+    log.info("%s refused %s: %r %r", address, path, str(sent)[:40], str(out.get("message"))[:200])
+    code = peer_code(sent)
+    told = sent if code == "refused" and isinstance(sent, str) and _CODE.match(sent) else code
+    return LinkError(code, refusal(told, status, out.get("protocols")))
 
 
 def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list, pins=None):
@@ -240,5 +302,4 @@ def send_file(srv, address: str, peer_key: bytes, file_id: str, path, digest: st
     except signing.Refused as e:
         raise LinkError(e.code, e.message) from None
     if r.status_code >= 400:
-        out = exactjson.loads(r.content) if r.content else {}
-        raise LinkError(out.get("code", "refused"), out.get("message", "the file was refused"))
+        raise _refused(address, call_path, r.status_code, exactjson.loads(r.content or b"{}"))

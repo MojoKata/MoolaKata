@@ -67,6 +67,164 @@ def test_versions_change_with_every_save(db):
     assert u.version == 2
 
 
+def test_every_table_with_an_id_has_its_version_and_times_locked_or_counted():
+    """schema.md §2: each table with an `id` has `version`, `createdAt` and `updatedAt`. The
+    version is the lock on a locked table and a counter on a counted one, never both, and §2
+    names the counted tables as they are mapped."""
+    from sqlalchemy import inspect as sa_inspect
+
+    from moolakata.store import mapping
+
+    mapping.map_all()
+    by_table = {
+        m.local_table.name: m for m in mapping.mapper_registry.mappers if "id" in m.local_table.c
+    }
+    with_id = {n for n, t in metadata.tables.items() if "id" in t.c}
+    assert set(by_table) == with_id
+    missing = {
+        n: sorted({"version", "createdAt", "updatedAt"} - set(metadata.tables[n].c.keys()))
+        for n in with_id
+    }
+    assert {n: m for n, m in missing.items() if m} == {}
+    both_or_neither = [
+        n
+        for n, m in by_table.items()
+        if (m.version_id_col is None) == (m.class_ not in mapping.COUNTED)
+    ]
+    assert both_or_neither == []
+    counted = {sa_inspect(e).local_table.name for e in mapping.COUNTED}
+    assert schema_check.counted_tables() == counted
+
+
+def test_a_server_kept_record_counts_its_saves_and_a_stale_copy_never_fails(db):
+    """schema.md §2: a counted record's version counts its saves in the database, so a
+    write from a copy read before another one is saved, never refused for its version, and
+    neither save goes uncounted."""
+    from moolakata.store.entities.links import LinkSent
+
+    with db.tx(unscoped="test") as s:
+        sent = LinkSent(linkId=_a_link(s), itemId="Acct_x", path="/a", viewer="v", hash="h1")
+        s.add(sent)
+    assert sent.version == 1
+    made = sent.createdAt
+    with db.tx(unscoped="test") as s:
+        s.get(LinkSent, sent.id).hash = "h2"
+    with db.tx(unscoped="test") as s:
+        s.add(sent)  # the copy read at version 1
+        sent.hash = "h3"
+    assert sent.version == 3
+    with db.read(unscoped="test") as s:
+        now = s.get(LinkSent, sent.id)
+        assert (now.hash, now.version, now.createdAt) == ("h3", 3, made)
+        assert now.updatedAt > made
+
+
+def _a_lot(s):
+    from moolakata.store.entities.accounts import Lot, Transaction
+
+    acct, inst = _an_account_and_instrument(s)
+    txn = Transaction(
+        id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind="buy", amount=-100
+    )
+    s.add(txn)
+    s.flush()
+    lot = Lot(
+        id=ids.new_id("Lot"),
+        accountId=acct,
+        instrumentId=inst,
+        transactionId=txn.id,
+        acquiredOn=dt.date(2026, 3, 2),
+        quantity=10,
+        costBasis=100,
+    )
+    return lot, "costBasis", (90, 80)
+
+
+def _a_holding(s):
+    from moolakata.store.entities.accounts import Holding
+
+    acct, inst = _an_account_and_instrument(s)
+    held = Holding(
+        id=ids.new_id("Hold"), accountId=acct, instrumentId=inst, asOf=dt.date(2026, 3, 2),
+        quantity=10,
+    )  # fmt: skip
+    return held, "quantity", (11, 12)
+
+
+def _a_price(s):
+    from moolakata.store.entities.prices import Price
+
+    _, inst = _an_account_and_instrument(s)
+    price = Price(instrumentId=inst, date=dt.date(2026, 3, 2), close=10, source="stooq")
+    return price, "close", (11, 12)
+
+
+def _an_account_and_instrument(s) -> tuple[str, str]:
+    from moolakata.store.entities.accounts import Account, Instrument
+
+    owner = new_user(s)
+    acct = Account(id=ids.new_id("Acct"), ownerId=owner.id, name="Brokerage", type="brokerage")
+    inst = Instrument(id=ids.new_id("Instr"), symbol="VTI", instrumentClass="etf")
+    s.add_all([acct, inst])
+    s.flush()
+    return acct.id, inst.id
+
+
+@pytest.mark.parametrize("make", [_a_lot, _a_holding, _a_price], ids=["Lot", "Holding", "Price"])
+def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, make):
+    """schema.md §2: a table the server writes in the background, outside a person's save, is
+    counted: lots and holdings from the connector's files (S18.8), prices from their refresh
+    (S16.7). A write from a copy read before another save is never refused for its version,
+    and both saves are counted."""
+    from moolakata.store import mapping
+
+    with db.tx(unscoped="test") as s:
+        row, field_, (then, last) = make(s)
+        s.add(row)
+    with db.tx(unscoped="test") as s:
+        setattr(s.get(type(row), row.id), field_, then)  # the background write
+    with db.tx(unscoped="test") as s:
+        s.add(row)  # the copy read at version 1
+        setattr(row, field_, last)
+    with db.read(unscoped="test") as s:
+        now = s.get(type(row), row.id)
+        assert (getattr(now, field_), now.version) == (last, 3)
+    assert type(row) in mapping.COUNTED
+
+
+def test_a_signup_request_written_only_by_a_persons_action_is_locked(db):
+    """schema.md §2: no background task writes a sign-up request, only the sign-up, its
+    confirmation and an admin's decision, each a person's own action: a write from a copy read
+    before another save is refused for its version."""
+    from sqlalchemy.orm.exc import StaleDataError
+
+    from moolakata.store import mapping
+    from moolakata.store.entities.users import SignupRequest
+
+    req = SignupRequest(
+        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
+        passwordHash="h", sex="male", confirmTokenHash="t",
+        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+    )  # fmt: skip
+    with db.tx(unscoped="test") as s:
+        s.add(req)
+    assert SignupRequest not in mapping.COUNTED
+    with db.tx(unscoped="test") as s:
+        s.get(SignupRequest, req.id).status = "waiting"
+    with pytest.raises(StaleDataError), db.tx(unscoped="test") as s:
+        s.add(req)  # the copy read at version 1
+        req.status = "rejected"
+
+
+def _a_link(s) -> str:
+    from moolakata.store.entities.links import Link
+
+    link = Link(id=ids.new_id("Link"), state="active", role="inviter")
+    s.add(link)
+    s.flush()
+    return link.id
+
+
 def test_partial_unique_index_ignores_deleted(db):
     with db.tx(unscoped="test") as s:
         a = new_user(s)
@@ -117,6 +275,7 @@ def test_schema_checks_catch_breaks():
     assert any("WITHOUT ROWID" in p for p in problems)
     assert any("no row in schema.md" in p for p in problems)
     assert any("soft-delete" in p or "lacks" in p for p in problems)
+    assert any("(schema.md §2)" in p for p in problems)
     assert any("say how it is seen" in p for p in problems)
 
 
@@ -189,7 +348,9 @@ def test_live_leaves_out_deleted_records(db):
     assert names == ["b"]
 
 
-def test_a_newer_database_refuses_the_start(store, keyed_config, master_key):
+def test_a_newer_database_refuses_the_unlock(store, keyed_config, master_key):
+    """S13.6: the store is opened at the unlock, once the phrase opens the database, and a
+    database from a newer release is refused there."""
     with store.db.engine.begin() as conn:
         conn.exec_driver_sql("UPDATE \"SchemaRevision\" SET version_num = '9999'")
     store.db.dispose()
@@ -1108,6 +1269,99 @@ def test_0057_clears_a_label_on_any_relation_but_family_and_refuses_one(tmp_path
         with pytest.raises(Exception, match="ck_Relationship_label"):
             q("UPDATE \"Relationship\" SET label = 'aunt' WHERE id = ?", (friend,))
         assert q("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
+def test_0065_counts_a_pledge_from_the_period_it_was_last_changed_in(tmp_path):
+    """S7.9.5: a pledge made before counts from the month (or year) of its last change; an
+    organisation without one has no period, and a pledge without one is refused from then on."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    stamp = "2026-10-01 00:00:00"
+    uid, pid = ids.new_id("User"), ids.new_id("Persn")
+    monthly, yearly, none = (ids.new_id("Orgzn") for _ in range(3))
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0064")
+        conn.commit()
+        q = conn.exec_driver_sql
+        q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+          "VALUES (?, 'Jane', 'female', ?, ?)", (pid, stamp, stamp))  # fmt: skip
+        q('INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+          "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+          (uid, pid, stamp, stamp))  # fmt: skip
+        for oid, pledge, every, changed in (
+            (monthly, 5000, "month", "2026-09-14T08:00:00.000000Z"),
+            (yearly, 30000, "year", "2025-06-02T08:00:00.000000Z"),
+            (none, None, None, stamp),
+        ):
+            q('INSERT INTO "Organisation" (id, "ownerId", name, pledge, "pledgeEvery", '
+              '"createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)',
+              (oid, uid, oid, pledge, every, stamp, changed))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        assert dict(q('SELECT id, "pledgeFrom" FROM "Organisation"').fetchall()) == {
+            monthly: "2026-09-01",
+            yearly: "2025-01-01",
+            none: None,
+        }
+        with pytest.raises(Exception, match="ck_Organisation_pledge_from"):
+            q('UPDATE "Organisation" SET "pledgeFrom" = NULL WHERE id = ?', (monthly,))
+    engine.dispose()
+
+
+def test_0066_gives_each_row_its_version_and_times_from_its_own(tmp_path):
+    """schema.md §2: a row of a table that had no version or times gets version 1, made when
+    its own time says and changed at the latest it keeps; one that keeps none, the
+    migration's time."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made, seen, last = (
+        "2026-09-01T08:00:00.000000Z",
+        "2026-09-14T08:00:00.000000Z",
+        "2026-10-02T08:00:00.000000Z",
+    )
+    uid, pid = ids.new_id("User"), ids.new_id("Persn")
+    act, alert, state, sess = (ids.new_id(p) for p in ("Actv", "Alert", "AlSt", "Sessn"))
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0065")
+        conn.commit()
+        q = conn.exec_driver_sql
+        q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+          "VALUES (?, 'Jane', 'female', ?, ?)", (pid, made, made))  # fmt: skip
+        q('INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+          "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)", (uid, pid, made, made))  # fmt: skip
+        q("INSERT INTO \"Activity\" (id, at, kind) VALUES (?, ?, 'x')", (act, seen))
+        q('INSERT INTO "Alert" (id, kind, "causeKey", title, "seenSince", "openedAt") '
+          "VALUES (?, 'k', 'c', 't', ?, ?)", (alert, made, last))  # fmt: skip
+        q(
+            'INSERT INTO "AlertState" (id, "alertId", "userId") VALUES (?, ?, ?)',
+            (state, alert, uid),
+        )
+        q('INSERT INTO "Session" (id, "tokenHash", "userId", "createdAt", "lastSeenAt", '
+          '"expiresAt", "authAt") VALUES (?, \'h\', ?, ?, ?, ?, ?)',
+          (sess, uid, made, last, "2027-01-01T00:00:00.000000Z", seen))  # fmt: skip
+        conn.commit()
+
+    before = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        row = lambda t, i: tuple(  # noqa: E731
+            conn.exec_driver_sql(
+                f'SELECT version, "createdAt", "updatedAt" FROM "{t}" WHERE id = ?', (i,)
+            ).one()
+        )
+        assert row("Activity", act) == (1, seen, seen)
+        assert row("Alert", alert) == (1, made, last)
+        assert row("Session", sess) == (1, made, last)
+        version, created, updated = row("AlertState", state)
+        assert version == 1 and created == updated and created >= before
     engine.dispose()
 
 

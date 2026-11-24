@@ -537,7 +537,7 @@ function PauseDialog({ close, link }) {
           }.`
           : null}>
         <${TypedInput} kind="duration" value=${span} onInput=${setSpan}
-          reset=${{ value: '1d', label: '1 day' }} placeholder="ex: 1d 4h" />
+          reset=${{ value: '1d', label: '1 day' }} max="52w" placeholder="ex: 1d 4h" />
         </${Field}>
         <${FormError} error=${go.error} shown=${['for']} />
         </${Dialog}>

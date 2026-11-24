@@ -22,6 +22,7 @@ from moolakata.receipts import retention
 INVENTORY = {
     "backups": "the database by SQLite's backup, consistent on its own: none",
     "pruning": "sessions and one-time tokens, in one transaction: none",
+    "certificate": "the self-signed pair's files, each written whole and renamed: none",
     "prices": "price rows, in transactions: none",
     "mail": "the mail folder's files, its own: none",
     "options": "expiries, in transactions: none",

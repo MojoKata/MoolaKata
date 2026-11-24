@@ -37,4 +37,5 @@ to send.
 ## Share These Accounts Too
 
 A portfolio's viewers see only the accounts in it that are shared with them. This shares the missing
-ones you own, at Read.
+ones you own, at Read, with the group or person the portfolio is shared with: a group's members hold
+them while they are in it, and lose them when they leave.

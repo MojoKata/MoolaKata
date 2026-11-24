@@ -20,7 +20,10 @@ Tags, separated by commas, for giving by cause: Faith, Hunger, Local.
 
 ## Pledge
 
-An amount promised, shown as expected donations until the year's end.
+An amount promised, shown as expected donations until the year's end. It is due from the 25th of
+each month (December 1 for a yearly one), counted from the month or year you set it in: a month
+missed stays due, and a later gift pays the oldest first. Changing the amount or how often starts
+the count again; clearing it ends the pledge.
 
 ## Every {#pledge-every}
 

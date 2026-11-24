@@ -66,15 +66,17 @@ class Server:
     api_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(600, 60))
     upload_rate: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 3600))
     sign_in: ratelimit.SignInGuard = field(default_factory=ratelimit.SignInGuard)
-    # Password resets, re-authentications, reactivations: 30 in 15 minutes per address.
+    # Re-authentication, a reset's confirm, sign-up, invitations, an email change's confirm,
+    # reactivations and the welcome's admin: 30 in 15 minutes per address. A reset request
+    # counts toward the sign-in lockout instead (S13.7.5.1).
     password_asks: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(30, 15 * 60))
     # Nonces of linked servers' calls, so none is accepted twice (S11.1.3).
     link_nonces: Nonces = field(default_factory=Nonces)
     # The paired connector's calls (S18.4.3): its nonces, and 60 calls a minute (S13.7.5.4).
     conn_nonces: Nonces = field(default_factory=Nonces)
     conn_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
-    # Calls to /connector that fail their checks, or that a stranger's key signs (a pairing),
-    # 60 a minute per address: never against the key a call names.
+    # Calls to /connector that fail their checks, that a stranger's key signs (a pairing), and
+    # the hello, 60 a minute per address: never against the key a call names.
     conn_unknown: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     # Linked servers' calls (S13.7.5.4): 60 a minute per link, counted once a call's
     # signature checks; those that fail their checks, a stranger's join and the hello, 60 a
@@ -204,7 +206,8 @@ def create_app(server: Server) -> FastAPI:
     def healthz():
         """`ok` once unlocked and ready; `uninitialised` until the welcome makes the key
         (S15.4.4), `locked` until the phrase is entered (S15.4.3), and `starting` in between:
-        all 503, which an uptime monitor reports."""
+        all 503, which an uptime monitor reports. It answers any address, so it names no
+        release (S13.6)."""
         status = (
             "ok"
             if server.ready
@@ -217,7 +220,7 @@ def create_app(server: Server) -> FastAPI:
             else "uninitialised"
         )
         return JSONResponse(
-            {"status": status, "version": server.version},
+            {"status": status},
             status_code=200 if server.ready else 503,
             headers={"Cache-Control": "no-store"},
         )
@@ -320,12 +323,17 @@ def create_app(server: Server) -> FastAPI:
     # Last: its catch-alls answer for paths no route above has.
     app.include_router(static.router(static.Static(server.version, server.config.dev)))
 
-    # The last added runs first: the client's address, then the log, the headers, the Origin
-    # check, the body limit, and last the gate that answers for a locked server.
-    # Locked: no store and not ready. A test's bare server (no store, ready) is not locked.
+    # The last added runs first: the client's address, then the log, the headers, the address
+    # ranges (inside the log and the headers, so their 404 has both: S13.7.7, S13.7.9), the
+    # Origin check, the body limit, and last the gate that answers for a locked server.
+    # Until it is ready the server is locked (no store) or starting (the store open, the rest of
+    # the unlock still running, S13.6). A test's bare server (no store, ready) is open.
     app.add_middleware(middleware.Confirmations)
     app.add_middleware(middleware.Created)
-    app.add_middleware(middleware.Locked, locked=lambda: server.store is None and not server.ready)
+    app.add_middleware(
+        middleware.Locked,
+        state=lambda: None if server.ready else "locked" if server.store is None else "starting",
+    )
     app.add_middleware(middleware.SessionCookie, max_age=server.session_max_age)
     app.add_middleware(
         middleware.BodyLimit,
@@ -334,9 +342,9 @@ def create_app(server: Server) -> FastAPI:
         session_user=server.session_user,
     )
     app.add_middleware(middleware.OriginCheck)
+    app.add_middleware(middleware.AddressRanges, ranges=server.network_ranges)
     app.add_middleware(middleware.SecurityHeaders, tls=server.config.mode == "tls")
     app.add_middleware(middleware.AccessLog)
-    app.add_middleware(middleware.AddressRanges, ranges=server.network_ranges)
     app.add_middleware(
         middleware.ClientAddress, mode=server.config.mode, trusted=server.config.trusted_proxies
     )

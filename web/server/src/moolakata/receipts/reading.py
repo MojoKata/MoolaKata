@@ -62,12 +62,15 @@ MAX_LINE = 2_000
 class Worker:
     """One worker process (worker.py), started when first needed and again after a crash or a
     timeout: no environment, no file descriptor but its pipes, and length-prefixed JSON both
-    ways, never pickles (S9.8.4.2). `state` is what its sandbox holds, as it said at start."""
+    ways, never pickles (S9.8.4.2). `state` is what its sandbox holds, as it said at start.
+    It is started again whenever the next file is another user's than the last, so a file
+    that takes it over sees only its own user's files after it (S9.8.4.2)."""
 
     def __init__(self, data_dir=None) -> None:
         self.proc = None
         self.data_dir = data_dir
         self.state: dict | None = None
+        self.user: str | None = None  # whose files it has read
         self._buf = b""
 
     def _start(self) -> None:
@@ -112,9 +115,21 @@ class Worker:
             raise ValueError("an answer larger than allowed")
         return json.loads(self._exactly(n, deadline))
 
-    def call(self, op: str, data: bytes = b"", limit: float = TIME_LIMIT, **params) -> dict:
+    def call(
+        self,
+        op: str,
+        data: bytes = b"",
+        limit: float = TIME_LIMIT,
+        *,
+        user: str | None = None,
+        **params,
+    ) -> dict:
         """One job; its answer as the worker sent it, to be checked by the caller, or `error`
-        with the reason."""
+        with the reason. `user` is whose file it is: another user's than the last is read by a
+        fresh worker. Only a job with no file (the sandbox's self-test) goes without."""
+        if user is not None and user != self.user:
+            self.stop()
+            self.user = user
         if self.proc is None or self.proc.poll() is not None:
             try:
                 self._start()
@@ -145,12 +160,19 @@ class Worker:
         return out
 
     def read(
-        self, data: bytes, media: str, limit: float = TIME_LIMIT, pages: int | None = None
+        self,
+        data: bytes,
+        media: str,
+        limit: float = TIME_LIMIT,
+        pages: int | None = None,
+        *,
+        user: str,
     ) -> tuple:
         """A receipt or statement read: ("ok", lines, method, engine), or ("error", why). A
-        statement asks for more pages than a receipt's three, with a longer limit."""
+        statement asks for more pages than a receipt's three, with a longer limit. `user` is
+        whose file it is."""
         extra = {"pages": pages} if pages else {}
-        out = self.call("read", data, limit, media=media, **extra)
+        out = self.call("read", data, limit, user=user, media=media, **extra)
         if "error" in out:
             return ("error", out["error"])
         lines, method, engine = out.get("lines"), out.get("method"), out.get("engine")
@@ -176,6 +198,7 @@ class Worker:
                 with contextlib.suppress(Exception):
                     f.close()
         self.proc = None
+        self.user = None
         self._buf = b""
 
 
@@ -265,9 +288,10 @@ class Reader:
         thumb = None
         try:
             data = whole(srv, file)
-            outcome = worker.read(data, media)
+            # The owner's file: read in a worker no other user's file has been in (S9.8.4.2).
+            outcome = worker.read(data, media, user=owner)
             if not drawn:  # one the upload couldn't draw is tried again
-                thumb = parsing.thumbnail(data, media)
+                thumb = parsing.thumbnail(data, media, user=owner)
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()

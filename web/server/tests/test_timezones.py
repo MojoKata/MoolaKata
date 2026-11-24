@@ -46,3 +46,47 @@ def test_a_hosts_file_mounted_over_the_images_link_is_known_by_its_data(tmp_path
     assert zone_from({}, timezone, berlin) == "Europe/Berlin"  # a file, named by /etc/timezone
     assert zone_from({"TZ": ":America/Denver"}, timezone, link) == "America/Denver"
     assert zone_from({}, none, tmp_path / "missing") == "UTC"
+
+
+def _tzif(offset: int) -> bytes:
+    """A compiled zone file (RFC 9636, version 1) keeping one fixed offset no named zone keeps."""
+    import struct
+
+    counts = struct.pack(">6l", 0, 0, 0, 0, 1, 4)  # isut, isstd, leap, transitions, types, chars
+    return b"TZif" + b"\0" * 16 + counts + struct.pack(">lBB", offset, 0, 0) + b"ODD\0"
+
+
+def test_a_zone_no_named_zone_keeps_falls_back_to_the_names_then_utc(tmp_path):
+    """S14.9.2: a file whose time no named zone keeps (+00:17) is known by /etc/timezone's
+    name, or else by the link's, or else is UTC; a link to a file outside zoneinfo names
+    nothing."""
+    odd = tmp_path / "odd"
+    odd.write_bytes(_tzif(17 * 60))
+    assert zone_of(odd.read_bytes()) == ""
+    none = tmp_path / "no-timezone"
+    timezone = tmp_path / "timezone"
+    timezone.write_text("Europe/Berlin\n")
+    assert zone_from({}, timezone, odd) == "Europe/Berlin"
+    assert zone_from({}, none, odd) == "UTC"
+    link = tmp_path / "localtime"
+    link.symlink_to(odd)  # its target outside any zoneinfo folder: no name from the link
+    assert zone_from({}, none, link) == "UTC"
+    named = tmp_path / "zoneinfo" / "America" / "Chicago"
+    named.parent.mkdir(parents=True)
+    named.write_bytes(_tzif(17 * 60))
+    named_link = tmp_path / "named"
+    named_link.symlink_to(named)
+    assert zone_from({}, none, named_link) == "America/Chicago", "the link's name, last"
+
+
+def test_with_no_zone_table_the_first_name_found_is_the_zones(tmp_path, monkeypatch):
+    """tzdata without zone1970.tab: of names for the same zone, the first found stands."""
+    from moolakata import timezones
+
+    monkeypatch.setattr(timezones, "TZPATH", (str(tmp_path),))
+    timezones._listed.cache_clear()
+    try:
+        assert timezones.canonical(["US/Pacific", "America/Los_Angeles"]) == "US/Pacific"
+        assert timezones.canonical([]) == ""
+    finally:
+        timezones._listed.cache_clear()

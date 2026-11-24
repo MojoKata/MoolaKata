@@ -7,8 +7,10 @@
       portfolio's value is the value of what they can see. This holds across a link too.
    2. **Sharing a portfolio** whose accounts are not all shared with the people chosen: the
       Share dialog names the accounts each of them can't see and offers **Share these
-      accounts too** (at read, and only for accounts the owner may share). Declining keeps
-      them hidden from those people.
+      accounts too** (at read, and only for accounts the owner may share), each with the
+      group or person the portfolio is shared with, so a group's members hold the accounts
+      while they are in it (S10.5); a person gets a share of their own only for what no group
+      of theirs gets. Declining keeps them hidden from those people.
    3. A portfolio never includes an account from a linked server: linked data is shown only
       in its own window (S12.10).
 2. **Charts each portfolio has:**
@@ -19,7 +21,8 @@
       brought), a loan's opening balance and its draws; a move between two of the portfolio's
       accounts is none;
    2. **Performance**: time-weighted and money-weighted (IRR) returns per period, per account
-      and per portfolio;
+      and per portfolio; a period that begins before the history does (the year to date
+      included) shows a dash, never a shorter period's return under its name;
    3. **Holdings**: what the portfolio holds, by account and by instrument, with each loan
       (what is still owed) and each item (what it is worth, S1.10) on a row of its own; its
       total is the portfolio's value. A weight is a share of what is held, cash and items

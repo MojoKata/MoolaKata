@@ -19,7 +19,7 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 
 ```
  connector                                                  MoolaKata
-   |  GET  /connector/v1/hello                                 |  unsigned: {protocol, version, fingerprint, key}
+   |  GET  /connector/v1/hello                                 |  unsigned: {protocol, fingerprint, key}
    |---------------------------------------------------------->|
    |  POST /connector/v1/pair {code, sealingKey, statusKey, …} |  once; signed by the new action key
    |---------------------------------------------------------->|
@@ -142,7 +142,7 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 
 | Path | Signed by | What it does |
 |---|---|---|
-| `GET /connector/v1/hello` | no one | `{protocol, version, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything |
+| `GET /connector/v1/hello` | no one | `{protocol, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything; unsigned, it names no MoolaKata release |
 | `POST /connector/v1/pair` | the connector's new action key | introduces the connector with a pairing code (section 4.1) |
 | `POST /connector/v1/report` | the action key; the status key while locked | the connector's state every 5 minutes, answered with the work waiting; locked, only that it is locked (section 4.2) |
 | `POST /connector/v1/connections/{id}/credential/taken` | the action key | the sealed credential was filed in the vault: MoolaKata deletes its copy (section 4.3) |
@@ -157,7 +157,8 @@ A call the status key signs but may not make is refused `status-key`.
 1. An admin's **Pair** (Settings › Connector) makes a pairing code: `mkp1.` and unpadded
    base64url of `{"a": address, "f": fingerprint, "c": secret, "t": certificate}`, as a link
    code is (`link-protocol.md` §4.1), `a` the address of section 1.1 and `t` present when
-   MoolaKata's certificate is its own.
+   MoolaKata's certificate is its own: the one read at `a`, or, when MoolaKata can't reach `a`
+   and serves TLS itself, its listener's. A report's answer names the same one.
    MoolaKata keeps only the SHA-256 of the secret and the code's expiry (24 hours); a code
    works once. Making a code needs the admin's password again (S13.7.2).
 2. `moolakata-connector pair <code>`, run with the vault unlocked (it is refused otherwise,
@@ -365,7 +366,8 @@ for an account or Connection that doesn't exist or isn't this connector's, 413 f
 large, 500 for a fault), signed as section 3 says when the call carried a nonce. Four are made
 before the call's signature is checked, on its headers or as its body arrives, and are
 **unsigned**, as JSON with `code`: `locked`, `uploads-in-flight`, `limit` for an address past
-the calls that failed their checks (S13.7.5.4), and `too-large` for a body past the hard limit.
+the 60 a minute of its calls that failed their checks and its `hello`s (S13.7.5.4), and
+`too-large` for a body past the hard limit.
 The connector acts on those four by their status and code, and on no other unsigned answer,
 which it treats as a failed call (`answer-unsigned`).
 

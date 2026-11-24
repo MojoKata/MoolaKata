@@ -53,7 +53,7 @@ def dev_config(
 def refuse_dev(config: Config) -> None:
     if os.geteuid() == 0:
         raise RefuseStart("dev mode does not run as root")
-    # Only from a checkout (S17.6): the image carries no dev.sh, so its seed users and their
+    # Only from a checkout (S17.7): the image carries no dev.sh, so its seed users and their
     # fixed password never run where a household's server does.
     from . import paths
 
@@ -117,8 +117,8 @@ def cmd_health(args) -> int:
     config = configured(args.config)
     scheme = "https" if config.mode == "tls" else "http"
     try:
-        # Loopback to this container's own listener; its certificate may be self-signed.
-        r = httpx.get(f"{scheme}://127.0.0.1:{config.port}/healthz", verify=False, timeout=4)  # noqa: S501
+        # This container's own listener, where it binds; its certificate may be self-signed.
+        r = httpx.get(f"{scheme}://{config.local}/healthz", verify=False, timeout=4)  # noqa: S501
     except httpx.HTTPError as e:
         print(f"unhealthy: {e}", file=sys.stderr)
         return 1

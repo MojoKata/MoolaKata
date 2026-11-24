@@ -7,7 +7,7 @@ import datetime as dt
 import json
 
 import pytest
-from conftest import ORIGIN, make_user, new_client, sign_in
+from conftest import ADMIN_PW, ORIGIN, make_user, new_client, sign_in, stale
 from edits import save_settings
 
 from moolakata import alerts, clock, exactjson, ids, settings
@@ -151,6 +151,11 @@ def test_a_connector_reporting_from_a_new_address_is_alerted_until_accepted(
     alerts.evaluate(server)
     kinds_open = [a["kind"] for a in admin.get("/ui/api/alerts").json()["open"]]
     assert "connector-moved" in kinds_open
+    # Accepting it needs the password again (S13.7.2).
+    stale(server)
+    r = admin.post("/ui/api/settings/connector/accept-address")
+    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    assert admin.post("/ui/api/session/reauth", json={"password": ADMIN_PW}).status_code == 204
     assert admin.post("/ui/api/settings/connector/accept-address").status_code == 200
     view = admin.get("/ui/api/settings/connector").json()
     assert view["knownAddress"] == "10.9.9.9"
@@ -227,6 +232,7 @@ def test_pairing_takes_the_code_once_and_records_the_keys(server, admin, client)
     fake = FakeConnector(server, client)
     hello = client.get("/connector/v1/hello").json()
     assert hello["protocol"] == PROTOCOL and hello["fingerprint"] == fake.fp
+    assert set(hello) == {"protocol", "fingerprint", "key"}, "unsigned: no release named"
     code = pair_code(admin)
     view = admin.get("/ui/api/settings/connector").json()
     assert view["state"] == "pairing" and view["codeExpiresAt"]
@@ -314,6 +320,54 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
         assert manage.paired(s) is None
 
 
+def test_no_pairing_code_while_this_servers_own_certificate_cant_be_read(
+    server, admin, monkeypatch
+):
+    """S18.4.1: a pairing code carries this server's certificate key when the certificate is
+    its own, so none is made while that certificate can't be read, and the dialog says why."""
+    from moolakata import certs
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    monkeypatch.setattr(certs, "_cached", {})
+    r = admin.post("/ui/api/settings/connector/pairings")
+    assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
+    assert r.json()["detail"] == (
+        "This server can't read its own certificate at the address the connector reaches it at: "
+        "check that address in Settings › Connector."
+    )
+    with server.db.read(unscoped="test") as s:
+        assert manage.current(s) is None
+
+
+def test_a_pairing_codes_pin_is_read_at_the_connector_address_it_carries(
+    server, admin, client, monkeypatch
+):
+    """S18.4.1: the connector connects to the address the code carries, never the link
+    address, so the certificate it pins is the one read there; a report's answer announces
+    that one too (connector-protocol.md §1.2). The guard lets both addresses be read (S13.5)."""
+    from moolakata import certs
+    from moolakata.ui.prices import apply_egress
+
+    at_link, at_connector = "aa" * 32, "bb" * 32
+    served = {"https://link.test": at_link, "https://money.lan:37373": at_connector}
+    monkeypatch.setattr(certs, "_probe", lambda guard, address: served[address])
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://link.test", None)
+        settings.put(s, "connectorAddress", "https://money.lan:37373", None)
+    apply_egress(server)
+    assert {"link.test", "money.lan"} <= server.guard.snapshot()[0]
+    code = pair_code(admin)
+    assert manage.decode_code(code)["a"] == "https://money.lan:37373"
+    assert manage.decode_code(code)["t"] == at_connector
+    fake = FakeConnector(server, client)
+    assert fake.pair(code).status_code == 200
+    r = fake.call("/connector/v1/report", {"locked": True, "connections": []})
+    assert r.status_code == 200 and r.json()["certificate"] == at_connector
+
+
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", None, None)
@@ -328,6 +382,16 @@ def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admi
     finally:
         clock.fix(None)
     assert r.status_code == 403 and r.json()["code"] == "code-used"
+
+
+def test_the_hello_is_limited_by_address(server):
+    # S13.7.5.4: `/connector` follows `/link`'s rules, the hello 60 a minute per address, past
+    # them refused `limit`, unsigned (connector-protocol.md §7).
+    with new_client(server) as c:
+        answers = [c.get("/connector/v1/hello") for _ in range(61)]
+    assert [r.status_code for r in answers[:60]] == [200] * 60
+    assert answers[60].status_code == 429 and answers[60].json()["code"] == "limit"
+    assert answers[60].headers["retry-after"]
 
 
 def test_calls_are_signed_and_answers_are_signed_back(server, paired, client):
@@ -708,9 +772,11 @@ def test_a_connection_that_needs_a_sign_in_alerts_its_owner_and_admins(server, p
     c = sign_in(server, "jane")
     mine = c.get("/ui/api/alerts").json()["open"]
     assert [a["title"] for a in mine] == ["Jane's Schwab login needs a sign-in"]
-    assert mine[0]["fix"] == "Sign In Again"
+    assert mine[0]["fix"] == "Sign In Again" and mine[0]["about"] == "Connection · weekly"
+    # S12.11.1.1: the admins' copy names whose Connection it is.
     theirs = admin.get("/ui/api/alerts").json()["open"]
-    assert any(a["title"] == "Jane's Schwab login needs a sign-in" for a in theirs)
+    (a,) = [a for a in theirs if a["title"] == "Jane's Schwab login needs a sign-in"]
+    assert a["about"] == "Connection · Jane's · weekly"
 
 
 def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin):
@@ -771,6 +837,23 @@ def test_network_ranges_decide_who_reaches_each_path(server, admin):
     assert AddressRanges._allowed("anything", [])
     assert AddressRanges._allowed("100.100.1.1", settings.LAN_AND_OVERLAY)
     assert not AddressRanges._allowed("8.8.8.8", settings.LAN_AND_OVERLAY)
+
+
+def test_an_address_outside_the_ranges_gets_its_404_with_the_headers_and_a_log_line(
+    server, admin, caplog
+):
+    """S13.7.7, S13.7.9: the refusal of an address Settings › Network leaves out carries the
+    headers every response does, and is logged as every request is."""
+    assert save_settings(admin, {"networkLinkRanges": ["10.0.0.0/8"]}).status_code == 200
+    with new_client(server) as c, caplog.at_level("INFO", logger="moolakata.access"):
+        r = c.get("/link/v1/hello")
+    assert r.status_code == 404
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert any(
+        rec.name == "moolakata.access" and rec.getMessage().startswith("GET /link/v1/hello 404")
+        for rec in caplog.records
+    ), caplog.text
 
 
 def activity_rows(server):

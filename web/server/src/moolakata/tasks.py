@@ -103,8 +103,11 @@ class ProviderLimits:
         self._clock = clock
 
     def set(self, provider: str, limits: Sequence[tuple[int, float]]) -> None:
+        """Set at every refresh: the calls already made in each window still count, so a
+        refresh soon after another keeps within the provider's limits (S13.4)."""
         with self._lock:
-            self._windows[provider] = [Window(n, s) for n, s in limits]
+            made = {w.seconds: w.seen for w in self._windows.get(provider, [])}
+            self._windows[provider] = [Window(n, s, made.get(s, deque())) for n, s in limits]
 
     def delay(self, provider: str) -> float:
         """Seconds until a call is allowed; 0 records the call."""

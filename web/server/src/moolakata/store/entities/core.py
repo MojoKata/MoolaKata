@@ -1,7 +1,7 @@
 import datetime as dt
 from dataclasses import dataclass, field
 
-from . import Record, _now
+from . import Kept, Record, _now
 
 
 @dataclass(kw_only=True, eq=False)
@@ -13,7 +13,7 @@ class Setting(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class Secret:
+class Secret(Kept):
     id: str
     recordType: str
     recordId: str
@@ -34,7 +34,7 @@ class TaskRun:
 
 
 @dataclass(kw_only=True, eq=False)
-class QueuedEmail:
+class QueuedEmail(Kept):
     id: str
     recipient: str
     subject: str
@@ -46,7 +46,7 @@ class QueuedEmail:
 
 
 @dataclass(kw_only=True, eq=False)
-class Activity:
+class Activity(Kept):
     id: str
     kind: str
     at: dt.datetime = field(default_factory=_now)

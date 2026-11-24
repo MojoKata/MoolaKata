@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from ...ids import new_id
-from . import Record, SoftDeleted, _now
+from . import Kept, Record, SoftDeleted, _now
 
 
 @dataclass(kw_only=True, eq=False)
@@ -348,7 +348,7 @@ class StrategyLeg(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class WashSale:
+class WashSale(Kept):
     id: str
     ownerId: str
     saleId: str
@@ -382,7 +382,7 @@ class TransactionWalletKey(SoftDeleted):
 
 
 @dataclass(kw_only=True, eq=False)
-class WalletAddress:
+class WalletAddress(Kept):
     id: str
     accountId: str
     keyId: str

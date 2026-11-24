@@ -68,5 +68,6 @@ token and recorded in Activity under the token's name. Answers carry exact numbe
 | `list_tax_books`       | the tax books the user can see (*household*)                  | none |
 | `get_tax_panels`       | a tax book's panels and what is missing (*household*)         | `book_id` |
 
-`tools/list` gives each tool's full argument schema. A test fails when a tool is missing from
+Tool names and arguments are snake_case, as MCP tools' are; the answers' fields are camelCase,
+as `/ui/api`'s. `tools/list` gives each tool's full argument schema. A test fails when a tool is missing from
 this table.

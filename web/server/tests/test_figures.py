@@ -23,6 +23,24 @@ def test_twr_ignores_contributions_and_irr_weighs_them():
     assert perf.irr(d(2026, 1, 1), D(0), {}, d(2026, 12, 31), D(0)) is None
 
 
+def test_a_period_the_history_doesnt_reach_back_over_is_a_dash():
+    """S5.2.2: weekly points over five years to Oct 13, 2026. An account opened Jul 1, 2026
+    has a 1M and a 3M return, and a dash for the year to date, 1Y, 3Y and 5Y, never its 3½
+    months under their names; one opened Jan 1, 2025 has every period but 3Y and 5Y."""
+    from moolakata import figures
+
+    today = d(2026, 10, 13)
+    days = [today - dt.timedelta(days=7 * k) for k in range(261)][::-1]
+
+    def returns(opened):
+        values = [(x, D(0) if x < opened else D(1000) + (x - opened).days) for x in days]
+        return {k for k, v in figures.period_returns(values, {}, today).items() if v is not None}
+
+    assert returns(d(2026, 7, 1)) == {"1M", "3M"}
+    assert returns(d(2025, 1, 1)) == {"1M", "3M", "YTD", "1Y"}
+    assert returns(days[0]) == {"1M", "3M", "YTD", "1Y", "3Y", "5Y"}
+
+
 def test_benchmark_gets_the_same_money():
     values = [(d(2026, 1, 1), D(100)), (d(2026, 1, 2), D(205)), (d(2026, 1, 3), D(210))]
     flow = {d(2026, 1, 2): D(100)}
@@ -165,14 +183,15 @@ def test_a_portfolio_keeps_a_closed_account_up_to_the_day_it_closed(server):
 
 
 def test_a_portfolios_returns_count_a_closed_accounts_gain(server):
-    # An account's gain before it closed stays in the portfolio's returns (R3.10).
+    # An account's gain before it closed stays in the portfolio's returns (R3.10). Both opened
+    # the year before, so the year to date is theirs whole (S5.2.2).
     make_user(server, "jane")
     c = sign_in(server, "jane")
-    a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2026-06-30")
-    add(c, a["id"], "1000.00", "2026-07-01", kind="deposit")
+    a = new_account(c, name="Closed", mask="3333", openingBalance="0.00", openingDate="2025-11-30")
+    add(c, a["id"], "1000.00", "2025-12-01", kind="deposit")
     add(c, a["id"], "100.00", "2026-08-01", kind="interest")
-    keep = new_account(c, name="Kept", mask="4444", openingBalance="0.00", openingDate="2026-06-30")
-    add(c, keep["id"], "1000.00", "2026-07-01", kind="deposit")
+    keep = new_account(c, name="Kept", mask="4444", openingBalance="0.00", openingDate="2025-11-30")
+    add(c, keep["id"], "1000.00", "2025-12-01", kind="deposit")
     p = make(c, "Portf", name="Both", accountIds=[a["id"], keep["id"]]).json()
     before = c.get(f"/ui/api/portfolios/{p['id']}/returns").json()["items"][-1]["periods"]
     assert edit(c, "Acct", f"/ui/api/accounts/{a['id']}", closedOn="2026-08-15").status_code == 200

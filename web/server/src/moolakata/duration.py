@@ -1,7 +1,7 @@
 """Durations as people type them (requirements S12.13): one or more parts, each a whole number
 and a unit, `w` (weeks), `d` (days), `h` (hours) or `m` (minutes), largest first, each unit at
-most once, with or without spaces: `1d`, `90m`, `2w 3d 4h`, `2w3d`. The browser has the same
-helper in app/duration.js."""
+most once, with or without spaces: `1d`, `90m`, `2w 3d 4h`, `2w3d`, and at most 52 weeks. The
+browser has the same helper in web/ui/kit/duration.js."""
 
 import datetime as dt
 import re
@@ -14,6 +14,10 @@ UNITS = {
 }
 ORDER = "wdhm"
 PART = re.compile(r"\s*(\d+)\s*([a-zA-Z]+)\s*")
+# The longest a duration is (S12.13): a pause, the one asked for, ends on its own within a
+# year (S11.7.2).
+LONGEST = dt.timedelta(weeks=52)
+TOO_LONG = "A duration is at most 52w."
 
 
 class DurationError(ValueError):
@@ -38,10 +42,15 @@ def parse(text: str) -> dt.timedelta:
         if at < last:
             raise DurationError("Give the units largest first: w, then d, then h, then m.")
         last = at
-        total += int(m.group(1)) * UNITS[unit]
+        try:
+            total += int(m.group(1)) * UNITS[unit]
+        except OverflowError, ValueError:  # past what a timedelta, or an int, holds
+            raise DurationError(TOO_LONG) from None
         pos = m.end()
     if total <= dt.timedelta(0):
         raise DurationError("A duration is at least a minute.")
+    if total > LONGEST:
+        raise DurationError(TOO_LONG)
     return total
 
 

@@ -6,7 +6,10 @@ both serve HTTPS themselves on port 37373 with a self-signed certificate the ser
 (`tls` mode, requirements S13.3), which is what a test on a local network needs. A server the
 household relies on is given a certificate of its own, or goes behind its reverse proxy
 ([`operations.md`](operations.md) §2), and `operations.md` is the runbook for everything after
-the install: upgrades, backups, restoring, keys and the connector.
+the install: upgrades, backups, restoring, keys and the connector. A server that serves HTTPS
+itself makes link invitations and pairing codes even when it can't reach its own public
+address (a router with no NAT hairpinning); behind a proxy that terminates TLS, the server
+must reach its own address, where it reads the proxy's certificate for the code to carry.
 
 The steps were run on Proxmox VE 9.2 with a Debian 13 guest and Docker Engine 29, and on
 TrueNAS Community Edition 25.10.7, each pulling the published 0.1.0 images (§2) and, on the VM,
@@ -15,9 +18,11 @@ server built from the same source.
 
 ## 1. What you need
 
-- **A host**: amd64 or arm64 (S17.8.1), with **2 GB of memory** for MoolaKata (1 GB with
-  receipt reading turned off, Settings › Receipts) and about **3 GB of disk** for the image
-  and the data.
+- **A host**: amd64 or arm64 (S17.8.1), with **4 GB of memory** for MoolaKata, the limit
+  its TrueNAS app is given (S17.8): the server stays under 1 GB, the reader of receipts and
+  statements may hold 1.5 GB more (S9), and the rest is the host's room; 2 GB is enough
+  with both turned off (Settings › Receipts, Settings › Imports). About **3 GB of disk** for the image and the
+  data.
 - **Internet access** from the host to `ghcr.io`, where the images are published, and to
   `github.com` and `release-assets.githubusercontent.com` for the release's example files.
 - **Paper and a pen.** The server's master key is a **recovery phrase** of 12 words, shown
@@ -86,8 +91,8 @@ In the Proxmox web UI, select the node and open **Shell**, then:
 2. **Put your SSH public key** in a file, for the VM's user: paste it into
    `/root/moolakata.pub` (`nano /root/moolakata.pub`). It is the `.pub` file in `~/.ssh` on
    your own computer; `ssh-keygen -t ed25519` there makes one if you have none.
-3. **Make the VM**: 2 cores, 4 GB of memory (MoolaKata needs 2 GB; the rest leaves the
-   receipt reader room), a 32 GB disk made from the image, and a cloud-init drive. `120` is the VM's id
+3. **Make the VM**: 2 cores, 4 GB of memory (what MoolaKata needs with its reader, §1), a
+   32 GB disk made from the image, and a cloud-init drive. `120` is the VM's id
    and `local-lvm` the storage for its disks: use a free id, and your storage if it differs
    (**Datacenter › Storage** lists them; a ZFS install calls it `local-zfs`).
 
@@ -295,8 +300,8 @@ for backups and emails.
   locked or open alike. Whatever restarts the app locks it: the NAS restarting (a TrueNAS
   update among them), the Apps service stopping or moving to another pool, and every **Edit**
   of the app's YAML, upgrades included (§6). `https://192.168.1.20:37373/healthz` says which
-  it is, `uninitialised`, `locked` or `ok`, and an uptime monitor pointed at it notices a
-  lock (operations.md §5).
+  it is, `uninitialised`, `locked`, `re-encrypting` or `starting` (each for a while at the
+  unlock) or `ok`, and an uptime monitor pointed at it notices a lock (operations.md §5).
 - Deleting the app (the app's **Delete**) offers **Remove Images**, ticked. Either way the
   datasets stay as they are, and the image is pulled again by the next install.
 

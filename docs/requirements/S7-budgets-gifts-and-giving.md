@@ -305,9 +305,12 @@
    5. **Organisations**: the name, EIN (optional), whether gifts to it are **deductible**
       (a 501(c)(3) charity, or not, such as a political campaign or a person), causes (tags),
       and **pledges** (an amount a month or a year, shown as expected donations). A pledge
-      is **due** from the 25th of the month for a monthly one, and from December 1 for a
-      yearly one, while less than it has been given to the organisation in that month or year;
-      a due pledge raises an alert to its owner (S12.11.1.3), resolved by the donation.
+      is counted from the month or year it was set in: each month's is **due** from its 25th,
+      a yearly one's from December 1, and is met by what has been given to the organisation
+      since (S7.9.3), a late gift meeting the oldest period first. A due pledge raises an
+      alert to its owner (S12.11.1.3) that stays until what is due has been given. Changing
+      the pledge's amount or period counts it again from the period it is changed in, and
+      clearing it ends its alert: a period missed is forgiven only by the user's change.
    6. **The Giving screen**: given against the target and against the pace to date, the
       projected year end (what is given, and the pledges still expected: a monthly one's for
       this month less what was given to it this month, and for each month after; a yearly

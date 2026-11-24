@@ -26,8 +26,9 @@ locked screen in a browser or with `docker compose exec moolakata moolakata keys
 own HTTPS (`tls` mode): with a certificate given in `[tls]`, for real use, or with none, a
 self-signed one it makes, for trying it on a local network. That one is kept unencrypted in
 the data directory, so anyone with a copy of the directory could pose as the server; a given
-certificate is kept outside it. A certificate is read at start: a renewed one takes effect at
-the next, which starts locked (§2 step 5). Each release
+certificate is kept outside it. A given certificate is read at start: a renewed one takes
+effect at the next, which starts locked (§2 step 5). The self-signed one is signed again, with
+the same key, within 30 days of its end, while the server runs. Each release
 has these files attached as they are at its tag
 (`https://github.com/MojoKata/MoolaKata/releases/download/v<version>/<file>`).
 
@@ -85,7 +86,7 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
    off the host is welcome, as long as the phrase never goes with it.
 3. **Start it**: `docker compose up -d`, then point the reverse proxy at it and set
    `trusted_proxies` in `moolakata.toml` to the proxy's own address, never a whole range
-   (S13.3): anything else in the range could pose as the proxy. The listener speaks plain HTTP
+   (S13.3): anything else in the range could pose as the proxy, so a range refuses the start. The listener speaks plain HTTP
    in `proxy` mode, so the compose file publishes it on the host's loopback only. A proxy in
    the same compose project (`proxy/` is written that way) reaches `moolakata:37373` by name
    and has an address of its own to trust, which is the setup to prefer: the compose file fixes
@@ -100,8 +101,9 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
    once (S10.1.2). The phrase is the key: nothing of it is written, and nothing shows it again.
    Store it as S15.6 says: two copies in two places, one offline, never with the backups.
    Whoever reaches a new server first can finish its welcome; one that asks for words nobody
-   wrote down is stopped, its `data/` emptied (the database too: a new key can't open the
-   one left behind), and started again. The welcome is the only way to make the key: no
+   wrote down is stopped, its `data/` and `backups/` emptied, everything in them and not only
+   the keyring (a new key can't open the database left behind, nor the backups), and
+   started again. The welcome is the only way to make the key: no
    command shows a phrase, since Docker's log keeps what a container's terminal shows.
 5. **Unlock it after every start**: it starts locked. Open the app and enter the phrase on the
    locked screen, or run `docker compose exec moolakata moolakata keys unlock` and type it
@@ -112,8 +114,9 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
 - **In a VM**: [`DEPLOY.md`](DEPLOY.md) §3 makes a fresh Debian VM on Proxmox VE with Docker
   and runs a test server on it in `tls` mode; for real use, the same VM runs §2's steps, with
   `compose.yaml` behind your reverse proxy, or `compose.tls.yaml` given a certificate (§1). Give
-  the VM 2 GB of memory, or 1 GB with receipt
-  reading turned off (Settings › Receipts).
+  the VM 4 GB of memory, as `DEPLOY.md` §1 says: the server stays under 1 GB and the reader of
+  receipts and statements may hold 1.5 GB more (S9); 2 GB with both turned off (Settings › Receipts,
+  Settings › Imports).
 - **In an LXC container** (*not yet tried on a real host*): turn on **nesting** (Options ›
   Features), install Docker inside, then as above.
 - Proxmox's own backups of the VM or container can include everything: no key is on the
@@ -184,9 +187,11 @@ without the phrase. Unlock after each start (§2 step 5).
    come up: `/healthz` answers `ok` once it serves.
 
 **Going back** to the earlier release: stop it, set the old tag again, and restore the copy
-made before the upgrade with `db restore data/pre-upgrade/<copy>` (or the last backup, §6). An
-older release refuses a database that a newer one has migrated: it says so in a `refusing to
-start:` line (§5.1).
+made before the upgrade (`ls data/pre-upgrade/`) with `docker compose run --rm moolakata db
+restore /var/lib/moolakata/pre-upgrade/<copy>`, as §6.1 restores a backup (or the last
+backup, §6). An
+older release refuses a database that a newer one has migrated: it starts, and refuses the
+unlock with a `refusing to unlock:` line, staying locked (§5.1).
 
 ## 4. Backups
 
@@ -218,10 +223,12 @@ start:` line (§5.1).
   while the server waits for its phrase, and `unhealthy` only when nothing answers (S13.6).
   Whether it is ready is `/healthz`'s own answer. From outside,
   point an uptime monitor (Uptime Kuma, for example) at `https://<your address>/healthz`: it
-  answers `{"status": "ok", "version": …}` once the server is unlocked and ready, 503 with
-  `"re-encrypting"` while a re-encryption runs at the unlock, 503 with `"locked"` while it
+  answers `{"status": "ok"}` once the server is unlocked and ready, 503 with
+  `"re-encrypting"` while a re-encryption runs at the unlock, 503 with `"starting"` between
+  the unlock and readiness, for a few seconds, 503 with `"locked"` while it
   waits for the phrase, which is how anyone learns that a reboot happened and the phrase is
   needed, and 503 with `"uninitialised"` on a new server, until its welcome makes the key.
+  It answers anyone, so it names no release: the version is in Settings and the log.
 - **Alerts**: problems that need someone show in Alerts for admins, and are emailed to those
   who chose it: a failed backup, a price source, email, the bitcoin node or a linked server
   failing for longer than Settings › Alerts allows, and a recovery phrase not confirmed.

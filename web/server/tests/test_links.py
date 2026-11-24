@@ -13,7 +13,7 @@ from moolakata.store.entities.links import Link
 
 def reach(srv, *hosts):
     """Let a server call these hosts, as a link to them would."""
-    srv.guard.allow(hosts, hosts)
+    srv.guard.allow(hosts, {"link": hosts})
 
 
 @pytest.fixture
@@ -56,6 +56,8 @@ def test_a_linked_server_answers_a_signed_call_and_signs_its_answer(pair):
     link(b, url_a, ka, role="joiner")
     hi = client.hello(a, url_b)
     assert hi["fingerprint"] == keys.fingerprint(kb) and hi["protocol"] == 1
+    # Unsigned, so it names no release (S13.6): the version rides on signed answers.
+    assert set(hi) == {"protocol", "fingerprint", "key"}
     out = client.call(a, url_b, kb, "/link/v1/ping")
     assert out["state"] == "active"
     with b.db.read(unscoped="test") as s:
@@ -135,6 +137,25 @@ def test_an_unreachable_peer_says_so(pair):
     assert e.value.code == "unreachable"
 
 
+def test_a_links_answer_is_read_through_the_clients_ceiling(pair, monkeypatch):
+    """S13.5: the `Wire` stands where the sockets are, so a link's answer meets `net.Client`'s
+    ceiling as on the network: one past it is refused, the peer taken as unreachable."""
+    from moolakata import net
+
+    a, b, (url_a, url_b), _ = pair
+    reach(a, "b.test")
+    link(b, url_a, public(a))
+    assert client.call(a, url_b, public(b), "/link/v1/ping")["state"] == "active"
+    monkeypatch.setattr(
+        client,
+        "_client",
+        lambda srv, pins, max_bytes=0: net.Client(srv.guard, max_bytes=16, pins=pins, use="link"),
+    )
+    with pytest.raises(client.LinkError) as e:
+        client.call(a, url_b, public(b), "/link/v1/ping")
+    assert e.value.code == "unreachable" and "ResponseTooLarge" in e.value.message
+
+
 # ---------- invitations, approval and the directory (S11.1, S11.3, S11.6)
 
 from conftest import make_user  # noqa: E402
@@ -169,6 +190,8 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     assert joined.status_code == 201, joined.text
     assert joined.json()["state"] == "pending"
     assert joined.json()["fingerprint"] == links_of(ca)["fingerprint"]
+    with b.db.read(unscoped="test") as s:
+        assert s.query(Link).one().peerVersion == a.version, "from the signed join answer"
     req = links_of(ca)["links"][0]
     assert req["state"] == "requested" and req["fingerprint"] == links_of(cb)["fingerprint"]
     # Nothing of either household crosses before the approval (S10.10.1).
@@ -534,8 +557,9 @@ def test_a_pause_lasts_its_duration_and_the_peer_isnt_alerted(admins):
 
     a, _b, ca, cb, _ = admins
     a_id, b_id = linked(ca, cb)
-    r = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "a week"})
-    assert r.json()["code"] == "duration-invalid"
+    for text in ("a week", "52w 1m", "1000000w"):  # a pause is at most 52 weeks (S11.7.2)
+        r = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": text})
+        assert (r.status_code, r.json()["code"]) == (422, "duration-invalid"), text
     out = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "2d"}).json()
     assert out["state"] == "paused" and out["pausedUntil"]
     pulled = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
@@ -770,8 +794,10 @@ def test_calls_no_known_key_signs_are_limited_by_address(server):
     from conftest import new_client
 
     with new_client(server) as c:
-        codes = [c.get("/link/v1/hello").status_code for _ in range(61)]
-    assert codes[:60] == [200] * 60 and codes[60] == 429
+        answers = [c.get("/link/v1/hello") for _ in range(61)]
+    assert [r.status_code for r in answers[:60]] == [200] * 60
+    # link-protocol.md §7: `limit`, unsigned for an address.
+    assert answers[60].status_code == 429 and answers[60].json()["code"] == "limit"
 
 
 def test_a_peers_refusal_is_told_in_this_servers_own_words():
@@ -784,6 +810,27 @@ def test_a_peers_refusal_is_told_in_this_servers_own_words():
     assert client.refusal("whatever", 403) == (
         "The other server refused the call (whatever, HTTP 403)."
     )
+
+
+def test_a_peers_code_outside_the_protocols_table_is_refused_here(pair, monkeypatch):
+    # S13.8.3: a peer never decides this server's codes. One in link-protocol.md §7's table is
+    # kept (told in this server's words); any other is `refused`, the peer's code in the log.
+    from moolakata.links import manage
+
+    a, b, (_, url_b), _ = pair
+    reach(a, "b.test")
+    for sent, kept in (
+        ("made-up", "refused"),
+        ("link-bogus", "refused"),
+        ("code-used", "code-used"),
+    ):
+        monkeypatch.setattr(manage, "answer_join", lambda *_, sent=sent: {"error": (sent, "no")})
+        with pytest.raises(client.LinkError) as e:
+            client.call(a, url_b, public(b), "/link/v1/join", {})
+        assert e.value.code == kept
+        assert e.value.code in client.LinkError.CODES
+    assert client.peer_code("link-paused") == "link-paused"
+    assert client.peer_code(["code-used"]) == "refused"
 
 
 def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_link(admins):
@@ -862,6 +909,136 @@ def test_a_released_copys_key_opens_nothing_more():
     k.release()
     with pytest.raises(WrongKey):
         k.text()
+
+
+def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, monkeypatch):
+    """link-protocol.md §4.5, S13.5: when this server's own link address can't be read for its
+    certificate (the guard refuses it, or it doesn't answer), nothing is announced and the key
+    last told stays; it isn't taken for a public certificate."""
+    from moolakata import certs, settings
+    from moolakata.links import manage
+
+    a, b, _, _ = pair
+    link(a, "https://b.test", public(b))
+    told = "aa" * 32
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkCertificate", told, None)
+        settings.put(s, "linkAddress", "https://127.0.0.1:8443", None)
+    monkeypatch.setattr(certs, "_cached", {})
+    assert certs.own_key(a) is None
+    assert manage.announce_certificate(a) == 0
+    with a.db.read(unscoped="test") as s:
+        assert settings.get(s, "linkCertificate") == told
+
+
+UNREAD = (
+    "This server can't read its own certificate at its link address: check the link address in "
+    "Settings › Linked Servers."
+)
+
+
+def test_no_invitation_while_this_servers_own_certificate_cant_be_read(admins, monkeypatch):
+    """S11.1.3: an invitation carries this server's certificate key when the certificate is its
+    own, so none is made while that certificate can't be read: the dialog says why, and no
+    link waits for a code that would leave the peer pinning nothing."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    monkeypatch.setattr(certs, "_cached", {})
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    assert a.config.mode == "proxy", "behind a proxy, whose certificate is read nowhere else"
+    r = ca.post("/ui/api/settings/links/invitations")
+    assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
+    assert r.json()["detail"] == UNREAD
+    with a.db.read(unscoped="test") as s:
+        assert s.query(Link).count() == 0
+
+
+def _serving_tls_itself(srv) -> str:
+    """This server in tls mode with its self-signed certificate made: its key's fingerprint."""
+    import dataclasses
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+
+    from moolakata import net
+    from moolakata.listener import self_signed
+
+    srv.config = dataclasses.replace(srv.config, mode="tls")
+    cert, _ = self_signed(srv.config.tls_dir, ["a.test"])
+    der = x509.load_pem_x509_certificate(cert.read_bytes()).public_bytes(Encoding.DER)
+    return net.key_fingerprint(der)
+
+
+def _invited_pin(ca) -> str | None:
+    r = ca.post("/ui/api/settings/links/invitations")
+    assert r.status_code == 201, r.text
+    from moolakata.links import manage
+
+    return manage.decode_code(r.json()["code"]).get("t")
+
+
+def test_an_invitation_pins_the_certificate_read_at_its_link_address(admins, monkeypatch):
+    """S11.1.1: the certificate an invitation carries is the one read at the address it
+    carries, which the other server connects to, even when this server serves TLS itself: the
+    address may lead through a proxy of its own."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+    at_address = "cc" * 32
+    read = []
+
+    def probe(guard, address):
+        read.append(address)
+        return at_address
+
+    monkeypatch.setattr(certs, "_probe", probe)
+    _serving_tls_itself(a)
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    assert _invited_pin(ca) == at_address
+    assert read == ["https://a.test"]
+
+
+def test_an_invitation_pins_the_listeners_own_certificate_when_its_address_cant_be_reached(
+    admins, monkeypatch
+):
+    """S11.1.1: a server that can't reach its own public address (a router with no NAT
+    hairpinning) and serves TLS itself pins the certificate its listener serves, from the
+    files it loads."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    own = _serving_tls_itself(a)
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    assert _invited_pin(ca) == own
+
+
+def test_a_link_at_the_smtp_servers_loopback_address_is_still_refused(pair):
+    """S11.2, S13.5: a link's address is never loopback, whoever names that host: an SMTP
+    server an admin set at 127.0.0.1 is exempt for the mail client alone."""
+    from moolakata import settings
+    from moolakata.ui.prices import apply_egress
+
+    a, b, _, _ = pair
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "smtpHost", "127.0.0.1", None)
+    link(a, "https://127.0.0.1:2019", public(b))
+    apply_egress(a)
+    with pytest.raises(client.LinkError, match=r"didn't answer \(EgressRefused\)"):
+        client.hello(a, "https://127.0.0.1:2019")
 
 
 def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatch):
@@ -989,7 +1166,7 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     from moolakata import middleware, net, settings
     from moolakata.links import sealed
 
-    biggest = settings.RECEIPT_MAX_MB * 1024 * 1024
+    biggest = settings.FILE_MAX_MB * 1024 * 1024
     assert sealed.max_receipt() == sealed.sealed_size(biggest) > biggest > net.MAX_RESPONSE
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -1001,9 +1178,12 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     assert sealed.max_receipt() <= middleware.IN_FLIGHT
     # A linked server's receipt body may be the largest, whatever this server's own setting.
     mw = middleware.BodyLimit(None, lambda: 1024 * 1024)
-    assert mw.limit_for("/link/v1/deliver", "application/octet-stream") == sealed.max_receipt()
-    assert mw.limit_for("/link/v1/deliver", "application/json") == middleware.LINK_LIMIT
-    assert mw.limit_for("/ui/api/receipts", "multipart/form-data") == 1024 * 1024
+    assert mw.limit_for("/link/v1/deliver", "application/octet-stream") == (
+        sealed.max_receipt(),
+        True,
+    )
+    assert mw.limit_for("/link/v1/deliver", "application/json") == (middleware.LINK_LIMIT, False)
+    assert mw.limit_for("/ui/api/receipts", "multipart/form-data") == (1024 * 1024, True)
     # A receipt's file answer is read up to it; every other answer up to 20 MB.
     seen = []
 
@@ -1016,9 +1196,9 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
         list(client.iter_file(pair[0], "https://b.test", bytes(32), "Rcpt_x", []))
     assert seen == [sealed.max_receipt()]
     check = settings.DEFINITIONS["receiptMaxMb"].check
-    assert check(settings.RECEIPT_MAX_MB) == settings.RECEIPT_MAX_MB
+    assert check(settings.FILE_MAX_MB) == settings.FILE_MAX_MB
     with pytest.raises(settings.Invalid):
-        check(settings.RECEIPT_MAX_MB + 1)
+        check(settings.FILE_MAX_MB + 1)
 
 
 def test_a_locked_copys_inbox_names_no_one(admins):

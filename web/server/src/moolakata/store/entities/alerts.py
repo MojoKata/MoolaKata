@@ -2,10 +2,11 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from ...ids import new_id
+from . import Kept
 
 
 @dataclass(kw_only=True, eq=False)
-class Alert:
+class Alert(Kept):
     id: str
     kind: str
     causeKey: str
@@ -22,7 +23,7 @@ class Alert:
 
 
 @dataclass(kw_only=True, eq=False)
-class AlertState:
+class AlertState(Kept):
     id: str = field(default_factory=lambda: new_id("AlSt"))
     alertId: str
     userId: str

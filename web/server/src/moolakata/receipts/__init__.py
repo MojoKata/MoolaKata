@@ -215,7 +215,7 @@ def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared
             )
         checkpoint("receipt.written")
         # Drawn in the reader's worker, never here (S9.5, S9.8.4.2); None when it can't be.
-        thumb = _parsing().thumbnail(data, media)
+        thumb = _parsing().thumbnail(data, media, user=owner_id)
         yield Prepared(name, media, len(data), digest, file_id, thumb)
 
 

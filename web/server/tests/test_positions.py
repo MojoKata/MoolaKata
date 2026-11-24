@@ -264,6 +264,54 @@ def test_symbol_changes_spin_offs_and_mergers_move_lots_never_sell_them(server, 
     assert h["cash"] == "85000.00", "the merger's cash is in the account"
 
 
+def test_an_open_position_says_its_prices_day_and_whether_it_is_stale(server, jane):
+    """S4.7, S12.5: VTI's close from yesterday is current; AAPL's from eleven days ago, its
+    source failing since, is stale; each says the day of its price."""
+    from sqlalchemy import select
+    from test_account_world import _closes_installed
+
+    from moolakata.store.entities.accounts import Instrument
+    from moolakata.store.entities.prices import Price
+
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-09-01", "buy", "10", "100", "VTI")
+    trade(jane, brk["id"], "2026-09-01", "buy", "4", "50", "AAPL")
+    with server.db.tx(unscoped="test") as s:
+        for sym, day in (("VTI", dt.date(2026, 10, 12)), ("AAPL", dt.date(2026, 10, 2))):
+            iid = s.scalars(select(Instrument.id).where(Instrument.symbol == sym)).one()
+            s.add(Price(instrumentId=iid, date=day, close=Decimal(110), source="test"))
+    with _closes_installed():
+        rows = jane.get("/ui/api/positions").json()["open"]
+    got = {r["symbol"]: (r["priceSource"], r["priceAsOf"], r["stale"]) for r in rows}
+    assert got == {"VTI": ("close", "2026-10-12", False), "AAPL": ("close", "2026-10-02", True)}
+
+
+def test_a_spin_off_recorded_after_the_shares_were_sold_moves_their_basis(server, jane):
+    """S2.4.1, S2.8: XYZ spun off NEWCO on Mar 2 and was all sold in May; recorded in October,
+    the spin-off is checked and sized by what was held on Mar 2, and the May sale's basis is
+    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked."""
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, a, "2026-01-05", "buy", "100", "100", "XYZ")
+    trade(jane, a, "2026-05-01", "sell", "100", "120", "XYZ")
+
+    def offered(on):
+        r = jane.get("/ui/api/corporate-actions/holdings", params={"on": on})
+        rows = r.json()["items"]
+        return [(r["symbol"], r["accountName"], r["side"]) for r in rows]
+
+    assert offered("2026-03-02") == [("XYZ", "Brokerage", "long")]
+    assert offered("2026-10-13") == []
+    assert jane.get("/ui/api/corporate-actions/holdings").status_code == 422
+    xyz = next(i for i in jane.get("/ui/api/instruments", params={"q": "XYZ"}).json()["items"]
+               if i["symbol"] == "XYZ")["id"]  # fmt: skip
+    _ca(jane, a, xyz, kind="spin-off", date="2026-03-02", newSymbol="NEWCO", ratio="0.5",
+        basisShare="13.65")  # fmt: skip
+    lots, disposals = _lots(server, a)
+    assert lots["NEWCO"][:2] == (Decimal("50.0"), Decimal("1365.00"))
+    [sale] = disposals
+    assert (sale.basis, sale.gain) == (Decimal("8635.00"), Decimal("3365.00"))
+
+
 def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, jane):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     a = brk["id"]
@@ -291,6 +339,22 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, jane):
     r = create(jane, "CorpA", accountId=a, instrumentId=held["FB"], kind="spin-off",
                date="2026-06-09", newSymbol="X", ratio="1", basisShare="150")  # fmt: skip
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"
+
+
+def test_deleting_either_leg_of_a_pair_deletes_both(server, jane):
+    """S2.4: a symbol change's pair goes whole, from its first leg as from its second, so
+    neither is ever left deleted alone."""
+    from moolakata.store.entities.accounts import Transaction
+
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, a, "-500.00", "2025-01-02", kind="buy", symbol="FB", quantity="5", price="100")
+    held = {p["symbol"]: p["instrumentId"] for p in jane.get("/ui/api/positions").json()["open"]}
+    action = _ca(jane, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    old, new = action["transactions"]
+    assert remove(jane, "Txn", old).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Transaction, old["id"]).deleted and s.get(Transaction, new["id"]).deleted
+    assert "FB" in _lots(server, a)[0]
 
 
 @pytest.mark.parametrize(
@@ -560,3 +624,60 @@ def test_an_adjusted_contracts_trade_goes_on_under_it_on_the_side_it_was(jane):
         ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-09-03", None, None),
         ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-09-03", None, None),
     ]
+
+
+@pytest.mark.parametrize(
+    ("body", "field", "code", "message"),
+    [
+        ({"kind": "split"}, "ratio", "ratio-invalid", "New shares for each one held: 2, 0.5."),
+        (
+            {"kind": "split", "ratio": "0"},
+            "ratio",
+            "ratio-invalid",
+            "New shares for each one held: 2, 0.5.",
+        ),
+        (
+            {"kind": "split", "ratio": "-2"},
+            "ratio",
+            "ratio-invalid",
+            "New shares for each one held: 2, 0.5.",
+        ),
+        ({"kind": "symbol-change"}, "newSymbol", "symbol-missing", "The new symbol."),
+        (
+            {"kind": "symbol-change", "newSymbol": "  "},
+            "newSymbol",
+            "symbol-missing",
+            "The new symbol.",
+        ),
+        (
+            {"kind": "symbol-change", "newSymbol": "twtr"},
+            "newSymbol",
+            "symbol-invalid",
+            "Another instrument's symbol.",
+        ),
+        (
+            {"kind": "symbol-change", "newSymbol": "ABCDEFGHIJKLM"},
+            "newSymbol",
+            "symbol-invalid",
+            "Another instrument's symbol.",
+        ),
+        (
+            {"kind": "spin-off", "ratio": "1", "basisShare": "10"},
+            "newSymbol",
+            "symbol-missing",
+            "The new symbol.",
+        ),
+    ],
+)
+def test_a_corporate_action_is_refused_at_each_field_it_lacks(jane, body, field, code, message):
+    """S2.4, R3.11: a split's or spin-off's ratio is more than nothing; a symbol change or a
+    spin-off names a new symbol, another instrument's and of at most 12 letters."""
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, a, "10000.00", "2025-01-01", kind="deposit")
+    add(jane, a, "-2000.00", "2025-01-02", kind="buy", symbol="TWTR", quantity="50", price="40")
+    [held] = jane.get("/ui/api/positions").json()["open"]
+    r = create(jane, "CorpA", accountId=a, instrumentId=held["instrumentId"], date="2026-10-13",
+               **body)  # fmt: skip
+    assert r.status_code == 422, r.text
+    errors = [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+    assert (field, code, message) in errors

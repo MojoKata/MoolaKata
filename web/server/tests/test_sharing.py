@@ -133,6 +133,50 @@ def test_portfolio_viewers_see_only_their_accounts(server):
     assert r.json()["errors"][0]["field"] == "accountIds"
 
 
+def test_share_these_accounts_too_gives_a_person_their_own_only_what_no_group_gives():
+    """S5.1.2: John holds the portfolio through Household and by his own share, Eve by hers:
+    what John can't see goes to Household alone; Eve's goes to her."""
+    from moolakata.ui.sharing import _share_too
+
+    got = _share_too({"john": ["a", "b"], "eve": ["b"]}, ["hh"], ["john", "eve"],
+                     {"hh": ["john"], "other": ["eve"]})  # fmt: skip
+    assert [(x.groupId, x.userId, x.accountIds) for x in got] == [
+        ("hh", None, ["a", "b"]),
+        (None, "eve", ["b"]),
+    ]
+
+
+def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_with(
+    server, admin_client
+):
+    """S5.1.2, S10.5: Jane's portfolio shared with the group Household; Share these accounts
+    too shares her brokerage with the group, not with each member: John, leaving the group,
+    loses both, and Bart, joining it, gains both. Bart's own share of the portfolio asks for
+    nothing the group's doesn't already give him."""
+    u, c = setup(server)
+    g = make(admin_client, "Group", name="Household", memberIds=[u["john"].id]).json()
+    brokerage = new_account(c["jane"], name="Brokerage", type="brokerage",
+                            openingBalance="500.00", openingDate="2026-01-01")  # fmt: skip
+    p = make(c["jane"], "Portf", name="Family", accountIds=[brokerage["id"]]).json()
+    v = share(c["jane"], "portfolio", p["id"], groups={g["id"]: "read"})["view"]
+    assert v["shareToo"] == [{"groupId": g["id"], "userId": None, "accountIds": [brokerage["id"]]}]
+    share(c["jane"], "portfolio", p["id"], groups={g["id"]: "read"}, too=True)
+    held = c["jane"].get(f"/ui/api/shares/account/{brokerage['id']}").json()
+    assert [x["id"] for x in held["groups"] if x["allow"] == "read"] == [g["id"]]
+    assert [x["id"] for x in held["users"] if x["allow"] != "none"] == []
+
+    def sees(who):
+        return c[who].get(f"/ui/api/portfolios/{p['id']}").json().get("value")
+
+    assert sees("john") == "500.00"
+    g = saved(change(admin_client, "Group", g, memberIds={"add": [u["bart"].id],
+                                                          "remove": [u["john"].id]}))  # fmt: skip
+    assert sees("john") is None and c["john"].get("/ui/api/accounts").json()["items"] == []
+    assert sees("bart") == "500.00"
+    v = share(c["jane"], "portfolio", p["id"], users={u["bart"].id: "read"})["view"]
+    assert v["hidden"] == {} and v["shareToo"] == []
+
+
 def test_activity_goes_to_the_people_concerned_without_amounts(server, admin_client):
     u, c = setup(server)
     a = new_account(c["jane"], name="Joint checking")

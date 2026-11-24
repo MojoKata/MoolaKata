@@ -49,6 +49,20 @@ def test_provider_limits_spread_calls():
     assert limits.delay("tiingo") == pytest.approx(3600 - 130)
 
 
+def test_a_second_refresh_shares_the_providers_windows_until_its_limits_change():
+    """S13.4: each refresh sets its source's limits; set again unchanged, the calls already
+    made in the hour still count, and only a changed limit starts the windows afresh."""
+    clock = [0.0]
+    limits = ProviderLimits(clock=lambda: clock[0])
+    limits.set("tiingo", [(2, 3600)])
+    assert [limits.delay("tiingo") for _ in range(2)] == [0, 0]
+    clock[0] = 600  # Refresh Prices pressed ten minutes later
+    limits.set("tiingo", [(2, 3600)])
+    assert limits.delay("tiingo") == pytest.approx(3000)
+    limits.set("tiingo", [(3, 3600)])
+    assert limits.delay("tiingo") == 0
+
+
 def test_tasks_record_runs_and_keep_error_text_out_unless_safe():
     recorded = {}
     done = threading.Event()
@@ -93,10 +107,25 @@ def test_egress_guard():
         guard.check("evil.example", 443)
     with pytest.raises(net.EgressRefused, match="loopback"):
         guard.check("node.lan", 50001)
-    guard.allow(["node.lan"], allowed_by_name=["node.lan"])
-    guard.check("node.lan", 50001)
+    guard.allow(["node.lan"], allowed_by_name={"bitcoin": ["node.lan"]})
+    guard.check("node.lan", 50001, "bitcoin")
     with pytest.raises(net.EgressRefused):
         guard.check("127.0.0.1", 80)
+
+
+def test_a_host_named_by_an_admin_is_exempt_only_for_its_own_client():
+    """S13.5, S11.2: the SMTP server an admin named may be on loopback, but a link, a price
+    source or the bitcoin client asking for the same host is refused, whoever named it."""
+    guard = net.Guard()
+    guard.allow(["127.0.0.1"], allowed_by_name={"smtp": ["127.0.0.1"]})
+    assert guard.check("127.0.0.1", 25, "smtp") == "127.0.0.1"
+    for use in ("link", "bitcoin", None):
+        with pytest.raises(net.EgressRefused, match="loopback"):
+            guard.check("127.0.0.1", 2019, use)
+    with pytest.raises(net.EgressRefused, match="loopback"):
+        net.Client(guard, use="link").get("https://127.0.0.1:2019/")
+    with pytest.raises(net.EgressRefused, match="loopback"):
+        net.Client(guard).get("https://127.0.0.1:2019/")
 
 
 def test_client_refuses_before_connecting():
@@ -119,11 +148,64 @@ def test_windows_and_sign_in_lockout():
     # The address is locked; the username is only slowed, from any address (S13.7.5.1).
     assert g.locked("10.0.0.5") == pytest.approx(15 * 60)
     assert g.locked("10.0.0.6") == 0
-    assert g.delay("jane", "10.0.0.6") == 4.0  # ten failures: half a second past the third
+    assert g.delay("jane", "10.0.0.6") == 3.5  # ten failures: half a second past the third
     g.succeeded("jane")
     assert g.delay("jane", "10.0.0.6") == 0
     clock[0] += 15 * 60
     assert g.locked("10.0.0.5") == 0
+
+
+def test_a_username_is_slowed_half_a_second_per_failure_past_the_third():
+    """S13.7.5.1: 0.5 × (failures − 3) seconds, up to five: none on the third, half a second
+    on the fourth."""
+    g = SignInGuard(clock=lambda: 0.0)
+    waits = []
+    for _ in range(14):
+        g.failed("jane", f"10.0.0.{len(waits)}", threshold=100)
+        waits.append(g.delay("jane", "10.0.0.99"))
+    assert waits[:5] == [0, 0, 0, 0.5, 1.0]
+    assert waits[-1] == 5.0, "fourteen failures: no more than five seconds"
+
+
+def test_a_window_forgets_the_keys_whose_events_have_lapsed():
+    # S13.7.5.5: counters in memory, kept no longer than they count.
+    clock = [0.0]
+    w = Window(3, 60, clock=lambda: clock[0])
+    for n in range(100):
+        w.hit(f"10.0.0.{n}")
+    assert len(w) == 100
+    assert w.wait("10.9.9.9") == 0 and w.count("10.9.9.9") == 0 and len(w) == 100
+    clock[0] = 60
+    w.hit("10.0.1.1")
+    assert len(w) == 1, "the lapsed keys are dropped"
+
+
+def test_the_sign_in_guard_forgets_what_has_lapsed():
+    # S13.7.5.5: failures, lockouts and a pending sign-in's wrong codes are dropped once they
+    # no longer count, so a scan of new usernames doesn't grow the server's memory.
+    clock = [0.0]
+    g = SignInGuard(clock=lambda: clock[0])
+    for n in range(50):
+        g.failed(f"user{n}", f"10.0.{n}.1", threshold=1)
+        g.code_wrong(f"pending{n}")
+    assert g.delay("someone-new", "10.9.9.9") == 0
+    assert g.held() == {"addresses": 50, "usernames": 50, "locks": 50, "codes": 50}
+    clock[0] = 15 * 60
+    g.failed("jane", "10.1.1.1")
+    assert g.held() == {"addresses": 1, "usernames": 1, "locks": 0, "codes": 0}
+
+
+def test_a_login_longer_than_any_username_or_email_counts_against_the_address_alone():
+    # Usernames are 2 to 32 characters and an email at most 254 (S10.1): a longer login names
+    # nobody, so it is never kept, though it counts toward the address's lockout.
+    g = SignInGuard()
+    long = "x" * 255
+    for _ in range(9):
+        assert not g.failed(long, "10.0.0.5")
+    assert g.held()["usernames"] == 0
+    assert g.failed(long, "10.0.0.5") and g.locked("10.0.0.5") > 0
+    g.failed("y" * 254, "10.0.0.6")
+    assert g.held()["usernames"] == 1
 
 
 def test_the_lockout_counts_an_ipv6_address_by_its_64():
@@ -314,16 +396,202 @@ def test_a_servers_own_certificate_is_pinned_by_its_key(tls_peer):
         return ["127.0.0.1"]
 
     guard = net.Guard(resolver=resolver)
-    guard.allow(["peer.lan"], allowed_by_name=["peer.lan"])
+    guard.allow(["peer.lan"], allowed_by_name={"link": ["peer.lan"]})
     url = f"https://peer.lan:{port}/"
-    assert net.Client(guard, pins=[fp]).get(url).text == "ok"
+    assert net.Client(guard, use="link", pins=[fp]).get(url).text == "ok"
     assert lookups == ["peer.lan"], "looked up once, by the guard"
     with pytest.raises(net.CertificateRefused) as e:
-        net.Client(guard, pins=["0" * 64]).get(url)
+        net.Client(guard, use="link", pins=["0" * 64]).get(url)
     assert e.value.fingerprint == fp
     with pytest.raises(httpx.ConnectError):
-        net.Client(guard).get(url)  # a public check: no root vouches for it
+        net.Client(guard, use="link").get(url)  # a public check: no root vouches for it
     with pytest.raises(net.ResponseTooLarge):
-        net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "long")
+        net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "long")
     with pytest.raises(net.ResponseTooLarge):
-        net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "gzip").json()
+        net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "gzip").json()
+
+
+def test_this_servers_own_certificate_is_read_through_the_guard(tls_peer):
+    """S13.5: the probe of this server's own link address for its certificate is an outbound
+    call like any other: to the address the guard checked, never to loopback unless allowed;
+    one it can't read is told apart from a public certificate."""
+    from moolakata import certs
+
+    port, fp = tls_peer
+    guard = net.Guard(resolver=lambda host, p: ["127.0.0.1"])
+    guard.allow(["127.0.0.1", "peer.lan"])
+    with pytest.raises(certs.Unread):
+        certs._probe(guard, f"https://127.0.0.1:{port}")
+    with pytest.raises(certs.Unread):
+        certs._probe(guard, f"https://money.example:{port}")  # not a host it may reach
+    # Allowed by name for a link, as between two dev servers on one machine.
+    guard.allow(["peer.lan"], allowed_by_name={"link": ["peer.lan"]})
+    assert certs._probe(guard, f"https://peer.lan:{port}") == fp
+    assert certs._probe(guard, "http://peer.lan") is None, "plain HTTP has no certificate"
+
+
+def test_a_provider_past_its_limit_waits_its_window_or_stops_with_the_server():
+    """S13.4: a call past the provider's limit waits until its window lets one more through;
+    a server stopping meanwhile ends the wait."""
+    from moolakata.tasks import ProviderLimits, Stopping
+
+    now = [0.0]
+    limits = ProviderLimits(clock=lambda: now[0])
+    limits.set("tiingo", [(1, 60.0)])
+    waited = []
+
+    class Passing:
+        """A stop never set, whose wait lets the clock run on."""
+
+        def wait(self, seconds):
+            waited.append(seconds)
+            now[0] += seconds
+            return False
+
+    limits.acquire("tiingo", Passing())
+    limits.acquire("tiingo", Passing())
+    assert waited == [60.0], "the second waited the window out"
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(Stopping):
+        limits.acquire("tiingo", stop)
+
+
+def _ran(tasks, name, *, ended=None):
+    """The task asked for and run by a tick, on the tasks' own threads: its last run."""
+    from moolakata.dev.waits import eventually
+
+    assert tasks.run_now(name, ended)
+    tasks.tick()
+    eventually(lambda: tasks.status()[name]["lastFinished"] is not None, what=f"{name} run")
+    return tasks._tasks[name].last
+
+
+def test_a_run_ended_by_a_stop_says_so_and_each_job_waiting_on_it_is_told():
+    """S13.8.7: each job that asked for a run is told when it ends, even when another's ending
+    fails; a run cut off by the server stopping says so."""
+    from moolakata.dev.waits import eventually
+    from moolakata.tasks import Stopping
+
+    def stopped(ctx):
+        raise Stopping
+
+    tasks = Tasks()
+    tasks.register("backups", stopped, None)
+    told = []
+
+    def failing(run):
+        raise RuntimeError("the job is gone")
+
+    assert tasks.run_now("backups", failing)
+    run = _ran(tasks, "backups", ended=told.append)
+    eventually(lambda: told, what="the second job told")
+    assert told == [run] and run.error == "stopped when the server stopped"
+    assert tasks._tasks["backups"].waiting == []
+    tasks.stop()
+
+
+def test_a_tick_passes_over_a_task_still_running():
+    tasks = Tasks()
+    tasks.register("prices", lambda ctx: None, Every(1))
+    tasks._tasks["prices"].running = True
+    tasks.tick()
+    assert tasks._tasks["prices"].last is None, "never launched twice"
+    tasks.stop()
+
+
+def test_a_failing_tick_is_logged_and_the_runner_goes_on_until_stopped(monkeypatch, caplog):
+    import moolakata.tasks as tasks_module
+
+    monkeypatch.setattr(tasks_module, "TICK_SECONDS", 0)
+    tasks = Tasks()
+    ticks = []
+
+    def tick():
+        ticks.append(1)
+        if len(ticks) == 1:
+            raise RuntimeError("a schedule that can't be read")
+        tasks._stop.set()
+
+    monkeypatch.setattr(tasks, "tick", tick)
+    asyncio.run(tasks.run())
+    assert len(ticks) == 2 and "task tick failed" in caplog.text
+    tasks.stop()
+
+
+def test_a_job_that_fails_names_only_its_errors_type():
+    """S13.8.7, S13.7.9: a failed job says what kind of error ended it, never its words."""
+    from moolakata.dev.waits import eventually
+
+    jobs = Jobs()
+
+    def work(job):
+        raise ValueError("account Shaw Checking: 1,234.56")
+
+    job = jobs.start("import", "User_a", work)
+    eventually(lambda: job.state == "failed", what="the job failed")
+    assert job.error == {"code": "failed", "message": "ValueError"}
+    done = jobs.start("import", "User_a", lambda job: ["not a dict"])
+    eventually(lambda: done.state == "done", what="the job done")
+    assert done.result is None and done.progress == 1.0
+
+
+def test_a_job_following_a_task_ends_as_its_run_does():
+    from moolakata.tasks import TaskRun
+
+    jobs = Jobs()
+    failed, done = jobs.create("backup", "User_a"), jobs.create("backup", "User_a")
+    jobs.follow(failed)(TaskRun(started=dt.datetime.now(dt.UTC), error="OSError"))
+    jobs.follow(done)(TaskRun(started=dt.datetime.now(dt.UTC)))
+    assert (failed.state, failed.error) == ("failed", {"code": "failed", "message": "OSError"})
+    assert (done.state, done.progress) == ("done", 1.0) and done.finished is not None
+
+
+def test_a_job_is_kept_a_day_after_it_ends():
+    """Jobs are work state kept in memory for a day (schema.md §4.4)."""
+    from moolakata import clock
+
+    jobs = Jobs()
+    old, running = jobs.create("import", "User_a"), jobs.create("import", "User_a")
+    jobs.update(old, state="done")
+    try:
+        clock.fix(clock.now() + dt.timedelta(days=1, minutes=1))
+        jobs.create("import", "User_a")
+    finally:
+        clock.fix(None)
+    assert jobs.get(old.id, "User_a") is None
+    assert jobs.get(running.id, "User_a") is running, "never finished: kept"
+
+
+def test_an_event_reaches_only_its_session_and_a_stream_that_stopped_reading_ends():
+    """S12.6: an event for one session goes to its streams alone; a stream whose queue is
+    full (a page that stopped reading) is closed, and the browser reconnects."""
+    from moolakata.events import Event
+
+    async def scenario():
+        broker = Broker()
+        broker.bind(asyncio.get_running_loop())
+        mine, other = broker.subscribe("User_a", "h1"), broker.subscribe("User_a", "h2")
+        assert broker.count() == 2
+        broker.end_session("h1", "signed-out")  # from the loop itself: delivered at once
+        assert mine.queue.get_nowait() == Event("session", {"state": "signed-out"})
+        assert other.queue.empty()
+        for _ in range(other.queue.maxsize):
+            other.queue.put_nowait(Event("x"))
+        broker.publish("prices")
+        assert other.closed and not mine.closed
+        broker.unsubscribe(other)
+        assert broker.count() == 1
+
+    asyncio.run(scenario())
+
+
+def test_an_event_published_once_the_loop_has_closed_goes_nowhere():
+    broker = Broker()
+    broker.publish("prices")  # never bound: no loop
+    loop = asyncio.new_event_loop()
+    broker.bind(loop)
+    sub = broker.subscribe("User_a", "h1")
+    loop.close()
+    broker.publish("prices")
+    assert sub.queue.empty()

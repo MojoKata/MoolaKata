@@ -24,7 +24,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    recipient, subject and the error; and the section shows the queue and the last error.
 3. **Sign-in and sessions**: idle and absolute session lifetimes (8 hours by default, 1 to
    168, and 30 days, 1 to 365), and the lockout of an address after failed sign-ins (10
-   failures, 3 to 100, for 15 minutes, 1 to 1,440, S13.7.5.1).
+   failures, 3 to 100, for 15 minutes, 1 to 1,440, S13.7.5.1). These figures are in the
+   database, so while the server is locked the unlock (S15.4.3) uses the defaults.
 4. **Sign-up**: on or off (it needs SMTP), optionally limited to email domains.
 5. **Passwords**: the minimum length (12 by default, 8 to 128).
 6. **Prices** (S4.2.3): the enabled sources with their classes, keys, order, last run and
@@ -38,8 +39,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    included; until then it says *Not saved yet* in place of when the wallets were last read.
    Changing the node's host clears its stored password, which is entered again for the new
    host.
-8. **Imports** (S1.3): the size accepted for statement import (25 MB by default, 1 to 200;
-   the file types accepted are in its guide), and whether statements are read on the server
+8. **Imports** (S1.3): the size accepted for statement import (25 MB by default, 1 to 100,
+   as for a receipt, S16.10, so one file fits in the uploads a user may have in flight,
+   S13.7.6; the file types accepted are in its guide), and whether statements are read on the server
    (in the receipt reader's worker, S9.8).
 9. **Linked servers** (S11.7): this server's **link address** (its public URL when not set,
    S11.2), the links, and each linked copy's state: changes waiting, its access key (*Create

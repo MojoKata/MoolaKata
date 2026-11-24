@@ -18,35 +18,59 @@
    decide what reaches it. **Two listener modes**, one switch in `moolakata.toml`: **`proxy`**,
    plain HTTP behind haproxy, Caddy or nginx, which ends TLS (forwarded headers are trusted
    only from the configured proxy addresses, each the proxy's own address and never a whole
-   private range, since anything else in it could pose as the proxy); or **`tls`**, its own
+   private range, since anything else in it could pose as the proxy: a range refuses the
+   start); or **`tls`**, its own
    HTTPS listener with HTTP/2 (forwarded headers ignored). Either serves a household:
    **`proxy`** behind its proxy, or **`tls`** with a certificate given in `[tls]` (on TrueNAS,
    one from System › Certificates, S17.8.3.2). Given no certificate, the server makes a
    self-signed one on first start and keeps it in the data directory (`tls/`, the key mode
    0600), which is for testing on a local network: browsers warn about it, and the pair is
    not encrypted, so it protects the listener, not the data, and the listener must read it
-   before any key is entered (S15.1.7). A certificate is read at start: a renewed one takes
-   effect at the next, which starts locked (S15.4). It names the server and `localhost`, and
+   before any key is entered (S15.1.7). A certificate given in `[tls]` is read at start: a
+   renewed one takes effect at the next, which starts locked (S15.4). It names the server (`[server] name`) and
+   `localhost`, and
    the names and addresses listed in `[tls] names`, which are how browsers on the network reach
-   it; a change to the list makes it again. A certificate named in `[tls]` lives wherever the
+   it; a change to the list makes it again, and so does a start within 30 days of its end or
+   one that finds it isn't its key's, each time with the same key, which peers and the
+   connector pin (S11.1.3): a new key is made only when none can be read. A daily task makes
+   the same check while the server runs, and the listener serves a certificate signed again
+   to its next connections, with no restart. Each file is written whole or not at all. A certificate named in `[tls]` lives wherever the
    admin keeps it. From a trusted proxy, `X-Forwarded-For`, `X-Forwarded-Proto` and
    `X-Forwarded-Host` are believed, and the client is the right-most address in
    `X-Forwarded-For` that is not a trusted proxy. `[server] host` sets the listening address,
    all interfaces by default.
+   1. **The configuration** (`moolakata.toml`, or the same TOML in `MOOLAKATA_CONFIG`,
+      S17.8) holds no secret, and these keys alone: any other refuses the start (S13.6).
+      1. `[server] name`: the server's own name, `moolakata` by default, in its log, its
+         self-signed certificate, each backup's manifest and the recovery phrase's sheet at
+         the welcome and at a rotation (S15.4.4), which come before the database or without
+         it. The name linked servers see is Settings › General's (S16.1).
+      2. `[server] mode`: `proxy` (the default) or `tls`; `[server] port`, 37373 by default;
+         `[server] host`, the listening address; `[server] trusted_proxies`, in `proxy` mode
+         the proxy's own addresses.
+      3. `[paths] data` and `[paths] backups`: absolute paths, set, the backups outside the
+         data; `[paths] socket`, where host commands reach the running server (S13.6),
+         `/run/moolakata/sock` by default.
+      4. `[tls] cert` and `[tls] key`, both or neither: a certificate and its key for `tls`
+         mode; `[tls] names`, the names and addresses the self-signed certificate carries.
 4. **Background tasks** in the server process: price refresh (S4.4), bitcoin wallet reads
    (S1.6), link pulls (S11.4), option expiry (S3.6), backups (S14.6), sending email (S16.2),
    alerts and their daily summary (S12.11), receipt and statement reading (S9.8, S1.3, in its
    own worker process), the linked copies' sweeper (S11.9.4), and the check for statements
    overdue (S1.11.7) and a silent connector (S18.5), the events host commands queue, taken
-   every few minutes (S15.4.7), and an hourly prune that removes expired sessions and one-time
-   tokens (`schema.md` §4.4.1). Recurring transactions are found when they are shown (S7.5).
+   every few minutes (S15.4.7), an hourly prune that removes expired sessions and one-time
+   tokens (`schema.md` §4.4.1), and a daily look at the self-signed certificate (S13.3). Recurring transactions are found when they are shown (S7.5).
    Each records its last run and error, which Settings shows. They run in a thread pool with
    per-provider rate limits and never block a request.
 5. **Outbound calls** go through one httpx client with an **egress guard**: only the hosts of
-   enabled price sources, the bitcoin explorer or node, the SMTP server, and links; never
+   enabled price sources, the bitcoin explorer or node, the SMTP server, links, and this
+   server's own link address, read behind a proxy for the certificate it presents (S11.1.3),
+   which counts as public only when the system's roots verify it, never when it can't be read;
+   never
    loopback, link-local or cloud metadata addresses unless an admin allows one by name, and the
-   only hosts allowed by name are the Email and Bitcoin hosts an admin types in Settings: a
-   link's address, which another server supplies, never is; with timeouts and response-size
+   only hosts allowed by name are the Email and Bitcoin hosts an admin types in Settings, each
+   for its own client alone: a link's address, which another server supplies, never is, even
+   when its host is one of theirs; with timeouts and response-size
    ceilings. Each call connects to the address the guard checked, never to a second lookup, so
    a name can't change its answer between the check and the connection. Email goes through the
    standard library's SMTP client, past the same guard; its host is one an admin named in
@@ -77,13 +101,18 @@
    enters the recovery phrase (S15.4.3). What the phrase then cannot open (a database from a
    newer release) is refused at the unlock, with the reason in the log, and the server stays
    locked. `/healthz` answers 503 `re-encrypting` while a re-encryption runs at the unlock
-   (S15.7.2) and `starting` between the unlock and readiness, and `GET /ui/api/unlock` tells
+   (S15.7.2) and `starting` between the unlock and readiness, while every path the locked
+   server keeps closed answers 503 `starting` with `Retry-After`, and `GET /ui/api/unlock` tells
    anyone who reaches `/ui` whether the server is uninitialised or locked, the fingerprint its
    keyring is wrapped under, the version, and, once unlocked, whether the first admin is still
-   to be set up (S10.1.2). The image's own health check asks only whether the server answers:
+   to be set up (S10.1.2). The image's own health check asks only whether the server answers,
+   at the address `[server] host` binds (loopback when that is every interface):
    ready, starting, re-encrypting, locked or uninitialised, it is alive, so an orchestrator
    that waits for healthy containers (TrueNAS's catalog among them) lets it wait for its
-   phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. **Host commands**
+   phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. `/healthz` and the
+   unsigned `hello` of `/link` and `/connector` answer whoever reaches them, so they name no
+   release: the version is on signed answers and signed-in screens, and in `GET /ui/api/unlock`
+   and the app's asset paths wherever `/ui` is reached. **Host commands**
    (`keys unlock`, `keys break-glass`, `db backup`, S15.4.7) reach the running server over its Unix
    socket, `/run/moolakata/sock`, in a 0700 directory of the server's account on a tmpfs
    (`web/.dev/` in dev mode), never over the listener.
@@ -98,15 +127,16 @@
       a browser restart keeps the session. After a password change, the browser that made it
       gets a new session; accepting an invitation signs in, and a reset does not. The new
       token at a change of privilege starts its own absolute lifetime.
-   2. **Re-authentication**: changing the password, the email address or two-step, making an
-      access token, creating a linked copy's access key, resetting a linked copy, sharing with
-      a linked server, pairing, confirming or unpairing the connector, sealing a Connection's
-      credentials or changing its server's address, setting a secret in Settings (the SMTP
-      password, the node's password, a price source's key), changing the SMTP host or the
-      public URL, changing Settings › Network, changing who is in Admins, re-encrypting,
-      removing a copy (which also asks for the phrase, S16.13) or forgetting a previous key,
-      pruning files, removing orphan files, and opening a written email each need the password
-      again if it was last given more than 10 minutes ago.
+   2. **Re-authentication**: changing the password, the email address or two-step, an admin
+      resetting another user's two-step (S10.1.6.4), making an access token, creating a linked
+      copy's access key, resetting a linked copy, sharing with a linked server, pairing,
+      confirming or unpairing the connector or accepting its new address (S18.2.4.4), sealing
+      a Connection's credentials or changing its server's address, setting a secret in
+      Settings (the SMTP password, the node's password, a price source's key), changing the
+      SMTP host or the public URL, changing Settings › Network, changing who is in Admins,
+      re-encrypting, removing a copy (which also asks for the phrase, S16.13) or forgetting a
+      previous key, pruning files, removing orphan files, and opening a written email each need
+      the password again if it was last given more than 10 minutes ago.
    3. **Passwords**: argon2id (64 MiB, 3 passes, parallelism 1), the minimum length of
       S16.5, at most 1,024 characters, and no other rules. Checked against a shipped list of
       the 100,000 most common passwords, which are refused.
@@ -130,13 +160,15 @@
          address past them is refused before its call is checked; `/connector`: the same, 60
          calls a minute for the paired connector, its files counted against the upload limit
          above. All of it is checked on a call's headers, before a byte of its body is read.
-      5. The counters are held in memory: a restart clears them.
+      5. The counters are held in memory: a restart clears them, and each is dropped once what
+         it counted has lapsed.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
       `docs/link-protocol.md` §1.4); uploads up to the sizes in Settings (25 MB by default): a
       receipt up to S16.10's, a statement or other import file up to S16.8's, and a file the
       connector posts, a statement, up to S16.8's; a receipt a linked server delivers up to the
       largest receipt Settings allows, sealed (link protocol §1.4); at most 100 MB of uploads in
-      flight per user (never less than that largest sealed receipt), past which 429, and
+      flight per user (never less than that largest sealed receipt), past which 429, while one
+      upload past it alone is refused for its size (413), never told to wait, and
       256 MB for every caller together, past which 503 with `Retry-After: 30`; and request
       headers up to 16 KB. An upload to the app's API (a form's file, or any body past
       64 KB) has its session checked on its headers, before a byte of its body is read:
@@ -203,7 +235,8 @@
          belongs to nothing. A client may ignore `parent`. Signing out (`DELETE
          /ui/api/session`) answers 204.
    2. **Names and values in JSON**: field names camelCase, as in the database (`schema.md`
-      §1). Ids are the prefixed strings of `schema.md` §2. Dates are `YYYY-MM-DD`; timestamps
+      §1); `/mcp`'s tool names and arguments are snake_case, as MCP tools' are (S10.9.5), and
+      its answers' fields camelCase. Ids are the prefixed strings of `schema.md` §2. Dates are `YYYY-MM-DD`; timestamps
       are RFC 3339 in UTC (`2026-10-12T14:05:00Z`, S14.9). A field with no value is `null`,
       never left out.
       1. **Numbers are exact JSON numbers.** Money (`1234.50`, two places), quantities and
@@ -234,7 +267,9 @@
       when not signed in, 403 when not allowed, 404 for what doesn't exist *or* isn't visible
       to the caller (never revealing which), 409 for a conflict, 412 for a stale version, 413,
       415, 422 for a valid request that breaks a rule, 428 for a change sent without its
-      version, 429, and 503 while the server is starting or a linked copy is locked.
+      version, 429, 502 when a server MoolaKata calls (a linked server, a price or wallet
+      source, the mail server) can't be reached or fails, and 503 while the server is
+      starting or a linked copy is locked.
    5. **Lists**: every list takes `?offset=` (0 by default) and `?limit=` (500 by default, at
       most 1000; the app's pages are 100, 500 or 1000 rows, S12.1.3) and answers
       `{items, total, offset, limit}`: the page's rows, how many the caller can see in all

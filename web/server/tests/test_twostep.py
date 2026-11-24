@@ -3,7 +3,7 @@
 import datetime as dt
 
 import pytest
-from conftest import make_user, new_client, sign_in
+from conftest import ADMIN_PW, make_user, new_client, sign_in, stale
 from sqlalchemy import select
 from test_users import kinds, mails
 
@@ -218,6 +218,19 @@ def test_an_admins_reset_turns_it_off_and_ends_the_users_sessions(server, admin_
     # Not an admin: refused.
     c2 = sign_in(server, "jane")
     assert c2.post(f"/ui/api/users/{jane.id}/two-step/reset").status_code == 403
+
+
+def test_an_admins_reset_needs_the_password_again(server, admin_client):
+    """S13.7.2: resetting another user's two-step is a change of two-step."""
+    jane = make_user(server, "jane")
+    stale(server)
+    r = admin_client.post(f"/ui/api/users/{jane.id}/two-step/reset")
+    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    r = admin_client.post("/ui/api/session/reauth", json={"password": ADMIN_PW})
+    assert r.status_code == 204
+    # Past the password, the reset is judged: Jane's two-step was never on.
+    r = admin_client.post(f"/ui/api/users/{jane.id}/two-step/reset")
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "two-step-off"
 
 
 def test_a_two_step_sign_in_from_a_new_address_is_emailed(server, frozen):

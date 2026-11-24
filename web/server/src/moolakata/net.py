@@ -14,7 +14,7 @@ import socket
 import ssl
 import threading
 import zlib
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 
 import httpcore
 import httpx
@@ -83,26 +83,33 @@ class Guard:
     def __init__(self, resolver: Resolver = system_resolver) -> None:
         self._lock = threading.Lock()
         self._hosts: set[str] = set()
-        self._named: set[str] = set()
+        self._named: dict[str, set[str]] = {}
         self._resolver = resolver
 
-    def allow(self, hosts: Iterable[str], allowed_by_name: Iterable[str] = ()) -> None:
-        """Hosts in use, and those an admin allowed by name to be loopback or link-local
-        (a node on this machine)."""
+    def allow(
+        self, hosts: Iterable[str], allowed_by_name: Mapping[str, Iterable[str]] | None = None
+    ) -> None:
+        """Hosts in use, and, by the client that uses them (`smtp`, `bitcoin`, `link`), those
+        an admin allowed by name to be loopback or link-local (a node on this machine)."""
         with self._lock:
             self._hosts = {h.lower().rstrip(".") for h in hosts}
-            self._named = {h.lower().rstrip(".") for h in allowed_by_name}
+            self._named = {
+                use: {h.lower().rstrip(".") for h in named}
+                for use, named in (allowed_by_name or {}).items()
+            }
 
-    def snapshot(self) -> tuple[set[str], set[str]]:
+    def snapshot(self) -> tuple[set[str], dict[str, set[str]]]:
         with self._lock:
-            return set(self._hosts), set(self._named)
+            return set(self._hosts), {use: set(h) for use, h in self._named.items()}
 
-    def check(self, host: str, port: int) -> str:
+    def check(self, host: str, port: int, use: str | None = None) -> str:
         """The address to connect to for this host, once it is allowed: every address the name
-        resolves to is checked, and the first is the one connected to."""
+        resolves to is checked, and the first is the one connected to. A host named for one
+        client is exempt for that client alone: a link to the SMTP server's host is judged as
+        any link is (S11.2)."""
         host = host.lower().rstrip(".")
         with self._lock:
-            allowed, named = host in self._hosts, host in self._named
+            allowed, named = host in self._hosts, host in self._named.get(use or "", ())
         if not allowed:
             raise EgressRefused(f"{host} is not a host MoolaKata is set up to reach")
         try:
@@ -119,6 +126,20 @@ class Guard:
             if why:
                 raise EgressRefused(f"{host} resolves to {why}; an admin can allow it by name")
         return str(addrs[0])
+
+    def using(self, use: str | None) -> Using:
+        """This guard as one client asks it: each check made for that use."""
+        return Using(self, use)
+
+
+class Using:
+    """A guard's checks, each made for one client's use."""
+
+    def __init__(self, guard: Guard, use: str | None) -> None:
+        self._guard, self._use = guard, use
+
+    def check(self, host: str, port: int) -> str:
+        return self._guard.check(host, port, self._use)
 
 
 PRESENTED = "moolakata-pinned-key"
@@ -168,7 +189,7 @@ class _Stream(httpcore.NetworkStream):
 
 
 class _Backend(httpcore.SyncBackend):
-    def __init__(self, guard: Guard, pins: frozenset[str] | None) -> None:
+    def __init__(self, guard: Using, pins: frozenset[str] | None) -> None:
         self._guard = guard
         self._pins = pins
 
@@ -244,7 +265,7 @@ class _Network(httpx.HTTPTransport):
     """The sockets: each connection made through the guard, to the address it checked, and its
     TLS checked against the pins, before anything is sent."""
 
-    def __init__(self, guard: Guard, pins: frozenset[str] | None) -> None:
+    def __init__(self, guard: Using, pins: frozenset[str] | None) -> None:
         super().__init__()
         self._pool = httpcore.ConnectionPool(
             ssl_context=tls_context(pins),
@@ -257,7 +278,7 @@ class _Network(httpx.HTTPTransport):
 
 # What carries a call out of the process: the sockets, or in tests another app in the same
 # process, beneath everything else this module does to a call and its answer.
-network: Callable[[Guard, frozenset[str] | None], httpx.BaseTransport] = _Network
+network: Callable[[Using, frozenset[str] | None], httpx.BaseTransport] = _Network
 
 CODINGS = ("identity", "gzip", "deflate")
 
@@ -294,13 +315,15 @@ class _Transport(httpx.BaseTransport):
 class Client(httpx.Client):
     """httpx.Client with the guard, the timeouts and a ceiling on the bytes read. `pins`, the
     fingerprints of certificate keys accepted for a server whose certificate is its own, takes
-    the place of the system's roots for that server."""
+    the place of the system's roots for that server. `use` is the client asking the guard
+    (`link`, `bitcoin`), for the hosts an admin named for it."""
 
     def __init__(
         self,
         guard: Guard,
         max_bytes: int = MAX_RESPONSE,
         pins: Iterable[str] | None = None,
+        use: str | None = None,
         **kw,
     ) -> None:
         if "verify" in kw:
@@ -313,7 +336,7 @@ class Client(httpx.Client):
         }
         pinned = frozenset(pins) if pins is not None else None
         super().__init__(
-            transport=_Transport(network(guard, pinned), max_bytes),
+            transport=_Transport(network(guard.using(use), pinned), max_bytes),
             timeout=TIMEOUT,
             follow_redirects=False,
             headers=headers,

@@ -69,6 +69,14 @@ class LinkedPeople(Model):
     users: list[UserGrant]
 
 
+class ShareToo(Model):
+    """Who Share these accounts too shares accounts with: a group, or a person (S5.1.2)."""
+
+    groupId: str | None = None
+    userId: str | None = None
+    accountIds: list[str]
+
+
 class ShareView(Model):
     kind: str
     itemId: str
@@ -76,7 +84,8 @@ class ShareView(Model):
     users: list[UserGrant]
     groups: list[GroupGrant]
     links: list[LinkedPeople]
-    hidden: dict[str, list[str]]
+    hidden: dict[str, list[str]]  # each person's accounts of the portfolio they can't see
+    shareToo: list[ShareToo]
     accounts: list[AccountName]
 
 
@@ -128,10 +137,12 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
             )
         )
     hidden: dict[str, list[str]] = {}
+    share_too: list[ShareToo] = []
     accounts: list[AccountName] = []
     if kind == "portfolio":
         people = [u for u in access.holders_of(s, access.entity_of(kind), item_id) if u != owner.id]
         hidden = sharing.hidden_accounts(s, obj, people)
+        share_too = _share_too(hidden, list(by_group), list(direct), members)
         accounts = [
             AccountName(id=a.id, name=a.name, yours=a.ownerId == owner.id)
             for a in sharing.portfolio_accounts(s, item_id)
@@ -153,8 +164,37 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
             for g in groups
         ],
         hidden=hidden,
+        shareToo=share_too,
         accounts=accounts,
     )
+
+
+def _share_too(
+    hidden: dict[str, list[str]],
+    groups: list[str],
+    users: list[str],
+    members: dict[str, list[str]],
+) -> list[ShareToo]:
+    """Each account hidden from someone the portfolio is shared with goes to the grantee that
+    gives them the portfolio (S5.1.2): a group's members through the group, so one who leaves
+    it loses both and one who joins gains both (S10.5); a person's own share only for what no
+    group of theirs that holds the portfolio gets."""
+    out = []
+    through: dict[str, set[str]] = {}  # what each person gets through their groups
+    for gid in groups:
+        got: list[str] = []
+        for uid in members.get(gid, []):
+            got += [a for a in hidden.get(uid, []) if a not in got]
+            through.setdefault(uid, set())
+        for uid in members.get(gid, []):
+            through[uid] |= set(got)
+        if got:
+            out.append(ShareToo(groupId=gid, accountIds=got))
+    for uid in users:
+        own = [a for a in hidden.get(uid, []) if a not in through.get(uid, set())]
+        if own:
+            out.append(ShareToo(userId=uid, accountIds=own))
+    return out
 
 
 def _linked(s, current) -> list[LinkedPeople]:

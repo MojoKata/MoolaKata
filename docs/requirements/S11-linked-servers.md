@@ -9,7 +9,10 @@ preparer.
       `mkl1.…`) that holds A's link address, the fingerprint of A's link key, a one-time
       secret, of which A keeps only a hash, and, when A's certificate is its own rather than a
       public one, the fingerprint of the certificate's key. **Withdraw** ends an invitation
-      sooner.
+      sooner. The certificate is read at A's link address, where B will connect; when A
+      can't reach that address (a router with no NAT hairpinning) and serves TLS itself, it is
+      the one A's listener serves. When neither is known, no invitation is made, since its code
+      would carry no key to pin: the dialog says so.
    2. Admin B enters the code on server B, which connects to A, checks A's key against the
       fingerprint, and sends B's own address and key, signed with it, and nothing else: no user
       list crosses before A's admin approves. A's admin sees the request with B's fingerprint,
@@ -183,9 +186,9 @@ preparer.
       thin bars** under it: one by date, from the oldest record the change holds to today,
       filled to the day reached, and one by size.
    2. **Pause** stops pulling, and answering the peer's pulls, for a **duration** the admin
-      types (S12.13), after which the link resumes on its own. The field starts empty, and
-      its **default** fills in `1d` (R3.11); a blank is refused. *Resume now*
-      ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
+      types (S12.13), at most 52 weeks, after which the link resumes on its own; a longer stop
+      is what *End link* is for. The field starts empty, its **default** fills in `1d` and its
+      **max** `52w` (R3.11); a blank is refused. *Resume now* ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
    3. **The linked copy**: the changes waiting to be applied (*waiting for an unlock* at the
       inbox's cap, S11.9.5.4), when its access key was made and by whom, whether it is
       unlocked (by whom, and when it will lock), and the source's release with whether this

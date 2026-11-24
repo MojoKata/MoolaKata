@@ -8,7 +8,7 @@ name) and by the MoolaKata Connector for accounts whose sync is on.
 
 ## Largest file {#largest-file}
 
-The biggest file that can be imported: 1 to 200 MB. The chevrons, and ↑ ↓, step by 5 MB, to a
+The biggest file that can be imported: 1 to 100 MB. The chevrons, and ↑ ↓, step by 5 MB, to a
 multiple of 5; Page Up and Page Down by 50.
 
 ## Read statements

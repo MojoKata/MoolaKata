@@ -24,10 +24,13 @@ READ_NOWHERE = [
 
 
 @pytest.fixture
-def seeded(store, keyed_config):
+def seeded(store, keyed_config, monkeypatch):
+    from moolakata import certs
     from moolakata.dev import seed
     from moolakata.store.repos.ledger import ensure_categories
 
+    # No listener: its own address is read as a public certificate's (as `server` is).
+    monkeypatch.setattr(certs, "_probe", lambda guard, address: None)
     srv = Server(config=keyed_config, store=store, ready=True)
     with srv.db.tx(unscoped="test") as s:
         ensure_categories(s)

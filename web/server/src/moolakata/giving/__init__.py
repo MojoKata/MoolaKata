@@ -239,8 +239,34 @@ def pledge_short(o: Organisation, gifts: list[Gift], today: dt.date) -> Decimal:
     """What is still to be given of a pledge for the month or year `today` is in (S7.9.5)."""
     if not o.pledge or o.pledgeEvery not in ("month", "year"):
         return ZERO
-    first = today.replace(day=1) if o.pledgeEvery == "month" else today.replace(month=1, day=1)
+    first = period_of(o.pledgeEvery, today)
     return max(o.pledge - given_to(gifts, first, today).get(o.id, ZERO), ZERO)
+
+
+def period_of(every: str, day: dt.date) -> dt.date:
+    """The first day of the month or year a day is in, as a pledge counts them."""
+    return day.replace(day=1) if every == "month" else day.replace(month=1, day=1)
+
+
+def pledge_unmet(o: Organisation, gifts: list[Gift], today: dt.date) -> list[dt.date]:
+    """The periods of a pledge due and not yet met, oldest first (S7.9.5): each from the period
+    it was set in, due from its 25th (a yearly one's from December 1), against everything given
+    to the organisation since, a late gift paying the oldest first. `gifts` reach back to the
+    period it was set in."""
+    if not o.pledge or o.pledgeEvery not in ("month", "year") or o.pledgeFrom is None:
+        return []
+    monthly = o.pledgeEvery == "month"
+    due: list[dt.date] = []
+    p = o.pledgeFrom
+    while (p.replace(day=25) if monthly else p.replace(month=12, day=1)) <= today:
+        due.append(p)
+        p = (
+            dt.date(p.year + p.month // 12, p.month % 12 + 1, 1)
+            if monthly
+            else p.replace(year=p.year + 1)
+        )
+    given = given_to(gifts, o.pledgeFrom, today).get(o.id, ZERO)
+    return due[int(given // o.pledge) :]
 
 
 def pledged_ahead(orgs: list[Organisation], today: dt.date, gifts: list[Gift]) -> Decimal:

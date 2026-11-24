@@ -17,7 +17,9 @@ Days a session lasts, used or not. 30 by default.
 
 Wrong passwords or codes in 15 minutes, from one address, that lock that address. 10 by
 default. A username that keeps failing, from anywhere, is only slowed, never locked, so nobody
-can lock an admin out by typing wrong passwords from afar.
+can lock an admin out by typing wrong passwords from afar. While the server is locked, wrong
+recovery phrases at the unlock count against the defaults, 10 for 15 minutes, since these
+settings can't be read until it is unlocked.
 
 ## Lockout {#lockout}
 

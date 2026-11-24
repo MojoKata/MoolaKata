@@ -25,7 +25,9 @@ SECCOMP_RET_ERRNO = 0x00050000
 # Per machine: its audit arch; the calls refused outright (io_uring could open sockets past the
 # filter; a socket of any family, a socket pair, connecting and binding: the worker talks only
 # over the pipes it inherited); and the calls that send a signal, allowed only to itself, by
-# the process id in their first argument.
+# the process id in their first argument; and where the machine has a second set of numbers
+# under the same arch (x86_64's x32 ABI, at bit 30), the first of them: from there on every
+# call is refused, so only the native numbers are judged.
 ARCHES = {
     "x86_64": {
         "arch": 0xC000003E,
@@ -33,11 +35,13 @@ ARCHES = {
         "refused": (425, 41, 53, 42, 49, 200, 424),
         # kill, tgkill, rt_sigqueueinfo, rt_tgsigqueueinfo
         "own": (62, 234, 129, 297),
+        "x32": 0x40000000,
     },
     "aarch64": {
         "arch": 0xC00000B7,
         "refused": (425, 198, 199, 203, 200, 130, 424),
         "own": (129, 131, 138, 240),
+        "x32": None,
     },
 }
 ARCHES["arm64"] = ARCHES["aarch64"]
@@ -79,15 +83,17 @@ def not_dumpable() -> bool:
     return True
 
 
-def _filter(arch: int, refused: tuple[int, ...], own: tuple[int, ...], pid: int) -> bytes:
-    """A seccomp program: the `refused` calls refused; the `own` calls, which send a signal,
-    allowed only when their first argument is this process (`pid`); a call made under another
-    architecture refused; everything else allowed."""
+def _filter(machine: dict, pid: int) -> bytes:
+    """A seccomp program for one of `ARCHES`: its `refused` calls refused; its `own` calls,
+    which send a signal, allowed only when their first argument is this process (`pid`); a call
+    made under another architecture, or numbered at or past its `x32`, refused; everything else
+    allowed."""
+    arch, refused, own = machine["arch"], machine["refused"], machine["own"]
 
     def ins(code: int, jt: int, jf: int, k: int) -> bytes:
         return struct.pack("HBBI", code, jt, jf, k)
 
-    ld, jeq, ret = 0x20, 0x15, 0x06
+    ld, jeq, jge, ret = 0x20, 0x15, 0x35, 0x06
     deny = ins(ret, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM)
     allow = ins(ret, 0, 0, SECCOMP_RET_ALLOW)
     out = [
@@ -96,6 +102,8 @@ def _filter(arch: int, refused: tuple[int, ...], own: tuple[int, ...], pid: int)
         deny,
         ins(ld, 0, 0, 0),  # the call's number
     ]
+    if machine["x32"] is not None:
+        out += [ins(jge, 0, 1, machine["x32"]), deny]  # another ABI's number: refused
     # Each refused call: equal, on to the denial at the end of the list.
     n_ref, n_own = len(refused), len(own)
     for i, nr in enumerate(refused):
@@ -119,7 +127,7 @@ def no_network() -> bool:
     found = ARCHES.get(platform.machine())
     if sys.platform != "linux" or found is None:
         return False
-    program = _filter(found["arch"], found["refused"], found["own"], os.getpid())
+    program = _filter(found, os.getpid())
     buf = ctypes.create_string_buffer(program)
 
     class Fprog(ctypes.Structure):

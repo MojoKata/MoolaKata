@@ -114,7 +114,7 @@ def test_ocr_in_the_worker_reads_a_tilted_receipt():
     ).rotate(3, expand=True, fillcolor="white")
     w = Worker()
     try:
-        status, lines, method, engine = w.read(_png(img), "image/png")
+        status, lines, method, engine = w.read(_png(img), "image/png", user="User_a")
     finally:
         w.stop()
     assert status == "ok" and method == "ocr" and "PP-OCRv6" in engine
@@ -156,11 +156,95 @@ def test_a_pdf_with_a_text_layer_is_read_without_ocr():
     assert parser.parse(r.lines, TODAY).total.value == Decimal("153.58")
 
 
+class _Process:
+    """A worker process as Worker sees it, without starting one: each has its own pid."""
+
+    started = 0
+
+    def __init__(self):
+        _Process.started += 1
+        self.pid = _Process.started
+        self.stdin = self.stdout = io.BytesIO()
+
+    def poll(self):
+        return None
+
+    def kill(self):
+        pass
+
+    def wait(self, timeout=None):
+        return 0
+
+
+@pytest.fixture
+def no_process(monkeypatch):
+    """Workers that start no process and answer every job with no lines."""
+    monkeypatch.setattr(Worker, "_start", lambda self: setattr(self, "proc", _Process()))
+    from moolakata import parsing
+
+    monkeypatch.setattr(
+        Worker, "_recv", lambda self, deadline: {"lines": [], "method": "text", "engine": "x"}
+    )
+    parsing.stop()
+    yield
+    parsing.stop()  # no later test finds the quick worker without its process
+
+
+def test_another_users_file_gets_a_fresh_worker_and_the_same_users_run_shares_one(no_process):
+    # S9.8.4.2: a file that takes the worker over sees no other user's file after it.
+    w = Worker()
+    pids = []
+    for user in ("User_a", "User_a", "User_b", "User_a"):
+        assert w.read(b"%PDF", "application/pdf", user=user)[0] == "ok"
+        pids.append(w.proc.pid)
+    assert pids[0] == pids[1], "one user's run of files shares it"
+    assert len({pids[1], pids[2], pids[3]}) == 3, "another user's file: a fresh worker"
+    # A job with no file (the sandbox's self-test) keeps the worker it finds.
+    w.call("selftest")
+    assert w.proc.pid == pids[3]
+
+
+def test_the_quick_worker_is_fresh_for_another_users_file(no_process):
+    # S9.8.4.2: thumbnails, photos and imports likewise, one user's files at a time.
+    from moolakata import parsing
+
+    pids = []
+    for user in ("User_a", "User_a", "User_b"):
+        parsing.text_layer(b"%PDF", user=user)
+        pids.append(parsing._worker.proc.pid)
+    assert pids[0] == pids[1] != pids[2]
+
+
+def test_the_reading_queue_reads_each_receipt_as_its_owners_file(server, monkeypatch, no_process):
+    # S9.8.4.2: the queue names the owner, so another owner's receipt gets a fresh worker.
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    ids = [
+        upload(who, text_pdf(["AMOUNT DUE 1.00"]), name="r.pdf").json()["id"]
+        for who in (jane, john)
+    ]
+    owners = {}
+    with server.db.read(unscoped="test") as s:
+        from moolakata.store.entities.receipts import Receipt
+
+        for rid in ids:
+            owners[rid] = s.get(Receipt, rid).ownerId
+    seen = []
+    w = Worker()
+    monkeypatch.setattr(
+        w, "read", lambda data, media, *a, user, **k: seen.append(user) or ("error", "x")
+    )
+    for rid in ids:
+        Reader(server, workers=1).read_one(rid, w)
+    assert seen == [owners[rid] for rid in ids]
+
+
 def test_a_broken_file_fails_with_a_reason_and_the_worker_lives_on():
     w = Worker()
     try:
-        assert w.read(b"\x89PNG\r\n\x1a\nbroken", "image/png")[0] == "error"
-        status = w.read(b"%PDF-1.4 nothing", "application/pdf")
+        assert w.read(b"\x89PNG\r\n\x1a\nbroken", "image/png", user="User_a")[0] == "error"
+        status = w.read(b"%PDF-1.4 nothing", "application/pdf", user="User_a")
         assert status == ("error", "the PDF can't be opened")
     finally:
         w.stop()
@@ -182,7 +266,9 @@ def test_the_worker_starts_when_the_server_holds_over_a_thousand_files():
             held.append(os.open(os.devnull, os.O_RDONLY))
         w = Worker()
         try:
-            assert w.read(text_pdf(["AMOUNT DUE 153.58"]), "application/pdf")[0] == "ok"
+            assert (
+                w.read(text_pdf(["AMOUNT DUE 153.58"]), "application/pdf", user="User_a")[0] == "ok"
+            )
         finally:
             w.stop()
     finally:
@@ -194,11 +280,15 @@ def test_the_worker_starts_when_the_server_holds_over_a_thousand_files():
 def test_a_worker_past_its_time_is_stopped():
     w = Worker()
     try:
-        w.read(_png(draw(["warm up"])), "image/png")
-        out = w.read(_png(draw(["X" * 30] * 60, width=1600)), "image/png", limit=0.01)
+        w.read(_png(draw(["warm up"])), "image/png", user="User_a")
+        out = w.read(
+            _png(draw(["X" * 30] * 60, width=1600)), "image/png", limit=0.01, user="User_a"
+        )
         assert out == ("error", "it took longer than 0 seconds")
         assert w.proc is None
-        assert w.read(_png(draw(["TOTAL 1.00"])), "image/png")[0] == "ok", "a new one starts"
+        assert w.read(_png(draw(["TOTAL 1.00"])), "image/png", user="User_a")[0] == "ok", (
+            "a new one starts"
+        )
     finally:
         w.stop()
 
@@ -291,7 +381,7 @@ def test_fixture_receipts_stay_above_the_accuracy_floor():
     try:
         for lines, (total, day, merchant) in FIXTURES:
             for img in _variants(draw(lines)):
-                out = w.read(_png(img), "image/png")
+                out = w.read(_png(img), "image/png", user="User_a")
                 f = parser.parse(out[1] if out[0] == "ok" else [], TODAY)
                 asked += 3
                 right += bool(f.total and f.total.value == Decimal(total))
@@ -336,12 +426,12 @@ def test_an_answer_out_of_shape_is_refused(monkeypatch):
     monkeypatch.setattr(
         w, "call", lambda *a, **k: {"lines": ["ok", 7], "method": "ocr", "engine": "x"}
     )
-    assert w.read(b"", "image/png") == ("error", "the reader answered out of turn")
+    assert w.read(b"", "image/png", user="User_a") == ("error", "the reader answered out of turn")
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"webp": "not base64!"})
-    assert parsing.thumbnail(b"", "image/png") is None
+    assert parsing.thumbnail(b"", "image/png", user="User_a") is None
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"jpeg": "aGVsbG8="})
     with pytest.raises(parsed.ReadError):
-        parsing.as_jpeg(b"")
+        parsing.as_jpeg(b"", user="User_a")
     for bad in (
         None,
         {"format": "ofx", "rows": [{"date": "2026-13-01", "kind": "deposit", "amount": "1"}]},
@@ -350,7 +440,22 @@ def test_an_answer_out_of_shape_is_refused(monkeypatch):
     ):
         monkeypatch.setattr(parsing, "_call", lambda op, data, b=bad, **k: {"parsed": b})
         with pytest.raises(parsed.ReadError):
-            parsing.read_ofx(b"")
+            parsing.read_ofx(b"", user="User_a")
+
+
+def test_a_csv_proposal_carries_only_a_mappings_keys(monkeypatch):
+    """S9.8.4.2.1: the worker's proposed mapping is checked key by key, so a taken-over worker
+    can't put a key of its own into what the browser sends back and the server saves."""
+    from moolakata import parsing
+    from moolakata.importers import csvfile, parsed
+
+    good = csvfile.propose(b"Date,Amount,Description\n2026-01-02,-4.50,Coffee\n", trades=True)
+    answer = {"proposal": good}
+    monkeypatch.setattr(parsing, "_call", lambda op, data, **k: answer)
+    assert parsing.propose_csv(b"", trades=True, user="User_a")["mapping"] == good["mapping"]
+    answer["proposal"] = {**good, "mapping": {**good["mapping"], "script": "x"}}
+    with pytest.raises(parsed.ReadError):
+        parsing.propose_csv(b"", user="User_a")
 
 
 def test_the_server_can_be_made_non_dumpable():
@@ -440,3 +545,110 @@ print("held")
     finally:
         listener.close()
     assert r.returncode == 0 and r.stdout.strip() == "held", r.stderr
+
+
+def _judged(program: bytes, arch: int, nr: int, arg0: int = 0) -> int:
+    """What a classic BPF seccomp `program` returns for one call: its loads, equality and
+    at-or-above jumps, and returns, the only instructions the filter uses."""
+    import struct
+
+    data = struct.pack("<iIQQ", nr, arch, 0, arg0)
+    code = [struct.unpack("HBBI", program[i : i + 8]) for i in range(0, len(program), 8)]
+    pc, acc = 0, 0
+    while True:
+        op, jt, jf, k = code[pc]
+        if op == 0x20:  # load a word of the call's data
+            acc = struct.unpack_from("<I", data, k)[0]
+        elif op in (0x15, 0x35):  # jump if equal, jump if at or above
+            hit = acc == k if op == 0x15 else acc >= k
+            pc += jt if hit else jf
+        elif op == 0x06:
+            return k
+        else:
+            raise AssertionError(f"instruction {op:#x}")
+        pc += 1
+
+
+def test_the_filter_judges_only_native_calls_and_refuses_x32_ones():
+    """S9.8.4.2: a call of the x32 ABI comes with x86_64's architecture and its number's bit 30
+    set; it is refused, so `socket` through that entry is refused as the native one is."""
+    import errno
+
+    from moolakata import sandbox
+
+    deny = sandbox.SECCOMP_RET_ERRNO | errno.EPERM
+    allow = sandbox.SECCOMP_RET_ALLOW
+    x86 = sandbox.ARCHES["x86_64"]
+    program = sandbox._filter(x86, 77)
+    arch = x86["arch"]
+    assert _judged(program, arch, 41) == deny, "socket"
+    assert _judged(program, arch, 0x40000000 | 41) == deny, "socket through x32"
+    assert _judged(program, arch, 0x40000000) == deny, "x32's first call"
+    assert _judged(program, arch, 0x3FFFFFFF) == allow, "a native number below x32's"
+    assert _judged(program, arch, 0) == allow, "read"
+    assert _judged(program, arch, 62, 77) == allow, "a signal to itself"
+    assert _judged(program, arch, 62, 78) == deny, "a signal to another"
+    assert _judged(program, 0x40000003, 41) == deny, "another architecture"
+    # aarch64 has no such entry: its numbers are judged as they are.
+    arm = sandbox.ARCHES["aarch64"]
+    program = sandbox._filter(arm, 77)
+    assert _judged(program, arm["arch"], 198) == deny, "socket"
+    assert _judged(program, arm["arch"], 129, 77) == allow, "a signal to itself"
+    assert _judged(program, arm["arch"], 0x40000000) == allow
+
+
+def test_the_quick_worker_answering_an_error_or_nothing_is_told_as_the_reader_tells_it(
+    monkeypatch,
+):
+    """S9.8.4.2: the worker's error is the reader's words; a thumbnail it can't draw, or one
+    not an image, is none; a photo it can't show, or a text layer out of shape, is refused."""
+    import base64
+
+    from moolakata import parsing
+    from moolakata.importers import parsed
+
+    def answering(answer):
+        monkeypatch.setattr(parsing, "_call", lambda op, data, **k: answer)
+
+    answering({"error": "the file is damaged"})
+    assert parsing.sandbox() is None
+    assert parsing.thumbnail(b"", "image/png", user="User_a") is None
+    for read in (
+        lambda: parsing.as_jpeg(b"", user="User_a"),
+        lambda: parsing.text_layer(b"", user="User_a"),
+        lambda: parsing.propose_csv(b"", user="User_a"),
+        lambda: parsing.read_csv(b"", {}, user="User_a"),
+    ):
+        with pytest.raises(parsed.ReadError, match="the file is damaged"):
+            read()
+    for webp in (7, "A" * (3 * 1024 * 1024)):  # not text, or past the largest a thumbnail is
+        answering({"webp": webp})
+        assert parsing.thumbnail(b"", "image/png", user="User_a") is None
+    jpeg = b"\xff\xd8\xff\xe0 a photo"
+    answering({"jpeg": base64.b64encode(jpeg).decode()})
+    assert parsing.as_jpeg(b"", user="User_a") == jpeg
+    answering({})
+    assert parsing.thumbnail(b"", "image/png", user="User_a") is None, "none drawn"
+    with pytest.raises(parsed.ReadError, match="the photo can't be shown"):
+        parsing.as_jpeg(b"", user="User_a")
+    assert parsing.text_layer(b"", user="User_a") is None, "no text layer worth reading"
+    for lines in ("one line", ["x" * 2001], [None]):
+        answering({"lines": lines})
+        with pytest.raises(parsed.ReadError, match="the reader answered out of turn"):
+            parsing.text_layer(b"", user="User_a")
+
+
+def test_a_new_data_directory_stops_the_quick_worker_kept_out_of_the_old(
+    no_process, monkeypatch, tmp_path
+):
+    """S9.8.4.2: the worker's sandbox keeps it out of the data directory it was started with:
+    a new one, and the next file gets a worker kept out of that."""
+    from moolakata import parsing
+
+    monkeypatch.setattr(parsing, "_data_dir", parsing._data_dir)
+    parsing.text_layer(b"%PDF", user="User_a")
+    first = parsing._worker
+    parsing.use_data_dir(tmp_path)
+    assert parsing._worker is None
+    parsing.text_layer(b"%PDF", user="User_a")
+    assert parsing._worker is not first and parsing._worker.data_dir == tmp_path

@@ -29,7 +29,7 @@ def locked(keyed_config):
 def test_a_locked_server_answers_only_what_unlocking_needs(locked):
     _, c = locked
     r = c.get("/healthz")
-    assert r.status_code == 503 and r.json()["status"] == "locked"
+    assert r.status_code == 503 and r.json() == {"status": "locked"}
     for path in ("/ui/api/session", "/mcp", "/link/v1/hello", "/connector/v1/hello"):
         r = c.get(path)
         assert r.status_code == 503 and r.json()["code"] == "locked", path
@@ -38,6 +38,75 @@ def test_a_locked_server_answers_only_what_unlocking_needs(locked):
     assert c.get("/demo").status_code in (200, 404)  # the mockup, when installed
     state = c.get("/ui/api/unlock").json()
     assert state["locked"] is True and state["fingerprint"].startswith("mk-")
+
+
+def test_between_the_unlock_and_readiness_only_what_unlocking_needs_answers(locked, master_key):
+    """S13.6, S13.8.4: once the store is open and before the server is ready (its categories,
+    guard and tasks still being set up), everything but the open paths answers 503
+    `starting`, to be asked again shortly."""
+    srv, c = locked
+    words = " ".join(phrase.to_words(master_key))
+    r = c.post("/ui/api/unlock", json={"phrase": words}, headers={"Origin": ORIGIN})
+    assert r.status_code == 200, r.text
+    srv.ready = False  # the store open, the rest of the unlock still running
+    try:
+        assert c.get("/healthz").json()["status"] == "starting"
+        for path in ("/ui/api/session", "/mcp", "/link/v1/hello", "/connector/v1/hello"):
+            r = c.get(path)
+            assert r.status_code == 503 and r.json()["code"] == "starting", path
+            assert r.headers["retry-after"] == "5" and r.headers["cache-control"] == "no-store"
+        assert c.get("/ui/").status_code == 200
+    finally:
+        srv.ready = True
+    assert c.get("/ui/api/unlock").status_code == 200
+    assert c.get("/link/v1/hello").status_code == 200
+
+
+def test_every_state_healthz_answers_is_in_operations_and_deploy():
+    """An uptime monitor set up from either page meets no state it doesn't name (S13.6)."""
+    import ast
+    import inspect
+    import re
+    import textwrap
+
+    from moolakata import app, paths
+
+    source = textwrap.dedent(inspect.getsource(app.create_app))
+    route = next(
+        n
+        for n in ast.walk(ast.parse(source))
+        if isinstance(n, ast.FunctionDef) and n.name == "healthz"
+    )
+    assign = next(n for n in route.body if isinstance(n, ast.Assign))
+    states = {
+        n.value
+        for n in ast.walk(assign.value)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    }
+    assert {"ok", "starting", "locked", "uninitialised", "re-encrypting"} == states
+    for doc in ("operations.md", "DEPLOY.md"):
+        text = (paths.ROOT / "docs" / doc).read_text()
+        missing = [s for s in states if not re.search(rf'[`"]{s}[`"]', text)]
+        assert missing == [], doc
+
+
+def test_a_database_from_a_newer_release_is_refused_at_the_unlock(
+    locked, master_key, monkeypatch, caplog
+):
+    """S13.6: the database is read only once the phrase opens it, so a newer release's is
+    refused at the unlock, said in a `refusing to unlock:` line, and the server stays locked."""
+    from moolakata.store import migrate
+
+    srv, c = locked
+    monkeypatch.setattr(migrate, "current", lambda engine: "9999")
+    words = " ".join(phrase.to_words(master_key))
+    r = c.post("/ui/api/unlock", json={"phrase": words}, headers={"Origin": ORIGIN})
+    assert (r.status_code, r.json()["code"]) == (503, "cannot-unlock"), r.text
+    assert any(
+        m.startswith("refusing to unlock: ") and "from a newer MoolaKata" in m
+        for m in caplog.messages
+    )
+    assert srv.store is None and c.get("/healthz").json() == {"status": "locked"}
 
 
 def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
@@ -67,12 +136,15 @@ def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
 
 
 def test_ten_wrong_phrases_lock_the_unlock_out(locked):
+    """S16.3: Settings can't be read while locked, so the unlock counts by the defaults: the
+    tenth wrong phrase is still judged, and locks the address for 15 minutes."""
     _, c = locked
     other = " ".join(phrase.to_words(os.urandom(16)))
     for _ in range(10):
-        c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
+        r = c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
+        assert r.status_code == 403 and r.json()["code"] == "phrase-wrong"
     r = c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
-    assert r.status_code == 429 and r.headers["retry-after"]
+    assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
 
 
 def test_break_glass_and_backups_go_over_the_host_socket_only(locked, master_key):

@@ -75,8 +75,9 @@ def carry(
     day: dt.date,
     split: Transaction | None = None,
 ) -> list[Transaction]:
-    """The pair that carries the old contract's lots in an account to the new one."""
-    held = repo.load(s, account).replay().quantity(old.id)
+    """The pair that carries the old contract's lots in an account to the new one, as held on
+    the day (an adjustment recorded late reaches a contract closed since)."""
+    held = repo.load(s, account).replay(day).quantity(old.id)
     if not held:
         return []
     out = Transaction(
@@ -114,10 +115,11 @@ def carry(
 
 
 def open_contracts(s: Session, account, underlying_id: str, day: dt.date) -> list[OptionContract]:
-    """The account's contracts on the stock still open on the day (one expiring that day is)."""
+    """The account's contracts on the stock open on the day (one expiring that day is), as held
+    then: a split recorded late reaches those closed since, not those opened after it."""
     out = []
     # Positions holds only what isn't zero.
-    for iid in repo.load(s, account).replay().positions():
+    for iid in repo.load(s, account).replay(day).positions():
         c = contract_of(s, iid)
         if c is not None and c.underlyingId == underlying_id and c.expiry >= day:
             out.append(c)

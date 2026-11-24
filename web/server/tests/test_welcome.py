@@ -91,7 +91,8 @@ def test_three_words_back_make_the_key_and_unlock(new_server):
     state = c.get("/ui/api/unlock").json()
     assert state["locked"] is False and state["uninitialised"] is False
     assert state["needsAdmin"] is True
-    assert c.get("/healthz").status_code == 200
+    r = c.get("/healthz")
+    assert r.status_code == 200 and r.json() == {"status": "ok"}, "its status alone (S13.6)"
     # The other visitor's phrase went with it, and no new one is offered.
     r = c.post("/ui/api/welcome/key", json={"token": other["token"], "words": _typed_back(other)})
     assert r.status_code == 409 and r.json()["code"] == "initialised"
@@ -224,3 +225,39 @@ def test_the_health_check_counts_any_answer_as_alive(config, monkeypatch, capsys
 
     monkeypatch.setattr(httpx, "get", refused)
     assert main.cmd_health(args) == 1
+
+
+@pytest.mark.parametrize(
+    "host, url",
+    [
+        (None, "http://127.0.0.1:37373/healthz"),
+        ("0.0.0.0", "http://127.0.0.1:37373/healthz"),
+        ("192.168.1.20", "http://192.168.1.20:37373/healthz"),
+        ("::", "http://[::1]:37373/healthz"),
+        ("fd00:37::5", "http://[fd00:37::5]:37373/healthz"),
+    ],
+)
+def test_the_health_check_asks_where_the_server_listens(config, monkeypatch, tmp_path, host, url):
+    """S13.3, S13.6: the check asks the address `[server] host` binds, loopback when that is
+    every interface, an IPv6 address in brackets."""
+    import argparse
+
+    import httpx
+
+    from moolakata import main
+
+    toml = tmp_path / "moolakata.toml"
+    line = f'host = "{host}"\n' if host else ""
+    toml.write_text(
+        f'[server]\nmode = "proxy"\n{line}[paths]\ndata = "{config.data_dir}"\n'
+        f'backups = "{config.backup_dir}"\n'
+    )
+    asked = []
+
+    def get(u, **k):
+        asked.append(u)
+        return httpx.Response(200, json={"status": "ok"})
+
+    monkeypatch.setattr(httpx, "get", get)
+    assert main.cmd_health(argparse.Namespace(config=str(toml))) == 0
+    assert asked == [url]

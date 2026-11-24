@@ -277,6 +277,17 @@ class Plan:
 class Refused(Exception):
     """A merge refused: the field at fault (or none), its code, and the words to show."""
 
+    # Every code it is made with: the merge route answers them, so the OpenAPI document lists
+    # them (S13.8.3).
+    CODES = (
+        "category-kept",
+        "merge-children",
+        "merge-itself",
+        "merge-kind",
+        "merge-level",
+        "name-taken",
+    )
+
     def __init__(self, field: str | None, code: str, message: str) -> None:
         super().__init__(field, code, message)
         self.field, self.code, self.message = field, code, message

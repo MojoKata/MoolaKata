@@ -33,7 +33,7 @@ from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import clock
-from ..store.entities.accounts import Account, Category, Loan, Split, Transaction
+from ..store.entities.accounts import Account, Anchor, Category, Loan, Split, Transaction
 
 ZERO = Decimal(0)
 RECORDED, ASSUMED = "recorded", "assumed"
@@ -553,6 +553,37 @@ def balance_on(t: Terms, payments: list[Payment], draws, day: dt.date | None = N
     owed += sum((amt for d, amt in draws if d <= day), ZERO)
     owed -= sum((p.principal for p in payments if p.date <= day), ZERO)
     return max(owed, ZERO)
+
+
+@dataclass
+class ServicerCheck:
+    """The servicer's balance last typed in against the schedule's that day (S1.9.4)."""
+
+    date: dt.date
+    servicer: Decimal  # what the servicer says is owed
+    computed: Decimal
+
+    @property
+    def difference(self) -> Decimal:
+        return self.servicer - self.computed
+
+
+def servicer_check(
+    s: Session, account: Account, history_: tuple | None = None
+) -> ServicerCheck | None:
+    """The loan's servicer check (S1.9.4): none before a balance is typed or the terms are.
+    `history_` is the loan's (payments, draws), when the caller has them."""
+    anchor = s.scalars(
+        select(Anchor)
+        .where(Anchor.accountId == account.id, Anchor.deleted == false(), Anchor.source == "typed")
+        .order_by(Anchor.date.desc())
+    ).first()
+    row = loan_of(s, account)
+    if anchor is None or row is None:
+        return None
+    payments, draws = history_ or history(s, account, clock.today())
+    computed = balance_on(terms_of(s, row), payments, draws, anchor.date)
+    return ServicerCheck(anchor.date, -anchor.balance, computed)
 
 
 def split_for(

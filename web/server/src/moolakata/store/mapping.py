@@ -4,7 +4,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import registry
 
-from .entities import Record, SoftDeleted, _now
+from .entities import Kept, SoftDeleted, _now
 from .entities import accounts as acc
 from .entities import assets as asx
 from .entities import budgets as bd
@@ -71,7 +71,20 @@ def _map(entity, table, **kw) -> None:
 
 
 def _versioned(entity, table, **kw) -> None:
+    """A table written only within a person's save (schema.md §2): its version is the lock a
+    save is checked against."""
     _map(entity, table, version_id_col=table.c.version, **kw)
+
+
+# The tables the server writes in the background, outside a person's save (schema.md §2): the
+# version counts their saves and locks nothing, so a background write never fails on it.
+COUNTED: set[type] = set()
+
+
+def _counted(entity, table, **kw) -> None:
+    COUNTED.add(entity)
+    # The count is read back with the save, so a record held after its session has it.
+    _map(entity, table, eager_defaults=True, **kw)
 
 
 def map_all() -> None:
@@ -83,12 +96,12 @@ def map_all() -> None:
     _versioned(Group, users.Group)
     _versioned(AccessToken, users.AccessToken)
     _map(UserGroup, users.UserGroups)
-    _map(Session, users.Session)
-    _map(OneTimeToken, users.OneTimeToken)
-    _map(RecoveryCode, users.RecoveryCode)
-    _map(SignupRequest, users.SignupRequest)
-    _map(Alert, alerts.Alert)
-    _map(AlertState, alerts.AlertState)
+    _counted(Session, users.Session)
+    _counted(OneTimeToken, users.OneTimeToken)
+    _counted(RecoveryCode, users.RecoveryCode)
+    _versioned(SignupRequest, users.SignupRequest)
+    _counted(Alert, alerts.Alert)
+    _counted(AlertState, alerts.AlertState)
     for entity, table in (
         (acc.Category, accounts.Category),
         (acc.Account, accounts.Account),
@@ -127,20 +140,21 @@ def map_all() -> None:
         (acc.CorporateAction, accounts.CorporateAction),
         (acc.Split, accounts.Split),
         (acc.Reimbursement, accounts.Reimbursement),
-        (acc.Lot, accounts.Lot),
-        (acc.Holding, accounts.Holding),
         (acc.Anchor, accounts.Anchor),
         (acc.HoldingCheck, accounts.HoldingCheck),
         (acc.TransferMatch, accounts.TransferMatch),
         (acc.Reconciliation, accounts.Reconciliation),
     ):
         _versioned(entity, table)
+    # Written by the connector's files as well as a person's save (S18.8).
+    _counted(acc.Lot, accounts.Lot)
+    _counted(acc.Holding, accounts.Holding)
     _versioned(acc.Tag, accounts.Tag)
     _map(acc.TransactionTag, accounts.TransactionTags)
     _map(acc.RuleTag, accounts.RuleTags)
     _versioned(acc.LotPick, accounts.LotPick)
     _versioned(pr.PriceSource, prices.PriceSource)
-    _versioned(pr.Price, prices.Price)
+    _counted(pr.Price, prices.Price)
     _versioned(pr.TypedPrice, prices.TypedPrice)
     _versioned(sh.Portfolio, sharing.Portfolio)
     _versioned(sh.AccessClass, shares.AccessClass)
@@ -158,9 +172,9 @@ def map_all() -> None:
     _versioned(rc.ReceiptLink, receipts.ReceiptLink)
     _map(rc.ReceiptTag, receipts.ReceiptTags)
     _map(ed.GiftPerson, people.GiftPersons)
-    _map(acc.WashSale, options.WashSale)
+    _counted(acc.WashSale, options.WashSale)
     _versioned(acc.StrategyLeg, options.StrategyLeg)
-    _map(acc.WalletAddress, wallets.WalletAddress)
+    _counted(acc.WalletAddress, wallets.WalletAddress)
     _map(acc.TransactionWalletKey, wallets.TransactionWalletKeys)
     _versioned(tx.TaxBookFiler, taxes.TaxBookFiler)
     _versioned(tx.TaxBookAccount, taxes.TaxBookAccount)
@@ -174,16 +188,19 @@ def map_all() -> None:
     _versioned(lk.Link, links.Link)
     _versioned(cn.Connector, connector.Connector)
     _versioned(cn.Connection, connector.Connection)
-    _map(lk.LinkedItem, links.LinkedItem)
-    _map(lk.LinkSent, links.LinkSent)
-    _map(lk.LinkFile, links.LinkFile)
+    _counted(lk.LinkedItem, links.LinkedItem)
+    _counted(lk.LinkSent, links.LinkSent)
+    _counted(lk.LinkFile, links.LinkFile)
     _versioned(lk.LinkColour, links.LinkColour)
-    _map(Secret, core.Secret)
+    _counted(Secret, core.Secret)
     _map(TaskRun, core.TaskRun)
-    _map(QueuedEmail, core.QueuedEmail)
-    _map(Activity, activity.Activity)
+    _counted(QueuedEmail, core.QueuedEmail)
+    _counted(Activity, activity.Activity)
 
 
-@event.listens_for(Record, "before_update", propagate=True)
+@event.listens_for(Kept, "before_update", propagate=True)
 def _touch(mapper, connection, target) -> None:
     target.updatedAt = _now()
+    if type(target) in COUNTED:
+        # Counted in the database, so a save from a copy read earlier is counted too.
+        target.version = mapper.local_table.c.version + 1

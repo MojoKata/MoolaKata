@@ -29,6 +29,11 @@ const SOURCE = /** @type {Record<string, string>} */ ({
   statement: 'statement',
   trade: 'last trade',
 });
+/** Where a price came from, as its hover says it (S12.5). @param {string} source */
+const priced = (source) => {
+  const said = source === 'close' ? 'daily close' : SOURCE[source] || source;
+  return said.charAt(0).toUpperCase() + said.slice(1);
+};
 const KIND = /** @type {[string, string][]} */ ([
   ['all', 'All'],
   ['stocks', 'Stocks and funds'],
@@ -177,6 +182,8 @@ function Open({ rows, reload }) {
                         ? html`${' '}<span class="small dim">${r.inTheMoney ? 'ITM' : 'OTM'}</span>`
                         : null
                     }`
+                    : null}${r.stale
+                    ? html`${' '}<span class="pill warn">stale</span>`
                     : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
@@ -189,7 +196,9 @@ function Open({ rows, reload }) {
                   <span
                     class="pill warn">missing</span>
                 `}</td>
-                <td class="num">${r.value ? html`<${Amt} v=${r.value} />` : '—'}${SOURCE[
+                <td class="num" data-tip=${r.priceAsOf
+                  ? `${priced(r.priceSource)} · as of ${date(r.priceAsOf)}`
+                  : 'No price yet'}>${r.value ? html`<${Amt} v=${r.value} />` : '—'}${SOURCE[
                     r.priceSource
                   ]
                   ? html`<div class="small dim">${SOURCE[r.priceSource]}</div>`

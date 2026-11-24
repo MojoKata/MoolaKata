@@ -79,6 +79,84 @@ def test_this_months_pledge_is_expected_less_what_was_given_to_it(jane):
     assert v["projected"] == "730.00"
 
 
+def _on(y, m, d):
+    clock.fix(dt.datetime(y, m, d, 12, tzinfo=dt.UTC))
+
+
+def _due(server) -> list[tuple[str, str]]:
+    """The open *pledge due* alerts, after the alerts task has run."""
+    from moolakata import alerts
+    from moolakata.store.entities.alerts import Alert
+
+    alerts.evaluate(server)
+    with server.db.read(unscoped="test") as s:
+        rows = s.query(Alert).filter(Alert.kind == "pledge-due", Alert.resolvedAt.is_(None))
+        return [(a.title, a.about) for a in rows]
+
+
+def test_a_missed_month_stays_due_until_made_up_a_late_gift_paying_the_oldest(server, frozen):
+    """S7.9.5: September's pledge, unpaid, is still due in October; October's $100 pays
+    September's first, so October's stays due until a second $100. One alert throughout."""
+    from moolakata.store.entities.alerts import Alert
+
+    make_user(server, "jane")
+    _on(2026, 9, 2)
+    food = org(sign_in(server, "jane"), "Food Bank", pledge="100", pledgeEvery="month")
+    _on(2026, 9, 24)
+    assert _due(server) == []
+    due = ("Your pledge to Food Bank is due", "for September")
+    _on(2026, 9, 25)
+    assert _due(server) == [due]
+    _on(2026, 10, 2)
+    assert _due(server) == [due], "the month's end forgives nothing"
+    _on(2026, 10, 26)
+    c = sign_in(server, "jane")
+    assert _due(server) == [("Your pledge to Food Bank is due", "for September to October")]
+    donate(c, date="2026-10-26", kind="cash", organisationId=food["id"], amount="100")
+    assert _due(server) == [("Your pledge to Food Bank is due", "for October")]
+    donate(c, date="2026-10-26", kind="cash", organisationId=food["id"], amount="100")
+    assert _due(server) == []
+    with server.db.read(unscoped="test") as s:
+        assert s.query(Alert).filter(Alert.kind == "pledge-due").count() == 1
+
+
+def test_a_pledge_changed_counts_from_its_period_and_cleared_ends_its_alert(server, frozen):
+    """S7.9.5: only the user's own change forgives a missed period: a new amount counts from
+    the month it is set in, a note changed counts nothing again, and a pledge cleared ends."""
+    make_user(server, "jane")
+    _on(2026, 9, 2)
+    food = org(sign_in(server, "jane"), "Food Bank", pledge="100", pledgeEvery="month")
+    _on(2026, 10, 2)
+    c = sign_in(server, "jane")
+    food = saved(change(c, "Orgzn", food, notes="the parish pantry"))
+    assert _due(server) == [("Your pledge to Food Bank is due", "for September")]
+    food = saved(change(c, "Orgzn", food, pledge="50"))
+    assert _due(server) == [], "counted from October, not due before the 25th"
+    _on(2026, 10, 25)
+    c = sign_in(server, "jane")
+    assert _due(server) == [("Your pledge to Food Bank is due", "for October")]
+    saved(change(c, "Orgzn", food, pledge=None, pledgeEvery=None))
+    assert _due(server) == []
+
+
+def test_a_yearly_pledge_is_met_by_a_giving_transaction_to_its_name_the_next_year(server, frozen):
+    """S7.9.5, S7.9.3: 2025's pledge, due from December 1, stays due into 2026, and is met by a
+    card payment filed under Giving to the organisation's name, as the Giving screen counts it."""
+    make_user(server, "jane")
+    _on(2025, 6, 2)
+    org(sign_in(server, "jane"), "Library", pledge="300", pledgeEvery="year")
+    _on(2025, 11, 30)
+    assert _due(server) == []
+    _on(2025, 12, 1)
+    assert _due(server) == [("Your pledge to Library is due", "for 2025")]
+    _on(2026, 1, 5)
+    c = sign_in(server, "jane")
+    assert _due(server) == [("Your pledge to Library is due", "for 2025")]
+    card = new_account(c, name="Card", type="credit-card")
+    add(c, card["id"], "-300.00", "2026-01-04", payee="Library", categoryId=_cat(c, "Giving"))
+    assert _due(server) == []
+
+
 def test_giving_transactions_count_and_acknowledgements_are_flagged(jane):
     saved(giving_plan(jane, 2026, percent="10"))
     org(jane, "Red Cross")
@@ -586,3 +664,21 @@ def test_a_donation_is_any_charitable_part_wherever_its_category_sits(jane):
     rows = jane.get("/ui/api/giving/donations").json()["items"]
     assert [x["id"] for x in rows if x["transactionId"] == auction["id"]] == [d["id"]]
     assert jane.get("/ui/api/giving").json()["given"] == "430.00"
+
+
+def test_a_pledge_without_the_period_it_was_set_in_is_refused_by_the_database(server):
+    """S7.9.5: what is due is counted from the period a pledge was set in, so the database
+    refuses a pledge without it, and the alerts never meet one."""
+    from sqlalchemy.exc import IntegrityError
+
+    from moolakata import ids
+    from moolakata.store.entities.giving import Organisation
+
+    owner = make_user(server, "joan").id
+    with pytest.raises(IntegrityError), server.db.tx(unscoped="test") as s:
+        s.add(
+            Organisation(
+                id=ids.new_id("Orgzn"), ownerId=owner, name="Food Bank", pledge=25,
+                pledgeEvery="month",
+            )
+        )  # fmt: skip

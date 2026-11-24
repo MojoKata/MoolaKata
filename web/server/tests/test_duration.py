@@ -15,6 +15,8 @@ from moolakata import duration
         ("2w 3d 4h", dt.timedelta(weeks=2, days=3, hours=4)),
         ("2w3d", dt.timedelta(weeks=2, days=3)),
         ("  1H 30M ", dt.timedelta(hours=1, minutes=30)),
+        ("52w", dt.timedelta(weeks=52)),
+        ("51w 7d", dt.timedelta(weeks=52)),
     ],
 )
 def test_durations_read_as_typed(text, want):
@@ -31,6 +33,12 @@ def test_durations_read_as_typed(text, want):
         ("4h 2d", "largest first"),
         ("0d", "at least a minute"),
         ("1 day", "isn't a unit"),
+        # At most 52 weeks (S12.13), however far past: never an overflow.
+        ("52w 1m", "at most 52w"),
+        ("1000000w", "at most 52w"),
+        ("999999999w", "at most 52w"),
+        ("99999999999999999999m", "at most 52w"),
+        pytest.param("9" * 5000 + "m", "at most 52w", id="5000 digits"),
     ],
 )
 def test_other_text_is_refused_with_why(text, why):

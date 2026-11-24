@@ -11,8 +11,9 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from typing import ClassVar
 
-from .errors import new_error_id
+from .errors import PROBLEM, problem_body
 from .links.sealed import max_receipt
 
 log = logging.getLogger("moolakata.access")
@@ -39,27 +40,17 @@ LINK_LIMIT = 20 * 1024 * 1024
 
 
 def _send_problem(status: int, code: str, detail: str, headers=()):
-    body = json.dumps(
-        {
-            "type": f"https://moolakata.invalid/problems/{code}",
-            "title": {403: "Not allowed", 413: "Too large", 503: "Not available"}.get(
-                status, "Error"
-            ),
-            "status": status,
-            "detail": detail,
-            "code": code,
-            "errorId": new_error_id(),
-            "errors": [],
-        }
-    ).encode()
+    """A refusal answered before the app: a route's problem document, titled and logged by
+    its id as a route's is (S13.8.3, S13.7.8), once it is sent."""
 
     async def respond(send):
+        body = json.dumps(problem_body(status, code, detail)).encode()
         await send(
             {
                 "type": "http.response.start",
                 "status": status,
                 "headers": [
-                    (b"content-type", b"application/problem+json"),
+                    (b"content-type", PROBLEM.encode()),
                     (b"content-length", str(len(body)).encode()),
                     *headers,
                 ],
@@ -84,7 +75,7 @@ class ClientAddress:
             addr = ipaddress.ip_address(host)
         except ValueError:
             return False
-        return any(addr in net for net in self.trusted)
+        return addr in self.trusted
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket") and self.mode == "proxy" and scope.get("client"):
@@ -252,18 +243,20 @@ class BodyLimit:
         self.session_user = session_user or (lambda token: None)
         self.in_flight: dict[str, int] = {}
 
-    def limit_for(self, path: str, ctype: str) -> int:
-        """The most a request's body may hold, by where it goes and what it carries."""
+    def limit_for(self, path: str, ctype: str) -> tuple[int, bool]:
+        """The most a request's body may hold, by where it goes and what it carries, and
+        whether it is an upload, counted in flight: told by the same, never by the limit's
+        size, which Settings may make any number (S13.7.6)."""
         to_link = path.startswith("/link/")
         if to_link and ctype.startswith("application/octet-stream"):
             # A receipt a linked server delivers, sealed (link-protocol.md §1.4, §4.3): up to
             # the largest receipt Settings allows, whatever this server's own setting.
-            return max_receipt()
+            return max_receipt(), True
         if ctype.startswith("multipart/"):
             if path.startswith("/connector/"):
-                return self.import_limit()  # statements, Settings › Imports' size (S16.8)
-            return self.upload_limit()
-        return LINK_LIMIT if to_link else JSON_LIMIT
+                return self.import_limit(), True  # statements, Settings › Imports' size (S16.8)
+            return self.upload_limit(), True
+        return (LINK_LIMIT if to_link else JSON_LIMIT), False
 
     @staticmethod
     def _token(headers: dict) -> str | None:
@@ -299,7 +292,11 @@ class BodyLimit:
             return
         headers = {k.lower(): v.decode("latin-1") for k, v in scope["headers"]}
         ctype = headers.get(b"content-type", "")
-        limit = self.limit_for(scope["path"], ctype)
+        limit, upload = self.limit_for(scope["path"], ctype)
+        if upload:
+            # One upload never holds more than a user may have in flight: past it, it is
+            # refused for its size, never told to wait for what can't succeed (S13.7.6).
+            limit = min(limit, IN_FLIGHT)
         too_large = _send_problem(
             413, "too-large", f"The request is larger than {limit // (1024 * 1024)} MB."
         )
@@ -307,7 +304,6 @@ class BodyLimit:
         if length and length.isdigit() and int(length) > limit:
             await too_large(send)
             return
-        upload = limit != JSON_LIMIT and limit != LINK_LIMIT
         # A request with neither a length nor a chunked body has none (RFC 9112 §6.3), as a
         # bodiless POST from curl is: only a body of unknown or large size is an
         # upload's, its session checked first.
@@ -486,7 +482,16 @@ class Locked:
     """While the server is locked or uninitialised (S13.6, S15.4), only what unlocking or the
     welcome needs answers: the app's page and files, the health check, the demo, the unlock
     route and the welcome's phrase and key. Everything else, the API, the link, connector and
-    MCP listeners included, answers 503 `locked`."""
+    MCP listeners included, answers 503 `locked`; and 503 `starting` once the store is open
+    and until the server is ready, so nothing is served half built (S13.6, S13.8.4)."""
+
+    ANSWERS: ClassVar[dict[str, tuple[str, bytes]]] = {
+        "locked": (
+            "MoolaKata is locked: an admin enters the recovery phrase to open it.",
+            b"30",
+        ),
+        "starting": ("MoolaKata is starting: ask again in a moment.", b"5"),
+    }
 
     OPEN = frozenset(
         {
@@ -500,9 +505,9 @@ class Locked:
         }
     )
 
-    def __init__(self, app, locked: Callable[[], bool]):
+    def __init__(self, app, state: Callable[[], str | None]):
         self.app = app
-        self.locked = locked
+        self.state = state  # None when open, else one of ANSWERS
 
     @classmethod
     def allowed(cls, path: str) -> bool:
@@ -513,14 +518,12 @@ class Locked:
     async def __call__(self, scope, receive, send):
         if (
             scope["type"] in ("http", "websocket")
-            and self.locked()
+            and (state := self.state()) is not None
             and not self.allowed(scope["path"])
         ):
+            detail, retry = self.ANSWERS[state]
             await _send_problem(
-                503,
-                "locked",
-                "MoolaKata is locked: an admin enters the recovery phrase to open it.",
-                [(b"retry-after", b"30"), (b"cache-control", b"no-store")],
+                503, state, detail, [(b"retry-after", retry), (b"cache-control", b"no-store")]
             )(send)
             return
         await self.app(scope, receive, send)

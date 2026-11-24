@@ -43,8 +43,10 @@
    keeping its share until its basis is entered; what exceeds a lot's basis is a capital gain.
    1. **Recorded** on Positions with **Corporate action…** (or read from a broker's file, for a
       split), and nowhere else: the holding (for a split, also a stock only whose options
-      are held, S3.10.1), the date, and what the action needs. Each lot keeps the day it was
-      acquired and any holding period a wash sale tacked to it.
+      are held, S3.10.1), the date, and what the action needs. The holdings offered, and the
+      shares and options it reaches, are those held at the end of its date, so an action
+      recorded late reaches shares sold since. Each lot keeps the day it was acquired and
+      any holding period a wash sale tacked to it.
    2. **A split** multiplies every lot's shares by its ratio, the basis unchanged.
    3. **A symbol change** moves every lot whole to the new symbol.
    4. **A spin-off** gives new shares at its ratio for each one held, and moves the share of

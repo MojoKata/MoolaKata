@@ -321,13 +321,11 @@ def _tools_list() -> dict:
 
 
 def _call(srv, w: Who, params: dict) -> dict:
-    name = params.get("name")
-    args = params.get("arguments") or {}
-    t = TOOLS.get(name)
-    if t is None:
-        raise KeyError(name)
-    unknown = set(args) - set(t.params)
-    if unknown or not isinstance(args, dict):
+    """A tool's answer; `params` has been checked by `_params_wrong`."""
+    name = params["name"]
+    args = params.get("arguments", {})
+    t = TOOLS[name]
+    if set(args) - set(t.params):
         return _tool_error(f"{name} takes {', '.join(t.params) or 'nothing'}.")
     if missing := [r for r in t.required if not args.get(r)]:
         return _tool_error(f"{name} needs {', '.join(missing)}.")
@@ -355,6 +353,21 @@ def _call(srv, w: Who, params: dict) -> dict:
         "structuredContent": {"result": out},
         "isError": False,
     }
+
+
+def _params_wrong(method: str, params) -> str | None:
+    """Why a request's params aren't of their JSON-RPC type, or None: an object, and for a
+    tools/call a known tool's name and an object of arguments (S10.9.6)."""
+    if not isinstance(params, dict):
+        return "params is an object."
+    if method != "tools/call":
+        return None
+    name = params.get("name")
+    if not isinstance(name, str) or name not in TOOLS:
+        return f"No tool {name!r}."
+    if not isinstance(params.get("arguments", {}), dict):
+        return "arguments is an object."
+    return None
 
 
 def _invalid(t: Tool, args: dict) -> str | None:
@@ -404,9 +417,11 @@ async def mcp_post(request: Request):
         return JSONResponse(_error(None, -32700, "Not JSON."), status_code=400)
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or "method" not in msg:
         return JSONResponse(_error(None, -32600, "One JSON-RPC 2.0 request."), status_code=400)
-    method, id_, params = msg["method"], msg.get("id"), msg.get("params") or {}
+    method, id_, params = msg["method"], msg.get("id"), msg.get("params", {})
     if id_ is None:  # a notification, or a response: nothing to answer
         return Response(status_code=202)
+    if wrong := _params_wrong(method, params):
+        return JSONResponse(_error(id_, -32602, wrong))
     if method == "initialize":
         asked = params.get("protocolVersion")
         return JSONResponse(
@@ -427,10 +442,7 @@ async def mcp_post(request: Request):
     if method == "tools/call":
         from starlette.concurrency import run_in_threadpool
 
-        try:
-            out = await run_in_threadpool(_call, srv, w, params)
-        except KeyError:
-            return JSONResponse(_error(id_, -32602, f"No tool {params.get('name')!r}."))
+        out = await run_in_threadpool(_call, srv, w, params)
         return JSONResponse(_result(id_, out))
     return JSONResponse(_error(id_, -32601, f"MoolaKata's MCP doesn't do {method!r}."))
 

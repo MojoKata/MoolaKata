@@ -103,7 +103,7 @@ def post(srv, c: Connection, a: Account, data: bytes, meta: dict) -> dict:
 def _read(srv, a: Account, data: bytes):
     """An OFX, QFX or CSV file read as the import reads an upload; anything else refused."""
     if ofx.looks_like_ofx(data):
-        return parsing.read_ofx(data)
+        return parsing.read_ofx(data, user=a.ownerId)
     if csvfile.looks_like_csv(data):
         with srv.db.read(unscoped="connector.files: read") as s:
             from sqlalchemy import false, select
@@ -122,7 +122,7 @@ def _read(srv, a: Account, data: bytes):
                 "mapping-missing",
                 "The account has no saved CSV mapping: import one file by hand first.",
             )
-        return parsing.read_csv(data, json.loads(saved.columns))
+        return parsing.read_csv(data, json.loads(saved.columns), user=a.ownerId)
     raise Refused("file-refused", "Not a file MoolaKata imports (OFX, QFX, CSV, a statement).")
 
 
@@ -133,7 +133,8 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
     start = end = institution = None
     if media == "application/pdf":
         try:
-            lines = parsing.text_layer(data)  # in the reader's worker (S9.8.4.2)
+            # In the reader's worker, as the account's owner's file (S9.8.4.2).
+            lines = parsing.text_layer(data, user=a.ownerId)
         except parsing.ReadError:  # a PDF that won't open is kept by its name alone
             lines = None
         if lines:

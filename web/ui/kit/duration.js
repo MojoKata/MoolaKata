@@ -1,10 +1,12 @@
 // Durations as people type them (requirements S12.13): one or more parts, each a whole number
 // and a unit, w (weeks), d (days), h (hours) or m (minutes), largest first, each unit at most
-// once, with or without spaces: "1d", "90m", "2w 3d 4h", "2w3d". The server reads them with the
-// same rules (moolakata/duration.py).
+// once, with or without spaces: "1d", "90m", "2w 3d 4h", "2w3d", and at most 52 weeks. The server
+// reads them with the same rules (moolakata/duration.py).
 
 const MINUTES = /** @type {Record<string, number>} */ ({ w: 10080, d: 1440, h: 60, m: 1 });
 const ORDER = 'wdhm';
+// The longest a duration is: a pause, the one asked for, ends on its own within a year (S11.7.2).
+const LONGEST = 52 * MINUTES.w;
 
 /**
  * A duration's length in minutes, or an error worded for the field.
@@ -30,6 +32,7 @@ export function parseDuration(text) {
     pos = part.lastIndex;
   }
   if (total <= 0) return { error: 'A duration is at least a minute.' };
+  if (!(total <= LONGEST)) return { error: 'A duration is at most 52w.' };
   return { minutes: total };
 }
 

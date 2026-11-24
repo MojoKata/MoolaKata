@@ -7,8 +7,9 @@ by this server's link key (`links/gate.py`)."""
 from fastapi import APIRouter, Request
 from sqlalchemy import false, select
 
+from .. import ratelimit
 from ..links import keys, signing
-from ..links.gate import Call, Gate, Kind
+from ..links.gate import Call, Gate, Kind, Unsigned
 from ..links.routes import own
 from ..store.entities.accounts import Account
 from . import PROTOCOL, SUPPORTED, manage
@@ -51,12 +52,18 @@ def paired(status: bool = False):
 @router.get("/hello")
 def hello(request: Request):
     """Unsigned: the protocol this server speaks and its key's fingerprint, so a connector can
-    check it against the pairing code before sending anything."""
+    check it against the pairing code before sending anything. No release: that rides on
+    signed answers alone (S13.6). 60 a minute from one address, as `/link`'s hello
+    (S13.7.5.4), past them refused `limit` as the gate refuses an address."""
     srv = request.app.state.server
+    host = request.client.host if request.client else None
+    wait = srv.conn_unknown.hit(ratelimit.address_key(host))
+    if wait:
+        refused = Unsigned("limit", "Too many calls from this address: try again later.", wait)
+        return gate.refusal(request, refused)
     k, fp = own(srv)
     return {
         "protocol": PROTOCOL,
-        "version": srv.version,
         "fingerprint": fp,
         "key": keys.b64(keys.raw_public(k.public_key())),
     }
@@ -89,8 +96,9 @@ def report(call: Call):
     from .. import certs
 
     # This server's own certificate key, in every answer, so a key the connector hasn't pinned
-    # is announced, signed, before it is in use (protocol §1.2).
-    if key := certs.own_key(srv):
+    # is announced, signed, before it is in use (protocol §1.2): read at the address the
+    # connector reaches this server at, as its pairing code's was (S18.4.1).
+    if key := certs.own_key(srv, "connector"):
         out = {**out, "certificate": key}
     return out
 

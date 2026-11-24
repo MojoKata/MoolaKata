@@ -180,12 +180,9 @@ def test_host_commands_have_their_socket_and_the_proxy_is_trusted_alone():
     subnet = ipaddress.ip_network(
         COMPOSE["compose.yaml"]["networks"]["default"]["ipam"]["config"][0]["subnet"]
     )
-    for net in EXAMPLE.trusted_proxies:
-        assert net.num_addresses == 1 and net.network_address in subnet, net
-    assert (
-        f"ipv4_address: {EXAMPLE.trusted_proxies[0].network_address}"
-        in (INSTALL / "compose.yaml").read_text()
-    )
+    for proxy in EXAMPLE.trusted_proxies:
+        assert proxy in subnet, proxy
+    assert f"ipv4_address: {EXAMPLE.trusted_proxies[0]}" in (INSTALL / "compose.yaml").read_text()
 
 
 def test_the_published_port_fits_each_mode():

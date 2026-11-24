@@ -122,6 +122,20 @@ def test_sign_in_by_username_or_email_with_a_strict_cookie(client, server):
     assert len(token) >= 43
 
 
+def _rows(server) -> dict[str, int]:
+    """Each table's row count, Activity's left out."""
+    from sqlalchemy import func
+
+    from moolakata.store.tables import metadata
+
+    with server.db.read(unscoped="test") as s:
+        return {
+            t.name: s.scalar(select(func.count()).select_from(t))
+            for t in metadata.sorted_tables
+            if t is not Activity.__table__
+        }
+
+
 def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, server):
     """S13.7.5.1: ten failures lock the address they came from, whoever they named; the
     username is slowed, never locked, so nobody can lock an admin out from afar."""
@@ -129,6 +143,7 @@ def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, ser
     from fastapi.testclient import TestClient
 
     make_user(server, "john")
+    before = _rows(server)
     for _ in range(9):
         r = client.post("/ui/api/session", json={"login": "john", "password": "wrong"})
         assert r.status_code == 401
@@ -141,6 +156,8 @@ def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, ser
     assert int(r.headers["retry-after"]) > 800
     assert "signin.locked" in kinds(server)
     assert kinds(server).count("signin.failed") == 9  # the tenth is recorded as the lockout
+    # The counters are held in memory (S13.7.5.5): no table but Activity gained a row.
+    assert _rows(server) == before
     # From another address, john still signs in: the username was slowed, not locked.
     elsewhere = TestClient(client.app, base_url=ORIGIN, client=("192.168.1.9", 50000))
     r = elsewhere.post(
@@ -462,6 +479,46 @@ def test_password_reset(client, server):
     )
     assert sign_in(server, "fay", "a new long passphrase")
     assert "changed" in mails(server)[-1]["Subject"]
+
+
+def test_a_login_too_long_to_name_anyone_is_a_wrong_sign_in_never_kept(client, server):
+    # S10.1.5: the same answer as any wrong sign-in; S13.7.5.5: nothing kept for its name.
+    r = client.post("/ui/api/session", json={"login": "x" * 300, "password": "wrong"})
+    assert r.status_code == 401 and r.json()["code"] == "bad-credentials"
+    assert server.sign_in.held()["usernames"] == 0
+    assert kinds(server).count("signin.failed") == 1, "counted against the address"
+
+
+def test_ten_reset_requests_lock_the_address_as_ten_failed_sign_ins_do(client, server):
+    """S13.7.5.1: ten password-reset requests lock the address they came from for 15 minutes,
+    for sign-in and resets alike; another address is left alone."""
+    from conftest import ORIGIN
+    from fastapi.testclient import TestClient
+
+    set_public_url(server)
+    make_user(server, "fay")
+    for _ in range(10):
+        assert client.post("/ui/api/password-reset", json={"login": "fay"}).status_code == 204
+    r = client.post("/ui/api/password-reset", json={"login": "fay"})
+    assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
+    r = client.post("/ui/api/session", json={"login": "fay", "password": PW})
+    assert r.status_code == 429
+    elsewhere = TestClient(client.app, base_url=ORIGIN, client=("192.168.1.9", 50000))
+    r = elsewhere.post(
+        "/ui/api/session", json={"login": "fay", "password": PW}, headers={"Origin": ORIGIN}
+    )
+    assert r.status_code == 200, "a reset request slows no username"
+
+
+def test_reset_requests_lock_the_address_by_settings_figures(client, server):
+    # S16.3's lockout, as for failed sign-ins: here 3 requests lock for an hour.
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "lockoutFailures", 3, None)
+        settings.put(s, "lockoutMinutes", 60, None)
+    for _ in range(3):
+        assert client.post("/ui/api/password-reset", json={"login": "nobody"}).status_code == 204
+    r = client.post("/ui/api/password-reset", json={"login": "nobody"})
+    assert r.status_code == 429 and int(r.headers["retry-after"]) > 59 * 60
 
 
 def test_password_change_keeps_this_browser_signed_in(server):

@@ -167,3 +167,160 @@ def test_every_tool_is_in_the_api_reference():
     text = (paths.ROOT / "docs" / "api.md").read_text()
     missing = [name for name in TOOLS if f"| `{name}`" not in text]
     assert missing == []
+
+
+def test_tool_names_and_arguments_are_snake_case():
+    """MCP's spelling for names and arguments, the one exception to camelCase (S13.8.2)."""
+    import re
+
+    from moolakata.mcp import TOOLS
+
+    names = [*TOOLS, *(a for t in TOOLS.values() for a in t.params)]
+    assert [n for n in names if not re.fullmatch(r"[a-z]+(_[a-z]+)*", n)] == []
+
+
+@pytest.mark.parametrize(
+    "method, params",
+    [
+        ("initialize", [1]),
+        ("tools/call", [1]),
+        ("tools/call", "list_accounts"),
+        ("tools/call", {"name": ["list_accounts"]}),
+        ("tools/call", {"name": "list_accounts", "arguments": [{"a": 1}]}),
+        ("tools/call", {"name": "list_accounts", "arguments": "x"}),
+    ],
+)
+def test_params_name_or_arguments_of_the_wrong_type_are_invalid_params(jane, agent, method, params):
+    """JSON-RPC's -32602 for params, a tool's name or its arguments not of their type (S10.9.6)."""
+    secret = token(jane)
+    r = agent.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+        headers={"Authorization": f"Bearer {secret}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["error"]["code"] == -32602
+
+
+def _made(r) -> dict:
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_every_tool_answers_a_whole_token_as_its_screen_does(server, jane, agent):
+    """S10.9: each tool reads with the screens' own code: positions, portfolios, budgets and
+    their months, gifts coming up, tax books and their panels."""
+    acct = new_account(jane, name="Taxable", type="brokerage")
+    p = _made(make(jane, "Portf", name="Growth", accountIds=[acct["id"]], benchmark="60-40"))
+    b = _made(make(jane, "Bdgt", name="Household", accountIds=[acct["id"]]))
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    book = _made(make(jane, "TaxBk", year=2026, filers=[me]))["id"]
+    secret = token(jane)
+
+    def result(name, **args):
+        out = call(agent, secret, name, **args)
+        assert not out["isError"], (name, out)
+        return out["structuredContent"]["result"]
+
+    assert result("list_transactions") == []  # every account the user reads: none has any
+    assert {"open", "closed", "summary"} <= set(result("list_positions"))
+    assert set(result("list_positions", kind="options")) >= {"open", "closed"}
+    # Every account together, as the Portfolios screen lists it first, and the one made.
+    assert [x["id"] for x in result("list_portfolios")] == ["all", p["id"]]
+    one = result("get_portfolio", portfolio_id=p["id"])
+    assert one["portfolio"]["id"] == p["id"] and {"holdings", "returns"} <= set(one)
+    assert b["id"] in [x["id"] for x in result("list_budgets")]
+    month = result("get_budget_month", budget_id=b["id"], month="2026-10")
+    assert month["month"] == "2026-10-01"
+    assert result("list_upcoming_gifts") == []  # nobody with a birthday or holiday yet
+    assert [x["id"] for x in result("list_tax_books")["books"]] == [book]
+    assert result("get_tax_panels", book_id=book)
+
+
+def test_a_chosen_items_token_reads_only_its_portfolios_and_positions(server, jane, agent):
+    """S10.9: a chosen-items token's positions are its accounts' alone, without the totals of
+    every account; its portfolios are those chosen, and another is refused."""
+    a = new_account(jane, name="Chosen", type="brokerage")
+    b = new_account(jane, name="Other", type="brokerage")
+    mine = _made(make(jane, "Portf", name="Mine", accountIds=[a["id"]], benchmark="60-40"))
+    other = _made(make(jane, "Portf", name="Other", accountIds=[b["id"]], benchmark="60-40"))
+    items = [{"kind": "account", "id": a["id"]}, {"kind": "portfolio", "id": mine["id"]}]
+    secret = token(jane, scope="chosen", items=items)
+    positions = call(agent, secret, "list_positions")["structuredContent"]["result"]
+    assert "summary" not in positions
+    listed = call(agent, secret, "list_portfolios")["structuredContent"]["result"]
+    assert [x["id"] for x in listed] == [mine["id"]], "never every account's together"
+    refused = call(agent, secret, "get_portfolio", portfolio_id=other["id"])
+    assert refused["isError"]
+    assert refused["content"][0]["text"] == "This token doesn't read that portfolio."
+    assert not call(agent, secret, "get_portfolio", portfolio_id=mine["id"])["isError"]
+
+
+@pytest.mark.parametrize(
+    ("name", "args", "said"),
+    [
+        ("get_account_holdings", {}, "get_account_holdings needs account_id."),
+        ("get_account_holdings", {"account_id": ""}, "get_account_holdings needs account_id."),
+        ("list_accounts", {"limit": 5}, "list_accounts takes nothing."),
+        (
+            "list_transactions",
+            {"wrong": 1},
+            "list_transactions takes account_id, from, to, payee, limit.",
+        ),
+        ("list_transactions", {"payee": "x" * 201}, "payee is a string of at most 200 characters."),
+        ("list_transactions", {"payee": 5}, "payee is a string of at most 200 characters."),
+        ("list_transactions", {"limit": True}, "limit is a whole number."),
+        ("list_transactions", {"limit": "5"}, "limit is a whole number."),
+        ("list_transactions", {"limit": 0}, "limit is from 1 to 500."),
+        ("list_transactions", {"limit": 501}, "limit is from 1 to 500."),
+        ("list_transactions", {"from": "2026-13-01"}, "from is a date such as 2026-10-14."),
+        ("list_positions", {"kind": "bonds"}, "kind is one of all, stocks, options, crypto."),
+        (
+            "get_budget_month",
+            {"budget_id": "Bdgt_x", "month": "2026-1"},
+            "month doesn't have the form ^\\d{4}-\\d{2}$.",
+        ),
+        ("get_giving", {"year": 1899}, "year is from 1900 to 2200."),
+    ],
+)
+def test_a_tools_arguments_are_checked_against_its_schema(jane, agent, name, args, said):
+    """S10.9.5: arguments a tool doesn't take, one it needs left out or blank, or one not of
+    its schema are refused as the tool's error, saying which and why."""
+    out = call(agent, token(jane), name, **args)
+    assert out == {"content": [{"type": "text", "text": said}], "isError": True}
+
+
+def test_a_date_not_of_its_form_is_refused_where_a_tool_reads_it():
+    """A date the schema let through (checked there too) is still refused where it is read."""
+    from moolakata.errors import Problem
+
+    assert mcp._date(None) is None and mcp._date("") is None
+    with pytest.raises(Problem) as e:
+        mcp._date("14/10/2026")
+    assert (e.value.code, e.value.detail) == (
+        "date-invalid",
+        "'14/10/2026' is not a date such as 2026-10-14.",
+    )
+
+
+def test_a_body_not_json_or_not_one_request_is_a_parse_or_request_error(jane, agent):
+    """JSON-RPC 2.0: a body that isn't JSON is -32700; JSON that isn't one request is -32600;
+    a response sent to the server (no id) is taken and not answered."""
+    secret = token(jane)
+    headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
+    r = agent.post("/mcp", content=b"{not json", headers=headers)
+    assert r.status_code == 400
+    assert r.json() == {
+        "jsonrpc": "2.0",
+        "id": None,
+        "error": {"code": -32700, "message": "Not JSON."},
+    }
+    for body in ([{"jsonrpc": "2.0", "id": 1, "method": "ping"}], {"jsonrpc": "1.0", "id": 1,
+                 "method": "ping"}, {"jsonrpc": "2.0", "id": 1}):  # fmt: skip
+        r = agent.post("/mcp", json=body, headers=headers)
+        assert r.status_code == 400 and r.json()["error"] == {
+            "code": -32600,
+            "message": "One JSON-RPC 2.0 request.",
+        }
+    r = agent.post("/mcp", json={"jsonrpc": "2.0", "method": "ping"}, headers=headers)
+    assert r.status_code == 202 and r.content == b""

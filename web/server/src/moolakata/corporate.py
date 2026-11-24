@@ -45,8 +45,9 @@ def record(
 ) -> list[Transaction]:
     """The transactions a corporate action makes, checked first; refused field by field."""
     e: list[FieldError] = []
-    # Held long, or short (an assignment with none held, S3.4): the action reaches either.
-    held = repo.load(s, account).replay().quantity(inst.id)
+    # Held long, or short (an assignment with none held, S3.4): the action reaches either. As
+    # held on its day, so one recorded late reaches what was sold since (S2.4.1, S2.8).
+    held = repo.load(s, account).replay(day).quantity(inst.id)
     if held == 0 and not (kind == "split" and _options_on(s, account, inst, day)):
         # A split reaches the options on the stock too, held without its shares (S3.10.1).
         e.append(FieldError("instrumentId", "nothing-held", "Nothing of it is held here."))
@@ -131,7 +132,8 @@ def _txn(account, user_id, day, kind, inst_id, payee) -> Transaction:
 
 
 def undo(s: Session, by: str, txn: Transaction) -> None:
-    """Deleting either leg of a pair deletes the other."""
+    """Deleting either leg of a pair deletes the other: the two are only ever deleted together,
+    so the other is never deleted already."""
     others = list(
         s.scalars(
             select(Transaction).where(
@@ -142,8 +144,6 @@ def undo(s: Session, by: str, txn: Transaction) -> None:
         )
     )
     if txn.transferId:
-        other = s.get(Transaction, txn.transferId)
-        if other is not None and not other.deleted:
-            others.append(other)
+        others.append(s.get(Transaction, txn.transferId))
     for o in others:
         o.mark_deleted(by)

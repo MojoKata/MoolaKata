@@ -29,7 +29,9 @@ S14.1). The tables are declared with SQLAlchemy Core in
 
 The same names are used in Python and in the API's JSON. A table's columns, the attributes
 of its entity dataclass and the fields the browser receives all have the same spelling, so
-there's no layer that translates names.
+there's no layer that translates names. `/mcp` is the one place a name is spelled otherwise:
+its tools' names and arguments are snake_case, as MCP tools' are (`account_id`), and its
+answers keep the API's camelCase fields.
 
 ## 2. Primary keys
 
@@ -47,9 +49,21 @@ there's no layer that translates names.
   CHECK (id GLOB 'User_*' AND length(id) = 31)
   ```
   The length is the prefix's length + 1 + 26.
-- **Record fields.** Each table with an `id` also has `version` (an integer that changes with
-  every save, which the API's `If-Match` compares, requirements S13.8.6), `createdAt` and
-  `updatedAt`.
+- **Record fields.** Each table with an `id` also has `version`, an integer that starts at 1
+  and goes up with every save, `createdAt` and `updatedAt`. What the version does depends on
+  who writes the table:
+  - **Locked** are the tables written only within a person's save: what a person edits
+    through a draft (requirements S12.15, S13.8.11), what the server works out with it, and
+    what a person's own action writes, such as a sign-up or an admin's approval of it: every
+    table with an `id` not named below. The version is the lock: a save names the version it
+    was read at (`If-Match`, requirements S13.8.6), and one made against an older version is
+    refused as stale.
+  - **Counted** are the tables the server writes in the background, outside a person's save
+    (a scheduled task, a sync, a worker, a refresh), whatever else writes them too: `Activity`,
+    `Alert`, `AlertState`, `Holding`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`,
+    `OneTimeToken`, `Price`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`,
+    `WalletAddress`, `WashSale`. The version only counts their saves, each one adding 1 in the
+    database, and locks nothing: a write is never refused for it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
   an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,
   with the table's prefix. The server accepts it only in exactly this form, with the prefix of
@@ -224,8 +238,9 @@ Records are never removed from the database: they are marked deleted. The except
       by, at **Reset copy**, an inbox change once it is applied (requirements S11.9), and a
       receipt waiting to reach the copy once it has (`LinkFile`, S11.4);
    4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent
-      or when their link expires), sign-in and access-key attempt counters, the background
-      tasks' last runs, the data version (§8), and the live stream's state;
+      or when their link expires), the background tasks' last runs, the data version (§8), and
+      the live stream's state. Attempt counters, of sign-ins and access keys among them, are no
+      table's: they are held in memory (requirements S13.7.5.5);
    5. **caches**, rebuilt from the records: thumbnails, computed series kept for speed, and
       wash sales, worked out again from the trades whenever they change, and a bitcoin
       wallet's addresses, derived again from its keys and its explorer or node, a budget's

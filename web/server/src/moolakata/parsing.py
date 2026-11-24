@@ -1,11 +1,15 @@
 """Files parsed in the reader's worker, never in the server (requirements S9.8.4.2): a
 receipt's thumbnail, a HEIC photo as JPEG for display, a PDF's text layer, and the OFX and CSV
 files of an import. One worker is kept for these quick jobs, beside the reading queue's, and
-started again after a crash; what it answers is checked field by field here."""
+started again after a crash, and whenever the next file is another user's than the last, so a
+file that takes it over never sees another user's (S9.8.4.2); what it answers is checked field
+by field here. Each job names `user`, whose file it is: for a connector's file, the owner of the
+account it is for."""
 
 import base64
 import threading
 
+from .importers import csvfile
 from .importers.parsed import Malformed, ParsedFile, ReadError, from_json
 
 LIMIT = 60
@@ -17,14 +21,14 @@ _data_dir = None
 PINNED: bool | None = None
 
 
-def _call(op: str, data: bytes, **params) -> dict:
+def _call(op: str, data: bytes, user: str | None = None, **params) -> dict:
     global _worker
     from .receipts.reading import Worker
 
     with _lock:
         if _worker is None:
             _worker = Worker(_data_dir)
-        return _worker.call(op, data, LIMIT, **params)
+        return _worker.call(op, data, LIMIT, user=user, **params)
 
 
 def use_data_dir(path) -> None:
@@ -82,9 +86,9 @@ def _bytes(value, magic: tuple[bytes, ...], limit: int) -> bytes | None:
     return data
 
 
-def thumbnail(data: bytes, media: str) -> bytes | None:
+def thumbnail(data: bytes, media: str, *, user: str) -> bytes | None:
     """A small WebP of an image or a PDF's first page; None when it can't be drawn."""
-    out = _call("thumbnail", data, media=media)
+    out = _call("thumbnail", data, media=media, user=user)
     if "error" in out:
         return None
     try:
@@ -94,9 +98,9 @@ def thumbnail(data: bytes, media: str) -> bytes | None:
     return webp if webp is None or webp[8:12] == b"WEBP" else None
 
 
-def as_jpeg(data: bytes) -> bytes:
+def as_jpeg(data: bytes, *, user: str) -> bytes:
     """A HEIC photo as JPEG for the browser; ReadError when it can't be."""
-    out = _call("jpeg", data)
+    out = _call("jpeg", data, user=user)
     if "error" in out:
         raise ReadError(out["error"])
     try:
@@ -108,9 +112,9 @@ def as_jpeg(data: bytes) -> bytes:
     return jpeg
 
 
-def text_layer(data: bytes) -> list[str] | None:
+def text_layer(data: bytes, *, user: str) -> list[str] | None:
     """A PDF's text layer as lines, or None when it has none worth reading."""
-    out = _call("text", data)
+    out = _call("text", data, user=user)
     if "error" in out:
         raise ReadError(out["error"])
     lines = out.get("lines")
@@ -130,26 +134,25 @@ def _parsed(out: dict) -> ParsedFile:
         raise ReadError("the reader answered out of turn") from None
 
 
-def read_ofx(data: bytes) -> ParsedFile:
-    return _parsed(_call("ofx", data))
+def read_ofx(data: bytes, *, user: str) -> ParsedFile:
+    return _parsed(_call("ofx", data, user=user))
 
 
-def read_csv(data: bytes, mapping: dict) -> ParsedFile:
-    return _parsed(_call("csv", data, mapping=mapping))
+def read_csv(data: bytes, mapping: dict, *, user: str) -> ParsedFile:
+    return _parsed(_call("csv", data, mapping=mapping, user=user))
 
 
-MAPPING_KEYS = {
-    "delimiter",
-    "skipRows",
-    "negateAmounts",
-    "dateFormat",
-}
+# The keys a proposed mapping may carry: how the file is read, and a column for each field
+# (S9.8.4.2.1). Any other is the worker's own, refused.
+MAPPING_KEYS = frozenset(
+    {"delimiter", "skipRows", "negateAmounts", "dateFormat", *csvfile.FIELDS, *csvfile.TRADE_FIELDS}
+)
 
 
-def propose_csv(data: bytes, trades: bool = False) -> dict:
+def propose_csv(data: bytes, trades: bool = False, *, user: str) -> dict:
     """A CSV's headers, a sample and a guessed mapping, for the person to check; a trade
     history's columns too for an account that holds instruments."""
-    out = _call("csv-propose", data, trades=trades)
+    out = _call("csv-propose", data, trades=trades, user=user)
     if "error" in out:
         raise ReadError(out["error"])
     p = out.get("proposal")
@@ -169,7 +172,7 @@ def propose_csv(data: bytes, trades: bool = False) -> dict:
         and isinstance(p.get("trailer", 0), int)
         and isinstance(p.get("mapping"), dict)
         and all(
-            isinstance(k, str)
+            k in MAPPING_KEYS
             and (v is None or isinstance(v, (str, int, bool)))
             and len(str(v)) <= 200
             for k, v in p["mapping"].items()
