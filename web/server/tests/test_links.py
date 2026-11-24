@@ -848,7 +848,7 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     assert changes.waiting(b.config.data_dir, b_id)
     texts = [e["text"] for e in cb.get("/ui/api/activity").json()["items"]]
-    assert any(t.endswith("asked a linked server for its changes now") for t in texts)
+    assert "Admin B asked moolakata for its changes now" in texts, texts[:4]
     assert any("changed items: Jane" in t and "account for Bart" in t for t in texts), texts[:4]
     real = changes.open_part
     monkeypatch.setattr(changes, "open_part", lambda *x: {**real(*x), "items": [{"id": 5}]})

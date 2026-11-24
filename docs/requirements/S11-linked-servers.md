@@ -202,7 +202,8 @@ preparer.
 8. **Audit**: a link's records go to this household's Activity, for admins alone, a link being
    an admin's matter (S11.7). They name a share by its kind, its owner and the people it
    names, with counts, never by an item's name, which stays inside the linked copy (S11.3):
-   *doe-parents sent 2 changed items: Candace Doe's account for Jane Doe*. Each pull is
+   *doe-parents sent 2 changed items: Candace Doe's account for Jane Doe*. Each names its link,
+   by the peer's server name (*Jane unlocked the linked copy from doe-parents*). Each pull is
    recorded on both sides (who, when, which shares, how much changed), and each pause and
    resume on the side that made it. The receiving side records who viewed linked data, and
    every unlock (who), failed unlock, release (unused, Lock now or restart), access key made,

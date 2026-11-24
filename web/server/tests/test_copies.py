@@ -82,9 +82,28 @@ def test_an_admin_makes_the_words_and_a_named_person_unlocks_with_them(server, s
     r = jane.post(f"/ui/api/linked/{link_id}/lock")
     assert r.json()["household"]["locked"]
     texts = [e["text"] for e in admin.get("/ui/api/activity").json()["items"]]
-    assert any("created a linked copy's access key" in t for t in texts)
-    assert any("unlocked a linked copy" in t for t in texts)
-    assert any("locked a linked copy (Lock now)" in t for t in texts)
+    assert "Ada Admin created the access key of the linked copy from doe-parents" in texts
+    assert "Jane unlocked the linked copy from doe-parents" in texts
+    assert "Jane locked the linked copy from doe-parents (Lock now)" in texts
+
+
+def test_a_restart_records_the_release_of_each_copy_with_a_key(server, setup):
+    # S11.8: a release at a restart is recorded, naming the link, for each copy that has an
+    # access key; a copy with none has nothing to release.
+    from moolakata.links import copies
+
+    link_id, admin, _, _ = setup
+    with server.db.tx(unscoped="test") as s:
+        copies.record_restart(s)
+    texts = [e["text"] for e in admin.get("/ui/api/activity").json()["items"]]
+    assert not any("(restart)" in t for t in texts)
+    admin.post(f"/ui/api/settings/links/{link_id}/copy-key")
+    with server.db.tx(unscoped="test") as s:
+        copies.record_restart(s)
+    items = admin.get("/ui/api/activity").json()["items"]
+    [entry] = [e for e in items if "(restart)" in e["text"]]
+    assert entry["text"] == "MoolaKata locked the linked copy from doe-parents (restart)"
+    assert (entry["subjectKind"], entry["subjectId"]) == ("link", link_id)
 
 
 def test_wrong_words_are_limited(server, setup):
@@ -165,4 +184,4 @@ def test_who_viewed_linked_data_is_recorded_once_an_hour(server, setup):
         assert jane.get(f"/ui/api/linked/{link_id}/items").status_code == 200
     feed = admin.get("/ui/api/activity").json()["items"]
     seen = [x["text"] for x in feed if "viewed what" in x["text"]]
-    assert seen == ["Jane viewed what Jeremy & Candace shares"], seen
+    assert seen == ["Jane viewed what doe-parents shares"], seen

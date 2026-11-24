@@ -365,7 +365,7 @@ def pull_now(link_id: str, request: Request, c: Caller = Depends(admin)):
     """An exchange now rather than at the next hour (S11.7), recorded with who asked (S11.8)."""
     with server(request).db.tx(user=c.id) as s:
         if s.get(Link, link_id) is not None:
-            activity.record(s, "link.pull-asked", actor=c.id, for_admins=True)
+            activity.record(s, "link.pull-asked", actor=c.id, **activity.about_link(link_id))
     return _act(request, c, link_id, lambda srv: manage.exchange(srv, link_id))
 
 

@@ -151,7 +151,7 @@ def ended_by_peer(srv, link_id: str) -> None:
         if not lifecycle.apply(row, "link-ended").ended:
             return
         end_users(s, row)
-        activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
+        activity.record(s, "link.ended-by-peer", actor=None, **activity.about_link(row.id))
     receive.forget(srv, link_id)
 
 
@@ -165,7 +165,7 @@ def accept_certificate(srv, link_id: str, by: str) -> Link:
         link.peerCert, link.peerCertNext = link.peerCertOffered, None
         link.peerCertOffered = None
         link.lastError = link.failingSince = None
-        activity.record(s, "link.certificate-accepted", actor=by, for_admins=True)
+        activity.record(s, "link.certificate-accepted", actor=by, **activity.about_link(link.id))
         return link
 
 
@@ -246,7 +246,7 @@ def invite(srv, by: str) -> tuple[Link, str]:
             createdById=by,
         )
         s.add(link)
-        activity.record(s, "link.invited", actor=by, for_admins=True)
+        activity.record(s, "link.invited", actor=by, **activity.about_link(link.id))
         s.flush()
         return link, encode_code(address, fp, secret, cert)
 
@@ -297,7 +297,7 @@ def join(srv, code: str, by: str) -> Link:
         )
         s.add(link)
         s.flush()
-        activity.record(s, "link.requested", actor=by, for_admins=True)
+        activity.record(s, "link.requested", actor=by, **activity.about_link(link.id))
     if gone:
         from . import receive
 
@@ -328,7 +328,7 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
         link.peerCert = _cert(body.get("t"))
         link.lastOkAt = clock.now()
         s.flush()
-        activity.record(s, "link.request-received", actor=None, for_admins=True)
+        activity.record(s, "link.request-received", actor=None, **activity.about_link(link.id))
     if gone:
         from . import receive
 
@@ -486,7 +486,7 @@ def _link_again(s, peer: bytes, by: str | None = None) -> str | None:
     if got.ended:
         old.codeHash = None
         end_users(s, old)
-        activity.record(s, "link.ended", actor=by, for_admins=True)
+        activity.record(s, "link.ended", actor=by, **activity.about_link(old.id))
     s.flush()  # put aside before the new link takes its key
     return old.id if got.ended else None
 
@@ -497,7 +497,7 @@ def approve(srv, link_id: str, by: str) -> Link:
         lifecycle.apply(link, "approve")
         link.approvedById = by
         link.approvedAt = clock.now()
-        activity.record(s, "link.approved", actor=by, for_admins=True)
+        activity.record(s, "link.approved", actor=by, **activity.about_link(link.id))
     with contextlib.suppress(LinkError):  # else the other side learns at its next exchange
         exchange(srv, link_id)  # tells the other side at once when it can be reached
     return link
@@ -522,7 +522,7 @@ def set_state(
             link.codeHash = None
             end_users(s, link)
         kind = {"paused": "link.paused", "active": "link.resumed", "ended": "link.ended"}[state]
-        activity.record(s, kind, actor=by, for_admins=True)
+        activity.record(s, kind, actor=by, **activity.about_link(link.id))
         peer = link.peerKey
     if state == "ended":
         from . import receive
@@ -798,7 +798,7 @@ def answer_end(srv, link: Link) -> None:
         row = _get(s, link.id)
         if lifecycle.apply(row, "link-ended").ended:
             end_users(s, row)
-            activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
+            activity.record(s, "link.ended-by-peer", actor=None, **activity.about_link(row.id))
     receive.forget(srv, link.id)
 
 

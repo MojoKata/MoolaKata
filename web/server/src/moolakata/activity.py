@@ -34,3 +34,8 @@ def record(
     )
     s.add(entry)
     return entry
+
+
+def about_link(link_id: str) -> dict:
+    """What a link's entry is about: that link, named as its server, for admins (S11.8)."""
+    return {"subject_kind": "link", "subject_id": link_id, "for_admins": True}
