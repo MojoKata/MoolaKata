@@ -171,8 +171,12 @@ S10.10.1), used only for gifts.
    before it: each one's sealed bytes as the body, `application/octet-stream`, with
    `MK-Link-File` naming the receipt, the call signed over the sealed bytes' SHA-256 and read as
    it arrives, never whole in memory; the answering side keeps each as it came until the part
-   that names it arrives, so it never has to call back to fetch them. The caller fetches the
-   answering side's receipts with `file`.
+   that names it arrives, so it never has to call back to fetch them. A delivered receipt waits
+   for its part only while the change it belongs to is under way, never for ever: once that
+   change is given up (a part refused, the caller's next exchange begun, which reads its change
+   again from the same `have` and delivers the receipts again, or a restart on the answering
+   side), it no longer waits, and is swept as a file no row names (S11.9.6.6). The caller
+   fetches the answering side's receipts with `file`.
 5. **A receipt never holds a change back.** One that can't be delivered or fetched (a
    connection dropped, its file gone at the source) is left out: the change is taken without
    it, the receiver keeps the receipt as not arrived, and asks for it with `file` at each
