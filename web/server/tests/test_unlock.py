@@ -62,6 +62,25 @@ def test_between_the_unlock_and_readiness_only_what_unlocking_needs_answers(lock
     assert c.get("/link/v1/hello").status_code == 200
 
 
+def test_a_database_from_a_newer_release_is_refused_at_the_unlock(
+    locked, master_key, monkeypatch, caplog
+):
+    """S13.6: the database is read only once the phrase opens it, so a newer release's is
+    refused at the unlock, said in a `refusing to unlock:` line, and the server stays locked."""
+    from moolakata.store import migrate
+
+    srv, c = locked
+    monkeypatch.setattr(migrate, "current", lambda engine: "9999")
+    words = " ".join(phrase.to_words(master_key))
+    r = c.post("/ui/api/unlock", json={"phrase": words}, headers={"Origin": ORIGIN})
+    assert (r.status_code, r.json()["code"]) == (503, "cannot-unlock"), r.text
+    assert any(
+        m.startswith("refusing to unlock: ") and "from a newer MoolaKata" in m
+        for m in caplog.messages
+    )
+    assert srv.store is None and c.get("/healthz").json() == {"status": "locked"}
+
+
 def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
     srv, c = locked
     headers = {"Origin": ORIGIN}

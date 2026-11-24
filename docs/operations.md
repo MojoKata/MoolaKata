@@ -185,8 +185,8 @@ without the phrase. Unlock after each start (§2 step 5).
 
 **Going back** to the earlier release: stop it, set the old tag again, and restore the copy
 made before the upgrade with `db restore data/pre-upgrade/<copy>` (or the last backup, §6). An
-older release refuses a database that a newer one has migrated: it says so in a `refusing to
-start:` line (§5.1).
+older release refuses a database that a newer one has migrated: it starts, and refuses the
+unlock with a `refusing to unlock:` line, staying locked (§5.1).
 
 ## 4. Backups
 
