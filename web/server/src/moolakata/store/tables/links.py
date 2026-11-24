@@ -49,7 +49,7 @@ Link = record(
     Column("syncTotal", Integer),
     # The linked copy's access key (S11.9.2): its public key only, and who made it when. The
     # copy key itself is never stored.
-    Column("copyFolder", Text),  # the copy's folder under links/, a random name (schema.md §2.5)
+    Column("copyFolder", Text),  # the copy's folder under links/, a random name (schema.md §2)
     Column("copyPublicKey", Text),
     Column("copyKeyAt", UtcTimestamp),
     Column("copyKeyById", Text, ForeignKey("User.id")),

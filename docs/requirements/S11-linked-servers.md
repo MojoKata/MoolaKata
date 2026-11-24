@@ -209,7 +209,7 @@ preparer.
       directory, `links/<random name>/`, never in the main database:
 
       ```
-      links/<random name>/        named at random, never by the link's id (schema.md §2.5)
+      links/<random name>/        named at random, never by the link's id (schema.md §2)
         shared.db                 SQLCipher: the shared items' rows in the source's own
                                   schema (S11.3.1), budgets' monthly totals, the documents
                                   worked out at the source, receipt records, the text read

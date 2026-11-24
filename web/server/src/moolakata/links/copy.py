@@ -72,7 +72,7 @@ def public_of(copy_key: bytes) -> str:
 
 
 # Each link's copy lives in a folder with a random name, never the link's id, which would
-# date the link on disk (schema.md §2.5). The names come from the Link rows at unlock and from
+# date the link on disk (schema.md §2). The names come from the Link rows at unlock and from
 # `Copies.create`, which makes them; a link with no name yet falls back to its id.
 NAMES: dict[str, str] = {}
 
