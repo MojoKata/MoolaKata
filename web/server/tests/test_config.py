@@ -494,3 +494,89 @@ def test_a_second_signal_later_than_a_second_stops_at_once(config, monkeypatch, 
     caplog.set_level(logging.INFO, "moolakata.listener")
     asyncio.run(listener.run("app", config, on_stop))
     assert exits == [1] and "second signal: stopping now" in caplog.text
+
+
+def test_dev_mode_refuses_root_and_an_installed_servers_data(tmp_path, monkeypatch):
+    """S17.7: dev mode, with its seed users' fixed password, never runs as root nor on the data
+    directory of an installed server."""
+    import os
+
+    from moolakata.main import dev_config, refuse_dev
+
+    refuse_dev(dev_config(37373, stubs=False, peer=False, base=tmp_path))
+    with pytest.raises(RefuseStart, match="dev mode does not run on an installed server's data"):
+        refuse_dev(dev_config(37373, False, False, Path("/var/lib/moolakata/dev")))
+    monkeypatch.setattr(os, "geteuid", lambda: 0)
+    with pytest.raises(RefuseStart, match="dev mode does not run as root"):
+        refuse_dev(dev_config(37373, stubs=False, peer=False, base=tmp_path))
+
+
+def test_a_frozen_dev_server_has_a_fixed_clock_repeatable_ids_and_no_landlock(
+    tmp_path, monkeypatch
+):
+    """The generated mockup's server (S12.9): its clock fixed at the time given, its ids
+    repeatable, and shown as a host without Landlock wherever it is built."""
+    import datetime as dt
+
+    from moolakata import clock, ids, parsing
+    from moolakata import main as cli
+
+    seen = {}
+
+    def serve(config, seed=False):
+        seen.update(now=clock.now(), id=ids.new_id("Acct"), pinned=parsing.PINNED, seed=seed)
+        return 0
+
+    monkeypatch.setattr(cli, "serve", serve)
+    monkeypatch.setattr(parsing, "PINNED", parsing.PINNED)
+    when = "2026-11-02T09:30:00+00:00"
+    try:
+        assert main(["dev", "--data", str(tmp_path), "--frozen", when, "--seed"]) == 0
+        ids.repeatable()
+        again = ids.new_id("Acct")  # counted from the start again: the same id
+    finally:
+        clock.fix(None)
+        ids.repeatable(False)
+    assert seen["now"] == dt.datetime.fromisoformat(when) and not seen["pinned"] and seen["seed"]
+    assert again == seen["id"]
+
+
+def test_a_server_asking_to_start_again_runs_the_same_command_unseeded(monkeypatch):
+    """S15.7.2: after a scheduled re-encryption the same command runs again in this process,
+    what an exit would flush flushed first, and a dev server's seed is not planted twice."""
+    import atexit
+    import os
+    import sys
+
+    from moolakata import main as cli
+    from moolakata import runtime
+
+    async def restart(config, seed=False):
+        return runtime.RESTART
+
+    flushed, ran = [], []
+    monkeypatch.setattr(runtime, "start", restart)
+    monkeypatch.setattr(atexit, "_run_exitfuncs", lambda: flushed.append(True))
+    monkeypatch.setattr(os, "execv", lambda path, args: ran.append((path, args)))
+    monkeypatch.setattr(sys, "orig_argv", ["python", "-m", "moolakata", "dev", "--seed"])
+    assert cli.serve(None, seed=True) == runtime.RESTART
+    assert flushed == [True]
+    assert ran == [(sys.executable, ["python", "-m", "moolakata", "dev"])]
+
+
+def test_openapi_prints_the_document(monkeypatch, capsys):
+    from moolakata import contract
+
+    monkeypatch.setattr(contract, "openapi_json", lambda: '{"openapi": "3.1.0"}\n')
+    assert main(["openapi"]) == 0
+    assert capsys.readouterr().out == '{"openapi": "3.1.0"}\n'
+
+
+def test_a_command_stopped_by_ctrl_c_ends_as_an_interrupted_one(monkeypatch):
+    from moolakata import main as cli
+
+    def interrupted(args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "cmd_openapi", interrupted)
+    assert main(["openapi"]) == 130
