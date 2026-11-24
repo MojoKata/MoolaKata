@@ -621,7 +621,7 @@ function PersonDialog({ close, row }) {
                     minWidth: 0,
                   }} data-help="the-person">
                     <div class="small dim">The person${p?.private
-                      ? ' (private: only those it is shared with)'
+                      ? ' (private: listed only for those it is shared with)'
                       : ''}</div>
                     <div class="row">
                       <${RecField} rec=${who} name="name" label="Name" onEdit=${unuse} />

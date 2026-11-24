@@ -39,8 +39,9 @@ their gifts stay in your history.
 
 ## Private
 
-Seen only by you and those you share them with. Only whoever added them makes them private, and
-never someone who uses this server.
+Listed only for you and those you share them with: nobody else is offered them for anything new.
+A gift, plan or 529 that already names them still shows their name, and nothing more of them. Only
+whoever added them makes them private, and never someone who uses this server.
 
 ## Their relationships {#their-relationships}
 
