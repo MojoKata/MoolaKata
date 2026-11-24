@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import false, select
+from sqlalchemy import false, select, update
 from sqlalchemy.orm import Session
 
 from .. import access, people
@@ -400,10 +400,14 @@ def delete_person(s: Session, p: Person, by: str) -> None:
 
     now = clock.now()
     p.mark_deleted(by, now)
-    for gp in s.scalars(
-        select(GiftPlan).where(GiftPlan.personId == p.id, GiftPlan.deleted == false())
-    ):
-        gp.mark_deleted(by, now)
+    # Every plan for them, whoever's: the server's bookkeeping, since the deleter's session
+    # sees only the plans it may, and none for a deleted person.
+    s.execute(
+        update(GiftPlan)
+        .where(GiftPlan.personId == p.id, GiftPlan.deletedAt.is_(None))
+        .values(deletedAt=now, deletedById=by, version=GiftPlan.version + 1, updatedAt=now)
+        .execution_options(synchronize_session=False)
+    )
     links = list(
         s.scalars(
             select(GiftPerson).where(GiftPerson.personId == p.id, GiftPerson.deleted == false())

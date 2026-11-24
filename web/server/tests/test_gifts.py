@@ -386,3 +386,25 @@ def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(jane):
     assert r.status_code == 200, r.text
     inbox = jane.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
     assert [x["id"] for x in inbox] == [up["id"]]
+    assert jane.get("/ui/api/gifts/upcoming").json()["items"] == []
+
+
+def test_deleting_a_person_deletes_every_gift_plan_for_them(server, jane):
+    """S7.8.6: the person's gift plans go with them, whoever's they are: Jane's, and John's,
+    which she can't see."""
+    from moolakata.store.entities.education import GiftPlan
+
+    make_user(server, "john", sex="male")
+    john = sign_in(server, "john")
+    sam = person(jane, name="Sam Lee", sex="male")
+    his = make(john, "GfPln", personId=sam["id"])
+    assert his.status_code == 200, his.text
+    his = his.json()
+    r = remove(jane, "Persn", jane.get(f"/ui/api/persons/{sam['id']}").json())
+    assert r.status_code == 200, r.text
+    assert jane.get("/ui/api/gift-plans").json()["items"] == []
+    assert john.get("/ui/api/gift-plans").json()["items"] == []
+    with server.db.read(unscoped="test: the plans' rows") as s:
+        for plan_id in (sam["plan"]["id"], his["id"]):
+            gp = s.get(GiftPlan, plan_id)
+            assert gp.deleted and gp.version == 2, plan_id
