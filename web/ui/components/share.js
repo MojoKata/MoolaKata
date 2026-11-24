@@ -214,16 +214,6 @@ export function ShareDialog({ close, kind, id, name }) {
               </div>
             `
             : null}
-          ${kind === 'gift-plan'
-            ? html`
-              <p class="small dim" style=${{ marginTop: 0 }}
-                data-help="its-person">${name.replace(
-                  /^Gift plan for /,
-                  '',
-                )} never sees this plan, even when it is shared with them or with a group they’re
-                            in.</p>
-            `
-            : null}
           <div class="share-list">
             <h4>People</h4>
             ${view.users.length

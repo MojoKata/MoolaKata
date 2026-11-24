@@ -15,7 +15,7 @@ Someone with access through a group is shown with the group's name.
 
 The same, for every member while they're in the group.
 
-## A gift plan's person {#its-person}
+## A gift plan's person
 
 The person a gift plan is for never sees it, even when it is shared with them or with a group
 they're in, so a surprise stays one. Everyone else it is shared with sees it.
