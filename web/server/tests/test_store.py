@@ -251,7 +251,9 @@ def test_live_leaves_out_deleted_records(db):
     assert names == ["b"]
 
 
-def test_a_newer_database_refuses_the_start(store, keyed_config, master_key):
+def test_a_newer_database_refuses_the_unlock(store, keyed_config, master_key):
+    """S13.6: the store is opened at the unlock, once the phrase opens the database, and a
+    database from a newer release is refused there."""
     with store.db.engine.begin() as conn:
         conn.exec_driver_sql("UPDATE \"SchemaRevision\" SET version_num = '9999'")
     store.db.dispose()
