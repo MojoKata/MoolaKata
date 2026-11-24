@@ -315,3 +315,182 @@ def test_every_key_the_file_takes_is_in_the_requirements_and_the_example():
         for key in keys:
             assert f"`[{section}] {key}`" in req, (section, key)
             assert f"{key} =" in example, (section, key)
+
+
+def _tls(config, **change):
+    import dataclasses
+
+    return dataclasses.replace(config, mode="tls", **change)
+
+
+def test_a_certificate_with_no_names_or_none_readable_covers_nothing(tmp_path):
+    """Read once the pair has loaded (_fits): a damaged one, or one naming nothing, covers no
+    name, so the certificate is signed again."""
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from test_certs import _cert
+
+    from moolakata.listener import _covers
+
+    (tmp_path / "bad.crt").write_text("not a certificate")
+    assert _covers(tmp_path / "bad.crt") == set()
+    key = ec.generate_private_key(ec.SECP256R1())
+    (tmp_path / "bare.crt").write_bytes(_cert("x", "x", key, key).public_bytes(Encoding.PEM))
+    assert _covers(tmp_path / "bare.crt") == set()
+
+
+def test_renewal_leaves_a_proxys_and_an_admins_certificate_alone(config, tmp_path, monkeypatch):
+    """S13.3: behind a proxy there is no certificate of the server's; one named in [tls] is the
+    admin's to renew; a self-signed one renewed before the listener runs is only written."""
+    from moolakata import listener
+
+    assert not listener.renew(config)
+    named = _tls(config, tls_cert=tmp_path / "a.crt", tls_key=tmp_path / "a.key")
+    assert not listener.renew(named)
+    assert not (named.tls_dir / "self-signed.crt").exists()
+    monkeypatch.setattr(listener, "_serving", None)
+    loaded = []
+    assert listener.renew(_tls(config), lambda *a: loaded.append(a))
+    assert loaded == [] and (config.tls_dir / "self-signed.crt").is_file()
+    assert not listener.renew(_tls(config)), "now it fits"
+
+
+def test_the_listener_serves_the_named_pair_and_refuses_one_missing_or_unloadable(config, tmp_path):
+    """S13.3: [tls] cert and key are served as named; one missing, or a pair that won't load,
+    refuses the start saying which and why; behind a proxy it is plain HTTP."""
+    from moolakata.listener import hypercorn_config, self_signed
+
+    hc = hypercorn_config(config)
+    assert hc.certfile is None and hc.bind == [config.bind]
+    cert, key = self_signed(tmp_path / "pair", ["money.lan"])
+    hc = hypercorn_config(_tls(config, tls_cert=cert, tls_key=key))
+    assert (hc.certfile, hc.keyfile) == (str(cert), str(key))
+    assert hc.alpn_protocols == ["h2", "http/1.1"]
+    gone = tmp_path / "gone.key"
+    with pytest.raises(RefuseStart, match=f"TLS file {gone} does not exist"):
+        hypercorn_config(_tls(config, tls_cert=cert, tls_key=gone))
+    bad = tmp_path / "bad.key"
+    bad.write_text("not a key")
+    with pytest.raises(RefuseStart, match="the TLS certificate or key cannot be loaded: "):
+        hypercorn_config(_tls(config, tls_cert=cert, tls_key=bad))
+
+
+def _serving_until(monkeypatch, what):
+    """listener.run with Hypercorn's serve standing in: `what` runs as serve does, given its
+    app, its config and its shutdown trigger."""
+    from moolakata import listener
+
+    calls = []
+
+    async def serve(app, hc, shutdown_trigger):
+        calls.append(app)
+        await what(app, hc, shutdown_trigger)
+
+    monkeypatch.setattr(listener, "serve", serve)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("errno_", "refusal"),
+    [
+        (98, "port 37373 is already in use"),
+        (13, "this account may not listen on port 37373"),
+    ],
+)
+def test_a_port_that_cant_be_listened_on_refuses_the_start(config, monkeypatch, errno_, refusal):
+    import asyncio
+    import errno
+
+    from moolakata import listener
+
+    assert errno_ in (errno.EADDRINUSE, errno.EACCES)
+
+    async def refused(app, hc, trigger):
+        raise OSError(errno_, "no")
+
+    _serving_until(monkeypatch, refused)
+    with pytest.raises(RefuseStart, match=refusal):
+        asyncio.run(listener.run("app", config, None))
+
+
+def test_another_failure_to_listen_is_raised_as_it_is(config, monkeypatch):
+    import asyncio
+
+    from moolakata import listener
+
+    async def refused(app, hc, trigger):
+        raise OSError(99, "cannot assign requested address")
+
+    _serving_until(monkeypatch, refused)
+    with pytest.raises(OSError, match="cannot assign"):
+        asyncio.run(listener.run("app", config, None))
+
+
+def test_the_first_signal_ends_the_streams_and_a_repeat_within_a_second_is_the_same(
+    config, monkeypatch, caplog
+):
+    """S13.6: SIGTERM ends the event streams (on_stop) and the listener stops with the host
+    socket's; the same signal again within a second (a launcher's double Ctrl-C) is the same
+    request, never the second one that stops at once."""
+    import asyncio
+    import logging
+    import signal
+
+    from moolakata import listener
+
+    stopped = []
+
+    async def on_stop():
+        stopped.append("streams")
+
+    async def until_stopped(app, hc, trigger):
+        if app == "app":
+            signal.raise_signal(signal.SIGTERM)
+            signal.raise_signal(signal.SIGINT)
+        await trigger()
+
+    calls = _serving_until(monkeypatch, until_stopped)
+    caplog.set_level(logging.INFO, "moolakata.listener")
+    asyncio.run(listener.run("app", config, on_stop, host_app="host"))
+    assert calls == ["app", "host"] and stopped == ["streams"]
+    assert "stopping (SIGTERM)" in caplog.text and "second signal" not in caplog.text
+
+
+def test_a_second_signal_later_than_a_second_stops_at_once(config, monkeypatch, caplog):
+    import asyncio
+    import logging
+    import os
+    import signal
+
+    from moolakata import listener
+
+    exits = []
+
+    async def turned(done):
+        """The loop turned until the signal's handler has run: no time passes."""
+        for _ in range(100):
+            if done():
+                return
+            await asyncio.sleep(0)
+        raise AssertionError("the signal was never handled")
+
+    def exit_(code):  # the process would end here
+        exits.append(code)
+
+    async def on_stop():
+        pass
+
+    async def stuck(app, hc, trigger):
+        loop = asyncio.get_running_loop()
+        signal.raise_signal(signal.SIGTERM)
+        await turned(lambda: "stopping (SIGTERM)" in caplog.text)
+        ahead = loop.time() + 2
+        monkeypatch.setattr(loop, "time", lambda: ahead)
+        signal.raise_signal(signal.SIGTERM)
+        await turned(lambda: exits)
+
+    monkeypatch.setattr(os, "_exit", exit_)
+    _serving_until(monkeypatch, stuck)
+    caplog.set_level(logging.INFO, "moolakata.listener")
+    asyncio.run(listener.run("app", config, on_stop))
+    assert exits == [1] and "second signal: stopping now" in caplog.text
