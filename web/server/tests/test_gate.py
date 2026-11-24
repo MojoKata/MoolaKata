@@ -376,3 +376,67 @@ def test_a_delivered_files_name_is_inside_its_signature(link_side):
     r = link_side.client.post(f"/link/v1/deliver?file={other}", content=body, headers=h)
     assert r.status_code == 403 and r.json()["code"] == "bad-signature"
     assert DELIVERED.names(link_side.counted) == set()
+
+
+def _signed(r, side: Side) -> bool:
+    return side.scheme.lower("signature") in {k.lower() for k in r.headers}
+
+
+def test_an_address_past_its_limit_is_refused_unsigned_and_a_key_past_its_own_signed(link_side):
+    # S13.7.5.4, link-protocol.md §7: `limit`, unsigned for an address, signed for a key.
+    from moolakata import ratelimit
+
+    srv, path, body = link_side.srv, "/link/v1/ping", b"{}"
+    srv.link_limit = ratelimit.Window(1, 60)
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 200
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 429 and _signed(r, link_side)
+    assert r.json()["code"] == "limit"
+    assert r.json()["message"] == "Too many calls: try again in a moment."
+    srv.link_unknown = ratelimit.Window(1, 60)
+    srv.link_unknown.hit(ratelimit.address_key("127.0.0.1"))
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 429 and not _signed(r, link_side)
+    assert r.json()["code"] == "limit"
+    assert r.json()["message"] == "Too many calls from this address: try again later."
+
+
+def test_a_body_past_a_routes_cap_is_refused_by_its_length_or_as_it_is_read(link_side):
+    # S13.7.5.4: a join's body is at most 16 KB, checked on its headers and as it is read, so a
+    # body sent without its length is held to the same cap.
+    from moolakata.links.routes import JOIN_BODY
+
+    path, body = "/link/v1/join", b'{"x":"' + b"x" * JOIN_BODY + b'"}'
+    words = f"This call's body is at most {JOIN_BODY} bytes."
+    stranger = Ed25519PrivateKey.generate()
+    h = link_side.headers(path, body, key=stranger)
+    r = link_side.client.post(path, content=body, headers=h)
+    assert r.status_code == 413 and r.json() == {"code": "too-large", "message": words}
+    h = link_side.headers(path, body, key=stranger)
+    r = link_side.client.post(path, content=iter([body[:100], body[100:]]), headers=h)
+    assert r.status_code == 413 and r.json() == {"code": "too-large", "message": words}
+    assert "content-length" not in {k.lower() for k in r.request.headers}
+
+
+def test_a_length_that_isnt_a_number_is_read_as_none_and_the_body_held_to_its_hash(link_side):
+    path, body = "/link/v1/ping", b"{}"
+    h = {**link_side.headers(path, body), "Content-Length": "two"}
+    r = link_side.client.post(path, content=body, headers=h)
+    assert r.status_code == 200, r.text
+
+
+def test_sealed_bytes_cut_off_as_they_arrive_leave_no_file(server):
+    import asyncio
+    import hashlib
+
+    from moolakata.links import gate
+
+    class Cut:
+        async def stream(self):
+            yield b"sealed"
+            raise ConnectionResetError("the caller went away")
+
+    with pytest.raises(ConnectionResetError):
+        asyncio.run(gate._to_file(server, Cut(), hashlib.sha256()))
+    assert list((server.config.data_dir / "links-in").iterdir()) == []
