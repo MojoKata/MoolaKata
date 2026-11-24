@@ -141,9 +141,25 @@ exchange after the link is approved:
 
 Only active local users are listed. The receiver keeps each as a remote user by its `id`:
 added, updated in place, soft-deleted when it leaves the list and restored when it returns.
-It keeps a display name of up to 120 characters and a username of up to 64, and a sex other
-than `female` or `male` as `male`; of each item, a kind of up to 20 characters and an owner's
-name of up to 120.
+It keeps a display name of up to 120 characters and a username of up to 64, cutting a longer
+one there, and a sex other than `female` or `male` as `male`; of each item, a kind of up to 20
+characters and an owner's name of up to 120.
+
+Every field is checked before any of the directory is kept, each absent or `null` or within
+its bound:
+
+| Field | Bound |
+|---|---|
+| `household` | an object |
+| `serverName`, `name` | text of up to 60 characters |
+| `avatar` | as requirements S16.1 holds it: `{"kind": "initials", "initials", "color"}`, one to three letters and a colour `#rrggbb`, or `{"kind": "image", "image"}`, a PNG, JPEG or WebP image as a base64 `data:` URL of up to 256 KB |
+| `users` | a list of objects |
+| `id` | text of up to 64 characters, never absent |
+| `username`, `displayName` | text, cut as above |
+| `email` | text of up to 254 characters |
+
+A directory that doesn't fit is refused whole: the receiver keeps the household and users it
+had, says why on the link, and the exchange goes on.
 Each remote user has a person here, with the name and sex the directory gives (requirements
 S10.10.1), used only for gifts.
 

@@ -330,46 +330,101 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
     return {}
 
 
+class BadDirectory(ValueError):
+    """A peer's directory that doesn't fit link-protocol.md §4.2: none of it is kept."""
+
+
+def _text(v, field: str, most: int, cut: bool = False) -> str | None:
+    """A directory's text field: absent, or text of up to `most` characters (or cut there)."""
+    if v is None or v == "":
+        return None
+    if not isinstance(v, str):
+        raise BadDirectory(f"{field} isn't text")
+    if len(v) > most and not cut:
+        raise BadDirectory(f"{field} is longer than {most} characters")
+    return v[:most]
+
+
+def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
+    """The household and users a peer's directory sends, each field checked against §4.2's
+    bounds before anything is kept, since a peer's data is checked before it is kept: a
+    directory that doesn't fit is refused whole."""
+    h = payload.get("household")
+    if h is not None:
+        if not isinstance(h, dict):
+            raise BadDirectory("its household isn't an object")
+        avatar = h.get("avatar")
+        if avatar is not None:
+            try:
+                avatar = settings.avatar(avatar)
+            except settings.Invalid as e:
+                raise BadDirectory(f"its household's avatar isn't {e}") from e
+        h = {
+            "serverName": _text(h.get("serverName"), "its server name", 60),
+            "name": _text(h.get("name"), "its household's name", 60),
+            "avatar": avatar,
+        }
+    users = payload.get("users")
+    if users is not None:
+        if not isinstance(users, list) or not all(isinstance(r, dict) for r in users):
+            raise BadDirectory("its users aren't a list of objects")
+        users = [
+            {
+                "id": _text(r.get("id"), "a user's id", 64),
+                "username": _text(r.get("username"), "a username", 64, cut=True),
+                "displayName": _text(r.get("displayName"), "a display name", 120, cut=True),
+                "email": _text(r.get("email"), "an email", 254),
+                "sex": r.get("sex") if r.get("sex") in people.SEXES else "male",
+            }
+            for r in users
+        ]
+        if not all(r["id"] for r in users):
+            raise BadDirectory("a user has no id")
+    return h, users
+
+
 def apply_directory(s, link: Link, payload: dict) -> None:
     """The peer's household and active users, kept as remote users by their id there: added,
-    updated in place, soft-deleted when gone, and restored when they return (S11.3)."""
-    h = payload.get("household") or {}
-    link.peerName = h.get("serverName") or link.peerName
-    link.householdName = h.get("name") or link.householdName
-    if h.get("avatar") is not None:
-        link.householdAvatar = json.dumps(h["avatar"])
+    updated in place, soft-deleted when gone, and restored when they return (S11.3). Raises
+    `BadDirectory`, having kept nothing, for one that doesn't fit link-protocol.md §4.2."""
+    h, users = _checked(payload)
+    if h is not None:
+        link.peerName = h["serverName"] or link.peerName
+        link.householdName = h["name"] or link.householdName
+        if h["avatar"] is not None:
+            link.householdAvatar = json.dumps(h["avatar"])
     seen = set()
     now = clock.now()
     have = {u.remoteId: u for u in s.scalars(select(User).where(User.linkId == link.id))}
-    for r in payload.get("users") or []:
-        rid = str(r.get("id") or "")
-        if not rid or rid in seen:
+    for r in users or []:
+        rid = r["id"]
+        if rid in seen:
             continue
         seen.add(rid)
         u = have.get(rid)
-        name = str(r.get("displayName") or r.get("username") or "?")[:120]
+        name = r["displayName"] or r["username"] or "?"
         # A remote user's person is its own, filled from its server, for gifts; it is joined
         # to a person here only when someone who may change that one confirms it (S10.10.1).
-        sex = r.get("sex") if r.get("sex") in people.SEXES else "male"
+        sex = r["sex"]
         if u is None:
             u = User(
                 id=ids.new_id("User"),
                 personId=people.make(s, name, sex).id,
-                username=str(r.get("username") or rid)[:64],
+                username=r["username"] or rid,
                 displayName=name,
-                email=r.get("email"),
+                email=r["email"],
                 linkId=link.id,
                 remoteId=rid,
                 alertEmails="none",
             )
             s.add(u)
             continue
-        u.username = str(r.get("username") or u.username)[:64]
-        u.displayName = str(r.get("displayName") or u.displayName)[:120]
+        u.username = r["username"] or u.username
+        u.displayName = r["displayName"] or u.displayName
         p = s.get(Person, u.personId)
         if p is not None and p.ownerId is None:  # its own person, never one joined to it here
             people.change(s, p, {"name": u.displayName, "sex": sex})
-        u.email = r.get("email")
+        u.email = r["email"]
         u.active = True
         if u.deleted:
             u.restore()
@@ -377,6 +432,15 @@ def apply_directory(s, link: Link, payload: dict) -> None:
         if rid not in seen and not u.deleted:
             u.mark_deleted(None, now)
     s.flush()
+
+
+def _take_directory(s, link: Link, payload: dict) -> None:
+    """The peer's directory at an exchange, either side; one that doesn't fit is refused and
+    said on the link, and the exchange goes on with the directory kept before."""
+    try:
+        apply_directory(s, link, payload)
+    except BadDirectory as e:
+        link.lastError = f"Its household and users were refused, so those kept before stay: {e}."
 
 
 def end_users(s, link: Link) -> None:
@@ -556,7 +620,7 @@ def _exchange(srv, link_id: str) -> None:
         link.lastOkAt, link.lastError, link.failingSince = clock.now(), None, None
         link.peerVersion = out.get("version") or link.peerVersion
         link.peerCopyKey = _copy_key(out.get("copyKey"))
-        apply_directory(s, link, out)
+        _take_directory(s, link, out)
         active = link.state == "active"
     if not active:
         return
@@ -669,7 +733,7 @@ def answer_exchange(srv, link: Link, body: dict, version: str | None) -> dict:
         row.lastOkAt, row.lastError, row.failingSince = clock.now(), None, None
         row.peerVersion = version or row.peerVersion
         row.peerCopyKey = _copy_key(body.get("copyKey"))
-        apply_directory(s, row, body)
+        _take_directory(s, row, body)
         out = {
             **directory(s),
             "state": row.state,

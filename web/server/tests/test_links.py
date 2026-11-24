@@ -232,6 +232,85 @@ def test_the_directory_follows_the_peers_users(admins):
     )
 
 
+def test_a_directory_that_doesnt_fit_is_refused_whole_and_said_on_the_link(admins):
+    from moolakata import settings
+    from moolakata.store.entities.core import Setting
+
+    _a, b, ca, cb, _ = admins
+    a_id, _b_id = linked(ca, cb)
+    before = links_of(ca)["links"][0]
+    assert before["householdAvatar"]["kind"] == "initials"
+    # A peer's avatar that isn't an object, written past b's own check.
+    with b.db.tx(unscoped="test") as s:
+        s.add(Setting(id=ids.new_id("Setng"), key="householdAvatar", value='["x"]'))
+        settings.put(s, "householdName", "Not kept", None)
+    make_user(b, "dave")
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["lastError"].startswith("Its household and users were refused")
+    assert "avatar" in out["lastError"]
+    after = links_of(ca)["links"][0]  # answered, not a 500
+    assert after["householdAvatar"] == before["householdAvatar"]
+    assert after["householdName"] == before["householdName"], "none of it is kept"
+    assert "dave" not in {u["username"] for u in after["users"]}
+    assert after["state"] == "active" and after["failingSince"] is None, "it was reached"
+
+
+@pytest.mark.parametrize(
+    ("payload", "why"),
+    [
+        ({"household": ["x"]}, "its household isn't an object"),
+        ({"household": {"avatar": ["x"]}}, "its household's avatar isn't initials or an image"),
+        (
+            {"household": {"avatar": {"kind": "image", "image": "data:image/gif;base64,R0"}}},
+            "its household's avatar isn't a PNG, JPEG or WebP image",
+        ),
+        ({"household": {"serverName": 7}}, "its server name isn't text"),
+        ({"household": {"name": "x" * 61}}, "its household's name is longer than 60 characters"),
+        ({"users": {"id": "u"}}, "its users aren't a list of objects"),
+        ({"users": ["u"]}, "its users aren't a list of objects"),
+        ({"users": [{"username": "jo"}]}, "a user has no id"),
+        ({"users": [{"id": 5}]}, "a user's id isn't text"),
+        ({"users": [{"id": "u" * 65}]}, "a user's id is longer than 64 characters"),
+        ({"users": [{"id": "u", "email": ["a@b.c"]}]}, "an email isn't text"),
+        ({"users": [{"id": "u", "email": "a" * 255}]}, "an email is longer than 254 characters"),
+        ({"users": [{"id": "u", "displayName": {"x": 1}}]}, "a display name isn't text"),
+        ({"users": [{"id": "u", "username": 1}]}, "a username isn't text"),
+    ],
+)
+def test_each_field_of_a_peers_directory_is_checked_before_any_is_kept(payload, why):
+    from moolakata.links import manage
+
+    with pytest.raises(manage.BadDirectory) as e:
+        manage._checked(payload)
+    assert str(e.value) == why
+
+
+def test_a_peers_directory_is_kept_within_its_bounds():
+    from moolakata.links import manage
+
+    h, users = manage._checked(
+        {
+            "household": {"serverName": "doe-parents", "name": "x" * 60},
+            "users": [
+                {"id": "u" * 64, "username": "n" * 70, "displayName": "d" * 130, "sex": "other"},
+                {"id": "v", "email": "e" * 254, "sex": "female"},
+            ],
+        }
+    )
+    assert h == {"serverName": "doe-parents", "name": "x" * 60, "avatar": None}
+    assert users == [
+        {
+            "id": "u" * 64,
+            "username": "n" * 64,
+            "displayName": "d" * 120,
+            "email": None,
+            "sex": "male",
+        },
+        {"id": "v", "username": None, "displayName": None, "email": "e" * 254, "sex": "female"},
+    ]
+    assert manage._checked({}) == (None, None), "no directory: nothing to keep"
+
+
 def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):
     _a, _b, ca, cb, _ = admins
     code = ca.post("/ui/api/settings/links/invitations").json()["code"]
