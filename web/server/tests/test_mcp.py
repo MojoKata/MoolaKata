@@ -167,3 +167,26 @@ def test_every_tool_is_in_the_api_reference():
     text = (paths.ROOT / "docs" / "api.md").read_text()
     missing = [name for name in TOOLS if f"| `{name}`" not in text]
     assert missing == []
+
+
+@pytest.mark.parametrize(
+    "method, params",
+    [
+        ("initialize", [1]),
+        ("tools/call", [1]),
+        ("tools/call", "list_accounts"),
+        ("tools/call", {"name": ["list_accounts"]}),
+        ("tools/call", {"name": "list_accounts", "arguments": [{"a": 1}]}),
+        ("tools/call", {"name": "list_accounts", "arguments": "x"}),
+    ],
+)
+def test_params_name_or_arguments_of_the_wrong_type_are_invalid_params(jane, agent, method, params):
+    """JSON-RPC's -32602 for params, a tool's name or its arguments not of their type (S10.9.6)."""
+    secret = token(jane)
+    r = agent.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+        headers={"Authorization": f"Bearer {secret}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["error"]["code"] == -32602
