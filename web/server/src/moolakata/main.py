@@ -53,7 +53,7 @@ def dev_config(
 def refuse_dev(config: Config) -> None:
     if os.geteuid() == 0:
         raise RefuseStart("dev mode does not run as root")
-    # Only from a checkout (S17.6): the image carries no dev.sh, so its seed users and their
+    # Only from a checkout (S17.7): the image carries no dev.sh, so its seed users and their
     # fixed password never run where a household's server does.
     from . import paths
 

@@ -230,7 +230,7 @@ def test_tls_names_join_the_self_signed_certificate(tmp_path):
 
 
 def test_dev_mode_runs_only_from_a_checkout(tmp_path, monkeypatch):
-    # S17.6: the image carries no dev.sh, and leaves dev mode's code out.
+    # S17.7: the image carries no dev.sh, and leaves dev mode's code out.
     from moolakata import main as entry
     from moolakata import paths
     from moolakata.config import Config

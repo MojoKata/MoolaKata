@@ -20,7 +20,7 @@ COPY web/VERSION web/
 COPY web/server/pyproject.toml web/server/uv.lock web/server/
 RUN cd web/server && uv sync --frozen --no-dev --no-install-project
 COPY web/server/src web/server/src
-# Dev mode's code stays out of the image: its seed users and their fixed password (S17.6).
+# Dev mode's code stays out of the image: its seed users and their fixed password (S17.7).
 RUN cd web/server && uv sync --frozen --no-dev && rm -rf src/moolakata/dev
 COPY web/ui web/ui
 RUN python3 web/ui/vendor/vendor.py extract \
