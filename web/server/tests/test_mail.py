@@ -435,3 +435,214 @@ def test_a_new_smtp_host_needs_the_password_again_and_clears_the_old_password(
     with server.db.read(unscoped="test") as s:
         assert secret_repo.info(s, *SMTP_SECRET) is None
     assert admin_client.get("/ui/api/settings/email").json()["password"] is None
+
+
+# ---------- failures and edges, without a server ----------
+
+
+@pytest.fixture
+def stored(monkeypatch):
+    """Settings as a session would read them, from a dict; the SMTP password none."""
+    from moolakata.store.repos import secrets as secret_repo
+
+    values: dict = {}
+    monkeypatch.setattr(
+        settings, "get", lambda s, key: values.get(key, settings.DEFINITIONS[key].default)
+    )
+    monkeypatch.setattr(secret_repo, "use", lambda *a: None)
+    return values
+
+
+def test_links_come_from_the_public_url_or_in_dev_mode_localhost(stored, config):
+    """S16.1: a link is built from the public URL; dev mode has its own; else it is refused at
+    the public URL, saying why."""
+    import dataclasses
+
+    from moolakata import mail
+    from moolakata.errors import Problem
+
+    dev = dataclasses.replace(config, dev=True, port=8443)
+    assert mail.link(None, dev, "/ui/reset", "tok") == "https://localhost:8443/ui/reset#tok"
+    with pytest.raises(Problem) as e:
+        mail.link(None, config, "/ui/reset")
+    [error] = e.value.errors
+    assert (e.value.status, error.field, error.code) == (422, "publicUrl", "public-url-needed")
+    assert error.message == (
+        "Set the server's public URL in Settings › General first: links in emails are built "
+        "from it."
+    )
+    stored["publicUrl"] = "https://money.example.lan"
+    assert mail.link(None, config, "/ui/x") == "https://money.example.lan/ui/x"
+
+
+@pytest.mark.parametrize(
+    ("username", "sender"),
+    [
+        ("money@home.lan", "MoolaKata (The Shaws) <money@home.lan>"),
+        ("money", "MoolaKata (The Shaws) <moolakata@smtp.home.lan>"),
+        (None, "MoolaKata (The Shaws) <moolakata@smtp.home.lan>"),
+    ],
+)
+def test_with_no_from_address_the_sender_is_the_household_at_the_username_or_host(
+    stored, username, sender
+):
+    stored.update(smtpHost="smtp.home.lan", smtpUsername=username, householdName="The Shaws")
+    assert smtp_settings(None, b"k").sender == sender
+
+
+def test_no_smtp_host_is_no_smtp(stored):
+    assert smtp_settings(None, b"k") is None
+
+
+def _ssl_error(reason):
+    """An SSLError as the ssl module raises it: with its reason, which may be none."""
+    import ssl
+
+    e = ssl.SSLCertVerificationError(1, "[SSL] PEM lib")
+    e.reason = reason
+    return e
+
+
+@pytest.mark.parametrize(
+    ("error", "words"),
+    [
+        (
+            smtplib.SMTPAuthenticationError(535, b"no"),
+            "the SMTP server refused the username or password",
+        ),
+        (
+            smtplib.SMTPNotSupportedError(),
+            "the SMTP server does not offer STARTTLS: try TLS or None",
+        ),
+        (smtplib.SMTPRecipientsRefused({}), "the SMTP server refused the recipient's address"),
+        (smtplib.SMTPSenderRefused(553, b"no", "x@y"), "the SMTP server refused the From address"),
+        (_ssl_error("CERTIFICATE_VERIFY_FAILED"), "TLS failed: CERTIFICATE_VERIFY_FAILED"),
+        (_ssl_error(None), "TLS failed: [SSL] PEM lib"),
+        (TimeoutError("timed out"), "could not reach the SMTP server: timed out"),
+        (ConnectionRefusedError("refused"), "could not reach the SMTP server: refused"),
+        (RuntimeError("odd"), "odd"),
+        (RuntimeError(), "RuntimeError"),
+    ],
+)
+def test_a_failure_is_described_in_words_an_admin_can_act_on(error, words):
+    from moolakata.mail import describe
+
+    assert describe(error) == words
+
+
+class _Guard:
+    def check(self, host, port, purpose):
+        assert purpose == "smtp"
+        return "192.0.2.25"
+
+
+def test_tls_connects_to_the_address_the_guard_checked_and_none_skips_starttls_and_login(
+    monkeypatch,
+):
+    """S13.5, S16.2: TLS from the start through SMTP_SSL, its socket opened to the vetted
+    address while TLS names the host; with security none and no username, no STARTTLS and no
+    login."""
+    from email.message import EmailMessage
+
+    from moolakata import mail
+
+    opened = []
+
+    class Base(FakeSmtp):
+        def _get_socket(self, host, port, timeout):
+            opened.append((host, port))
+
+        def __init__(self, host, port, timeout=None, context=None):
+            super().__init__(host, port, timeout, context)
+            self._get_socket(host, port, timeout)
+
+    FakeSmtp.sent, FakeSmtp.logins, FakeSmtp.fail, FakeSmtp.starttls_done = [], [], None, False
+    monkeypatch.setattr(smtplib, "SMTP_SSL", Base)
+    monkeypatch.setattr(smtplib, "SMTP", Base)
+    msg = EmailMessage()
+    msg["To"], msg["From"] = "dave@x.lan", "placeholder"
+    smtp = mail.Smtp("smtp.home.lan", 465, "tls", None, None, "Money <money@home.lan>")
+    mail.deliver(smtp, msg, _Guard())
+    assert opened == [("192.0.2.25", 465)]
+    assert FakeSmtp.sent[0][0] == "money@home.lan" and msg["From"] == "Money <money@home.lan>"
+    assert not FakeSmtp.starttls_done and FakeSmtp.logins == []
+    mail.deliver(mail.Smtp("smtp.home.lan", 25, "none", None, None, "m@h.lan"), msg, _Guard())
+    assert opened[-1] == ("192.0.2.25", 25) and not FakeSmtp.starttls_done
+
+
+def test_the_mail_folder_passes_over_what_it_cant_read(config):
+    """S16.2: an .eml that isn't one written (a name not the clock's) or can't be read is left
+    out of the list, not shown nor removed; a name `written` never gave reads as nothing."""
+    import datetime as dt
+
+    from moolakata import mail
+
+    assert mail.written(config) == []
+    assert mail.expire_written(config) == 0, "no folder: nothing to expire"
+    folder = config.mail_dir
+    folder.mkdir(parents=True)
+    (folder / "notes.eml").write_text("To: a@b.lan\n\nhello")
+    (folder / "20261017-120000-000000-0000000a.eml").mkdir()  # can't be read
+    assert mail.written(config) == []
+    assert mail.read_written(config, "notes.eml") is None
+    assert mail.read_written(config, "../20261017-120000-000000-0000000b.eml") is None
+    assert mail.read_written(config, "20261017-120000-000000-0000000a.eml") is None
+    assert mail.read_written(config, "20261017-120000-000000-0000000c.eml") is None  # gone
+    later = dt.datetime.now(dt.UTC) + dt.timedelta(days=2)
+    assert mail.expire_written(config, later) == 1, "the readable one, a day old by its file"
+    assert (folder / "20261017-120000-000000-0000000a.eml").is_dir()
+
+
+def test_before_the_database_is_open_the_queue_is_empty(config):
+    from moolakata.mail import Mailer
+
+    mailer = Mailer(config)
+    assert mailer.waiting() == []
+    assert mailer.set_aside() == 0
+    assert mailer.expire() == 0
+    assert mailer.adopt_outbox() == 0
+    assert mailer.send_waiting(None, _Guard()) == 0, "no SMTP host: nothing sent"
+
+
+def test_an_earlier_outbox_keeps_what_isnt_an_email_or_cant_be_read(server):
+    folder = server.config.outbox_dir
+    folder.mkdir(parents=True)
+    (folder / "notes.txt").write_text("not an email")
+    (folder / "20261017-120000-000000-0000000a.eml").mkdir()
+    assert server.services.mailer.adopt_outbox() == 0
+    assert sorted(p.name for p in folder.iterdir()) == [
+        "20261017-120000-000000-0000000a.eml",
+        "notes.txt",
+    ]
+
+
+def test_the_mail_task_stops_when_told_and_minds_an_email_gone_meanwhile(config, monkeypatch):
+    """The mail task stops between emails when the server does; an email removed while it was
+    being sent (expired meanwhile) is counted sent all the same."""
+    import contextlib
+    import datetime as dt
+    import threading
+    from email.message import EmailMessage
+
+    from moolakata import mail
+
+    class Session:
+        def get(self, cls, key):
+            return None
+
+    class Db:
+        @contextlib.contextmanager
+        def tx(self, unscoped):
+            yield Session()
+
+    mailer = mail.Mailer(config, db=Db)
+    waiting = [mail.Waiting("Email_1", "a@b.lan", "s", dt.datetime.now(dt.UTC), EmailMessage())]
+    monkeypatch.setattr(mailer, "waiting", lambda: waiting)
+    delivered = []
+    monkeypatch.setattr(mail, "deliver", lambda smtp, msg, guard: delivered.append(msg))
+    smtp = mail.Smtp("smtp.home.lan", 587, "starttls", None, None, "m@h.lan")
+    stop = threading.Event()
+    stop.set()
+    assert mailer.send_waiting(smtp, _Guard(), stop) == 0 and delivered == []
+    assert mailer.send_waiting(smtp, _Guard(), threading.Event()) == 1
+    assert len(delivered) == 1
