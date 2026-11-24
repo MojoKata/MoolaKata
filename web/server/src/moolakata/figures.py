@@ -137,11 +137,13 @@ def period_returns(
         return dict.fromkeys(("1M", "3M", "YTD", "1Y", "3Y", "5Y"))
     started = next((d for d, v in values if v), values[0][0])
     for key in ("1M", "3M", "YTD", "1Y", "3Y", "5Y"):
-        first = first_day(key, today, None)
-        if first < started and key in ("3Y", "5Y"):
+        window = [(d, v) for d, v in values if d >= first_day(key, today, None)]
+        # A history begun inside the period is no return over it: a dash, never a shorter
+        # period's figure under its name (S5.2.2). The period's first point is the test, not
+        # its first day, as the points are a week apart.
+        if not window or window[0][0] < started:
             out[key] = None
             continue
-        window = [(d, v) for d, v in values if d >= max(first, started)]
         r = perf.twr(window, flow)
         if r is not None and key in ("3Y", "5Y"):
             r = perf.annualise(r, (window[-1][0] - window[0][0]).days)

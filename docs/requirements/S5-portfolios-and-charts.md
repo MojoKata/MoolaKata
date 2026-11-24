@@ -19,7 +19,8 @@
       brought), a loan's opening balance and its draws; a move between two of the portfolio's
       accounts is none;
    2. **Performance**: time-weighted and money-weighted (IRR) returns per period, per account
-      and per portfolio;
+      and per portfolio; a period that begins before the history does (the year to date
+      included) shows a dash, never a shorter period's return under its name;
    3. **Holdings**: what the portfolio holds, by account and by instrument, with each loan
       (what is still owed) and each item (what it is worth, S1.10) on a row of its own; its
       total is the portfolio's value. A weight is a share of what is held, cash and items
