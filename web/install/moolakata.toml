@@ -3,14 +3,15 @@
 # is a recovery phrase entered when the server starts, never a file.
 
 [server]
-# Shown in logs and the self-signed certificate. The name linked servers see is set in
-# Settings › General.
+# The server's own name, in its log, its self-signed certificate, each backup's manifest and
+# the recovery phrase's sheet (S13.3). The name linked servers see is set in Settings › General.
 name = "moolakata"
 # "proxy": plain HTTP behind the household's reverse proxy, which ends TLS. "tls": MoolaKata's
 # own HTTPS with HTTP/2, with the certificate under [tls], or with none its own self-signed
 # one, which is for testing on a local network.
 mode = "proxy"
 port = 37373
+# host = "0.0.0.0"   the address it listens on: every interface by default
 # The reverse proxy's own address: X-Forwarded-For and -Proto are believed only from it. Never
 # a whole range (S13.3): anything else in it could pose as the proxy. 172.30.37.10 is the proxy
 # service of compose.yaml; a proxy on the host comes from the bridge's gateway, 172.30.37.1.

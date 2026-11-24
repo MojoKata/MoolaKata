@@ -244,3 +244,17 @@ def test_dev_mode_runs_only_from_a_checkout(tmp_path, monkeypatch):
         entry.refuse_dev(config)
     dockerfile = (paths.ROOT / "web" / "install" / "Dockerfile").read_text()
     assert "rm -rf src/moolakata/dev" in dockerfile
+
+
+def test_every_key_the_file_takes_is_in_the_requirements_and_the_example():
+    """S13.3 lists the configuration's keys, as an unknown one refuses the start (S13.6), and
+    the example file shows each."""
+    from moolakata import paths
+    from moolakata.config import KEYS
+
+    req = (paths.ROOT / "docs" / "requirements" / "S13-architecture.md").read_text()
+    example = (paths.ROOT / "web" / "install" / "moolakata.toml").read_text()
+    for section, keys in KEYS.items():
+        for key in keys:
+            assert f"`[{section}] {key}`" in req, (section, key)
+            assert f"{key} =" in example, (section, key)

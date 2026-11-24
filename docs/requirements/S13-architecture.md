@@ -27,7 +27,8 @@
    0600), which is for testing on a local network: browsers warn about it, and the pair is
    not encrypted, so it protects the listener, not the data, and the listener must read it
    before any key is entered (S15.1.7). A certificate is read at start: a renewed one takes
-   effect at the next, which starts locked (S15.4). It names the server and `localhost`, and
+   effect at the next, which starts locked (S15.4). It names the server (`[server] name`) and
+   `localhost`, and
    the names and addresses listed in `[tls] names`, which are how browsers on the network reach
    it; a change to the list makes it again, and so does a start within 30 days of its end or
    one that finds it isn't its key's, each time with the same key, which peers and the
@@ -37,6 +38,20 @@
    `X-Forwarded-Host` are believed, and the client is the right-most address in
    `X-Forwarded-For` that is not a trusted proxy. `[server] host` sets the listening address,
    all interfaces by default.
+   1. **The configuration** (`moolakata.toml`, or the same TOML in `MOOLAKATA_CONFIG`,
+      S17.8) holds no secret, and these keys alone: any other refuses the start (S13.6).
+      1. `[server] name`: the server's own name, `moolakata` by default, in its log, its
+         self-signed certificate, each backup's manifest and the recovery phrase's sheet at
+         the welcome and at a rotation (S15.4.4), which come before the database or without
+         it. The name linked servers see is Settings › General's (S16.1).
+      2. `[server] mode`: `proxy` (the default) or `tls`; `[server] port`, 37373 by default;
+         `[server] host`, the listening address; `[server] trusted_proxies`, in `proxy` mode
+         the proxy's own addresses.
+      3. `[paths] data` and `[paths] backups`: absolute paths, set, the backups outside the
+         data; `[paths] socket`, where host commands reach the running server (S13.6),
+         `/run/moolakata/sock` by default.
+      4. `[tls] cert` and `[tls] key`, both or neither: a certificate and its key for `tls`
+         mode; `[tls] names`, the names and addresses the self-signed certificate carries.
 4. **Background tasks** in the server process: price refresh (S4.4), bitcoin wallet reads
    (S1.6), link pulls (S11.4), option expiry (S3.6), backups (S14.6), sending email (S16.2),
    alerts and their daily summary (S12.11), receipt and statement reading (S9.8, S1.3, in its
