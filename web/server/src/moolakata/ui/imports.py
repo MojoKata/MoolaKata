@@ -157,7 +157,7 @@ def _run(
     srv.jobs.update(job, state="running", progress=0.1)
     try:
         if ofx.looks_like_ofx(data):
-            parsed = parsing.read_ofx(data)
+            parsed = parsing.read_ofx(data, user=user_id)
         else:
             if mapping is None:
                 with srv.db.read(user=user_id) as s:
@@ -171,7 +171,7 @@ def _run(
                     ).first()
                 if saved is None:
                     trades = atypes.investing(account.type)
-                    proposal = parsing.propose_csv(data, trades)
+                    proposal = parsing.propose_csv(data, trades, user=user_id)
                     srv.jobs.update(
                         job,
                         state="done",
@@ -185,7 +185,7 @@ def _run(
                     )
                     return
                 mapping = json.loads(saved.columns)
-            parsed = parsing.read_csv(data, mapping)
+            parsed = parsing.read_csv(data, mapping, user=user_id)
         with srv.db.tx(user=user_id) as s:
             # Read in the background: no one is there to ask, so a move of a filed year is
             # kept and listed on its tax book (S2.8).
@@ -298,7 +298,7 @@ def apply_mapping(upload_id: str, body: MappingIn, request: Request, c: Caller =
     if problems:
         raise refuse(f"mapping.{problems[0][0]}", "mapping-incomplete", problems[0][1])
     try:
-        parsing.read_csv(held.data, body.mapping)
+        parsing.read_csv(held.data, body.mapping, user=c.id)
     except ReadError as e:
         raise refuse("mapping", "mapping-does-not-read", str(e)) from None
     with _held_lock:
@@ -335,7 +335,9 @@ def _read(srv, job: Job, data: bytes, media: str) -> tuple[list[str], str] | Non
 
     worker = Worker()
     try:
-        outcome = worker.read(data, media, STATEMENT_TIME_LIMIT, ocr.STATEMENT_PAGES)
+        outcome = worker.read(
+            data, media, STATEMENT_TIME_LIMIT, ocr.STATEMENT_PAGES, user=job.userId
+        )
     finally:
         worker.stop()
     if outcome[0] != "ok":

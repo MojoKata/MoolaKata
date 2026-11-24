@@ -247,7 +247,7 @@ def test_a_slow_thumbnail_holds_no_one_elses_write(server, jane, monkeypatch):
 
     class Slow:
         @staticmethod
-        def thumbnail(data, media):
+        def thumbnail(data, media, *, user):
             drawing.set()
             assert go.wait(30)
             return None

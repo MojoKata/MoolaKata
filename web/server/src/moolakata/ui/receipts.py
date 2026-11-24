@@ -557,7 +557,7 @@ def receipt_file(receipt_id: str, request: Request, c: Caller = Depends(caller))
     try:
         if r.mediaType == "image/heic":
             # Decoded in the reader's worker, never here (S9.1, S9.8.4.2).
-            data = parsing.as_jpeg(receipts.whole(srv, r))
+            data = parsing.as_jpeg(receipts.whole(srv, r), user=r.ownerId)
             return Response(data, media_type="image/jpeg", headers=headers)
         stream = receipts.read_file(srv, r)
         first = next(stream)

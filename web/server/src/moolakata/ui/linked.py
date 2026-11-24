@@ -475,7 +475,9 @@ def file(link_id: str, file_id: str, request: Request, c: Caller = Depends(calle
         from .. import parsing
 
         try:
-            jpeg = parsing.as_jpeg(data)  # decoded in the reader's worker (S9.8.4.2)
+            # Decoded in the reader's worker, among no files but this link's that this
+            # person was shown (S9.8.4.2).
+            jpeg = parsing.as_jpeg(data, user=f"{link_id}/{c.id}")
         except parsing.ReadError:
             raise Problem(415, "receipt-type", "That photo can't be shown.") from None
         return Response(jpeg, media_type="image/jpeg", headers=headers)

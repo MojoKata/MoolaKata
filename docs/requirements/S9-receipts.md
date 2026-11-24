@@ -123,7 +123,13 @@
          4. every file a person or the connector brings is parsed there, never in the server:
             receipts and statements read (S1.3.3), thumbnails made (S9.5), HEIC photos decoded
             for display (S9.1), and OFX and CSV files read for an import (S1.3.2);
-         5. Landlock is used wherever the host offers it, as the worker finds when it starts.
+         5. a worker reads one user's files at a time: whenever the next file is another
+            user's than the last (a receipt's owner's, an import's or a statement's by the
+            person who brought it, a connector's file by the owner of its account, a linked
+            server's receipt by the person here it is shown to), a fresh worker reads it, so a
+            file that takes a worker over never sees another user's files after it. One user's
+            run of files shares a worker;
+         6. Landlock is used wherever the host offers it, as the worker finds when it starts.
             Where the host doesn't (a kernel before 5.13, or a kernel or container that
             doesn't allow it), reading stays on, Settings › Receipts says that reading runs
             without its file sandbox on this host (S16.10), and admins have an alert while it
