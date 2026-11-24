@@ -1,5 +1,7 @@
 import re
 
+import pytest
+
 from moolakata import paths
 from moolakata.static import YEAR, Static
 
@@ -107,3 +109,43 @@ def test_the_page_says_whether_the_guides_screenshots_are_here(tmp_path):
     assert shown() == '<meta name="mk-shots" content="">', "an empty folder holds none"
     (ui / "guides" / "shots" / "dashboard.png").write_bytes(b"\x89PNG")
     assert shown() == '<meta name="mk-shots" content="1">'
+
+
+def test_a_file_outside_the_app_missing_or_of_no_served_type_is_not_found(tmp_path):
+    """S17.3.5: only the app's own files, of the types it serves, are served; a link out of
+    the app's folder is never followed."""
+    from moolakata.errors import Problem
+
+    ui = tmp_path / "ui"
+    (ui / "app").mkdir(parents=True)
+    (ui / "index.html").write_text("")
+    (ui / "app" / "main.js").write_text("export {};")
+    (ui / "app" / "notes.txt").write_text("# notes")
+    (tmp_path / "secret.js").write_text("the data directory's")
+    (ui / "app" / "out.js").symlink_to(tmp_path / "secret.js")
+    static = Static("0.2.0", False, ui=ui)
+    assert static.file("0.2.0", "app/main.js").body == b"export {};"
+    (ui / "app" / "main.js").write_text("changed under a release")
+    assert static.file("0.2.0", "app/main.js").body == b"export {};", "a release's, kept"
+    for rel in ("app/out.js", "app/gone.js", "app/notes.txt"):
+        with pytest.raises(Problem) as e:
+            static.file("0.2.0", rel)
+        assert (e.value.status, e.value.code) == (404, "not-found"), rel
+
+
+def test_an_installation_without_the_demo_says_so(tmp_path):
+    from moolakata.errors import Problem
+
+    (tmp_path / "index.html").write_text("")
+    static = Static("0.2.0", False, ui=tmp_path, demo=tmp_path / "MoolaKata-mock.html")
+    with pytest.raises(Problem) as e:
+        static.demo_page()
+    assert (e.value.status, e.value.detail) == (
+        404,
+        "The demo is not part of this installation.",
+    )
+
+
+def test_the_apps_address_without_its_slash_leads_to_the_app(bare_client):
+    r = bare_client.get("/ui", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/ui/"
