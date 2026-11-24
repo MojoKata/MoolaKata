@@ -12,6 +12,13 @@ Deno.test('one grammar, largest unit first, each at most once', () => {
   truthy('error' in parseDuration(''), 'nothing is refused');
 });
 
+Deno.test('a duration is at most 52 weeks', () => {
+  equal(parseDuration('52w'), { minutes: 52 * 10080 });
+  equal(parseDuration('52w 1m'), { error: 'A duration is at most 52w.' });
+  equal(parseDuration('1000000w'), { error: 'A duration is at most 52w.' });
+  equal(parseDuration('9'.repeat(400) + 'm'), { error: 'A duration is at most 52w.' });
+});
+
 Deno.test('a duration is shown back as typed', () => {
   equal(formatDuration(2 * 10080 + 3 * 1440 + 240), '2w 3d 4h');
 });

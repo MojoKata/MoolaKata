@@ -538,8 +538,9 @@ def test_a_pause_lasts_its_duration_and_the_peer_isnt_alerted(admins):
 
     a, _b, ca, cb, _ = admins
     a_id, b_id = linked(ca, cb)
-    r = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "a week"})
-    assert r.json()["code"] == "duration-invalid"
+    for text in ("a week", "52w 1m", "1000000w"):  # a pause is at most 52 weeks (S11.7.2)
+        r = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": text})
+        assert (r.status_code, r.json()["code"]) == (422, "duration-invalid"), text
     out = ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "2d"}).json()
     assert out["state"] == "paused" and out["pausedUntil"]
     pulled = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()

@@ -183,9 +183,9 @@ preparer.
       thin bars** under it: one by date, from the oldest record the change holds to today,
       filled to the day reached, and one by size.
    2. **Pause** stops pulling, and answering the peer's pulls, for a **duration** the admin
-      types (S12.13), after which the link resumes on its own. The field starts empty, and
-      its **default** fills in `1d` (R3.11); a blank is refused. *Resume now*
-      ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
+      types (S12.13), at most 52 weeks, after which the link resumes on its own; a longer stop
+      is what *End link* is for. The field starts empty, its **default** fills in `1d` and its
+      **max** `52w` (R3.11); a blank is refused. *Resume now* ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
    3. **The linked copy**: the changes waiting to be applied (*waiting for an unlock* at the
       inbox's cap, S11.9.5.4), when its access key was made and by whom, whether it is
       unlocked (by whom, and when it will lock), and the source's release with whether this
