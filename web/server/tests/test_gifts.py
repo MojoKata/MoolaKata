@@ -208,6 +208,48 @@ def test_a_gift_plan_is_never_shown_to_its_own_person(server, jane, admin_client
     assert sorted(plans(jane)) == sorted([lisa["id"], john_person])
 
 
+def test_a_plan_for_someone_its_reader_cant_see_names_them_and_nothing_else(server, jane):
+    """R3.14, S7.7: John makes Ann, whom Jane plans for, private: Jane's plan stays hers,
+    naming Ann, with its occasions, gifts and spending; Ann's birthday, which is Ann's and
+    not the plan's, is left out, as is Ann herself; Jane still plans Ann's gifts."""
+    john_id = make_user(server, "john", sex="male").id
+    john = sign_in(server, "john")
+    ann = person(john, name="Ann Roe", birthMonth=10, birthDay=20, birthYear=1990)
+    thanksgiving = {"kind": "holiday", "holiday": "thanksgiving", "budget": "30"}
+    mine = make(jane, "GfPln", personId=ann["id"], birthdayBudget="50", occasions=[thanksgiving])
+    assert mine.status_code == 200, mine.text
+    mine = mine.json()
+    gift(jane, people=[ann["id"]], description="Scarf", status="bought", cost="20",
+         occasion="holiday:thanksgiving", occasionYear=2026)  # fmt: skip
+    hers = john.get(f"/ui/api/persons/{ann['id']}").json()
+    assert saved(change(john, "Persn", hers, private=True))["private"]
+    # Alerts, read as the server, remind John of her birthday, never Jane.
+    opened = [(a.userId, a.title) for a in alerts.evaluate(server) if a.kind == "occasion"]
+    assert opened == [(john_id, "Ann Roe's birthday in 9 days")]
+    [row] = jane.get("/ui/api/gift-plans").json()["items"]
+    assert (row["id"], row["personId"], row["personName"]) == (mine["id"], ann["id"], "Ann Roe")
+    assert row["next"]["key"] == "holiday:thanksgiving"
+    assert [o["label"] for o in row["occasions"]] == ["Thanksgiving"]
+    assert jane.get(f"/ui/api/gift-plans/{mine['id']}").json()["personName"] == "Ann Roe"
+    assert jane.get(f"/ui/api/persons/{ann['id']}").status_code == 404
+    assert ann["id"] not in {p["id"] for p in jane.get("/ui/api/persons").json()["items"]}
+    [g] = jane.get("/ui/api/gifts").json()["items"]
+    assert g["people"] == [{"id": ann["id"], "name": "Ann Roe", "deleted": False}]
+    up = jane.get("/ui/api/gifts/upcoming").json()["items"]
+    assert [(u["person"]["name"], u["label"], u["budget"]) for u in up] == [
+        ("Ann Roe", "Thanksgiving", "30.00")
+    ]
+    sp = jane.get("/ui/api/gifts/spending?year=2026").json()
+    assert [(x["person"]["name"], x["spent"], x["budget"]) for x in sp["byPerson"]] == [
+        ("Ann Roe", "20.00", "30.00")
+    ]
+    # Her plan is hers to change, and Ann's gifts hers to plan.
+    assert saved(change(jane, "GfPln", row, giftBudget="200"))["giftBudget"] == "200.00"
+    more = gift(jane, people=[ann["id"]], description="Gloves", occasion="holiday:thanksgiving",
+                occasionYear=2026)  # fmt: skip
+    assert saved(change(jane, "Gift", more, status="given", cost="15"))["status"] == "given"
+
+
 def test_deleting_a_person_keeps_what_was_given_by_name(jane):
     lisa, sam = person(jane), person(jane, name="Sam Lee", sex="male")
     gift(jane, people=[sam["id"]], description="Kite", status="idea")

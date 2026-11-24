@@ -67,6 +67,8 @@ class GiftPlanRow(Model):
 
     id: str
     personId: str
+    # The person's name, whether or not the caller sees them, who then has it alone (R3.14).
+    personName: str
     giftBudget: Money | None
     birthdayBudget: Money | None
     weddingBudget: Money | None
@@ -88,7 +90,7 @@ class HolidayOut(Model):
 
 
 def _next(
-    p: Person, occs: list[Occasion], today: dt.date, wedding: dt.date | None
+    p: Person | None, occs: list[Occasion], today: dt.date, wedding: dt.date | None
 ) -> NextDate | None:
     ahead = [
         d
@@ -158,22 +160,22 @@ def plans_view(s, c: Caller) -> list[GiftPlanRow]:
                 last[pid] = (y, f"{g.description}, {y}")
     out = []
     for x in plans:
-        p, gp = x.person, x.plan
+        gp, pid = x.plan, x.personId
         owner = s.get(User, gp.ownerId)
-        wedding = gifts.wedding_of(s, p.id)
         out.append(
             GiftPlanRow(
                 id=gp.id,
-                personId=p.id,
+                personId=pid,
+                personName=x.name,
                 giftBudget=gp.giftBudget,
                 birthdayBudget=gp.birthdayBudget,
                 weddingBudget=gp.weddingBudget,
                 leadDays=gp.leadDays,
                 notes=gp.notes,
                 occasions=[_occasion_out(o, today) for o in occs[gp.id]],
-                next=_next(p, occs[gp.id], today, wedding),
-                spent=spent.get(p.id, Decimal(0)),
-                lastGift=None if me and p.id == me.personId else last.get(p.id, (0, None))[1],
+                next=_next(x.person, occs[gp.id], today, x.wedding(s)),
+                spent=spent.get(pid, Decimal(0)),
+                lastGift=None if me and pid == me.personId else last.get(pid, (0, None))[1],
                 access=Access.of(x.perms),
                 ownerName=owner.displayName,
                 version=gp.version,
@@ -412,7 +414,6 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
     through someone's shared plan, at write, that plan's owner (S7.8.5)."""
     owners = None
     for pid in person_ids:
-        people.get(s, c.id, pid)
         mine = s.scalars(
             select(GiftPlan).where(
                 GiftPlan.ownerId == c.id, GiftPlan.personId == pid, GiftPlan.deleted == false()
@@ -423,7 +424,7 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
         here = {
             x.plan.ownerId
             for x in gifts.visible_plans(s, c.id)
-            if x.person.id == pid and x.perms.writable and not x.perms.mine
+            if x.personId == pid and x.perms.writable and not x.perms.mine
         }
         owners = here if owners is None else owners & here
     return next(iter(sorted(owners))) if owners else c.id
@@ -447,8 +448,11 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
         e.append(FieldError("link", "link-invalid", why))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
+    # Someone the caller sees, or a gift plan they see is for, seen or not (R3.14).
+    planned = {x.personId for x in gifts.visible_plans(s, c.id)}
     for pid in body.people:
-        people.get(s, c.id, pid)
+        if pid not in planned:
+            people.get(s, c.id, pid)
     if body.transactionId and body.transactionId != current:
         # Linking a purchase may recategorise it under Gifts: write on its account.
         t = s.get(Transaction, body.transactionId)

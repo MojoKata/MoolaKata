@@ -334,6 +334,34 @@ def test_a_readers_gift_plan_and_giving_plan_show_their_changes_off(browser, hou
     page.close()
 
 
+def test_a_gift_plan_for_someone_she_cant_see_names_them_and_is_hers_to_change(
+    browser, household, reader
+):
+    """R3.14: the admin makes Ann, whom the reader plans for, private: the reader's plan stays
+    on People with Ann's name, its dialog naming Ann and no more of her, and its budget hers to
+    change."""
+    h = household
+    ann = made(make(h.c, "Persn", name="Ann Roe", sex="female", birthMonth=4, birthDay=2))
+    with client(h.base) as rita:
+        made(rita.post("/ui/api/session", json={"login": "rita", "password": READER_PW}))
+        plan = made(make(rita, "GfPln", personId=ann["id"], giftBudget="40"))
+        saved(change(h.c, "Persn", h.c.get(f"/ui/api/persons/{ann['id']}").json(), private=True))
+        page, problems = signed_in_as_reader(browser, h, "/ui/gifts/people", "text=Ann Roe")
+        page.click('button[aria-label="Edit the gift plan for Ann Roe"]')
+        wait(page, ".dialog #f-gift-budget", problems)
+        dialog = page.locator(".dialog")
+        assert dialog.locator('[aria-label="Name"]').inner_text() == "Ann Roe"
+        assert dialog.locator("#f-name, #f-birthday, #f-sex").count() == 0
+        page.fill("#f-gift-budget", "75")
+        page.click(".dialog footer button.primary")
+        wait(page, ".dialog", problems, state="detached")
+        assert rita.get(f"/ui/api/gift-plans/{plan['id']}").json()["giftBudget"] == 75
+        assert problems == []
+        page.close()
+    # Undone: deleting Ann deletes the plan.
+    made(remove(h.c, "Persn", h.c.get(f"/ui/api/persons/{ann['id']}").json(), confirm=True))
+
+
 def test_a_category_another_may_delete_shows_delete_off_with_why(browser, household, reader):
     """S12.19.1: a shipped category nothing uses is an admin's to delete; for anyone else its
     Delete is shown off, saying so, never replaced by a line."""

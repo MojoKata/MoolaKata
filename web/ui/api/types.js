@@ -1346,6 +1346,7 @@
  * @typedef {Object} GiftPlanRow
  * @property {string} id
  * @property {string} personId
+ * @property {string} personName
  * @property {(import('../kit/dec.js').Dec | null)} giftBudget
  * @property {(import('../kit/dec.js').Dec | null)} birthdayBudget
  * @property {(import('../kit/dec.js').Dec | null)} weddingBudget

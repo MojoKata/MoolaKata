@@ -26,25 +26,42 @@ NOT_YET = ("idea", "planned")
 
 @dataclass
 class Plan:
-    """A gift plan the user can see, with its person and what the user holds of it."""
+    """A gift plan the user can see, with what the user holds of it, and its person: whole
+    when the user sees them, else (`person` None) their name alone (R3.14)."""
 
     plan: GiftPlan
-    person: Person
+    person: Person | None
+    name: str
     perms: access.Perms
+
+    @property
+    def personId(self) -> str:
+        return self.plan.personId
+
+    def wedding(self, s: Session) -> dt.date | None:
+        """The person's wedding day, for one the user sees: nothing else of one they don't."""
+        return wedding_of(s, self.personId) if self.person is not None else None
+
+
+def _whom(s: Session, user_id: str, gp: GiftPlan) -> tuple[Person | None, str]:
+    """A plan's person, when the user sees them (PersonAccess, whatever the session reads:
+    alerts and badges read as the server), and their name whether or not they do (R3.14)."""
+    pid = gp.personId
+    p = s.get(Person, pid) if people.readable(s, user_id, pid) else None
+    return p, p.name if p is not None else people.names(s, [pid])[pid]
 
 
 def visible_plans(s: Session, user_id: str) -> list[Plan]:
     """The user's own gift plans and those shared with them, one per person: their own when
-    they have one, else the shared one they may change, else any (GiftPlanAccess)."""
+    they have one, else the shared one they may change, else any (GiftPlanAccess, which
+    leaves out a deleted person's)."""
     best: dict[str, Plan] = {}
     for gp, perms in access.listing(s, GiftPlan, user_id):
-        p = s.get(Person, gp.personId)
-        if p is None or p.deleted:
-            continue
-        have = best.get(p.id)
+        p, name = _whom(s, user_id, gp)
+        have = best.get(gp.personId)
         if have is None or _rank(perms) > _rank(have.perms):
-            best[p.id] = Plan(gp, p, perms)
-    return sorted(best.values(), key=lambda x: x.person.name)
+            best[gp.personId] = Plan(gp, p, name, perms)
+    return sorted(best.values(), key=lambda x: x.name)
 
 
 def _rank(perms: access.Perms) -> tuple[bool, bool]:
@@ -57,13 +74,12 @@ def plan_by_id(s: Session, user_id: str, plan_id: str, need: str = "read") -> Pl
 
     perms = access.perms(s, GiftPlan, plan_id, user_id)
     gp = s.get(GiftPlan, plan_id) if perms is not None else None
-    p = s.get(Person, gp.personId) if gp else None
-    if gp is None or p is None or p.deleted:
+    if gp is None:
         raise Problem(404, "not-found", "Not found")
     want = {"read": None, "write": "writable"}.get(need, need)
     if want is not None and not getattr(perms, want):
         raise Problem(403, "read-only", "This gift plan is shared with you to read.")
-    return Plan(gp, p, perms)
+    return Plan(gp, *_whom(s, user_id, gp), perms)
 
 
 def occasions_of(s: Session, plan_ids: list[str]) -> dict[str, list[Occasion]]:
@@ -124,7 +140,7 @@ def wedding_of(s: Session, person_id: str) -> dt.date | None:
 
 
 def dates_in(
-    p: Person,
+    p: Person | None,
     occs: list[Occasion],
     year: int,
     wedding: dt.date | None = None,
@@ -132,9 +148,9 @@ def dates_in(
 ) -> list[Date]:
     """A person's dated occasions in a year: their birthday, their wedding anniversary, and
     the plan's own occasions, each with its budget (the birthday's and the wedding's are the
-    plan's, S7.7.1)."""
+    plan's, S7.7.1). With no person (one the reader can't see), the plan's own alone."""
     out = []
-    if p.birthMonth and p.birthDay and not p.diedOn:
+    if p is not None and p.birthMonth and p.birthDay and not p.diedOn:
         out.append(
             Date(
                 "birthday",
@@ -178,7 +194,7 @@ def dates_in(
 
 
 def year_budget(
-    plan: GiftPlan, p: Person, occs: list[Occasion], year: int, wedding: dt.date | None
+    plan: GiftPlan, p: Person | None, occs: list[Occasion], year: int, wedding: dt.date | None
 ) -> Decimal | None:
     """What a plan means to spend on its person in a year (S7.7.1): its yearly budget when it
     has one, else the budgets of that year's occasions together; none when it has neither."""
@@ -202,9 +218,19 @@ def label_of(key: str | None, occs: list[Occasion]) -> str:
     return (o.name or "Anniversary") if o else "An occasion"
 
 
+@dataclass(frozen=True)
+class Named:
+    """A person a record names, by name: deleted ones too (S7.8.6), and ones the reader can't
+    see (R3.14)."""
+
+    id: str
+    name: str
+    deleted: bool
+
+
 @dataclass
 class Upcoming:
-    person: Person
+    person: Named
     date: Date
     days: int
     inLead: bool
@@ -222,26 +248,25 @@ def upcoming(s: Session, user_id: str, today: dt.date, days: int = UPCOMING_DAYS
     end = today + dt.timedelta(days=days)
     out = []
     for x in plans:
-        p = x.person
-        if me is not None and p.id == me.personId:
+        if me is not None and x.personId == me.personId:
             continue  # your own dates are for others to plan
-        wedding = wedding_of(s, p.id)
+        wedding = x.wedding(s)
         for year in {today.year, end.year}:
-            for d in dates_in(p, occs[x.plan.id], year, wedding, x.plan):
+            for d in dates_in(x.person, occs[x.plan.id], year, wedding, x.plan):
                 if not today <= d.date <= end:
                     continue
                 left = (d.date - today).days
                 mine = [
                     g
                     for g, ps in gifts
-                    if p.id in ps
+                    if x.personId in ps
                     and g.occasion == d.key
                     and g.occasionYear == d.date.year
                     and g.status != "received"
                 ]
                 out.append(
                     Upcoming(
-                        p,
+                        Named(x.personId, x.name, False),
                         d,
                         left,
                         left <= x.plan.leadDays,
@@ -277,15 +302,6 @@ def gift_day(g: Gift, s: Session) -> int | None:
     return None
 
 
-@dataclass(frozen=True)
-class Named:
-    """A person a spending row names, deleted ones too (S7.8.6)."""
-
-    id: str
-    name: str
-    deleted: bool
-
-
 @dataclass
 class Spending:
     year: int
@@ -307,7 +323,7 @@ def _named(s: Session, person_ids) -> dict[str, Named]:
 
 def spending(s: Session, user_id: str, year: int) -> Spending:
     me = s.get(User, user_id)
-    plans = {x.person.id: x for x in visible_plans(s, user_id)}
+    plans = {x.personId: x for x in visible_plans(s, user_id)}
     by_person: dict[str, Decimal] = defaultdict(lambda: ZERO)
     by_occasion: dict[str, Decimal] = defaultdict(lambda: ZERO)
     by_year: dict[int, Decimal] = defaultdict(lambda: ZERO)
@@ -363,7 +379,7 @@ def spending(s: Session, user_id: str, year: int) -> Spending:
     named = _named(s, whom | set(money))
     occs = occasions_of(s, [x.plan.id for x in plans.values()])
     budget = {
-        pid: year_budget(x.plan, x.person, occs[x.plan.id], year, wedding_of(s, pid))
+        pid: year_budget(x.plan, x.person, occs[x.plan.id], year, x.wedding(s))
         for pid, x in plans.items()
     }
     return Spending(

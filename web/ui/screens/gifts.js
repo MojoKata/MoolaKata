@@ -135,7 +135,8 @@ function Upcoming() {
 
 /**
  * The gift plans the caller sees, each with its person (S7.7): two lists, joined here by the
- * plan's `personId`, as each record comes from its own route.
+ * plan's `personId`, as each record comes from its own route. A person the caller can't see
+ * is the plan's name for them, and no more (R3.14).
  * @param {string[]} [reloadOn]
  */
 function usePlans(reloadOn = []) {
@@ -145,9 +146,11 @@ function usePlans(reloadOn = []) {
     (/** @type {any[]} */ (persons.data) || []).map((x) => [x.id, x]),
   );
   const rows = plans.data && persons.data
-    ? /** @type {any[]} */ (plans.data)
-      .map((plan) => ({ plan, person: byId.get(plan.personId) }))
-      .filter((r) => r.person)
+    ? /** @type {any[]} */ (plans.data).map((plan) => ({
+      plan,
+      person: byId.get(plan.personId) ||
+        { id: plan.personId, name: plan.personName, unseen: true },
+    }))
     : null;
   return {
     rows,
@@ -436,6 +439,8 @@ export const asFields = (/** @type {any} */ v, /** @type {string} */ prefix) =>
 function PersonDialog({ close, row }) {
   const planRow = row?.plan;
   const p = row?.person;
+  // A person the caller can't see: the plan names them, and shows no more of them (R3.14).
+  const unseen = !!p?.unseen;
   useDialogGuide('dialog-person');
   const hols = useList('/holidays');
   const f = useDraft(async (draft) => {
@@ -446,16 +451,18 @@ function PersonDialog({ close, row }) {
     }
     const [x, who] = await Promise.all([
       api.get(`/gift-plans/${planRow.id}`),
-      api.get(`/persons/${p.id}`),
+      unseen ? null : api.get(`/persons/${p.id}`),
     ]);
-    draft.load(PersonRec, {
-      id: who.id,
-      version: who.version,
-      access: who.access,
-      ...Object.fromEntries(Object.keys(PersonRec.defaults).map((k) => [k, who[k] ?? null])),
-      private: who.private,
-      differentPerson: false,
-    });
+    if (who) {
+      draft.load(PersonRec, {
+        id: who.id,
+        version: who.version,
+        access: who.access,
+        ...Object.fromEntries(Object.keys(PersonRec.defaults).map((k) => [k, who[k] ?? null])),
+        private: who.private,
+        differentPerson: false,
+      });
+    }
     draft.load(PlanRec, {
       id: x.id,
       version: x.version,
@@ -485,7 +492,7 @@ function PersonDialog({ close, row }) {
   const holidayLabel = (/** @type {string} */ key) =>
     (/** @type {any[]} */ (hols.data) || []).find((h) => h.key === key)?.label || key;
   const canWrite = !planRow || planRow.access.writable;
-  const ownPerson = !p || p.access.writable;
+  const ownPerson = !p || (!unseen && p.access.writable);
   // One person, once (S10.10.3): a name already here shows that person instead.
   const [clash, setClash] = useState(/** @type {any} */ (null));
   const [using, setUsing] = useState(false);
@@ -528,7 +535,7 @@ function PersonDialog({ close, row }) {
     toast(`Asked ${clash.createdBy || 'an admin'} to share ${clash.name}`);
     close();
   });
-  const rels = useApi(p ? `/persons/${p.id}/relations` : null, {});
+  const rels = useApi(p && !unseen ? `/persons/${p.id}/relations` : null, {});
   const relations = /** @type {any[]} */ ((/** @type {any} */ (rels.data))?.items || []);
   const birthday = who
     ? who.typed('birthday') ??
@@ -576,7 +583,7 @@ function PersonDialog({ close, row }) {
             `
             : null
         }${
-          p && !p.userId
+          p && !p.userId && !unseen
             ? html`
               <${Action} class="btn danger" why=${whyNot(p, 'deletable')} disabled=${save.busy}
                 onClick=${() => drop('person')}>Delete Person</${Action}>
@@ -596,72 +603,87 @@ function PersonDialog({ close, row }) {
                     ${p.name}</${Attention}></div>
         `
       )}
-      ${who && plan
+      ${plan && (who || unseen)
         ? html`
           <${Reads} why=${canWrite ? false : READ_ONLY} row=${row ? PLAN_ROW : []}>
-            <${Reads} row=${row ? PLAN_ROW : []} why=${!canWrite
-              ? READ_ONLY
-              : !ownPerson
-              ? 'Only its owner changes the person'
-              : using
-              ? 'Already here: change their details once this plan is saved'
-              : false}>
-              <div class="card" style=${{
-                margin: '0 0 12px',
-                padding: '10px 12px',
-                minWidth: 0,
-              }} data-help="the-person">
-                <div class="small dim">The person${p?.private
-                  ? ' (private: only those it is shared with)'
-                  : ''}</div>
-                <div class="row">
-                  <${RecField} rec=${who} name="name" label="Name" onEdit=${unuse} />
-                  <${RecField} rec=${who} name="sex" label="Sex" options=${[
-                    ['', 'Choose…'],
-                    ['female', 'Female'],
-                    ['male', 'Male'],
-                  ]} />
-                  <${Field} label="Birthday" error=${who.error('birthday') ||
-                    who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
-                    hint=${birthYearDiffers(clash, using, who.get('differentPerson'))
-                      ? 'A birth year that differs from theirs.'
-                      : null}>
-                  <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
-                    /** @type {string} */ v,
-                  ) =>
-                    who.inputAs(
-                      'birthday',
-                      v,
-                      (t) => {
-                        const r = DAY.read(t);
-                        return 'error' in r ? r : { value: asFields(r.value, 'birth') };
-                      },
-                    )} />
-                </${Field}>
-              </div>
-              <div class="row">
-                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date" />
-                ${!p || p.canMakePrivate
-                  ? html`
-                    <${RecField} rec=${who} name="private" label="Private" />
-                  `
-                  : null}
-              </div>
-              <div class="small">${p?.relation
-                ? html`<b>${p.relation[0].toUpperCase() + p.relation.slice(1)}</b> to you, worked
+            ${who
+              ? html`
+                <${Reads} row=${row ? PLAN_ROW : []} why=${!canWrite
+                  ? READ_ONLY
+                  : !ownPerson
+                  ? 'Only its owner changes the person'
+                  : using
+                  ? 'Already here: change their details once this plan is saved'
+                  : false}>
+                  <div class="card" style=${{
+                    margin: '0 0 12px',
+                    padding: '10px 12px',
+                    minWidth: 0,
+                  }} data-help="the-person">
+                    <div class="small dim">The person${p?.private
+                      ? ' (private: only those it is shared with)'
+                      : ''}</div>
+                    <div class="row">
+                      <${RecField} rec=${who} name="name" label="Name" onEdit=${unuse} />
+                      <${RecField} rec=${who} name="sex" label="Sex" options=${[
+                        ['', 'Choose…'],
+                        ['female', 'Female'],
+                        ['male', 'Male'],
+                      ]} />
+                      <${Field} label="Birthday" error=${who.error('birthday') ||
+                        who.error('birthDay') || who.error('birthMonth') || who.error('birthYear')}
+                        hint=${birthYearDiffers(clash, using, who.get('differentPerson'))
+                          ? 'A birth year that differs from theirs.'
+                          : null}>
+                                  <${Input} value=${birthday} placeholder="YYYY-MM-DD" onInput=${(
+                                    /** @type {string} */ v,
+                                  ) =>
+                                    who.inputAs(
+                                      'birthday',
+                                      v,
+                                      (t) => {
+                                        const r = DAY.read(t);
+                                        return 'error' in r
+                                          ? r
+                                          : { value: asFields(r.value, 'birth') };
+                                      },
+                                    )} />
+                                </${Field}>
+                              </div>
+                              <div class="row">
+                                <${RecField} rec=${who} name="diedOn" label="Died on" id="died-on" type="date" />
+                                ${!p || p.canMakePrivate
+                                  ? html`
+                                    <${RecField} rec=${who} name="private" label="Private" />
+                                  `
+                                  : null}
+                              </div>
+                              <div class="small">${p?.relation
+                                ? html`<b>${
+                                  p.relation[0].toUpperCase() + p.relation.slice(1)
+                                }</b> to you, worked
                   out from relationships.`
-                : 'How they’re related to you is worked out from relationships.'}</div>
-              ${relations.length
-                ? html`
-                  <div class="small dim" data-help="their-relationships"
-                    style=${{
-                      marginTop: '6px',
-                    }}>${p.name.split(' ')[0]}'s family and friends: ${relations.map((
-                      /** @type {any} */ r,
-                    ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
-                `
-                : null}
-            </div></${Reads}>
+                                : 'How they’re related to you is worked out from relationships.'}</div>
+                              ${relations.length
+                                ? html`
+                                  <div class="small dim" data-help="their-relationships"
+                                    style=${{
+                                      marginTop: '6px',
+                                    }}>${p.name.split(' ')[0]}'s family and friends: ${relations
+                                      .map((
+                                        /** @type {any} */ r,
+                                      ) => `${r.name} (${r.label || r.word})`).join(', ')}</div>
+                                `
+                                : null}
+                            </div></${Reads}>
+              `
+              : html`
+                <div class="card" style=${{ margin: '0 0 12px', padding: '10px 12px', minWidth: 0 }}
+                  data-help="the-person">
+                  <div class="small dim">The person</div>
+                  <${ReadValue} aria-label="Name" text=${p?.name} />
+                </div>
+              `}
             ${clash && !using
               ? html`
                 <div class="notice" role="status">
@@ -673,14 +695,14 @@ function PersonDialog({ close, row }) {
                         class="btn sm" disabled=${ask.busy} onClick=${() =>
                           ask.run().catch(() => {})}>Ask to Share</button>
                     `} <button type="button" class="btn sm" onClick=${() =>
-                    who.set('differentPerson', true)}>A Different Person</button></div>
+                    who?.set('differentPerson', true)}>A Different Person</button></div>
                 </div>
               `
               : using
               ? html`
                 <div class="notice">
                   <${Icon} name="info" />
-                  <div>A gift plan for ${who.get('name')}, who is already here.</div>
+                  <div>A gift plan for ${who?.get('name')}, who is already here.</div>
                 </div>
               `
               : null}

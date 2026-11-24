@@ -8002,6 +8002,10 @@
             "title": "Personid",
             "type": "string"
           },
+          "personName": {
+            "title": "Personname",
+            "type": "string"
+          },
           "spent": {
             "examples": [
               1234.5
@@ -8033,6 +8037,7 @@
         "required": [
           "id",
           "personId",
+          "personName",
           "giftBudget",
           "birthdayBudget",
           "weddingBudget",

@@ -105,7 +105,7 @@ def roles(s: Session, b: Budget, accounts: list[Account], today: dt.date) -> lis
 def planned_elsewhere(s: Session, b: Budget, tr: Tree, year: int) -> dict[str, Decimal]:
     """The yearly amounts the owner's gift plans and giving plan set, by category id."""
     from .. import giving
-    from ..gifts import occasions_of, visible_plans, wedding_of, year_budget
+    from ..gifts import occasions_of, visible_plans, year_budget
 
     out: dict[str, Decimal] = {}
     gifts_cat, giving_cat = tr.key("gifts"), tr.key("giving")
@@ -115,8 +115,7 @@ def planned_elsewhere(s: Session, b: Budget, tr: Tree, year: int) -> dict[str, D
         if plans:
             out[gifts_cat] = sum(
                 (
-                    year_budget(x.plan, x.person, occs[x.plan.id], year, wedding_of(s, x.person.id))
-                    or ZERO
+                    year_budget(x.plan, x.person, occs[x.plan.id], year, x.wedding(s)) or ZERO
                     for x in plans
                 ),
                 ZERO,
