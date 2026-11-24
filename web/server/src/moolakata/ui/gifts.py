@@ -47,24 +47,6 @@ class OccasionOut(OccasionIn):
     version: int
 
 
-class PersonIn(Model):
-    """A gift plan, and the person it is for: an existing one (`personId`) or a new one."""
-
-    personId: str | None = None
-    name: str = ""
-    sex: str | None = None
-    birthMonth: int | None = None
-    birthDay: int | None = None
-    birthYear: int | None = None
-    diedOn: dt.date | None = None
-    private: bool | None = None  # left as it is when not given
-    differentPerson: bool = False  # the same name as someone here, told apart by birth year
-    giftBudget: Money | None = None
-    leadDays: int = 14
-    notes: str | None = None
-    occasions: list[OccasionIn] | None = None  # a new plan's
-
-
 class NextDate(Model):
     key: str
     label: str
@@ -256,31 +238,6 @@ def refuse_clash(s, c: Caller, name: str, birth_year: int | None, exclude=None) 
             }
         },
     )
-
-
-def _check_plan(body: PersonIn) -> dict:
-    e: list[FieldError] = []
-    if body.giftBudget is not None and body.giftBudget < 0:
-        e.append(FieldError("giftBudget", "amount-invalid", "Zero or more."))
-    if not 0 <= body.leadDays <= 120:
-        e.append(FieldError("leadDays", "lead-invalid", "0 to 120 days."))
-    for i, o in enumerate(body.occasions or []):
-        at = f"occasions.{i}"
-        if o.kind == "holiday":
-            if o.holiday not in holidays.HOLIDAYS:
-                e.append(FieldError(f"{at}.holiday", "holiday-invalid", "One of the holidays."))
-        elif o.kind in ("anniversary", "custom"):
-            if not (o.month and o.day and 1 <= o.month <= 12 and 1 <= o.day <= 31):
-                e.append(FieldError(f"{at}.month", "date-invalid", "A month and a day."))
-            if o.kind == "custom" and not (o.name or "").strip():
-                e.append(FieldError(f"{at}.name", "name-missing", "What the occasion is."))
-        else:
-            e.append(FieldError(f"{at}.kind", "kind-invalid", "An anniversary, holiday or date."))
-        if o.budget is not None and o.budget < 0:
-            e.append(FieldError(f"{at}.budget", "amount-invalid", "Zero or more."))
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
-    return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
 
 
 def _one(s, c: Caller, plan_id: str) -> GiftPlanRow:
