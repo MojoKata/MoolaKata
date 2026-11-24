@@ -440,3 +440,53 @@ print("held")
     finally:
         listener.close()
     assert r.returncode == 0 and r.stdout.strip() == "held", r.stderr
+
+
+def _judged(program: bytes, arch: int, nr: int, arg0: int = 0) -> int:
+    """What a classic BPF seccomp `program` returns for one call: its loads, equality and
+    at-or-above jumps, and returns, the only instructions the filter uses."""
+    import struct
+
+    data = struct.pack("<iIQQ", nr, arch, 0, arg0)
+    code = [struct.unpack("HBBI", program[i : i + 8]) for i in range(0, len(program), 8)]
+    pc, acc = 0, 0
+    while True:
+        op, jt, jf, k = code[pc]
+        if op == 0x20:  # load a word of the call's data
+            acc = struct.unpack_from("<I", data, k)[0]
+        elif op in (0x15, 0x35):  # jump if equal, jump if at or above
+            hit = acc == k if op == 0x15 else acc >= k
+            pc += jt if hit else jf
+        elif op == 0x06:
+            return k
+        else:
+            raise AssertionError(f"instruction {op:#x}")
+        pc += 1
+
+
+def test_the_filter_judges_only_native_calls_and_refuses_x32_ones():
+    """S9.8.4.2: a call of the x32 ABI comes with x86_64's architecture and its number's bit 30
+    set; it is refused, so `socket` through that entry is refused as the native one is."""
+    import errno
+
+    from moolakata import sandbox
+
+    deny = sandbox.SECCOMP_RET_ERRNO | errno.EPERM
+    allow = sandbox.SECCOMP_RET_ALLOW
+    x86 = sandbox.ARCHES["x86_64"]
+    program = sandbox._filter(x86, 77)
+    arch = x86["arch"]
+    assert _judged(program, arch, 41) == deny, "socket"
+    assert _judged(program, arch, 0x40000000 | 41) == deny, "socket through x32"
+    assert _judged(program, arch, 0x40000000) == deny, "x32's first call"
+    assert _judged(program, arch, 0x3FFFFFFF) == allow, "a native number below x32's"
+    assert _judged(program, arch, 0) == allow, "read"
+    assert _judged(program, arch, 62, 77) == allow, "a signal to itself"
+    assert _judged(program, arch, 62, 78) == deny, "a signal to another"
+    assert _judged(program, 0x40000003, 41) == deny, "another architecture"
+    # aarch64 has no such entry: its numbers are judged as they are.
+    arm = sandbox.ARCHES["aarch64"]
+    program = sandbox._filter(arm, 77)
+    assert _judged(program, arm["arch"], 198) == deny, "socket"
+    assert _judged(program, arm["arch"], 129, 77) == allow, "a signal to itself"
+    assert _judged(program, arm["arch"], 0x40000000) == allow
