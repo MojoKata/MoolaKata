@@ -155,6 +155,47 @@ def test_windows_and_sign_in_lockout():
     assert g.locked("10.0.0.5") == 0
 
 
+def test_a_window_forgets_the_keys_whose_events_have_lapsed():
+    # S13.7.5.5: counters in memory, kept no longer than they count.
+    clock = [0.0]
+    w = Window(3, 60, clock=lambda: clock[0])
+    for n in range(100):
+        w.hit(f"10.0.0.{n}")
+    assert len(w) == 100
+    assert w.wait("10.9.9.9") == 0 and w.count("10.9.9.9") == 0 and len(w) == 100
+    clock[0] = 60
+    w.hit("10.0.1.1")
+    assert len(w) == 1, "the lapsed keys are dropped"
+
+
+def test_the_sign_in_guard_forgets_what_has_lapsed():
+    # S13.7.5.5: failures, lockouts and a pending sign-in's wrong codes are dropped once they
+    # no longer count, so a scan of new usernames doesn't grow the server's memory.
+    clock = [0.0]
+    g = SignInGuard(clock=lambda: clock[0])
+    for n in range(50):
+        g.failed(f"user{n}", f"10.0.{n}.1", threshold=1)
+        g.code_wrong(f"pending{n}")
+    assert g.delay("someone-new", "10.9.9.9") == 0
+    assert g.held() == {"addresses": 50, "usernames": 50, "locks": 50, "codes": 50}
+    clock[0] = 15 * 60
+    g.failed("jane", "10.1.1.1")
+    assert g.held() == {"addresses": 1, "usernames": 1, "locks": 0, "codes": 0}
+
+
+def test_a_login_longer_than_any_username_or_email_counts_against_the_address_alone():
+    # Usernames are 2 to 32 characters and an email at most 254 (S10.1): a longer login names
+    # nobody, so it is never kept, though it counts toward the address's lockout.
+    g = SignInGuard()
+    long = "x" * 255
+    for _ in range(9):
+        assert not g.failed(long, "10.0.0.5")
+    assert g.held()["usernames"] == 0
+    assert g.failed(long, "10.0.0.5") and g.locked("10.0.0.5") > 0
+    g.failed("y" * 254, "10.0.0.6")
+    assert g.held()["usernames"] == 1
+
+
 def test_the_lockout_counts_an_ipv6_address_by_its_64():
     # S13.7.5.1: one household's /64 is one address to the lockout.
     clock = [0.0]

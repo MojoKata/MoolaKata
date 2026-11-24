@@ -481,6 +481,14 @@ def test_password_reset(client, server):
     assert "changed" in mails(server)[-1]["Subject"]
 
 
+def test_a_login_too_long_to_name_anyone_is_a_wrong_sign_in_never_kept(client, server):
+    # S10.1.5: the same answer as any wrong sign-in; S13.7.5.5: nothing kept for its name.
+    r = client.post("/ui/api/session", json={"login": "x" * 300, "password": "wrong"})
+    assert r.status_code == 401 and r.json()["code"] == "bad-credentials"
+    assert server.sign_in.held()["usernames"] == 0
+    assert kinds(server).count("signin.failed") == 1, "counted against the address"
+
+
 def test_ten_reset_requests_lock_the_address_as_ten_failed_sign_ins_do(client, server):
     """S13.7.5.1: ten password-reset requests lock the address they came from for 15 minutes,
     for sign-in and resets alike; another address is left alone."""

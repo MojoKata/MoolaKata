@@ -144,7 +144,8 @@
          address past them is refused before its call is checked; `/connector`: the same, 60
          calls a minute for the paired connector, its files counted against the upload limit
          above. All of it is checked on a call's headers, before a byte of its body is read.
-      5. The counters are held in memory: a restart clears them.
+      5. The counters are held in memory: a restart clears them, and each is dropped once what
+         it counted has lapsed.
    6. **Request limits**: JSON bodies up to 1 MB (a linked server's up to 20 MB,
       `docs/link-protocol.md` §1.4); uploads up to the sizes in Settings (25 MB by default): a
       receipt up to S16.10's, a statement or other import file up to S16.8's, and a file the
