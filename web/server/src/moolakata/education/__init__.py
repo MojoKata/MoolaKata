@@ -244,8 +244,8 @@ class Rollover:
     possibleFrom: dt.date | None  # 15 years after opening
     limit: Decimal  # lifetime, from the tax tables
     used: Decimal  # rolled over already
-    # The account's value less the last five years' contributions and their earnings, less
-    # what was used.
+    # The account's value less the last five years' contributions and their earnings; what
+    # was rolled over already left it, so it comes off the limit alone (S1.8.4).
     eligible: Decimal
     available: Decimal  # what could still roll over, once possible
 
@@ -263,7 +263,7 @@ def rollover(
     led = repo.load(s, account)
     value = valuation.account_value(s, led, True)
     recent = _grown(s, led, [r for r in rows if r.date > cutoff], today)
-    eligible = max(value - recent - used, ZERO)
+    eligible = max(value - recent, ZERO)
     opened = plan.openedOn if plan is not None else None
     return Rollover(
         possibleFrom=_years(opened, ROTH_AFTER_YEARS) if opened else None,

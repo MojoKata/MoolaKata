@@ -243,15 +243,18 @@ def test_the_roth_rollover_after_fifteen_years(jane):
          "0.00", "0.00"),
         # Part of the lifetime limit already used: what is left of it caps.
         ([("20000.00", "2008-01-02", "deposit"), ("40000.00", "2015-01-02", "interest"),
-          ("-5000.00", "2026-03-02", "roth")], "50000.00", "30000.00"),
+          ("-5000.00", "2026-03-02", "roth")], "55000.00", "30000.00"),
+        # What was rolled over comes off the limit only: the value has already dropped by it.
+        ([("40000.00", "2008-01-02", "deposit"), ("-10000.00", "2026-03-02", "roth")],
+         "30000.00", "25000.00"),
     ],
 )  # fmt: skip
 def test_what_could_still_roll_over_counts_the_earnings_on_old_contributions(
     jane, moves, eligible, available
 ):
     """S1.8.4: the account's value, less the last five years' contributions and their
-    estimated earnings (each grown by the account's return since it), less what was rolled
-    over, capped by what is left of the lifetime limit."""
+    estimated earnings (each grown by the account's return since it), capped by what is left
+    of the lifetime limit after what was rolled over."""
     acct, _, _ = plan(jane, opened="2008-01-01")
     for amount, day, kind in moves:
         if kind == "roth":

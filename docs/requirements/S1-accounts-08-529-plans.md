@@ -19,7 +19,7 @@
    4. **Rollover to a Roth IRA**: once the account has been open 15 years, it shows how much
       could still roll over to the beneficiary's Roth IRA: the account's value, less the last
       five years' contributions and their earnings (estimated, each grown by the account's
-      return since it went in), less what was already rolled over, up to what is left of the
-      lifetime limit (in the tax tables).
+      return since it went in), up to what is left of the lifetime limit (in the tax tables)
+      after what was already rolled over.
    5. **The Goal tab** shows the beneficiary's education projection (S6.2.2).
    6. A 529 counts in its **owner's** net worth, not the beneficiary's.

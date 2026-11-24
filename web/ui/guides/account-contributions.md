@@ -59,6 +59,6 @@ limit.
 
 ## Could still roll over
 
-The account's value, less the last five years' contributions and their earnings, less what was
-already rolled over, up to what is left of the lifetime limit. A recent contribution's earnings are
+The account's value, less the last five years' contributions and their earnings, up to what is
+left of the lifetime limit after what was already rolled over. A recent contribution's earnings are
 estimated: it is grown by the account's return since it went in.
