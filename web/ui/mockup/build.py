@@ -401,11 +401,14 @@ class Recorder:
         except Exception:
             sys.exit(f"{path} drew nothing in 20 s for {self.username}")
         self.settle()
-        # Every range and chip a screen offers.
+        # Every range and chip a screen offers, counted again after each: a chip may change the
+        # others (Giving's plan its years).
         chips = self.page.locator(".content .chips button")
-        for i in range(chips.count()):
+        i = 0
+        while i < chips.count():
             chips.nth(i).click()
             self.settle()
+            i += 1
 
     def api(self, path: str):
         return self.page.evaluate(f"async () => (await fetch('/ui/api{path}')).json()")
