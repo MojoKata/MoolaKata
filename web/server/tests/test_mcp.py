@@ -97,6 +97,30 @@ def test_giving_reads_the_users_own_plan(jane, agent):
     assert out["structuredContent"]["result"]["plan"]["targetKind"] == "amount"
 
 
+def test_giving_reads_a_plan_shared_with_the_user_and_refuses_another(server, jane, agent):
+    """S7.9.1, S10.9: `plan` chooses a giving plan the user reads, as the Giving screen's
+    choice does; none, their own; one they don't read is refused as the route refuses it."""
+    from edits import share
+
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    hers = saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    his = saved(giving_plan(john, 2026, targetKind="amount", amount="700"))
+    secret = token(john)
+    own = call(agent, secret, "get_giving", year=2026)["structuredContent"]["result"]
+    assert own["plan"]["id"] == his["id"]
+    assert call(agent, secret, "get_giving", year=2026, plan=hers["id"])["isError"]
+    assert john.get("/ui/api/giving", params={"year": 2026, "plan": hers["id"]}).status_code == 404
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    out = call(agent, secret, "get_giving", year=2026, plan=hers["id"])
+    assert not out["isError"], out
+    assert out["structuredContent"]["result"]["plan"]["id"] == hers["id"]
+    tools = rpc(agent, secret, "tools/list").json()["result"]["tools"]
+    (giving,) = [t for t in tools if t["name"] == "get_giving"]
+    assert "plan" in giving["inputSchema"]["properties"]
+
+
 def test_a_chosen_items_token_reads_only_its_items(server, jane, agent):
     a = new_account(jane, name="Brokerage", type="brokerage")
     b = new_account(jane, name="Checking", type="checking")

@@ -228,14 +228,17 @@ def _gifts(srv, w, args):
 
 @tool(
     "get_giving",
-    "A year's giving: donations by organisation, the giving plan and what is left of it.",
-    {"year": {"type": "integer", "minimum": 1900, "maximum": 2200}},
+    "A year's giving: donations by organisation, the giving plan and what is left of it. "
+    "The user's own plan, or with `plan` the id of one shared with them for that year "
+    "(listed under `shared`); one they can't read is refused.",
+    {"year": {"type": "integer", "minimum": 1900, "maximum": 2200}, "plan": {"type": "string"}},
     whole=True,
 )
 def _giving(srv, w, args):
     from .ui import giving
 
-    return _dump(giving.get_giving(_req(srv), args.get("year"), c=w.caller))
+    # The Giving screen's choice of plan, refused as its route refuses it (S7.9.1).
+    return _dump(giving.get_giving(_req(srv), args.get("year"), args.get("plan"), c=w.caller))
 
 
 @tool("list_tax_books", "The tax books the user can see: one a tax year.", whole=True)

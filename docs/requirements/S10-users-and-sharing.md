@@ -181,7 +181,8 @@
    5. **The tools**: `list_accounts`, `get_account_holdings`, `list_transactions` (one
       account or all, between dates, by payee, at most 500), `list_positions`,
       `list_portfolios`, `get_portfolio` (value, holdings and returns), `list_budgets`,
-      `get_budget_month`, `list_upcoming_gifts`, `get_giving`, `list_tax_books` and
+      `get_budget_month`, `list_upcoming_gifts`, `get_giving` (the user's own giving, or a
+      plan shared with them, as the Giving screen chooses it, S7.9.1), `list_tax_books` and
       `get_tax_panels`. Each answers with what the matching screen shows. A token with chosen
       items reads only those accounts and portfolios; the tools about the whole household
       (budgets, gifts, giving, taxes) refuse it.
