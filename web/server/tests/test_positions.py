@@ -608,3 +608,60 @@ def test_an_adjusted_contracts_trade_goes_on_under_it_on_the_side_it_was(jane):
         ("MSFT1 20NOV26 480 P", "long", "1.0", "2026-09-03", None, None),
         ("MSFT1 20NOV26 500 C", "short", "1.0", "2026-09-03", None, None),
     ]
+
+
+@pytest.mark.parametrize(
+    ("body", "field", "code", "message"),
+    [
+        ({"kind": "split"}, "ratio", "ratio-invalid", "New shares for each one held: 2, 0.5."),
+        (
+            {"kind": "split", "ratio": "0"},
+            "ratio",
+            "ratio-invalid",
+            "New shares for each one held: 2, 0.5.",
+        ),
+        (
+            {"kind": "split", "ratio": "-2"},
+            "ratio",
+            "ratio-invalid",
+            "New shares for each one held: 2, 0.5.",
+        ),
+        ({"kind": "symbol-change"}, "newSymbol", "symbol-missing", "The new symbol."),
+        (
+            {"kind": "symbol-change", "newSymbol": "  "},
+            "newSymbol",
+            "symbol-missing",
+            "The new symbol.",
+        ),
+        (
+            {"kind": "symbol-change", "newSymbol": "twtr"},
+            "newSymbol",
+            "symbol-invalid",
+            "Another instrument's symbol.",
+        ),
+        (
+            {"kind": "symbol-change", "newSymbol": "ABCDEFGHIJKLM"},
+            "newSymbol",
+            "symbol-invalid",
+            "Another instrument's symbol.",
+        ),
+        (
+            {"kind": "spin-off", "ratio": "1", "basisShare": "10"},
+            "newSymbol",
+            "symbol-missing",
+            "The new symbol.",
+        ),
+    ],
+)
+def test_a_corporate_action_is_refused_at_each_field_it_lacks(jane, body, field, code, message):
+    """S2.4, R3.11: a split's or spin-off's ratio is more than nothing; a symbol change or a
+    spin-off names a new symbol, another instrument's and of at most 12 letters."""
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, a, "10000.00", "2025-01-01", kind="deposit")
+    add(jane, a, "-2000.00", "2025-01-02", kind="buy", symbol="TWTR", quantity="50", price="40")
+    [held] = jane.get("/ui/api/positions").json()["open"]
+    r = create(jane, "CorpA", accountId=a, instrumentId=held["instrumentId"], date="2026-10-13",
+               **body)  # fmt: skip
+    assert r.status_code == 422, r.text
+    errors = [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+    assert (field, code, message) in errors
