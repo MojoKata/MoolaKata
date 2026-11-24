@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from .. import exactjson, net
 from . import PROTOCOL, keys, signing
@@ -130,7 +130,8 @@ def checked_address(address: str) -> str:
 def _url(address: str, path: str) -> str:
     """The base's own path with the call's appended, never the two strings run together."""
     u = urlsplit(checked_address(address))
-    return urlunsplit((u.scheme, u.netloc, u.path + path, "", ""))
+    path, _, query = path.partition("?")
+    return urlunsplit((u.scheme, u.netloc, u.path + path, query, ""))
 
 
 def _client(srv, pins, max_bytes: int = net.MAX_RESPONSE) -> net.Client:
@@ -270,16 +271,17 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
 
 def send_file(srv, address: str, peer_key: bytes, file_id: str, path, digest: str, pins=None):
     """One receipt, sealed to the peer's copy key, sent ahead of the change that names it: its
-    sealed bytes as the body, read from the file as they go (link-protocol.md §4.3)."""
+    sealed bytes as the body, read from the file as they go (link-protocol.md §4.3). The
+    receipt is named in the path's query, which the signature covers, so nothing between the
+    servers can deliver it under another receipt's name."""
     own, own_fp = _own(srv)
-    call_path = "/link/v1/deliver"
+    call_path = f"/link/v1/deliver?file={quote(file_id, safe='')}"
     # Signed over the sealed bytes' hash in place of a body in hand.
     signed = signing.sign_request_digest(own, "POST", call_path, digest, keys.fingerprint(peer_key))
     headers = {
         **signed.headers,
         "MK-Link-Body-SHA256": digest,
         "Content-Type": "application/octet-stream",
-        "MK-Link-File": file_id,
         "MK-Link-Protocol": str(PROTOCOL),
         "MK-Link-Version": srv.version,
     }

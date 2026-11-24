@@ -23,6 +23,7 @@ from moolakata.links import routes as link_routes
 from moolakata.store.entities.links import Link
 from moolakata.store.tables._base import metadata
 
+RECEIPT = "Rcpt_" + "0" * 26  # a delivered receipt's id, named in the signed path
 ATTACKS = ("unsigned", "bad-signature", "unknown-key", "replayed", "stale", "too-large", "mismatch")
 KINDS = (("link", "json"), ("link", "file"), ("connector", "json"), ("connector", "multipart"))
 EXPECTED = {
@@ -54,7 +55,7 @@ class Side:
     def path(self, body_kind: str) -> str:
         return {
             ("link", "json"): "/link/v1/ping",
-            ("link", "file"): "/link/v1/deliver",
+            ("link", "file"): "/link/v1/deliver?file=" + RECEIPT,
             ("connector", "json"): "/connector/v1/report",
             ("connector", "multipart"): "/connector/v1/accounts/Acct_x/files",
         }[(self.protocol, body_kind)]
@@ -82,8 +83,6 @@ class Side:
             self.scheme.h("Protocol"): "1",
             "Content-Type": self.content_type(body_kind),
         }
-        if body_kind == "file":
-            h["MK-Link-File"] = "Rcpt_" + "0" * 26
         if named is not None:
             h[self.scheme.h("Key")] = keys.b64(keys.raw_public(named.public_key()))
         return h
@@ -355,10 +354,25 @@ def test_a_routes_work_never_holds_the_event_loop(protocol, request, monkeypatch
     assert answered.status_code == 200, answered.text
 
 
-def test_a_file_delivered_without_its_id_is_refused_as_the_protocol_says(link_side):
-    # link-protocol.md §7: `file-refused`, signed, when `MK-Link-File` isn't a file id.
-    path, body = "/link/v1/deliver", link_side.body("file")
+@pytest.mark.parametrize(
+    "query", ["", "?file=not-a-file", f"?file={RECEIPT}&file={RECEIPT}", f"?id={RECEIPT}"]
+)
+def test_a_file_delivered_without_its_id_is_refused_as_the_protocol_says(link_side, query):
+    # link-protocol.md §7: `file-refused`, signed, when the path's `file` isn't one file id.
+    path, body = "/link/v1/deliver" + query, link_side.body("file")
     h = link_side.headers(path, body, body_kind="file")
-    h["MK-Link-File"] = "not-a-file"
     r = link_side.client.post(path, content=body, headers=h)
     assert r.status_code == 403 and r.json()["code"] == "file-refused"
+
+
+def test_a_delivered_files_name_is_inside_its_signature(link_side):
+    # link-protocol.md §4.3: a receipt's id changed on the way (a proxy swapping two) fails
+    # the signature, and nothing is kept.
+    from moolakata.links.routes import DELIVERED
+
+    body = link_side.body("file")
+    h = link_side.headers(f"/link/v1/deliver?file={RECEIPT}", body, body_kind="file")
+    other = "Rcpt_" + "1" * 26
+    r = link_side.client.post(f"/link/v1/deliver?file={other}", content=body, headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature"
+    assert DELIVERED.names(link_side.counted) == set()

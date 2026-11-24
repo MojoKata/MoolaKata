@@ -181,11 +181,12 @@ FILE_ID = re.compile(r"[A-Za-z]{2,8}_[0-9a-z]{26}")
 def deliver(call: Call):
     """The caller's change for this server, after an exchange it made (S11.4); or, before it,
     one of the receipts that change sends, sealed by the caller to this side's copy key, as
-    `application/octet-stream` with `MK-Link-File` naming it (link-protocol.md §4.3): read as
-    it arrives, never whole in memory, and kept as it came."""
+    `application/octet-stream` with the path's `file` naming it (link-protocol.md §4.3), inside
+    what the caller signed: read as it arrives, never whole in memory, and kept as it came."""
     srv, link = call.srv, call.found
     if call.file is not None:
-        fid = call.header("mk-link-file") or ""
+        named = call.request.query_params.getlist("file")
+        fid = named[0] if len(named) == 1 else ""
         if not FILE_ID.fullmatch(fid):
             raise signing.Refused("file-refused", "The file isn't named.")
         from .copies import receipt_files

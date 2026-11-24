@@ -22,7 +22,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 4. Bodies are JSON, UTF-8, at most 20 MB. A caller waits 10 seconds to connect and 20 seconds
    for each read, and cuts off an answer past 20 MB as it decodes (a caller asks for gzip or
    deflate at most, and refuses any other content coding). A receipt's sealed bytes (a `deliver`
-   body with `MK-Link-File`, a `file` answer) are read as they arrive, never whole in memory,
+   body, the receipt named in the path's `file`, a `file` answer) are read as they arrive, never whole in memory,
    and are bounded instead by the largest receipt Settings allows (S16.10, 100 MB) sealed: its
    header and a 16-byte tag for each 64 KiB chunk (section 4.4). Each side bounds them so,
    whatever its own receipt setting, so a receipt either side may keep can cross.
@@ -100,7 +100,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 | `POST /link/v1/join` | yes, by the caller's own key | an invitation | answers a link code (section 4.1); no directory crosses |
 | `POST /link/v1/exchange` | yes | active; paused, for the registry alone (section 4.3.6); pending on the joining side | the directories both ways, and the answering side's change for the caller (section 4.3) |
 | `POST /link/v1/next` | yes | active | the next part of a large change the caller is pulling (section 4.4) |
-| `POST /link/v1/deliver` | yes | active; paused, a change's registry alone (section 4.3.6) | the caller's change for the answering side; or, before it, one of its receipts, sealed (section 4.3) |
+| `POST /link/v1/deliver` | yes | active; paused, a change's registry alone (section 4.3.6) | the caller's change for the answering side; or, before it, one of its receipts, sealed, as `deliver?file=<id>` (section 4.3) |
 | `POST /link/v1/file` | yes | active | `{id}`: one of the answering side's receipts, sealed to the caller's copy key (section 4.4), as `application/octet-stream`, refused `not-shared` unless a share to that link includes it; the answer's signature takes the sealed bytes' SHA-256 in place of the body's hash, and the caller checks it before keeping the file, which it can while its copy is locked; the plaintext's SHA-256, which the change carried sealed, is checked as the copy shows the file (S11.9.6.4) |
 | `POST /link/v1/certificate` | yes | active, paused | `{fingerprint}`: the caller's next TLS certificate key, announced before it is used (section 4.5) |
 | `POST /link/v1/end` | yes | requested, pending, active, paused | the link ended on the calling side |
@@ -187,9 +187,10 @@ S10.10.1), used only for gifts.
 4. The caller then makes its own change for the answering side, from the `have`, `wantFull` and
    `copyKey` in the answer, and sends it with `deliver`, a part at a time, each answered with
    the new `have`. The caller's receipts for a part travel in `deliver` calls of their own
-   before it: each one's sealed bytes as the body, `application/octet-stream`, with
-   `MK-Link-File` naming the receipt, the call signed over the sealed bytes' SHA-256 and read as
-   it arrives, never whole in memory; the answering side keeps each as it came until the part
+   before it: each one's sealed bytes as the body, `application/octet-stream`, to
+   `/link/v1/deliver?file=<id>`, so the receipt's name is in the path the signature covers
+   (section 3.1) and the answering side refuses one it doesn't find there; the call is signed
+   over the sealed bytes' SHA-256 and read as it arrives, never whole in memory; the answering side keeps each as it came until the part
    that names it arrives, so it never has to call back to fetch them. A delivered receipt waits
    for its part only while the change it belongs to is under way, never for ever: once that
    change is given up (a part refused, the caller's next exchange begun, which reads its change
@@ -385,7 +386,7 @@ message into an alert or an email (S13.7.9).
 | `busy` | (429, with `Retry-After`) the answering server is making its own exchange of this link (section 4.3); the caller tries again at its next exchange, and isn't alerted |
 | `locked` | (503, unsigned) the answering server is locked (S13.6); the caller tries again at its next exchange |
 | `not-shared` | a file no share to that link includes |
-| `file-refused` | a delivered file whose `MK-Link-File` isn't a file id |
+| `file-refused` | a delivered file whose path doesn't name one file id in `file` |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
 | `code-used` | a link code was used, expired or withdrawn |
 | `already-linked` | the two servers already have a link that is neither ended nor broken (section 4.6) |
