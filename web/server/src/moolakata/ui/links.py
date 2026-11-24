@@ -160,9 +160,15 @@ def _incoming(s, link: Link) -> list[Incoming]:
     return out
 
 
-def _outgoing(s, link: Link) -> list[Incoming]:
+def _outgoing(srv, link: Link) -> list[Incoming]:
     """The shares this server sends over the link: one entry per item, with the people there
-    it names."""
+    it names. Read as the server reads them to send them, not as the admin may read each
+    item: only its kind, owner and people are shown (S11.7)."""
+    with srv.db.read(unscoped="ui.links: outgoing") as s:
+        return _sent(s, link)
+
+
+def _sent(s, link: Link) -> list[Incoming]:
     from .. import sharing
     from ..errors import Problem
 
@@ -238,7 +244,7 @@ def _out(s, link: Link, srv=None) -> LinkOut:
         brokenAt=link.brokenAt,
         linkedCopy=_copy(s, srv, link) if srv is not None else None,
         incoming=_incoming(s, link),
-        outgoing=_outgoing(s, link),
+        outgoing=_outgoing(srv, link) if srv is not None else [],
     )
 
 

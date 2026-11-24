@@ -503,3 +503,36 @@ def test_resuming_a_link_that_isnt_paused_is_refused_in_its_words(server, admin_
     link_id = _a_link(server)
     r = admin_client.post(f"/ui/api/settings/links/{link_id}/resume")
     assert _refused(r) == (422, "state-invalid", "A link that is active can't be active.")
+
+
+def test_what_is_shared_from_here_leaves_out_an_item_since_deleted(server, admin_client):
+    # S11.7: the admin sees each item shared over the link, by its kind, owner and the people
+    # it names, an item of someone else's among them; never one that is gone.
+    from conftest import make_user, sign_in
+    from edits import make, share
+
+    from moolakata.links import manage
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.entities.links import Link
+
+    link_id = _a_link(server)
+    with server.db.tx(unscoped="test") as s:
+        manage.apply_directory(
+            s, s.get(Link, link_id), {"users": [{"id": "u1", "displayName": "Bart"}]}
+        )
+        bart = s.scalars(select(User.id).where(User.linkId == link_id)).one()
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    kept = make(jane, "Acct", name="Checking", type="checking").json()["id"]
+    gone = make(jane, "Acct", name="Savings", type="savings").json()["id"]
+    for acct in (kept, gone):
+        assert share(jane, "account", acct, users={bart: "read"}).status_code == 200
+
+    def outgoing():
+        (row,) = admin_client.get("/ui/api/settings/links").json()["links"]
+        return [(x["kind"], x["names"]) for x in row["outgoing"]]
+
+    assert outgoing() == [("account", ["Bart"]), ("account", ["Bart"])]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, gone).mark_deleted(None)
+    assert outgoing() == [("account", ["Bart"])]
