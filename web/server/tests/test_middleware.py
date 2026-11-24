@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from moolakata.app import Server, create_app
@@ -188,6 +189,66 @@ def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monke
     assert mw.in_flight == {}
     mw.in_flight = {}
     assert call("/ui/api/receipts", 700) == 403
+
+
+@pytest.mark.parametrize("mb", [1, 19, 20, 100])
+def test_an_upload_is_counted_in_flight_whatever_its_size_limit(monkeypatch, mb):
+    """S13.7.6: an upload is told by what it carries and where it goes, never by its limit's
+    size: with Settings' larger limit at 19 MB (a limit of 20 MB, a linked server's JSON) or
+    1 MB, a user's upload and the connector's statement still count against the 100 MB."""
+    import asyncio
+
+    from moolakata import middleware
+
+    monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
+    held = []
+
+    async def app(scope, receive, send):  # reads the whole body, then answers
+        while (await receive()).get("more_body"):
+            pass
+        held.append(dict(mw.in_flight))
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    limit = lambda: (mb + 1) * 1024 * 1024  # noqa: E731 - as app.upload_cap makes it
+    mw = middleware.BodyLimit(app, limit, limit, session_user=lambda t: "u1")
+    answered = []
+
+    async def sent(message):
+        if message["type"] == "http.response.start":
+            answered.append(message["status"])
+
+    def call(path, length, declare=True):
+        body = [b"x" * (length // 2), b"x" * (length - length // 2)]
+
+        async def receive():
+            part = body.pop(0)
+            return {"type": "http.request", "body": part, "more_body": bool(body)}
+
+        headers = [(b"content-type", b"multipart/form-data; boundary=x")]
+        if declare:
+            headers.append((b"content-length", str(length).encode()))
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "client": ("10.0.0.5", 1),
+            "headers": [*headers, (b"cookie", b"mk_session=live")],
+        }
+        asyncio.run(mw(scope, receive, sent))
+        return answered[-1]
+
+    assert call("/ui/api/receipts", 600) == 200 and held[-1] == {"user:u1": 600}
+    mw.in_flight = {"user:u1": 900}
+    assert call("/ui/api/receipts", 200) == 429, "the user's own 100 MB"
+    mw.in_flight = {}
+    assert call("/connector/v1/accounts/x/files", 600) == 200
+    assert held[-1] == {"connector": 600}, "the connector's, counted as read"
+    mw.in_flight = {"connector": 900}
+    assert call("/connector/v1/accounts/x/files", 200) == 429
+    # A linked server's JSON is no upload: never counted.
+    mw.in_flight = {}
+    assert mw.limit_for("/link/v1/exchange", "application/json") == (middleware.LINK_LIMIT, False)
 
 
 def test_an_upload_without_a_live_session_is_refused_before_its_body_is_read(server):

@@ -253,18 +253,20 @@ class BodyLimit:
         self.session_user = session_user or (lambda token: None)
         self.in_flight: dict[str, int] = {}
 
-    def limit_for(self, path: str, ctype: str) -> int:
-        """The most a request's body may hold, by where it goes and what it carries."""
+    def limit_for(self, path: str, ctype: str) -> tuple[int, bool]:
+        """The most a request's body may hold, by where it goes and what it carries, and
+        whether it is an upload, counted in flight: told by the same, never by the limit's
+        size, which Settings may make any number (S13.7.6)."""
         to_link = path.startswith("/link/")
         if to_link and ctype.startswith("application/octet-stream"):
             # A receipt a linked server delivers, sealed (link-protocol.md §1.4, §4.3): up to
             # the largest receipt Settings allows, whatever this server's own setting.
-            return max_receipt()
+            return max_receipt(), True
         if ctype.startswith("multipart/"):
             if path.startswith("/connector/"):
-                return self.import_limit()  # statements, Settings › Imports' size (S16.8)
-            return self.upload_limit()
-        return LINK_LIMIT if to_link else JSON_LIMIT
+                return self.import_limit(), True  # statements, Settings › Imports' size (S16.8)
+            return self.upload_limit(), True
+        return (LINK_LIMIT if to_link else JSON_LIMIT), False
 
     @staticmethod
     def _token(headers: dict) -> str | None:
@@ -300,7 +302,7 @@ class BodyLimit:
             return
         headers = {k.lower(): v.decode("latin-1") for k, v in scope["headers"]}
         ctype = headers.get(b"content-type", "")
-        limit = self.limit_for(scope["path"], ctype)
+        limit, upload = self.limit_for(scope["path"], ctype)
         too_large = _send_problem(
             413, "too-large", f"The request is larger than {limit // (1024 * 1024)} MB."
         )
@@ -308,7 +310,6 @@ class BodyLimit:
         if length and length.isdigit() and int(length) > limit:
             await too_large(send)
             return
-        upload = limit != JSON_LIMIT and limit != LINK_LIMIT
         # A request with neither a length nor a chunked body has none (RFC 9112 §6.3), as a
         # bodiless POST from curl is: only a body of unknown or large size is an
         # upload's, its session checked first.

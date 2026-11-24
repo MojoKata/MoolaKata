@@ -1036,9 +1036,12 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     assert sealed.max_receipt() <= middleware.IN_FLIGHT
     # A linked server's receipt body may be the largest, whatever this server's own setting.
     mw = middleware.BodyLimit(None, lambda: 1024 * 1024)
-    assert mw.limit_for("/link/v1/deliver", "application/octet-stream") == sealed.max_receipt()
-    assert mw.limit_for("/link/v1/deliver", "application/json") == middleware.LINK_LIMIT
-    assert mw.limit_for("/ui/api/receipts", "multipart/form-data") == 1024 * 1024
+    assert mw.limit_for("/link/v1/deliver", "application/octet-stream") == (
+        sealed.max_receipt(),
+        True,
+    )
+    assert mw.limit_for("/link/v1/deliver", "application/json") == (middleware.LINK_LIMIT, False)
+    assert mw.limit_for("/ui/api/receipts", "multipart/form-data") == (1024 * 1024, True)
     # A receipt's file answer is read up to it; every other answer up to 20 MB.
     seen = []
 
