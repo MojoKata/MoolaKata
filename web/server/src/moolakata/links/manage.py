@@ -835,5 +835,16 @@ def exchange_all(srv, ctx=None) -> None:
     for link_id in wanted:
         if ctx is not None and ctx.stop.is_set():
             break
-        with contextlib.suppress(LinkError):  # recorded on the link; alerts follow it
+        try:
             exchange(srv, link_id)
+        except LinkError:
+            pass  # recorded on the link; alerts follow it
+        except Exception as e:
+            # Whatever else fails is recorded on that link as a failed call is, so it is
+            # alerted, and never stops the exchanges of the links after it (link-protocol.md
+            # §4.3, S11.9.5.3).
+            log.exception("exchanging with link %s failed", link_id)
+            with srv.db.tx(unscoped="links.manage: exchange all") as s:
+                link = _get(s, link_id)
+                link.lastError = f"The exchange failed: {type(e).__name__}: {e}"[:500]
+                link.failingSince = link.failingSince or clock.now()

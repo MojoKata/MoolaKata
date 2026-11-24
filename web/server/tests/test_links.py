@@ -324,6 +324,33 @@ def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):
     assert r.json()["code"] == "code-invalid"
 
 
+def test_any_failure_of_one_links_exchange_is_recorded_on_it_and_the_next_goes_on(
+    server, monkeypatch
+):
+    """link-protocol.md §4.3, S11.9.5.3: a peer's answer the exchange can't read (a `more`
+    that isn't a number, an item without an id) fails that link alone, recorded on it as a
+    failed call is; the hourly run goes on to every link after it."""
+    from moolakata.links import manage
+
+    ids_ = [link(server, f"https://{n}.test", bytes([n]) * 32) for n in (1, 2)]
+    called = []
+
+    def broken(srv, link_id):
+        called.append(link_id)
+        raise ValueError("invalid literal for int() with base 10: 'x'")
+
+    monkeypatch.setattr(manage, "exchange", broken)
+    manage.exchange_all(server)
+    assert sorted(called) == sorted(ids_), "each link's exchange is made"
+    with server.db.read(unscoped="test") as s:
+        for link_id in ids_:
+            row = s.get(Link, link_id)
+            assert row.lastError == (
+                "The exchange failed: ValueError: invalid literal for int() with base 10: 'x'"
+            )
+            assert row.failingSince is not None, "alerted as a failing link is"
+
+
 def test_pausing_stops_exchanges_and_ending_reaches_the_other_side(admins):
     _a, _b, ca, cb, wire = admins
     a_id, b_id = linked(ca, cb)
