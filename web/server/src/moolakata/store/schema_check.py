@@ -41,10 +41,10 @@ KEPT = {"version", "createdAt", "updatedAt"}
 
 
 def counted_tables(text: str | None = None) -> set[str]:
-    """The server-kept tables schema.md §2 names, whose version counts and never locks."""
+    """The counted tables schema.md §2 names, whose version counts and never locks."""
     text = text if text is not None else SCHEMA_MD.read_text()
     section = text.split("## 2. Primary keys", 1)[1].split("\n## ", 1)[0]
-    item = section.split("**Server-kept records**", 1)[1].split("\n  - ", 1)[0]
+    item = section.split("**Counted**", 1)[1].split("\n  - ", 1)[0]
     return set(re.findall(r"`([A-Z][A-Za-z]*)`", item.split(".", 1)[0]))
 
 

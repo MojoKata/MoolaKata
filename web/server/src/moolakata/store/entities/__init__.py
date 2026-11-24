@@ -33,8 +33,9 @@ class SoftDeleted:
 
 @dataclass(kw_only=True, eq=False)
 class Kept:
-    """What every row with an id carries (schema.md §2): its version, which locks a draft
-    record (S13.8.6) and counts a server-kept one's saves, and its times."""
+    """What every row with an id carries (schema.md §2): its version, which locks a row
+    written only within a person's save (S13.8.6) and counts the saves of one the server
+    writes in the background, and its times."""
 
     version: int = 1
     createdAt: dt.datetime = field(default_factory=_now)

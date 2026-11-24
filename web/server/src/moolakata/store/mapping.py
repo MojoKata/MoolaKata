@@ -71,12 +71,13 @@ def _map(entity, table, **kw) -> None:
 
 
 def _versioned(entity, table, **kw) -> None:
-    """A draft record (schema.md §2): its version is the lock a save is checked against."""
+    """A table written only within a person's save (schema.md §2): its version is the lock a
+    save is checked against."""
     _map(entity, table, version_id_col=table.c.version, **kw)
 
 
-# The server-kept tables (schema.md §2): the version counts their saves and locks nothing,
-# so a background write never fails on it.
+# The tables the server writes in the background, outside a person's save (schema.md §2): the
+# version counts their saves and locks nothing, so a background write never fails on it.
 COUNTED: set[type] = set()
 
 
@@ -98,7 +99,7 @@ def map_all() -> None:
     _counted(Session, users.Session)
     _counted(OneTimeToken, users.OneTimeToken)
     _counted(RecoveryCode, users.RecoveryCode)
-    _counted(SignupRequest, users.SignupRequest)
+    _versioned(SignupRequest, users.SignupRequest)
     _counted(Alert, alerts.Alert)
     _counted(AlertState, alerts.AlertState)
     for entity, table in (
@@ -139,20 +140,21 @@ def map_all() -> None:
         (acc.CorporateAction, accounts.CorporateAction),
         (acc.Split, accounts.Split),
         (acc.Reimbursement, accounts.Reimbursement),
-        (acc.Lot, accounts.Lot),
-        (acc.Holding, accounts.Holding),
         (acc.Anchor, accounts.Anchor),
         (acc.HoldingCheck, accounts.HoldingCheck),
         (acc.TransferMatch, accounts.TransferMatch),
         (acc.Reconciliation, accounts.Reconciliation),
     ):
         _versioned(entity, table)
+    # Written by the connector's files as well as a person's save (S18.8).
+    _counted(acc.Lot, accounts.Lot)
+    _counted(acc.Holding, accounts.Holding)
     _versioned(acc.Tag, accounts.Tag)
     _map(acc.TransactionTag, accounts.TransactionTags)
     _map(acc.RuleTag, accounts.RuleTags)
     _versioned(acc.LotPick, accounts.LotPick)
     _versioned(pr.PriceSource, prices.PriceSource)
-    _versioned(pr.Price, prices.Price)
+    _counted(pr.Price, prices.Price)
     _versioned(pr.TypedPrice, prices.TypedPrice)
     _versioned(sh.Portfolio, sharing.Portfolio)
     _versioned(sh.AccessClass, shares.AccessClass)

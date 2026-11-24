@@ -69,8 +69,8 @@ def test_versions_change_with_every_save(db):
 
 def test_every_table_with_an_id_has_its_version_and_times_locked_or_counted():
     """schema.md §2: each table with an `id` has `version`, `createdAt` and `updatedAt`. The
-    version is the lock on a draft record and a counter on a server-kept one, never both, and
-    §2 names the server-kept tables as they are mapped."""
+    version is the lock on a locked table and a counter on a counted one, never both, and §2
+    names the counted tables as they are mapped."""
     from sqlalchemy import inspect as sa_inspect
 
     from moolakata.store import mapping
@@ -97,7 +97,7 @@ def test_every_table_with_an_id_has_its_version_and_times_locked_or_counted():
 
 
 def test_a_server_kept_record_counts_its_saves_and_a_stale_copy_never_fails(db):
-    """schema.md §2: a server-kept record's version counts its saves in the database, so a
+    """schema.md §2: a counted record's version counts its saves in the database, so a
     write from a copy read before another one is saved, never refused for its version, and
     neither save goes uncounted."""
     from moolakata.store.entities.links import LinkSent
@@ -117,6 +117,103 @@ def test_a_server_kept_record_counts_its_saves_and_a_stale_copy_never_fails(db):
         now = s.get(LinkSent, sent.id)
         assert (now.hash, now.version, now.createdAt) == ("h3", 3, made)
         assert now.updatedAt > made
+
+
+def _a_lot(s):
+    from moolakata.store.entities.accounts import Lot, Transaction
+
+    acct, inst = _an_account_and_instrument(s)
+    txn = Transaction(
+        id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind="buy", amount=-100
+    )
+    s.add(txn)
+    s.flush()
+    lot = Lot(
+        id=ids.new_id("Lot"),
+        accountId=acct,
+        instrumentId=inst,
+        transactionId=txn.id,
+        acquiredOn=dt.date(2026, 3, 2),
+        quantity=10,
+        costBasis=100,
+    )
+    return lot, "costBasis", (90, 80)
+
+
+def _a_holding(s):
+    from moolakata.store.entities.accounts import Holding
+
+    acct, inst = _an_account_and_instrument(s)
+    held = Holding(
+        id=ids.new_id("Hold"), accountId=acct, instrumentId=inst, asOf=dt.date(2026, 3, 2),
+        quantity=10,
+    )  # fmt: skip
+    return held, "quantity", (11, 12)
+
+
+def _a_price(s):
+    from moolakata.store.entities.prices import Price
+
+    _, inst = _an_account_and_instrument(s)
+    price = Price(instrumentId=inst, date=dt.date(2026, 3, 2), close=10, source="stooq")
+    return price, "close", (11, 12)
+
+
+def _an_account_and_instrument(s) -> tuple[str, str]:
+    from moolakata.store.entities.accounts import Account, Instrument
+
+    owner = new_user(s)
+    acct = Account(id=ids.new_id("Acct"), ownerId=owner.id, name="Brokerage", type="brokerage")
+    inst = Instrument(id=ids.new_id("Instr"), symbol="VTI", instrumentClass="etf")
+    s.add_all([acct, inst])
+    s.flush()
+    return acct.id, inst.id
+
+
+@pytest.mark.parametrize("make", [_a_lot, _a_holding, _a_price], ids=["Lot", "Holding", "Price"])
+def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, make):
+    """schema.md §2: a table the server writes in the background, outside a person's save, is
+    counted: lots and holdings from the connector's files (S18.8), prices from their refresh
+    (S16.7). A write from a copy read before another save is never refused for its version,
+    and both saves are counted."""
+    from moolakata.store import mapping
+
+    with db.tx(unscoped="test") as s:
+        row, field_, (then, last) = make(s)
+        s.add(row)
+    with db.tx(unscoped="test") as s:
+        setattr(s.get(type(row), row.id), field_, then)  # the background write
+    with db.tx(unscoped="test") as s:
+        s.add(row)  # the copy read at version 1
+        setattr(row, field_, last)
+    with db.read(unscoped="test") as s:
+        now = s.get(type(row), row.id)
+        assert (getattr(now, field_), now.version) == (last, 3)
+    assert type(row) in mapping.COUNTED
+
+
+def test_a_signup_request_written_only_by_a_persons_action_is_locked(db):
+    """schema.md §2: no background task writes a sign-up request, only the sign-up, its
+    confirmation and an admin's decision, each a person's own action: a write from a copy read
+    before another save is refused for its version."""
+    from sqlalchemy.orm.exc import StaleDataError
+
+    from moolakata.store import mapping
+    from moolakata.store.entities.users import SignupRequest
+
+    req = SignupRequest(
+        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
+        passwordHash="h", sex="male", confirmTokenHash="t",
+        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+    )  # fmt: skip
+    with db.tx(unscoped="test") as s:
+        s.add(req)
+    assert SignupRequest not in mapping.COUNTED
+    with db.tx(unscoped="test") as s:
+        s.get(SignupRequest, req.id).status = "waiting"
+    with pytest.raises(StaleDataError), db.tx(unscoped="test") as s:
+        s.add(req)  # the copy read at version 1
+        req.status = "rejected"
 
 
 def _a_link(s) -> str:
