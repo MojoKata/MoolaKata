@@ -316,15 +316,16 @@ def test_money_given_above_the_exclusion_is_flagged(jane):
 
 def test_a_529_counts_with_no_gift_plan_and_an_election_over_its_five_years(jane):
     # The beneficiary has no gift plan; the owner's five-year election of 100,000 in 2024
-    # is 20,000 in each of 2024-2028, over the 2026 exclusion.
+    # spreads five times that year's 18,000 exclusion, 18,000 in each of 2024-2028, and the
+    # 10,000 above it is a 2024 gift (S1.8.2): 2024 is flagged, 2026 isn't.
     leo = person(jane, name="Leo Doe", sex="male")
     acct = new_account(jane, name="Leo's 529", type="529")
     saved(plan529(jane, acct["id"], beneficiaryId=leo["id"]))
     r = make(jane, "Cntrb", accountId=acct["id"], date="2024-03-01", amount="100000", fiveYear=True)
     assert r.status_code == 200, r.text
-    sp = jane.get("/ui/api/gifts/spending?year=2026").json()
-    assert [(f["person"]["id"], f["given"]) for f in sp["flagged"]] == [(leo["id"], "20000.00")]
-    assert jane.get("/ui/api/gifts/spending?year=2029").json()["flagged"] == []
+    sp = jane.get("/ui/api/gifts/spending?year=2024").json()
+    assert [(f["person"]["id"], f["given"]) for f in sp["flagged"]] == [(leo["id"], "28000.00")]
+    assert jane.get("/ui/api/gifts/spending?year=2026").json()["flagged"] == []
 
 
 LONG = "https://shop.example.com/" + "a" * (2000 - 25)

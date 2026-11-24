@@ -30,7 +30,8 @@ bank side alone, for a deposit already imported there.
 ## Five-year election
 
 Superfunding: up to five years of exclusions given at once. It counts a fifth against the exclusion
-in its year and each of the next four, and needs a gift-tax return (Form 709) to elect it.
+in its year and each of the next four, and needs a gift-tax return (Form 709) to elect it. Only five
+times its year's exclusion is spread: anything above that counts in its own year.
 
 ## Against the Annual Gift Exclusion
 

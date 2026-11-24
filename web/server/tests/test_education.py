@@ -118,6 +118,34 @@ def test_contributions_against_the_gift_exclusion(server, jane):
     assert r.json()["errors"][0]["code"] == "contribution-fixed"
 
 
+def test_an_election_spreads_five_exclusions_and_counts_the_rest_in_its_year(jane):
+    """S1.8.2: only five times the year's exclusion is spread, a fifth a year; the rest, and
+    any cent the fifths leave, counts in the contribution's own year."""
+    acct, _, _ = plan(jane)
+    who = {}
+    for name in ("Candace Doe", "Jeremy Doe"):
+        who[name] = make(jane, "GfPln", name=name, sex="female").json()["personId"]
+    for name, amount in (("Candace Doe", "100000.03"), ("Jeremy Doe", "10000.03")):
+        r = make(
+            jane,
+            "Cntrb",
+            accountId=acct["id"],
+            date="2026-02-01",
+            amount=amount,
+            contributor=f"person:{who[name]}",
+            fiveYear=True,
+        )
+        assert r.status_code == 200, r.text
+    v = jane.get(f"/ui/api/accounts/{acct['id']}/contributions").json()
+    years = {(y["name"], y["year"]): y for y in v["years"]}
+    big = [years[("Candace Doe", y)] for y in range(2026, 2031)]
+    assert [(g["counted"], g["over"]) for g in big] == [("24000.03", True)] + [
+        ("19000.00", False)
+    ] * 4, "95,000 spread at the 2026 exclusion of 19,000; 5,000.03 more in 2026"
+    small = [years[("Jeremy Doe", y)]["counted"] for y in range(2026, 2031)]
+    assert small == ["2000.03"] + ["2000.00"] * 4
+
+
 def test_withdrawals_against_qualified_expenses(jane):
     acct, _, _ = plan(jane)
     add(jane, acct["id"], "50000.00", "2025-01-02")

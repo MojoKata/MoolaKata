@@ -6,7 +6,7 @@ beneficiary's Roth IRA."""
 import datetime as dt
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
@@ -140,11 +140,14 @@ class GiftYear:
 
 def counted_years(s: Session, r: ContributionRow) -> dict[int, Decimal]:
     """What one contribution counts against the annual gift exclusion, by year: all of it in
-    its year, or a five-year election a fifth in its year and each of the next four (S1.8.2).
-    Gift spending's Form 709 flag counts 529s by it too (S7.8.7)."""
-    if r.fiveYear:
-        return {r.date.year + k: (r.amount / 5).quantize(Decimal("0.01")) for k in range(5)}
-    return {r.date.year: r.amount}
+    its year, or a five-year election up to five times its year's exclusion a fifth in its
+    year and each of the next four, the rest (and any cent the fifths leave) in its year
+    (S1.8.2). Gift spending's Form 709 flag counts 529s by it too (S7.8.7)."""
+    if not r.fiveYear:
+        return {r.date.year: r.amount}
+    exclusion = Decimal(str(taxtables.figures(s, r.date.year)["giftExclusion"]))
+    fifth = (min(r.amount, 5 * exclusion) / 5).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    return {r.date.year + k: (r.amount - 4 * fifth if k == 0 else fifth) for k in range(5)}
 
 
 def gift_years(s: Session, rows: list[ContributionRow]) -> list[GiftYear]:

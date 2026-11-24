@@ -270,7 +270,7 @@
       for that person alone are deleted with them; a shared idea loses only that person.
    7. **Gift-tax flag**: money given to one person in a year (cash gifts, and 529
       contributions to any of the user's 529s, whether or not the beneficiary has a gift
-      plan, a five-year election counting a fifth in each of its years, S1.8.2) above the
+      plan, a five-year election counted as S1.8.2 spreads it) above the
       annual exclusion is flagged for Form 709 (S8.11).
 9. **Charitable giving.**
    1. **A giving plan** per year, per user or per group (as budgets are): a **target** as a

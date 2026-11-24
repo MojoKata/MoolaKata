@@ -7,7 +7,9 @@
    2. **Contributions** record who contributed (the owner, or a named relative), so gifts to
       the beneficiary can be totalled per contributor per year against the **annual gift
       exclusion** (in the tax tables, S16.11). A **five-year election** (superfunding)
-      spreads one contribution over five years of exclusions and is shown that way.
+      spreads one contribution over five years of exclusions and is shown that way: up to
+      five times the exclusion of its year, a fifth in that year and each of the next four;
+      the rest is a gift in its own year.
    3. **Withdrawals** are matched with **qualified expenses** (tuition and fees, room and
       board, books, a computer, K-12 tuition, apprenticeships, student-loan repayment), each
       with its receipts (S9). Each year shows distributions (from Form 1099-Q, rollovers
