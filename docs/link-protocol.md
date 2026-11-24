@@ -200,13 +200,15 @@ the receiving server keeps in its main database while the copy is locked (S11.9.
 | `progress` | registry | in a large change's parts: `from`, the date of the oldest record the change holds; `through`, the newest date the parts so far reach; `bytes`, what they hold; `total`, what the sender reckoned the whole change holds when it read the first part |
 | `cursor` | registry | in a large change's parts, where the next part starts (the date and record reached); absent in the last part |
 | `fetch` | registry | the ids of the receipts the part sends, so the receiver can fetch them (or take them from the `deliver` calls before it) while its copy is locked |
-| `sealed` | sealed | the rest, sealed to the receiver's `copyKey` in the streaming format of S11.9.6 under the label `moolakata link change`, its associated data naming the link (the sender's and the receiver's fingerprints, `<sender>><receiver>`, so a change sealed for one direction opens for no other) and `upTo`, in unpadded base64url: each item's `name`; `rows`, records added or changed (their table, and the row whole in the sender's schema, with its `changeSeq`); `totals`, a budget's monthly totals added or changed (`itemId`, `viewer`, the key and its figures, and the stamp they were worked out at); `docs`, documents added or changed (`itemId`, `path`, `viewer`, `body`, `stamp`); `docsRemoved`; `files`, receipts' files added, when their share includes them (their id, item, type, length, hash, thumbnail and what was read from them); and `filesRemoved` (unshared, or pruned at the source, S14.10.6) |
+| `sealed` | sealed | the rest, sealed to the receiver's `copyKey` in the streaming format of S11.9.6 under the label `moolakata link change`, its associated data naming the link (the sender's and the receiver's fingerprints, `<sender>><receiver>`, so a change sealed for one direction opens for no other) and `upTo`, in unpadded base64url: each item's `name`; `rows`, records added or changed (their table, and the row whole in the sender's schema, with its `changeSeq`); `totals`, a budget's monthly totals added or changed (`itemId`, `viewer`, the key and its figures, and the stamp they were worked out at); `docs`, documents added or changed (`itemId`, `path`, `viewer`, `body`, `stamp`); `docsRemoved`; `files`, receipts' files added, when their share includes them (their id, item, length, hash, thumbnail and what was read from them, but no type: the receiver finds that from the bytes); and `filesRemoved` (unshared, or pruned at the source, S14.10.6) |
 | `signature` | — | Ed25519 by the sender's link key over the registry and the SHA-256 of `sealed`, as canonical JSON (keys sorted, no spaces) |
 
 A receipt's bytes are sealed by the source the same way, under the label `moolakata link
 receipt`, the associated data naming the link (as for a change) and the receipt, and cross in
-`deliver` or in the answer to `file`. The receiver keeps them as they came; its copy opens them
-when they are shown, and its type is found from the bytes then, never from the change.
+`deliver` or in the answer to `file`. The receiver keeps them as they came. Its copy finds the
+receipt's type from its bytes when the receipt arrives in it (as the change that names it is
+applied, or, for a receipt that comes after its change, as it is placed), keeps it in
+`shared.db`, and never takes it from the change (S11.9.6.5).
 
 1. **What a change holds**, by kind (section 6): the records of its shared items with a
    `changeSeq` above `from` and up to `upTo` (all of them when `full`, or for an item newly
