@@ -456,3 +456,107 @@ def test_a_holding_valued_from_a_stale_statement_alerts_its_owner(server, frozen
                      coveredFrom=dt.date(2026, 7, 1), coveredTo=dt.date(2026, 9, 30)))  # fmt: skip
     assert set(raised()) == {"statement-value-old Plan", "statement-value-old Kept"}
     assert stale(plan) == [True]
+
+
+def _causes(server, check) -> list:
+    with server.db.read(unscoped="test") as s:
+        return list(check(s, server))
+
+
+def test_bitcoin_wallets_not_checked_alert_admins_and_each_wallets_owner(server, frozen):
+    """S1.6.2, S16.16: the explorer or node failing since its last good check tells admins
+    and the owner of each wallet, after Settings › Alerts' hours; while it works, nothing."""
+    jane = make_user(server, "jane")
+    assert _causes(server, alerts.bitcoin_source) == []
+    began = T0 - dt.timedelta(hours=50)
+    with server.db.tx(unscoped="test") as s:
+        s.add(TaskRun(name="bitcoin", startedAt=began, finishedAt=began, error=None))
+    assert _causes(server, alerts.bitcoin_source) == [], "the last run worked"
+    with server.db.tx(unscoped="test") as s:
+        # No wallet address checked yet: failing since the run that failed began.
+        s.get(TaskRun, "bitcoin").error = "the explorer answered 503"
+        s.add(Account(id=ids.new_id("Acct"), ownerId=jane.id, name="Cold storage",
+                      type="crypto-wallet"))  # fmt: skip
+    causes = _causes(server, alerts.bitcoin_source)
+    assert [(c.key, c.user_id, c.link) for c in causes] == [
+        ("bitcoin", None, "/ui/settings/bitcoin"),
+        (f"bitcoin:{jane.id}", jane.id, "/ui/accounts"),
+    ]
+    assert {c.title for c in causes} == {"Bitcoin wallets not checked for 2 days"}
+    assert {c.about for c in causes} == {"explorer or node · the explorer answered 503"}
+    assert {c.since for c in causes} == {began}
+    assert {c.delay for c in causes} == {dt.timedelta(hours=48)}
+
+
+def test_a_linked_servers_new_certificate_or_its_failing_alerts_admins(server, frozen):
+    """S11.6, link-protocol.md §4.5: a peer's changed certificate alerts at once, before its
+    failing would; a peer not reached since its last error alerts after the source hours."""
+    from moolakata.store.entities.links import Link
+
+    since = T0 - dt.timedelta(hours=30)
+    with server.db.tx(unscoped="test") as s:
+        changed = Link(id=ids.new_id("Link"), state="active", role="inviter", copyPublicKey="k",
+                       peerName="Grandma", peerCertOffered="ab" * 32, failingSince=since,
+                       lastError="certificate-changed")  # fmt: skip
+        failing = Link(id=ids.new_id("Link"), state="active", role="joiner", copyPublicKey="k",
+                       failingSince=since, lastError="unreachable")  # fmt: skip
+        s.add_all([changed, failing])
+    causes = {c.key: c for c in _causes(server, alerts.linked_servers)}
+    assert set(causes) == {f"link-cert:{changed.id}", f"link:{failing.id}"}
+    cert = causes[f"link-cert:{changed.id}"]
+    assert (cert.kind, cert.title) == ("link-certificate", "Grandma's certificate changed")
+    assert cert.about == "compare its new fingerprint with its admin, then accept it"
+    down = causes[f"link:{failing.id}"]
+    assert (down.kind, down.title) == ("source-failing", "A linked server not reached for 30 hours")
+    assert (down.about, down.since, down.delay) == (
+        "linked server · unreachable",
+        since,
+        dt.timedelta(hours=48),
+    )
+
+
+def test_email_that_cant_be_sent_alerts_admins_from_the_oldest_waiting(server, frozen, monkeypatch):
+    """S16.2, S16.16: the mail task failing with emails waiting: since the oldest was queued,
+    after the source hours; with none waiting, nothing."""
+    from moolakata.mail import Waiting
+
+    with server.db.tx(unscoped="test") as s:
+        s.add(TaskRun(name="mail", startedAt=T0, finishedAt=T0, error="could not reach it"))
+    assert _causes(server, alerts.email) == [], "nothing waiting"
+    queued = T0 - dt.timedelta(hours=5)
+    waiting = [Waiting("Email_1", "a@b.lan", "s", queued, None)] * 2
+    monkeypatch.setattr(server.services.mailer, "waiting", lambda: waiting)
+    [cause] = _causes(server, alerts.email)
+    assert (cause.key, cause.title, cause.about) == (
+        "mail",
+        "Email can't be sent: 2 waiting",
+        "SMTP · could not reach it",
+    )
+    assert (cause.since, cause.link, cause.user_id) == (queued, "/ui/settings/email", None)
+
+
+def test_the_daily_summary_waits_for_its_time_in_the_users_zone(server, frozen):
+    """S12.11.5: before the summary's time where the user is, nothing is sent and nothing is
+    marked sent."""
+    from moolakata.store.entities.users import User
+
+    jane = make_user(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "smtpHost", "smtp.home.lan", None)
+        u = s.get(User, jane.id)
+        u.timeZone, u.alertEmails = "America/Los_Angeles", "daily"  # 05:00 there, before 07:00
+    assert alerts.daily_summaries(server) == 0
+    with server.db.read(unscoped="test") as s:
+        assert s.get(User, jane.id).alertSummaryAt is None
+
+
+def test_a_share_asked_of_a_person_since_gone_alerts_nobody(server, frozen):
+    """S10.10.3: the alert lasts while the person is there to share; one deleted since (gone
+    from the table, as a restore leaves them) ends it."""
+    from moolakata import activity
+
+    jane = make_user(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        activity.record(s, "person.share-asked", actor=jane.id, subject_kind="person",
+                        subject_id="Prsn_gone", owner=jane.id)  # fmt: skip
+    assert _causes(server, alerts.share_asked) == []
