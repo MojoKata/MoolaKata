@@ -335,7 +335,8 @@ def test_no_pairing_code_while_this_servers_own_certificate_cant_be_read(
     r = admin.post("/ui/api/settings/connector/pairings")
     assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
     assert r.json()["detail"] == (
-        "This server can't read its own certificate at its link address: check Settings › Network."
+        "This server can't read its own certificate at its link address: check the link address "
+        "in Settings › Linked Servers."
     )
     with server.db.read(unscoped="test") as s:
         assert manage.current(s) is None

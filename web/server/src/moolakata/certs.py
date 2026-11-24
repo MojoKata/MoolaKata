@@ -65,7 +65,10 @@ class Unread(Exception):
 
 # Why no invitation or pairing code is made meanwhile (S11.1.3, S18.4.1): it would carry no
 # key for the peer or the connector to pin.
-UNREAD = "This server can't read its own certificate at its link address: check Settings › Network."
+UNREAD = (
+    "This server can't read its own certificate at its link address: check the link address in "
+    "Settings › Linked Servers."
+)
 
 
 def _verify_failed(e: BaseException | None) -> bool:

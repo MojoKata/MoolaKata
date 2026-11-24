@@ -931,7 +931,10 @@ def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, m
         assert settings.get(s, "linkCertificate") == told
 
 
-UNREAD = "This server can't read its own certificate at its link address: check Settings › Network."
+UNREAD = (
+    "This server can't read its own certificate at its link address: check the link address in "
+    "Settings › Linked Servers."
+)
 
 
 def test_no_invitation_while_this_servers_own_certificate_cant_be_read(admins, monkeypatch):
