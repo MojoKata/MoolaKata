@@ -26,8 +26,9 @@ locked screen in a browser or with `docker compose exec moolakata moolakata keys
 own HTTPS (`tls` mode): with a certificate given in `[tls]`, for real use, or with none, a
 self-signed one it makes, for trying it on a local network. That one is kept unencrypted in
 the data directory, so anyone with a copy of the directory could pose as the server; a given
-certificate is kept outside it. A certificate is read at start: a renewed one takes effect at
-the next, which starts locked (§2 step 5). Each release
+certificate is kept outside it. A given certificate is read at start: a renewed one takes
+effect at the next, which starts locked (§2 step 5). The self-signed one is signed again, with
+the same key, within 30 days of its end, while the server runs. Each release
 has these files attached as they are at its tag
 (`https://github.com/MojoKata/MoolaKata/releases/download/v<version>/<file>`).
 

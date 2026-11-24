@@ -26,14 +26,15 @@
    self-signed one on first start and keeps it in the data directory (`tls/`, the key mode
    0600), which is for testing on a local network: browsers warn about it, and the pair is
    not encrypted, so it protects the listener, not the data, and the listener must read it
-   before any key is entered (S15.1.7). A certificate is read at start: a renewed one takes
-   effect at the next, which starts locked (S15.4). It names the server (`[server] name`) and
+   before any key is entered (S15.1.7). A certificate given in `[tls]` is read at start: a
+   renewed one takes effect at the next, which starts locked (S15.4). It names the server (`[server] name`) and
    `localhost`, and
    the names and addresses listed in `[tls] names`, which are how browsers on the network reach
    it; a change to the list makes it again, and so does a start within 30 days of its end or
    one that finds it isn't its key's, each time with the same key, which peers and the
-   connector pin (S11.1.3): a new key is made only when none can be read. Each file is written
-   whole or not at all. A certificate named in `[tls]` lives wherever the
+   connector pin (S11.1.3): a new key is made only when none can be read. A daily task makes
+   the same check while the server runs, and the listener serves a certificate signed again
+   to its next connections, with no restart. Each file is written whole or not at all. A certificate named in `[tls]` lives wherever the
    admin keeps it. From a trusted proxy, `X-Forwarded-For`, `X-Forwarded-Proto` and
    `X-Forwarded-Host` are believed, and the client is the right-most address in
    `X-Forwarded-For` that is not a trusted proxy. `[server] host` sets the listening address,
@@ -57,8 +58,8 @@
    alerts and their daily summary (S12.11), receipt and statement reading (S9.8, S1.3, in its
    own worker process), the linked copies' sweeper (S11.9.4), and the check for statements
    overdue (S1.11.7) and a silent connector (S18.5), the events host commands queue, taken
-   every few minutes (S15.4.7), and an hourly prune that removes expired sessions and one-time
-   tokens (`schema.md` §4.4.1). Recurring transactions are found when they are shown (S7.5).
+   every few minutes (S15.4.7), an hourly prune that removes expired sessions and one-time
+   tokens (`schema.md` §4.4.1), and a daily look at the self-signed certificate (S13.3). Recurring transactions are found when they are shown (S7.5).
    Each records its last run and error, which Settings shows. They run in a thread pool with
    per-provider rate limits and never block a request.
 5. **Outbound calls** go through one httpx client with an **egress guard**: only the hosts of

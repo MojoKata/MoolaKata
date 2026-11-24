@@ -212,6 +212,63 @@ def test_a_half_written_or_damaged_self_signed_pair_is_made_whole_again(tmp_path
     assert sorted(p.name for p in tmp_path.iterdir()) == ["self-signed.crt", "self-signed.key"]
 
 
+def _served(ctx) -> bytes:
+    """The certificate a TLS context presents to a new connection, over a handshake in memory."""
+    import ssl
+
+    client = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client.check_hostname, client.verify_mode = False, ssl.CERT_NONE
+    c_in, c_out, s_in, s_out = (ssl.MemoryBIO() for _ in range(4))
+    c = client.wrap_bio(c_in, c_out, server_hostname="home")
+    s = ctx.wrap_bio(s_in, s_out, server_side=True)
+    done: set = set()
+    for _ in range(10):
+        for side in (c, s):
+            try:
+                side.do_handshake()
+                done.add(side)
+            except ssl.SSLWantReadError:
+                pass
+        s_in.write(c_out.read())
+        c_in.write(s_out.read())
+        if len(done) == 2:
+            break
+    return c.getpeercert(binary_form=True)
+
+
+def test_the_daily_task_renews_the_certificate_into_the_running_listener(server):
+    """S13.3: the certificate task signs a self-signed certificate near its end again, with the
+    same key, and the running listener's TLS context serves the new one to the next
+    connection, with no restart; one still good is left alone."""
+    import dataclasses
+    import datetime as dt
+    import threading
+
+    from cryptography.hazmat.primitives.serialization import Encoding
+
+    from moolakata import clock, listener, runtime
+    from moolakata.tasks import ProviderLimits, TaskContext
+
+    server.config = dataclasses.replace(server.config, mode="tls", host="127.0.0.1")
+    ctx = listener.hypercorn_config(server.config).create_ssl_context()
+    cert, key = _pair(server.config.tls_dir)
+    assert _served(ctx) == cert.public_bytes(Encoding.DER)
+    runtime.register_tasks(server)
+    task = server.tasks._tasks["certificate"]
+    run = lambda: task.run(TaskContext(task.name, threading.Event(), ProviderLimits()))  # noqa: E731
+    try:
+        clock.fix(cert.not_valid_after_utc - dt.timedelta(days=31))
+        run()
+        assert _pair(server.config.tls_dir) == (cert, key)
+        clock.fix(cert.not_valid_after_utc - dt.timedelta(days=29))
+        run()
+    finally:
+        clock.fix(None)
+    renewed, same = _pair(server.config.tls_dir)
+    assert same == key and renewed.not_valid_after_utc > cert.not_valid_after_utc
+    assert _served(ctx) == renewed.public_bytes(Encoding.DER)
+
+
 def test_tls_names_join_the_self_signed_certificate(tmp_path):
     """tls mode on a local network: the certificate also names what the browser uses."""
     import dataclasses

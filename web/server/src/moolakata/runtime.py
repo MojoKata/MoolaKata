@@ -83,6 +83,14 @@ def register_tasks(server: Server) -> None:
 
     server.tasks.register("pruning", prune, Every(3600), last.get("pruning"))
 
+    def certificate(ctx: TaskContext) -> None:
+        """The self-signed certificate signed again near its end, while the server runs
+        (S13.3); the listener takes it up on its own loop."""
+        loop = server.loop
+        listener.renew(server.config, loop.call_soon_threadsafe if loop is not None else None)
+
+    server.tasks.register("certificate", certificate, Every(86400), last.get("certificate"))
+
     def price_time() -> tuple[dt.time, str]:
         with server.db.read(unscoped="runtime: price time") as s:
             return settings.time_of(s, "priceRefreshTime"), settings.get(s, "priceRefreshZone")

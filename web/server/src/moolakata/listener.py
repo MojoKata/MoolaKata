@@ -58,22 +58,29 @@ def _load_cert(path: Path) -> x509.Certificate | None:
         return None
 
 
+def _fits(directory: Path, names: list[str]) -> bool:
+    """The pair is kept: the key's, covering every name, and more than 30 days from its end."""
+    cert_path, key_path = directory / "self-signed.crt", directory / "self-signed.key"
+    key, cert = _load_key(key_path), _load_cert(cert_path)
+    return (
+        key is not None
+        and cert is not None
+        and cert.public_key() == key.public_key()
+        and set(names) <= _covers(cert_path)
+        and cert.not_valid_after_utc - clock.now() > dt.timedelta(days=RENEW_DAYS)
+    )
+
+
 def self_signed(directory: Path, names: list[str]) -> tuple[Path, Path]:
     """Make a self-signed certificate on first start and keep it in the data directory (S13.3).
     It is signed again, with the same key, when it no longer covers every name, when it is
     within 30 days of its end, or when it isn't the key's (a stop between the two writes): the
     key, which peers and the connector pin (S11.1.3), is made anew only when none can be read."""
     cert_path, key_path = directory / "self-signed.crt", directory / "self-signed.key"
-    now = clock.now()
-    key, cert = _load_key(key_path), _load_cert(cert_path)
-    if (
-        key is not None
-        and cert is not None
-        and cert.public_key() == key.public_key()
-        and set(names) <= _covers(cert_path)
-        and cert.not_valid_after_utc - now > dt.timedelta(days=RENEW_DAYS)
-    ):
+    if _fits(directory, names):
         return cert_path, key_path
+    now = clock.now()
+    key = _load_key(key_path)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     if key is None:
         key = ec.generate_private_key(ec.SECP256R1())
@@ -115,8 +122,42 @@ def _covers(cert_path: Path) -> set[str]:
     return {str(n.value) for n in alt}
 
 
+def _names(config: Config) -> list[str]:
+    """What the self-signed certificate names (S13.3)."""
+    names = ["localhost", "127.0.0.1"] if config.dev else [config.name, "localhost"]
+    return list(dict.fromkeys([*config.cert_names, *names]))
+
+
+# The TLS context the running listener serves with, so a renewed certificate is loaded into it.
+_serving: ssl.SSLContext | None = None
+
+
+class _Hypercorn(HypercornConfig):
+    def create_ssl_context(self) -> ssl.SSLContext | None:
+        global _serving
+        _serving = super().create_ssl_context()
+        return _serving
+
+
+def renew(config: Config, call: Callable[..., object] | None = None) -> bool:
+    """The daily look at the self-signed certificate (S13.3): signed again when it would be at
+    a start, and loaded into the running listener, so the next connection gets it with no
+    restart. `call` runs the load where the listener runs (its event loop). A certificate
+    named in `[tls]` is the admin's to renew."""
+    if config.mode != "tls" or (config.tls_cert and config.tls_key):
+        return False
+    names = _names(config)
+    if _fits(config.tls_dir, names):
+        return False
+    cert, key = self_signed(config.tls_dir, names)
+    log.info("the self-signed certificate was signed again")
+    if _serving is not None:
+        (call or (lambda f, *a: f(*a)))(_serving.load_cert_chain, cert, key)
+    return True
+
+
 def hypercorn_config(config: Config) -> HypercornConfig:
-    hc = HypercornConfig()
+    hc = _Hypercorn()
     hc.bind = [config.bind]
     hc.graceful_timeout = GRACE_SECONDS
     # Over HTTP/2 a browser sends everything on one connection, the live stream included; the
@@ -132,9 +173,7 @@ def hypercorn_config(config: Config) -> HypercornConfig:
         if config.tls_cert and config.tls_key:
             cert, key = config.tls_cert, config.tls_key
         else:
-            names = ["localhost", "127.0.0.1"] if config.dev else [config.name, "localhost"]
-            names = list(dict.fromkeys([*config.cert_names, *names]))
-            cert, key = self_signed(config.tls_dir, names)
+            cert, key = self_signed(config.tls_dir, _names(config))
         for p in (cert, key):
             if not p.is_file():
                 raise RefuseStart(f"TLS file {p} does not exist")
