@@ -86,19 +86,29 @@ def creates_json(entity) -> dict:
 
 PROBLEM_CALLS = {"Problem", "refuse", "FieldError", "_send_problem", "problem_response"}
 # What the error handlers answer beyond the calls above: an HTTP error by its status
-# (errors.py's on_http), and a field refused by its validation type, `invalid-<type>`.
-HANDLER_CODES = ("http-error", "method-not-allowed", "not-found")
+# (errors.py's on_http), the gate while the server is locked or starting (middleware.py's
+# Locked), and a field refused by its validation type, `invalid-<type>`.
+HANDLER_CODES = ("http-error", "locked", "method-not-allowed", "not-found", "starting")
 FIELD_CODE = "^invalid-[a-z0-9-]+$"
 
 
 def problem_codes() -> list[str]:
     """Every stable code the server answers a problem with (S13.8.3), read from its source:
-    the second argument of Problem(), refuse(), FieldError() and the middleware's problems."""
+    the second argument of Problem(), refuse(), FieldError() and the middleware's problems,
+    and the `CODES` an error class declares, which a route passes on through a variable."""
     import ast
 
     codes: set[str] = set()
     for path in paths.PACKAGE.rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ClassDef):
+                for item in node.body:
+                    if (
+                        isinstance(item, ast.Assign)
+                        and isinstance(item.targets[0], ast.Name)
+                        and item.targets[0].id == "CODES"
+                    ):
+                        codes.update(ast.literal_eval(item.value))
             if not isinstance(node, ast.Call) or len(node.args) < 2:
                 continue
             f = node.func

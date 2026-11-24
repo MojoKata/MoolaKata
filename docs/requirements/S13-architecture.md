@@ -251,7 +251,9 @@
       when not signed in, 403 when not allowed, 404 for what doesn't exist *or* isn't visible
       to the caller (never revealing which), 409 for a conflict, 412 for a stale version, 413,
       415, 422 for a valid request that breaks a rule, 428 for a change sent without its
-      version, 429, and 503 while the server is starting or a linked copy is locked.
+      version, 429, 502 when a server MoolaKata calls (a linked server, a price or wallet
+      source, the mail server) can't be reached or fails, and 503 while the server is
+      starting or a linked copy is locked.
    5. **Lists**: every list takes `?offset=` (0 by default) and `?limit=` (500 by default, at
       most 1000; the app's pages are 100, 500 or 1000 rows, S12.1.3) and answers
       `{items, total, offset, limit}`: the page's rows, how many the caller can see in all

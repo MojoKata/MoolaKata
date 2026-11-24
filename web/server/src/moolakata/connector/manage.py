@@ -22,6 +22,10 @@ VIA = "MoolaKata Connector"
 
 
 class ConnectorError(Exception):
+    # Every code it is made with: the routes answer them, so the OpenAPI document lists them
+    # (S13.8.3).
+    CODES = ("code-invalid", "no-address")
+
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code

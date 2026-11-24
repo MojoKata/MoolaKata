@@ -36,6 +36,20 @@ TESTNET = {bytes.fromhex(v) for v in ("043587cf", "044a5262", "045f1cf6")}  # tp
 class Refused(ValueError):
     """Text that is not public bitcoin data. `code` says what it looked like."""
 
+    # Every code it is made with: a wallet's keys are refused by it, so the OpenAPI document
+    # lists them (S13.8.3).
+    CODES = (
+        "address-invalid",
+        "descriptor-checksum",
+        "descriptor-ending",
+        "descriptor-invalid",
+        "descriptor-unsupported",
+        "key-invalid",
+        "private-key",
+        "secret-refused",
+        "testnet",
+    )
+
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code

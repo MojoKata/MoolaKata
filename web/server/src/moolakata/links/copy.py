@@ -38,6 +38,19 @@ PER_HOUR = 20
 
 
 class CopyError(Exception):
+    # Every code it is made with: the routes answer them, so the OpenAPI document lists them
+    # (S13.8.3).
+    CODES = (
+        "key-exists",
+        "link-not-active",
+        "no-key",
+        "not-found",
+        "not-named",
+        "too-many-tries",
+        "too-many-wrong",
+        "words-wrong",
+    )
+
     def __init__(self, code: str, message: str, wait: float = 0):
         super().__init__(message)
         self.code = code

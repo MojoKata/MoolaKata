@@ -792,6 +792,27 @@ def test_a_peers_refusal_is_told_in_this_servers_own_words():
     )
 
 
+def test_a_peers_code_outside_the_protocols_table_is_refused_here(pair, monkeypatch):
+    # S13.8.3: a peer never decides this server's codes. One in link-protocol.md §7's table is
+    # kept (told in this server's words); any other is `refused`, the peer's code in the log.
+    from moolakata.links import manage
+
+    a, b, (_, url_b), _ = pair
+    reach(a, "b.test")
+    for sent, kept in (
+        ("made-up", "refused"),
+        ("link-bogus", "refused"),
+        ("code-used", "code-used"),
+    ):
+        monkeypatch.setattr(manage, "answer_join", lambda *_, sent=sent: {"error": (sent, "no")})
+        with pytest.raises(client.LinkError) as e:
+            client.call(a, url_b, public(b), "/link/v1/join", {})
+        assert e.value.code == kept
+        assert e.value.code in client.LinkError.CODES
+    assert client.peer_code("link-paused") == "link-paused"
+    assert client.peer_code(["code-used"]) == "refused"
+
+
 def test_a_person_crosses_a_link_with_their_relationships_and_a_pull_names_its_link(admins):
     # S10.3: a person is one of the eight shareable kinds, and goes, read only, to named
     # people on a linked server; S11.8: a pull's Activity names the household it came from.
