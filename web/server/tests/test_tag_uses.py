@@ -2,6 +2,7 @@
 box lists the most used first. Records deleted, and records the caller no longer sees, don't
 count."""
 
+import pytest
 from conftest import make_user, sign_in
 from edits import change, make, remove, share, tag
 from test_accounts import add, new_account
@@ -39,3 +40,88 @@ def test_a_tag_counts_the_records_the_caller_sees_carrying_it(server):
     assert uses(jane)["work"] == 2
     # John's tags are his own: Jane's don't show for him at all.
     assert uses(john) == {}
+
+
+def _tags(c) -> list[dict]:
+    return c.get("/ui/api/tags").json()["items"]
+
+
+def test_a_tag_deleted_comes_off_everything_that_carried_it(server):
+    """S2.6: a tag deleted takes itself off its transactions and its rules; making one of the
+    same name again starts with nothing carrying it."""
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    own = new_account(jane)
+    t = make(jane, "Txn", accountId=own["id"], date="2026-09-01", amount="-4.00", tags=["work"])
+    assert t.status_code == 200, t.text
+    rule = make(jane, "Rule", payeeMatch="blue bottle", tags=["work"])
+    assert rule.status_code == 200, rule.text
+    assert uses(jane) == {"work": 2}
+    [work] = _tags(jane)
+    assert remove(jane, "Tag", work).status_code == 200
+    assert uses(jane) == {}
+    [txn] = jane.get("/ui/api/transactions").json()["items"]
+    assert txn["tagIds"] == []
+    assert [r["tagIds"] for r in jane.get("/ui/api/rules").json()["items"]] == [[]]
+    tag(jane, "work")
+    assert uses(jane) == {"work": 0}
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 41, "work, play"])
+def test_a_tag_blank_too_long_or_with_a_comma_is_refused_at_its_name(server, name):
+    """S2.6, R3.11: a tag of up to 40 characters, without a comma; never blank."""
+    from edits import new_id
+
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    op = {"op": "create", "entity": "Tag", "id": new_id("Tag"), "fields": {"name": name}}
+    r = jane.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 422
+    [error] = r.json()["errors"]
+    assert (error["field"], error["code"], error["message"]) == (
+        "name",
+        "tag-invalid",
+        "A tag of up to 40 characters, without a comma.",
+    )
+
+
+def test_a_tag_made_twice_is_the_same_and_only_the_owners_own_are_taken(unscoped):
+    from moolakata import tags
+    from moolakata.errors import Problem
+
+    s, owner = unscoped
+    work = tags.make(s, owner, " Work ")
+    assert tags.make(s, owner, "work") is work and work.name == "work"
+    assert tags.owned(s, owner, [work.id]) == [work]
+    with pytest.raises(Problem) as e:
+        tags.owned(s, owner, [work.id, "Tag_someone_elses"], field="tags")
+    [error] = e.value.errors
+    assert (error.field, error.code, error.message) == ("tags", "tag-unknown", "Tags of your own.")
+
+
+def test_a_tag_taken_off_and_put_back_on_is_the_same_link_again(server):
+    """A tag's link to its record is kept when taken off, and put back as it was: once, with
+    nothing told twice."""
+    from moolakata import tags
+    from moolakata.store.entities.accounts import RuleTag
+
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    assert make(jane, "Rule", payeeMatch="blue bottle", tags=["coffee"]).status_code == 200
+    [rule] = jane.get("/ui/api/rules").json()["items"]
+    [coffee] = rule["tagIds"]
+    with server.db.tx(unscoped="test") as s:
+        owner = s.get(tags.Tag, coffee).ownerId
+        assert not tags.add_on(s, "rule", rule["id"], coffee), "already on"
+        tags.set_on(s, "rule", rule["id"], owner, [], owner)
+        s.flush()
+        assert tags.ids_of(s, "rule", owner, rule["id"]) == []
+        assert tags.add_on(s, "rule", rule["id"], coffee), "put back"
+        s.flush()
+        tags.set_on(s, "rule", rule["id"], owner, [], owner)
+        s.flush()
+        tags.set_on(s, "rule", rule["id"], owner, [coffee], owner)
+        s.flush()
+        assert tags.ids_of(s, "rule", owner, rule["id"]) == [coffee]
+        links = s.query(RuleTag).filter_by(ruleId=rule["id"]).all()
+        assert len(links) == 1 and not links[0].deleted
