@@ -61,15 +61,24 @@ class Beneficiary:
     name: str
     birthYear: int | None
     deleted: bool = False  # kept by name (schema.md §6.4)
+    seen: bool = True  # False: one the reader can't see, named and no more (R3.14)
 
 
 def beneficiary(s: Session, plan: EducationPlan | None) -> Beneficiary | None:
+    """The plan's beneficiary: whole to a reader who sees them, else by name alone (R3.14)."""
+    from ..store import scoping
+
     if plan is None or not plan.beneficiaryId:
         return None
     p = s.get(Person, plan.beneficiaryId)
-    if p is None:
+    if p is not None:
+        return Beneficiary("person", p.id, p.name, p.birthYear, p.deleted)
+    q = select(Person.name, Person.deletedAt).where(Person.id == plan.beneficiaryId)
+    row = s.execute(scoping.unscoped(q, "the name of a 529's beneficiary (R3.14)")).first()
+    if row is None:
         return None
-    return Beneficiary("person", p.id, p.name, p.birthYear, p.deleted)
+    gone = row.deletedAt is not None
+    return Beneficiary("person", plan.beneficiaryId, row.name, None, gone, seen=False)
 
 
 def _years(day: dt.date, n: int) -> dt.date:
@@ -119,13 +128,17 @@ def contributions(s: Session, account: Account) -> list[ContributionRow]:
         c = tags.get(t.id)
         key, name, rel = "owner", owner.displayName, "owner"
         if c is not None and c.fromPersonId:
-            p = s.get(Person, c.fromPersonId)
             if words is None:
+                from .. import people
                 from ..people import tree
 
                 words = tree.relation_to(s, owner.personId)
-            found = words.get(p.id)
-            key, name, rel = f"person:{p.id}", p.name, found.word if found else None
+                named = people.names(s, [x.fromPersonId for x in tags.values() if x.fromPersonId])
+            # A contributor by name, whether or not the reader sees them; their relation only
+            # for one they do (R3.14).
+            pid = c.fromPersonId
+            found = words.get(pid) if s.get(Person, pid) is not None else None
+            key, name, rel = f"person:{pid}", named[pid], found.word if found else None
         out.append(ContributionRow(t.id, t.date, t.amount, key, name, rel, bool(c and c.fiveYear)))
     return out
 

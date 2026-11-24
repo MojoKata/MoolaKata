@@ -567,7 +567,8 @@ def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         b = education.beneficiary(s, education.plan_of(s, a))
-        if b is None:
+        # An education projection is for someone the reader sees (S1.8.5, S10.10.2).
+        if b is None or not b.seen:
             return GoalView(beneficiary=None, projection=None, others=0)
         found = _goals(s, c, b)
         if not found:
@@ -588,7 +589,7 @@ def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.tx(user=c.id) as s:
         a, _ = _account(s, c, account_id, "write")
         b = education.beneficiary(s, education.plan_of(s, a))
-        if b is None:
+        if b is None or not b.seen:
             raise Problem(409, "no-beneficiary", "Choose the beneficiary in Settings first.")
         mine = [x.id for x, _ in access.accounts(s, c.id)]
         built = education.accounts_for(s, b.id, mine) or [a.id]

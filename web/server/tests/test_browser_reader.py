@@ -362,6 +362,28 @@ def test_a_gift_plan_for_someone_she_cant_see_names_them_and_is_hers_to_change(
     made(remove(h.c, "Persn", h.c.get(f"/ui/api/persons/{ann['id']}").json(), confirm=True))
 
 
+def test_her_529_names_its_beneficiary_she_cant_see(browser, household, reader):
+    """R3.14: the admin makes Max, the beneficiary of the reader's own 529, private: its
+    Overview and its Settings' Beneficiary name Max, and no more of him."""
+    h = household
+    max_ = made(make(h.c, "Persn", name="Max Smith", sex="male", birthYear=2015))
+    with client(h.base) as rita:
+        made(rita.post("/ui/api/session", json={"login": "rita", "password": READER_PW}))
+        a = made(make(rita, "Acct", name="Max's 529", type="529", institution="my529"))
+        saved(plan529(rita, a["id"], planName="my529", beneficiaryId=max_["id"]))
+        saved(change(h.c, "Persn", h.c.get(f"/ui/api/persons/{max_['id']}").json(), private=True))
+        path = f"/ui/accounts/{a['id']}"
+        page, problems = signed_in_as_reader(browser, h, path, "text=Max Smith")
+        assert page.locator("text=born 2015").count() == 0
+        page.goto(f"{h.base}{path}/settings")
+        wait(page, '#f-beneficiary option:has-text("Max Smith")', problems, state="attached")
+        assert page.input_value("#f-beneficiary") == max_["id"]
+        assert problems == []
+        page.close()
+        made(remove(rita, "Acct", rita.get(f"/ui/api/accounts/{a['id']}").json(), confirm=True))
+    made(remove(h.c, "Persn", h.c.get(f"/ui/api/persons/{max_['id']}").json(), confirm=True))
+
+
 def test_a_category_another_may_delete_shows_delete_off_with_why(browser, household, reader):
     """S12.19.1: a shipped category nothing uses is an admin's to delete; for anyone else its
     Delete is shown off, saying so, never replaced by a line."""

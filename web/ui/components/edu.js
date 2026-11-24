@@ -96,6 +96,11 @@ function PersonDialog({ close }) {
 export function PlanFields({ rec }) {
   const people = useList('/persons');
   const list = /** @type {any[]} */ (people.data) || [];
+  // A beneficiary the caller can't see is named by the plan, and no more (R3.14).
+  const chosen = rec.get('beneficiaryId');
+  const unseen = !!chosen && !!people.data && !list.some((p) => p.id === chosen);
+  const plan = useApi(unseen ? `/accounts/${rec.get('accountId')}/plan529` : null);
+  const named = /** @type {any} */ (plan.data)?.beneficiary;
   // While Add a person is open, the list shows the choice that opened it.
   const [making, setMaking] = useState(false);
   const pick = async (/** @type {string} */ v) => {
@@ -118,6 +123,7 @@ export function PlanFields({ rec }) {
         options=${[
           ['', 'Choose…'],
           ...list.map((p) => [p.id, p.name]),
+          ...(unseen && named?.id === chosen ? [[chosen, named.name]] : []),
           ['new', 'Add a person…'],
         ]} />
       </${Field}>

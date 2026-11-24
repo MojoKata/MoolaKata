@@ -185,19 +185,40 @@ def test_a_529_opened_on_29_february_rolls_over_fifteen_years_on_28_february(jan
     assert p["rollover"]["possibleFrom"] == "2039-02-28"
 
 
-def test_a_beneficiary_the_reader_cant_see_is_no_one_to_them(server, jane):
-    """S10.10.2: John's 529 for his private person, shared with Jane, names no one to her and
-    starts no goal; to him it names his person."""
+def _hidden_529(server, jane):
+    """John's 529 for Max, his private person, with Max's contribution, shared with Jane to
+    write: the account, Max and John's client."""
     john, _ = _john(server)
     jane_id = jane.get("/ui/api/session").json()["user"]["id"]
-    hidden = _private_person(john, "Max Smith")
+    hidden = made(make(john, "Persn", name="Max Smith", sex="male", birthYear=2015,
+                       private=True))  # fmt: skip
     acct = new_account(john, name="Max's 529", type="529", institution="my529")
     saved(plan529(john, acct["id"], beneficiaryId=hidden["id"]))
+    made(make(john, "Cntrb", accountId=acct["id"], date="2026-06-01", amount="300",
+              contributor=f"person:{hidden['id']}"))  # fmt: skip
     share(john, "account", acct["id"], users={jane_id: "write"})
+    return acct, hidden, john
+
+
+def test_a_beneficiary_or_contributor_the_reader_cant_see_is_named_and_no_more(server, jane):
+    """R3.14, S10.10.2: John's 529 for his private person, shared with Jane, names Max to
+    her, and no more of him (his birth year, his relation to John). An education projection
+    is for someone she sees, so it starts no goal; to John it names his person whole."""
+    acct, hidden, john = _hidden_529(server, jane)
     mine = john.get(f"/ui/api/accounts/{acct['id']}/plan529").json()
-    assert mine["beneficiary"]["id"] == hidden["id"]
+    assert (mine["beneficiary"]["id"], mine["beneficiary"]["birthYear"]) == (hidden["id"], 2015)
     seen = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()
-    assert seen["beneficiary"] is None
+    assert seen["beneficiary"] == {
+        "kind": "person",
+        "id": hidden["id"],
+        "name": "Max Smith",
+        "birthYear": None,
+        "deleted": False,
+    }
+    r = jane.get(f"/ui/api/accounts/{acct['id']}/contributions")
+    assert r.status_code == 200, r.text
+    [row] = r.json()["rows"]
+    assert (row["name"], row["relationship"]) == ("Max Smith", None)
     assert jane.get(f"/ui/api/accounts/{acct['id']}/goal").json()["beneficiary"] is None
     r = jane.post(f"/ui/api/accounts/{acct['id']}/goal")
     assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
