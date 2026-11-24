@@ -148,11 +148,23 @@ def test_windows_and_sign_in_lockout():
     # The address is locked; the username is only slowed, from any address (S13.7.5.1).
     assert g.locked("10.0.0.5") == pytest.approx(15 * 60)
     assert g.locked("10.0.0.6") == 0
-    assert g.delay("jane", "10.0.0.6") == 4.0  # ten failures: half a second past the third
+    assert g.delay("jane", "10.0.0.6") == 3.5  # ten failures: half a second past the third
     g.succeeded("jane")
     assert g.delay("jane", "10.0.0.6") == 0
     clock[0] += 15 * 60
     assert g.locked("10.0.0.5") == 0
+
+
+def test_a_username_is_slowed_half_a_second_per_failure_past_the_third():
+    """S13.7.5.1: 0.5 × (failures − 3) seconds, up to five: none on the third, half a second
+    on the fourth."""
+    g = SignInGuard(clock=lambda: 0.0)
+    waits = []
+    for _ in range(14):
+        g.failed("jane", f"10.0.0.{len(waits)}", threshold=100)
+        waits.append(g.delay("jane", "10.0.0.99"))
+    assert waits[:5] == [0, 0, 0, 0.5, 1.0]
+    assert waits[-1] == 5.0, "fourteen failures: no more than five seconds"
 
 
 def test_a_window_forgets_the_keys_whose_events_have_lapsed():

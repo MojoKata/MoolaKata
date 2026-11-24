@@ -167,14 +167,15 @@ class SignInGuard:
 
     def delay(self, username: str, address: str) -> float:
         """A pause before answering for a username that keeps failing, from anywhere: half a
-        second per failure past the third, up to five seconds."""
+        second per failure past the third, 0.5 × (failures − 3), up to five seconds
+        (S13.7.5.1)."""
         with self._lock:
             q = self._by_user.get(username.lower())
             if not q:
                 return 0.0
             self._trim(q, self._clock())
             n = len(q)
-        return 0.0 if n < 3 else min(5.0, 0.5 * (n - 2))
+        return 0.0 if n <= 3 else min(5.0, 0.5 * (n - 3))
 
     def succeeded(self, username: str) -> None:
         """A sign-in: the username's failures are forgotten, so it is no longer slowed."""
