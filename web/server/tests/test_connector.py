@@ -336,6 +336,16 @@ def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admi
     assert r.status_code == 403 and r.json()["code"] == "code-used"
 
 
+def test_the_hello_is_limited_by_address(server):
+    # S13.7.5.4: `/connector` follows `/link`'s rules, the hello 60 a minute per address, past
+    # them refused `limit`, unsigned (connector-protocol.md §7).
+    with new_client(server) as c:
+        answers = [c.get("/connector/v1/hello") for _ in range(61)]
+    assert [r.status_code for r in answers[:60]] == [200] * 60
+    assert answers[60].status_code == 429 and answers[60].json()["code"] == "limit"
+    assert answers[60].headers["retry-after"]
+
+
 def test_calls_are_signed_and_answers_are_signed_back(server, paired, client):
     r = paired.call("/connector/v1/report", {"locked": True, "connections": []})
     assert r.status_code == 200, r.text

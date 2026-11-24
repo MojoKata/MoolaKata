@@ -365,7 +365,8 @@ for an account or Connection that doesn't exist or isn't this connector's, 413 f
 large, 500 for a fault), signed as section 3 says when the call carried a nonce. Four are made
 before the call's signature is checked, on its headers or as its body arrives, and are
 **unsigned**, as JSON with `code`: `locked`, `uploads-in-flight`, `limit` for an address past
-the calls that failed their checks (S13.7.5.4), and `too-large` for a body past the hard limit.
+the 60 a minute of its calls that failed their checks and its `hello`s (S13.7.5.4), and
+`too-large` for a body past the hard limit.
 The connector acts on those four by their status and code, and on no other unsigned answer,
 which it treats as a failed call (`answer-unsigned`).
 

@@ -75,8 +75,8 @@ class Server:
     # The paired connector's calls (S18.4.3): its nonces, and 60 calls a minute (S13.7.5.4).
     conn_nonces: Nonces = field(default_factory=Nonces)
     conn_limit: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
-    # Calls to /connector that fail their checks, or that a stranger's key signs (a pairing),
-    # 60 a minute per address: never against the key a call names.
+    # Calls to /connector that fail their checks, that a stranger's key signs (a pairing), and
+    # the hello, 60 a minute per address: never against the key a call names.
     conn_unknown: ratelimit.Window = field(default_factory=lambda: ratelimit.Window(60, 60))
     # Linked servers' calls (S13.7.5.4): 60 a minute per link, counted once a call's
     # signature checks; those that fail their checks, a stranger's join and the hello, 60 a
