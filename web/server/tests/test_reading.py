@@ -595,3 +595,60 @@ def test_the_filter_judges_only_native_calls_and_refuses_x32_ones():
     assert _judged(program, arm["arch"], 198) == deny, "socket"
     assert _judged(program, arm["arch"], 129, 77) == allow, "a signal to itself"
     assert _judged(program, arm["arch"], 0x40000000) == allow
+
+
+def test_the_quick_worker_answering_an_error_or_nothing_is_told_as_the_reader_tells_it(
+    monkeypatch,
+):
+    """S9.8.4.2: the worker's error is the reader's words; a thumbnail it can't draw, or one
+    not an image, is none; a photo it can't show, or a text layer out of shape, is refused."""
+    import base64
+
+    from moolakata import parsing
+    from moolakata.importers import parsed
+
+    def answering(answer):
+        monkeypatch.setattr(parsing, "_call", lambda op, data, **k: answer)
+
+    answering({"error": "the file is damaged"})
+    assert parsing.sandbox() is None
+    assert parsing.thumbnail(b"", "image/png", user="User_a") is None
+    for read in (
+        lambda: parsing.as_jpeg(b"", user="User_a"),
+        lambda: parsing.text_layer(b"", user="User_a"),
+        lambda: parsing.propose_csv(b"", user="User_a"),
+        lambda: parsing.read_csv(b"", {}, user="User_a"),
+    ):
+        with pytest.raises(parsed.ReadError, match="the file is damaged"):
+            read()
+    for webp in (7, "A" * (3 * 1024 * 1024)):  # not text, or past the largest a thumbnail is
+        answering({"webp": webp})
+        assert parsing.thumbnail(b"", "image/png", user="User_a") is None
+    jpeg = b"\xff\xd8\xff\xe0 a photo"
+    answering({"jpeg": base64.b64encode(jpeg).decode()})
+    assert parsing.as_jpeg(b"", user="User_a") == jpeg
+    answering({})
+    assert parsing.thumbnail(b"", "image/png", user="User_a") is None, "none drawn"
+    with pytest.raises(parsed.ReadError, match="the photo can't be shown"):
+        parsing.as_jpeg(b"", user="User_a")
+    assert parsing.text_layer(b"", user="User_a") is None, "no text layer worth reading"
+    for lines in ("one line", ["x" * 2001], [None]):
+        answering({"lines": lines})
+        with pytest.raises(parsed.ReadError, match="the reader answered out of turn"):
+            parsing.text_layer(b"", user="User_a")
+
+
+def test_a_new_data_directory_stops_the_quick_worker_kept_out_of_the_old(
+    no_process, monkeypatch, tmp_path
+):
+    """S9.8.4.2: the worker's sandbox keeps it out of the data directory it was started with:
+    a new one, and the next file gets a worker kept out of that."""
+    from moolakata import parsing
+
+    monkeypatch.setattr(parsing, "_data_dir", parsing._data_dir)
+    parsing.text_layer(b"%PDF", user="User_a")
+    first = parsing._worker
+    parsing.use_data_dir(tmp_path)
+    assert parsing._worker is None
+    parsing.text_layer(b"%PDF", user="User_a")
+    assert parsing._worker is not first and parsing._worker.data_dir == tmp_path
