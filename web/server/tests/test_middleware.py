@@ -413,3 +413,245 @@ def test_a_bodiless_post_without_a_length_needs_no_session():
     assert call([]) == 200
     assert call([(b"content-length", b"0")]) == 200
     assert call([(b"transfer-encoding", b"chunked")]) == 401
+
+
+def _asgi(mw, path="/ui/api/receipts", headers=(), body=(b"",), client=("10.0.0.5", 1)):
+    """One request through a middleware, its body in the parts given: the response starts
+    sent back, and the body sent after them."""
+    import asyncio
+
+    parts = list(body)
+    out: list[dict] = []
+
+    async def receive():
+        part = parts.pop(0) if parts else b""
+        return {"type": "http.request", "body": part, "more_body": bool(parts)}
+
+    async def send(message):
+        out.append(message)
+
+    scope = {"type": "http", "method": "POST", "path": path, "client": client,
+             "headers": [(k.encode(), v.encode()) for k, v in headers]}  # fmt: skip
+    asyncio.run(mw(scope, receive, send))
+    starts = [m for m in out if m["type"] == "http.response.start"]
+    content = b"".join(m.get("body", b"") for m in out if m["type"] == "http.response.body")
+    return starts, content
+
+
+def _reading_app(answer_first=False):
+    """An app that reads the whole body and answers 200; or answers first, then reads."""
+
+    async def app(scope, receive, send):
+        if answer_first:
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+        while (await receive()).get("more_body"):
+            pass
+        if not answer_first:
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"" if answer_first else b"read"})
+
+    return app
+
+
+UPLOAD = ("content-type", "multipart/form-data; boundary=x")
+
+
+def _refusal(starts, content):
+    import json
+
+    [start] = starts
+    body = json.loads(content)
+    return start["status"], body["code"], body["detail"], dict(start["headers"])
+
+
+def test_each_refusal_of_a_body_says_its_status_code_and_words(monkeypatch):
+    """S13.7.6: too large for its limit, an upload with no session, one user's uploads past
+    theirs, and everyone's past the server's, each at its status, code and words."""
+    from moolakata import middleware
+
+    monkeypatch.setattr(middleware, "IN_FLIGHT", 3 * 1024 * 1024)
+    monkeypatch.setattr(middleware, "IN_FLIGHT_ALL", 4 * 1024 * 1024)
+    mw = middleware.BodyLimit(
+        _reading_app(), lambda: 2 * 1024 * 1024, session_user=lambda t: "u1" if t == "s" else None
+    )
+    signed_in = ("cookie", "mk_session=s")
+    status, code, detail, _ = _refusal(
+        *_asgi(mw, headers=[("content-type", "application/json"), ("content-length", "1048577")])
+    )
+    assert (status, code, detail) == (413, "too-large", "The request is larger than 1 MB.")
+    status, code, detail, _ = _refusal(
+        *_asgi(mw, headers=[UPLOAD, signed_in, ("content-length", str(2 * 1024 * 1024 + 1))])
+    )
+    assert (status, code, detail) == (413, "too-large", "The request is larger than 2 MB.")
+    status, code, detail, _ = _refusal(*_asgi(mw, headers=[UPLOAD, ("content-length", "10")]))
+    assert (status, code, detail) == (401, "not-signed-in", "Sign in to continue.")
+    mw.in_flight = {"user:u1": 2 * 1024 * 1024}
+    status, code, detail, headers = _refusal(
+        *_asgi(mw, headers=[UPLOAD, signed_in, ("content-length", str(1024 * 1024 + 1))])
+    )
+    assert (status, code) == (429, "uploads-in-flight")
+    assert detail == "More than 100 MB of uploads are arriving at once. Wait for them to finish."
+    assert headers[b"retry-after"] == b"10"
+    mw.in_flight = {"user:u2": 3 * 1024 * 1024}
+    status, code, detail, headers = _refusal(
+        *_asgi(mw, headers=[UPLOAD, signed_in, ("content-length", str(1024 * 1024 + 1))])
+    )
+    assert (status, code) == (503, "uploads-busy")
+    assert detail == "The server is taking in as many uploads as it can. Try again in a moment."
+    assert headers[b"retry-after"] == b"30"
+
+
+def test_uploads_counted_as_they_arrive_are_refused_past_everyones_ceiling(monkeypatch):
+    """S13.7.6: a body with no length is counted as it is read: past every caller's ceiling it
+    is refused 503 before the app answers; once the app has answered, nothing more is sent;
+    either way its count is let go."""
+    from moolakata import middleware
+
+    monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
+    monkeypatch.setattr(middleware, "IN_FLIGHT_ALL", 1500)
+    chunked = ("transfer-encoding", "chunked")
+    for answer_first, expected in ((False, 503), (True, 200)):
+        mw = middleware.BodyLimit(_reading_app(answer_first), lambda: 10_000, session_user=str)
+        mw.in_flight = {"user:u2": 1000}
+        starts, content = _asgi(
+            mw, headers=[UPLOAD, chunked, ("cookie", "mk_session=u1")], body=[b"x" * 300] * 3
+        )
+        assert [s["status"] for s in starts] == [expected]
+        if answer_first:
+            assert content == b"", "the answer was started: the refusal isn't sent after it"
+        assert mw.in_flight == {"user:u2": 1000}
+
+
+def test_a_body_past_its_limit_or_its_callers_once_answered_sends_nothing_more(monkeypatch):
+    from moolakata import middleware
+
+    monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
+    headers = [UPLOAD, ("transfer-encoding", "chunked"), ("cookie", "mk_session=u1")]
+    mw = middleware.BodyLimit(_reading_app(answer_first=True), lambda: 600, session_user=str)
+    starts, content = _asgi(mw, headers=headers, body=[b"x" * 400] * 2)
+    assert [s["status"] for s in starts] == [200] and content == b""
+    mw = middleware.BodyLimit(_reading_app(answer_first=True), lambda: 5000, session_user=str)
+    mw.in_flight = {"user:u1": 900}
+    starts, content = _asgi(mw, headers=headers, body=[b"x" * 400] * 2)
+    assert [s["status"] for s in starts] == [200] and content == b""
+    assert mw.in_flight == {"user:u1": 900}
+
+
+def test_an_upload_to_a_link_counts_against_its_key_or_else_its_address():
+    """S13.7.6: a sealed receipt to /link with no key header counts against the address it came
+    from, or none named when there is none."""
+    from moolakata import middleware
+
+    held = []
+
+    async def app(scope, receive, send):
+        await receive()
+        held.append(dict(mw.in_flight))
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = middleware.BodyLimit(app, lambda: 10_000)
+    sealed = [("content-type", "application/octet-stream"), ("content-length", "5")]
+    _asgi(mw, "/link/v1/receipts", sealed, [b"12345"])
+    _asgi(mw, "/link/v1/receipts", sealed, [b"12345"], client=None)
+    _asgi(mw, "/link/v1/receipts", [*sealed, ("mk-link-key", "k1")], [b"12345"])
+    # Declared lengths are held for an address; a key's is counted as it is read.
+    assert held == [{"address:10.0.0.5": 5}, {"address:-": 5}, {"key:k1": 5}]
+    assert mw.in_flight == {}
+
+
+def test_a_malformed_cookie_is_no_session():
+    from moolakata import middleware
+
+    assert middleware.BodyLimit._token({b"cookie": "mk_session=x; $Bad=1"}) is None
+    assert middleware.BodyLimit._token({b"cookie": "mk_session=x"}) == "x"
+    assert middleware.BodyLimit._token({}) is None
+
+
+def test_the_forwarded_host_and_a_proxy_with_no_chain_are_taken_as_s13_3_says():
+    """From a trusted proxy (S13.3): no X-Forwarded-For leaves the proxy the client, a proto
+    other than http or https is left alone, and X-Forwarded-Host stands for Host."""
+    import asyncio
+    import ipaddress
+
+    from moolakata.middleware import ClientAddress
+
+    seen = {}
+
+    async def app(scope, receive, send):
+        seen.update(client=scope["client"][0], scheme=scope["scheme"], headers=scope["headers"])
+
+    mw = ClientAddress(app, "proxy", (ipaddress.ip_address("10.0.0.1"),))
+    headers = {"host": "proxy.lan", "x-forwarded-proto": "ws", "x-forwarded-host": "mk.example"}
+    scope = {"type": "http", "client": ("10.0.0.1", 1), "scheme": "https",
+             "headers": [(k.encode(), v.encode()) for k, v in headers.items()]}  # fmt: skip
+    asyncio.run(mw(scope, None, None))
+    assert seen["client"] == "10.0.0.1" and seen["scheme"] == "https"
+    assert [v for k, v in seen["headers"] if k == b"host"] == [b"mk.example"]
+
+
+def test_an_address_that_isnt_one_is_outside_every_range():
+    """S16.14: a client named by no address (a test client's) reaches only what is open to
+    any address."""
+    from moolakata.middleware import AddressRanges
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = AddressRanges(app, lambda: {"app": ["10.0.0.0/8"]})
+    status, code, detail, _ = _refusal(*_asgi(mw, "/ui/api/x", client=("testclient", 1)))
+    assert (status, code, detail) == (404, "not-found", "Not found.")
+    starts, _ = _asgi(mw, "/healthz", client=("testclient", 1))
+    assert starts[0]["status"] == 200
+
+
+@pytest.mark.parametrize(
+    ("state", "detail", "retry"),
+    [
+        ("locked", "MoolaKata is locked: an admin enters the recovery phrase to open it.", b"30"),
+        ("starting", "MoolaKata is starting: ask again in a moment.", b"5"),
+    ],
+)
+def test_a_locked_or_starting_server_answers_its_state_with_its_words(state, detail, retry):
+    """S13.6: what isn't open while the server is locked or starting answers 503 with the state
+    as its code, its words, when to ask again and never kept; what is open passes."""
+    from moolakata.middleware import Locked
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = Locked(app, lambda: state)
+    for path in ("/ui/api/accounts", "/link/v1/hello", "/connector/v1/hello", "/mcp"):
+        status, code, words, headers = _refusal(*_asgi(mw, path))
+        assert (status, code, words) == (503, state, detail), path
+        assert headers[b"retry-after"] == retry and headers[b"cache-control"] == b"no-store"
+    for path in ("/ui/api/unlock", "/ui/app.js", "/healthz", "/demo"):
+        assert _asgi(mw, path)[0][0]["status"] == 200, path
+
+
+def test_a_201_answered_in_parts_names_its_location_once_whole():
+    """S13.8.4: the body of a 201 sent in parts is gathered before its Location is worked out."""
+    import asyncio
+    import re
+    from types import SimpleNamespace
+
+    from moolakata.middleware import Created
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 201, "headers": []})
+        await send({"type": "http.response.body", "body": b'{"id": ', "more_body": True})
+        await send({"type": "http.response.body", "body": b'"Prsn_1"}'})
+
+    out = []
+
+    async def send(message):
+        out.append(message)
+
+    readers = [re.compile("/ui/api/persons/[^/]+")]
+    served = SimpleNamespace(state=SimpleNamespace(api_readers=readers))
+    scope = {"type": "http", "method": "POST", "path": "/ui/api/persons", "app": served}
+    asyncio.run(Created(app)(scope, None, send))
+    assert out[0]["headers"] == [(b"location", b"/ui/api/persons/Prsn_1")]
+    assert out[1] == {"type": "http.response.body", "body": b'{"id": "Prsn_1"}'}
