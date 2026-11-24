@@ -89,12 +89,15 @@ def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
 
 
 def test_ten_wrong_phrases_lock_the_unlock_out(locked):
+    """S16.3: Settings can't be read while locked, so the unlock counts by the defaults: the
+    tenth wrong phrase is still judged, and locks the address for 15 minutes."""
     _, c = locked
     other = " ".join(phrase.to_words(os.urandom(16)))
     for _ in range(10):
-        c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
+        r = c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
+        assert r.status_code == 403 and r.json()["code"] == "phrase-wrong"
     r = c.post("/ui/api/unlock", json={"phrase": other}, headers={"Origin": ORIGIN})
-    assert r.status_code == 429 and r.headers["retry-after"]
+    assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
 
 
 def test_break_glass_and_backups_go_over_the_host_socket_only(locked, master_key):
