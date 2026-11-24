@@ -219,7 +219,8 @@
          belongs to nothing. A client may ignore `parent`. Signing out (`DELETE
          /ui/api/session`) answers 204.
    2. **Names and values in JSON**: field names camelCase, as in the database (`schema.md`
-      §1). Ids are the prefixed strings of `schema.md` §2. Dates are `YYYY-MM-DD`; timestamps
+      §1); `/mcp`'s tool names and arguments are snake_case, as MCP tools' are (S10.9.5), and
+      its answers' fields camelCase. Ids are the prefixed strings of `schema.md` §2. Dates are `YYYY-MM-DD`; timestamps
       are RFC 3339 in UTC (`2026-10-12T14:05:00Z`, S14.9). A field with no value is `null`,
       never left out.
       1. **Numbers are exact JSON numbers.** Money (`1234.50`, two places), quantities and

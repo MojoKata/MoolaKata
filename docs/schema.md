@@ -29,7 +29,9 @@ S14.1). The tables are declared with SQLAlchemy Core in
 
 The same names are used in Python and in the API's JSON. A table's columns, the attributes
 of its entity dataclass and the fields the browser receives all have the same spelling, so
-there's no layer that translates names.
+there's no layer that translates names. `/mcp` is the one place a name is spelled otherwise:
+its tools' names and arguments are snake_case, as MCP tools' are (`account_id`), and its
+answers keep the API's camelCase fields.
 
 ## 2. Primary keys
 

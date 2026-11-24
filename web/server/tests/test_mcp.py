@@ -169,6 +169,16 @@ def test_every_tool_is_in_the_api_reference():
     assert missing == []
 
 
+def test_tool_names_and_arguments_are_snake_case():
+    """MCP's spelling for names and arguments, the one exception to camelCase (S13.8.2)."""
+    import re
+
+    from moolakata.mcp import TOOLS
+
+    names = [*TOOLS, *(a for t in TOOLS.values() for a in t.params)]
+    assert [n for n in names if not re.fullmatch(r"[a-z]+(_[a-z]+)*", n)] == []
+
+
 @pytest.mark.parametrize(
     "method, params",
     [
