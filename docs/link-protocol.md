@@ -101,7 +101,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 | `POST /link/v1/exchange` | yes | active; pending on the joining side | the directories both ways, and the answering side's change for the caller (section 4.3) |
 | `POST /link/v1/next` | yes | active | the next part of a large change the caller is pulling (section 4.4) |
 | `POST /link/v1/deliver` | yes | active | the caller's change for the answering side; or, before it, one of its receipts, sealed (section 4.3) |
-| `POST /link/v1/file` | yes | active | `{id}`: one of the answering side's receipts, sealed to the caller's copy key (section 4.4), as `application/octet-stream`, refused `not-shared` unless a share to that link includes it; the answer's signature takes the sealed bytes' SHA-256 in place of the body's hash, and the caller checks it, and the hash the change carried, before keeping the file |
+| `POST /link/v1/file` | yes | active | `{id}`: one of the answering side's receipts, sealed to the caller's copy key (section 4.4), as `application/octet-stream`, refused `not-shared` unless a share to that link includes it; the answer's signature takes the sealed bytes' SHA-256 in place of the body's hash, and the caller checks it before keeping the file, which it can while its copy is locked; the plaintext's SHA-256, which the change carried sealed, is checked as the copy shows the file (S11.9.6.4) |
 | `POST /link/v1/certificate` | yes | active, paused | `{fingerprint}`: the caller's next TLS certificate key, announced before it is used (section 4.5) |
 | `POST /link/v1/end` | yes | requested, pending, active, paused | the link ended on the calling side |
 
