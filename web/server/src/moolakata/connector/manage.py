@@ -87,7 +87,7 @@ def pair_code(srv, by: str) -> tuple[Connector, str]:
     try:
         cert = certs.own_key_read(srv, "connector")
     except certs.Unread:
-        raise ConnectorError("certificate-unread", certs.UNREAD) from None
+        raise ConnectorError("certificate-unread", certs.UNREAD_CONNECTOR) from None
     with srv.db.tx(unscoped="connector.manage: pair code") as s:
         address = own_address(s)
         if not address:

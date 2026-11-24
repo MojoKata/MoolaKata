@@ -74,6 +74,11 @@ UNREAD = (
     "This server can't read its own certificate at its link address: check the link address in "
     "Settings › Linked Servers."
 )
+# A pairing code's address is the connector's own (S18.4.1), set apart from the link address.
+UNREAD_CONNECTOR = (
+    "This server can't read its own certificate at the address the connector reaches it at: "
+    "check that address in Settings › Connector."
+)
 
 
 def _verify_failed(e: BaseException | None) -> bool:

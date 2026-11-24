@@ -13,5 +13,5 @@ connector replaces the one paired, as Unpair does: its Connections stop and thei
 turns off. The code carries this server's certificate as read at the address the connector
 reaches it at, or, when that can't be reached and this server serves HTTPS itself, the one it
 serves. When neither can be read, no code is made, since it would carry no key for the
-connector to pin: the dialog says *This server can't read its own certificate at its link
-address*, and the link address in Settings › Linked Servers is the one to check.
+connector to pin: the dialog says *This server can't read its own certificate at the address
+the connector reaches it at*, and that address, in Settings › Connector, is the one to check.
