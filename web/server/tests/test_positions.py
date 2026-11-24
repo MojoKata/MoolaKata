@@ -264,6 +264,28 @@ def test_symbol_changes_spin_offs_and_mergers_move_lots_never_sell_them(server, 
     assert h["cash"] == "85000.00", "the merger's cash is in the account"
 
 
+def test_an_open_position_says_its_prices_day_and_whether_it_is_stale(server, jane):
+    """S4.7, S12.5: VTI's close from yesterday is current; AAPL's from eleven days ago, its
+    source failing since, is stale; each says the day of its price."""
+    from sqlalchemy import select
+    from test_account_world import _closes_installed
+
+    from moolakata.store.entities.accounts import Instrument
+    from moolakata.store.entities.prices import Price
+
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-09-01", "buy", "10", "100", "VTI")
+    trade(jane, brk["id"], "2026-09-01", "buy", "4", "50", "AAPL")
+    with server.db.tx(unscoped="test") as s:
+        for sym, day in (("VTI", dt.date(2026, 10, 12)), ("AAPL", dt.date(2026, 10, 2))):
+            iid = s.scalars(select(Instrument.id).where(Instrument.symbol == sym)).one()
+            s.add(Price(instrumentId=iid, date=day, close=Decimal(110), source="test"))
+    with _closes_installed():
+        rows = jane.get("/ui/api/positions").json()["open"]
+    got = {r["symbol"]: (r["priceSource"], r["priceAsOf"], r["stale"]) for r in rows}
+    assert got == {"VTI": ("close", "2026-10-12", False), "AAPL": ("close", "2026-10-02", True)}
+
+
 def test_a_spin_off_recorded_after_the_shares_were_sold_moves_their_basis(server, jane):
     """S2.4.1, S2.8: XYZ spun off NEWCO on Mar 2 and was all sold in May; recorded in October,
     the spin-off is checked and sized by what was held on Mar 2, and the May sale's basis is

@@ -2453,6 +2453,8 @@
  * @property {(import('../kit/dec.js').Dec | null)} averageCost
  * @property {(import('../kit/dec.js').Dec | null)} value
  * @property {(string | null)} priceSource
+ * @property {(string | null)} priceAsOf
+ * @property {boolean} stale
  * @property {(import('../kit/dec.js').Dec | null)} unrealized
  * @property {(import('../kit/dec.js').Dec | null)} unrealizedPct
  * @property {import('../kit/dec.js').Dec} realized

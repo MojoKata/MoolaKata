@@ -49,6 +49,8 @@ class OpenRow(Model):
     averageCost: Quantity | None
     value: Money | None
     priceSource: str | None  # close, manual, intrinsic, statement, trade
+    priceAsOf: dt.date | None  # shown on hover (S12.5)
+    stale: bool  # its price older than S4.7's threshold, or a statement's next overdue (S4.3)
     unrealized: Money | None
     unrealizedPct: Ratio | None
     realized: Money  # all its closes so far
@@ -207,6 +209,8 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
                     averageCost=(cost / qty).quantize(Decimal("0.0001")) if cost and qty else None,
                     value=value,
                     priceSource=p.price.source if p.price else None,
+                    priceAsOf=p.price.asOf if p.price else None,
+                    stale=bool(p.price and p.price.stale),
                     unrealized=gain,
                     unrealizedPct=round(float(gain / abs(cost) * 100), 2)
                     if gain is not None and cost

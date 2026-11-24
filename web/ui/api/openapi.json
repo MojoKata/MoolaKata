@@ -14883,6 +14883,18 @@
             ],
             "title": "Name"
           },
+          "priceAsOf": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priceasof"
+          },
           "priceSource": {
             "anyOf": [
               {
@@ -14913,6 +14925,10 @@
           "side": {
             "title": "Side",
             "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
           },
           "symbol": {
             "title": "Symbol",
@@ -15003,6 +15019,8 @@
           "averageCost",
           "value",
           "priceSource",
+          "priceAsOf",
+          "stale",
           "unrealized",
           "unrealizedPct",
           "realized",
