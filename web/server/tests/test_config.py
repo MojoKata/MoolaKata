@@ -580,3 +580,44 @@ def test_a_command_stopped_by_ctrl_c_ends_as_an_interrupted_one(monkeypatch):
 
     monkeypatch.setattr(cli, "cmd_openapi", interrupted)
     assert main(["openapi"]) == 130
+
+
+@pytest.mark.parametrize(
+    ("raw", "reason"),
+    [
+        ({"server": "home", "paths": BASE["paths"]}, "test: [server] must be a section"),
+        (
+            {"server": {"name": "  "}, "paths": BASE["paths"]},
+            "test: server.name must be a non-empty string",
+        ),
+        (
+            {"server": {"name": 7}, "paths": BASE["paths"]},
+            "test: server.name must be a non-empty string",
+        ),
+        ({"paths": {"backups": "/b"}}, "test [paths]: [data] must be set to a path"),
+        ({"paths": {"data": "", "backups": "/b"}}, "test [paths]: [data] must be set to a path"),
+        ({"paths": {"data": "/d", "backups": 5}}, "test [paths]: [backups] must be set to a path"),
+    ],
+)
+def test_a_section_name_or_path_of_the_wrong_kind_refuses_the_start(raw, reason):
+    """S13.6: what the file gets wrong refuses the start, saying where, never read as a
+    default."""
+    with pytest.raises(RefuseStart) as e:
+        parse(raw, "test")
+    assert str(e.value) == reason
+
+
+def test_a_config_file_this_account_cant_read_refuses_the_start(tmp_path):
+    import os
+
+    locked = tmp_path / "moolakata.toml"
+    locked.write_text("[server]\n")
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("this account reads any file (root)")
+        with pytest.raises(RefuseStart) as e:
+            load(locked)
+        assert str(e.value) == f"config file {locked} cannot be read by this account"
+    finally:
+        locked.chmod(0o600)
