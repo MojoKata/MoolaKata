@@ -14,8 +14,10 @@ preparer.
       the one A's listener serves. When neither is known, no invitation is made, since its code
       would carry no key to pin: the dialog says so.
    2. Admin B enters the code on server B, which connects to A, checks A's key against the
-      fingerprint, and sends B's own address and key, signed with it, and nothing else: no user
-      list crosses before A's admin approves. A's admin sees the request with B's fingerprint,
+      fingerprint, and sends the code, B's own address and key, and, when B's certificate is
+      its own, the fingerprint of the certificate's key, which A checks B's certificate
+      against when it calls B, all signed with B's key: no user list crosses before A's admin
+      approves. A's admin sees the request with B's fingerprint,
       compares it with B's admin, and approves or rejects it. B's link waits for the approval,
       which reaches it at once or at its next exchange.
    3. Each server then holds the other's **Ed25519 public key**. Every call between them is
