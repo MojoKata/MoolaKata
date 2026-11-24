@@ -19,7 +19,9 @@ def mocks():
 
 def guard() -> net.Guard:
     g = net.Guard()
-    g.allow(["127.0.0.1"], ["127.0.0.1"])  # a node on the LAN is named by an admin (S13.5)
+    g.allow(
+        ["127.0.0.1"], {"bitcoin": ["127.0.0.1"]}
+    )  # a node on the LAN is named by an admin (S13.5)
     return g
 
 
@@ -102,7 +104,7 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
         settings.put(
             s, "bitcoinEsploraUrl", f"http://127.0.0.1:{mocks.ports()['esplora']}/api", None
         )
-    server.guard.allow(["127.0.0.1"], ["127.0.0.1"])
+    server.guard.allow(["127.0.0.1"], {"bitcoin": ["127.0.0.1"]})
     r = make(c, "Acct", name="Cold storage", type="crypto-wallet")
     assert r.status_code == 200, r.text
     wid = r.json()["id"]

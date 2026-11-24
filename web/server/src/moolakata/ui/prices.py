@@ -131,7 +131,7 @@ def _view(s, dev: bool) -> SourcesView:
 def apply_egress(srv) -> None:
     """Only the hosts of enabled sources, the SMTP server, the bitcoin explorer or node and
     linked servers may be reached (S13.5). The SMTP host and a node are ones an admin named, so
-    they may be on this machine."""
+    they may be on this machine: each for its own client only, never for a link (S11.2)."""
     from ..bitcoin import sync as bitcoin
     from ..links.peers import hosts as link_hosts
 
@@ -143,7 +143,11 @@ def apply_egress(srv) -> None:
             pricing.hosts(s, srv.config.dev) + smtp + btc + peers,
             # A linked server's address came from the other server: never exempt, except
             # between two dev servers on one machine.
-            allowed_by_name=smtp + btc_named + (peers if srv.config.dev else []),
+            allowed_by_name={
+                "smtp": smtp,
+                "bitcoin": btc_named,
+                "link": peers if srv.config.dev else [],
+            },
         )
 
 

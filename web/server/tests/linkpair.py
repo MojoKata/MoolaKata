@@ -57,7 +57,7 @@ class Wire:
         self.certs[host] = hashlib.sha256(host.encode()).hexdigest()
         return f"https://{host}"
 
-    def network(self, guard: net.Guard, pins: frozenset[str] | None) -> httpx.BaseTransport:
+    def network(self, guard: net.Using, pins: frozenset[str] | None) -> httpx.BaseTransport:
         return _Network(self, guard, pins)
 
     def install(self, monkeypatch):
@@ -79,7 +79,7 @@ class _Presented:
 
 
 class _Network(httpx.BaseTransport):
-    def __init__(self, wire: Wire, guard: net.Guard, pins: frozenset[str] | None):
+    def __init__(self, wire: Wire, guard: net.Using, pins: frozenset[str] | None):
         self._wire, self._guard, self._pins = wire, guard, pins
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:

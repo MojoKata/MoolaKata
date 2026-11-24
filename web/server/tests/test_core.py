@@ -107,10 +107,25 @@ def test_egress_guard():
         guard.check("evil.example", 443)
     with pytest.raises(net.EgressRefused, match="loopback"):
         guard.check("node.lan", 50001)
-    guard.allow(["node.lan"], allowed_by_name=["node.lan"])
-    guard.check("node.lan", 50001)
+    guard.allow(["node.lan"], allowed_by_name={"bitcoin": ["node.lan"]})
+    guard.check("node.lan", 50001, "bitcoin")
     with pytest.raises(net.EgressRefused):
         guard.check("127.0.0.1", 80)
+
+
+def test_a_host_named_by_an_admin_is_exempt_only_for_its_own_client():
+    """S13.5, S11.2: the SMTP server an admin named may be on loopback, but a link, a price
+    source or the bitcoin client asking for the same host is refused, whoever named it."""
+    guard = net.Guard()
+    guard.allow(["127.0.0.1"], allowed_by_name={"smtp": ["127.0.0.1"]})
+    assert guard.check("127.0.0.1", 25, "smtp") == "127.0.0.1"
+    for use in ("link", "bitcoin", None):
+        with pytest.raises(net.EgressRefused, match="loopback"):
+            guard.check("127.0.0.1", 2019, use)
+    with pytest.raises(net.EgressRefused, match="loopback"):
+        net.Client(guard, use="link").get("https://127.0.0.1:2019/")
+    with pytest.raises(net.EgressRefused, match="loopback"):
+        net.Client(guard).get("https://127.0.0.1:2019/")
 
 
 def test_client_refuses_before_connecting():
@@ -328,16 +343,16 @@ def test_a_servers_own_certificate_is_pinned_by_its_key(tls_peer):
         return ["127.0.0.1"]
 
     guard = net.Guard(resolver=resolver)
-    guard.allow(["peer.lan"], allowed_by_name=["peer.lan"])
+    guard.allow(["peer.lan"], allowed_by_name={"link": ["peer.lan"]})
     url = f"https://peer.lan:{port}/"
-    assert net.Client(guard, pins=[fp]).get(url).text == "ok"
+    assert net.Client(guard, use="link", pins=[fp]).get(url).text == "ok"
     assert lookups == ["peer.lan"], "looked up once, by the guard"
     with pytest.raises(net.CertificateRefused) as e:
-        net.Client(guard, pins=["0" * 64]).get(url)
+        net.Client(guard, use="link", pins=["0" * 64]).get(url)
     assert e.value.fingerprint == fp
     with pytest.raises(httpx.ConnectError):
-        net.Client(guard).get(url)  # a public check: no root vouches for it
+        net.Client(guard, use="link").get(url)  # a public check: no root vouches for it
     with pytest.raises(net.ResponseTooLarge):
-        net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "long")
+        net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "long")
     with pytest.raises(net.ResponseTooLarge):
-        net.Client(guard, max_bytes=10_000, pins=[fp]).get(url + "gzip").json()
+        net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "gzip").json()

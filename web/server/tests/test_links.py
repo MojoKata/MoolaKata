@@ -13,7 +13,7 @@ from moolakata.store.entities.links import Link
 
 def reach(srv, *hosts):
     """Let a server call these hosts, as a link to them would."""
-    srv.guard.allow(hosts, hosts)
+    srv.guard.allow(hosts, {"link": hosts})
 
 
 @pytest.fixture
@@ -862,6 +862,21 @@ def test_a_released_copys_key_opens_nothing_more():
     k.release()
     with pytest.raises(WrongKey):
         k.text()
+
+
+def test_a_link_at_the_smtp_servers_loopback_address_is_still_refused(pair):
+    """S11.2, S13.5: a link's address is never loopback, whoever names that host: an SMTP
+    server an admin set at 127.0.0.1 is exempt for the mail client alone."""
+    from moolakata import settings
+    from moolakata.ui.prices import apply_egress
+
+    a, b, _, _ = pair
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "smtpHost", "127.0.0.1", None)
+    link(a, "https://127.0.0.1:2019", public(b))
+    apply_egress(a)
+    with pytest.raises(client.LinkError, match=r"didn't answer \(EgressRefused\)"):
+        client.hello(a, "https://127.0.0.1:2019")
 
 
 def test_an_unsigned_limit_or_locked_answer_is_taken_as_it_says(pair, monkeypatch):

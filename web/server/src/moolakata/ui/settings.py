@@ -455,7 +455,8 @@ def bitcoin_test(request: Request, c: Caller = Depends(admin)):
     if hosts and not srv.config.stubs:
         # The host is allowed for this test even before a wallet needs it.
         current_hosts, current_named = srv.guard.snapshot()
-        srv.guard.allow(current_hosts | set(hosts), current_named | set(named))
+        current_named["bitcoin"] = current_named.get("bitcoin", set()) | set(named)
+        srv.guard.allow(current_hosts | set(hosts), current_named)
     from .prices import apply_egress
 
     try:

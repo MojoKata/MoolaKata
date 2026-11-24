@@ -45,8 +45,9 @@
 5. **Outbound calls** go through one httpx client with an **egress guard**: only the hosts of
    enabled price sources, the bitcoin explorer or node, the SMTP server, and links; never
    loopback, link-local or cloud metadata addresses unless an admin allows one by name, and the
-   only hosts allowed by name are the Email and Bitcoin hosts an admin types in Settings: a
-   link's address, which another server supplies, never is; with timeouts and response-size
+   only hosts allowed by name are the Email and Bitcoin hosts an admin types in Settings, each
+   for its own client alone: a link's address, which another server supplies, never is, even
+   when its host is one of theirs; with timeouts and response-size
    ceilings. Each call connects to the address the guard checked, never to a second lookup, so
    a name can't change its answer between the check and the connection. Email goes through the
    standard library's SMTP client, past the same guard; its host is one an admin named in

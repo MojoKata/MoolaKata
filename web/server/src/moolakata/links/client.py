@@ -79,7 +79,7 @@ def _url(address: str, path: str) -> str:
 
 
 def _client(srv, pins, max_bytes: int = net.MAX_RESPONSE) -> net.Client:
-    return net.Client(srv.guard, max_bytes=max_bytes, pins=pins)
+    return net.Client(srv.guard, max_bytes=max_bytes, pins=pins, use="link")
 
 
 def _unreachable(address: str, e: Exception) -> LinkError:

@@ -122,7 +122,7 @@ def _vetted(cls, address: str):
 
 def deliver(smtp: Smtp, msg: EmailMessage, guard) -> None:
     """Hand one message to the SMTP server, through the egress guard."""
-    address = guard.check(smtp.host, smtp.port)
+    address = guard.check(smtp.host, smtp.port, "smtp")
     context = ssl.create_default_context()
     if smtp.security == "tls":
         conn = _vetted(smtplib.SMTP_SSL, address)(

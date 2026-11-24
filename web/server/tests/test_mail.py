@@ -58,7 +58,7 @@ def smtp(monkeypatch, server):
     from moolakata import net
 
     server.guard = net.Guard(resolver=lambda host, port: ["192.0.2.25"])
-    server.guard.allow(["smtp.home.lan"], allowed_by_name=["smtp.home.lan"])
+    server.guard.allow(["smtp.home.lan"], allowed_by_name={"smtp": ["smtp.home.lan"]})
     return FakeSmtp
 
 
