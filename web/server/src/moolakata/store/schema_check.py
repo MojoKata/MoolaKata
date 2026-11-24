@@ -37,6 +37,17 @@ def prefix_rows(text: str | None = None) -> list[PrefixRow]:
     return rows
 
 
+KEPT = {"version", "createdAt", "updatedAt"}
+
+
+def counted_tables(text: str | None = None) -> set[str]:
+    """The server-kept tables schema.md §2 names, whose version counts and never locks."""
+    text = text if text is not None else SCHEMA_MD.read_text()
+    section = text.split("## 2. Primary keys", 1)[1].split("\n## ", 1)[0]
+    item = section.split("**Server-kept records**", 1)[1].split("\n  - ", 1)[0]
+    return set(re.findall(r"`([A-Z][A-Za-z]*)`", item.split(".", 1)[0]))
+
+
 def check_metadata(metadata: MetaData, text: str | None = None) -> list[str]:
     problems: list[str] = []
     rows = prefix_rows(text)
@@ -69,6 +80,8 @@ def check_metadata(metadata: MetaData, text: str | None = None) -> list[str]:
                 problems.append(f"{t.name} is not WITHOUT ROWID")
             if not _has_id_check(t, prefix):
                 problems.append(f"{t.name} lacks the CHECK on its id's form")
+            if KEPT - set(t.c.keys()):
+                problems.append(f"{t.name} lacks {sorted(KEPT - set(t.c.keys()))} (schema.md §2)")
         problems += _check_soft_delete(t)
         problems += _check_seen(t)
     for r in in_use:

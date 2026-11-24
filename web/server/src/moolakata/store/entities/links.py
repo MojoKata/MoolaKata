@@ -2,7 +2,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from ...ids import new_id
-from . import Record
+from . import Kept, Record
 
 
 @dataclass(kw_only=True, eq=False)
@@ -46,7 +46,7 @@ class Link(Record):
 
 
 @dataclass(kw_only=True, eq=False)
-class LinkedItem:
+class LinkedItem(Kept):
     id: str
     linkId: str
     remoteId: str
@@ -59,7 +59,7 @@ class LinkedItem:
 
 
 @dataclass(kw_only=True, eq=False)
-class LinkSent:
+class LinkSent(Kept):
     id: str = field(default_factory=lambda: new_id("LkSnt"))
     linkId: str
     itemId: str
@@ -69,7 +69,7 @@ class LinkSent:
 
 
 @dataclass(kw_only=True, eq=False)
-class LinkFile:
+class LinkFile(Kept):
     id: str = field(default_factory=lambda: new_id("LkFil"))
     linkId: str
     fileId: str

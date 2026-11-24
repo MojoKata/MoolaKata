@@ -1,9 +1,10 @@
 """The columns and constraints every table carries (docs/schema.md §2, §4, §7).
 
 A record table has a prefixed id with its CHECK, is WITHOUT ROWID, and carries the
-soft-delete fields with their CHECK, plus `version`, `createdAt` and `updatedAt` for the API's
-concurrency rule (requirements S13.8.6). Tables removed outright (schema.md §4.4) say so in
-`info["exception"]`. Every table says how it is seen (`Seen`, schema.md §7) in `info["seen"]`.
+soft-delete fields with their CHECK. Every table with an id, a record or not, carries
+`version`, `createdAt` and `updatedAt` (schema.md §2). Tables removed outright (schema.md
+§4.4) say so in `info["exception"]`. Every table says how it is seen (`Seen`, schema.md §7)
+in `info["seen"]`.
 """
 
 from dataclasses import dataclass
@@ -157,6 +158,15 @@ def soft_delete(table: str) -> list:
     ]
 
 
+def _kept() -> list[Column]:
+    """The version and times every table with an id carries (schema.md §2)."""
+    return [
+        Column("version", Integer, nullable=False, server_default=text("1")),
+        Column("createdAt", UtcTimestamp, nullable=False),
+        Column("updatedAt", UtcTimestamp, nullable=False),
+    ]
+
+
 def record(name: str, prefix: str, *columns, seen: Seen, **kw) -> Table:
     """A table of records with a prefixed id (schema.md §2) and soft deletes (§4)."""
     length = len(prefix) + 1 + 26
@@ -165,9 +175,7 @@ def record(name: str, prefix: str, *columns, seen: Seen, **kw) -> Table:
         metadata,
         Column("id", Text, primary_key=True),
         *columns,
-        Column("version", Integer, nullable=False, server_default=text("1")),
-        Column("createdAt", UtcTimestamp, nullable=False),
-        Column("updatedAt", UtcTimestamp, nullable=False),
+        *_kept(),
         *soft_delete(name),
         CheckConstraint(f"id GLOB '{prefix}_*' AND length(id) = {length}", name="id"),
         sqlite_with_rowid=False,
@@ -222,6 +230,9 @@ def exception(
     if prefix:
         length = len(prefix) + 1 + 26
         cols.insert(0, Column("id", Text, primary_key=True))
+        # A table with an id carries its version and times, as a record does (schema.md §2).
+        named = {c.name for c in cols if isinstance(c, Column)}
+        cols += [c for c in _kept() if c.name not in named]
         cols.append(CheckConstraint(f"id GLOB '{prefix}_*' AND length(id) = {length}", name="id"))
         info["prefix"] = prefix
         kw.setdefault("sqlite_with_rowid", False)

@@ -32,12 +32,19 @@ class SoftDeleted:
 
 
 @dataclass(kw_only=True, eq=False)
-class Record(SoftDeleted):
-    """What every record carries: its version (S13.8.6), its times, and the soft-delete
-    fields (schema.md §4.1)."""
+class Kept:
+    """What every row with an id carries (schema.md §2): its version, which locks a draft
+    record (S13.8.6) and counts a server-kept one's saves, and its times."""
 
     version: int = 1
     createdAt: dt.datetime = field(default_factory=_now)
     updatedAt: dt.datetime = field(default_factory=_now)
+
+
+@dataclass(kw_only=True, eq=False)
+class Record(Kept, SoftDeleted):
+    """What every record carries: its version and times (`Kept`), and the soft-delete
+    fields (schema.md §4.1)."""
+
     deletedAt: dt.datetime | None = None
     deletedById: str | None = None

@@ -49,9 +49,19 @@ answers keep the API's camelCase fields.
   CHECK (id GLOB 'User_*' AND length(id) = 31)
   ```
   The length is the prefix's length + 1 + 26.
-- **Record fields.** Each table with an `id` also has `version` (an integer that changes with
-  every save, which the API's `If-Match` compares, requirements S13.8.6), `createdAt` and
-  `updatedAt`.
+- **Record fields.** Each table with an `id` also has `version`, an integer that starts at 1
+  and goes up with every save, `createdAt` and `updatedAt`. What the version does depends on
+  who writes the table:
+  - **Draft records** are what a person edits through a draft (requirements S12.15, S13.8.11)
+    and what the server works out with them: every table with an `id` not named below. The
+    version is the lock: a save names the version it was read at (`If-Match`, requirements
+    S13.8.6), and one made against an older version is refused as stale.
+  - **Server-kept records** are written by the server, often in the background, or by a
+    route's own action, never through a draft: `Activity`, `Alert`, `AlertState`, `LinkFile`,
+    `LinkSent`, `LinkedItem`, `OneTimeToken`, `QueuedEmail`, `RecoveryCode`, `Secret`,
+    `Session`, `SignupRequest`, `WalletAddress`, `WashSale`. The version only counts their
+    saves, each one adding 1 in the database, and locks nothing: a write is never refused for
+    it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
   an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,
   with the table's prefix. The server accepts it only in exactly this form, with the prefix of
