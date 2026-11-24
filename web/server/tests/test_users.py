@@ -122,6 +122,20 @@ def test_sign_in_by_username_or_email_with_a_strict_cookie(client, server):
     assert len(token) >= 43
 
 
+def _rows(server) -> dict[str, int]:
+    """Each table's row count, Activity's left out."""
+    from sqlalchemy import func
+
+    from moolakata.store.tables import metadata
+
+    with server.db.read(unscoped="test") as s:
+        return {
+            t.name: s.scalar(select(func.count()).select_from(t))
+            for t in metadata.sorted_tables
+            if t is not Activity.__table__
+        }
+
+
 def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, server):
     """S13.7.5.1: ten failures lock the address they came from, whoever they named; the
     username is slowed, never locked, so nobody can lock an admin out from afar."""
@@ -129,6 +143,7 @@ def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, ser
     from fastapi.testclient import TestClient
 
     make_user(server, "john")
+    before = _rows(server)
     for _ in range(9):
         r = client.post("/ui/api/session", json={"login": "john", "password": "wrong"})
         assert r.status_code == 401
@@ -141,6 +156,8 @@ def test_wrong_passwords_lock_the_address_and_only_slow_the_username(client, ser
     assert int(r.headers["retry-after"]) > 800
     assert "signin.locked" in kinds(server)
     assert kinds(server).count("signin.failed") == 9  # the tenth is recorded as the lockout
+    # The counters are held in memory (S13.7.5.5): no table but Activity gained a row.
+    assert _rows(server) == before
     # From another address, john still signs in: the username was slowed, not locked.
     elsewhere = TestClient(client.app, base_url=ORIGIN, client=("192.168.1.9", 50000))
     r = elsewhere.post(
