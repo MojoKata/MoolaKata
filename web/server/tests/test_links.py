@@ -7,7 +7,7 @@ import pytest
 from linkpair import Wire, make_server
 from sqlalchemy import select
 
-from moolakata import alerts, ids
+from moolakata import alerts, clock, ids
 from moolakata.links import client, keys, signing
 from moolakata.store.entities.alerts import Alert
 from moolakata.store.entities.links import Link
@@ -1679,3 +1679,26 @@ def test_a_peer_whose_change_is_refused_shows_refusing_on_either_side(admins, mo
     with a.db.read(unscoped="test") as s:
         assert s.get(Link, a_id).refusal == "change 4 fails its signature check"
     assert links_of(ca)["links"][0]["refusal"] == "change 4 fails its signature check"
+
+
+def test_linking_again_over_a_broken_link_ends_it_and_deletes_its_copy_on_both_sides(admins):
+    # S11.6: linking again makes way for the new link; a broken one is ended first, its copy
+    # deleted, on the joining side as on the inviting one.
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    ca.post(f"/ui/api/settings/links/{a_id}/copy-key")
+    cb.post(f"/ui/api/settings/links/{b_id}/copy-key")
+    copies = lcopy.folder(a.config.data_dir, a_id), lcopy.folder(b.config.data_dir, b_id)
+    assert all(c.exists() for c in copies)
+    for srv, link_id in ((a, a_id), (b, b_id)):
+        with srv.db.tx(unscoped="test") as s:
+            s.get(Link, link_id).brokenAt = clock.now()
+    code = ca.post("/ui/api/settings/links/invitations").json()["code"]
+    r = cb.post("/ui/api/settings/links/join", json={"code": code})
+    assert r.status_code == 201, r.text
+    for srv, link_id in ((a, a_id), (b, b_id)):
+        with srv.db.read(unscoped="test") as s:
+            assert s.get(Link, link_id).state == "ended"
+    assert not any(c.exists() for c in copies)
+    assert [x["state"] for x in links_of(cb)["links"]] == ["pending"], "the old one made way"
+    assert [x["state"] for x in links_of(ca)["links"]] == ["requested"]
