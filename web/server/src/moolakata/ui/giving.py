@@ -63,6 +63,7 @@ class PlanOut(Model):
     income: Money | None
     dafCounted: str
     access: Access
+    ownerId: str  # whose accounts a donation added to it is paid from (S7.9.1)
     ownerName: str
     version: int
 
@@ -119,6 +120,7 @@ def _plan_out(s, p: GivingPlan, held: Perms) -> PlanOut:
         income=p.income,
         dafCounted=p.dafCounted,
         access=Access.of(held),
+        ownerId=p.ownerId,
         ownerName=s.get(User, p.ownerId).displayName,
         version=p.version,
     )
@@ -455,10 +457,26 @@ def _txn(s, c: Caller, account_id: str, day, kind, amount, payee, **kw) -> Trans
     return t
 
 
-def _shares_given(s, c: Caller, body: DonationIn, to: str) -> dict:
+def _paid_from(s, c: Caller, owner: str, account_id: str) -> Account:
+    """Where a donation's money or shares came from: an account the caller may write, and,
+    into another's giving, one of that plan owner's (S7.9.1)."""
+    if owner == c.id:
+        return access.account(s, c.id, account_id, "write")[0]
+    a = s.get(Account, account_id)
+    held = access.perms(s, Account, account_id, c.id)
+    if a is None or a.deleted or a.ownerId != owner or held is None or not held.writable:
+        raise refuse(
+            "fromAccountId",
+            "account-not-plans",
+            "One of the plan owner's accounts you can change, or none.",
+        )
+    return a
+
+
+def _shares_given(s, c: Caller, owner: str, body: DonationIn, to: str) -> dict:
     """Shares from a lot: they leave the account without realizing a gain (S7.9.3); held over
     a year, the deduction is their market value, else the lesser of that and their basis."""
-    a, _ = access.account(s, c.id, body.fromAccountId or "", "write")
+    a = _paid_from(s, c, owner, body.fromAccountId or "")
     lot = s.get(Lot, body.lotId or "")
     if lot is None or lot.accountId != a.id or lot.deleted:
         raise refuse("lotId", "lot-unknown", "Choose a lot in that account.")
@@ -575,7 +593,7 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
     }
     to = org.name if org else (fund.name if fund else "Donation")
     if body.lotId:
-        values.update(_shares_given(s, c, body, to))
+        values.update(_shares_given(s, c, owner, body, to))
     elif body.transactionId:
         t = s.get(Transaction, body.transactionId)
         if t is None or t.deleted:
@@ -587,7 +605,7 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
         if not t.categoryId and body.kind == "cash" and not _split(s, t.id):
             t.categoryId = _giving_category(s)
     elif body.fromAccountId:
-        a, _ = access.account(s, c.id, body.fromAccountId, "write")
+        a = _paid_from(s, c, owner, body.fromAccountId)
         cat = _giving_category(s) if body.kind in ("cash", "qcd") else None
         out = _txn(s, c, a.id, body.date, "withdrawal", -values["amount"], to, categoryId=cat)
         values["transactionId"] = out.id

@@ -23,6 +23,9 @@ The fund it went into, or that made the grant.
 Where the money or shares came from: its side is recorded too. For cash, its withdrawal is
 recorded, categorised Giving. Leave it for a gift already in an imported account.
 
+Into a plan shared with you, it is one of the plan owner's accounts you can change, or none: the
+donation is then recorded without a transaction.
+
 ## From lot {#lot}
 
 The lot the shares come from. They leave the account without realizing a gain.

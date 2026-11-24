@@ -2496,6 +2496,7 @@ DIALOGS.gift = (d) => {
 };
 DIALOGS.donation = () => { const amount = 5980; return { title: 'Record Donation', body: `<div class="row">${field('Organisation', sel(['American Red Cross', 'Greater Chicago Food Depository', 'St. Mark’s Parish', 'Doe Giving Fund (DAF)', 'Add an organisation…'], 'Doe Giving Fund (DAF)'))}${field('Date', inp('2026-10-11', '', 'date'))}</div>
     ${field('Type', sel(['Cash (card, cheque, transfer)', 'Goods (fair value)', 'Appreciated shares', 'QCD from an IRA', 'Contribution to a donor-advised fund', 'Grant from a donor-advised fund'], 'Appreciated shares'))}
+    ${field('From account', sel(['Choose…', 'Individual Brokerage'], 'Individual Brokerage'))}
     ${field('From lot', sel(['VTI · 40 sh · bought 2019-02-11 · basis $5,820 · value $11,960', 'AAPL · 60 sh · bought 2023-05-02 · basis $10,104 · value $14,310'], 'VTI · 40 sh · bought 2019-02-11 · basis $5,820 · value $11,960'))}
     <div class="row">${field('Shares', inp('20'))}${field('Amount', inp(nf.format(amount)))}</div>
     <div class="notice" style="margin-bottom:12px">${icon('info')}<div>Held over a year: the deduction is the market value.</div></div>
@@ -3087,6 +3088,7 @@ const GUIDES = {
     <h2 ${hid('Count the DAF')}>Count the DAF</h2><p>A donor-advised fund counts once: when you fund it (the default) or when it grants.</p>
     <h2 ${hid('Organisation')}>Organisation</h2><p>Whether gifts to it are deductible: a 501(c)(3) is; a campaign or a person isn’t.</p>
     <h2 ${hid('Type')}>Type</h2><p>Cash, goods at fair value, appreciated shares (from a lot: no gain realized), a QCD from an IRA, or a DAF contribution or grant. No gain is realized on donated shares.</p>
+    <h2 ${hid('From account')}>From account</h2><p>Where the money or shares came from: its side is recorded too. Into a plan shared with you, it is one of the plan owner’s accounts you can change, or none: the donation is then recorded without a transaction.</p>
     <h2 ${hid('From lot')}>From lot</h2><p>Shares held over a year are deducted at market value, others at the lesser of their value and their basis.</p>
     <h2 ${hid('Acknowledgement')}>Acknowledgement</h2><p>A written acknowledgement is needed for any single gift of $250 or more: the field says so once the amount reaches it. Attach it as a receipt.</p>
     <h2 id="h-date">Date</h2><p>The day of the gift.</p>

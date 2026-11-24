@@ -373,6 +373,43 @@ def test_a_writer_adds_to_the_plan_shown_as_its_owners(server, jane):
     assert saved(giving_plan(john, 2026, percent="5"))["percent"] == "5.00"
 
 
+def test_a_writer_pays_into_the_plan_shown_from_its_owners_accounts_or_none(server, jane):
+    """S7.9.1: a donation John adds to Jane's plan comes from one of her accounts he may
+    write, or from none; his own account, or hers he only reads, is refused at the field."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, percent="10"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "write"})
+    food = org(jane, "Food Bank")
+    her_bank = new_account(jane, name="Jane's checking", type="checking")
+    her_savings = new_account(jane, name="Jane's savings", type="savings")
+    share(jane, "account", her_bank["id"], users={john_id: "write"})
+    share(jane, "account", her_savings["id"], users={john_id: "read"})
+    his_bank = new_account(john, name="John's checking", type="checking")
+    his_brk = new_account(john, name="John's brokerage", type="brokerage")
+    add(john, his_brk["id"], "-1000.00", "2024-01-05", kind="buy", symbol="VTI", quantity="10",
+        price="100")  # fmt: skip
+    lot = john.get(f"/ui/api/accounts/{his_brk['id']}/holdings").json()["holdings"][0]["lots"][0]
+    cash = {"date": "2026-04-01", "kind": "cash", "organisationId": food["id"], "amount": "300"}
+    for refused in (
+        {**cash, "fromAccountId": his_bank["id"]},
+        {**cash, "fromAccountId": her_savings["id"]},
+        {**cash, "kind": "securities", "fromAccountId": his_brk["id"], "lotId": lot["lotId"],
+         "quantity": "1"},
+    ):  # fmt: skip
+        r = make(john, "Dnatn", planId=hers["id"], **refused)
+        assert r.status_code == 422, r.text
+        (e,) = r.json()["errors"]
+        assert e["field"] == "fromAccountId" and "Jane" not in e["message"]
+    held = john.get(f"/ui/api/accounts/{his_brk['id']}/holdings").json()["holdings"][0]
+    assert held["lots"][0]["quantity"] == lot["quantity"], "no shares left his account"
+    paid = donate(john, planId=hers["id"], fromAccountId=her_bank["id"], **cash)
+    t = jane.get(f"/ui/api/transactions/{paid['transactionId']}").json()
+    assert t["accountId"] == her_bank["id"] and t["amount"] == "-300.00"
+    unpaid = donate(john, planId=hers["id"], **cash)
+    assert unpaid["transactionId"] is None
+    assert jane.get("/ui/api/giving").json()["given"] == "600.00"
+
+
 def test_a_writer_changes_and_deletes_the_plans_entries_a_reader_cant(server, jane):
     """S10.3.2: a giving plan shared to write lets John change its donations and
     organisations, Jane's or those he added; at read he can't."""

@@ -54,11 +54,16 @@ export default function Giving({ tab }) {
   useGuide('giving-' + current);
   const res = useApi('/giving', planId ? { year, plan: planId } : { year }, ['import']);
   const v = /** @type {any} */ (res.data);
+  // The plan chosen, from the choices themselves: the year's answer for it may still be on
+  // its way, and a dialog opened meanwhile keeps what it was given.
+  const chosen = planId ? v?.shared?.find((/** @type {any} */ p) => p.id === planId) : null;
   /** @type {Shown} */
   const shown = {
     planId: planId || null,
+    // A donation into it is paid from its owner's accounts (S7.9.1).
+    ownerId: chosen ? chosen.ownerId : null,
     // What is added goes into the plan shown: not one shared with the user to read.
-    why: planId && v?.plan ? whyRead(v.plan) : null,
+    why: chosen ? whyRead(chosen) : null,
   };
   return html`
     <div class="toolbar"><${Tabs} tabs=${TABS} current=${current} base="/ui/giving" /><span
@@ -89,7 +94,7 @@ export default function Giving({ tab }) {
 
 /**
  * The plan shown and whether what is added may go into it.
- * @typedef {{ planId: string | null, why: string | null }} Shown
+ * @typedef {{ planId: string | null, ownerId: string | null, why: string | null }} Shown
  */
 
 /** @param {Shown} shown */
@@ -599,8 +604,10 @@ function DonationDialog({ close, from, shown }) {
   const all = /** @type {any[]} */ (accounts.data) || [];
   const writable = all.filter((a) => !a.closedOn && canAdd('Txn', a));
   const funds = writable.filter((a) => a.type === 'daf');
+  // Into another's plan, paid from one of its owner's accounts or none (S7.9.1).
+  const payers = shown.ownerId ? writable.filter((a) => a.ownerId === shown.ownerId) : writable;
   const shares = kind === 'securities' ||
-    (kind === 'daf-contribution' && writable.find((a) => a.id === fromId)?.investing);
+    (kind === 'daf-contribution' && payers.find((a) => a.id === fromId)?.investing);
   const holdings = useApi(shares && fromId ? `/accounts/${fromId}/holdings` : null);
   /** @type {[string, string][]} */
   const lots = [];
@@ -617,10 +624,10 @@ function DonationDialog({ close, from, shown }) {
   }
   const price = lot.split('|')[1];
   const sources = kind === 'securities'
-    ? writable.filter((a) => a.investing && a.type !== 'daf')
+    ? payers.filter((a) => a.investing && a.type !== 'daf')
     : kind === 'qcd'
-    ? writable.filter((a) => ['ira', '401k', '403b', '457b'].includes(a.type))
-    : writable.filter((a) => a.type !== 'daf' && (a.group === 'banking' || a.investing));
+    ? payers.filter((a) => ['ira', '401k', '403b', '457b'].includes(a.type))
+    : payers.filter((a) => a.type !== 'daf' && (a.group === 'banking' || a.investing));
   return html`
     <${DraftDialog} f=${f} title=${from ? `Record ${from.name}` : 'Record a Donation'}
       close=${close} what="This donation" done="Donation recorded" before=${() => {

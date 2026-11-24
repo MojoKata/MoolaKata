@@ -7,7 +7,7 @@ import re
 
 import httpx
 import pytest
-from browser import PASSWORD, made, months_back, open_page, signed_in, wait
+from browser import PASSWORD, client, made, months_back, open_page, signed_in, wait
 from edits import change, make, plan529, remove, saved, share
 
 from moolakata.dev.waits import idle
@@ -413,6 +413,47 @@ def test_a_readers_giving_rows_that_show_all_have_no_tool(browser, household, re
     assert page.locator('tr:has-text("St. Mark") .row-tool').count() == 0
     assert problems == []
     page.close()
+
+
+def test_a_writer_of_a_shared_giving_plan_pays_from_its_owners_accounts(browser, household, reader):
+    """S7.9.1: Rita writes the household's giving plan: a donation into it offers, From
+    account, the owner's accounts she may write, never her own nor one she only reads; into
+    her own, her own accounts."""
+    h = household
+    plan = h.c.get("/ui/api/giving", params={"year": int(months_back(0)[:4])}).json()["plan"]
+    theirs = made(make(h.c, "Acct", name="Giving Checking", type="checking", institution="UMB"))
+    with client(h.base) as rita:
+        r = rita.post("/ui/api/session", json={"login": "rita", "password": READER_PW})
+        assert r.status_code == 200, r.text
+        hers = made(make(rita, "Acct", name="Rita's Checking", type="checking", institution="UMB"))
+        try:
+            made(share(h.c, "account", theirs["id"], users={reader["id"]: "write"}))
+            made(share(h.c, "giving-plan", plan["id"], users={reader["id"]: "write"}))
+            page, problems = signed_in_as_reader(
+                browser, h, "/ui/giving/donations", '.chips[aria-label="Plan"]'
+            )
+            options = ".dialog #f-from-account option"
+            page.click('.chips[aria-label="Plan"] button:not(:has-text("Mine"))')
+            wait(page, 'button:has-text("Record a Donation"):not([aria-disabled="true"])', problems)
+            page.click('button:has-text("Record a Donation")')
+            wait(page, f'{options}:text-is("Giving Checking")', problems, state="attached")
+            assert page.locator(options).all_inner_texts() == [
+                "Not recorded here",
+                "Giving Checking",
+            ]
+            page.click(".dialog-x")
+            wait(page, ".dialog", problems, state="detached")
+            page.click('.chips[aria-label="Plan"] button:has-text("Mine")')
+            page.click('button:has-text("Record a Donation")')
+            wait(page, f'{options}:text-is("Rita\'s Checking")', problems, state="attached")
+            assert problems == []
+            page.close()
+        finally:
+            made(share(h.c, "giving-plan", plan["id"], users={reader["id"]: "read"}))
+            mine = rita.get(f"/ui/api/accounts/{hers['id']}").json()
+            made(remove(rita, "Acct", mine, confirm=True))
+            gone = h.c.get(f"/ui/api/accounts/{theirs['id']}").json()
+            made(remove(h.c, "Acct", gone, confirm=True))
 
 
 def test_a_group_and_a_written_email_open_from_their_tools(browser, household, reader):

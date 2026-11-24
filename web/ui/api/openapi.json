@@ -19127,6 +19127,7 @@
               "account-in-book",
               "account-missing",
               "account-not-counted",
+              "account-not-plans",
               "account-unknown",
               "accounts-unknown",
               "action-fixed",
@@ -19615,6 +19616,7 @@
                   "account-in-book",
                   "account-missing",
                   "account-not-counted",
+                  "account-not-plans",
                   "account-unknown",
                   "accounts-unknown",
                   "action-fixed",
@@ -28916,6 +28918,10 @@
             "title": "Incomebasis",
             "type": "string"
           },
+          "ownerId": {
+            "title": "Ownerid",
+            "type": "string"
+          },
           "ownerName": {
             "title": "Ownername",
             "type": "string"
@@ -28958,6 +28964,7 @@
           "income",
           "dafCounted",
           "access",
+          "ownerId",
           "ownerName",
           "version"
         ],
