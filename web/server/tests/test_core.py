@@ -416,3 +416,170 @@ def test_this_servers_own_certificate_is_read_through_the_guard(tls_peer):
     guard.allow(["peer.lan"], allowed_by_name={"link": ["peer.lan"]})
     assert certs._probe(guard, f"https://peer.lan:{port}") == fp
     assert certs._probe(guard, "http://peer.lan") is None, "plain HTTP has no certificate"
+
+
+def test_a_provider_past_its_limit_waits_its_window_or_stops_with_the_server():
+    """S13.4: a call past the provider's limit waits until its window lets one more through;
+    a server stopping meanwhile ends the wait."""
+    from moolakata.tasks import ProviderLimits, Stopping
+
+    now = [0.0]
+    limits = ProviderLimits(clock=lambda: now[0])
+    limits.set("tiingo", [(1, 60.0)])
+    waited = []
+
+    class Passing:
+        """A stop never set, whose wait lets the clock run on."""
+
+        def wait(self, seconds):
+            waited.append(seconds)
+            now[0] += seconds
+            return False
+
+    limits.acquire("tiingo", Passing())
+    limits.acquire("tiingo", Passing())
+    assert waited == [60.0], "the second waited the window out"
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(Stopping):
+        limits.acquire("tiingo", stop)
+
+
+def _ran(tasks, name, *, ended=None):
+    """The task asked for and run by a tick, on the tasks' own threads: its last run."""
+    from moolakata.dev.waits import eventually
+
+    assert tasks.run_now(name, ended)
+    tasks.tick()
+    eventually(lambda: tasks.status()[name]["lastFinished"] is not None, what=f"{name} run")
+    return tasks._tasks[name].last
+
+
+def test_a_run_ended_by_a_stop_says_so_and_each_job_waiting_on_it_is_told():
+    """S13.8.7: each job that asked for a run is told when it ends, even when another's ending
+    fails; a run cut off by the server stopping says so."""
+    from moolakata.dev.waits import eventually
+    from moolakata.tasks import Stopping
+
+    def stopped(ctx):
+        raise Stopping
+
+    tasks = Tasks()
+    tasks.register("backups", stopped, None)
+    told = []
+
+    def failing(run):
+        raise RuntimeError("the job is gone")
+
+    assert tasks.run_now("backups", failing)
+    run = _ran(tasks, "backups", ended=told.append)
+    eventually(lambda: told, what="the second job told")
+    assert told == [run] and run.error == "stopped when the server stopped"
+    assert tasks._tasks["backups"].waiting == []
+    tasks.stop()
+
+
+def test_a_tick_passes_over_a_task_still_running():
+    tasks = Tasks()
+    tasks.register("prices", lambda ctx: None, Every(1))
+    tasks._tasks["prices"].running = True
+    tasks.tick()
+    assert tasks._tasks["prices"].last is None, "never launched twice"
+    tasks.stop()
+
+
+def test_a_failing_tick_is_logged_and_the_runner_goes_on_until_stopped(monkeypatch, caplog):
+    import moolakata.tasks as tasks_module
+
+    monkeypatch.setattr(tasks_module, "TICK_SECONDS", 0)
+    tasks = Tasks()
+    ticks = []
+
+    def tick():
+        ticks.append(1)
+        if len(ticks) == 1:
+            raise RuntimeError("a schedule that can't be read")
+        tasks._stop.set()
+
+    monkeypatch.setattr(tasks, "tick", tick)
+    asyncio.run(tasks.run())
+    assert len(ticks) == 2 and "task tick failed" in caplog.text
+    tasks.stop()
+
+
+def test_a_job_that_fails_names_only_its_errors_type():
+    """S13.8.7, S13.7.9: a failed job says what kind of error ended it, never its words."""
+    from moolakata.dev.waits import eventually
+
+    jobs = Jobs()
+
+    def work(job):
+        raise ValueError("account Shaw Checking: 1,234.56")
+
+    job = jobs.start("import", "User_a", work)
+    eventually(lambda: job.state == "failed", what="the job failed")
+    assert job.error == {"code": "failed", "message": "ValueError"}
+    done = jobs.start("import", "User_a", lambda job: ["not a dict"])
+    eventually(lambda: done.state == "done", what="the job done")
+    assert done.result is None and done.progress == 1.0
+
+
+def test_a_job_following_a_task_ends_as_its_run_does():
+    from moolakata.tasks import TaskRun
+
+    jobs = Jobs()
+    failed, done = jobs.create("backup", "User_a"), jobs.create("backup", "User_a")
+    jobs.follow(failed)(TaskRun(started=dt.datetime.now(dt.UTC), error="OSError"))
+    jobs.follow(done)(TaskRun(started=dt.datetime.now(dt.UTC)))
+    assert (failed.state, failed.error) == ("failed", {"code": "failed", "message": "OSError"})
+    assert (done.state, done.progress) == ("done", 1.0) and done.finished is not None
+
+
+def test_a_job_is_kept_a_day_after_it_ends():
+    """Jobs are work state kept in memory for a day (schema.md §4.4)."""
+    from moolakata import clock
+
+    jobs = Jobs()
+    old, running = jobs.create("import", "User_a"), jobs.create("import", "User_a")
+    jobs.update(old, state="done")
+    try:
+        clock.fix(clock.now() + dt.timedelta(days=1, minutes=1))
+        jobs.create("import", "User_a")
+    finally:
+        clock.fix(None)
+    assert jobs.get(old.id, "User_a") is None
+    assert jobs.get(running.id, "User_a") is running, "never finished: kept"
+
+
+def test_an_event_reaches_only_its_session_and_a_stream_that_stopped_reading_ends():
+    """S12.6: an event for one session goes to its streams alone; a stream whose queue is
+    full (a page that stopped reading) is closed, and the browser reconnects."""
+    from moolakata.events import Event
+
+    async def scenario():
+        broker = Broker()
+        broker.bind(asyncio.get_running_loop())
+        mine, other = broker.subscribe("User_a", "h1"), broker.subscribe("User_a", "h2")
+        assert broker.count() == 2
+        broker.end_session("h1", "signed-out")  # from the loop itself: delivered at once
+        assert mine.queue.get_nowait() == Event("session", {"state": "signed-out"})
+        assert other.queue.empty()
+        for _ in range(other.queue.maxsize):
+            other.queue.put_nowait(Event("x"))
+        broker.publish("prices")
+        assert other.closed and not mine.closed
+        broker.unsubscribe(other)
+        assert broker.count() == 1
+
+    asyncio.run(scenario())
+
+
+def test_an_event_published_once_the_loop_has_closed_goes_nowhere():
+    broker = Broker()
+    broker.publish("prices")  # never bound: no loop
+    loop = asyncio.new_event_loop()
+    broker.bind(loop)
+    sub = broker.subscribe("User_a", "h1")
+    loop.close()
+    broker.publish("prices")
+    assert sub.queue.empty()
