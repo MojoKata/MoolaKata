@@ -138,6 +138,37 @@ def checks(
     return out
 
 
+def checked(account_type: str) -> bool:
+    """An account whose balance is checked against the institution's: one with a Reconcile tab,
+    or a loan, against its servicer's balance on its Overview (S1.11, S1.9.4). The Dashboard and
+    the alerts check the same accounts."""
+    from ..loans import is_loan
+    from . import types
+
+    return types.reconcilable(account_type) or is_loan(account_type)
+
+
+def page(account) -> str:
+    """Where an account is reconciled: its Reconcile tab, or a loan's Overview (S1.11)."""
+    from . import types
+
+    tab = "/reconcile" if types.reconcilable(account.type) else ""
+    return f"/ui/accounts/{account.id}{tab}"
+
+
+def mismatch(s, account, ledger) -> dt.date | None:
+    """The day of the last balance the institution reported, when MoolaKata's that day
+    disagrees with it (S1.11.3), or a loan's servicer (S1.9.4); none while they agree, or with
+    nothing reported. `ledger` is the account's, loaded."""
+    from .. import loans
+
+    if loans.is_loan(account.type):
+        c = loans.servicer_check(s, account)
+        return c.date if c is not None and c.difference else None
+    found = checks(ledger.opening(), ledger.transactions, ledger.anchors, coverage(ledger.imports))
+    return found[-1].date if found and not found[-1].ok else None
+
+
 def needs_anchor(account, imports: list, today: dt.date) -> bool:
     """The account's next statement or import is overdue (S1.11.7.3): the Reconcile tab asks
     for one, or for a balance typed from the institution's site (S1.11.2)."""

@@ -199,19 +199,17 @@ def _attention(
                 )
             )
     for a in visible:
-        if not atypes.reconcilable(a.type) or a.closedOn is not None:
+        # The accounts the alerts check, each linked to where it is reconciled (S1.11).
+        if not reconcile.checked(a.type) or a.closedOn is not None:
             continue
         led = repo.load(s, a)
-        checks = reconcile.checks(
-            led.opening(), led.transactions, led.anchors, reconcile.coverage(led.imports)
-        )
-        if checks and not checks[-1].ok:
+        if reconcile.mismatch(s, a, led) is not None:
             out.append(
                 Attention(
                     kind="mismatch",
                     count=1,
                     text=f"{a.name}: a reported balance doesn't match",
-                    link=f"/ui/accounts/{a.id}/reconcile",
+                    link=reconcile.page(a),
                 )
             )
         elif late := expected.overdue(a, led.imports, today):
@@ -220,7 +218,7 @@ def _attention(
                     kind="anchor",
                     count=1,
                     text=f"{a.name}: {late.name} is overdue",
-                    link=f"/ui/accounts/{a.id}/reconcile",
+                    link=reconcile.page(a),
                 )
             )
     # Occasions inside their reminder time with nothing bought yet (S7.7.3).

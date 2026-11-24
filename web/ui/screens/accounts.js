@@ -134,7 +134,9 @@ export default function Accounts() {
                         <td class="small dim"><${Icon} name="sync" /> ${ago(a.lastUpdated)}
                                     ${a.mismatch
                                       ? html`
-                                        ${' '}<a class="pill warn" href=${`/ui/accounts/${a.id}/reconcile`}>mismatch</a>
+                                        ${' '}<a class="pill warn" href=${`/ui/accounts/${a.id}${
+                                          a.reconcilable ? '/reconcile' : ''
+                                        }`}>mismatch</a>
                                       `
                                       : null}
                                     ${!a.mismatch && a.needsAnchor

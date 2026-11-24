@@ -18,7 +18,6 @@ from ..loans import payoff
 from ..projections import assumptions
 from ..store.entities.accounts import (
     Account,
-    Anchor,
     Category,
     Loan,
     PayoffPlan,
@@ -279,19 +278,14 @@ def view(s, a: Account) -> LoanView:
     mode, automatic = loans.modes(s, a, row)
     payments, draws = loans.history(s, a, today)
     sm, rows = loans.summary(terms, payments, draws, today, mode)
-    anchor = s.scalars(
-        select(Anchor)
-        .where(Anchor.accountId == a.id, Anchor.deleted == false(), Anchor.source == "typed")
-        .order_by(Anchor.date.desc())
-    ).first()
+    check = loans.servicer_check(s, a, (payments, draws))
     servicer = None
-    if anchor is not None:
-        computed = loans.balance_on(terms, payments, draws, anchor.date)
+    if check is not None:
         servicer = ServicerCheck(
-            date=anchor.date,
-            servicer=-anchor.balance,
-            computed=computed,
-            difference=-anchor.balance - computed,
+            date=check.date,
+            servicer=check.servicer,
+            computed=check.computed,
+            difference=check.difference,
         )
     return LoanView(
         version=row.version,

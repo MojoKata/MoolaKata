@@ -462,10 +462,10 @@ def recovery_phrase(s: Session, server) -> Iterable[Cause]:
 @check
 def accounts(s: Session, server) -> Iterable[Cause]:
     """For each account's owner: a statement overdue at its account's interval (S1.11.7), and a
-    balance the institution reported that has disagreed for 7 days (S1.11)."""
+    balance the institution (or a loan's servicer) reported that has disagreed for 7 days
+    (S1.11, S1.9.4): the accounts the Dashboard checks, each linked to where it is reconciled."""
     from .ledger import expected, reconcile
-    from .ledger import types as atypes
-    from .store.entities.accounts import Account, Import
+    from .store.entities.accounts import Account
     from .store.repos import ledger as repo
 
     today = clock.today()
@@ -473,14 +473,11 @@ def accounts(s: Session, server) -> Iterable[Cause]:
         select(Account).where(Account.deleted == false(), Account.closedOn.is_(None))
     ).all()
     for a in rows:
-        # A loan is checked on its Overview, against its servicer's balance (S1.11, S1.9.4).
-        where = f"/ui/accounts/{a.id}" + ("/reconcile" if atypes.reconcilable(a.type) else "")
-        imports = s.scalars(
-            select(Import).where(Import.accountId == a.id, Import.deleted == false())
-        ).all()
-        if not imports:
+        if not reconcile.checked(a.type):
             continue
-        late = expected.overdue(a, imports, today)
+        where = reconcile.page(a)
+        ledger = repo.load(s, a)
+        late = expected.overdue(a, ledger.imports, today)
         if late is not None:
             yield Cause(
                 # One alert per missing statement: it clears when one covering it arrives.
@@ -496,19 +493,16 @@ def accounts(s: Session, server) -> Iterable[Cause]:
                 icon="receipt",
                 since=dt.datetime.combine(late.due, dt.time(), dt.UTC),
             )
-        ledger = repo.load(s, a)
-        checks = reconcile.checks(
-            ledger.opening(), ledger.transactions, ledger.anchors, reconcile.coverage(imports)
-        )
-        if checks and not checks[-1].ok:
+        since = reconcile.mismatch(s, a, ledger)
+        if since is not None:
             yield Cause(
                 key=f"mismatch:{a.id}",
                 kind="reconcile-mismatch",
                 title=f"{a.name}: the balance disagrees with the institution's",
-                about=f"since {checks[-1].date:%b %-d, %Y}",
+                about=f"since {since:%b %-d, %Y}",
                 user_id=a.ownerId,
-                link=f"/ui/accounts/{a.id}/reconcile",
-                fix="Reconcile",
+                link=where,
+                fix="Reconcile" if where.endswith("/reconcile") else "See the Balance",
                 icon="alert",
                 delay=dt.timedelta(days=MISMATCH_DAYS),
             )

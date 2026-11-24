@@ -24,7 +24,7 @@
        2. **for an account's owner**: their wallet's explorer or node failing for longer than
           the threshold, an account whose next statement or import is overdue for its interval
           (S1.11.7), naming the statement missing, a reconciliation mismatch left open for 7
-          days (S1.11), a Connection that keeps one of their accounts current needing a sign-in
+          days (S1.11), a loan's with its servicer's balance among them (S1.9.4), a Connection that keeps one of their accounts current needing a sign-in
           or failing (S18.5), a recorded wallet transaction the chain has dropped (S1.6.2.7),
           an option past its expiry that wasn't settled on its own (S3.6), asking what
           happened, and a holding still valued from a stale statement (S4.3) while the account's

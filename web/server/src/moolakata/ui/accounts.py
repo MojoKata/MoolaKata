@@ -340,9 +340,7 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
     investing = atypes.investing(a.type)
     value = valuation.account_value(s, ledger, investing)
     month_ago = valuation.account_value(s, ledger, investing, today - dt.timedelta(days=30))
-    cover = reconcile.coverage(ledger.imports)
     start = ledger.opening()
-    checks = reconcile.checks(start, ledger.transactions, ledger.anchors, cover)
     base = dict(
         id=a.id,
         name=a.name,
@@ -366,7 +364,8 @@ def row(s, a: Account, p: Perms, ctx: Context, detail: bool = False) -> AccountR
         needsAnchor=atypes.reconcilable(a.type)
         and a.closedOn is None
         and reconcile.needs_anchor(a, ledger.imports, today),
-        mismatch=bool(checks) and not checks[-1].ok,
+        # As the Dashboard and the alerts have it (S1.11.4): a loan by its servicer's balance.
+        mismatch=reconcile.checked(a.type) and reconcile.mismatch(s, a, ledger) is not None,
         investing=investing,
         reconcilable=atypes.reconcilable(a.type),
         version=a.version,

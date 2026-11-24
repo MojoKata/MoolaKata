@@ -183,6 +183,42 @@ def test_the_servicers_balance_against_the_computed_one(server, frozen):
     assert v["servicer"]["difference"] == "-50.00"
 
 
+def test_a_servicers_balance_left_off_for_a_week_alerts_and_leads_to_the_overview(server, frozen):
+    """S1.9.4, S1.11.4: a loan whose servicer's balance disagrees is marked in Accounts and on
+    the Dashboard at once, and alerted after 7 days, each leading to its Overview (a loan has
+    no Reconcile tab); a balance typed that agrees clears all three."""
+    from moolakata import alerts
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Car", type="auto-loan")
+    saved(terms(c, loan["id"], principal="20000", startDate="2026-10-01", termMonths=60, rate="5",
+                paymentsMode="recorded"))  # fmt: skip
+    overview = f"/ui/accounts/{loan['id']}"
+
+    def marks(c):
+        row = next(x for x in c.get("/ui/api/accounts").json()["items"] if x["id"] == loan["id"])
+        dash = c.get("/ui/api/dashboard").json()["attention"]
+        return row["mismatch"], [(x["kind"], x["link"]) for x in dash if x["kind"] == "mismatch"]
+
+    def opened(c):
+        alerts.evaluate(server)
+        rows = c.get("/ui/api/alerts").json()["open"]
+        return [(x["title"], x["about"], x["link"], x["fix"]) for x in rows]
+
+    assert saved(create(c, "Anchr", accountId=loan["id"], date="2026-10-10", balance="-20000.00"))
+    assert marks(c) == (False, []) and opened(c) == []
+    assert saved(create(c, "Anchr", accountId=loan["id"], date="2026-10-12", balance="-19950.00"))
+    assert marks(c) == (True, [("mismatch", overview)])
+    assert opened(c) == []  # not before the week is out
+    clock.fix(T0 + dt.timedelta(days=7))
+    c = sign_in(server, "jane")
+    assert opened(c) == [("Car: the balance disagrees with the institution's", "since Oct 12, 2026",
+                         overview, "See the Balance")]  # fmt: skip
+    assert saved(create(c, "Anchr", accountId=loan["id"], date="2026-10-19", balance="-20000.00"))
+    assert marks(c) == (False, []) and opened(c) == []
+
+
 def test_terms_are_checked(server, frozen):
     make_user(server, "jane")
     c = sign_in(server, "jane")
