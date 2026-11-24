@@ -61,7 +61,6 @@ class Beneficiary:
     name: str
     birthYear: int | None
     deleted: bool = False  # kept by name (schema.md §6.4)
-    seen: bool = True  # False: one the reader can't see, named and no more (R3.14)
 
 
 def beneficiary(s: Session, plan: EducationPlan | None) -> Beneficiary | None:
@@ -78,7 +77,7 @@ def beneficiary(s: Session, plan: EducationPlan | None) -> Beneficiary | None:
     if row is None:
         return None
     gone = row.deletedAt is not None
-    return Beneficiary("person", plan.beneficiaryId, row.name, None, gone, seen=False)
+    return Beneficiary("person", plan.beneficiaryId, row.name, None, gone)
 
 
 def _years(day: dt.date, n: int) -> dt.date:

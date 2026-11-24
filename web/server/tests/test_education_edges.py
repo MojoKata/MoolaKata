@@ -202,8 +202,8 @@ def _hidden_529(server, jane):
 
 def test_a_beneficiary_or_contributor_the_reader_cant_see_is_named_and_no_more(server, jane):
     """R3.14, S10.10.2: John's 529 for his private person, shared with Jane, names Max to
-    her, and no more of him (his birth year, his relation to John). An education projection
-    is for someone she sees, so it starts no goal; to John it names his person whole."""
+    her, and no more of him (his birth year, his relation to John); to John it names his
+    person whole."""
     acct, hidden, john = _hidden_529(server, jane)
     mine = john.get(f"/ui/api/accounts/{acct['id']}/plan529").json()
     assert (mine["beneficiary"]["id"], mine["beneficiary"]["birthYear"]) == (hidden["id"], 2015)
@@ -219,13 +219,40 @@ def test_a_beneficiary_or_contributor_the_reader_cant_see_is_named_and_no_more(s
     assert r.status_code == 200, r.text
     [row] = r.json()["rows"]
     assert (row["name"], row["relationship"]) == ("Max Smith", None)
-    assert jane.get(f"/ui/api/accounts/{acct['id']}/goal").json()["beneficiary"] is None
-    r = jane.post(f"/ui/api/accounts/{acct['id']}/goal")
-    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
-        409,
-        "no-beneficiary",
-        "Choose the beneficiary in Settings first.",
+
+
+def test_a_writer_who_cant_see_the_beneficiary_starts_their_projection_from_the_529(server, jane):
+    """S1.8.5, R3.14: the 529 already names Max, so its Goal tab names him to Jane, who can't
+    see him, and Start projects his college from the 529, from his birth year and named for
+    him; the projection is hers to change, keeping him. Naming someone she can't see whom it
+    doesn't name is still refused."""
+    acct, hidden, john = _hidden_529(server, jane)
+    goal = f"/ui/api/accounts/{acct['id']}/goal"
+    v = jane.get(goal).json()
+    assert (v["beneficiary"]["name"], v["beneficiary"]["birthYear"]) == ("Max Smith", None)
+    assert v["projection"] is None
+    r = jane.post(goal)
+    assert r.status_code == 201, r.text
+    p = r.json()["projection"]
+    assert (p["name"], p["inputs"]["beneficiary"]) == (
+        "Max's college",
+        {"kind": "person", "id": hidden["id"]},
     )
+    a = p["result"]["answer"]
+    assert (a["name"], a["firstYear"]) == ("Max Smith", 2033)
+    assert jane.get(goal).json()["projection"]["id"] == p["id"]
+    more = saved(change(jane, "Prjct", p, inputs={**p["inputs"], "schoolYears": 5}))
+    assert (more["inputs"]["beneficiary"]["id"], more["result"]["answer"]["years"]) == (
+        hidden["id"],
+        5,
+    )
+    zoe = {"kind": "person", "id": _private_person(john, "Zoe Smith")["id"]}
+    refused(change(jane, "Prjct", more, inputs={**more["inputs"], "beneficiary": zoe}),
+            "inputs.beneficiary", "beneficiary-invalid", "Choose who it is for.")  # fmt: skip
+    typed = {"kind": "typed", "amount": 1000}
+    refused(make(jane, "Prjct", name="Zoe's", goal="education", builtOn=typed,
+                 inputs={"beneficiary": zoe}),
+            "inputs.beneficiary", "beneficiary-invalid", "Choose who it is for.")  # fmt: skip
 
 
 def test_a_writer_changes_a_529_keeping_whom_it_names_though_they_cant_see_them(server, jane):

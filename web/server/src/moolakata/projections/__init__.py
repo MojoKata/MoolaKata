@@ -421,9 +421,12 @@ def education_school(s: Session, inputs: dict, year: int) -> dict:
         u = s.get(User, who.get("id") or "")
         who = {"kind": "person", "id": u.personId if u else ""}
     if who.get("kind") == "person":
-        person = s.get(Person, who.get("id") or "")
-        if person is not None:
-            name, birth = person.name, person.birthYear
+        # The person it names, seen by the reader or not: their name shown, their birth year
+        # used for when school starts (R3.14).
+        q = select(Person.name, Person.birthYear).where(Person.id == (who.get("id") or ""))
+        row = s.execute(scoping.unscoped(q, "an education projection's beneficiary")).first()
+        if row is not None:
+            name, birth = row.name, row.birthYear
     start_age = int(inputs.get("startAge") or 18)
     first = int(inputs.get("firstYear") or 0) or ((birth or year - 10) + start_age)
     basis = inputs.get("costBasis") or "public"
