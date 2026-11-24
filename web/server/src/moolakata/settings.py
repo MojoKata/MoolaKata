@@ -182,13 +182,18 @@ class Definition:
     section: str
     default: Any
     check: Callable[[Any], Any]
+    # State the server keeps for itself, written only by its own routes and tasks: never a
+    # setting an admin's save writes, nor one Settings shows.
+    internal: bool = False
 
 
 DEFINITIONS: dict[str, Definition] = {}
 
 
-def _d(key: str, section: str, default: Any, check: Callable[[Any], Any]) -> None:
-    DEFINITIONS[key] = Definition(key, section, default, check)
+def _d(
+    key: str, section: str, default: Any, check: Callable[[Any], Any], internal: bool = False
+) -> None:
+    DEFINITIONS[key] = Definition(key, section, default, check, internal)
 
 
 FILE_MAX_MB = 100  # the largest statement or receipt Settings allow (S16.8, S16.10)
@@ -232,14 +237,14 @@ _d("bitcoinNodePort", "bitcoin", 50002, _int(1, 65535))
 _d("bitcoinNodeTls", "bitcoin", True, _bool)
 _d("bitcoinRpcUser", "bitcoin", None, _optional_text(200))
 # An Electrum server's certificate, trusted on first use (S1.6.2.4): its SHA-256, and another
-# one it has since presented, waiting for an admin to confirm
-_d("bitcoinNodeCert", "bitcoin", None, _optional_text(64))
-_d("bitcoinNodeCertOffered", "bitcoin", None, _optional_text(64))
+# one it has since presented, waiting for an admin to confirm with its own route
+_d("bitcoinNodeCert", "bitcoin", None, _optional_text(64), internal=True)
+_d("bitcoinNodeCertOffered", "bitcoin", None, _optional_text(64), internal=True)
 # Linked servers (S16.9, S11): the address peers reach this server's /link at (the public URL
 # when not set), and how long an unlocked linked copy may go unused (S11.9.4)
 _d("linkAddress", "links", None, _link_url)
 # This server's own certificate key as last told to its peers (link-protocol.md §4.5).
-_d("linkCertificate", "links", None, _optional_text(64))
+_d("linkCertificate", "links", None, _optional_text(64), internal=True)
 _d("linkReleaseMinutes", "links", 60, _int(5, 24 * 60))
 # The connector (S16.18, S18.4.1): the address the connector reaches this server at, which a
 # pairing code carries (the public URL when not set); never the link address, which may lead to

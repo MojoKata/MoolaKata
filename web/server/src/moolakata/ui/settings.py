@@ -41,16 +41,19 @@ class SettingsView(Model):
 
 
 def view(s) -> SettingsView:
-    values = {k: settings.get(s, k) for k in settings.DEFINITIONS}
+    shown = {k: d for k, d in settings.DEFINITIONS.items() if not d.internal}
+    values = {k: settings.get(s, k) for k in shown}
     sections: dict[str, list[str]] = {}
-    for k, d in settings.DEFINITIONS.items():
+    for k, d in shown.items():
         sections.setdefault(d.section, []).append(k)
     rows = s.scalars(select(Setting).where(Setting.deleted == false()))
     return SettingsView(
         values=values,
         sections=sections,
         serverZone=timezones.host_zone(),
-        records={r.key: SettingRef(id=r.id, version=r.version) for r in rows},
+        records={
+            r.key: SettingRef(id=r.id, version=r.version) for r in rows if not _internal(r.key)
+        },
     )
 
 
@@ -120,10 +123,23 @@ def _setting_admin(ctx) -> Caller:
     return ctx.caller
 
 
+def _internal(key: str) -> bool:
+    d = settings.DEFINITIONS.get(key)
+    return d is not None and d.internal
+
+
+def _refuse_internal(key: str) -> None:
+    """A certificate pin or the key told to peers is the server's own, written by its own route
+    or task (S1.6.2.4, link-protocol.md §4.5), never by a save."""
+    if _internal(key):
+        raise refuse("key", "setting-internal", "The server keeps this itself.")
+
+
 def _setting_create(ctx, record_id: str, body: SettingRecord) -> None:
     _setting_admin(ctx)
     if body.key not in settings.DEFINITIONS and body.key not in SECRETS:
         raise refuse("key", "setting-unknown", "Not a setting.")
+    _refuse_internal(body.key)
     if settings.row_of(ctx.s, body.key) is not None:
         raise refuse("key", "setting-saved", "It is saved: change it.", 409)
     row = Setting(id=record_id, key=body.key, value="null", updatedById=ctx.caller.id)
@@ -151,6 +167,7 @@ def _setting_update(ctx, row: Setting, body: SettingRecord) -> None:
 
 def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
     """The value checked and kept; what spans keys is checked once all are (`_settings_after`)."""
+    _refuse_internal(body.key)
     s, c = ctx.s, ctx.caller
     srv = server(ctx.request)
     notes = ctx.notes.setdefault("settings", {"changed": [], "secrets": set(), "ids": {}})

@@ -574,6 +574,32 @@ def test_a_node_certificate_is_trusted_once_confirmed(server, admin_client):
     assert "The bitcoin node's certificate changed" not in titles
 
 
+@pytest.mark.parametrize("key", ["bitcoinNodeCert", "bitcoinNodeCertOffered", "linkCertificate"])
+def test_what_the_server_keeps_for_itself_is_no_setting_a_save_writes(server, admin_client, key):
+    """The certificate pins and the key told to peers are written by their own routes and tasks
+    (S1.6.2.4, link-protocol.md §4.5): a save naming one is refused, made or changed, and
+    Settings never sends them."""
+    from moolakata import settings
+
+    r = save_settings(admin_client, {key: "ab" * 32})
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (422, "setting-internal"), r.text
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, key, "cd" * 32, None)
+        s.flush()
+        row = settings.row_of(s, key)
+        ref = {"id": row.id, "version": row.version}
+    r = save_settings(admin_client, {key: "ab" * 32})
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (422, "setting-internal"), r.text
+    op = {"op": "update", "entity": "Setng", **ref, "fields": {"value": "ab" * 32}}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
+    assert (r.status_code, r.json()["errors"][0]["code"]) == (422, "setting-internal"), r.text
+    with server.db.read(unscoped="test") as s:
+        assert settings.get(s, key) == "cd" * 32
+    v = admin_client.get("/ui/api/settings").json()
+    assert key not in v["values"] and key not in v["records"]
+    assert all(key not in keys for keys in v["sections"].values())
+
+
 def test_no_wallet_is_read_until_settings_bitcoin_is_saved(server, jane):
     # S16.7, R3.5: nothing asked of a public explorer before an admin chooses it.
     from moolakata import settings
