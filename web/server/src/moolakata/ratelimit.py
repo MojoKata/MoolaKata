@@ -139,15 +139,24 @@ class SignInGuard:
             u = self._by_user[username.lower()]
             self._trim(u, now)
             u.append(now)
-            address = address_key(address)
-            q = self._failures[address]
-            self._trim(q, now)
-            q.append(now)
-            if len(q) >= threshold:
-                self._locked_until[address] = now + lock_minutes * 60
-                q.clear()
-                return True
-            return False
+            return self._count(address, now, threshold, lock_minutes)
+
+    def asked(self, address: str, threshold: int = 10, lock_minutes: int = 15) -> bool:
+        """A password-reset request, counted against its address alone, as a failure is
+        (S13.7.5.1): it names no username to slow. True when it locks the address."""
+        with self._lock:
+            return self._count(address, self._clock(), threshold, lock_minutes)
+
+    def _count(self, address: str, now: float, threshold: int, lock_minutes: int) -> bool:
+        address = address_key(address)
+        q = self._failures[address]
+        self._trim(q, now)
+        q.append(now)
+        if len(q) >= threshold:
+            self._locked_until[address] = now + lock_minutes * 60
+            q.clear()
+            return True
+        return False
 
     def checking(self, pending: str) -> bool:
         """Begin checking a code for a pending two-step sign-in; False while another of its

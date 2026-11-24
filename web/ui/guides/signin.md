@@ -6,7 +6,9 @@ Either one.
 
 ## Password
 
-Ten wrong passwords in 15 minutes lock the username for a while.
+Ten wrong passwords in 15 minutes lock the address they came from for 15 minutes, and so do
+ten password-reset requests (an admin may set other figures). A username that keeps failing is
+only slowed, never locked.
 
 ## Code
 
@@ -22,7 +24,7 @@ With none left, ask an admin to reset your two-step sign-in.
 ## Forgot password?
 
 Sends a link to choose a new one; it works once, for an hour. The answer is the same whether or
-not the account exists.
+not the account exists. Each request counts toward the lockout like a wrong password.
 
 ## Account disabled
 

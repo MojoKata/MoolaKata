@@ -430,10 +430,17 @@ def reauth(body: Password, request: Request, c: Caller = Depends(caller_in_setup
 
 @router.post("/password-reset", status_code=204)
 def password_reset(body: Login, request: Request):
-    """The answer is the same whether or not the user exists (S10.1.5)."""
+    """The answer is the same whether or not the user exists (S10.1.5). Each request counts
+    toward the lockout of its address as a failed sign-in does, by Settings' figures, so the
+    tenth locks sign-in and resets alike (S13.7.5.1)."""
     srv = server(request)
-    _throttle(request)
+    guard = srv.sign_in
+    address = _address(request)
+    locked = guard.locked(address)
+    if locked:
+        raise too_many(locked, "sign-ins or password resets from this address")
     with srv.db.tx(unscoped="a password reset asked") as s:
+        guard.asked(address, settings.get(s, "lockoutFailures"), settings.get(s, "lockoutMinutes"))
         accounts.request_reset(s, srv.services, body.login)
     return Response(status_code=204)
 

@@ -481,6 +481,38 @@ def test_password_reset(client, server):
     assert "changed" in mails(server)[-1]["Subject"]
 
 
+def test_ten_reset_requests_lock_the_address_as_ten_failed_sign_ins_do(client, server):
+    """S13.7.5.1: ten password-reset requests lock the address they came from for 15 minutes,
+    for sign-in and resets alike; another address is left alone."""
+    from conftest import ORIGIN
+    from fastapi.testclient import TestClient
+
+    set_public_url(server)
+    make_user(server, "fay")
+    for _ in range(10):
+        assert client.post("/ui/api/password-reset", json={"login": "fay"}).status_code == 204
+    r = client.post("/ui/api/password-reset", json={"login": "fay"})
+    assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
+    r = client.post("/ui/api/session", json={"login": "fay", "password": PW})
+    assert r.status_code == 429
+    elsewhere = TestClient(client.app, base_url=ORIGIN, client=("192.168.1.9", 50000))
+    r = elsewhere.post(
+        "/ui/api/session", json={"login": "fay", "password": PW}, headers={"Origin": ORIGIN}
+    )
+    assert r.status_code == 200, "a reset request slows no username"
+
+
+def test_reset_requests_lock_the_address_by_settings_figures(client, server):
+    # S16.3's lockout, as for failed sign-ins: here 3 requests lock for an hour.
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "lockoutFailures", 3, None)
+        settings.put(s, "lockoutMinutes", 60, None)
+    for _ in range(3):
+        assert client.post("/ui/api/password-reset", json={"login": "nobody"}).status_code == 204
+    r = client.post("/ui/api/password-reset", json={"login": "nobody"})
+    assert r.status_code == 429 and int(r.headers["retry-after"]) > 59 * 60
+
+
 def test_password_change_keeps_this_browser_signed_in(server):
     make_user(server, "gus")
     here, there = sign_in(server, "gus"), sign_in(server, "gus")

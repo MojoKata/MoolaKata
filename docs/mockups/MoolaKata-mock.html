@@ -2864,8 +2864,8 @@ const GUIDES = {
   // connector's own page): shown beside the card as in the frame.
   signin: `<h1>Sign In</h1><p>Your household’s finances, on your own server. Sign in with your username or email address and your password.</p><div class="shot">screenshot · sign in</div>
     <h2 ${hid('Username or email')}>Username or email</h2><p>Either one.</p>
-    <h2 ${hid('Password')}>Password</h2><p>Ten wrong passwords in 15 minutes lock the username for a while.</p>
-    <h2>Forgot Password?</h2><p>Opens <b>Forgot Password</b>: MoolaKata emails a link to choose a new password, which works once, for an hour. <b>Send the Link</b> sends it; the answer is the same whether or not the account exists.</p>
+    <h2 ${hid('Password')}>Password</h2><p>Ten wrong passwords in 15 minutes lock the address they came from for 15 minutes, and so do ten password-reset requests (an admin may set other figures). A username that keeps failing is only slowed, never locked.</p>
+    <h2>Forgot Password?</h2><p>Opens <b>Forgot Password</b>: MoolaKata emails a link to choose a new password, which works once, for an hour. <b>Send the Link</b> sends it; the answer is the same whether or not the account exists. Each request counts toward the lockout like a wrong password.</p>
     <h2>Sign Up</h2><p>Opens <b>Ask for an Account</b>, where the server lets people ask for one.</p>
     <h2>Two-Step Sign-In</h2><p>With two-step sign-in on, a code from your authenticator app follows the password.</p>
     <h2 ${hid('Code')}>Code</h2><p>The six-digit code your authenticator app shows for MoolaKata. A new one comes every 30 seconds, and each works once. Wrong codes count like wrong passwords, and the fifth wrong one ends the sign-in: start again with your password.</p>
