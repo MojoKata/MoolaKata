@@ -15,6 +15,7 @@ def test_build_registers_every_background_task(keyed_config, master_key):
         assert set(server.tasks.status()) == {
             "backups",
             "pruning",
+            "certificate",
             "prices",
             "mail",
             "alerts",
