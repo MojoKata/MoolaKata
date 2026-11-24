@@ -10,4 +10,5 @@ key's fingerprint and a one-time secret; it works once. The connector checks the
 before it sends anything, makes new keys for this pairing, and introduces itself. Both sides
 then show the connector's fingerprint: compare them before trusting it. Pairing another
 connector replaces the one paired, as Unpair does: its Connections stop and their accounts' sync
-turns off.
+turns off. While this server can't read its own certificate, no code is made, since it would
+carry no key for the connector to pin: the dialog says so instead.

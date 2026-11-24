@@ -215,7 +215,10 @@ def invite(srv, by: str) -> tuple[Link, str]:
     """An invitation: a link waiting for the other server, and the code shown once."""
     from .. import certs
 
-    cert = certs.own_key(srv)
+    try:
+        cert = certs.own_key_read(srv)
+    except certs.Unread:
+        raise LinkError("certificate-unread", certs.UNREAD) from None
     with srv.db.tx(unscoped="links.manage: invite") as s:
         address = own_address(s)
         if not address:

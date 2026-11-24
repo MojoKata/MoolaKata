@@ -223,6 +223,15 @@ def store(keyed_config, master_key, migrated):
     st.db.dispose()
 
 
+@pytest.fixture(autouse=True)
+def _own_certificate_read_afresh():
+    """This server's own certificate is kept ten minutes by its address (certs.py): each test
+    reads its own servers' afresh."""
+    from moolakata import certs
+
+    certs._cached.clear()
+
+
 @pytest.fixture
 def db(store):
     return store.db
@@ -236,9 +245,13 @@ LOOPBACK = ("127.0.0.1", 50000)
 
 
 @pytest.fixture
-def server(store, keyed_config):
+def server(store, keyed_config, monkeypatch):
+    from moolakata import certs
     from moolakata.store.repos.ledger import ensure_categories
 
+    # It runs no listener, so its own address is read as one with a public certificate, which
+    # needs no pin (S11.1.3): an invitation or a pairing code is made as it is behind a proxy.
+    monkeypatch.setattr(certs, "_probe", lambda guard, address: None)
     srv = Server(config=keyed_config, store=store, ready=True)
     with srv.db.tx(unscoped="test") as s:
         # The first admin, as the welcome makes it (S10.1.2).

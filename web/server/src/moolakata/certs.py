@@ -25,12 +25,12 @@ _cached: dict[str, tuple[dt.datetime, str | Unread | None]] = {}
 
 
 def _from_file(path) -> str | None:
-    """The listener's certificate: a public one needs no pin."""
+    """The listener's certificate: a public one needs no pin. Unread when it can't be read."""
     try:
         cert = x509.load_pem_x509_certificate(path.read_bytes())
     except (OSError, ValueError) as e:
         log.warning("the certificate %s can't be read: %s", path, e)
-        return None
+        raise Unread from None
     der = cert.public_bytes(Encoding.DER)
     if cert.issuer != cert.subject and _public_by_name(cert):
         return None
@@ -58,8 +58,13 @@ def _public_by_name(cert) -> bool:
 
 
 class Unread(Exception):
-    """This server's own link address couldn't be read for its certificate: not the same as a
-    public one, which needs no pin."""
+    """This server's own certificate couldn't be read, at its link address or from its file:
+    not the same as a public one, which needs no pin."""
+
+
+# Why no invitation or pairing code is made meanwhile (S11.1.3, S18.4.1): it would carry no
+# key for the peer or the connector to pin.
+UNREAD = "This server can't read its own certificate at its link address: check Settings › Network."
 
 
 def _verify_failed(e: BaseException | None) -> bool:
@@ -113,7 +118,7 @@ def own_key(srv) -> str | None:
 
 def own_key_read(srv) -> str | None:
     """The fingerprint of this server's own certificate's key, or None when it is public;
-    Unread when its link address can't be read for it."""
+    Unread when it can't be read."""
     config = srv.config
     if config.mode == "tls":
         path = config.tls_cert or config.tls_dir / "self-signed.crt"

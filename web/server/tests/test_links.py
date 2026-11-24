@@ -931,6 +931,31 @@ def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, m
         assert settings.get(s, "linkCertificate") == told
 
 
+UNREAD = "This server can't read its own certificate at its link address: check Settings › Network."
+
+
+def test_no_invitation_while_this_servers_own_certificate_cant_be_read(admins, monkeypatch):
+    """S11.1.3: an invitation carries this server's certificate key when the certificate is its
+    own, so none is made while that certificate can't be read: the dialog says why, and no
+    link waits for a code that would leave the peer pinning nothing."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    monkeypatch.setattr(certs, "_cached", {})
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    r = ca.post("/ui/api/settings/links/invitations")
+    assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
+    assert r.json()["detail"] == UNREAD
+    with a.db.read(unscoped="test") as s:
+        assert s.query(Link).count() == 0
+
+
 def test_a_link_at_the_smtp_servers_loopback_address_is_still_refused(pair):
     """S11.2, S13.5: a link's address is never loopback, whoever names that host: an SMTP
     server an admin set at 127.0.0.1 is exempt for the mail client alone."""

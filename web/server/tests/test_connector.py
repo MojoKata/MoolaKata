@@ -320,6 +320,27 @@ def test_the_status_key_says_only_that_the_connector_is_locked(server, paired, a
         assert manage.paired(s) is None
 
 
+def test_no_pairing_code_while_this_servers_own_certificate_cant_be_read(
+    server, admin, monkeypatch
+):
+    """S18.4.1: a pairing code carries this server's certificate key when the certificate is
+    its own, so none is made while that certificate can't be read, and the dialog says why."""
+    from moolakata import certs
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    monkeypatch.setattr(certs, "_cached", {})
+    r = admin.post("/ui/api/settings/connector/pairings")
+    assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
+    assert r.json()["detail"] == (
+        "This server can't read its own certificate at its link address: check Settings › Network."
+    )
+    with server.db.read(unscoped="test") as s:
+        assert manage.current(s) is None
+
+
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", None, None)

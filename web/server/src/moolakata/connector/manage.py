@@ -24,7 +24,7 @@ VIA = "MoolaKata Connector"
 class ConnectorError(Exception):
     # Every code it is made with: the routes answer them, so the OpenAPI document lists them
     # (S13.8.3).
-    CODES = ("code-invalid", "no-address")
+    CODES = ("certificate-unread", "code-invalid", "no-address")
 
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -84,7 +84,10 @@ def pair_code(srv, by: str) -> tuple[Connector, str]:
     out is withdrawn by the new one."""
     from .. import certs
 
-    cert = certs.own_key(srv)
+    try:
+        cert = certs.own_key_read(srv)
+    except certs.Unread:
+        raise ConnectorError("certificate-unread", certs.UNREAD) from None
     with srv.db.tx(unscoped="connector.manage: pair code") as s:
         address = own_address(s)
         if not address:

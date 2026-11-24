@@ -73,6 +73,7 @@ class LinkError(Exception):
         "bad-signature",
         "busy",
         "certificate-changed",
+        "certificate-unread",
         "change-failed",
         "change-refused",
         "clock-skew",

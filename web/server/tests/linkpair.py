@@ -115,9 +115,11 @@ def admin_of(srv: Server, base: str) -> TestClient:
     """An admin signed in on that server's own UI: the first one, made as the welcome makes it
     (S10.1.2), and signed in again when it exists."""
     from moolakata import settings
+    from moolakata.ui.prices import apply_egress
 
     with srv.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", base, None)
+    apply_egress(srv)  # as Settings does on a change: its own address may be read (S13.5)
     c = TestClient(
         create_app(srv), base_url=base, headers={"Origin": base}, client=("127.0.0.1", 50000)
     )
