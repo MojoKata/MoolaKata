@@ -84,7 +84,7 @@ class ClientAddress:
             addr = ipaddress.ip_address(host)
         except ValueError:
             return False
-        return any(addr in net for net in self.trusted)
+        return addr in self.trusted
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket") and self.mode == "proxy" and scope.get("client"):

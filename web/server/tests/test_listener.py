@@ -18,18 +18,18 @@ def listener(server, admin_client, **config) -> dict:
 
 
 def test_proxy_mode_names_its_trusted_proxies(server, admin_client):
-    nets = (ipaddress.ip_network("172.30.37.10"), ipaddress.ip_network("fd00:37::/64"))
+    nets = (ipaddress.ip_address("172.30.37.10"), ipaddress.ip_address("fd00:37::7"))
     assert listener(server, admin_client, trusted_proxies=nets) == {
         "mode": "proxy",
         "port": 37373,
-        "trustedProxies": ["172.30.37.10", "fd00:37::/64"],
+        "trustedProxies": ["172.30.37.10", "fd00:37::7"],
         "certificate": None,
     }
 
 
 @pytest.mark.parametrize("given, certificate", [(None, "own"), (Path("/certs/nas.pem"), "given")])
 def test_tls_mode_says_whose_certificate(server, admin_client, given, certificate):
-    nets = (ipaddress.ip_network("172.30.37.10"),)
+    nets = (ipaddress.ip_address("172.30.37.10"),)
     got = listener(
         server, admin_client, mode="tls", port=8443, trusted_proxies=nets, tls_cert=given,
         tls_key=given,

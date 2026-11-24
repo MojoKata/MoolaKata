@@ -31,7 +31,7 @@ class Config:
     backup_dir: Path
     host: str = "0.0.0.0"  # noqa: S104 - all of the container's interfaces (S13.3)
     port: int = DEFAULT_PORT
-    trusted_proxies: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = ()
+    trusted_proxies: tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...] = ()
     tls_cert: Path | None = None
     tls_key: Path | None = None
     dev: bool = False
@@ -116,6 +116,21 @@ def load(path: Path) -> Config:
     return parse(raw, str(path), path)
 
 
+def _proxy(entry, where: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """A trusted proxy: its own address, written alone or as a /32 or /128, never a range,
+    since anything else in a range could pose as the proxy (S13.3)."""
+    try:
+        net = ipaddress.ip_network(entry if isinstance(entry, str) else "", strict=False)
+    except ValueError, TypeError:
+        raise RefuseStart(f"{where}: server.trusted_proxies: {entry!r} is not an address") from None
+    if net.num_addresses != 1:
+        raise RefuseStart(
+            f"{where}: server.trusted_proxies: {entry!r} is a range; name the proxy's own "
+            "address, since anything else in a range could pose as it (S13.3)"
+        )
+    return net.network_address
+
+
 def parse(raw: dict, where: str, path: Path | None = None) -> Config:
     if "keys" in raw:
         raise RefuseStart(
@@ -146,14 +161,10 @@ def parse(raw: dict, where: str, path: Path | None = None) -> Config:
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise RefuseStart(f"{where}: server.port must be a port number")
     host = server.get("host", "0.0.0.0")  # noqa: S104
-    proxies = []
-    for entry in server.get("trusted_proxies", []):
-        try:
-            proxies.append(ipaddress.ip_network(entry, strict=False))
-        except ValueError, TypeError:
-            raise RefuseStart(
-                f"{where}: server.trusted_proxies: {entry!r} is not an address or network"
-            ) from None
+    proxies = server.get("trusted_proxies", [])
+    if not isinstance(proxies, list):
+        raise RefuseStart(f"{where}: server.trusted_proxies must be a list of addresses")
+    proxies = [_proxy(entry, where) for entry in proxies]
 
     data_dir = _path(paths, "data", f"{where} [paths]")
     backup_dir = _path(paths, "backups", f"{where} [paths]")

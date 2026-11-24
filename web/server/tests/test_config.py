@@ -6,7 +6,7 @@ from moolakata.config import CONFIG_ENV, DEFAULT_CONFIG, RefuseStart, configured
 from moolakata.main import main
 
 BASE = {
-    "server": {"name": "home", "mode": "proxy", "trusted_proxies": ["10.0.0.0/8"]},
+    "server": {"name": "home", "mode": "proxy", "trusted_proxies": ["10.0.0.2"]},
     "paths": {"data": "/var/lib/moolakata", "backups": "/var/backups/moolakata"},
 }
 
@@ -16,7 +16,7 @@ def test_parses_a_full_config():
     assert c.name == "home"
     assert c.mode == "proxy"
     assert c.port == 37373
-    assert str(c.trusted_proxies[0]) == "10.0.0.0/8"
+    assert str(c.trusted_proxies[0]) == "10.0.0.2"
     assert c.db_path == Path("/var/lib/moolakata/moolakata.db")
     assert c.mail_dir == Path("/var/lib/moolakata/mail")
     assert c.keyring_path == Path("/var/lib/moolakata/keyring")
@@ -28,6 +28,12 @@ def test_parses_a_full_config():
         ({"server": {"mode": "open"}}, "server.mode"),
         ({"server": {"port": 0}}, "server.port"),
         ({"server": {"trusted_proxies": ["nope"]}}, "trusted_proxies"),
+        ({"server": {"trusted_proxies": [10]}}, "not an address"),
+        ({"server": {"trusted_proxies": "10.0.0.2"}}, "a list of addresses"),
+        # S13.3: the proxy's own address, never a range anything else could share.
+        ({"server": {"trusted_proxies": ["172.16.0.0/12"]}}, "is a range"),
+        ({"server": {"trusted_proxies": ["10.0.0.2/31"]}}, "is a range"),
+        ({"server": {"trusted_proxies": ["fd00:37::/64"]}}, "is a range"),
         ({"keys": {"master": "/etc/moolakata/master.key"}}, "is not used"),
         ({"paths": {"data": "/d", "backups": "/d/backups"}}, "inside the data directory"),
         ({"paths": {"data": "relative", "backups": "/b"}}, "absolute"),

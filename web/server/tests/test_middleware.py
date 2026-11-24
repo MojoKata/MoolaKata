@@ -62,7 +62,7 @@ def test_forwarded_headers_only_from_trusted_proxies(config):
     import asyncio
 
     def call(peer, headers, trusted):
-        mw = ClientAddress(app, "proxy", tuple(ipaddress.ip_network(t) for t in trusted))
+        mw = ClientAddress(app, "proxy", tuple(ipaddress.ip_address(t) for t in trusted))
         scope = {
             "type": "http",
             "client": (peer, 1),
@@ -73,8 +73,12 @@ def test_forwarded_headers_only_from_trusted_proxies(config):
         return dict(seen)
 
     fwd = {"x-forwarded-for": "203.0.113.9, 10.0.0.2", "x-forwarded-proto": "https"}
-    assert call("10.0.0.1", fwd, ["10.0.0.0/8"]) == {"client": "203.0.113.9", "scheme": "https"}
-    assert call("192.0.2.1", fwd, ["10.0.0.0/8"]) == {"client": "192.0.2.1", "scheme": "http"}
+    both = ["10.0.0.1", "10.0.0.2"]
+    assert call("10.0.0.1", fwd, both) == {"client": "203.0.113.9", "scheme": "https"}
+    # A proxy in the chain not named is the client: a range never stands in for it (S13.3).
+    assert call("10.0.0.1", fwd, ["10.0.0.1"]) == {"client": "10.0.0.2", "scheme": "https"}
+    assert call("10.0.0.3", fwd, ["10.0.0.1"]) == {"client": "10.0.0.3", "scheme": "http"}
+    assert call("192.0.2.1", fwd, ["10.0.0.1"]) == {"client": "192.0.2.1", "scheme": "http"}
 
 
 def test_an_outbound_client_always_verifies_tls():

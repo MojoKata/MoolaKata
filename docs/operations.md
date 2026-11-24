@@ -85,7 +85,7 @@ The app itself (`/ui`) stays reachable only on the household's own network or ov
    off the host is welcome, as long as the phrase never goes with it.
 3. **Start it**: `docker compose up -d`, then point the reverse proxy at it and set
    `trusted_proxies` in `moolakata.toml` to the proxy's own address, never a whole range
-   (S13.3): anything else in the range could pose as the proxy. The listener speaks plain HTTP
+   (S13.3): anything else in the range could pose as the proxy, so a range refuses the start. The listener speaks plain HTTP
    in `proxy` mode, so the compose file publishes it on the host's loopback only. A proxy in
    the same compose project (`proxy/` is written that way) reaches `moolakata:37373` by name
    and has an address of its own to trust, which is the setup to prefer: the compose file fixes

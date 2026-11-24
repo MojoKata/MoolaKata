@@ -18,7 +18,8 @@
    decide what reaches it. **Two listener modes**, one switch in `moolakata.toml`: **`proxy`**,
    plain HTTP behind haproxy, Caddy or nginx, which ends TLS (forwarded headers are trusted
    only from the configured proxy addresses, each the proxy's own address and never a whole
-   private range, since anything else in it could pose as the proxy); or **`tls`**, its own
+   private range, since anything else in it could pose as the proxy: a range refuses the
+   start); or **`tls`**, its own
    HTTPS listener with HTTP/2 (forwarded headers ignored). Either serves a household:
    **`proxy`** behind its proxy, or **`tls`** with a certificate given in `[tls]` (on TrueNAS,
    one from System › Certificates, S17.8.3.2). Given no certificate, the server makes a

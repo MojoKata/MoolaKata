@@ -87,11 +87,6 @@ class Listener(Model):
     certificate: str | None
 
 
-def _address(net) -> str:
-    """A proxy's own address as written, a range as a range."""
-    return str(net.network_address) if net.num_addresses == 1 else str(net)
-
-
 @router.get("/settings/listener", response_model=Listener)
 def get_listener(request: Request, c: Caller = Depends(admin)):
     cfg = server(request).config
@@ -99,7 +94,7 @@ def get_listener(request: Request, c: Caller = Depends(admin)):
     return Listener(
         mode=cfg.mode,
         port=cfg.port,
-        trustedProxies=[] if tls else [_address(n) for n in cfg.trusted_proxies],
+        trustedProxies=[] if tls else [str(a) for a in cfg.trusted_proxies],
         certificate=("given" if cfg.tls_cert else "own") if tls else None,
     )
 
