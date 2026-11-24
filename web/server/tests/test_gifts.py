@@ -250,6 +250,31 @@ def test_a_plan_for_someone_its_reader_cant_see_names_them_and_nothing_else(serv
     assert saved(change(jane, "Gift", more, status="given", cost="15"))["status"] == "given"
 
 
+def test_a_gift_is_changed_keeping_people_its_owner_no_longer_sees(server, jane):
+    """R3.14, S7.8.1: Jane's gift for Lisa and Max, whom John added, made private after; Jane
+    plans for Lisa alone. The gift still names Max and is hers to change, keeping him or
+    leaving him out; naming him again, once left out, is a new choice, and refused."""
+    make_user(server, "john", sex="male")
+    john = sign_in(server, "john")
+    lisa = person(jane)
+    r = make(john, "Persn", name="Max Smith", sex="male")
+    assert r.status_code == 200, r.text
+    max_ = r.json()
+    g = gift(jane, people=[lisa["id"], max_["id"]], description="Board game")
+    assert saved(change(john, "Persn", max_, private=True))["private"]
+    [seen] = jane.get("/ui/api/gifts").json()["items"]
+    assert {p["name"] for p in seen["people"]} == {"Lisa Doe", "Max Smith"}
+    kept = saved(change(jane, "Gift", g, description="Chess set"))
+    assert (kept["description"], {p["name"] for p in kept["people"]}) == (
+        "Chess set",
+        {"Lisa Doe", "Max Smith"},
+    )
+    alone = saved(change(jane, "Gift", kept, people=[lisa["id"]]))
+    assert [p["id"] for p in alone["people"]] == [lisa["id"]]
+    r = change(jane, "Gift", alone, people=[lisa["id"], max_["id"]])
+    assert r.status_code == 404, r.text
+
+
 def test_deleting_a_person_keeps_what_was_given_by_name(jane):
     lisa, sam = person(jane), person(jane, name="Sam Lee", sex="male")
     gift(jane, people=[sam["id"]], description="Kite", status="idea")

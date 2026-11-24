@@ -430,7 +430,10 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
     return next(iter(sorted(owners))) if owners else c.id
 
 
-def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
+def _check_gift(
+    s, c: Caller, body: GiftIn, current: str | None = None, kept: list[str] | None = None
+) -> dict:
+    """`current`: the gift's purchase; `kept`: the people it already names."""
     e: list[FieldError] = []
     desc = body.description.strip()
     if not desc:
@@ -448,8 +451,9 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
         e.append(FieldError("link", "link-invalid", why))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    # Someone the caller sees, or a gift plan they see is for, seen or not (R3.14).
-    planned = {x.personId for x in gifts.visible_plans(s, c.id)}
+    # Someone the caller sees, a gift plan they see is for, or one the gift already names,
+    # seen or not (R3.14).
+    planned = {x.personId for x in gifts.visible_plans(s, c.id)} | set(kept or [])
     for pid in body.people:
         if pid not in planned:
             people.get(s, c.id, pid)
@@ -908,7 +912,7 @@ def _gift_update(ctx, g: Gift, body: GiftRecord) -> None:
     s, c = ctx.s, ctx.caller
     before = g.transactionId
     current = _gift_current(ctx, g)
-    for k, v in _check_gift(s, c, body, before).items():
+    for k, v in _check_gift(s, c, body, before, current["people"]).items():
         setattr(g, k, v)
     g.updatedAt = clock.now()
     _set_people(s, g, body.people, c.id)

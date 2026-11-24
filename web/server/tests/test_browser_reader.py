@@ -362,6 +362,37 @@ def test_a_gift_plan_for_someone_she_cant_see_names_them_and_is_hers_to_change(
     made(remove(h.c, "Persn", h.c.get(f"/ui/api/persons/{ann['id']}").json(), confirm=True))
 
 
+def test_a_gift_names_someone_she_cant_see_and_is_hers_to_change(browser, household, reader):
+    """R3.14, S7.8.1: the admin makes Max, one of the people of the reader's gift, private, and
+    no plan of hers is for him: the gift's dialog names him, and a change to it saves keeping
+    him."""
+    h = household
+    ann = made(make(h.c, "Persn", name="Ann Roe", sex="female"))
+    max_ = made(make(h.c, "Persn", name="Max Smith", sex="male"))
+    with client(h.base) as rita:
+        made(rita.post("/ui/api/session", json={"login": "rita", "password": READER_PW}))
+        made(make(rita, "GfPln", personId=ann["id"]))
+        made(make(rita, "Gift", description="Board game", people=[ann["id"], max_["id"]]))
+        saved(change(h.c, "Persn", h.c.get(f"/ui/api/persons/{max_['id']}").json(), private=True))
+        row = 'tr:has-text("Board game") .row-tool'
+        page, problems = signed_in_as_reader(browser, h, "/ui/gifts/gifts", row)
+        page.click(row)
+        wait(page, '.dialog .tag[aria-label="Max Smith"]', problems)
+        page.fill("#f-description", "Chess set")
+        page.click(".dialog footer button.primary")
+        wait(page, ".dialog", problems, state="detached")
+        [g] = [
+            x for x in rita.get("/ui/api/gifts").json()["items"] if x["description"] == "Chess set"
+        ]
+        assert sorted(p["name"] for p in g["people"]) == ["Ann Roe", "Max Smith"]
+        assert problems == []
+        page.close()
+        made(remove(rita, "Gift", g))
+    # Undone: deleting them deletes Ann's plan.
+    for p in (ann, max_):
+        made(remove(h.c, "Persn", h.c.get(f"/ui/api/persons/{p['id']}").json(), confirm=True))
+
+
 def test_her_529_names_its_beneficiary_she_cant_see(browser, household, reader):
     """R3.14: the admin makes Max, the beneficiary of the reader's own 529, private: its
     Overview and its Settings' Beneficiary name Max, and no more of him; its plan is still hers

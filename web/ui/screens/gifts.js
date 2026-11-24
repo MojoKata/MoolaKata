@@ -877,6 +877,13 @@ function GiftDialog({ close, gift, start, fromRow }) {
     ...person,
     occasions: plan.occasions,
   }));
+  // The people to choose from, and those the gift already names whom no plan here is for,
+  // named by the gift whether or not the caller sees them (R3.14).
+  const choices = [
+    ...list.map((p) => ({ key: p.id, label: p.name })),
+    ...(gift?.people || []).filter((/** @type {any} */ p) => !list.some((x) => x.id === p.id))
+      .map((/** @type {any} */ p) => ({ key: p.id, label: named(p) })),
+  ];
   const canWrite = !gift || gift.access.writable;
   const year = fmt.thisYear();
   const who = /** @type {string[]} */ (rec?.get('people') || []);
@@ -941,7 +948,7 @@ function GiftDialog({ close, gift, start, fromRow }) {
               ) => rec.set('status', v)} options=${STATUS} /></div>`}
             ${onRow ? null : html`
               <${Field} label=${received ? 'From' : 'For'} id="people" error=${rec.error('people')}>
-                <${TagInput} value=${who} items=${list.map((p) => ({ key: p.id, label: p.name }))}
+                <${TagInput} value=${who} items=${choices}
                   onChange=${(/** @type {string[]} */ keys) => rec.set('people', keys)}
                   noun=${['person', 'people']} readonly=${!canWrite} />
                 </${Field}>
