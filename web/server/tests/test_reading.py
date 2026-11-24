@@ -443,6 +443,21 @@ def test_an_answer_out_of_shape_is_refused(monkeypatch):
             parsing.read_ofx(b"", user="User_a")
 
 
+def test_a_csv_proposal_carries_only_a_mappings_keys(monkeypatch):
+    """S9.8.4.2.1: the worker's proposed mapping is checked key by key, so a taken-over worker
+    can't put a key of its own into what the browser sends back and the server saves."""
+    from moolakata import parsing
+    from moolakata.importers import csvfile, parsed
+
+    good = csvfile.propose(b"Date,Amount,Description\n2026-01-02,-4.50,Coffee\n", trades=True)
+    answer = {"proposal": good}
+    monkeypatch.setattr(parsing, "_call", lambda op, data, **k: answer)
+    assert parsing.propose_csv(b"", trades=True, user="User_a")["mapping"] == good["mapping"]
+    answer["proposal"] = {**good, "mapping": {**good["mapping"], "script": "x"}}
+    with pytest.raises(parsed.ReadError):
+        parsing.propose_csv(b"", user="User_a")
+
+
 def test_the_server_can_be_made_non_dumpable():
     """S9.8.4.3: no other process of its account reads the server's memory."""
     import subprocess

@@ -9,6 +9,7 @@ account it is for."""
 import base64
 import threading
 
+from .importers import csvfile
 from .importers.parsed import Malformed, ParsedFile, ReadError, from_json
 
 LIMIT = 60
@@ -141,12 +142,11 @@ def read_csv(data: bytes, mapping: dict, *, user: str) -> ParsedFile:
     return _parsed(_call("csv", data, mapping=mapping, user=user))
 
 
-MAPPING_KEYS = {
-    "delimiter",
-    "skipRows",
-    "negateAmounts",
-    "dateFormat",
-}
+# The keys a proposed mapping may carry: how the file is read, and a column for each field
+# (S9.8.4.2.1). Any other is the worker's own, refused.
+MAPPING_KEYS = frozenset(
+    {"delimiter", "skipRows", "negateAmounts", "dateFormat", *csvfile.FIELDS, *csvfile.TRADE_FIELDS}
+)
 
 
 def propose_csv(data: bytes, trades: bool = False, *, user: str) -> dict:
@@ -172,7 +172,7 @@ def propose_csv(data: bytes, trades: bool = False, *, user: str) -> dict:
         and isinstance(p.get("trailer", 0), int)
         and isinstance(p.get("mapping"), dict)
         and all(
-            isinstance(k, str)
+            k in MAPPING_KEYS
             and (v is None or isinstance(v, (str, int, bool)))
             and len(str(v)) <= 200
             for k, v in p["mapping"].items()
