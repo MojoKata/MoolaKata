@@ -126,12 +126,15 @@ class EducationPlanRecord(Model):
     stateDeduction: Money | None = None
 
 
-def _plan_values(ctx, body: EducationPlanRecord) -> dict:
+def _plan_values(ctx, body: EducationPlanRecord, current: str | None = None) -> dict:
+    """`current`: the beneficiary the plan names, who stays whether or not the writer sees
+    them (R3.14); another is one they see."""
     if body.stateDeduction is not None and body.stateDeduction < 0:
         raise refuse("stateDeduction", "amount-invalid", "Zero or more.")
     if body.openedOn is not None and body.openedOn > clock.today():
         raise refuse("openedOn", "date-ahead", "Not after today.")
-    if body.beneficiaryId and _person_of(ctx.s, ctx.caller, "person", body.beneficiaryId) is None:
+    b = body.beneficiaryId
+    if b and b != current and _person_of(ctx.s, ctx.caller, "person", b) is None:
         raise refuse("beneficiaryId", "beneficiary-invalid", "One of the household's people.")
     return {
         "planState": (body.planState or "").strip() or None,
@@ -177,7 +180,7 @@ def _plan_update(ctx, plan: EducationPlan, body: EducationPlanRecord) -> None:
     if body.accountId != plan.accountId:
         raise refuse("accountId", "plan-fixed", "A plan stays with its account.")
     a, _ = _account(ctx.s, ctx.caller, plan.accountId, "write")
-    for k, v in _plan_values(ctx, body).items():
+    for k, v in _plan_values(ctx, body, plan.beneficiaryId).items():
         setattr(plan, k, v)
     plan.updatedAt = clock.now()
     _plan_changed(ctx, a)
@@ -380,7 +383,9 @@ def _contribution_update(ctx, t: Contribution, body: ContributionRecord) -> None
     if fixed:
         raise refuse(fixed[0], "contribution-fixed", "Change the deposit on the Transactions tab.")
     a = ctx.s.get(Account, body.accountId)
-    t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
+    # One it already names stays, seen by the writer or not (R3.14); another is checked.
+    if body.contributor != current["contributor"]:
+        t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
     t.fiveYear = body.fiveYear
     t.updatedAt = clock.now()
 

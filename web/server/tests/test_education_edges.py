@@ -228,6 +228,24 @@ def test_a_beneficiary_or_contributor_the_reader_cant_see_is_named_and_no_more(s
     )
 
 
+def test_a_writer_changes_a_529_keeping_whom_it_names_though_they_cant_see_them(server, jane):
+    """S1.8.1, S1.8.2, S10.3.2: what Jane writes she changes: the plan's name keeps Max as its
+    beneficiary, and the contribution's election keeps him as its contributor; naming another
+    is still someone she sees."""
+    acct, hidden, john = _hidden_529(server, jane)
+    seen = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()
+    changed = saved(change(jane, "EdPln", seen, planName="my529 Plus"))
+    assert (changed["planName"], changed["beneficiaryId"]) == ("my529 Plus", hidden["id"])
+    [row] = jane.get(f"/ui/api/accounts/{acct['id']}/contributions").json()["rows"]
+    tagged = saved(change(jane, "Cntrb", row, fiveYear=True))
+    assert (tagged["fiveYear"], tagged["contributor"]) == (True, f"person:{hidden['id']}")
+    zoe = _private_person(john, "Zoe Smith")
+    refused(change(jane, "EdPln", changed, beneficiaryId=zoe["id"]), "beneficiaryId",
+            "beneficiary-invalid", "One of the household's people.")  # fmt: skip
+    refused(change(jane, "Cntrb", tagged, contributor=f"person:{zoe['id']}"), "contributor",
+            "contributor-invalid", "The owner or a person.")  # fmt: skip
+
+
 def test_the_goal_tab_finds_a_projection_for_the_beneficiary_as_a_user(server, jane):
     """S1.8.5: an education projection made for a user is for their person, so the 529 for
     that person shows it; one for someone else, or with another goal, isn't its goal."""

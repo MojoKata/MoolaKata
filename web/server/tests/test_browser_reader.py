@@ -7,7 +7,7 @@ import re
 
 import httpx
 import pytest
-from browser import PASSWORD, client, made, months_back, open_page, signed_in, wait
+from browser import PASSWORD, SAVED_TOAST, client, made, months_back, open_page, signed_in, wait
 from edits import change, make, plan529, remove, saved, share
 
 from moolakata.dev.waits import idle
@@ -364,7 +364,8 @@ def test_a_gift_plan_for_someone_she_cant_see_names_them_and_is_hers_to_change(
 
 def test_her_529_names_its_beneficiary_she_cant_see(browser, household, reader):
     """R3.14: the admin makes Max, the beneficiary of the reader's own 529, private: its
-    Overview and its Settings' Beneficiary name Max, and no more of him."""
+    Overview and its Settings' Beneficiary name Max, and no more of him; its plan is still hers
+    to change."""
     h = household
     max_ = made(make(h.c, "Persn", name="Max Smith", sex="male", birthYear=2015))
     with client(h.base) as rita:
@@ -378,6 +379,12 @@ def test_her_529_names_its_beneficiary_she_cant_see(browser, household, reader):
         page.goto(f"{h.base}{path}/settings")
         wait(page, '#f-beneficiary option:has-text("Max Smith")', problems, state="attached")
         assert page.input_value("#f-beneficiary") == max_["id"]
+        # Her plan is hers to change, keeping Max (S1.8.1).
+        page.fill("#f-plan-name", "my529 Plus")
+        page.click("form.draft-form button.primary")
+        wait(page, SAVED_TOAST, problems)
+        plan = rita.get(f"/ui/api/accounts/{a['id']}/plan529").json()
+        assert (plan["planName"], plan["beneficiaryId"]) == ("my529 Plus", max_["id"])
         assert problems == []
         page.close()
         made(remove(rita, "Acct", rita.get(f"/ui/api/accounts/{a['id']}").json(), confirm=True))
