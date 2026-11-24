@@ -1024,7 +1024,7 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
     from moolakata import middleware, net, settings
     from moolakata.links import sealed
 
-    biggest = settings.RECEIPT_MAX_MB * 1024 * 1024
+    biggest = settings.FILE_MAX_MB * 1024 * 1024
     assert sealed.max_receipt() == sealed.sealed_size(biggest) > biggest > net.MAX_RESPONSE
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -1054,9 +1054,9 @@ def test_the_limits_fit_the_paths_a_receipt_travels(pair, monkeypatch):
         list(client.iter_file(pair[0], "https://b.test", bytes(32), "Rcpt_x", []))
     assert seen == [sealed.max_receipt()]
     check = settings.DEFINITIONS["receiptMaxMb"].check
-    assert check(settings.RECEIPT_MAX_MB) == settings.RECEIPT_MAX_MB
+    assert check(settings.FILE_MAX_MB) == settings.FILE_MAX_MB
     with pytest.raises(settings.Invalid):
-        check(settings.RECEIPT_MAX_MB + 1)
+        check(settings.FILE_MAX_MB + 1)
 
 
 def test_a_locked_copys_inbox_names_no_one(admins):

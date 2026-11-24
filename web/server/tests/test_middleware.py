@@ -110,9 +110,9 @@ def test_uploads_in_flight_are_capped_per_caller(server, monkeypatch):
     c = sign_in(server, "jane")
     monkeypatch.setattr(middleware, "IN_FLIGHT", 1000)
     r = c.post("/ui/api/receipts", files={"file": ("big.png", b"x" * 5000)})
-    assert r.status_code == 429 and r.json()["code"] == "uploads-in-flight", r.text
+    assert r.status_code == 413 and r.json()["code"] == "too-large", "alone past it: its size"
     r = c.post("/ui/api/receipts", files={"file": ("small.png", b"x" * 100)})
-    assert r.status_code != 429, "the count is let go when a request ends"
+    assert r.status_code not in (413, 429), "the count is let go when a request ends"
 
 
 def test_an_ipv6_address_counts_by_its_64():
@@ -249,6 +249,68 @@ def test_an_upload_is_counted_in_flight_whatever_its_size_limit(monkeypatch, mb)
     # A linked server's JSON is no upload: never counted.
     mw.in_flight = {}
     assert mw.limit_for("/link/v1/exchange", "application/json") == (middleware.LINK_LIMIT, False)
+
+
+def test_a_file_of_the_largest_size_fits_in_flight_and_one_past_it_is_refused_for_its_size():
+    """S13.7.6, S16.8, S16.10: a statement or receipt may be up to 100 MB, and one of that size,
+    with its form, fits in the 100 MB one user may have in flight; one past it is refused 413
+    for its size, never 429 *wait*, which could never succeed: declared, or counted as it is
+    read, as the connector's are."""
+    import asyncio
+
+    from moolakata import middleware, settings
+
+    assert settings.DEFINITIONS["importMaxMb"].check(settings.FILE_MAX_MB) == 100
+    assert settings.DEFINITIONS["receiptMaxMb"].check(settings.FILE_MAX_MB) == 100
+    for key in ("importMaxMb", "receiptMaxMb"):
+        with pytest.raises(settings.Invalid):
+            settings.DEFINITIONS[key].check(settings.FILE_MAX_MB + 1)
+
+    async def app(scope, receive, send):  # reads the whole body, then answers
+        while (await receive()).get("more_body"):
+            pass
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    cap = lambda: (settings.FILE_MAX_MB + 1) * 1024 * 1024  # noqa: E731 - as app.upload_cap
+    mw = middleware.BodyLimit(app, cap, cap, session_user=lambda t: "u1")
+    answered = []
+    piece = b"x" * (1024 * 1024)
+
+    async def sent(message):
+        if message["type"] == "http.response.start":
+            answered.append(message["status"])
+
+    def call(path, size, declare=True):
+        left = size
+
+        async def receive():
+            nonlocal left
+            n = min(left, len(piece))
+            left -= n
+            return {"type": "http.request", "body": piece[:n], "more_body": left > 0}
+
+        headers = [(b"content-type", b"multipart/form-data; boundary=x")]
+        if declare:
+            headers.append((b"content-length", str(size).encode()))
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "client": ("10.0.0.5", 1),
+            "headers": [*headers, (b"cookie", b"mk_session=live")],
+        }
+        asyncio.run(mw(scope, receive, sent))
+        return answered[-1]
+
+    largest = settings.FILE_MAX_MB * 1024 * 1024 + 300  # the file and its form
+    past = middleware.IN_FLIGHT + 1
+    assert call("/ui/api/imports", largest) == 200
+    assert call("/ui/api/imports", past) == 413
+    assert call("/ui/api/imports", past, declare=False) == 413
+    assert call("/connector/v1/accounts/x/files", largest) == 200
+    assert call("/connector/v1/accounts/x/files", past) == 413
+    assert mw.in_flight == {}
 
 
 def test_an_upload_without_a_live_session_is_refused_before_its_body_is_read(server):

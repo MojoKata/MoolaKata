@@ -146,7 +146,8 @@
       receipt up to S16.10's, a statement or other import file up to S16.8's, and a file the
       connector posts, a statement, up to S16.8's; a receipt a linked server delivers up to the
       largest receipt Settings allows, sealed (link protocol §1.4); at most 100 MB of uploads in
-      flight per user (never less than that largest sealed receipt), past which 429, and
+      flight per user (never less than that largest sealed receipt), past which 429, while one
+      upload past it alone is refused for its size (413), never told to wait, and
       256 MB for every caller together, past which 503 with `Retry-After: 30`; and request
       headers up to 16 KB. An upload to the app's API (a form's file, or any body past
       64 KB) has its session checked on its headers, before a byte of its body is read:

@@ -42,9 +42,9 @@ def sealed_size(plain: int) -> int:
 def max_receipt() -> int:
     """The longest a receipt crosses a link as (link-protocol.md §1.4): the largest receipt
     Settings allows, sealed. A `deliver` body and a `file` answer are bounded by it."""
-    from ..settings import RECEIPT_MAX_MB
+    from ..settings import FILE_MAX_MB
 
-    return sealed_size(RECEIPT_MAX_MB * 1024 * 1024)
+    return sealed_size(FILE_MAX_MB * 1024 * 1024)
 
 
 class SealError(Exception):

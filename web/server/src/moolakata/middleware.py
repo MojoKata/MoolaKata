@@ -303,6 +303,10 @@ class BodyLimit:
         headers = {k.lower(): v.decode("latin-1") for k, v in scope["headers"]}
         ctype = headers.get(b"content-type", "")
         limit, upload = self.limit_for(scope["path"], ctype)
+        if upload:
+            # One upload never holds more than a user may have in flight: past it, it is
+            # refused for its size, never told to wait for what can't succeed (S13.7.6).
+            limit = min(limit, IN_FLIGHT)
         too_large = _send_problem(
             413, "too-large", f"The request is larger than {limit // (1024 * 1024)} MB."
         )

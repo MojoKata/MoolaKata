@@ -38,8 +38,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    included; until then it says *Not saved yet* in place of when the wallets were last read.
    Changing the node's host clears its stored password, which is entered again for the new
    host.
-8. **Imports** (S1.3): the size accepted for statement import (25 MB by default, 1 to 200;
-   the file types accepted are in its guide), and whether statements are read on the server
+8. **Imports** (S1.3): the size accepted for statement import (25 MB by default, 1 to 100,
+   as for a receipt, S16.10, so one file fits in the uploads a user may have in flight,
+   S13.7.6; the file types accepted are in its guide), and whether statements are read on the server
    (in the receipt reader's worker, S9.8).
 9. **Linked servers** (S11.7): this server's **link address** (its public URL when not set,
    S11.2), the links, and each linked copy's state: changes waiting, its access key (*Create
