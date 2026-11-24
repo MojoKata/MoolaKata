@@ -427,23 +427,3 @@ def _thumbnail(value) -> str | None:
     if isinstance(value, str) and len(value) < 1_000_000 and THUMBNAIL.fullmatch(value):
         return value
     return None
-
-
-def orphans(srv, link_id: str) -> int:
-    """Remove files no row names, left behind after a crash (S11.9.6.6); needs the copy open.
-    Temporary files go whether or not it is."""
-    base = folder(srv.config.data_dir, link_id)
-    gone = 0
-    for p in list(base.rglob("*.tmp")):
-        p.unlink(missing_ok=True)
-        gone += 1
-    o = srv.copies.get(link_id, for_person=False)
-    if o is None or not (base / "receipts").exists():
-        return gone
-    with o.engine.connect() as conn:
-        named = set(conn.execute(select(copydb.File.c.fileName)).scalars())
-    for p in (base / "receipts").glob("*.mkr"):
-        if p.name not in named:
-            p.unlink(missing_ok=True)
-            gone += 1
-    return gone
