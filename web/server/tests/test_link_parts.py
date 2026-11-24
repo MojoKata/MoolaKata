@@ -440,3 +440,66 @@ def test_a_user_named_twice_in_a_directory_is_kept_once(server):
             for u in s.scalars(select(User).where(User.linkId == link_id))
         ]
     assert kept == [("u1", "Bart")]
+
+
+# ---------- Settings › Linked Servers (S11.7)
+
+
+def _refused(r) -> tuple[int, str, str]:
+    return r.status_code, r.json()["code"], r.json()["detail"]
+
+
+def test_an_admins_action_on_no_such_link_is_not_found(admin_client):
+    no_such = (404, "not-found", "No such link.")
+    for what in ("approve", "resume", "end", "pull", "lock", "accept-certificate"):
+        r = admin_client.post(f"/ui/api/settings/links/Link_none/{what}")
+        assert _refused(r) == no_such, what
+    r = admin_client.post("/ui/api/settings/links/Link_none/reset-copy")
+    assert _refused(r) == no_such
+
+
+def test_no_certificate_waiting_is_refused_and_lock_now_answers_the_link(server, admin_client):
+    # link-protocol.md §4.5: nothing to accept is refused at its code, in its words.
+    link_id = _a_link(server)
+    r = admin_client.post(f"/ui/api/settings/links/{link_id}/accept-certificate")
+    assert _refused(r) == (422, "no-certificate", "No other certificate is waiting to be accepted.")
+    r = admin_client.post(f"/ui/api/settings/links/{link_id}/lock")
+    assert r.status_code == 200 and r.json()["id"] == link_id
+
+
+def test_joining_from_a_dev_server_may_reach_the_inviting_one_on_this_machine(
+    server, admin_client, monkeypatch
+):
+    # S13.5: a link code's address is never exempt from the guard, but between two dev servers
+    # on one machine; the guard's list is put back after the join, whatever it answered.
+    import dataclasses
+
+    import httpx
+
+    from moolakata import net
+    from moolakata.links import manage
+
+    server.config = dataclasses.replace(server.config, dev=True)
+    reached = []
+
+    def hello(r):
+        reached.append(r.url.host)
+        return httpx.Response(404)
+
+    monkeypatch.setattr(net, "network", lambda g, p: httpx.MockTransport(hello))
+    code = manage.encode_code("https://peer.test", "f" * 64, "secret")
+    r = admin_client.post("/ui/api/settings/links/join", json={"code": code})
+    assert _refused(r) == (
+        422,
+        "not-moolakata",
+        "https://peer.test doesn't answer as a MoolaKata server.",
+    )
+    assert reached == ["peer.test"]
+    hosts, named = server.guard.snapshot()
+    assert "peer.test" not in hosts | set().union(*named.values()), "allowed for the join alone"
+
+
+def test_resuming_a_link_that_isnt_paused_is_refused_in_its_words(server, admin_client):
+    link_id = _a_link(server)
+    r = admin_client.post(f"/ui/api/settings/links/{link_id}/resume")
+    assert _refused(r) == (422, "state-invalid", "A link that is active can't be active.")

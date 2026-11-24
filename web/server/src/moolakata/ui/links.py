@@ -414,8 +414,13 @@ def accept_certificate(link_id: str, request: Request, c: Caller = Depends(admin
 @router.post("/settings/links/{link_id}/lock", response_model=LinkOut)
 def lock_copy(link_id: str, request: Request, c: Caller = Depends(admin)):
     from ..links import copies
+    from ..links.copy import CopyError
 
-    return _act(request, c, link_id, lambda srv: copies.lock(srv, link_id, c.id, True))
+    try:
+        copies.lock(server(request), link_id, c.id, True)
+    except CopyError as e:
+        raise _copy_problem(e) from None
+    return _act(request, c, link_id, lambda srv: None)
 
 
 @router.post("/settings/links/{link_id}/reset-copy", response_model=JobOut, status_code=202)
