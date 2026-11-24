@@ -199,10 +199,14 @@ preparer.
       the access key* (S11.9.2), **Allow downloads** (S11.10.2), *Lock now* and *Reset copy*
       (S11.9.8). The section also sets **Release linked keys after** (S11.9.4), one hour
       unused by default.
-8. **Audit**: each pull is recorded on both sides (who, when, which shares, how much changed),
-   and each pause and resume on the side that made it. The receiving side records who viewed
-   linked data, and every unlock (who), failed unlock, release (unused, Lock now or restart),
-   access key made, and reset of a linked copy.
+8. **Audit**: a link's records go to this household's Activity, for admins alone, a link being
+   an admin's matter (S11.7). They name a share by its kind, its owner and the people it
+   names, with counts, never by an item's name, which stays inside the linked copy (S11.3):
+   *doe-parents sent 2 changed items: Candace Doe's account for Jane Doe*. Each pull is
+   recorded on both sides (who, when, which shares, how much changed), and each pause and
+   resume on the side that made it. The receiving side records who viewed linked data, and
+   every unlock (who), failed unlock, release (unused, Lock now or restart), access key made,
+   and reset of a linked copy.
 9. **Linked copies: kept apart and encrypted**. What a link brings in is
    someone else's money. A copy of it should not sit readable on this server's disk or in
    its backups, or be readable by malware on this server while nobody is using it. Its
