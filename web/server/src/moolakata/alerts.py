@@ -312,11 +312,15 @@ def connector(s: Session, server) -> Iterable[Cause]:
                 icon="lock" if needs else "sync",
                 since=c.lastRunAt,
             )
+        # The admins' copy names whose Connection it is (S12.11.1.1).
+        owner = s.get(User, c.ownerId)
         yield Cause(
             key=f"connection:{c.id}:{c.state}",
             kind="connection-failing",
             title=title,
-            about=about,
+            about=f"Connection · {owner.displayName}'s · {c.message or c.driver}"
+            if owner is not None
+            else about,
             link="/ui/settings/connector",
             fix="Connector Settings",
             icon="lock" if needs else "sync",

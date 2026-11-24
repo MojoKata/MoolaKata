@@ -708,9 +708,11 @@ def test_a_connection_that_needs_a_sign_in_alerts_its_owner_and_admins(server, p
     c = sign_in(server, "jane")
     mine = c.get("/ui/api/alerts").json()["open"]
     assert [a["title"] for a in mine] == ["Jane's Schwab login needs a sign-in"]
-    assert mine[0]["fix"] == "Sign In Again"
+    assert mine[0]["fix"] == "Sign In Again" and mine[0]["about"] == "Connection · weekly"
+    # S12.11.1.1: the admins' copy names whose Connection it is.
     theirs = admin.get("/ui/api/alerts").json()["open"]
-    assert any(a["title"] == "Jane's Schwab login needs a sign-in" for a in theirs)
+    (a,) = [a for a in theirs if a["title"] == "Jane's Schwab login needs a sign-in"]
+    assert a["about"] == "Connection · Jane's · weekly"
 
 
 def test_an_admin_who_owns_the_connection_is_alerted_once(server, paired, admin):
