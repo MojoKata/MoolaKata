@@ -1,7 +1,7 @@
 """Charitable giving (requirements S7.9, S8.9): a year's plan and whose giving it counts, the
-donations (recorded, and transactions categorised Giving), what counts toward the target and
-what is deductible, the acknowledgements the tax rules need, income for the percentage, pace,
-pledges, and the donor-advised fund."""
+donations (recorded, and spending in categories tagged charitable), what counts toward the
+target and what is deductible, the acknowledgements the tax rules need, income for the
+percentage, pace, pledges, and the donor-advised fund."""
 
 import calendar
 import datetime as dt
@@ -15,11 +15,12 @@ from sqlalchemy.orm import Session
 
 from .. import access, valuation
 from ..store import scoping
-from ..store.entities.accounts import Account, Category, Transaction
+from ..store.entities.accounts import Account, Category, Split, Transaction
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
 
 ZERO = Decimal(0)
+CHARITABLE = "charitable"  # the tax tag a donation's category carries (S7.2, S7.9.3)
 KINDS = {
     "cash": "Cash",
     "goods": "Goods",
@@ -39,11 +40,23 @@ def plans(s: Session, user_id: str) -> list[tuple[GivingPlan, access.Perms]]:
     return access.listing(s, GivingPlan, user_id, order_by=GivingPlan.year.desc())
 
 
-def plan_for(s: Session, user_id: str, year: int) -> tuple[GivingPlan | None, access.Perms | None]:
-    """The year's plan: the user's own, else one shared with them."""
-    rows = [(p, held) for p, held in plans(s, user_id) if p.year == year]
-    rows.sort(key=lambda x: not x[1].mine)
-    return rows[0] if rows else (None, None)
+def plan_for(
+    s: Session, user_id: str, year: int | None, plan_id: str | None = None
+) -> tuple[GivingPlan | None, access.Perms | None]:
+    """The plan shown: the user's own for the year, which comes first in any year, or the
+    one chosen from those they read; None when there is none, or the one chosen is not theirs
+    to read or (with a year) not that year's (S7.9.1)."""
+    for p, held in plans(s, user_id):
+        if plan_id is None and held.mine and p.year == year:
+            return p, held
+        if p.id == plan_id and (year is None or p.year == year):
+            return p, held
+    return None, None
+
+
+def shared(s: Session, user_id: str, year: int) -> list[tuple[GivingPlan, access.Perms]]:
+    """The year's plans shared with the user, to choose beside their own (S7.9.1)."""
+    return [(p, held) for p, held in plans(s, user_id) if p.year == year and not held.mine]
 
 
 def givers(s: Session, plan: GivingPlan | None, user_id: str) -> list[str]:
@@ -56,9 +69,9 @@ def givers(s: Session, plan: GivingPlan | None, user_id: str) -> list[str]:
 
 @dataclass
 class Gift:
-    """A donation, recorded or read from a transaction categorised Giving."""
+    """A donation, recorded or read from spending in a category tagged charitable."""
 
-    id: str | None  # the Donation's; None for a transaction alone
+    id: str | None  # the Donation's; None for a transaction (or split part) alone
     date: dt.date
     kind: str
     amount: Decimal
@@ -92,6 +105,17 @@ def organisations(s: Session, owners: list[str]) -> dict[str, Organisation]:
     }
 
 
+def gift(s: Session, d: Donation, orgs: dict[str, Organisation]) -> Gift:
+    """A recorded donation as a gift, its organisation one of `orgs` (its owner's)."""
+    org = orgs.get(d.organisationId or "")
+    if d.kind == "daf-contribution":
+        fund = s.get(Account, d.dafAccountId) if d.dafAccountId else None
+        name = fund.name if fund else "Donor-advised fund"
+    else:
+        name = org.name if org else "An organisation"
+    return Gift(d.id, d.date, d.kind, d.amount, org, name, d.transactionId, d.acknowledged, d)
+
+
 def donations(s: Session, owners: list[str], year: int) -> list[Gift]:
     first, last = dt.date(year, 1, 1), dt.date(year, 12, 31)
     orgs = organisations(s, owners)
@@ -106,40 +130,18 @@ def donations(s: Session, owners: list[str], year: int) -> list[Gift]:
             Donation.date <= last,
         )
     ):
-        org = orgs.get(d.organisationId or "")
-        if d.kind == "daf-contribution":
-            fund = s.get(Account, d.dafAccountId) if d.dafAccountId else None
-            name = fund.name if fund else "Donor-advised fund"
-        else:
-            name = org.name if org else "An organisation"
-        out.append(
-            Gift(d.id, d.date, d.kind, d.amount, org, name, d.transactionId, d.acknowledged, d)
-        )
+        out.append(gift(s, d, orgs))
         if d.transactionId:
             linked.add(d.transactionId)
-    # Transactions categorised Giving that no donation records yet count as cash (S7.9.3).
-    cats = [c.id for c in s.scalars(select(Category).where(Category.builtIn == "giving"))]
-    accounts = [
-        a.id
-        for a in s.scalars(
-            select(Account).where(Account.ownerId.in_(owners), Account.deleted == false())
-        )
-    ]
-    if cats and accounts:
-        for t in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId.in_(accounts),
-                Transaction.categoryId.in_(cats),
-                Transaction.deleted == false(),
-                Transaction.date >= first,
-                Transaction.date <= last,
-                Transaction.amount < 0,
-            )
-        ):
-            if t.id in linked:
-                continue
-            org = by_name.get((t.payee or "").lower())
-            out.append(Gift(None, t.date, "cash", -t.amount, org, t.payee or "Giving", t.id, False))
+    # Spending in a category tagged charitable, wherever it sits, that no donation records yet
+    # counts as cash, each split part a gift of its own (S7.9.3, S7.3.1), as Taxes counts it.
+    cats = {c.id for c in s.scalars(select(Category).where(Category.taxTag == CHARITABLE))}
+    for p in parts(s, _accounts(s, owners), first, last, cats):
+        t = p.transaction
+        if p.amount >= 0 or t.id in linked:
+            continue
+        org = by_name.get((t.payee or "").lower())
+        out.append(Gift(None, t.date, "cash", -p.amount, org, t.payee or "Giving", t.id, False))
     return sorted(out, key=lambda g: g.date, reverse=True)
 
 
@@ -164,27 +166,55 @@ def income(s: Session, plan: GivingPlan | None, owners: list[str], year: int) ->
 
 
 def _income(s: Session, owners: list[str], year: int) -> Decimal:
-    cats = [c.id for c in s.scalars(select(Category).where(Category.kind == "income"))]
-    accounts = [
+    cats = {c.id for c in s.scalars(select(Category).where(Category.kind == "income"))}
+    first, last = dt.date(year, 1, 1), dt.date(year, 12, 31)
+    total = sum((p.amount for p in parts(s, _accounts(s, owners), first, last, cats)), ZERO)
+    return max(total, ZERO)
+
+
+def _accounts(s: Session, owners: list[str]) -> list[str]:
+    return [
         a.id
         for a in s.scalars(
             select(Account).where(Account.ownerId.in_(owners), Account.deleted == false())
         )
     ]
+
+
+@dataclass(frozen=True)
+class Part:
+    """A transaction in one of the categories asked for, or one split part of one: a split
+    transaction counts through its splits (S7.3.1), each part in its own category."""
+
+    transaction: Transaction
+    categoryId: str
+    amount: Decimal
+
+
+def parts(
+    s: Session, accounts: list[str], first: dt.date, last: dt.date, cats: set[str]
+) -> list[Part]:
+    """The transactions, and the split parts of transactions, in `cats` over the accounts,
+    between two dates inclusive. A split transaction has no category of its own."""
     if not cats or not accounts:
-        return ZERO
-    total = ZERO
-    for t in s.scalars(
-        select(Transaction).where(
-            Transaction.accountId.in_(accounts),
-            Transaction.categoryId.in_(cats),
-            Transaction.deleted == false(),
-            Transaction.date >= dt.date(year, 1, 1),
-            Transaction.date <= dt.date(year, 12, 31),
-        )
+        return []
+    within = (
+        Transaction.accountId.in_(accounts),
+        Transaction.deleted == false(),
+        Transaction.date >= first,
+        Transaction.date <= last,
+    )
+    out = [
+        Part(t, t.categoryId, t.amount)
+        for t in s.scalars(select(Transaction).where(*within, Transaction.categoryId.in_(cats)))
+    ]
+    for sp, t in s.execute(
+        select(Split, Transaction)
+        .join(Transaction, Transaction.id == Split.transactionId)
+        .where(*within, Split.deleted == false(), Split.categoryId.in_(cats))
     ):
-        total += t.amount
-    return max(total, ZERO)
+        out.append(Part(t, sp.categoryId, sp.amount))
+    return out
 
 
 def target(plan: GivingPlan | None, earned: Decimal) -> Decimal:
@@ -195,17 +225,33 @@ def target(plan: GivingPlan | None, earned: Decimal) -> Decimal:
     return (earned * (plan.percent or Decimal(10)) / 100).quantize(Decimal("1"))
 
 
-def pledged_ahead(orgs: list[Organisation], today: dt.date, given: dict[str, Decimal]) -> Decimal:
-    """Pledges still due this year: monthly ones for the months left, yearly ones not yet
-    given."""
+def given_to(gifts: list[Gift], first: dt.date, last: dt.date) -> dict[str, Decimal]:
+    """What was given to each organisation between two dates inclusive, by its id: what a
+    pledge is met by (S7.9.5)."""
+    out: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for g in gifts:
+        if g.organisation is not None and first <= g.date <= last:
+            out[g.organisation.id] += g.amount
+    return dict(out)
+
+
+def pledge_short(o: Organisation, gifts: list[Gift], today: dt.date) -> Decimal:
+    """What is still to be given of a pledge for the month or year `today` is in (S7.9.5)."""
+    if not o.pledge or o.pledgeEvery not in ("month", "year"):
+        return ZERO
+    first = today.replace(day=1) if o.pledgeEvery == "month" else today.replace(month=1, day=1)
+    return max(o.pledge - given_to(gifts, first, today).get(o.id, ZERO), ZERO)
+
+
+def pledged_ahead(orgs: list[Organisation], today: dt.date, gifts: list[Gift]) -> Decimal:
+    """Pledges still expected this year (S7.9.6): a monthly one's for this month, less what
+    was given to it this month, and for each month after; a yearly one's less what was given
+    to it this year."""
     out = ZERO
     for o in orgs:
-        if not o.pledge:
-            continue
-        if o.pledgeEvery == "month":
+        out += pledge_short(o, gifts, today)
+        if o.pledge and o.pledgeEvery == "month":
             out += o.pledge * (12 - today.month)
-        elif o.pledgeEvery == "year" and given.get(o.id, ZERO) < o.pledge:
-            out += o.pledge - given.get(o.id, ZERO)
     return out
 
 

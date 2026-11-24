@@ -96,6 +96,11 @@ function PersonDialog({ close }) {
 export function PlanFields({ rec }) {
   const people = useList('/persons');
   const list = /** @type {any[]} */ (people.data) || [];
+  // A beneficiary the caller can't see is named by the plan, and no more (R3.14).
+  const chosen = rec.get('beneficiaryId');
+  const unseen = !!chosen && !!people.data && !list.some((p) => p.id === chosen);
+  const plan = useApi(unseen ? `/accounts/${rec.get('accountId')}/plan529` : null);
+  const named = /** @type {any} */ (plan.data)?.beneficiary;
   // While Add a person is open, the list shows the choice that opened it.
   const [making, setMaking] = useState(false);
   const pick = async (/** @type {string} */ v) => {
@@ -118,6 +123,7 @@ export function PlanFields({ rec }) {
         options=${[
           ['', 'Choose…'],
           ...list.map((p) => [p.id, p.name]),
+          ...(unseen && named?.id === chosen ? [[chosen, named.name]] : []),
           ['new', 'Add a person…'],
         ]} />
       </${Field}>
@@ -393,13 +399,18 @@ function Retag({ a, c, done }) {
   if (!a.access.writable) {
     return html`<${ReadValue} aria-label=${label} data-help="from" text=${c.name || '—'} />`;
   }
+  const options = [
+    ['owner', a.ownerName],
+    ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
+  ];
+  // The one it names stays named, whether or not the caller sees them (R3.14).
+  if (people.data && !options.some(([k]) => k === c.contributor)) {
+    options.push([c.contributor, c.name]);
+  }
   return html`
     <${Select} aria-label=${label} data-help="from" value=${c.contributor}
       onChange=${(/** @type {string} */ v) => save.run(v).catch((e) => toast(e.message))}
-      options=${[
-        ['owner', a.ownerName],
-        ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
-      ]} />
+      options=${options} />
   `;
 }
 
@@ -422,6 +433,7 @@ export function Withdrawals({ a }) {
                   <th>Year</th>
                   <th class="num">Distributions</th>
                   <th class="num">Qualified Expenses</th>
+                  <th class="num">Rolled Over</th>
                   <th class="num">Not Covered</th>
                 </tr>
               </thead>
@@ -435,6 +447,9 @@ export function Withdrawals({ a }) {
                     <td class="num">
                       <${Amt} v=${y.expenses} />
                     </td>
+                    <td class="num">${num(y.rolledOver)
+                      ? html`<${Amt} v=${y.rolledOver} />`
+                      : html`<span class="dim">—</span>`}</td>
                     <td class="num">${num(
                         y.notCovered,
                       )

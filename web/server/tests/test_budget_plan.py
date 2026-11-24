@@ -91,6 +91,41 @@ def test_gifts_and_giving_are_planned_by_their_plans(server, frozen):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "planned-elsewhere"
 
 
+def test_a_plan_budgeted_per_occasion_counts_its_birthday_and_wedding(server, frozen):
+    """S7.3.6, S7.7.1: with no yearly budget, the Gifts line plans the year's occasion
+    budgets, the birthday's and the wedding anniversary's among them; a yearly budget, even
+    of nothing, is the plan's whole year."""
+    from test_people import me, relate
+
+    c, _, _, b = setup_budget(server)
+    christmas = {"kind": "holiday", "holiday": "christmas", "budget": "40"}
+    bob = make(c, "GfPln", name="Bob Lee", sex="male", birthMonth=5, birthDay=1,
+               birthdayBudget="60", weddingBudget="90", occasions=[christmas]).json()  # fmt: skip
+    relate(c, me(c), bob["personId"], "spouse", fromDate="2009-06-14")
+    assert row(month(c, b, "2026-10"), "Gifts")["planned"] == "190.00"
+    saved(edit(c, "GfPln", f"/ui/api/gift-plans/{bob['id']}", giftBudget="0"))
+    assert row(month(c, b, "2026-10"), "Gifts")["planned"] == "0.00"
+
+
+def test_one_who_writes_the_budget_cant_type_what_the_owners_plans_set(server, frozen):
+    """S7.3.6, S7.1.1: Gifts and Giving come from the owner's gift and giving plans, never
+    typed, for one the budget is shared with at Write too, though those plans aren't shared
+    with them."""
+    from conftest import make_user, sign_in
+    from edits import share
+
+    c, _, cat, b = setup_budget(server)
+    assert make(c, "GfPln", name="Lisa Doe", sex="female", giftBudget="600").status_code == 200
+    assert giving_plan(c, 2026, targetKind="amount", amount="1200").status_code == 200
+    bob_id = make_user(server, "bob").id
+    bob = sign_in(server, "bob")
+    assert share(c, "budget", b["id"], users={bob_id: "write"}).status_code == 200
+    for name in ("Gifts", "Giving"):
+        r = save_plan(bob, b, "2026-10-01", [{"categoryId": cat[name], "amount": "50"}])
+        assert r.status_code == 422, (name, r.text)
+        assert r.json()["errors"][0]["code"] == "planned-elsewhere"
+
+
 def test_a_category_under_giving_counts_in_the_giving_line(server, frozen):
     """S7.3.6, S7.1.2: a donation filed under Giving › Church counts against the giving plan's
     Giving line, and nowhere outside the plan."""

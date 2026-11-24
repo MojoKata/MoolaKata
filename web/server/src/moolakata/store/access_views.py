@@ -247,17 +247,19 @@ def _person() -> str:
 
 
 def _gift_plan() -> str:
-    """S7.8.5, S10.3: the plain rule, while its person is there; a plan for a user of a linked
-    server never reaches that server's users."""
+    """S7.8.5, S10.3: the plain rule, while its person is there; a plan is never shown to its
+    own person however it was shared (to them, or to a group they are in), and a plan for a
+    user of a linked server never reaches that server's users."""
     return (
         "SELECT a.* FROM (\n"
         + _collapse(_root_body("GiftPlan", "gift-plan"))
         + '\n) AS a\nJOIN "GiftPlanEffective" AS g ON g.id = a."targetId"\n'
         'JOIN "PersonEffective" AS p ON p.id = g."personId" AND NOT p."effectiveDeleted"\n'
         'JOIN "AccessUser" AS u ON u."userId" = a."userId"\n'
-        "WHERE u.local OR NOT EXISTS (\n"
+        'WHERE (a."userId" = g."ownerId" OR u."personId" IS NOT g."personId")\n'
+        "AND (u.local OR NOT EXISTS (\n"
         '  SELECT 1 FROM "AccessUser" AS x WHERE x."linkId" = u."linkId" '
-        'AND x."personId" = g."personId")'
+        'AND x."personId" = g."personId"))'
     )
 
 
@@ -300,39 +302,45 @@ def _gift() -> str:
 
 
 def _donation() -> str:
-    """S7.9.1: its owner's; read by whoever reads the owner's giving plan for its year."""
+    """S7.9.1, S10.3: its owner's; read by whoever reads the owner's giving plan for its year,
+    and changed or deleted by whoever writes it (an entry of the plan)."""
     owner = (
         f"SELECT {_cols('d.id', 'd."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "DonationEffective" AS d\n'
         'JOIN "AccessUser" AS u ON u."userId" = d."ownerId" AND u.local\n'
         'WHERE NOT d."effectiveDeleted"'
     )
+    writes = "max(a.writable)"
     readers = (
-        f"SELECT DISTINCT {_cols('d.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('d.id', 'a."userId"', writes, writes, '0', '0', '0')}\n"
         'FROM "DonationEffective" AS d\n'
         'JOIN "GivingPlanEffective" AS p ON p."ownerId" = d."ownerId" '
         'AND p.year = CAST(substr(d.date, 1, 4) AS INTEGER) AND NOT p."effectiveDeleted"\n'
         'JOIN "GivingPlanAccess" AS a ON a."targetId" = p.id AND a."userId" <> d."ownerId"\n'
-        'WHERE NOT d."effectiveDeleted"'
+        'WHERE NOT d."effectiveDeleted"\n'
+        'GROUP BY d.id, a."userId"'
     )
     return f"{owner}\nUNION ALL\n{readers}"
 
 
 def _organisation() -> str:
-    """S7.9.1: its owner's; read by whoever reads one of the owner's giving plans."""
+    """S7.9.1, S10.3: its owner's; read by whoever reads one of the owner's giving plans, and
+    changed or deleted by whoever writes one (an entry of the plan)."""
     owner = (
         f"SELECT {_cols('o.id', 'o."ownerId"', '1', '1', '0', '0', '1')}\n"
         'FROM "OrganisationEffective" AS o\n'
         'JOIN "AccessUser" AS u ON u."userId" = o."ownerId" AND u.local\n'
         'WHERE NOT o."effectiveDeleted"'
     )
+    writes = "max(a.writable)"
     readers = (
-        f"SELECT DISTINCT {_cols('o.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
+        f"SELECT {_cols('o.id', 'a."userId"', writes, writes, '0', '0', '0')}\n"
         'FROM "OrganisationEffective" AS o\n'
         'JOIN "GivingPlanEffective" AS p ON p."ownerId" = o."ownerId" '
         'AND NOT p."effectiveDeleted"\n'
         'JOIN "GivingPlanAccess" AS a ON a."targetId" = p.id AND a."userId" <> o."ownerId"\n'
-        'WHERE NOT o."effectiveDeleted"'
+        'WHERE NOT o."effectiveDeleted"\n'
+        'GROUP BY o.id, a."userId"'
     )
     return f"{owner}\nUNION ALL\n{readers}"
 

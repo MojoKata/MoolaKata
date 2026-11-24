@@ -155,6 +155,11 @@ def edge_cases(s) -> dict[str, str]:
         s.add(plan)
         s.flush()
     share("gift-plan", plan.id, "read", grp=household)
+    pat = make_person(s, "Pat Roe", "female")
+    pats_plan = GiftPlan(id=ids.new_id("GfPln"), ownerId=jane.id, personId=pat.id)
+    s.add(pats_plan)
+    s.flush()
+    share("gift-plan", pats_plan.id, "read", grp=household)
     surprise = Gift(id=ids.new_id("Gift"), ownerId=jane.id, description="A watch")
     s.add(surprise)
     s.flush()
@@ -255,6 +260,7 @@ def edge_cases(s) -> dict[str, str]:
         "receipt": receipt.id,
         "gift": surprise.id,
         "plan": plan.id,
+        "pats plan": pats_plan.id,
         "book": book.id,
         "budget": budget.id,
         "unshared": unshared.id,
@@ -346,7 +352,8 @@ HOLDS = [
     ("TaxBook", "book", "erin", None),  # a filer who hasn't accepted
     ("TaxBookFiler", "erins invitation", "erin", (W,)),  # answered before accepting
     ("Budget", "budget", "dave", None),  # an inactive group's share gives nothing
-    ("GiftPlan", "plan", "john", (R,)),
+    ("GiftPlan", "plan", "john", None),  # never shown to its own person (S7.8.5)
+    ("GiftPlan", "pats plan", "john", (R,)),  # the same share's other plan
     ("Gift", "gift", "jane", (W, D)),
     ("Gift", "gift", "john", None),  # the person it is for
     ("Receipt", "receipt", "jane", (W, D)),
@@ -498,6 +505,8 @@ UNTRIED = {
     ("BdgMv", "budgetId", "Budget", 403),
     # A gift others read, and a 529's qualified expenses: none in the household.
     ("RcLnk", "itemId", "Gift", 403),
+    # Every donation others read is in a giving plan shared with them to write (S10.3.2).
+    ("RcLnk", "itemId", "Donation", 403),
     ("RcLnk", "itemId", "QualifiedExpense", 403),
     ("RcLnk", "itemId", "QualifiedExpense", 404),
 }

@@ -47,24 +47,6 @@ class OccasionOut(OccasionIn):
     version: int
 
 
-class PersonIn(Model):
-    """A gift plan, and the person it is for: an existing one (`personId`) or a new one."""
-
-    personId: str | None = None
-    name: str = ""
-    sex: str | None = None
-    birthMonth: int | None = None
-    birthDay: int | None = None
-    birthYear: int | None = None
-    diedOn: dt.date | None = None
-    private: bool | None = None  # left as it is when not given
-    differentPerson: bool = False  # the same name as someone here, told apart by birth year
-    giftBudget: Money | None = None
-    leadDays: int = 14
-    notes: str | None = None
-    occasions: list[OccasionIn] | None = None  # a new plan's
-
-
 class NextDate(Model):
     key: str
     label: str
@@ -85,7 +67,11 @@ class GiftPlanRow(Model):
 
     id: str
     personId: str
+    # The person's name, whether or not the caller sees them, who then has it alone (R3.14).
+    personName: str
     giftBudget: Money | None
+    birthdayBudget: Money | None
+    weddingBudget: Money | None
     leadDays: int
     notes: str | None
     occasions: list[OccasionOut]
@@ -104,7 +90,7 @@ class HolidayOut(Model):
 
 
 def _next(
-    p: Person, occs: list[Occasion], today: dt.date, wedding: dt.date | None
+    p: Person | None, occs: list[Occasion], today: dt.date, wedding: dt.date | None
 ) -> NextDate | None:
     ahead = [
         d
@@ -174,20 +160,22 @@ def plans_view(s, c: Caller) -> list[GiftPlanRow]:
                 last[pid] = (y, f"{g.description}, {y}")
     out = []
     for x in plans:
-        p, gp = x.person, x.plan
+        gp, pid = x.plan, x.personId
         owner = s.get(User, gp.ownerId)
-        wedding = gifts.wedding_of(s, p.id)
         out.append(
             GiftPlanRow(
                 id=gp.id,
-                personId=p.id,
+                personId=pid,
+                personName=x.name,
                 giftBudget=gp.giftBudget,
+                birthdayBudget=gp.birthdayBudget,
+                weddingBudget=gp.weddingBudget,
                 leadDays=gp.leadDays,
                 notes=gp.notes,
                 occasions=[_occasion_out(o, today) for o in occs[gp.id]],
-                next=_next(p, occs[gp.id], today, wedding),
-                spent=spent.get(p.id, Decimal(0)),
-                lastGift=None if me and p.id == me.personId else last.get(p.id, (0, None))[1],
+                next=_next(x.person, occs[gp.id], today, x.wedding(s)),
+                spent=spent.get(pid, Decimal(0)),
+                lastGift=None if me and pid == me.personId else last.get(pid, (0, None))[1],
                 access=Access.of(x.perms),
                 ownerName=owner.displayName,
                 version=gp.version,
@@ -252,31 +240,6 @@ def refuse_clash(s, c: Caller, name: str, birth_year: int | None, exclude=None) 
             }
         },
     )
-
-
-def _check_plan(body: PersonIn) -> dict:
-    e: list[FieldError] = []
-    if body.giftBudget is not None and body.giftBudget < 0:
-        e.append(FieldError("giftBudget", "amount-invalid", "Zero or more."))
-    if not 0 <= body.leadDays <= 120:
-        e.append(FieldError("leadDays", "lead-invalid", "0 to 120 days."))
-    for i, o in enumerate(body.occasions or []):
-        at = f"occasions.{i}"
-        if o.kind == "holiday":
-            if o.holiday not in holidays.HOLIDAYS:
-                e.append(FieldError(f"{at}.holiday", "holiday-invalid", "One of the holidays."))
-        elif o.kind in ("anniversary", "custom"):
-            if not (o.month and o.day and 1 <= o.month <= 12 and 1 <= o.day <= 31):
-                e.append(FieldError(f"{at}.month", "date-invalid", "A month and a day."))
-            if o.kind == "custom" and not (o.name or "").strip():
-                e.append(FieldError(f"{at}.name", "name-missing", "What the occasion is."))
-        else:
-            e.append(FieldError(f"{at}.kind", "kind-invalid", "An anniversary, holiday or date."))
-        if o.budget is not None and o.budget < 0:
-            e.append(FieldError(f"{at}.budget", "amount-invalid", "Zero or more."))
-    if e:
-        raise Problem(422, e[0].code, e[0].message, e)
-    return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
 
 
 def _one(s, c: Caller, plan_id: str) -> GiftPlanRow:
@@ -451,7 +414,6 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
     through someone's shared plan, at write, that plan's owner (S7.8.5)."""
     owners = None
     for pid in person_ids:
-        people.get(s, c.id, pid)
         mine = s.scalars(
             select(GiftPlan).where(
                 GiftPlan.ownerId == c.id, GiftPlan.personId == pid, GiftPlan.deleted == false()
@@ -462,13 +424,16 @@ def _owner_for(s, c: Caller, person_ids: list[str]) -> str:
         here = {
             x.plan.ownerId
             for x in gifts.visible_plans(s, c.id)
-            if x.person.id == pid and x.perms.writable and not x.perms.mine
+            if x.personId == pid and x.perms.writable and not x.perms.mine
         }
         owners = here if owners is None else owners & here
     return next(iter(sorted(owners))) if owners else c.id
 
 
-def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
+def _check_gift(
+    s, c: Caller, body: GiftIn, current: str | None = None, kept: list[str] | None = None
+) -> dict:
+    """`current`: the gift's purchase; `kept`: the people it already names."""
     e: list[FieldError] = []
     desc = body.description.strip()
     if not desc:
@@ -486,8 +451,12 @@ def _check_gift(s, c: Caller, body: GiftIn, current: str | None = None) -> dict:
         e.append(FieldError("link", "link-invalid", why))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
+    # Someone the caller sees, a gift plan they see is for, or one the gift already names,
+    # seen or not (R3.14).
+    planned = {x.personId for x in gifts.visible_plans(s, c.id)} | set(kept or [])
     for pid in body.people:
-        people.get(s, c.id, pid)
+        if pid not in planned:
+            people.get(s, c.id, pid)
     if body.transactionId and body.transactionId != current:
         # Linking a purchase may recategorise it under Gifts: write on its account.
         t = s.get(Transaction, body.transactionId)
@@ -571,10 +540,7 @@ def _editable(s, c: Caller, gift_id: str) -> Gift:
     g = s.get(Gift, gift_id)
     if g is None or g.deleted:
         raise Problem(404, "not-found", "Not found")
-    found = [x for x in gifts_view(s, c) if x.id == gift_id]
-    if not found:
-        raise Problem(404, "not-found", "Not found")
-    if not found[0].access.writable:
+    if not _gift_for(s, c, gift_id).access.writable:
         raise Problem(403, "read-only", "This gift is shared with you to read.")
     return g
 
@@ -696,13 +662,17 @@ def get_spending(request: Request, year: int | None = None, c: Caller = Depends(
         return SpendingOut(
             year=sp.year,
             byPerson=[
-                PersonSpend(person=PersonRef(id=p.id, name=p.name), spent=a, budget=b)
+                PersonSpend(
+                    person=PersonRef(id=p.id, name=p.name, deleted=p.deleted), spent=a, budget=b
+                )
                 for p, a, b in sp.byPerson
             ],
             byOccasion=[Amount(label=k, amount=v) for k, v in sp.byOccasion],
             byYear=[Amount(label=str(k), amount=v) for k, v in sp.byYear],
             flagged=[
-                Flag(person=PersonRef(id=p.id, name=p.name), given=a, exclusion=x)
+                Flag(
+                    person=PersonRef(id=p.id, name=p.name, deleted=p.deleted), given=a, exclusion=x
+                )
                 for p, a, x in sp.flagged
             ],
         )
@@ -716,7 +686,9 @@ class PlanRecord(Model):
     each keeps its id, and the gifts planned for it stay with it."""
 
     personId: IdOf("Persn")  # type: ignore[valid-type]
-    giftBudget: Money | None = None
+    giftBudget: Money | None = None  # a year's, for all its occasions
+    birthdayBudget: Money | None = None  # with no yearly budget, the birthday's own (S7.7.1)
+    weddingBudget: Money | None = None  # and the wedding anniversary's
     leadDays: int = 14
     notes: str | None = None
 
@@ -735,15 +707,23 @@ class OccasionRecord(Model):
     budget: Money | None = None
 
 
+PLAN_BUDGETS = ("giftBudget", "birthdayBudget", "weddingBudget")
+
+
 def _plan_values(body: PlanRecord) -> dict:
     e: list[FieldError] = []
-    if body.giftBudget is not None and body.giftBudget < 0:
-        e.append(FieldError("giftBudget", "amount-invalid", "Zero or more."))
+    for k in PLAN_BUDGETS:
+        if getattr(body, k) is not None and getattr(body, k) < 0:
+            e.append(FieldError(k, "amount-invalid", "Zero or more."))
     if not 0 <= body.leadDays <= 120:
         e.append(FieldError("leadDays", "lead-invalid", "0 to 120 days."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
-    return {"giftBudget": body.giftBudget, "leadDays": body.leadDays, "notes": body.notes or None}
+    return {
+        **{k: getattr(body, k) for k in PLAN_BUDGETS},
+        "leadDays": body.leadDays,
+        "notes": body.notes or None,
+    }
 
 
 def _plan_create(ctx, record_id: str, body: PlanRecord) -> None:
@@ -767,8 +747,8 @@ def _plan_editable(ctx, record_id: str) -> GiftPlan:
 
 
 def _plan_current(ctx, gp: GiftPlan) -> dict:
-    return {"personId": gp.personId, "giftBudget": gp.giftBudget, "leadDays": gp.leadDays,
-            "notes": gp.notes}  # fmt: skip
+    return {"personId": gp.personId, **{k: getattr(gp, k) for k in PLAN_BUDGETS},
+            "leadDays": gp.leadDays, "notes": gp.notes}  # fmt: skip
 
 
 def _plan_update(ctx, gp: GiftPlan, body: PlanRecord) -> None:
@@ -932,7 +912,7 @@ def _gift_update(ctx, g: Gift, body: GiftRecord) -> None:
     s, c = ctx.s, ctx.caller
     before = g.transactionId
     current = _gift_current(ctx, g)
-    for k, v in _check_gift(s, c, body, before).items():
+    for k, v in _check_gift(s, c, body, before, current["people"]).items():
         setattr(g, k, v)
     g.updatedAt = clock.now()
     _set_people(s, g, body.people, c.id)

@@ -3,7 +3,7 @@ to the token's chosen items, rate limited, and recorded in Activity."""
 
 import pytest
 from conftest import make_user, new_client, sign_in
-from edits import make, remove, saved
+from edits import giving_plan, make, remove, saved
 from test_accounts import add, new_account
 
 from moolakata import mcp
@@ -88,6 +88,37 @@ def test_tools_read_what_the_user_can_see_and_record_each_call(server, jane, age
     assert any("access token Claude read list accounts" in x for x in texts), texts[:5]
     listed = jane.get("/ui/api/profile/tokens").json()["items"][0]
     assert listed["lastUsedAt"]
+
+
+def test_giving_reads_the_users_own_plan(jane, agent):
+    saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    out = call(agent, token(jane), "get_giving", year=2026)
+    assert not out["isError"], out
+    assert out["structuredContent"]["result"]["plan"]["targetKind"] == "amount"
+
+
+def test_giving_reads_a_plan_shared_with_the_user_and_refuses_another(server, jane, agent):
+    """S7.9.1, S10.9: `plan` chooses a giving plan the user reads, as the Giving screen's
+    choice does; none, their own; one they don't read is refused as the route refuses it."""
+    from edits import share
+
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    hers = saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    his = saved(giving_plan(john, 2026, targetKind="amount", amount="700"))
+    secret = token(john)
+    own = call(agent, secret, "get_giving", year=2026)["structuredContent"]["result"]
+    assert own["plan"]["id"] == his["id"]
+    assert call(agent, secret, "get_giving", year=2026, plan=hers["id"])["isError"]
+    assert john.get("/ui/api/giving", params={"year": 2026, "plan": hers["id"]}).status_code == 404
+    share(jane, "giving-plan", hers["id"], users={john_id: "read"})
+    out = call(agent, secret, "get_giving", year=2026, plan=hers["id"])
+    assert not out["isError"], out
+    assert out["structuredContent"]["result"]["plan"]["id"] == hers["id"]
+    tools = rpc(agent, secret, "tools/list").json()["result"]["tools"]
+    (giving,) = [t for t in tools if t["name"] == "get_giving"]
+    assert "plan" in giving["inputSchema"]["properties"]
 
 
 def test_a_chosen_items_token_reads_only_its_items(server, jane, agent):

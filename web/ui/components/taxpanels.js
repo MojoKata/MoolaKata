@@ -569,6 +569,12 @@ function Education({ p }) {
             <div class="list-item"><span class="grow dim">Qualified expenses</span><${Amt}
               v=${e.expenses} /></div>
             ${
+            num(e.rolledOver)
+              ? html`<div class="list-item"><span class="grow dim">Rolled
+                over</span><${Amt} v=${e.rolledOver} /></div>`
+              : null
+          }
+            ${
             num(e.notCovered)
               ? html`<div class="list-item"><span class="grow dim">Not covered</span><span
                 class="pill warn"><${Amt} v=${e.notCovered} /></span></div>`

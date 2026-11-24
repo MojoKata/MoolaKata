@@ -30,7 +30,8 @@ bank side alone, for a deposit already imported there.
 ## Five-year election
 
 Superfunding: up to five years of exclusions given at once. It counts a fifth against the exclusion
-in its year and each of the next four, and needs a gift-tax return (Form 709) to elect it.
+in its year and each of the next four, and needs a gift-tax return (Form 709) to elect it. Only five
+times its year's exclusion is spread: anything above that counts in its own year.
 
 ## Against the Annual Gift Exclusion
 
@@ -55,3 +56,9 @@ modelled.
 After 15 years, up to a lifetime limit can roll over to the beneficiary's Roth IRA. Contributions of
 the last five years, and their earnings, can't; each year's rollover is held to that year's IRA
 limit.
+
+## Could still roll over
+
+The account's value, less the last five years' contributions and their earnings, up to what is
+left of the lifetime limit after what was already rolled over. A recent contribution's earnings are
+estimated: it is grown by the account's return since it went in.

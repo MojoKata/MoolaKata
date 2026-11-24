@@ -6215,6 +6215,20 @@
             "default": null,
             "title": "Organisationid"
           },
+          "planId": {
+            "anyOf": [
+              {
+                "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "GvPln"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planid"
+          },
           "quantity": {
             "anyOf": [
               {
@@ -6370,6 +6384,14 @@
             "title": "Notcovered",
             "type": "number"
           },
+          "rolledOver": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Rolledover",
+            "type": "number"
+          },
           "stateDeduction": {
             "anyOf": [
               {
@@ -6393,6 +6415,7 @@
           "stateDeduction",
           "distributions",
           "expenses",
+          "rolledOver",
           "notCovered"
         ],
         "title": "EducationOut",
@@ -7894,6 +7917,21 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           },
+          "birthdayBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthdaybudget"
+          },
           "giftBudget": {
             "anyOf": [
               {
@@ -7964,6 +8002,10 @@
             "title": "Personid",
             "type": "string"
           },
+          "personName": {
+            "title": "Personname",
+            "type": "string"
+          },
           "spent": {
             "examples": [
               1234.5
@@ -7975,12 +8017,30 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "weddingBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weddingbudget"
           }
         },
         "required": [
           "id",
           "personId",
+          "personName",
           "giftBudget",
+          "birthdayBudget",
+          "weddingBudget",
           "leadDays",
           "notes",
           "occasions",
@@ -8599,6 +8659,13 @@
             "title": "Projected",
             "type": "number"
           },
+          "shared": {
+            "items": {
+              "$ref": "#/components/schemas/moolakata__ui__giving__PlanOut"
+            },
+            "title": "Shared",
+            "type": "array"
+          },
           "target": {
             "examples": [
               1234.5
@@ -8615,6 +8682,7 @@
         "required": [
           "year",
           "plan",
+          "shared",
           "income",
           "target",
           "given",
@@ -15154,7 +15222,7 @@
       },
       "OrganisationRecord": {
         "additionalProperties": false,
-        "description": "An organisation as a draft saves it (S7.9.5).",
+        "description": "An organisation as a draft saves it (S7.9.5), added to the plan shown.",
         "properties": {
           "causes": {
             "items": {
@@ -15195,6 +15263,20 @@
             ],
             "default": null,
             "title": "Notes"
+          },
+          "planId": {
+            "anyOf": [
+              {
+                "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                "type": "string",
+                "x-prefix": "GvPln"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planid"
           },
           "pledge": {
             "anyOf": [
@@ -18298,6 +18380,22 @@
         "additionalProperties": false,
         "description": "A gift plan as a draft saves it: its occasions are records of their own (`Occsn`), so\neach keeps its id, and the gifts planned for it stay with it.",
         "properties": {
+          "birthdayBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Birthdaybudget"
+          },
           "giftBudget": {
             "anyOf": [
               {
@@ -18336,6 +18434,22 @@
             "title": "Personid",
             "type": "string",
             "x-prefix": "Persn"
+          },
+          "weddingBudget": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weddingbudget"
           }
         },
         "required": [
@@ -19018,6 +19132,7 @@
               "account-in-book",
               "account-missing",
               "account-not-counted",
+              "account-not-plans",
               "account-unknown",
               "accounts-unknown",
               "action-fixed",
@@ -19087,6 +19202,7 @@
               "date-in-future",
               "date-invalid",
               "date-missing",
+              "date-outside-plan",
               "date-past",
               "dates-invalid",
               "day-invalid",
@@ -19505,6 +19621,7 @@
                   "account-in-book",
                   "account-missing",
                   "account-not-counted",
+                  "account-not-plans",
                   "account-unknown",
                   "accounts-unknown",
                   "action-fixed",
@@ -19574,6 +19691,7 @@
                   "date-in-future",
                   "date-invalid",
                   "date-missing",
+                  "date-outside-plan",
                   "date-past",
                   "dates-invalid",
                   "day-invalid",
@@ -22071,7 +22189,7 @@
       },
       "RelationshipRecord": {
         "additionalProperties": false,
-        "description": "A relationship as a draft saves it (S10.10.4): a marriage changed in any way is\nconfirmed again by the other.",
+        "description": "A relationship as a draft saves it (S10.10.4): a marriage changed in any way is\nconfirmed again, by whoever changed it for the sides they may confirm.",
         "properties": {
           "fromDate": {
             "anyOf": [
@@ -28290,6 +28408,14 @@
             "title": "Notcovered",
             "type": "number"
           },
+          "rolledOver": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Rolledover",
+            "type": "number"
+          },
           "year": {
             "title": "Year",
             "type": "integer"
@@ -28299,6 +28425,7 @@
           "year",
           "distributions",
           "expenses",
+          "rolledOver",
           "notCovered"
         ],
         "title": "WithdrawalYearOut",
@@ -28796,6 +28923,10 @@
             "title": "Incomebasis",
             "type": "string"
           },
+          "ownerId": {
+            "title": "Ownerid",
+            "type": "string"
+          },
           "ownerName": {
             "title": "Ownername",
             "type": "string"
@@ -28838,6 +28969,7 @@
           "income",
           "dafCounted",
           "access",
+          "ownerId",
           "ownerName",
           "version"
         ],
@@ -33510,6 +33642,24 @@
               ],
               "title": "Year"
             }
+          },
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
+            }
           }
         ],
         "responses": {
@@ -33554,6 +33704,24 @@
                 }
               ],
               "title": "Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
             }
           },
           {
@@ -33608,6 +33776,24 @@
       "get": {
         "operationId": "list_organisations_ui_api_giving_organisations_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "plan",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^GvPln_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+                  "type": "string",
+                  "x-prefix": "GvPln"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan"
+            }
+          },
           {
             "in": "query",
             "name": "offset",
@@ -36654,7 +36840,7 @@
     },
     "/ui/api/relationships/{rel_id}/confirm": {
       "post": {
-        "description": "A spouse confirms the marriage from their own Profile, or an admin for a person who\nisn't a user (S10.10.4); once both have, it counts for wash sales and tax books.",
+        "description": "A spouse confirms the marriage from their own Profile, or an admin for a person who\nisn't a user (S10.10.4); once either has, it counts for wash sales and tax books.",
         "operationId": "confirm_relationship_ui_api_relationships__rel_id__confirm_post",
         "parameters": [
           {

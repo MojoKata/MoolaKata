@@ -164,7 +164,7 @@ function Relations({ p, reload }) {
   // see, so no tool (S12.19.5).
   const open = (/** @type {any} */ r) =>
     openDialog(RelationshipDialog, { me: p.personId, r }).then((x) => x && again());
-  // A marriage counts for wash sales and tax books once both have confirmed it (S10.10.4).
+  // A marriage counts for wash sales and tax books once either has confirmed it (S10.10.4).
   const confirm = async (/** @type {any} */ r) => {
     try {
       await api.post(`/relationships/${r.id}/confirm`);
@@ -228,17 +228,17 @@ function Relations({ p, reload }) {
   `;
 }
 
-/** A marriage's confirmations, as a pill (S12.19.3): by both, or whom it waits for. */
+/** A marriage's confirmation, as a pill (S12.19.3): confirmed, or whom it waits for. */
 const confirmation = (/** @type {any} */ r) => {
   if (r.confirmed === null || r.confirmed === undefined) return null;
   if (r.confirmed) {
     return html`
       <div>
         <${StatePill} tone="ok"
-          why="Both have confirmed it: it is used for wash sales and joint tax books.">confirmed</${StatePill}></div>
+          why="Confirmed: it is used for wash sales and joint tax books.">confirmed</${StatePill}></div>
     `;
   }
-  const who = r.waitingFor.map((/** @type {any} */ x) => x.name).join(' and ');
+  const who = r.waitingFor.map((/** @type {any} */ x) => x.name).join(' or ');
   return html`
     <div>
       <${StatePill} why=${`Waiting for ${who} to confirm: it counts for gifts only until then.`}>waiting</${StatePill}></div>

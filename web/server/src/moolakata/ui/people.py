@@ -75,7 +75,7 @@ def _rows(s, c: Caller) -> list[PersonRow]:
                 userId=u.id if u else None,
                 relation=rel.word if rel else ("you" if p.id == me.personId else None),
                 wedding=gifts.wedding_of(s, p.id),
-                canMakePrivate=p.ownerId == c.id,
+                canMakePrivate=p.ownerId == c.id and not (u is not None and u.linkId is None),
                 sameAs=[_remote(s, r) for r in people.may_join(s, c.id, p)],
                 access=Access.of(held),
                 createdBy=creator.displayName if creator else None,
@@ -258,13 +258,14 @@ def _named(s, person_id: str) -> Named:
 
 
 def _rel_out(s, c: Caller, r: Relationship) -> RelationshipOut:
+    # A marriage waits for either spouse while neither has confirmed it (S10.10.4).
     waiting = (
         [
             _named(s, pid)
             for pid, at in ((r.person1Id, r.confirmed1At), (r.person2Id, r.confirmed2At))
             if at is None
         ]
-        if r.relation == "spouse"
+        if r.relation == "spouse" and not people.confirmed(r)
         else []
     )
     return RelationshipOut(
@@ -371,7 +372,7 @@ def _editable(s, c: Caller, rel_id: str) -> Relationship:
 @router.post("/relationships/{rel_id}/confirm", response_model=RelationshipOut)
 def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(caller)):
     """A spouse confirms the marriage from their own Profile, or an admin for a person who
-    isn't a user (S10.10.4); once both have, it counts for wash sales and tax books."""
+    isn't a user (S10.10.4); once either has, it counts for wash sales and tax books."""
     with server(request).db.tx(user=c.id) as s:
         r = s.get(Relationship, rel_id)
         if r is None or r.deleted:
@@ -391,7 +392,7 @@ def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(call
 
 class RelationshipRecord(RelationshipIn):
     """A relationship as a draft saves it (S10.10.4): a marriage changed in any way is
-    confirmed again by the other."""
+    confirmed again, by whoever changed it for the sides they may confirm."""
 
     person1Id: IdOf("Persn")  # type: ignore[valid-type]
     person2Id: IdOf("Persn")  # type: ignore[valid-type]
@@ -475,11 +476,21 @@ def _person_current(ctx, p: Person) -> dict:
     }
 
 
+def _local_user(s, person_id: str) -> bool:
+    """A person who is a user of this server (a linked server's user stays as private as the
+    person they were joined to, S10.10.1)."""
+    u = people.user_of(s, person_id)
+    return u is not None and u.linkId is None
+
+
 def _person_update(ctx, p: Person, body: PersonRecord) -> None:
     s, c = ctx.s, ctx.caller
     values = check_person_fields(body)
     if (values["name"], values["birthYear"]) != (p.name, p.birthYear):
         refuse_clash(s, c, values["name"], values["birthYear"], exclude=p.id)
+    if body.private != p.private and _local_user(s, p.id):
+        # Every user is a person the household sees (S10.10.1), whoever added them first.
+        raise refuse("private", "person-is-user", "A user is seen by the whole household.")
     if body.private != p.private and p.ownerId != c.id:
         raise refuse("private", "not-creator", "Only whoever added them makes them private.")
     died = p.diedOn != body.diedOn

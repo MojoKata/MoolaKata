@@ -246,6 +246,66 @@ def test_the_family_tree_is_worked_out_as_of_a_day(db):
         assert gpa["Gma"] == "widow"
 
 
+def test_a_death_keeps_the_in_laws_and_step_family_a_divorce_ends(db):
+    """S10.10.5: a marriage ended by death keeps the in-laws and step-family through it, and
+    the dead spouse's family stays joined; a divorce ends them. A survivor who remarries has
+    both families' in-laws."""
+    with db.tx(unscoped="test") as s:
+
+        def p(name, sex, died=None):
+            x = Person(id=f"Persn_{name.lower():0<26}"[:32], name=name, sex=sex, diedOn=died)
+            s.add(x)
+            return x
+
+        ann, bob = p("Ann", "female"), p("Bob", "male", dt.date(2020, 6, 1))
+        mae, kid, sib = p("Mae", "female"), p("Kid", "male"), p("Sib", "female")
+        cal, rue = p("Cal", "male"), p("Rue", "female")
+        dee, ed = p("Dee", "female"), p("Ed", "male", dt.date(2021, 3, 1))
+        xan, xma = p("Xan", "male"), p("Xma", "female")
+        s.flush()
+
+        def r(a, b, relation, since=None, until=None):
+            x, y = people.ordered(relation, a.id, b.id)
+            s.add(Relationship(id=f"Rltn_{a.name}{b.name}{relation}".ljust(31, "0")[:31],
+                               person1Id=x, person2Id=y, relation=relation, fromDate=since,
+                               toDate=until))  # fmt: skip
+
+        r(ann, xan, "spouse", dt.date(1990, 1, 1), dt.date(1999, 1, 1))
+        r(xma, xan, "child")
+        r(ann, bob, "spouse", dt.date(2000, 1, 1))
+        for x in (bob, sib):
+            r(mae, x, "child")
+        r(bob, kid, "child")
+        r(ann, cal, "spouse", dt.date(2022, 1, 1))
+        r(rue, cal, "child")
+        r(ann, dee, "child")
+        r(dee, ed, "spouse", dt.date(2010, 1, 1))
+        s.flush()
+
+        def words(who, day):
+            return {
+                s.get(Person, x.personId).name: x.word
+                for x in tree.relations(s, who.id, dt.date(*day))
+            }
+
+        before = words(ann, (2019, 1, 1))
+        after = words(ann, (2021, 1, 1))
+        assert before == {"Bob": "husband", "Kid": "stepson", "Mae": "mother-in-law",
+                          "Sib": "sister-in-law", "Dee": "daughter", "Ed": "son-in-law",
+                          "Xan": "ex-husband"}  # fmt: skip
+        assert after == before
+        assert words(kid, (2021, 1, 1))["Ann"] == "stepmother"
+        assert words(mae, (2021, 1, 1))["Ann"] == "daughter-in-law"
+        remarried = words(ann, (2023, 1, 1))
+        assert (remarried["Cal"], remarried["Rue"], remarried["Mae"], remarried["Ed"]) == (
+            "husband",
+            "mother-in-law",
+            "mother-in-law",
+            "son-in-law",
+        )
+        assert "Xma" not in remarried, "a divorce ends the in-laws through it"
+
+
 def test_wash_sales_count_the_spouse_on_the_day_of_the_sale(server, two):
     jane, john = two
     a, b = me(jane), me(john)
@@ -260,20 +320,50 @@ def test_wash_sales_count_the_spouse_on_the_day_of_the_sale(server, two):
         return next(r for r in v["closed"] if r["symbol"] == "AAPL")["realized"]
 
     assert realized() == "-500.00", "not married: John's buy is his own"
+    # Jane enters it, so her side confirms it: it counts (S10.10.4).
     made = relate(jane, a, b, "spouse", fromDate="2026-07-01")
-    assert made["confirmed"] is False and [w["id"] for w in made["waitingFor"]] == [b]
+    assert made["confirmed"] is True and made["waitingFor"] == []
     assert not made["canConfirm"]
-    assert jane.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 403
-    assert john.post(f"/ui/api/relationships/{made['id']}/confirm").json()["confirmed"] is True
     assert realized() == "-500.00", "married after the sale"
     rel = jane.get("/ui/api/relationships").json()["items"][0]
     r = change(jane, "Rltn", rel, fromDate="2009-06-14")
-    assert saved(r)["confirmed"] is False, "a changed marriage is confirmed again"
-    assert realized() == "-500.00", "Jane alone can't make John's trades hers"
+    assert saved(r)["confirmed"] is True, "confirmed again by whoever changed it"
+    assert realized() == "0.00", "married on the day: the whole loss is disallowed"
+
+
+def test_a_marriage_counts_once_either_spouse_confirms_it(server, two, admin_client):
+    """S10.10.4: one side's confirmation makes a marriage count, for wash sales, a joint tax
+    book and gifts alike. One an admin entered for two users waits for either of them."""
+    jane, john = two
+    a, b = me(jane), me(john)
+    a_id = jane.get("/ui/api/session").json()["user"]["id"]
+    b_id = john.get("/ui/api/session").json()["user"]["id"]
+    mine = new_account(jane, name="Jane's brokerage", type="brokerage")
+    his = new_account(john, name="John's brokerage", type="brokerage")
+    trade(jane, mine["id"], "2025-03-01", "buy", "10", "200", "AAPL")
+    trade(jane, mine["id"], "2026-06-01", "sell", "10", "150", "AAPL")  # a 500 loss
+    trade(john, his["id"], "2026-06-10", "buy", "10", "155", "AAPL")
+    assert make(jane, "GfPln", personId=b).status_code == 200
+
+    def realized():
+        v = jane.get("/ui/api/positions").json()
+        return next(r for r in v["closed"] if r["symbol"] == "AAPL")["realized"]
+
+    def counted():
+        joint = make(jane, "TaxBk", year=2025, filers=[a_id, b_id]).status_code == 200
+        up = jane.get("/ui/api/gifts/upcoming").json()["items"]
+        wedding = any(u["key"] == "wedding" for u in up)
+        return realized() == "0.00", joint, wedding
+
+    made = relate(admin_client, a, b, "spouse", fromDate="2009-11-02")
+    assert made["confirmed"] is False and {w["id"] for w in made["waitingFor"]} == {a, b}
+    assert counted() == (False, False, True), "gifts don't wait for it"
     waiting = john.get("/ui/api/relationships").json()["items"][0]
     assert waiting["canConfirm"]
-    assert john.post(f"/ui/api/relationships/{rel['id']}/confirm").status_code == 200
-    assert realized() == "0.00", "married on the day: the whole loss is disallowed"
+    done = john.post(f"/ui/api/relationships/{made['id']}/confirm").json()
+    assert (done["confirmed"], done["waitingFor"], done["canConfirm"]) == (True, [], False)
+    assert counted() == (True, True, True), "John's confirmation alone"
+    assert not jane.get("/ui/api/relationships").json()["items"][0]["canConfirm"]
 
 
 def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(server, two):
@@ -286,8 +376,7 @@ def test_a_joint_book_needs_a_marriage_on_the_last_day_or_a_death_that_year(serv
     def joint(year):
         return make(jane, "TaxBk", year=year, filers=[a_id, b_id])
 
-    assert joint(2024).status_code == 422, "not yet confirmed by John"
-    assert john.post(f"/ui/api/relationships/{made['id']}/confirm").status_code == 200
+    assert made["confirmed"], "Jane's side, as she entered it"
     assert joint(2024).status_code == 200
     assert joint(2025).status_code == 422, "divorced before the year ended"
     with server.db.tx(unscoped="test") as s:
@@ -322,6 +411,39 @@ def test_a_gift_plans_person_keeps_their_death_and_only_its_creator_makes_them_p
     r = change(john, "Persn", hers, private=False)
     assert r.status_code == 403, "John reads Ruth, so he may not change her"
     assert john.get(f"/ui/api/persons/{pid}").json()["private"]
+
+
+def test_a_person_who_is_a_user_is_never_made_private(server, two, admin_client):
+    """S10.10.1, S10.10.2: every user is a person the household sees; neither whoever added
+    them before they became a user, nor an admin, nor the user, makes them private."""
+    from moolakata import ids
+    from moolakata.store.entities.users import User
+
+    jane, john = two
+    bob = add(admin_client, "Bob Ray", sex="male")
+    with server.db.tx(unscoped="test: Bob Ray signs in, as the person the admin added") as s:
+        s.add(User(id=ids.new_id("User"), personId=bob["id"], username="bob",
+                   displayName="Bob Ray", email="bob@home.lan", passwordHash="x"))  # fmt: skip
+    seen = admin_client.get(f"/ui/api/persons/{bob['id']}").json()
+    assert seen["userId"] and not seen["canMakePrivate"]
+    for c, pid in ((admin_client, bob["id"]), (john, me(john))):
+        r = change(c, "Persn", c.get(f"/ui/api/persons/{pid}").json(), private=True)
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+            ("private", "person-is-user")
+        ]
+    assert not jane.get(f"/ui/api/persons/{bob['id']}").json()["private"]
+
+
+def test_a_change_that_leaves_private_out_keeps_it(two, admin_client):
+    """S10.10.2: a save of a private person without `private` changes what it names and
+    leaves them private, whether its creator or an admin saves it."""
+    jane, _ = two
+    ruth = add(jane, "Ruth Doe", private=True, birthYear=1940)
+    for c in (jane, admin_client):
+        r = change(c, "Persn", c.get(f"/ui/api/persons/{ruth['id']}").json(), birthYear=1941)
+        assert saved(r)["private"]
+    assert jane.get(f"/ui/api/persons/{ruth['id']}").json()["private"]
 
 
 def test_a_relationship_is_changed_and_removed_with_its_version(two):

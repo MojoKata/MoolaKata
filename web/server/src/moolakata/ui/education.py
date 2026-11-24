@@ -31,23 +31,12 @@ router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["education"])
 # ---- The plan ----
 
 
-class BeneficiaryRef(Model):
-    kind: str  # person, or user for a user's own person
+class BeneficiaryOut(Model):
+    kind: str  # person
     id: str
-
-
-class BeneficiaryOut(BeneficiaryRef):
     name: str
     birthYear: int | None
     deleted: bool = False
-
-
-class PlanIn(Model):
-    planState: str | None = None
-    planName: str | None = None
-    beneficiary: BeneficiaryRef | None = None
-    openedOn: dt.date | None = None
-    stateDeduction: Money | None = None
 
 
 class RolloverOut(Model):
@@ -119,15 +108,6 @@ def _person_of(s, c: Caller, kind: str, ident: str) -> Person | None:
     return p if p is not None and people.readable(s, c.id, p.id) else None
 
 
-def _check_beneficiary(s, c: Caller, b: BeneficiaryRef | None, owner_id: str) -> dict:
-    if b is None:
-        return {"beneficiaryId": None}
-    p = _person_of(s, c, b.kind, b.id)
-    if p is None:
-        raise refuse("beneficiary", "beneficiary-invalid", "One of the household's people.")
-    return {"beneficiaryId": p.id}
-
-
 @router.get("/accounts/{account_id}/plan529", response_model=PlanOut)
 def get_plan(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
@@ -146,12 +126,15 @@ class EducationPlanRecord(Model):
     stateDeduction: Money | None = None
 
 
-def _plan_values(ctx, body: EducationPlanRecord) -> dict:
+def _plan_values(ctx, body: EducationPlanRecord, current: str | None = None) -> dict:
+    """`current`: the beneficiary the plan names, who stays whether or not the writer sees
+    them (R3.14); another is one they see."""
     if body.stateDeduction is not None and body.stateDeduction < 0:
         raise refuse("stateDeduction", "amount-invalid", "Zero or more.")
     if body.openedOn is not None and body.openedOn > clock.today():
         raise refuse("openedOn", "date-ahead", "Not after today.")
-    if body.beneficiaryId and _person_of(ctx.s, ctx.caller, "person", body.beneficiaryId) is None:
+    b = body.beneficiaryId
+    if b and b != current and _person_of(ctx.s, ctx.caller, "person", b) is None:
         raise refuse("beneficiaryId", "beneficiary-invalid", "One of the household's people.")
     return {
         "planState": (body.planState or "").strip() or None,
@@ -197,7 +180,7 @@ def _plan_update(ctx, plan: EducationPlan, body: EducationPlanRecord) -> None:
     if body.accountId != plan.accountId:
         raise refuse("accountId", "plan-fixed", "A plan stays with its account.")
     a, _ = _account(ctx.s, ctx.caller, plan.accountId, "write")
-    for k, v in _plan_values(ctx, body).items():
+    for k, v in _plan_values(ctx, body, plan.beneficiaryId).items():
         setattr(plan, k, v)
     plan.updatedAt = clock.now()
     _plan_changed(ctx, a)
@@ -400,7 +383,9 @@ def _contribution_update(ctx, t: Contribution, body: ContributionRecord) -> None
     if fixed:
         raise refuse(fixed[0], "contribution-fixed", "Change the deposit on the Transactions tab.")
     a = ctx.s.get(Account, body.accountId)
-    t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
+    # One it already names stays, seen by the writer or not (R3.14); another is checked.
+    if body.contributor != current["contributor"]:
+        t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
     t.fiveYear = body.fiveYear
     t.updatedAt = clock.now()
 
@@ -452,8 +437,9 @@ class ExpenseOut(Model):
 
 class WithdrawalYearOut(Model):
     year: int
-    distributions: Money
+    distributions: Money  # Form 1099-Q's, rollovers included
     expenses: Money
+    rolledOver: Money  # to the beneficiary's Roth IRA or another 529 (S1.8.3)
     notCovered: Money
 
 
@@ -586,6 +572,7 @@ def get_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     with server(request).db.read(user=c.id) as s:
         a, _ = _account(s, c, account_id)
         b = education.beneficiary(s, education.plan_of(s, a))
+        # The beneficiary the 529 names, whether or not the reader sees them (S1.8.5, R3.14).
         if b is None:
             return GoalView(beneficiary=None, projection=None, others=0)
         found = _goals(s, c, b)
@@ -606,6 +593,8 @@ def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
     starting from the shipped public-college average and this year's contributions."""
     with server(request).db.tx(user=c.id) as s:
         a, _ = _account(s, c, account_id, "write")
+        # The projection's person is the one the 529 names, seen by the caller or not: taken
+        # from that reference, never chosen anew (R3.14).
         b = education.beneficiary(s, education.plan_of(s, a))
         if b is None:
             raise Problem(409, "no-beneficiary", "Choose the beneficiary in Settings first.")

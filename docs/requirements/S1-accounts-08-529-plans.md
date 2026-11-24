@@ -7,13 +7,19 @@
    2. **Contributions** record who contributed (the owner, or a named relative), so gifts to
       the beneficiary can be totalled per contributor per year against the **annual gift
       exclusion** (in the tax tables, S16.11). A **five-year election** (superfunding)
-      spreads one contribution over five years of exclusions and is shown that way.
+      spreads one contribution over five years of exclusions and is shown that way: up to
+      five times the exclusion of its year, a fifth in that year and each of the next four;
+      the rest is a gift in its own year.
    3. **Withdrawals** are matched with **qualified expenses** (tuition and fees, room and
       board, books, a computer, K-12 tuition, apprenticeships, student-loan repayment), each
-      with its receipts (S9). Each year shows distributions (from Form 1099-Q) against the
-      qualified expenses, and the part not covered, whose earnings may be taxable (S8.10).
+      with its receipts (S9). Each year shows distributions (from Form 1099-Q, rollovers
+      included) against the qualified expenses and what was **rolled over** (moved to the
+      beneficiary's Roth IRA, or to another 529), and the part neither covers, whose earnings
+      may be taxable (S8.10). A rollover's limits are the preparer's to apply.
    4. **Rollover to a Roth IRA**: once the account has been open 15 years, it shows how much
-      could still roll over to the beneficiary's Roth IRA under the lifetime limit (in the
-      tax tables), excluding contributions of the last five years.
+      could still roll over to the beneficiary's Roth IRA: the account's value, less the last
+      five years' contributions and their earnings (estimated, each grown by the account's
+      return since it went in), up to what is left of the lifetime limit (in the tax tables)
+      after what was already rolled over.
    5. **The Goal tab** shows the beneficiary's education projection (S6.2.2).
    6. A 529 counts in its **owner's** net worth, not the beneficiary's.

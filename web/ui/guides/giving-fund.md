@@ -9,6 +9,12 @@ made (not deducted again).
 
 The year shown.
 
+## Plan
+
+Shown when someone shares their giving plan for the year with you: **Mine** shows your own giving,
+their name theirs. What you add goes into the plan shown; into one shared with you to read, you
+can't add.
+
 ## Grants
 
 Each grant from the fund, pending until the fund pays it. Whether the fund counts toward the target

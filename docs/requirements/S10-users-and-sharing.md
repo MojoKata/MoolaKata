@@ -61,7 +61,8 @@
          again under S13.7.2.
    7. **Active.** Each user has an **active** flag, which admins switch off and on. An inactive
       user cannot sign in, and cannot be added to a share, here or from a linked server; shares
-      they already hold give them nothing while they are inactive. Switching it off ends their
+      they already hold give them nothing while they are inactive. They are left out of what
+      offers people for something new, never out of a record that names them (R3.14). Switching it off ends their
       sessions at once and shows an *account is disabled* screen, from which they can ask to be
       reactivated (once a week), with their username and password, which count toward the
       lockout of S13.7.5.1 as a sign-in's do. What they shared stays shared: one it is
@@ -181,7 +182,8 @@
    5. **The tools**: `list_accounts`, `get_account_holdings`, `list_transactions` (one
       account or all, between dates, by payee, at most 500), `list_positions`,
       `list_portfolios`, `get_portfolio` (value, holdings and returns), `list_budgets`,
-      `get_budget_month`, `list_upcoming_gifts`, `get_giving`, `list_tax_books` and
+      `get_budget_month`, `list_upcoming_gifts`, `get_giving` (the user's own giving, or a
+      plan shared with them, as the Giving screen chooses it, S7.9.1), `list_tax_books` and
       `get_tax_panels`. Each answers with what the matching screen shows. A token with chosen
       items reads only those accounts and portfolios; the tools about the whole household
       (budgets, gifts, giving, taxes) refuse it.
@@ -198,7 +200,10 @@
        person only when a local user who can change that person confirms it, which never
        changes whether the person is private.
     2. **People are the household's.** A new person is seen by every local user. Its creator
-       may make it **private**, and then share it as any item (S10.3). A person is changed by
+       may make it **private**, and then share it as any item (S10.3); a person who is a user
+       here is never made private, by anyone. A private person is left out of the lists and
+       choices of those it isn't shared with, never out of a record that names them, which
+       shows their name and no more (R3.14). A person is changed by
        that person once they are a user here, by its creator until then (and for a linked
        server's user, who never signs in here), and by an admin.
     3. **One person, once.** Adding a person whose name matches one already here, ignoring
@@ -208,10 +213,14 @@
     4. **A relationship** joins two people from a date (optional) to a date (empty while it
        holds): *spouse*, *couple*, *child*, *friend*, *colleague* or *family*, the last with an
        optional label (*godmother*). *Child* runs from the parent to the child; the rest run
-       both ways. A user adds relationships they are in; an admin adds any. A spouse needs both
-       people's confirmation, the other's from their own Profile (an admin confirms for a
-       person who isn't a user); until both have confirmed, the marriage counts for gifts only,
-       not for wash sales (S3.8) or a joint tax book (S8.14.1).
+       both ways. A user adds relationships they are in; an admin adds any. A spouse needs one
+       of the two people's confirmation. A user who enters or changes a marriage they are in
+       confirms their own side by doing so, so it counts at once; one an admin enters for two
+       other users waits until either of them confirms it from their own Profile. An admin
+       confirms for a person who isn't a user. Until either has confirmed it, the marriage
+       counts for gifts only, not for wash sales (S3.8) or a joint tax book (S8.14.1). Nothing
+       changes when a person becomes a user: a confirmed marriage stays confirmed, and either
+       spouse may remove it from Profile.
        1. **At most one spouse at a time**, and no one is their own ancestor.
        2. **A marriage ends** by divorce (its end date) or by death (a spouse's `diedOn`,
           which ends it on that date). The same two people can marry again: a new row.
@@ -232,7 +241,7 @@
        | stepmother, stepfather / stepdaughter, stepson / stepsister, stepbrother | a parent's spouse who isn't a parent, and their children |
        | mother-in-law, father-in-law / daughter-in-law, son-in-law / sister-in-law, brother-in-law | through a spouse, or a child's spouse |
        | ex-wife, ex-husband | a marriage ended by divorce; the in-laws through it end with it |
-       | wife, husband, widow, widower | *spouse*, ended by death for the last two |
+       | wife, husband, widow, widower | *spouse*, ended by death for the last two; the in-laws and step-family through a marriage a death ended stay |
 
        The words follow each person's sex. Adoption and guardianship are *child*. A person
        related in a way the tree can't show is entered as *family* with a label. A relation

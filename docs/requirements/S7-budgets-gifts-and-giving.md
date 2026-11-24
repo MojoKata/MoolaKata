@@ -225,7 +225,10 @@
       occasion, a reminder lead time (14 days by default), and notes (sizes, likes, what
       they already have). The person's **birthday**, their **wedding anniversary** (the start
       of a *spouse* relationship) and their relation to the user (*your granddaughter*,
-      S10.10.5) come from the person. Adding a gift plan for someone new adds the person
+      S10.10.5) come from the person; the plan holds the birthday's and the wedding
+      anniversary's budgets as it holds each holiday's and anniversary's. A plan's budget for
+      a year is its yearly one, or without it its occasions' budgets in that year together.
+      Adding a gift plan for someone new adds the person
       first, as S10.10.3 says. Changing an occasion keeps the gifts planned for it; taking
       away an anniversary or other occasion that has gifts planned asks first, and they
       become ideas, with no occasion.
@@ -239,23 +242,27 @@
       its lead time raises an alert (S12.11).
 8. **Gifts.**
    1. **A gift** is for one or more people and an occasion (and its year): a description, a
-      **status** (*idea*, *planned*, *bought*, *given*), its cost, where it was bought, a link
+      **status** (*idea*, *planned*, *bought*, *given*, or *received* for a gift to the
+      user, S7.8.3), its cost, where it was bought, a link
       (a web address, `http://` or `https://` and a host, up to 2,000 characters), notes, and
       receipts (S9). A cost is linked to its transaction, which needs write on its
       account and is recorded in Activity, or typed. One purchase can be split across several
       gifts.
    2. **Ideas** are gifts without a date: a running list per person, to pick from when an
       occasion comes.
-   3. **Gifts received** can be recorded too (from whom, for what), with a **thank-you
-      sent** tick.
+   3. **Gifts received** are recorded as gifts with the status *received*: its people are
+      whom it came from, its occasion what it was for, and it has a **thank-you sent** tick,
+      which no other status has.
    4. **History**: per person, what was given in past years (so it isn't given twice) and
-      the spending per year against their budget. Per year: gift spending by person and by
-      occasion. Gift transactions are categorised *Gifts* in budgets (S7.2).
+      the spending per year against their budget (S7.7.1). Per year: gift spending by person,
+      everyone it was spent on with a row, and by occasion. Gift transactions are categorised *Gifts* in budgets (S7.2).
    5. **Privacy**: gift plans and gifts are their owner's alone. A user may share a gift
       plan (with its gifts) with another user or group, read or write, so a couple plans
       their children's gifts together. A gift for a person who is a user is **never shown
       to that user** until it is received, even through a share, nor anything kept with it
-      (a receipt, S9.6), so a surprise stays one. For a
+      (a receipt, S9.6), so a surprise stays one. Nor is a gift plan for them, however it is
+      shared (with them, or with a group they are in): its notes, budgets and dates stay with
+      its owner and the others it is shared with, and the Share dialog says so. For a
       user of a linked server, the owner's server leaves those gifts out before sending, so
       they never reach the other server.
    6. **A deleted person**: gifts bought, given or received stay, still count in past
@@ -263,18 +270,28 @@
       for that person alone are deleted with them; a shared idea loses only that person.
    7. **Gift-tax flag**: money given to one person in a year (cash gifts, and 529
       contributions to any of the user's 529s, whether or not the beneficiary has a gift
-      plan, a five-year election counting a fifth in each of its years, S1.8.2) above the
+      plan, a five-year election counted as S1.8.2 spreads it) above the
       annual exclusion is flagged for Form 709 (S8.11).
 9. **Charitable giving.**
    1. **A giving plan** per year, per user or per group (as budgets are): a **target** as a
       **percentage of income** (10% by default when one is set), or a fixed amount. It counts
       its owner's accounts only: sharing it shows them, and never reads the accounts of those
-      it is shared with.
+      it is shared with. A user may keep their own plan in any year, whatever is shared with
+      them: the Giving screen shows their own giving and plan, and beside the year a choice of
+      the plans shared with them that year. A donation or organisation added goes into the plan
+      shown: one's own, or one shared to write, whose entries are its owner's and which its
+      writers change and delete as its owner does (S10.3.2); to one shared to read, adding is
+      shown off (S10.3.1). A donation added to another's plan draws only on its owner's
+      accounts the writer may change: it is paid from one of them or from none (recorded
+      without a transaction), records a transaction in one of them, and names one of them as
+      its donor-advised fund; any other account is refused.
    2. **Income**, for the percentage, is one of: the year's transactions in *Income*
       categories (take-home pay, the default), a typed **gross income** (from a W-2 or a pay
       stub), or a typed estimate of AGI. The plan says which it uses.
-   3. **Donations** come from transactions categorised under *Giving* (tax tag *charitable*,
-      S7.2), or are recorded directly: the organisation, date, amount, and **type**: cash
+   3. **Donations** come from transactions categorised with the tax tag *charitable* (S7.2;
+      *Giving* and its sub-categories carry it), wherever the category sits, as Taxes counts
+      them (S8.9), each split part a donation of its own with its transaction's date and payee
+      (S7.3.1), or are recorded directly: the organisation, date, amount, and **type**: cash
       (card, cheque, transfer), **goods** (with their fair market value), **appreciated
       securities** (shares from a lot, S2.2: no gain is realized, and the deduction is the
       market value when held over a year, otherwise the lesser of the market value and the
@@ -292,7 +309,9 @@
       yearly one, while less than it has been given to the organisation in that month or year;
       a due pledge raises an alert to its owner (S12.11.1.3), resolved by the donation.
    6. **The Giving screen**: given against the target and against the pace to date, the
-      projected year end, giving by organisation, cause and type, the DAF's balance and its
+      projected year end (what is given, and the pledges still expected: a monthly one's for
+      this month less what was given to it this month, and for each month after; a yearly
+      one's less what was given to it this year), giving by organisation, cause and type, the DAF's balance and its
       grants, the percentage of income over past years, and the donations missing an
       acknowledgement that the tax rules require (S8.9).
 10. **Reserves** (a budget's option, S7.1.4): money set aside in a category month by month

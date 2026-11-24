@@ -175,6 +175,7 @@ class EducationOut(Model):
     stateDeduction: Money | None
     distributions: Money
     expenses: Money
+    rolledOver: Money  # to a Roth IRA or another 529 (S1.8.3)
     notCovered: Money
 
 
@@ -394,6 +395,7 @@ def _build(s, b) -> Panels:
                 stateDeduction=e.stateDeduction,
                 distributions=e.distributions,
                 expenses=e.expenses,
+                rolledOver=e.rolledOver,
                 notCovered=e.notCovered,
             )
             for e in panels.education_panel(s, b)
@@ -564,7 +566,7 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
                     *(
                         f"{e.account} for {e.beneficiary}: distributions "
                         f"{grouped(e.distributions)}, qualified expenses {grouped(e.expenses)}, "
-                        f"not covered {grouped(e.notCovered)}"
+                        f"rolled over {grouped(e.rolledOver)}, not covered {grouped(e.notCovered)}"
                         for e in p.education
                     ),
                     *(

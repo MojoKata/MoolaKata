@@ -739,11 +739,11 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
     """A pledge not yet met (S7.9.5): a monthly one from the 25th of the month, a yearly one
     from December 1, while less than it has been given to the organisation in that month or
     year. It resolves when the donation is recorded."""
-    from decimal import Decimal
-
-    from .store.entities.giving import Donation, Organisation
+    from . import giving
+    from .store.entities.giving import Organisation
 
     today = clock.today()
+    gifts: dict[str, list[giving.Gift]] = {}
     for o in s.scalars(
         select(Organisation).where(Organisation.deleted == false(), Organisation.pledge > 0)
     ):
@@ -753,22 +753,11 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
             first, period = today.replace(month=1, day=1), str(today.year)
         else:
             continue
-        given = sum(
-            (
-                d.amount
-                for d in s.scalars(
-                    select(Donation).where(
-                        Donation.organisationId == o.id,
-                        Donation.ownerId == o.ownerId,
-                        Donation.deleted == false(),
-                        Donation.date >= first,
-                        Donation.date <= today,
-                    )
-                )
-            ),
-            Decimal(0),
-        )
-        if given >= o.pledge:
+        # Met as the Giving screen's projection counts it: what was given to it, recorded or
+        # a charitable transaction to its name, in the month or year.
+        if o.ownerId not in gifts:
+            gifts[o.ownerId] = giving.donations(s, [o.ownerId], today.year)
+        if not giving.pledge_short(o, gifts[o.ownerId], today):
             continue
         yield Cause(
             key=f"pledge:{o.id}:{first.isoformat()}",

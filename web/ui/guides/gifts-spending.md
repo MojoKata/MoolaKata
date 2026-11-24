@@ -10,8 +10,10 @@ The year shown.
 
 ## By person
 
-What was spent on each person this year against their yearly budget. A gift for several people
-counts a share for each.
+What was spent on each person this year against their budget: the plan's yearly one, or its
+occasions' budgets for the year together. A gift for several people counts a share for each. A
+deleted person keeps their row, as _Lisa (deleted)_, as does someone whose plan is gone, with no
+budget.
 
 ## By occasion
 

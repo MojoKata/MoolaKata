@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import attach, change, detach, make, new_id, plan529, remove, saved
+from edits import attach, change, detach, make, new_id, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -118,6 +118,34 @@ def test_contributions_against_the_gift_exclusion(server, jane):
     assert r.json()["errors"][0]["code"] == "contribution-fixed"
 
 
+def test_an_election_spreads_five_exclusions_and_counts_the_rest_in_its_year(jane):
+    """S1.8.2: only five times the year's exclusion is spread, a fifth a year; the rest, and
+    any cent the fifths leave, counts in the contribution's own year."""
+    acct, _, _ = plan(jane)
+    who = {}
+    for name in ("Candace Doe", "Jeremy Doe"):
+        who[name] = make(jane, "GfPln", name=name, sex="female").json()["personId"]
+    for name, amount in (("Candace Doe", "100000.03"), ("Jeremy Doe", "10000.03")):
+        r = make(
+            jane,
+            "Cntrb",
+            accountId=acct["id"],
+            date="2026-02-01",
+            amount=amount,
+            contributor=f"person:{who[name]}",
+            fiveYear=True,
+        )
+        assert r.status_code == 200, r.text
+    v = jane.get(f"/ui/api/accounts/{acct['id']}/contributions").json()
+    years = {(y["name"], y["year"]): y for y in v["years"]}
+    big = [years[("Candace Doe", y)] for y in range(2026, 2031)]
+    assert [(g["counted"], g["over"]) for g in big] == [("24000.03", True)] + [
+        ("19000.00", False)
+    ] * 4, "95,000 spread at the 2026 exclusion of 19,000; 5,000.03 more in 2026"
+    small = [years[("Jeremy Doe", y)]["counted"] for y in range(2026, 2031)]
+    assert small == ["2000.03"] + ["2000.00"] * 4
+
+
 def test_withdrawals_against_qualified_expenses(jane):
     acct, _, _ = plan(jane)
     add(jane, acct["id"], "50000.00", "2025-01-02")
@@ -156,6 +184,41 @@ def test_withdrawals_against_qualified_expenses(jane):
     assert jane.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"] == []
 
 
+def test_a_rollover_is_a_distribution_covered_by_its_own_column(server, jane):
+    """S1.8.3, S8.10: money moved to the beneficiary's Roth IRA or another 529 is in the
+    year's distributions, as Form 1099-Q has it, and covered as Rolled Over, not left
+    uncovered."""
+    acct, _, _ = plan(jane, opened="2010-05-01")
+    roth = new_account(jane, name="Lisa's Roth IRA", type="roth-ira")
+    sibling = new_account(jane, name="Sam's 529", type="529")
+    add(jane, acct["id"], "40000.00", "2012-01-02")
+    for to, amount, day in ((roth, "7000.00", "2026-03-02"), (sibling, "3000.00", "2026-04-01")):
+        out = add(jane, acct["id"], f"-{amount}", day, payee=to["name"])
+        inn = add(jane, to["id"], amount, day, payee="From the 529", kind="deposit")
+        assert inn["transferId"] == out["id"]
+    add(jane, acct["id"], "-5000.00", "2026-08-20", payee="Withdrawal")
+    r = make(jane, "QExpn", accountId=acct["id"], date="2026-08-15", kind="tuition", amount="4000")
+    assert r.status_code == 200, r.text
+    (y,) = jane.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["years"]
+    assert (y["distributions"], y["expenses"], y["rolledOver"], y["notCovered"]) == (
+        "15000.00",
+        "4000.00",
+        "10000.00",
+        "1000.00",
+    )
+    p = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert p["used"] == "7000.00", "only the Roth IRA's counts against the lifetime limit"
+    # One who reads the 529 alone sees the same: the receiving accounts are read as the
+    # server, and never named (S7.1.1).
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    share(jane, "account", acct["id"], users={john_id: "read"})
+    assert john.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["years"] == [y]
+    p = john.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert p["used"] == "7000.00"
+
+
 def test_the_roth_rollover_after_fifteen_years(jane):
     acct, _, _ = plan(jane, opened="2010-05-01")
     add(jane, acct["id"], "20000.00", "2012-01-02")
@@ -163,6 +226,46 @@ def test_the_roth_rollover_after_fifteen_years(jane):
     p = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
     assert p["possibleFrom"] == "2025-05-01"
     assert p["eligible"] == "20000.00" and p["available"] == "20000.00"
+
+
+@pytest.mark.parametrize(
+    ("moves", "eligible", "available"),
+    [
+        # Old contributions' earnings count: 20,000 grown to 60,000, the lifetime limit caps.
+        ([("20000.00", "2008-01-02", "deposit"), ("40000.00", "2015-01-02", "interest")],
+         "60000.00", "35000.00"),
+        # A recent contribution keeps its own earnings out: 9,000 grew 900/29,000 with the
+        # rest, so 9,279.31 of the 29,900 can't roll over yet.
+        ([("20000.00", "2012-01-02", "deposit"), ("9000.00", "2024-01-02", "deposit"),
+          ("900.00", "2025-01-02", "interest")], "20620.69", "20620.69"),
+        # Worth less than the recent contributions grown: nothing.
+        ([("9000.00", "2024-01-02", "deposit"), ("-2000.00", "2025-01-02", "fee")],
+         "0.00", "0.00"),
+        # Part of the lifetime limit already used: what is left of it caps.
+        ([("20000.00", "2008-01-02", "deposit"), ("40000.00", "2015-01-02", "interest"),
+          ("-5000.00", "2026-03-02", "roth")], "55000.00", "30000.00"),
+        # What was rolled over comes off the limit only: the value has already dropped by it.
+        ([("40000.00", "2008-01-02", "deposit"), ("-10000.00", "2026-03-02", "roth")],
+         "30000.00", "25000.00"),
+    ],
+)  # fmt: skip
+def test_what_could_still_roll_over_counts_the_earnings_on_old_contributions(
+    jane, moves, eligible, available
+):
+    """S1.8.4: the account's value, less the last five years' contributions and their
+    estimated earnings (each grown by the account's return since it), capped by what is left
+    of the lifetime limit after what was rolled over."""
+    acct, _, _ = plan(jane, opened="2008-01-01")
+    for amount, day, kind in moves:
+        if kind == "roth":
+            roth = new_account(jane, name="Lisa's Roth IRA", type="roth-ira")
+            out = add(jane, acct["id"], amount, day, payee="To the Roth IRA")
+            inn = add(jane, roth["id"], amount[1:], day, payee="From the 529", kind="deposit")
+            assert inn["transferId"] == out["id"]
+        else:
+            add(jane, acct["id"], amount, day, kind=kind)
+    p = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert (p["eligible"], p["available"]) == (eligible, available)
 
 
 def test_the_goal_tab_starts_an_education_projection(jane):

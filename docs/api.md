@@ -64,7 +64,7 @@ token and recorded in Activity under the token's name. Answers carry exact numbe
 | `list_budgets`         | the budgets the user can see (*household*)                    | none |
 | `get_budget_month`     | a budget's month: planned and spent by category (*household*) | `budget_id`, `month` (`YYYY-MM`) |
 | `list_upcoming_gifts`  | birthdays and holidays coming up, with gift plans (*household*) | none |
-| `get_giving`           | a year's giving by organisation, and its plan (*household*)  | `year` |
+| `get_giving`           | a year's giving by organisation, and its plan (*household*)  | `year`, `plan` (a plan shared with the user; none, their own) |
 | `list_tax_books`       | the tax books the user can see (*household*)                  | none |
 | `get_tax_panels`       | a tax book's panels and what is missing (*household*)         | `book_id` |
 

@@ -116,7 +116,8 @@ def _get(s, user_id: str, pid: str, need: str = "read") -> tuple[Projection, Per
     return p, perms
 
 
-def _check(s, user_id: str, name, goal, built, inputs) -> list[FieldError]:
+def _check(s, user_id: str, name, goal, built, inputs, kept=None) -> list[FieldError]:
+    """`kept`: the beneficiary the projection already names, if any."""
     errors = []
     if name is not None and (not str(name).strip() or len(name) > 80):
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
@@ -146,7 +147,8 @@ def _check(s, user_id: str, name, goal, built, inputs) -> list[FieldError]:
     if inputs is not None:
         errors += _check_inputs(inputs)
         who = inputs.get("beneficiary")
-        if goal == "education" or who is not None:
+        # The one it already names stays, seen by the user or not (R3.14).
+        if (goal == "education" or who is not None) and not (who and who == kept):
             errors += _check_beneficiary(s, user_id, who)
     return errors
 
@@ -330,7 +332,8 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.goal != p.goal:
         raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
-    refuse_all(_check(s, p.ownerId, body.name, p.goal, body.builtOn, body.inputs))
+    kept = json.loads(p.inputs or "{}").get("beneficiary")
+    refuse_all(_check(s, p.ownerId, body.name, p.goal, body.builtOn, body.inputs, kept))
     current = _projection_current(ctx, p)
     fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
     p.name = body.name.strip()

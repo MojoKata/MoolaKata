@@ -354,7 +354,13 @@ The rulings the rest of the requirements apply.
     row's name is in the text's own weight and full colour, standing out only from the row's
     other parts, which are dimmed, never competing with its card's heading; one style in the kit
     draws every such row.
-14. **People are named.** A record that names a person shows that person's name wherever the
-    record is seen, whether or not the person is shared with the one looking: a person kept
-    private is out of sight to keep lists short, not to keep the name secret. Nothing else of a
-    person not shared is shown, and a gift for a user is still never shown to that user (S7.8.5).
+14. **Private and inactive keep people out of new choices, never out of records.** A private
+    person, or an inactive user, is left out of every list and choice that offers people for
+    something new (pickers, the household's people list, suggestions). A record that already
+    refers to them keeps the reference: it can be read, used and saved again, and it shows
+    their name. Private exists to keep everyone's lists to their own circle, not to hide that
+    someone exists. Nothing else of a person not shared with the one looking is shown beyond
+    their name; what a record needs of the person it names is used, never shown as their
+    details (a college projection's first year of school counts from its beneficiary's birth
+    year). A gift for a user is still never shown to that user, nor a gift plan for them
+    (S7.8.5).

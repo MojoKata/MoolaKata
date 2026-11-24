@@ -156,6 +156,7 @@ export const FIELDS = {
     granted: {"type": "bool", "nullable": true},
     notes: {"type": "text", "nullable": true},
     receiptIds: {"type": "list", "items": {"type": "ref", "prefix": "Rcpt"}, "set": true},
+    planId: {"type": "ref", "prefix": "GvPln", "nullable": true},
   },
   EducationPlanRecord: {
     accountId: {"type": "ref", "prefix": "Acct"},
@@ -355,6 +356,7 @@ export const FIELDS = {
     pledge: {"type": "money", "nullable": true},
     pledgeEvery: {"type": "text", "nullable": true},
     notes: {"type": "text", "nullable": true},
+    planId: {"type": "ref", "prefix": "GvPln", "nullable": true},
   },
   PairIn: {
     spendingId: {"type": "text"},
@@ -414,6 +416,8 @@ export const FIELDS = {
   PlanRecord: {
     personId: {"type": "ref", "prefix": "Persn"},
     giftBudget: {"type": "money", "nullable": true},
+    birthdayBudget: {"type": "money", "nullable": true},
+    weddingBudget: {"type": "money", "nullable": true},
     leadDays: {"type": "int"},
     notes: {"type": "text", "nullable": true},
   },

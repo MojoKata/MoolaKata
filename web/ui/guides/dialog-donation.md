@@ -16,12 +16,16 @@ The day it was given.
 
 ## Donor-advised fund {#fund}
 
-The fund it went into, or that made the grant.
+The fund it went into, or that made the grant. Into a plan shared with you, it is one of the plan
+owner's funds you can change.
 
 ## From account {#from-account}
 
 Where the money or shares came from: its side is recorded too. For cash, its withdrawal is
 recorded, categorised Giving. Leave it for a gift already in an imported account.
+
+Into a plan shared with you, it is one of the plan owner's accounts you can change, or none: the
+donation is then recorded without a transaction.
 
 ## From lot {#lot}
 
@@ -35,7 +39,7 @@ How many shares were given.
 
 What was given: the cash, the goods' fair market value, or the shares' market value on the day
 given. No gain is realized on donated shares: held over a year, the deduction is their market
-value; held a year or less, it is their basis.
+value; held a year or less, it is the lesser of their market value and their basis.
 
 ## What was given {#description}
 

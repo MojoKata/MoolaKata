@@ -1,6 +1,7 @@
 """People and their relationships (requirements S10.10): every user is a person, people are the
 household's unless private, one person is added once, and dated relationships say who is
-married to whom on a given day, for wash sales (S3.8) and joint tax books (S8.14.1)."""
+married to whom on a given day, for wash sales (S3.8) and joint tax books (S8.14.1), once
+either spouse has confirmed it."""
 
 import datetime as dt
 from dataclasses import dataclass
@@ -269,8 +270,8 @@ def other(r: Relationship, person_id: str) -> str:
 
 
 def confirmed(r: Relationship) -> bool:
-    """A marriage both people have confirmed (S10.10.4); other relations need no confirming."""
-    return r.relation != "spouse" or (r.confirmed1At is not None and r.confirmed2At is not None)
+    """A marriage either spouse has confirmed (S10.10.4); other relations need no confirming."""
+    return r.relation != "spouse" or r.confirmed1At is not None or r.confirmed2At is not None
 
 
 def may_confirm(s: Session, user_id: str, person_id: str) -> bool:
@@ -308,8 +309,8 @@ def spouse_on(s: Session, person_id: str, day: dt.date, confirmed_only: bool = F
 
 
 def spouse_user_on(s: Session, user_id: str, day: dt.date) -> str | None:
-    """The local user married to this one on a day, by a marriage both confirmed: for wash
-    sales and tax books, which an unconfirmed marriage never reaches (S10.10.4)."""
+    """The local user married to this one on a day, by a confirmed marriage: for wash sales
+    and tax books, which an unconfirmed marriage never reaches (S10.10.4)."""
     me = of_user(s, user_id)
     if me is None:
         return None
@@ -319,7 +320,7 @@ def spouse_user_on(s: Session, user_id: str, day: dt.date) -> str | None:
 
 
 def spouse_users_ever(s: Session, user_id: str) -> set[str]:
-    """Every local user ever married to this one, by a marriage both confirmed."""
+    """Every local user ever married to this one, by a confirmed marriage."""
     me = of_user(s, user_id)
     if me is None:
         return set()
@@ -334,7 +335,7 @@ def spouse_users_ever(s: Session, user_id: str) -> set[str]:
 
 def joint_filers(s: Session, user_a: str, user_b: str, year: int) -> bool:
     """Spouses on the last day of the year, or married until one of them died in it, by a
-    marriage both confirmed (S8.14.1)."""
+    confirmed marriage (S8.14.1)."""
     a, b = of_user(s, user_a), of_user(s, user_b)
     if a is None or b is None:
         return False

@@ -11,9 +11,10 @@ For an admin: whose relationship it is. Anyone else adds and changes only their 
 
 Spouse, couple, parent, child, friend, colleague, or family (with a label). At most one spouse at a
 time, and no one is their own ancestor. A spouse counts for wash sales on the date of each sale, and
-for a joint tax book on the last day of its year, once both people have confirmed the marriage: the other confirms from their own Profile, and an admin
-confirms for someone who isn't a user. Until then it counts for gifts only, and a change to it is
-confirmed again.
+for a joint tax book on the last day of its year, once either of the two has confirmed the
+marriage: adding or changing one you are in confirms your side, either spouse may confirm from their
+own Profile, and an admin confirms for someone who isn't a user. Until then it counts for gifts
+only.
 
 ## Other person {#other-person}
 

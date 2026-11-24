@@ -9,9 +9,15 @@ receipts.
 
 ## Each Year
 
-Distributions (as on Form 1099-Q) against qualified expenses. What isn't covered may have taxable
-earnings, with a 10% additional tax; your preparer applies the rules and coordinates them with
-education credits.
+Distributions (as on Form 1099-Q) against qualified expenses and what was rolled over. What isn't
+covered may have taxable earnings, with a 10% additional tax; your preparer applies the rules and
+coordinates them with education credits.
+
+## Rolled Over
+
+Money moved to the beneficiary's Roth IRA, or to another 529, as a transfer: Form 1099-Q counts it
+in the distributions, and it isn't taxed as one within the rollover's limits, which your preparer
+checks.
 
 ## Add a Qualified Expense
 
