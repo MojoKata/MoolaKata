@@ -49,6 +49,20 @@ def test_provider_limits_spread_calls():
     assert limits.delay("tiingo") == pytest.approx(3600 - 130)
 
 
+def test_a_second_refresh_shares_the_providers_windows_until_its_limits_change():
+    """S13.4: each refresh sets its source's limits; set again unchanged, the calls already
+    made in the hour still count, and only a changed limit starts the windows afresh."""
+    clock = [0.0]
+    limits = ProviderLimits(clock=lambda: clock[0])
+    limits.set("tiingo", [(2, 3600)])
+    assert [limits.delay("tiingo") for _ in range(2)] == [0, 0]
+    clock[0] = 600  # Refresh Prices pressed ten minutes later
+    limits.set("tiingo", [(2, 3600)])
+    assert limits.delay("tiingo") == pytest.approx(3000)
+    limits.set("tiingo", [(3, 3600)])
+    assert limits.delay("tiingo") == 0
+
+
 def test_tasks_record_runs_and_keep_error_text_out_unless_safe():
     recorded = {}
     done = threading.Event()
