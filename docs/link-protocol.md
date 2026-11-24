@@ -121,7 +121,10 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    `version` and no directory; its admin approves or rejects it. Directories cross from the first exchange after
    the approval. The joining side's link waits as **pending** until the first `exchange` from
    the inviting side, which only an approved link makes, or until its own `exchange` is
-   answered as active.
+   answered as active. **Approving calls `exchange` at once**: the inviting side makes it as
+   soon as the approval is saved, so the joining side learns of it then when it can be
+   reached; when it can't, the approval stands and the joining side learns at its own next
+   exchange (hourly, or at *Pull now*).
 
 ### 4.2 Directories
 

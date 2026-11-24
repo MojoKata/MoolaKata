@@ -55,8 +55,8 @@ descriptor) and a few of whose transactions are known. Mainnet.
 1. On A, Settings › General: the public URL as B reaches it (over the overlay, or through the
    forwarded port, or the proxy passing only `/link/`); on B likewise.
 2. A: Settings › Linked servers › Invite a server; B: Enter a link code; A: compare the
-   fingerprints by phone, Approve. Passing: both show *active* within a minute, with the
-   other's household name, users and version.
+   fingerprints by phone, Approve. Passing: both show *active* within a minute (A's approval
+   calls B at once), with the other's household name, users and version.
 3. On A, share an account, a budget and a tax book with a named user of B; tick Include
    receipts on the account. On B, Create the access key, open the linked window, enter the
    words. Passing: every shared screen shows as the owner sees it, read only; receipts open;
