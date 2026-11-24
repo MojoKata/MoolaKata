@@ -33,6 +33,7 @@ class Organisation(Record):
     causes: str = "[]"
     pledge: Decimal | None = None
     pledgeEvery: str | None = None
+    pledgeFrom: dt.date | None = None  # the first day of the period the pledge was set in
     notes: str | None = None
 
 

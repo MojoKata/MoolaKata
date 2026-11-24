@@ -9,7 +9,7 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids, sharing
+from .. import clock, giving, ids, sharing
 from ..store.entities.accounts import Account
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.entities.users import Group
@@ -52,6 +52,8 @@ def seed_giving(s, people: dict) -> None:
             causes=json.dumps(causes),
             pledge=D(pledge) if pledge else None,
             pledgeEvery=every,
+            # Set in this month or year: nothing before it is counted as due (S7.9.5).
+            pledgeFrom=giving.period_of(every, today) if pledge else None,
         )
         s.add(o)
         return o

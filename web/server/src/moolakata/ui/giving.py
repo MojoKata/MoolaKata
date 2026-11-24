@@ -726,9 +726,22 @@ class OrganisationRecord(OrganisationIn):
     planId: IdOf("GvPln") | None = None  # type: ignore[valid-type]
 
 
+def _pledge_from(o: Organisation | None, values: dict) -> dt.date | None:
+    """The period a pledge is counted from (S7.9.5): the one it was set in, kept while its
+    amount and period stay as they are; none without a pledge."""
+    if not values["pledge"]:
+        return None
+    if o is not None and (o.pledge, o.pledgeEvery) == (values["pledge"], values["pledgeEvery"]):
+        return o.pledgeFrom
+    return giving.period_of(values["pledgeEvery"], clock.today())
+
+
 def _org_create(ctx, record_id: str, body: OrganisationRecord) -> None:
     owner = _adding_to(ctx.s, ctx.caller, body.planId, None)
-    ctx.s.add(Organisation(id=record_id, ownerId=owner, **_org_values(body)))
+    values = _org_values(body)
+    ctx.s.add(
+        Organisation(id=record_id, ownerId=owner, pledgeFrom=_pledge_from(None, values), **values)
+    )
 
 
 def _org_read(ctx, record_id: str) -> OrganisationOut:
@@ -737,7 +750,9 @@ def _org_read(ctx, record_id: str) -> OrganisationOut:
 
 
 def _org_update(ctx, o: Organisation, body: OrganisationRecord) -> None:
-    for k, v in _org_values(body).items():
+    values = _org_values(body)
+    o.pledgeFrom = _pledge_from(o, values)
+    for k, v in values.items():
         setattr(o, k, v)
     o.updatedAt = clock.now()
 

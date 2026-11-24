@@ -734,31 +734,34 @@ def options_expiring(s: Session, server) -> Iterable[Cause]:
 
 @check
 def pledges_due(s: Session, server) -> Iterable[Cause]:
-    """A pledge not yet met (S7.9.5): a monthly one from the 25th of the month, a yearly one
-    from December 1, while less than it has been given to the organisation in that month or
-    year. It resolves when the donation is recorded."""
+    """A pledge not yet met (S7.9.5): each month's from its 25th, a yearly one's from December
+    1, counted from the period it was set in against what has been given to the organisation
+    since, recorded or a charitable transaction to its name. It stays until the shortfall is
+    made up, or the pledge is changed or cleared."""
     from . import giving
     from .store.entities.giving import Organisation
 
     today = clock.today()
-    gifts: dict[str, list[giving.Gift]] = {}
+    gifts: dict[tuple[str, int], list[giving.Gift]] = {}
     for o in s.scalars(
         select(Organisation).where(Organisation.deleted == false(), Organisation.pledge > 0)
     ):
-        if o.pledgeEvery == "month" and today.day >= 25:
-            first, period = today.replace(day=1), f"{today:%B}"
-        elif o.pledgeEvery == "year" and today.month == 12:
-            first, period = today.replace(month=1, day=1), str(today.year)
-        else:
+        if o.pledgeFrom is None:
             continue
-        # Met as the Giving screen's projection counts it: what was given to it, recorded or
-        # a charitable transaction to its name, in the month or year.
-        if o.ownerId not in gifts:
-            gifts[o.ownerId] = giving.donations(s, [o.ownerId], today.year)
-        if not giving.pledge_short(o, gifts[o.ownerId], today):
+        given: list[giving.Gift] = []
+        for year in range(o.pledgeFrom.year, today.year + 1):
+            if (o.ownerId, year) not in gifts:
+                gifts[o.ownerId, year] = giving.donations(s, [o.ownerId], year)
+            given += gifts[o.ownerId, year]
+        unmet = giving.pledge_unmet(o, given, today)
+        if not unmet:
             continue
+        period = _period(o.pledgeEvery, unmet[0], today) + (
+            f" to {_period(o.pledgeEvery, unmet[-1], today)}" if len(unmet) > 1 else ""
+        )
         yield Cause(
-            key=f"pledge:{o.id}:{first.isoformat()}",
+            # One alert while the pledge stands as set: changing it starts the count again.
+            key=f"pledge:{o.id}:{o.pledgeFrom.isoformat()}",
             kind="pledge-due",
             title=f"Your pledge to {o.name} is due",
             about=f"for {period}",
@@ -767,6 +770,13 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
             fix="Record a Donation",
             icon="heart",
         )
+
+
+def _period(every: str, first: dt.date, today: dt.date) -> str:
+    """A pledge's month or year as its alert names it: *September*, *December 2025*, *2025*."""
+    if every == "year":
+        return str(first.year)
+    return f"{first:%B}" if first.year == today.year else f"{first:%B %Y}"
 
 
 @check

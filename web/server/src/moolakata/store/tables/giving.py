@@ -40,10 +40,14 @@ Organisation = record(
     Column("causes", Text, nullable=False, server_default=text("'[]'")),  # JSON list of tags
     Column("pledge", Cents),  # an amount promised each pledgeEvery
     Column("pledgeEvery", Text),
+    # The first day of the period the pledge was set in: what is due is counted from it, a
+    # change of amount or period starting it again (S7.9.5).
+    Column("pledgeFrom", Day),
     Column("notes", Text),
     CheckConstraint(
         "\"pledgeEvery\" IS NULL OR \"pledgeEvery\" IN ('month', 'year')", name="pledge_every"
     ),
+    CheckConstraint('("pledge" IS NULL) = ("pledgeFrom" IS NULL)', name="pledge_from"),
     Index("ix_Organisation_ownerId", "ownerId"),
     seen=Seen.rule(),
 )

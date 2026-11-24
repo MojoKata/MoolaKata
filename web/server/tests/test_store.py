@@ -1111,6 +1111,48 @@ def test_0057_clears_a_label_on_any_relation_but_family_and_refuses_one(tmp_path
     engine.dispose()
 
 
+def test_0065_counts_a_pledge_from_the_period_it_was_last_changed_in(tmp_path):
+    """S7.9.5: a pledge made before counts from the month (or year) of its last change; an
+    organisation without one has no period, and a pledge without one is refused from then on."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    stamp = "2026-10-01 00:00:00"
+    uid, pid = ids.new_id("User"), ids.new_id("Persn")
+    monthly, yearly, none = (ids.new_id("Orgzn") for _ in range(3))
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0064")
+        conn.commit()
+        q = conn.exec_driver_sql
+        q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+          "VALUES (?, 'Jane', 'female', ?, ?)", (pid, stamp, stamp))  # fmt: skip
+        q('INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+          "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+          (uid, pid, stamp, stamp))  # fmt: skip
+        for oid, pledge, every, changed in (
+            (monthly, 5000, "month", "2026-09-14T08:00:00.000000Z"),
+            (yearly, 30000, "year", "2025-06-02T08:00:00.000000Z"),
+            (none, None, None, stamp),
+        ):
+            q('INSERT INTO "Organisation" (id, "ownerId", name, pledge, "pledgeEvery", '
+              '"createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)',
+              (oid, uid, oid, pledge, every, stamp, changed))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        assert dict(q('SELECT id, "pledgeFrom" FROM "Organisation"').fetchall()) == {
+            monthly: "2026-09-01",
+            yearly: "2025-01-01",
+            none: None,
+        }
+        with pytest.raises(Exception, match="ck_Organisation_pledge_from"):
+            q('UPDATE "Organisation" SET "pledgeFrom" = NULL WHERE id = ?', (monthly,))
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError
