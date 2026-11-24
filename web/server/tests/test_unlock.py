@@ -62,6 +62,34 @@ def test_between_the_unlock_and_readiness_only_what_unlocking_needs_answers(lock
     assert c.get("/link/v1/hello").status_code == 200
 
 
+def test_every_state_healthz_answers_is_in_operations_and_deploy():
+    """An uptime monitor set up from either page meets no state it doesn't name (S13.6)."""
+    import ast
+    import inspect
+    import re
+    import textwrap
+
+    from moolakata import app, paths
+
+    source = textwrap.dedent(inspect.getsource(app.create_app))
+    route = next(
+        n
+        for n in ast.walk(ast.parse(source))
+        if isinstance(n, ast.FunctionDef) and n.name == "healthz"
+    )
+    assign = next(n for n in route.body if isinstance(n, ast.Assign))
+    states = {
+        n.value
+        for n in ast.walk(assign.value)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    }
+    assert {"ok", "starting", "locked", "uninitialised", "re-encrypting"} == states
+    for doc in ("operations.md", "DEPLOY.md"):
+        text = (paths.ROOT / "docs" / doc).read_text()
+        missing = [s for s in states if not re.search(rf'[`"]{s}[`"]', text)]
+        assert missing == [], doc
+
+
 def test_a_database_from_a_newer_release_is_refused_at_the_unlock(
     locked, master_key, monkeypatch, caplog
 ):
