@@ -16,7 +16,8 @@ The day it was given.
 
 ## Donor-advised fund {#fund}
 
-The fund it went into, or that made the grant.
+The fund it went into, or that made the grant. Into a plan shared with you, it is one of the plan
+owner's funds you can change.
 
 ## From account {#from-account}
 

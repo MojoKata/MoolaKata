@@ -281,9 +281,10 @@
       the plans shared with them that year. A donation or organisation added goes into the plan
       shown: one's own, or one shared to write, whose entries are its owner's and which its
       writers change and delete as its owner does (S10.3.2); to one shared to read, adding is
-      shown off (S10.3.1). A donation added to another's plan is paid from one of its owner's
-      accounts the writer may change, or from none (recorded without a transaction); any other
-      account is refused.
+      shown off (S10.3.1). A donation added to another's plan draws only on its owner's
+      accounts the writer may change: it is paid from one of them or from none (recorded
+      without a transaction), records a transaction in one of them, and names one of them as
+      its donor-advised fund; any other account is refused.
    2. **Income**, for the percentage, is one of: the year's transactions in *Income*
       categories (take-home pay, the default), a typed **gross income** (from a W-2 or a pay
       stub), or a typed estimate of AGI. The plan says which it uses.

@@ -603,9 +603,9 @@ function DonationDialog({ close, from, shown }) {
   const fromId = rec?.get('fromAccountId') || '';
   const all = /** @type {any[]} */ (accounts.data) || [];
   const writable = all.filter((a) => !a.closedOn && canAdd('Txn', a));
-  const funds = writable.filter((a) => a.type === 'daf');
-  // Into another's plan, paid from one of its owner's accounts or none (S7.9.1).
+  // Into another's plan, paid from, and its fund among, its owner's accounts (S7.9.1).
   const payers = shown.ownerId ? writable.filter((a) => a.ownerId === shown.ownerId) : writable;
+  const funds = payers.filter((a) => a.type === 'daf');
   const shares = kind === 'securities' ||
     (kind === 'daf-contribution' && payers.find((a) => a.id === fromId)?.investing);
   const holdings = useApi(shares && fromId ? `/accounts/${fromId}/holdings` : null);

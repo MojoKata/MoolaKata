@@ -410,6 +410,52 @@ def test_a_writer_pays_into_the_plan_shown_from_its_owners_accounts_or_none(serv
     assert jane.get("/ui/api/giving").json()["given"] == "600.00"
 
 
+def test_a_writer_records_the_owners_transactions_and_funds_only(server, jane):
+    """S7.9.1: into Jane's plan, John records a transaction in one of her accounts he may
+    write, and names one of her funds he may write; his own, or hers he only reads, are
+    refused at their field, and a recorded donation keeps them."""
+    john, john_id = _john(server)
+    hers = saved(giving_plan(jane, 2026, percent="10"))
+    share(jane, "giving-plan", hers["id"], users={john_id: "write"})
+    food = org(jane, "Food Bank")
+    giving_cat = _cat(jane, "Giving")
+    her_bank = new_account(jane, name="Jane's checking", type="checking")
+    her_savings = new_account(jane, name="Jane's savings", type="savings")
+    her_fund = new_account(jane, name="Jane's fund", type="daf")
+    her_old_fund = new_account(jane, name="Jane's old fund", type="daf")
+    for a, how in ((her_bank, "write"), (her_savings, "read"), (her_fund, "write"),
+                   (her_old_fund, "read")):  # fmt: skip
+        share(jane, "account", a["id"], users={john_id: how})
+    his_bank = new_account(john, name="John's checking", type="checking")
+    his_fund = new_account(john, name="John's fund", type="daf")
+    hers_paid = add(jane, her_bank["id"], "-40.00", "2026-04-02", categoryId=giving_cat)
+    hers_read = add(jane, her_savings["id"], "-50.00", "2026-04-03", categoryId=giving_cat)
+    his_paid = add(john, his_bank["id"], "-60.00", "2026-04-04", categoryId=_cat(john, "Giving"))
+    cash = {"date": "2026-04-05", "kind": "cash", "organisationId": food["id"]}
+    grant = {**cash, "kind": "daf-grant", "amount": "70"}
+    for refused, field in (
+        ({**cash, "transactionId": his_paid["id"]}, "transactionId"),
+        ({**cash, "transactionId": hers_read["id"]}, "transactionId"),
+        ({**grant, "dafAccountId": his_fund["id"]}, "dafAccountId"),
+        ({**grant, "dafAccountId": her_old_fund["id"]}, "dafAccountId"),
+    ):
+        r = make(john, "Dnatn", planId=hers["id"], **refused)
+        assert r.status_code == 422, r.text
+        (e,) = r.json()["errors"]
+        assert (e["field"], e["code"]) == (field, "account-not-plans"), e
+        assert "plan owner's" in e["message"] and "Jane" not in e["message"]
+    paid = donate(john, planId=hers["id"], transactionId=hers_paid["id"], **cash)
+    assert paid["transactionId"] == hers_paid["id"] and paid["amount"] == "40.00"
+    granted = donate(john, planId=hers["id"], dafAccountId=her_fund["id"], **grant)
+    t = jane.get(f"/ui/api/transactions/{granted['transactionId']}").json()
+    assert t["accountId"] == her_fund["id"] and t["amount"] == "-70.00"
+    for field, to in (("transactionId", his_paid["id"]), ("dafAccountId", his_fund["id"])):
+        r = change(john, "Dnatn", granted, **{field: to})
+        assert r.json()["errors"][0]["field"] == field, r.text
+    v = jane.get("/ui/api/giving").json()
+    assert v["given"] == "90.00", "her two Giving transactions; the grant counts at its fund"
+
+
 def test_a_writer_changes_and_deletes_the_plans_entries_a_reader_cant(server, jane):
     """S10.3.2: a giving plan shared to write lets John change its donations and
     organisations, Jane's or those he added; at read he can't."""

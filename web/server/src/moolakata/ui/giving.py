@@ -457,19 +457,23 @@ def _txn(s, c: Caller, account_id: str, day, kind, amount, payee, **kw) -> Trans
     return t
 
 
-def _paid_from(s, c: Caller, owner: str, account_id: str) -> Account:
-    """Where a donation's money or shares came from: an account the caller may write, and,
-    into another's giving, one of that plan owner's (S7.9.1)."""
+def _paid_from(
+    s,
+    c: Caller,
+    owner: str,
+    account_id: str,
+    field: str = "fromAccountId",
+    words: str = "One of the plan owner's accounts you can change, or none.",
+) -> Account:
+    """An account a donation draws on (where its money or shares came from, the transaction
+    it records, its fund): one the caller may write, and, into another's giving, one of that
+    plan owner's (S7.9.1)."""
     if owner == c.id:
         return access.account(s, c.id, account_id, "write")[0]
     a = s.get(Account, account_id)
     held = access.perms(s, Account, account_id, c.id)
     if a is None or a.deleted or a.ownerId != owner or held is None or not held.writable:
-        raise refuse(
-            "fromAccountId",
-            "account-not-plans",
-            "One of the plan owner's accounts you can change, or none.",
-        )
+        raise refuse(field, "account-not-plans", words)
     return a
 
 
@@ -577,7 +581,14 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
         org = _org_of(s, owner, body.organisationId)
     fund = None
     if body.dafAccountId:
-        fund, _ = access.account(s, c.id, body.dafAccountId, "write")
+        fund = _paid_from(
+            s,
+            c,
+            owner,
+            body.dafAccountId,
+            "dafAccountId",
+            "One of the plan owner's donor-advised funds you can change.",
+        )
         if fund.type != "daf":
             raise refuse("dafAccountId", "not-a-fund", "Choose a donor-advised fund.")
     values = {
@@ -598,7 +609,14 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
         t = s.get(Transaction, body.transactionId)
         if t is None or t.deleted:
             raise refuse("transactionId", "not-found", "No such transaction.")
-        access.account(s, c.id, t.accountId, "write")
+        _paid_from(
+            s,
+            c,
+            owner,
+            t.accountId,
+            "transactionId",
+            "A transaction in one of the plan owner's accounts you can change.",
+        )
         values["transactionId"] = t.id
         values["amount"] = body.amount or -t.amount
         # An uncategorised one is filed under Giving; a split one keeps its parts (S7.3.1).
