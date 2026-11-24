@@ -462,6 +462,34 @@ def change_for(srv, link_id: str, have: int, full: bool) -> list[dict]:
     return [changes.sign(own, changes.seal_part(part, copy_key, way)) for part in parts]
 
 
+# What a paused link's change marks as sent for an item it removed: no document's hash, so an
+# item shared again before the resume is sent whole then.
+REMOVED = "removed"
+
+
+def removals_for(srv, link_id: str) -> tuple[dict | None, list[str]]:
+    """A paused link's change (S11.4, link-protocol.md §4.3.6): the items sent to the peer that
+    are no longer shared with its people, and nothing else, signed, with no data, no files and
+    no sequence of its own (`seq` is the last change sent). It is sent at every paused exchange
+    until the resume, so one lost on the way is sent again; the next full change carries the
+    removals again, and what changed while paused. Returns the change, or None, and the items
+    it removes for the first time, for Activity."""
+    items, _ = shared_items(srv, link_id)
+    with srv.db.tx(unscoped="links.serve: removals for") as s:
+        link = s.get(Link, link_id)
+        rows = list(s.scalars(select(LinkSent).where(LinkSent.linkId == link_id)))
+        gone = sorted({r.itemId for r in rows} - set(items))
+        if not gone:
+            return None, []
+        newly = sorted({r.itemId for r in rows if r.itemId in gone and r.hash != REMOVED})
+        for r in rows:
+            if r.itemId in gone:
+                r.hash = REMOVED
+        change = {"seq": link.sentSeq, "asOf": clock.now().isoformat(), "removed": gone}
+        own = keys.private_key(s, srv.keys.secrets)
+    return changes.sign(own, change), newly
+
+
 def sealed_receipt(srv, link_id: str, receipt_id: str):
     """One receipt sealed to the peer's copy key, written aside so its sealed bytes can be
     hashed and signed before they are sent; the caller removes the file once it is sent. The

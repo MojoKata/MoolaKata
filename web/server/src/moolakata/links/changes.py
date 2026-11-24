@@ -116,18 +116,19 @@ def keep(d, link_id: str, name: str, change: dict, local: dict | None, public: b
     sealed.write(
         d / f"{name}{ENTRY}", sealed.seal(public, sealed.ENTRY, link_id, name, [entry.encode()])
     )
-    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
+    # A paused link's change has no sealed part (link-protocol.md §4.3.6): an empty one.
+    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])] if change.get("sealed") else [])
 
 
 def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     """Keep a signed change's sealed part in the inbox as it came, beside its registry and
-    what this side added (the random names its receipts were written under); apply it at once
-    if the copy is unlocked. Returns False when the inbox overflowed and was discarded: the
-    next pull asks for everything."""
+    what this side added (the random names its receipts were written under, or that it is a
+    paused link's removals alone); apply it at once if the copy is unlocked. Returns False
+    when the inbox overflowed and was discarded: the next pull asks for everything."""
     with srv.db.read(unscoped="links.changes: enqueue") as s:
         link = s.get(Link, link_id)
         public = unb64(link.copyPublicKey) if link and link.copyPublicKey else None
-    if public is None or not change.get("sealed"):
+    if public is None or not (change.get("sealed") or (local or {}).get("registryOnly")):
         return True  # no copy yet: nothing is kept until its access key is made
     d = inbox(srv.config.data_dir, link_id)
     d.mkdir(parents=True, exist_ok=True)
@@ -186,17 +187,22 @@ def apply(srv, link_id: str) -> int:
                 )
             raw = p.read_bytes()
             change, local = entry["change"], entry.get("local") or {}
+            # A paused link's removals alone (link-protocol.md §4.3.6): no sealed part, and
+            # the sequence of the last change sent, which it doesn't move.
+            removals = bool(local.get("registryOnly"))
+            if removals and (raw or set(change) - {"seq", "asOf", "removed", "signature"}):
+                raise ChangeError(f"change {change.get('seq')} holds more than removals")
             verify(peer, {**change, "sealed": b64(raw)})
             # Each must follow the last applied, so an older change put back is refused: the
             # sequence is the source's, signed and sealed with the change (S11.9.5.3).
             seq = int(change.get("seq") or 0)
-            if seq <= last:
+            if seq < last or (seq == last and not removals):
                 raise ChangeError(
                     f"change {seq} doesn't follow the last one applied ({last}); if the other "
                     "server was restored from a backup, reset the copy"
                 )
             last = seq
-            opened = open_part(priv, change, way, raw)
+            opened = change if removals else open_part(priv, change, way, raw)
             _shape(opened)
             changes.append((opened, local))
             checkpoint("apply.opened")
@@ -235,6 +241,8 @@ def apply(srv, link_id: str) -> int:
             types = {fid: _type_of(priv, way, fid, receipts_dir / n) for fid, n in names.items()}
             for name in _apply_one(conn, change, names, types):
                 (receipts_dir / name).unlink(missing_ok=True)
+            if local.get("registryOnly"):
+                continue  # a paused link's removals: the next change follows the one before
             conn.execute(
                 copydb.Applied.insert().prefix_with("OR REPLACE"),
                 {"seq": int(change.get("seq") or 0), "appliedAt": clock.now().isoformat()},

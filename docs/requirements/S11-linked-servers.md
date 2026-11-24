@@ -148,9 +148,10 @@ preparer.
    share or the link is removed, the other side learns at its next exchange and deletes the
    copy, or the receiving admin does at once. A **Pause** (S11.7.2) stops data and files, in
    both directions, never a removal or an end: a paused link still pulls both ways, but brings
-   only what is shared and removed. So do the pulls of a copy that can't take data (no release
-   to draw it, S11.10.4, or its inbox at its cap, S11.9.5.4). Either way a removal or an end
-   still takes effect, and the first full pull after it catches up from what the copy holds.
+   only the shares taken back. The pulls of a copy that can't take data (no release to draw
+   it, S11.10.4, or its inbox at its cap, S11.9.5.4) bring only what is shared and removed.
+   Either way a removal or an end still takes effect, and the first full pull after it catches
+   up from what the copy holds.
 5. **What crosses a link, and what never does**:
    1. **Receipts** cross only when the owner ticks **Include receipts** on the share to that
       link (off by default). Receipts are large and personal, so sending them is a choice made
@@ -190,7 +191,7 @@ preparer.
    2. **Pause** stops data and files crossing the link, both ways, for a **duration** the
       admin types (S12.13), at most 52 weeks, after which the link resumes on its own; a longer
       stop is what *End link* is for. A paused link still pulls, and answers the peer's pulls,
-      for what is shared and removed alone, so a removal or an end still crosses (S11.4). The field starts empty, its **default** fills in `1d` and its
+      for the shares taken back alone, so a removal still crosses, as an end does (S11.4). The field starts empty, its **default** fills in `1d` and its
       **max** `52w` (R3.11); a blank is refused. *Resume now* ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
    3. **The linked copy**: the changes waiting to be applied (*waiting for an unlock* at the
       inbox's cap, S11.9.5.4), when its access key was made and by whom, whether it is

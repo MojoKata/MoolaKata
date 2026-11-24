@@ -351,7 +351,7 @@ def test_any_failure_of_one_links_exchange_is_recorded_on_it_and_the_next_goes_o
             assert row.failingSince is not None, "alerted as a failing link is"
 
 
-def test_pausing_stops_exchanges_and_ending_reaches_the_other_side(admins):
+def test_a_pause_is_told_to_the_peer_and_ending_reaches_the_other_side(admins):
     _a, _b, ca, cb, wire = admins
     a_id, b_id = linked(ca, cb)
     # The duration is asked for: missing, blank or empty is refused, never read as 1d (R3.11).
@@ -1394,3 +1394,144 @@ def test_a_tax_books_document_files_cross_when_included(admins):
     assert [f["meta"]["payee"] for f in files] == ["W-2 · Acme Corp"]
     got = bart.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
     assert got.status_code == 200 and got.content == image
+
+
+# ---------- a paused link (S11.4, S11.7.2, link-protocol.md §4.3.6)
+
+
+def test_a_paused_link_takes_removals_both_ways_and_never_data_or_files(admins):
+    """A pause stops data and files both ways, never a removal: shares taken back on either
+    side cross a paused link, whichever side calls; a changed record and a receipt wait for the
+    resume, and an item shared again while paused comes back whole then."""
+    from test_receipts import png
+
+    a, b, ca, cb, wire = admins
+    make_user(a, "anna")
+    make_user(b, "bart")
+    a_id, b_id = linked(ca, cb)
+    make_user(a, "jane")
+    make_user(b, "john")
+    jane, john = sign_in(a, "jane"), sign_in(b, "john")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    anna_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "anna")
+    to_bart, to_anna = {bart_here["id"]: "read"}, {anna_there["id"]: "read"}
+    gone_bart, gone_anna = {bart_here["id"]: "none"}, {anna_there["id"]: "none"}
+    brokerage = make(jane, "Acct", name="Brokerage", type="brokerage").json()["id"]
+    checking = make(jane, "Acct", name="Checking", type="checking").json()["id"]
+    ira = make(jane, "Acct", name="IRA", type="ira").json()["id"]
+    savings = make(john, "Acct", name="Savings", type="savings").json()["id"]
+    add(jane, checking, amount="1200.00", payee="Pension")
+    words_b = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    words_a = ca.post(f"/ui/api/settings/links/{a_id}/copy-key").json()["words"]
+    for acct in (brokerage, ira):
+        assert share(jane, "account", acct, users=to_bart).status_code == 200
+    r = share(jane, "account", checking, users=to_bart, receipts={a_id: True})
+    assert r.status_code == 200
+    assert share(john, "account", savings, users=to_anna).status_code == 200
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    bart, anna = sign_in(b, "bart"), sign_in(a, "anna")
+    bart_id = bart.get("/ui/api/session").json()["user"]["id"]
+    balance = (checking, f"/accounts/{checking}", bart_id)
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words_b)}).is_success
+    assert anna.post(f"/ui/api/linked/{a_id}/unlock", json={"words": " ".join(words_a)}).is_success
+    assert set(docs_in(b, b_id)[0]) == {brokerage, checking, ira}
+    assert set(docs_in(a, a_id)[0]) == {savings}
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    make_user(b, "carl")  # nor does a directory cross while paused
+    t = add(jane, checking, amount="-40.00", payee="Pharmacy")
+    rid = jane.post(
+        "/ui/api/receipts", files={"file": ("r.png", png(), "application/octet-stream")}
+    ).json()["id"]
+    saved(attach(jane, rid, t["id"]))
+    assert share(jane, "account", brokerage, users=gone_bart).status_code == 200
+    assert share(john, "account", savings, users=gone_anna).status_code == 200
+    calls: list[str] = []
+    wire.fail = lambda m, url, kw: calls.append(url)
+    # Pull now on the paused side: its exchange carries the removals alone, both ways.
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["state"] == "paused" and out["lastError"] is None
+    assert docs_in(a, a_id)[0] == {}, "John's share taken back reaches A's copy"
+    assert anna.get("/ui/api/linked").json()["items"] == []
+    items, docs = docs_in(b, b_id)
+    assert set(items) == {checking, ira}, "Jane's share taken back reaches B's copy"
+    assert docs[balance]["balance"] == "1200.00", "no data crosses"
+    assert bart.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "nor a receipt"
+    # The other side's exchange with the paused one: the same, and it isn't alerted; a locked
+    # copy takes the removal at its unlock.
+    assert share(jane, "account", ira, users=gone_bart).status_code == 200
+    bart.post(f"/ui/api/linked/{b_id}/lock")
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert "paused" in out["lastError"] and out["failingSince"] is None
+    assert bart.get(f"/ui/api/linked/{b_id}").json()["waiting"] == 1
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words_b)}).is_success
+    assert set(docs_in(b, b_id)[0]) == {checking}
+    # Shared again while paused: nothing of it crosses until the pause ends.
+    assert share(jane, "account", brokerage, users=to_bart).status_code == 200
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    assert set(docs_in(b, b_id)[0]) == {checking}
+    assert not [u for u in calls if "/next" in u or "/file" in u or "?file=" in u], calls
+    wire.fail = None
+    users_a = lambda: {u["username"] for u in links_of(ca)["links"][0]["users"]}  # noqa: E731
+    assert "carl" not in users_a()
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/resume").is_success
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert out["lastError"] is None
+    assert "carl" in users_a()
+    items, docs = docs_in(b, b_id)
+    assert set(items) == {brokerage, checking}, "caught up, the item shared again whole"
+    assert docs[balance]["balance"] == "1160.00"
+    assert (brokerage, f"/accounts/{brokerage}", bart_id) in docs
+    (f,) = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert f["arrived"] is True
+
+
+def test_a_paused_side_refuses_data_and_takes_nothing_but_removals(admins):
+    """link-protocol.md §4.3.6: a paused side refuses `next`, `file`, a receipt's `deliver` and
+    a delivered change holding more than removals with `link-paused`; a change from a paused
+    link that holds more than its removals is refused, and one that holds them moves no
+    sequence."""
+    import hashlib
+
+    from moolakata.links import changes, manage, receive
+
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    with a.db.read(unscoped="test") as s:
+        own_a = keys.private_key(s, a.keys.secrets)
+    with b.db.read(unscoped="test") as s:
+        own_b = keys.private_key(s, b.keys.secrets)
+        row = s.get(Link, b_id)
+        url_a, key_a, got = row.address, keys.unb64(row.peerKey), row.gotSeq
+    when = "2026-01-01T00:00:00"
+    beyond = (
+        {"seq": 1, "asOf": when, "removed": [], "items": [{"id": "x", "kind": "account"}]},
+        {"seq": 1, "asOf": when, "removed": [], "sealed": "AAAA"},
+        {"seq": 1, "asOf": when, "removed": [], "full": True},
+        {"seq": 1, "asOf": when, "removed": [], "fetch": ["Rcpt_x"]},
+        {"seq": 1, "asOf": when, "removed": [7]},
+    )
+    for path, body in (
+        ("/link/v1/next", {"have": 0}),
+        ("/link/v1/file", {"id": "Rcpt_" + "0" * 26}),
+        *(("/link/v1/deliver", {"change": changes.sign(own_b, c)}) for c in beyond),
+    ):
+        with pytest.raises(client.LinkError) as e:
+            manage.call(b, b_id, path, body)
+        assert e.value.code == "link-paused", (path, body)
+    sealed_file = b.config.data_dir / "r.mkr"
+    sealed_file.write_bytes(b"sealed")
+    digest = hashlib.sha256(b"sealed").hexdigest()
+    with pytest.raises(client.LinkError) as e:
+        client.send_file(b, url_a, key_a, "Rcpt_" + "0" * 26, sealed_file, digest)
+    assert e.value.code == "link-paused"
+    # The other side takes a paused link's change only when it holds removals alone.
+    for c in beyond:
+        with pytest.raises(changes.ChangeError):
+            receive.take(b, b_id, changes.sign(own_a, c), registry_only=True)
+    notice = {"seq": 0, "asOf": when, "removed": ["Acct_gone"]}
+    assert receive.take(b, b_id, changes.sign(own_a, notice), registry_only=True) == set()
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).gotSeq == got, "a removal alone moves no sequence"

@@ -51,17 +51,21 @@ def link_in(name: str):
         if link is None:
             raise signing.Refused("not-linked", "This server has no link with yours.")
         if link.state not in states:
-            until = (
-                f" until {link.pausedUntil:%b %-d, %H:%M} UTC"
-                if link.state == "paused" and link.pausedUntil
-                else ""
-            )
-            raise signing.Refused(
-                f"link-{link.state}", f"The link is {link.state} on this side{until}."
-            )
+            raise in_state(link)
         return link, link.id
 
     return find
+
+
+def in_state(link: Link) -> signing.Refused:
+    """The refusal of a call the link's state doesn't allow: `link-<state>`, a pause saying
+    until when."""
+    until = (
+        f" until {link.pausedUntil:%b %-d, %H:%M} UTC"
+        if link.state == "paused" and link.pausedUntil
+        else ""
+    )
+    return signing.Refused(f"link-{link.state}", f"The link is {link.state} on this side{until}.")
 
 
 @contextlib.contextmanager
@@ -182,8 +186,15 @@ def deliver(call: Call):
     """The caller's change for this server, after an exchange it made (S11.4); or, before it,
     one of the receipts that change sends, sealed by the caller to this side's copy key, as
     `application/octet-stream` with the path's `file` naming it (link-protocol.md §4.3), inside
-    what the caller signed: read as it arrives, never whole in memory, and kept as it came."""
+    what the caller signed: read as it arrives, never whole in memory, and kept as it came.
+    A paused link takes a change of removals alone, and no receipt (§4.3.6)."""
+    from .receive import removals_only
+
     srv, link = call.srv, call.found
+    if link.state == "paused" and (
+        call.file is not None or not removals_only(call.json().get("change"))
+    ):
+        raise in_state(link)
     if call.file is not None:
         named = call.request.query_params.getlist("file")
         fid = named[0] if len(named) == 1 else ""

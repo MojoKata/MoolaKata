@@ -26,16 +26,40 @@ def _missing(s, link_id: str, file_id: str):
     ).first()
 
 
-def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = None) -> set[str]:
+REMOVALS = {"seq", "asOf", "removed", "signature"}
+
+
+def removals_only(change) -> bool:
+    """Whether a change is a paused link's (link-protocol.md §4.3.6): its removals alone, with
+    no item, data, file or sealed part."""
+    return (
+        isinstance(change, dict)
+        and set(change) <= REMOVALS
+        and isinstance(change.get("removed"), list)
+        and all(isinstance(r, str) for r in change["removed"])
+    )
+
+
+def take(
+    srv,
+    link_id: str,
+    change: dict,
+    delivered: dict[str, str] | None = None,
+    registry_only: bool = False,
+) -> set[str]:
     """Take a change from the peer. Out of sequence, the next exchange asks for everything.
     `delivered`: the receipts the peer sent with it (their ids and the names they were kept
     under); any other it names is fetched. A receipt that can't be fetched never holds the
     change back: it is kept as not arrived, and asked for again at each exchange. Returns the
-    receipts that weren't fetched."""
+    receipts that weren't fetched. `registry_only`: the link is paused on either side, and the
+    change is taken only when it holds removals alone (S11.4)."""
     with srv.db.read(unscoped="links.receive: take") as s:
         link = s.get(Link, link_id)
         peer, got = unb64(link.peerKey), link.gotSeq
     changes.verify(peer, change)
+    if registry_only:
+        _take_removals(srv, link_id, change)
+        return set()
     seq = int(change.get("seq") or 0)
     full = bool(change.get("full"))
     if not full and seq != got + 1:
@@ -114,6 +138,39 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
         )
     changes.enqueue(srv, link_id, change, {"fileNames": names})
     return set(failed)
+
+
+def _take_removals(srv, link_id: str, change: dict) -> None:
+    """A paused link's change (S11.4): its items removed here and, through the inbox, from the
+    copy, the sequence unmoved, so the first full exchange after the pause carries on from
+    where the last one stopped. Anything more in it is refused. A removal sent again (the
+    source repeats it until the resume) finds nothing left and does nothing."""
+    if not removals_only(change):
+        raise changes.ChangeError(
+            f"change {change.get('seq')} comes over a paused link but holds more than removals"
+        )
+    with srv.db.tx(unscoped="links.receive: take removals") as s:
+        rows = list(
+            s.scalars(
+                select(LinkedItem).where(
+                    LinkedItem.linkId == link_id, LinkedItem.remoteId.in_(change["removed"])
+                )
+            )
+        )
+        for row in rows:
+            s.delete(row)
+        if rows:
+            activity.record(
+                s,
+                "link.pulled",
+                actor=None,
+                subject_kind="link",
+                subject_id=link_id,
+                for_admins=True,
+                detail={"count": len(rows), "shares": []},
+            )
+    if rows:
+        changes.enqueue(srv, link_id, change, {"registryOnly": True})
 
 
 def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
