@@ -132,6 +132,31 @@ def test_every_problem_is_logged_by_its_id_status_and_code(bare_client, caplog):
     assert any(rec.getMessage() == line for rec in caplog.records), caplog.text
 
 
+def test_a_refusal_before_the_app_is_logged_by_its_id_and_titled_as_a_routes(bare_client, caplog):
+    # S13.7.8: the middleware's refusals are in the log by their id, as a route's are;
+    # S13.8.3: one status, one title, whoever answers it.
+    import asyncio
+    import json
+
+    from moolakata import errors, middleware
+
+    with caplog.at_level("INFO", logger="moolakata.errors"):
+        r = bare_client.post("/ui/api/x", json={}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and r.json()["title"] == errors.TITLES[403]
+    line = f"problem {r.json()['errorId']} 403 origin-refused"
+    assert any(rec.getMessage() == line for rec in caplog.records), caplog.text
+    for status in (401, 404, 413, 429, 503):
+        sent = []
+
+        async def send(message, sent=sent):
+            sent.append(message)
+
+        asyncio.run(middleware._send_problem(status, "a-code", "Words.")(send))
+        body = json.loads(sent[1]["body"])
+        assert body["title"] == errors.TITLES[status], status
+        assert sent[0]["headers"][0] == (b"content-type", b"application/problem+json")
+
+
 def test_the_connectors_uploads_count_as_read_and_everyones_have_a_ceiling(monkeypatch):
     """S13.7.6: a call to /connector reserves nothing for what it says it carries, so a stranger's
     key header holds no budget (its route reads a body only once the paired connector's signature

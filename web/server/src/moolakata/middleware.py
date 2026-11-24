@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable
 from typing import ClassVar
 
-from .errors import new_error_id
+from .errors import PROBLEM, problem_body
 from .links.sealed import max_receipt
 
 log = logging.getLogger("moolakata.access")
@@ -40,27 +40,17 @@ LINK_LIMIT = 20 * 1024 * 1024
 
 
 def _send_problem(status: int, code: str, detail: str, headers=()):
-    body = json.dumps(
-        {
-            "type": f"https://moolakata.invalid/problems/{code}",
-            "title": {403: "Not allowed", 413: "Too large", 503: "Not available"}.get(
-                status, "Error"
-            ),
-            "status": status,
-            "detail": detail,
-            "code": code,
-            "errorId": new_error_id(),
-            "errors": [],
-        }
-    ).encode()
+    """A refusal answered before the app: a route's problem document, titled and logged by
+    its id as a route's is (S13.8.3, S13.7.8), once it is sent."""
 
     async def respond(send):
+        body = json.dumps(problem_body(status, code, detail)).encode()
         await send(
             {
                 "type": "http.response.start",
                 "status": status,
                 "headers": [
-                    (b"content-type", b"application/problem+json"),
+                    (b"content-type", PROBLEM.encode()),
                     (b"content-length", str(len(body)).encode()),
                     *headers,
                 ],
