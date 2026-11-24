@@ -137,6 +137,25 @@ def test_an_unreachable_peer_says_so(pair):
     assert e.value.code == "unreachable"
 
 
+def test_a_links_answer_is_read_through_the_clients_ceiling(pair, monkeypatch):
+    """S13.5: the `Wire` stands where the sockets are, so a link's answer meets `net.Client`'s
+    ceiling as on the network: one past it is refused, the peer taken as unreachable."""
+    from moolakata import net
+
+    a, b, (url_a, url_b), _ = pair
+    reach(a, "b.test")
+    link(b, url_a, public(a))
+    assert client.call(a, url_b, public(b), "/link/v1/ping")["state"] == "active"
+    monkeypatch.setattr(
+        client,
+        "_client",
+        lambda srv, pins, max_bytes=0: net.Client(srv.guard, max_bytes=16, pins=pins, use="link"),
+    )
+    with pytest.raises(client.LinkError) as e:
+        client.call(a, url_b, public(b), "/link/v1/ping")
+    assert e.value.code == "unreachable" and "ResponseTooLarge" in e.value.message
+
+
 # ---------- invitations, approval and the directory (S11.1, S11.3, S11.6)
 
 from conftest import make_user  # noqa: E402
