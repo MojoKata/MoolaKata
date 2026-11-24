@@ -998,16 +998,46 @@ def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, m
     from moolakata.links import manage
 
     a, b, _, _ = pair
-    link(a, "https://b.test", public(b))
+    a_id = link(a, "https://b.test", public(b))
     told = "aa" * 32
     with a.db.tx(unscoped="test") as s:
-        settings.put(s, "linkCertificate", told, None)
+        s.get(Link, a_id).ownCertTold = told
         settings.put(s, "linkAddress", "https://127.0.0.1:8443", None)
     monkeypatch.setattr(certs, "_cached", {})
     assert certs.own_key(a) is None
     assert manage.announce_certificate(a) == 0
     with a.db.read(unscoped="test") as s:
-        assert settings.get(s, "linkCertificate") == told
+        assert s.get(Link, a_id).ownCertTold == told
+
+
+def test_a_new_certificate_is_told_again_until_each_peer_has_it(admins, monkeypatch):
+    """link-protocol.md §4.5: a peer that missed the announcement (down at that run) is told
+    at the next run; one told isn't told again; a public certificate is never announced, and
+    the key last told stays for a later one of this server's own."""
+    from moolakata import certs
+    from moolakata.links import manage
+
+    a, b, ca, cb, wire = admins
+    a_id, b_id = linked(ca, cb)
+    own = {"key": "dd" * 32}
+    monkeypatch.setattr(certs, "own_key_read", lambda srv, use="link": own["key"])
+    wire.down.add("a.test")
+    assert manage.announce_certificate(b) == 0
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).peerCertNext is None
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold is None, "not reached, so not told"
+    wire.down.clear()
+    assert manage.announce_certificate(b) == 1, "told at the next run"
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).peerCertNext == own["key"]
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold == own["key"]
+    assert manage.announce_certificate(b) == 0, "told once it has it"
+    own["key"] = None
+    assert manage.announce_certificate(b) == 0
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold == "dd" * 32
 
 
 UNREAD = (

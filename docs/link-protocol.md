@@ -286,7 +286,10 @@ applied, or, for a receipt that comes after its change, as it is placed), keeps 
 A server whose certificate is its own (S13.3) and whose key changes calls `certificate`,
 signed, on each active or paused link as soon as it sees the change, before its next exchange
 (read by connecting to the server's own link address, or, when that can't be reached and the
-server serves TLS itself, from its listener's file); the peer keeps the new fingerprint beside the old, and accepts either until
+server serves TLS itself, from its listener's file). It keeps, for each link, the key that
+peer last confirmed, and calls again at every run of its hourly task until each has: a peer
+down at the change is told once it answers. A public certificate is not announced. The peer
+keeps the new fingerprint beside the old, and accepts either until
 an exchange over the new one succeeds. A certificate whose key changes unannounced is refused, and the link shows *the
 peer's certificate changed* until an admin there accepts the new fingerprint, which the peer's
 admin reads out from their Settings › Linked servers.

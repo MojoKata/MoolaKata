@@ -14,7 +14,7 @@ import re
 import secrets
 import threading
 
-from sqlalchemy import false, select
+from sqlalchemy import false, or_, select
 
 from .. import activity, clock, ids, people, settings
 from ..checkpoints import checkpoint
@@ -170,31 +170,38 @@ def accept_certificate(srv, link_id: str, by: str) -> Link:
 
 
 def announce_certificate(srv) -> int:
-    """This server's own certificate key, when it changed since it was last told to the peers:
-    told to each active or paused link, signed (link-protocol.md §4.5). Returns how many were
-    told."""
+    """This server's own certificate key, told, signed, to each active or paused link that
+    hasn't confirmed it yet, at every run until it has (link-protocol.md §4.5). Returns how
+    many were told."""
     from .. import certs
 
     try:
         key = certs.own_key_read(srv)
     except certs.Unread:
         return 0  # unread is not public: nothing changed that the peers can be told
+    if key is None:
+        # A public certificate: checked against the system's roots, so there is nothing to
+        # pin, and the key last told stays for a later one of this server's own.
+        return 0
     with srv.db.read(unscoped="links.manage: announce certificate") as s:
-        told = settings.get(s, "linkCertificate")
         ids_ = list(
             s.scalars(
-                select(Link.id).where(Link.deleted == false(), Link.state.in_(("active", "paused")))
+                select(Link.id).where(
+                    Link.deleted == false(),
+                    Link.state.in_(("active", "paused")),
+                    or_(Link.ownCertTold.is_(None), Link.ownCertTold != key),
+                )
             )
         )
-    if (key or None) == (told or None):
-        return 0
     n = 0
     for link_id in ids_:
-        with contextlib.suppress(LinkError):  # it learns at the next exchange instead
+        try:
             call(srv, link_id, "/link/v1/certificate", {"fingerprint": key})
-            n += 1
-    with srv.db.tx(unscoped="links.manage: announce certificate") as s:
-        settings.put(s, "linkCertificate", key, None)
+        except LinkError:
+            continue  # told again at the next run
+        with srv.db.tx(unscoped="links.manage: announce certificate") as s:
+            _get(s, link_id).ownCertTold = key
+        n += 1
     return n
 
 

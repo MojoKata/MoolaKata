@@ -42,6 +42,7 @@ class Link(Record):
     peerCert: str | None = None
     peerCertNext: str | None = None
     peerCertOffered: str | None = None
+    ownCertTold: str | None = None
     brokenAt: dt.datetime | None = None
 
 

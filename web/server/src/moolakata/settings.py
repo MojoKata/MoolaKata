@@ -253,8 +253,6 @@ _d("bitcoinNodeCertOffered", "bitcoin", None, _optional_text(64), internal=True)
 # Linked servers (S16.9, S11): the address peers reach this server's /link at (the public URL
 # when not set), and how long an unlocked linked copy may go unused (S11.9.4)
 _d("linkAddress", "links", None, _link_url)
-# This server's own certificate key as last told to its peers (link-protocol.md §4.5).
-_d("linkCertificate", "links", None, _optional_text(64), internal=True)
 _d("linkReleaseMinutes", "links", 60, _int(5, 24 * 60))
 # The connector (S16.18, S18.4.1): the address the connector reaches this server at, which a
 # pairing code carries (the public URL when not set); never the link address, which may lead to

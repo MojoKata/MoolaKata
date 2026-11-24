@@ -70,6 +70,9 @@ Link = record(
     Column("peerCert", Text),
     Column("peerCertNext", Text),
     Column("peerCertOffered", Text),
+    # This server's own certificate key as the peer last confirmed it was told (link-protocol.md
+    # §4.5): until it is the key in use, it is told again at every run of the links task.
+    Column("ownCertTold", Text),
     # The peer answered that it has no link with this one (S11.6): broken until an admin ends
     # it or links again.
     Column("brokenAt", UtcTimestamp),
