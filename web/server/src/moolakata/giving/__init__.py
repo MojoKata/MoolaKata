@@ -1,7 +1,7 @@
 """Charitable giving (requirements S7.9, S8.9): a year's plan and whose giving it counts, the
-donations (recorded, and transactions categorised Giving), what counts toward the target and
-what is deductible, the acknowledgements the tax rules need, income for the percentage, pace,
-pledges, and the donor-advised fund."""
+donations (recorded, and spending in categories tagged charitable), what counts toward the
+target and what is deductible, the acknowledgements the tax rules need, income for the
+percentage, pace, pledges, and the donor-advised fund."""
 
 import calendar
 import datetime as dt
@@ -20,6 +20,7 @@ from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
 
 ZERO = Decimal(0)
+CHARITABLE = "charitable"  # the tax tag a donation's category carries (S7.2, S7.9.3)
 KINDS = {
     "cash": "Cash",
     "goods": "Goods",
@@ -68,9 +69,9 @@ def givers(s: Session, plan: GivingPlan | None, user_id: str) -> list[str]:
 
 @dataclass
 class Gift:
-    """A donation, recorded or read from a transaction categorised Giving."""
+    """A donation, recorded or read from spending in a category tagged charitable."""
 
-    id: str | None  # the Donation's; None for a transaction alone
+    id: str | None  # the Donation's; None for a transaction (or split part) alone
     date: dt.date
     kind: str
     amount: Decimal
@@ -132,29 +133,15 @@ def donations(s: Session, owners: list[str], year: int) -> list[Gift]:
         out.append(gift(s, d, orgs))
         if d.transactionId:
             linked.add(d.transactionId)
-    # Transactions categorised Giving that no donation records yet count as cash (S7.9.3).
-    cats = [c.id for c in s.scalars(select(Category).where(Category.builtIn == "giving"))]
-    accounts = [
-        a.id
-        for a in s.scalars(
-            select(Account).where(Account.ownerId.in_(owners), Account.deleted == false())
-        )
-    ]
-    if cats and accounts:
-        for t in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId.in_(accounts),
-                Transaction.categoryId.in_(cats),
-                Transaction.deleted == false(),
-                Transaction.date >= first,
-                Transaction.date <= last,
-                Transaction.amount < 0,
-            )
-        ):
-            if t.id in linked:
-                continue
-            org = by_name.get((t.payee or "").lower())
-            out.append(Gift(None, t.date, "cash", -t.amount, org, t.payee or "Giving", t.id, False))
+    # Spending in a category tagged charitable, wherever it sits, that no donation records yet
+    # counts as cash, each split part a gift of its own (S7.9.3, S7.3.1), as Taxes counts it.
+    cats = {c.id for c in s.scalars(select(Category).where(Category.taxTag == CHARITABLE))}
+    for p in parts(s, _accounts(s, owners), first, last, cats):
+        t = p.transaction
+        if p.amount >= 0 or t.id in linked:
+            continue
+        org = by_name.get((t.payee or "").lower())
+        out.append(Gift(None, t.date, "cash", -p.amount, org, t.payee or "Giving", t.id, False))
     return sorted(out, key=lambda g: g.date, reverse=True)
 
 

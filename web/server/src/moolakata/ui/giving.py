@@ -8,13 +8,21 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, giving, ids, receipts
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse
 from ..ledger.lots import long_term as held_long
-from ..store.entities.accounts import Account, Category, Instrument, Lot, LotPick, Transaction
+from ..store.entities.accounts import (
+    Account,
+    Category,
+    Instrument,
+    Lot,
+    LotPick,
+    Split,
+    Transaction,
+)
 from ..store.entities.giving import Donation, GivingPlan, Organisation
 from ..store.repos import ledger as repo
 from . import save
@@ -425,6 +433,15 @@ def _giving_category(s) -> str | None:
     return cat.id if cat else None
 
 
+def _split(s, txn_id: str) -> bool:
+    return (
+        s.scalars(
+            select(Split.id).where(Split.transactionId == txn_id, Split.deleted == false())
+        ).first()
+        is not None
+    )
+
+
 def _txn(s, c: Caller, account_id: str, day, kind, amount, payee, **kw) -> Transaction:
     t = Transaction(
         id=ids.new_id("Txn"),
@@ -569,7 +586,8 @@ def _record(s, c: Caller, body: DonationIn, donation_id: str | None = None) -> D
         access.account(s, c.id, t.accountId, "write")
         values["transactionId"] = t.id
         values["amount"] = body.amount or -t.amount
-        if not t.categoryId and body.kind == "cash":
+        # An uncategorised one is filed under Giving; a split one keeps its parts (S7.3.1).
+        if not t.categoryId and body.kind == "cash" and not _split(s, t.id):
             t.categoryId = _giving_category(s)
     elif body.fromAccountId:
         a, _ = access.account(s, c.id, body.fromAccountId, "write")

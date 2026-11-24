@@ -430,3 +430,57 @@ def test_a_split_paycheck_counts_through_its_income_parts(jane):
     v = jane.get("/ui/api/giving").json()
     assert v["income"] == "6000.00" and v["target"] == "600.00"
     assert v["history"][-1] == {"year": 2026, "percent": 0.0}
+
+
+def _category(c, name, **kw):
+    r = make(c, "Cat", name=name, kind="expense", **kw)
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
+
+
+def test_a_donation_is_any_charitable_part_wherever_its_category_sits(jane):
+    """S7.9.3, S7.3.1: a transaction or split part in a category tagged charitable is a
+    donation, under Giving or not, each part a gift of its own."""
+    saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    bank = new_account(jane, name="Checking")
+    giving_id = _cat(jane, "Giving")
+    church = _category(jane, "Church", parentId=giving_id, taxTag="charitable")
+    alumni = _category(jane, "Alumni fund", taxTag="charitable")
+    raffle = _category(jane, "Raffle tickets", parentId=giving_id)  # no tag: not a gift
+    add(jane, bank["id"], "-300.00", "2026-02-01", payee="St. Mark's", categoryId=church)
+    add(jane, bank["id"], "-50.00", "2026-03-01", payee="State U", categoryId=alumni)
+    add(jane, bank["id"], "-20.00", "2026-03-02", payee="PTA", categoryId=raffle)
+    auction = add(
+        jane,
+        bank["id"],
+        "-120.00",
+        "2026-04-01",
+        payee="Food Bank gala",
+        splits=[
+            {"categoryId": giving_id, "amount": "-80.00"},
+            {"categoryId": _cat(jane, "Dining out"), "amount": "-40.00"},
+        ],
+    )
+    rows = jane.get("/ui/api/giving/donations").json()["items"]
+    assert [(d["name"], d["amount"], d["transactionId"]) for d in rows] == [
+        ("Food Bank gala", "80.00", auction["id"]),
+        ("State U", "50.00", rows[1]["transactionId"]),
+        ("St. Mark's", "300.00", rows[2]["transactionId"]),
+    ]
+    assert jane.get("/ui/api/giving").json()["given"] == "430.00"
+    # Recorded, the split part is the donation, and the transaction keeps its parts.
+    food = org(jane, "Food Bank")
+    d = donate(
+        jane,
+        date="2026-04-01",
+        kind="cash",
+        organisationId=food["id"],
+        transactionId=auction["id"],
+        amount="80",
+    )
+    assert d["amount"] == "80.00"
+    t = jane.get(f"/ui/api/transactions/{auction['id']}").json()
+    assert t["categoryId"] is None and len(t["splits"]) == 2
+    rows = jane.get("/ui/api/giving/donations").json()["items"]
+    assert [x["id"] for x in rows if x["transactionId"] == auction["id"]] == [d["id"]]
+    assert jane.get("/ui/api/giving").json()["given"] == "430.00"

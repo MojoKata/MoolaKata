@@ -285,8 +285,10 @@
    2. **Income**, for the percentage, is one of: the year's transactions in *Income*
       categories (take-home pay, the default), a typed **gross income** (from a W-2 or a pay
       stub), or a typed estimate of AGI. The plan says which it uses.
-   3. **Donations** come from transactions categorised under *Giving* (tax tag *charitable*,
-      S7.2), or are recorded directly: the organisation, date, amount, and **type**: cash
+   3. **Donations** come from transactions categorised with the tax tag *charitable* (S7.2;
+      *Giving* and its sub-categories carry it), wherever the category sits, as Taxes counts
+      them (S8.9), each split part a donation of its own with its transaction's date and payee
+      (S7.3.1), or are recorded directly: the organisation, date, amount, and **type**: cash
       (card, cheque, transfer), **goods** (with their fair market value), **appreciated
       securities** (shares from a lot, S2.2: no gain is realized, and the deduction is the
       market value when held over a year, otherwise the lesser of the market value and the
