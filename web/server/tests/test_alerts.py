@@ -1,5 +1,6 @@
 """Alerts (requirements S12.11)."""
 
+import contextlib
 import datetime as dt
 
 import pytest
@@ -289,8 +290,57 @@ def test_reading_without_its_file_sandbox_alerts_admins(server, admin_client, fr
     assert listed(admin_client)["open"] == []
 
 
-def test_every_check_names_the_kinds_it_keeps_when_it_fails():
-    assert {fn.__name__ for fn in alerts.CHECKS} == set(alerts._KINDS)
+def test_every_check_names_the_keys_it_keeps_when_it_fails():
+    assert {fn.__name__ for fn in alerts.CHECKS} == set(alerts._KEYS)
+
+
+def _key_heads(fn) -> list[str]:
+    """The literal start of every cause key the check writes: `f"link:{link.id}"` → "link:"."""
+    import ast
+    import inspect
+    import textwrap
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    heads = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "key":
+            v = node.value
+            while isinstance(v, ast.BinOp):  # "bitcoin" + (…)
+                v = v.left
+            if isinstance(v, ast.JoinedStr):
+                v = v.values[0]
+            assert isinstance(v, ast.Constant), ast.dump(node)
+            heads.append(v.value)
+    return heads
+
+
+def test_a_failed_check_holds_back_its_own_keys_and_no_other_checks():
+    """S12.11.2: each key a check writes has one of its stems, and no other check's."""
+    for fn in alerts.CHECKS:
+        heads = _key_heads(fn)
+        assert heads, fn.__name__
+        for head in heads:
+            key = head + "x" if head.endswith(":") else head
+            owners = [n for n, stems in alerts._KEYS.items() if alerts._held_back(key, stems)]
+            assert owners == [fn.__name__], (key, owners)
+
+
+@contextlib.contextmanager
+def broken_check(name: str):
+    """The check called `name` raises while the block runs."""
+
+    def broken(s, server):
+        raise RuntimeError("a check that can't run")
+        yield
+
+    i = next(i for i, fn in enumerate(alerts.CHECKS) if fn.__name__ == name)
+    keep = alerts.CHECKS[i]
+    broken.__name__ = name
+    alerts.CHECKS[i] = broken
+    try:
+        yield
+    finally:
+        alerts.CHECKS[i] = keep
 
 
 def test_a_check_that_fails_leaves_its_alerts_open_and_unsent(server, admin_client, frozen):
@@ -301,22 +351,23 @@ def test_a_check_that_fails_leaves_its_alerts_open_and_unsent(server, admin_clie
     assert before == ["Backup failed"]
     with server.db.tx(unscoped="test") as s:
         s.get(TaskRun, "backups").error = None
-
-    def broken(s, server):
-        raise RuntimeError("a check that can't run")
-        yield
-
-    i = next(i for i, fn in enumerate(alerts.CHECKS) if fn.__name__ == "backups")
-    keep = alerts.CHECKS[i]
-    broken.__name__ = "backups"
-    alerts.CHECKS[i] = broken
-    try:
+    with broken_check("backups"):
         assert alerts.evaluate(server) == []  # nothing reopened, so nothing sent again
-    finally:
-        alerts.CHECKS[i] = keep
     assert [a["title"] for a in listed(admin_client)["open"]] == before
     alerts.evaluate(server)  # the check runs again: the backup is fixed
     assert listed(admin_client)["open"] == []
+
+
+def test_a_failing_check_holds_back_no_other_checks_source_alert(server, admin_client, frozen):
+    """S12.11.2: while the linked servers' check fails, Tiingo's *source failing* alert, which
+    the price sources' check raised, still resolves when Tiingo answers again."""
+    failing_source(server, ok_hours_ago=50)
+    assert [a.title for a in alerts.evaluate(server)] == ["Tiingo failing for 2 days"]
+    set_source_error(server, None)
+    with broken_check("linked_servers"):
+        alerts.evaluate(server)
+    body = listed(admin_client)
+    assert body["open"] == [] and body["resolved"][0]["resolution"] == "the cause cleared"
 
 
 def test_stale_values_with_no_import_alert_once_naming_the_oldest(server, frozen):

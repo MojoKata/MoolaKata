@@ -873,7 +873,7 @@ def evaluate(server) -> list[Alert]:
     alerts that opened."""
     now = clock.now()
     holding: dict[str, Cause] = {}
-    failed: set[str] = set()
+    failed: set[str] = set()  # the key stems of the checks that failed
     with server.db.read(unscoped="alerts: evaluate") as s:
         for fn in CHECKS:
             try:
@@ -882,17 +882,17 @@ def evaluate(server) -> list[Alert]:
             except Exception:
                 # A check that fails says nothing: its alerts stay as they are.
                 log.exception("the alert check %s failed", fn.__name__)
-                failed |= _KINDS[fn.__name__]
+                failed |= _KEYS[fn.__name__]
         current = [
-            (a.id, a.causeKey, a.kind, (a.title, a.about, a.link, a.fix), a.openedAt, a.seenSince)
+            (a.id, a.causeKey, (a.title, a.about, a.link, a.fix), a.openedAt, a.seenSince)
             for a in _unresolved(s)
         ]
     resolve: list[str] = []
     change: dict[str, tuple[Cause, bool]] = {}
-    for alert_id, key, kind, shown, opened_at, seen in current:
+    for alert_id, key, shown, opened_at, seen in current:
         cause = holding.pop(key, None)
         if cause is None:
-            if kind not in failed:
+            if not _held_back(key, failed):
                 resolve.append(alert_id)
             continue
         opens = opened_at is None and seen + cause.delay <= now
@@ -942,30 +942,37 @@ def evaluate(server) -> list[Alert]:
     return opened
 
 
-# The kinds each check raises: when it fails, these stay as they are.
-_KINDS = {
-    "price_sources": {"source-failing"},
-    "email": {"source-failing"},
-    "bitcoin_source": {"source-failing"},
-    "linked_servers": {"source-failing", "link-broken", "link-certificate", "link-key-waiting"},
-    "backups": {"backup-failed"},
+# The stems of the cause keys each check raises: when a check fails, its alerts stay as they
+# are and every other check's still resolve (S12.11.2). Kinds can't say whose an alert is:
+# several checks raise *source failing*. A key has a stem when it is the stem or starts with
+# the stem and a colon.
+_KEYS = {
+    "price_sources": {"prices"},
+    "email": {"mail"},
+    "bitcoin_source": {"bitcoin"},
+    "linked_servers": {"link-broken", "link-cert", "link", "link-key"},
+    "backups": {"backups"},
     "reader_sandbox": {"reader-sandbox"},
-    "recovery_phrase": {"phrase-check"},
-    "key_rotation": {"key-rotation"},
-    "break_glass": {"break-glass"},
-    "accounts": {"statement-overdue", "reconcile-mismatch"},
-    "statement_values": {"statement-value-old"},
-    "projections_behind": {"projection-behind"},
-    "cash_short": {"cash-short"},
-    "bitcoin_certificate": {"node-certificate"},
+    "recovery_phrase": {"keys:phrase"},
+    "key_rotation": {"keys:rotation"},
+    "break_glass": {"keys:break-glass"},
+    "accounts": {"statement", "mismatch"},
+    "statement_values": {"statement-value"},
+    "projections_behind": {"behind"},
+    "cash_short": {"cash"},
+    "bitcoin_certificate": {"bitcoin-certificate"},
     "bitcoin_off_chain": {"off-chain"},
-    "connector": {"connector-silent", "connector-locked", "connector-moved", "connection-failing"},
+    "connector": {"connector", "connection"},
     "options_expired": {"option-expired"},
     "options_expiring": {"option-expiring"},
-    "pledges_due": {"pledge-due"},
+    "pledges_due": {"pledge"},
     "occasions": {"occasion"},
     "share_asked": {"share-asked"},
 }
+
+
+def _held_back(key: str, stems: set[str]) -> bool:
+    return any(key == stem or key.startswith(stem + ":") for stem in stems)
 
 
 def _unresolved(s: Session) -> list[Alert]:
