@@ -180,9 +180,11 @@ ask it for anything. People give it its words on **its page**, which it serves i
       to a proxy that passes only `/link/`), its link key's fingerprint, a one-time secret,
       and, when MoolaKata's certificate is its own rather than a public one, the fingerprint of
       the certificate's key, valid 24 hours, in the form of a link code (`mkp1.`,
-      `docs/link-protocol.md` §4.1), of which MoolaKata keeps only the secret's hash. While
-      MoolaKata can't read its own certificate, no pairing code is made, since it would carry
-      no key to pin: the dialog says so.
+      `docs/link-protocol.md` §4.1), of which MoolaKata keeps only the secret's hash. The
+      certificate is read at the address the code carries, where the connector will connect,
+      never at the link address; when MoolaKata can't reach that address and serves TLS
+      itself, it is the one MoolaKata's listener serves. When neither is known, no pairing code
+      is made, since it would carry no key to pin: the dialog says so.
    2. On the connector's page, **Pair** with the code and the words (S18.11.4), or on its host
       with the vault unlocked: `docker compose exec connector moolakata-connector pair
       <code>`. The connector makes its **action key** (Ed25519, for signing its calls), its

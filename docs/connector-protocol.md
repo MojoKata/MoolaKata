@@ -157,7 +157,8 @@ A call the status key signs but may not make is refused `status-key`.
 1. An admin's **Pair** (Settings › Connector) makes a pairing code: `mkp1.` and unpadded
    base64url of `{"a": address, "f": fingerprint, "c": secret, "t": certificate}`, as a link
    code is (`link-protocol.md` §4.1), `a` the address of section 1.1 and `t` present when
-   MoolaKata's certificate is its own.
+   MoolaKata's certificate is its own: the one read at `a`, or, when MoolaKata can't reach `a`
+   and serves TLS itself, its listener's. A report's answer names the same one.
    MoolaKata keeps only the SHA-256 of the secret and the code's expiry (24 hours); a code
    works once. Making a code needs the admin's password again (S13.7.2).
 2. `moolakata-connector pair <code>`, run with the vault unlocked (it is refused otherwise,

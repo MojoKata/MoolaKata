@@ -135,6 +135,7 @@ def apply_egress(srv) -> None:
     from urllib.parse import urlsplit
 
     from ..bitcoin import sync as bitcoin
+    from ..connector.manage import own_address as connector_address
     from ..links.manage import own_address
     from ..links.peers import hosts as link_hosts
 
@@ -142,8 +143,13 @@ def apply_egress(srv) -> None:
         smtp = [h] if (h := settings.get(s, "smtpHost")) else []
         btc, btc_named = bitcoin.hosts(s)
         peers = link_hosts(s)
-        # This server's own link address, read for its certificate behind a proxy (S11.1.3).
-        own = [h.lower()] if (h := urlsplit(own_address(s) or "").hostname) else []
+        # This server's own link and connector addresses, read for its certificate (S11.1.1,
+        # S18.4.1).
+        own = [
+            h.lower()
+            for a in (own_address(s), connector_address(s))
+            if (h := urlsplit(a or "").hostname)
+        ]
         srv.guard.allow(
             pricing.hosts(s, srv.config.dev) + smtp + btc + peers + own,
             # A linked server's address came from the other server: never exempt, except

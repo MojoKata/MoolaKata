@@ -31,7 +31,8 @@ connector sends its reports and files, under `/connector/`. The connector usuall
 household's own network, so this is often the server's own address there
 (`https://money.lan:37373`), not a public URL that leads out through a proxy or a tunnel and
 back. Empty, the public URL is used. Never the link address: a proxy for linked servers may pass
-only `/link/`. A change applies to the next pairing.
+only `/link/`. The certificate a pairing code carries for the connector to pin is the one read
+at this address. A change applies to the next pairing.
 
 ## Pair {#pair}
 

@@ -342,6 +342,32 @@ def test_no_pairing_code_while_this_servers_own_certificate_cant_be_read(
         assert manage.current(s) is None
 
 
+def test_a_pairing_codes_pin_is_read_at_the_connector_address_it_carries(
+    server, admin, client, monkeypatch
+):
+    """S18.4.1: the connector connects to the address the code carries, never the link
+    address, so the certificate it pins is the one read there; a report's answer announces
+    that one too (connector-protocol.md §1.2). The guard lets both addresses be read (S13.5)."""
+    from moolakata import certs
+    from moolakata.ui.prices import apply_egress
+
+    at_link, at_connector = "aa" * 32, "bb" * 32
+    served = {"https://link.test": at_link, "https://money.lan:37373": at_connector}
+    monkeypatch.setattr(certs, "_probe", lambda guard, address: served[address])
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://link.test", None)
+        settings.put(s, "connectorAddress", "https://money.lan:37373", None)
+    apply_egress(server)
+    assert {"link.test", "money.lan"} <= server.guard.snapshot()[0]
+    code = pair_code(admin)
+    assert manage.decode_code(code)["a"] == "https://money.lan:37373"
+    assert manage.decode_code(code)["t"] == at_connector
+    fake = FakeConnector(server, client)
+    assert fake.pair(code).status_code == 200
+    r = fake.call("/connector/v1/report", {"locked": True, "connections": []})
+    assert r.status_code == 200 and r.json()["certificate"] == at_connector
+
+
 def test_a_pairing_code_needs_the_address_and_expires(server, admin_client, admin, client):
     with server.db.tx(unscoped="test") as s:
         settings.put(s, "publicUrl", None, None)

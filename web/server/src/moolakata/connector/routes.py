@@ -96,8 +96,9 @@ def report(call: Call):
     from .. import certs
 
     # This server's own certificate key, in every answer, so a key the connector hasn't pinned
-    # is announced, signed, before it is in use (protocol §1.2).
-    if key := certs.own_key(srv):
+    # is announced, signed, before it is in use (protocol §1.2): read at the address the
+    # connector reaches this server at, as its pairing code's was (S18.4.1).
+    if key := certs.own_key(srv, "connector"):
         out = {**out, "certificate": key}
     return out
 
