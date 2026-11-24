@@ -468,10 +468,12 @@ def test_a_second_signal_later_than_a_second_stops_at_once(config, monkeypatch, 
 
     async def turned(done):
         """The loop turned until the signal's handler has run: no time passes."""
+        from moolakata.dev.waits import turn
+
         for _ in range(100):
             if done():
                 return
-            await asyncio.sleep(0)
+            await turn()
         raise AssertionError("the signal was never handled")
 
     def exit_(code):  # the process would end here
