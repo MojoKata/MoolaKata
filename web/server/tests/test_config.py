@@ -137,6 +137,81 @@ def test_dev_hostnames_join_the_self_signed_certificate_which_is_remade_to_cover
     assert cert.read_bytes() == second  # a certificate that covers more is kept
 
 
+def _pair(directory):
+    from cryptography import x509
+
+    cert = x509.load_pem_x509_certificate((directory / "self-signed.crt").read_bytes())
+    return cert, (directory / "self-signed.key").read_bytes()
+
+
+def _loads(directory) -> bool:
+    import ssl
+
+    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ctx.load_cert_chain(directory / "self-signed.crt", directory / "self-signed.key")
+    return True
+
+
+def test_the_self_signed_certificate_is_renewed_before_it_expires_with_the_same_key(tmp_path):
+    """S13.3, S11.1.3: within 30 days of its end the certificate is signed again, and so is one
+    whose names change, both with the key peers and the connector pin; one still good is
+    kept as it is."""
+    import datetime as dt
+
+    from moolakata import clock
+    from moolakata.listener import self_signed
+
+    self_signed(tmp_path, ["home", "localhost"])
+    cert, key = _pair(tmp_path)
+    try:
+        clock.fix(cert.not_valid_after_utc - dt.timedelta(days=31))
+        self_signed(tmp_path, ["home", "localhost"])
+        assert _pair(tmp_path) == (cert, key), "a month and a day left: kept"
+        clock.fix(cert.not_valid_after_utc - dt.timedelta(days=29))
+        self_signed(tmp_path, ["home", "localhost"])
+        renewed, same = _pair(tmp_path)
+        assert same == key and renewed != cert
+        assert renewed.not_valid_after_utc > cert.not_valid_after_utc
+        clock.fix(cert.not_valid_after_utc + dt.timedelta(days=400))
+        self_signed(tmp_path, ["home", "localhost"])
+        assert _pair(tmp_path)[1] == key, "expired long ago: still the same key"
+    finally:
+        clock.fix(None)
+    self_signed(tmp_path, ["home", "localhost", "money.lan"])
+    assert _pair(tmp_path)[1] == key, "a new name: the same key"
+    assert _loads(tmp_path)
+
+
+def test_a_half_written_or_damaged_self_signed_pair_is_made_whole_again(tmp_path):
+    """S13.3, S13.6: a key that doesn't match the certificate beside it (a stop between the two
+    writes) has the certificate signed again for it; a key that can't be read is made anew;
+    neither is kept to refuse every later start."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from moolakata.listener import self_signed
+
+    self_signed(tmp_path, ["home"])
+    cert, _ = _pair(tmp_path)
+    other = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    (tmp_path / "self-signed.key").write_bytes(other)
+    self_signed(tmp_path, ["home"])
+    assert _pair(tmp_path)[1] == other and _pair(tmp_path)[0] != cert
+    assert _loads(tmp_path)
+    (tmp_path / "self-signed.key").write_bytes(b"half a key")
+    self_signed(tmp_path, ["home"])
+    assert _pair(tmp_path)[1] != b"half a key" and _loads(tmp_path)
+    (tmp_path / "self-signed.crt").write_bytes(b"half a certificate")
+    self_signed(tmp_path, ["home"])
+    assert _loads(tmp_path)
+    assert (tmp_path / "self-signed.key").stat().st_mode & 0o777 == 0o600
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["self-signed.crt", "self-signed.key"]
+
+
 def test_tls_names_join_the_self_signed_certificate(tmp_path):
     """tls mode on a local network: the certificate also names what the browser uses."""
     import dataclasses

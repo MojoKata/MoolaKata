@@ -19,22 +19,70 @@ from cryptography.x509.oid import NameOID
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HypercornConfig
 
+from . import clock
 from .config import Config, RefuseStart
 
 log = logging.getLogger("moolakata.listener")
 
 GRACE_SECONDS = 5
 HEADER_LIMIT = 16 * 1024
+# The self-signed certificate: how long it is good for, and how near its end a start renews it.
+VALID_DAYS = 825
+RENEW_DAYS = 30
+
+
+def _write(path: Path, data: bytes, mode: int) -> None:
+    """Written whole or not at all: a temporary file beside it, then renamed over it."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.unlink(missing_ok=True)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _load_key(path: Path) -> ec.EllipticCurvePrivateKey | None:
+    try:
+        key = serialization.load_pem_private_key(path.read_bytes(), password=None)
+    except OSError, ValueError, TypeError:
+        return None
+    return key if isinstance(key, ec.EllipticCurvePrivateKey) else None
+
+
+def _load_cert(path: Path) -> x509.Certificate | None:
+    try:
+        return x509.load_pem_x509_certificate(path.read_bytes())
+    except OSError, ValueError:
+        return None
 
 
 def self_signed(directory: Path, names: list[str]) -> tuple[Path, Path]:
-    """Make a self-signed certificate on first start and keep it in the data directory. One
-    that no longer covers every name is made again."""
+    """Make a self-signed certificate on first start and keep it in the data directory (S13.3).
+    It is signed again, with the same key, when it no longer covers every name, when it is
+    within 30 days of its end, or when it isn't the key's (a stop between the two writes): the
+    key, which peers and the connector pin (S11.1.3), is made anew only when none can be read."""
     cert_path, key_path = directory / "self-signed.crt", directory / "self-signed.key"
-    if cert_path.exists() and key_path.exists() and set(names) <= _covers(cert_path):
+    now = clock.now()
+    key, cert = _load_key(key_path), _load_cert(cert_path)
+    if (
+        key is not None
+        and cert is not None
+        and cert.public_key() == key.public_key()
+        and set(names) <= _covers(cert_path)
+        and cert.not_valid_after_utc - now > dt.timedelta(days=RENEW_DAYS)
+    ):
         return cert_path, key_path
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    key = ec.generate_private_key(ec.SECP256R1())
+    if key is None:
+        key = ec.generate_private_key(ec.SECP256R1())
+        pem = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        _write(key_path, pem, 0o600)
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, names[0])])
     alt: list[x509.GeneralName] = []
     for n in names:
@@ -42,7 +90,6 @@ def self_signed(directory: Path, names: list[str]) -> tuple[Path, Path]:
             alt.append(x509.IPAddress(ipaddress.ip_address(n)))
         except ValueError:
             alt.append(x509.DNSName(n))
-    now = dt.datetime.now(dt.UTC)
     cert = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -50,21 +97,12 @@ def self_signed(directory: Path, names: list[str]) -> tuple[Path, Path]:
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - dt.timedelta(minutes=5))
-        .not_valid_after(now + dt.timedelta(days=825))
+        .not_valid_after(now + dt.timedelta(days=VALID_DAYS))
         .add_extension(x509.SubjectAlternativeName(alt), critical=False)
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(key, hashes.SHA256())
     )
-    fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(
-            key.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.PKCS8,
-                serialization.NoEncryption(),
-            )
-        )
-    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    _write(cert_path, cert.public_bytes(serialization.Encoding.PEM), 0o644)
     return cert_path, key_path
 
 

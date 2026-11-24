@@ -29,7 +29,10 @@
    before any key is entered (S15.1.7). A certificate is read at start: a renewed one takes
    effect at the next, which starts locked (S15.4). It names the server and `localhost`, and
    the names and addresses listed in `[tls] names`, which are how browsers on the network reach
-   it; a change to the list makes it again. A certificate named in `[tls]` lives wherever the
+   it; a change to the list makes it again, and so does a start within 30 days of its end or
+   one that finds it isn't its key's, each time with the same key, which peers and the
+   connector pin (S11.1.3): a new key is made only when none can be read. Each file is written
+   whole or not at all. A certificate named in `[tls]` lives wherever the
    admin keeps it. From a trusted proxy, `X-Forwarded-For`, `X-Forwarded-Proto` and
    `X-Forwarded-Host` are believed, and the client is the right-most address in
    `X-Forwarded-For` that is not a trusted proxy. `[server] host` sets the listening address,
