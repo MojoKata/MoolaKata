@@ -21,8 +21,9 @@ way, with no open port). Empty, the public URL is used.
 A link works when either side can reach the other: each exchange carries both directions.
 
 Each link shows its state, its fingerprint and MoolaKata version, and when the last exchange
-worked. **Pull Now** exchanges at once rather than at the next hour. **Pause** stops this side
-exchanging for a time you choose; it shows **paused** (until when, in its tooltip) and resumes on its own, or at
+worked. **Pull Now** exchanges at once rather than at the next hour. **Pause** stops data and
+receipts crossing, both ways, for a time you choose (a share taken back, or the link ended, still
+crosses); it shows **paused** (until when, in its tooltip) and resumes on its own, or at
 once with **Resume Now**. **End Link** ends it on both sides: the other side learns at once, or
 at its next call; its users are removed here, and nothing is deleted on the server that shared.
 A server that can't be reached shows **unreachable**, since when in its tooltip, and the reason. One that answers it

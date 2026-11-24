@@ -63,8 +63,9 @@ descriptor) and a few of whose transactions are known. Mainnet.
    nothing shared appears in B's own lists or totals.
 4. Make the two servers reach each other one way only (close the forwarded port on one side).
    Passing: the link keeps syncing from the side that can reach, and Settings says so.
-5. Pause on B for `1h`. Passing: both show paused until then; exchanges stop; Resume now
-   ends it early.
+5. Pause on B for `1h`. Passing: both show paused until then; no data or receipts cross
+   either way, but a share removed on A leaves B at the next exchange (Pull now on either
+   side); Resume now ends it early.
 6. End the link on A. Passing: B learns at its next call; B's copy is deleted; A keeps its
    data.
 7. With the proxy setup (T6), from outside the proxy: `/ui` answers 404 and `/link/v1/hello`
