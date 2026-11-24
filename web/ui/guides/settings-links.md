@@ -26,8 +26,11 @@ receipts crossing, both ways, for a time you choose (a share taken back, a perso
 one, or the link ended, still crosses); it shows **paused** (until when, in its tooltip) and resumes on its own, or at
 once with **Resume Now**. **End Link** ends it on both sides: the other side learns at once, or
 at its next call; its users are removed here, and nothing is deleted on the server that shared.
-A server that can't be reached shows **unreachable**, since when in its tooltip, and the reason. One that answers it
-has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
+A server that can't be reached shows **unreachable**, since when in its tooltip, and the reason.
+One that answers, but whose data this server refuses (a list of users that doesn't fit, a change
+that doesn't check), shows **refusing**, what was refused and why in its tooltip, and admins are
+alerted at once; it is fixed on the other server, and clears at the first exchange that takes
+all it sends. One that answers it has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
 link again. Only the other server ending the link ends it here.
 
 What crosses a link is sealed by the server that sends it to the receiving copy's key, so

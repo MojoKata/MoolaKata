@@ -44,6 +44,7 @@ class Link(Record):
     peerCertOffered: str | None = None
     ownCertTold: str | None = None
     brokenAt: dt.datetime | None = None
+    refusal: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

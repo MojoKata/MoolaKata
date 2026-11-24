@@ -5,9 +5,11 @@ import time
 
 import pytest
 from linkpair import Wire, make_server
+from sqlalchemy import select
 
-from moolakata import ids
+from moolakata import alerts, ids
 from moolakata.links import client, keys, signing
+from moolakata.store.entities.alerts import Alert
 from moolakata.store.entities.links import Link
 
 
@@ -236,7 +238,7 @@ def test_a_directory_that_doesnt_fit_is_refused_whole_and_said_on_the_link(admin
     from moolakata import settings
     from moolakata.store.entities.core import Setting
 
-    _a, b, ca, cb, _ = admins
+    a, b, ca, cb, _ = admins
     a_id, _b_id = linked(ca, cb)
     before = links_of(ca)["links"][0]
     assert before["householdAvatar"]["kind"] == "initials"
@@ -246,13 +248,30 @@ def test_a_directory_that_doesnt_fit_is_refused_whole_and_said_on_the_link(admin
         settings.put(s, "householdName", "Not kept", None)
     make_user(b, "dave")
     out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
-    assert out["lastError"].startswith("Its household and users were refused")
-    assert "avatar" in out["lastError"]
+    # Refusing, never unreachable: it answered (S11.7).
+    why = (
+        "its household's avatar isn't initials or an image, so the household and users kept "
+        "before stay"
+    )
+    assert out["refusal"] == why
+    assert out["failingSince"] is None and out["lastError"] is None, "it was reached"
     after = links_of(ca)["links"][0]  # answered, not a 500
     assert after["householdAvatar"] == before["householdAvatar"]
     assert after["householdName"] == before["householdName"], "none of it is kept"
     assert "dave" not in {u["username"] for u in after["users"]}
-    assert after["state"] == "active" and after["failingSince"] is None, "it was reached"
+    assert after["state"] == "active"
+    # Alerted at once, in its own words (S12.11.1.1).
+    alerts.evaluate(a)
+    (alert,) = [x for x in ca.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refusing"]
+    assert alert["title"] == f"{after['peerName']} answered, but what it sent was refused: {why}"
+    assert not [x for x in ca.get("/ui/api/alerts").json()["open"] if "not reached" in x["title"]]
+    with b.db.tx(unscoped="test") as s:
+        s.query(Setting).filter(Setting.key == "householdAvatar").delete()
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["refusal"] is None
+    assert "dave" in {u["username"] for u in out["users"]}
+    alerts.evaluate(a)
+    assert not [x for x in ca.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refusing"]
 
 
 @pytest.mark.parametrize(
@@ -328,9 +347,10 @@ def test_any_failure_of_one_links_exchange_is_recorded_on_it_and_the_next_goes_o
     server, monkeypatch
 ):
     """link-protocol.md §4.3, S11.9.5.3: a peer's answer the exchange can't read (a `more`
-    that isn't a number, an item without an id) fails that link alone, recorded on it as a
-    failed call is; the hourly run goes on to every link after it."""
-    from moolakata.links import manage
+    that isn't a number, an item without an id) fails that link alone, recorded on it as
+    refused, since the peer answered (S11.7), and alerted; the hourly run goes on to every link
+    after it, and Pull now says the same."""
+    from moolakata.links import client, manage
 
     ids_ = [link(server, f"https://{n}.test", bytes([n]) * 32) for n in (1, 2)]
     called = []
@@ -339,16 +359,46 @@ def test_any_failure_of_one_links_exchange_is_recorded_on_it_and_the_next_goes_o
         called.append(link_id)
         raise ValueError("invalid literal for int() with base 10: 'x'")
 
-    monkeypatch.setattr(manage, "exchange", broken)
+    monkeypatch.setattr(manage, "_exchange", broken)
     manage.exchange_all(server)
     assert sorted(called) == sorted(ids_), "each link's exchange is made"
+    why = "the exchange failed here: ValueError: invalid literal for int() with base 10: 'x'"
     with server.db.read(unscoped="test") as s:
         for link_id in ids_:
             row = s.get(Link, link_id)
-            assert row.lastError == (
-                "The exchange failed: ValueError: invalid literal for int() with base 10: 'x'"
-            )
-            assert row.failingSince is not None, "alerted as a failing link is"
+            assert row.refusal == why
+            assert row.failingSince is None and row.lastError is None, "it answered"
+    with pytest.raises(client.LinkError) as e:
+        manage.exchange(server, ids_[0])  # Pull now's
+    assert (e.value.code, e.value.message) == ("refused", why)
+    alerts.evaluate(server)
+    with server.db.read(unscoped="test") as s:
+        titles = {a.title for a in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+    assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_a_refusing_link_is_alerted_even_while_paused_and_never_as_unreachable(server):
+    # S11.7.2, S12.11.1.1: a paused link isn't alerted as unreachable; refused data still is.
+    from moolakata import clock
+
+    paused, failing = (link(server, f"https://{n}.test", bytes([n]) * 32) for n in (1, 2))
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(Link, paused)
+        row.state, row.peerName = "paused", "doe-parents"
+        row.refusal = "change 3 isn't in the shape of a change"
+        row.failingSince, row.lastError = clock.now(), "doe-parents didn't answer"
+        row = s.get(Link, failing)
+        row.peerName = "ortiz-cpa"
+        row.failingSince, row.lastError = clock.now(), "ortiz-cpa didn't answer"
+    with server.db.read(unscoped="test") as s:
+        causes = {c.kind: c for c in alerts.linked_servers(s, server)}
+    assert set(causes) == {"link-refusing", "source-failing"}
+    assert causes["link-refusing"].title == (
+        "doe-parents answered, but what it sent was refused: change 3 isn't in the shape of a "
+        "change"
+    )
+    assert causes["link-refusing"].key == f"link-refused:{paused}"
+    assert causes["source-failing"].title.startswith("ortiz-cpa not reached for")
 
 
 def test_a_pause_is_told_to_the_peer_and_ending_reaches_the_other_side(admins):
@@ -1595,3 +1645,31 @@ def test_a_person_taken_off_a_share_while_paused_stops_seeing_it_and_nothing_els
     assert json.loads(items[acct].viewers) == [bart_id]
     assert {k[2] for k in docs} == {bart_id}
     assert docs[(acct, detail, bart_id)]["balance"] == "1160.00", "caught up at the resume"
+
+
+def test_a_peer_whose_change_is_refused_shows_refusing_on_either_side(admins, monkeypatch):
+    """S11.7: a paused link's change holding more than removals and narrowings, taken by the
+    side that calls or by the side that answers, is refused and shows *refusing* there, with
+    its reason, never *unreachable*; Pull now says so."""
+    from moolakata.links import changes, manage, serve
+
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    with a.db.read(unscoped="test") as s:
+        own_a = keys.private_key(s, a.keys.secrets)
+    beyond = {"seq": 0, "asOf": "2026-01-01T00:00:00", "removed": [], "items": []}
+    monkeypatch.setattr(
+        serve, "removals_for", lambda srv, link_id: (changes.sign(own_a, beyond), [])
+    )
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    why = "change 0 comes over a paused link but holds more than removals and narrowings"
+    assert out["refusal"] == why
+    assert out["failingSince"] is None and out["state"] == "active"
+    # The side that answers refuses a delivered change that doesn't check, and says so too.
+    with pytest.raises(client.LinkError) as e:
+        manage.call(b, b_id, "/link/v1/deliver", {"change": {"seq": 4, "removed": []}})
+    assert e.value.code == "change-refused"
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).refusal == "change 4 fails its signature check"
+    assert links_of(ca)["links"][0]["refusal"] == "change 4 fails its signature check"

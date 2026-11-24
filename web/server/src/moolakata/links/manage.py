@@ -443,11 +443,18 @@ def apply_directory(s, link: Link, payload: dict) -> None:
 
 def _take_directory(s, link: Link, payload: dict) -> None:
     """The peer's directory at an exchange, either side; one that doesn't fit is refused and
-    said on the link, and the exchange goes on with the directory kept before."""
+    the link shows refusing (S11.7), and the exchange goes on with the directory kept before."""
     try:
         apply_directory(s, link, payload)
     except BadDirectory as e:
-        link.lastError = f"Its household and users were refused, so those kept before stay: {e}."
+        link.refusal = f"{e}, so the household and users kept before stay"
+
+
+def refused(srv, link_id: str, why: str) -> None:
+    """What the peer sent, refused here: it answered, so the link shows refusing with the
+    reason, never unreachable (S11.7), and admins are alerted (S12.11.1.1)."""
+    with srv.db.tx(unscoped="links.manage: refused") as s:
+        _get(s, link_id).refusal = why[:500]
 
 
 def end_users(s, link: Link) -> None:
@@ -575,9 +582,19 @@ def exchange(srv, link_id: str) -> None:
     each side's directory and copy key for the other's, the peer's change for this side in its
     answer, and then this side's change for the peer, its receipts sent ahead of it. A link
     paused on either side exchanges its removals alone (link-protocol.md §4.3.6). Only a
-    signed `link-ended` ends the link here (S11.6). One at a time per link (`PULLS`)."""
+    signed `link-ended` ends the link here (S11.6). One at a time per link (`PULLS`). Whatever
+    else fails is recorded as refused (S11.7), the hourly run and Pull now alike, and raised as
+    `refused`."""
     with PULLS.pulling(link_id):
-        _exchange(srv, link_id)
+        try:
+            _exchange(srv, link_id)
+        except LinkError:
+            raise
+        except Exception as e:
+            log.exception("exchanging with link %s failed", link_id)
+            why = f"the exchange failed here: {type(e).__name__}: {e}"[:500]
+            refused(srv, link_id, why)
+            raise LinkError("refused", why) from e
 
 
 def _exchange(srv, link_id: str) -> None:
@@ -634,6 +651,7 @@ def _exchange(srv, link_id: str) -> None:
         lifecycle.apply(link, "good-call")
         link.lastOkAt, link.failingSince = clock.now(), None
         link.lastError = PEER_PAUSED if out.get("state") == "paused" else None
+        link.refusal = None  # until something it sends now is refused
         link.peerVersion = out.get("version") or link.peerVersion
         link.peerCopyKey = _copy_key(out.get("copyKey"))
         if not removals:
@@ -649,18 +667,21 @@ def _exchange(srv, link_id: str) -> None:
             _removals_exchanged(srv, link_id, out)
         else:
             _rest_of_exchange(srv, link_id, out)
-    except (LinkError, ChangeError) as e:
-        # What fails after the first call is recorded on the link like a failed call, so a
-        # link that keeps failing is alerted (S12.11.1), never left showing a good exchange.
-        message = e.message if isinstance(e, LinkError) else f"A change failed: {e}"
+    except ChangeError as e:
+        # A change the peer sent, refused here: it answered, so the link shows refusing
+        # (S11.7), never unreachable.
+        refused(srv, link_id, str(e))
+        raise LinkError("change-failed", str(e)) from e
+    except LinkError as e:
+        # A call after the first that got no answer is recorded on the link like a failed
+        # call, so a link that keeps failing is alerted (S12.11.1), never left showing a good
+        # exchange.
         with srv.db.tx(unscoped="links.manage: exchange") as s:
             link = _get(s, link_id)
-            link.lastError = message
-            if getattr(e, "code", None) not in FOR_NOW:
+            link.lastError = e.message
+            if e.code not in FOR_NOW:
                 link.failingSince = link.failingSince or clock.now()
-        if isinstance(e, LinkError):
-            raise
-        raise LinkError("change-failed", message) from e
+        raise
 
 
 def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
@@ -771,6 +792,7 @@ def answer_exchange(srv, link: Link, body: dict, version: str | None) -> dict:
         lifecycle.apply(row, "good-call")
         row.lastOkAt, row.failingSince = clock.now(), None
         row.lastError = PEER_PAUSED if asked else None
+        row.refusal = None  # until something it sends now is refused
         row.peerVersion = version or row.peerVersion
         row.peerCopyKey = _copy_key(body.get("copyKey"))
         if not removals:
@@ -826,13 +848,18 @@ def answer_deliver(srv, link: Link, body: dict) -> dict:
     from .copies import receipt_files
     from .routes import DELIVERED
 
-    if body.get("change"):
-        if link.state == "paused" or body.get("registryOnly") is True:
-            # A paused link's change: its removals alone (link-protocol.md §4.3.6).
-            receive.take(srv, link.id, body["change"], registry_only=True)
-        else:
+    change = body.get("change")
+    try:
+        if change and (link.state == "paused" or body.get("registryOnly") is True):
+            # A paused link's change: its removals and narrowings alone (link-protocol.md
+            # §4.3.6).
+            receive.take(srv, link.id, change, registry_only=True)
+        elif change:
             with receipt_files(srv, link.id).busy():
-                receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
+                receive.take(srv, link.id, change, DELIVERED.take(link.id))
+    except ChangeError as e:
+        refused(srv, link.id, str(e))  # the peer called: refused here all the same (S11.7)
+        raise
     with srv.db.read(unscoped="links.manage: answer deliver") as s:
         return {"have": _get(s, link.id).gotSeq}
 
@@ -881,16 +908,7 @@ def exchange_all(srv, ctx=None) -> None:
     for link_id in wanted:
         if ctx is not None and ctx.stop.is_set():
             break
-        try:
+        # Whatever fails is recorded on that link, and alerts follow it; it never stops the
+        # exchanges of the links after it (link-protocol.md §4.3, S11.9.5.3).
+        with contextlib.suppress(LinkError):
             exchange(srv, link_id)
-        except LinkError:
-            pass  # recorded on the link; alerts follow it
-        except Exception as e:
-            # Whatever else fails is recorded on that link as a failed call is, so it is
-            # alerted, and never stops the exchanges of the links after it (link-protocol.md
-            # §4.3, S11.9.5.3).
-            log.exception("exchanging with link %s failed", link_id)
-            with srv.db.tx(unscoped="links.manage: exchange all") as s:
-                link = _get(s, link_id)
-                link.lastError = f"The exchange failed: {type(e).__name__}: {e}"[:500]
-                link.failingSince = link.failingSince or clock.now()

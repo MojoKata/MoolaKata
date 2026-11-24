@@ -29645,6 +29645,17 @@
             ],
             "title": "Peerversion"
           },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal"
+          },
           "role": {
             "title": "Role",
             "type": "string"

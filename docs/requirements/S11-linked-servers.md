@@ -143,8 +143,9 @@ preparer.
    unlocked the copy. A receipt that doesn't come with its change never holds the change back:
    the change is applied without it, the receipt shows as *not arrived*, and it is asked for
    again at each exchange (`docs/link-protocol.md` §4.3.5). Whatever fails in an exchange is
-   recorded on the link, and alerts as unreachable pulls do (S12.11.1). When the source is
-   unreachable, the copy stays, marked stale. When the
+   recorded on the link and alerted (S12.11.1): a peer that doesn't answer as *unreachable*,
+   and one that answers but whose data is refused here as *refusing* (S11.7). When the source
+   is unreachable, the copy stays, marked stale. When the
    share or the link is removed, the other side learns at its next exchange and deletes the
    copy, or the receiving admin does at once. A **Pause** (S11.7.2) stops data and files, in
    both directions, never a removal, a narrowing or an end: a paused link still pulls both
@@ -180,10 +181,15 @@ preparer.
    two servers have, and a second join with it is refused. The states and what moves a link
    between them are `docs/link-protocol.md` §4.6.
 7. **Settings › Linked Servers** lists each link: the peer's name and address, its
-   fingerprint, state (invited, requested, pending, active, paused, unreachable, broken,
-   ended; until when a pause lasts and since when it is unreachable in the state's tooltip),
-   the last pull, and
-   what flows each way, with *Pull now*, *Pause* and *End link*.
+   fingerprint, state (invited, requested, pending, active, paused, unreachable, refusing,
+   broken, ended; until when a pause lasts, since when it is unreachable, and what was refused
+   and why in the state's tooltip), the last pull, and what flows each way, with *Pull now*,
+   *Pause* and *End link*. **Unreachable** is a peer that doesn't answer; **refusing** is one
+   that answers but whose data this server refuses: a directory that doesn't fit
+   (`docs/link-protocol.md` §4.2), a change that doesn't check, a paused link's change holding
+   more than removals and narrowings, or an exchange failing here on something unexpected. It
+   lasts until an exchange takes all the peer sends, and *Pull now* says either the same way
+   its alert does (S12.11.1.1).
    1. **Progress**: while a pull is under way, how far it has come both in time and in
       quantity: *Up to Jul 1, 2024 (47 MB of 2 GB)*, the day being the newest record applied so
       far and the sizes what has arrived of what the source said it would send, with **two

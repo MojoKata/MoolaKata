@@ -76,6 +76,9 @@ Link = record(
     # The peer answered that it has no link with this one (S11.6): broken until an admin ends
     # it or links again.
     Column("brokenAt", UtcTimestamp),
+    # What the peer sent that was refused here, and why (S11.7): it answered, so the link shows
+    # refusing, not unreachable, until an exchange takes all it sends.
+    Column("refusal", Text),
     CheckConstraint(
         "state IN ('invited', 'requested', 'pending', 'active', 'paused', 'ended')", name="state"
     ),

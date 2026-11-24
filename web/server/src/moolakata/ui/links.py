@@ -69,7 +69,9 @@ class LinkOut(Model):
     codeExpiresAt: dt.datetime | None
     lastOkAt: dt.datetime | None
     lastError: str | None
-    failingSince: dt.datetime | None
+    failingSince: dt.datetime | None  # no answer since then: unreachable (S11.7)
+    # What the peer sent that was refused, and why: it answered, so refusing (S11.7).
+    refusal: str | None = None
     createdAt: dt.datetime
     endedAt: dt.datetime | None
     pausedUntil: dt.datetime | None  # a pause resumes on its own then (S11.7.2)
@@ -220,6 +222,7 @@ def _out(s, link: Link, srv=None) -> LinkOut:
         lastOkAt=link.lastOkAt,
         lastError=link.lastError,
         failingSince=link.failingSince,
+        refusal=link.refusal,
         createdAt=link.createdAt,
         endedAt=link.endedAt,
         pausedUntil=link.pausedUntil,

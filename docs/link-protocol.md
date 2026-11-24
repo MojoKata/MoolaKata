@@ -159,7 +159,7 @@ its bound:
 | `email` | text of up to 254 characters |
 
 A directory that doesn't fit is refused whole: the receiver keeps the household and users it
-had, says why on the link, and the exchange goes on.
+had, the link shows *refusing* with why (section 4.3.5), and the exchange goes on.
 Each remote user has a person here, with the name and sex the directory gives (requirements
 S10.10.1), used only for gifts.
 
@@ -201,8 +201,14 @@ S10.10.1), used only for gifts.
 5. **A receipt never holds a change back.** One that can't be delivered or fetched (a
    connection dropped, its file gone at the source) is left out: the change is taken without
    it, the receiver keeps the receipt as not arrived, and asks for it with `file` at each
-   exchange until it comes. Whatever fails after the `exchange` call is recorded on the link as
-   a failed call is, so a link that keeps failing is alerted (S12.11.1).
+   exchange until it comes. A call after the `exchange` call that gets no answer is recorded
+   on the link as a failed call is, so a link that keeps failing is alerted (S12.11.1). What
+   the peer sends that is refused here, either side (a directory that doesn't fit, section
+   4.2; a change that doesn't check, or a paused link's holding more than removals and
+   narrowings, section 4.3.6), or an exchange failing here on something unexpected, is
+   recorded apart, as refused, with its reason: the peer answered, so the link shows
+   *refusing*, never *unreachable*, and is alerted at once (requirements S11.7, S12.11.1.1),
+   until an exchange takes all it sends.
 6. **A paused link exchanges its removals and narrowings alone**, in both directions,
    whichever side paused it, so a share taken back, or a person taken off a share, still
    crosses it while data and files don't (S11.4); an end crosses with `end`, as on any link.

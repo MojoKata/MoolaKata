@@ -43,7 +43,8 @@ const STATE = /** @type {Record<string, [string, string, string?]>} */ ({
   ended: ['ended', ''],
 });
 
-/** A link's state as a pill: broken, unreachable, paused or its state.
+/** A link's state as a pill: broken, unreachable (no answer), refusing (it answered, but
+ * what it sent was refused), paused or its state (S11.7).
  * @param {any} l @param {import('../kit/formats.js').Fmt} fmt */
 function linkState(l, fmt) {
   const [word, tone, said] = STATE[l.state];
@@ -51,11 +52,19 @@ function linkState(l, fmt) {
     ? null
     : l.failingSince
     ? `Unreachable since ${fmt.day(l.failingSince)}.`
+    : l.refusal
+    ? `It answered, but what it sent was refused: ${l.refusal}.`
     : l.state === 'paused' && l.pausedUntil
     ? `Paused until ${fmt.moment(l.pausedUntil)}.`
     : said;
-  const shown = l.brokenAt ? 'broken' : l.failingSince ? 'unreachable' : word;
-  const hue = l.brokenAt ? 'bad' : l.failingSince ? 'warn' : tone;
+  const shown = l.brokenAt
+    ? 'broken'
+    : l.failingSince
+    ? 'unreachable'
+    : l.refusal
+    ? 'refusing'
+    : word;
+  const hue = l.brokenAt || (!l.failingSince && l.refusal) ? 'bad' : l.failingSince ? 'warn' : tone;
   return why
     ? html`<${StatePill} tone=${hue} why=${why}>${shown}</${StatePill}>`
     : html`<span class=${'pill ' + hue}>${shown}</span>`;
@@ -73,7 +82,13 @@ export function LinksSection() {
     const out = await withReauth(() => api.post(`/settings/links/${id}/${what}`));
     toast(
       what === 'pull'
-        ? out.lastError ? `Not reached: ${out.lastError}` : 'Exchanged now'
+        ? out.refusal && !out.failingSince
+          ? `${
+            out.peerName || 'The linked server'
+          } answered, but what it sent was refused: ${out.refusal}`
+          : out.lastError
+          ? `Not reached: ${out.lastError}`
+          : 'Exchanged now'
         : what === 'accept-certificate'
         ? 'Its new certificate is accepted'
         : what === 'resume'
