@@ -399,13 +399,18 @@ function Retag({ a, c, done }) {
   if (!a.access.writable) {
     return html`<${ReadValue} aria-label=${label} data-help="from" text=${c.name || '—'} />`;
   }
+  const options = [
+    ['owner', a.ownerName],
+    ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
+  ];
+  // The one it names stays named, whether or not the caller sees them (R3.14).
+  if (people.data && !options.some(([k]) => k === c.contributor)) {
+    options.push([c.contributor, c.name]);
+  }
   return html`
     <${Select} aria-label=${label} data-help="from" value=${c.contributor}
       onChange=${(/** @type {string} */ v) => save.run(v).catch((e) => toast(e.message))}
-      options=${[
-        ['owner', a.ownerName],
-        ...(/** @type {any[]} */ (people.data) || []).map((p) => [`person:${p.id}`, p.name]),
-      ]} />
+      options=${options} />
   `;
 }
 
