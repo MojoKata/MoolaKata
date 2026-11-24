@@ -335,10 +335,10 @@ changes of section 4.4:
 |---|---|---|
 | account | the account and its type's rows, its transactions, splits, reimbursements, transfer pairs, lots, picks, corporate actions, stated holdings, holding checks, option contracts, strategies, statement balances and reconciliations; the instruments and categories they use; its transactions' public tags; the closes of what it holds or watches, and its owner's typed prices for them; a wallet as its balance, transactions and holdings, never its keys or addresses | — |
 | person | the person, and relationships between two people both shared with the viewer | — |
-| gift plan | the plan, its occasions and gifts; a gift's linked transaction as a small entry (date, amount, account or *an account not shared*) | — |
+| gift plan | the plan, its occasions and gifts; a gift's linked transaction as a small entry (date, amount, account or *an account not shared*); when the share includes receipts, a gift's documents (their file names, notes and links) and their files (`files`), which otherwise stay home (S11.5.1) | — |
 | portfolio | the portfolio and which accounts it holds; the closes of its benchmark, from the earliest day of its accounts | — |
 | budget | the budget, the accounts it counts by month, its plan lines, moves and reviews | `totals`: per month and category, per month and account, per recurring series (S7.3.10) |
-| tax book | the book, its filers, the accounts it counts, dependents, filings, changes, estimated payments and documents | `docs`: each panel |
+| tax book | the book, its filers, the accounts it counts, dependents, filings, changes, estimated payments and documents; when the share includes receipts, the documents' files (`files`) and file names; otherwise the documents alone, with no file name or file (S11.5.1) | `docs`: each panel; an unticked book's document list leaves out the file names |
 | giving plan | the plan, its organisations and donations | `docs`: the year's giving and its donations |
 | projection | — | `docs`: the projection |
 
