@@ -85,7 +85,8 @@
    enters the recovery phrase (S15.4.3). What the phrase then cannot open (a database from a
    newer release) is refused at the unlock, with the reason in the log, and the server stays
    locked. `/healthz` answers 503 `re-encrypting` while a re-encryption runs at the unlock
-   (S15.7.2) and `starting` between the unlock and readiness, and `GET /ui/api/unlock` tells
+   (S15.7.2) and `starting` between the unlock and readiness, while every path the locked
+   server keeps closed answers 503 `starting` with `Retry-After`, and `GET /ui/api/unlock` tells
    anyone who reaches `/ui` whether the server is uninitialised or locked, the fingerprint its
    keyring is wrapped under, the version, and, once unlocked, whether the first admin is still
    to be set up (S10.1.2). The image's own health check asks only whether the server answers,

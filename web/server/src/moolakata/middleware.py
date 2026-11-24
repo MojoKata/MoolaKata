@@ -11,6 +11,7 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from typing import ClassVar
 
 from .errors import new_error_id
 from .links.sealed import max_receipt
@@ -486,7 +487,16 @@ class Locked:
     """While the server is locked or uninitialised (S13.6, S15.4), only what unlocking or the
     welcome needs answers: the app's page and files, the health check, the demo, the unlock
     route and the welcome's phrase and key. Everything else, the API, the link, connector and
-    MCP listeners included, answers 503 `locked`."""
+    MCP listeners included, answers 503 `locked`; and 503 `starting` once the store is open
+    and until the server is ready, so nothing is served half built (S13.6, S13.8.4)."""
+
+    ANSWERS: ClassVar[dict[str, tuple[str, bytes]]] = {
+        "locked": (
+            "MoolaKata is locked: an admin enters the recovery phrase to open it.",
+            b"30",
+        ),
+        "starting": ("MoolaKata is starting: ask again in a moment.", b"5"),
+    }
 
     OPEN = frozenset(
         {
@@ -500,9 +510,9 @@ class Locked:
         }
     )
 
-    def __init__(self, app, locked: Callable[[], bool]):
+    def __init__(self, app, state: Callable[[], str | None]):
         self.app = app
-        self.locked = locked
+        self.state = state  # None when open, else one of ANSWERS
 
     @classmethod
     def allowed(cls, path: str) -> bool:
@@ -513,14 +523,12 @@ class Locked:
     async def __call__(self, scope, receive, send):
         if (
             scope["type"] in ("http", "websocket")
-            and self.locked()
+            and (state := self.state()) is not None
             and not self.allowed(scope["path"])
         ):
+            detail, retry = self.ANSWERS[state]
             await _send_problem(
-                503,
-                "locked",
-                "MoolaKata is locked: an admin enters the recovery phrase to open it.",
-                [(b"retry-after", b"30"), (b"cache-control", b"no-store")],
+                503, state, detail, [(b"retry-after", retry), (b"cache-control", b"no-store")]
             )(send)
             return
         await self.app(scope, receive, send)

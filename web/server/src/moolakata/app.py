@@ -323,10 +323,14 @@ def create_app(server: Server) -> FastAPI:
     # The last added runs first: the client's address, then the log, the headers, the address
     # ranges (inside the log and the headers, so their 404 has both: S13.7.7, S13.7.9), the
     # Origin check, the body limit, and last the gate that answers for a locked server.
-    # Locked: no store and not ready. A test's bare server (no store, ready) is not locked.
+    # Until it is ready the server is locked (no store) or starting (the store open, the rest of
+    # the unlock still running, S13.6). A test's bare server (no store, ready) is open.
     app.add_middleware(middleware.Confirmations)
     app.add_middleware(middleware.Created)
-    app.add_middleware(middleware.Locked, locked=lambda: server.store is None and not server.ready)
+    app.add_middleware(
+        middleware.Locked,
+        state=lambda: None if server.ready else "locked" if server.store is None else "starting",
+    )
     app.add_middleware(middleware.SessionCookie, max_age=server.session_max_age)
     app.add_middleware(
         middleware.BodyLimit,

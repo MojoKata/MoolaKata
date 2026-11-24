@@ -40,6 +40,28 @@ def test_a_locked_server_answers_only_what_unlocking_needs(locked):
     assert state["locked"] is True and state["fingerprint"].startswith("mk-")
 
 
+def test_between_the_unlock_and_readiness_only_what_unlocking_needs_answers(locked, master_key):
+    """S13.6, S13.8.4: once the store is open and before the server is ready (its categories,
+    guard and tasks still being set up), everything but the open paths answers 503
+    `starting`, to be asked again shortly."""
+    srv, c = locked
+    words = " ".join(phrase.to_words(master_key))
+    r = c.post("/ui/api/unlock", json={"phrase": words}, headers={"Origin": ORIGIN})
+    assert r.status_code == 200, r.text
+    srv.ready = False  # the store open, the rest of the unlock still running
+    try:
+        assert c.get("/healthz").json()["status"] == "starting"
+        for path in ("/ui/api/session", "/mcp", "/link/v1/hello", "/connector/v1/hello"):
+            r = c.get(path)
+            assert r.status_code == 503 and r.json()["code"] == "starting", path
+            assert r.headers["retry-after"] == "5" and r.headers["cache-control"] == "no-store"
+        assert c.get("/ui/").status_code == 200
+    finally:
+        srv.ready = True
+    assert c.get("/ui/api/unlock").status_code == 200
+    assert c.get("/link/v1/hello").status_code == 200
+
+
 def test_the_phrase_unlocks_once_and_wrong_ones_are_counted(locked, master_key):
     srv, c = locked
     headers = {"Origin": ORIGIN}
