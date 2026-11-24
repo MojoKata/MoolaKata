@@ -68,6 +68,22 @@ class Config:
         moves what it finds into the database's queue (S16.2)."""
         return self.data_dir / "outbox"
 
+    @property
+    def bind(self) -> str:
+        """The listener's address and port, as a bind or a URL names them (S13.3)."""
+        return _host_port(self.host, self.port)
+
+    @property
+    def local(self) -> str:
+        """Where this machine reaches the listener: the address it binds, or loopback when it
+        binds every interface."""
+        host = {"0.0.0.0": "127.0.0.1", "::": "::1"}.get(self.host, self.host)  # noqa: S104
+        return _host_port(host, self.port)
+
+
+def _host_port(host: str, port: int) -> str:
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
 
 # Every key the file may hold, by section; any other refuses the start.
 KEYS = {

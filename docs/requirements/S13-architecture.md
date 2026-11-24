@@ -88,7 +88,8 @@
    (S15.7.2) and `starting` between the unlock and readiness, and `GET /ui/api/unlock` tells
    anyone who reaches `/ui` whether the server is uninitialised or locked, the fingerprint its
    keyring is wrapped under, the version, and, once unlocked, whether the first admin is still
-   to be set up (S10.1.2). The image's own health check asks only whether the server answers:
+   to be set up (S10.1.2). The image's own health check asks only whether the server answers,
+   at the address `[server] host` binds (loopback when that is every interface):
    ready, starting, re-encrypting, locked or uninitialised, it is alive, so an orchestrator
    that waits for healthy containers (TrueNAS's catalog among them) lets it wait for its
    phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. **Host commands**

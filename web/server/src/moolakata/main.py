@@ -117,8 +117,8 @@ def cmd_health(args) -> int:
     config = configured(args.config)
     scheme = "https" if config.mode == "tls" else "http"
     try:
-        # Loopback to this container's own listener; its certificate may be self-signed.
-        r = httpx.get(f"{scheme}://127.0.0.1:{config.port}/healthz", verify=False, timeout=4)  # noqa: S501
+        # This container's own listener, where it binds; its certificate may be self-signed.
+        r = httpx.get(f"{scheme}://{config.local}/healthz", verify=False, timeout=4)  # noqa: S501
     except httpx.HTTPError as e:
         print(f"unhealthy: {e}", file=sys.stderr)
         return 1
