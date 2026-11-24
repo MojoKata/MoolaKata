@@ -664,3 +664,21 @@ def test_a_donation_is_any_charitable_part_wherever_its_category_sits(jane):
     rows = jane.get("/ui/api/giving/donations").json()["items"]
     assert [x["id"] for x in rows if x["transactionId"] == auction["id"]] == [d["id"]]
     assert jane.get("/ui/api/giving").json()["given"] == "430.00"
+
+
+def test_a_pledge_without_the_period_it_was_set_in_is_refused_by_the_database(server):
+    """S7.9.5: what is due is counted from the period a pledge was set in, so the database
+    refuses a pledge without it, and the alerts never meet one."""
+    from sqlalchemy.exc import IntegrityError
+
+    from moolakata import ids
+    from moolakata.store.entities.giving import Organisation
+
+    owner = make_user(server, "joan").id
+    with pytest.raises(IntegrityError), server.db.tx(unscoped="test") as s:
+        s.add(
+            Organisation(
+                id=ids.new_id("Orgzn"), ownerId=owner, name="Food Bank", pledge=25,
+                pledgeEvery="month",
+            )
+        )  # fmt: skip

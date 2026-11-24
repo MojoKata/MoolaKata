@@ -746,8 +746,7 @@ def pledges_due(s: Session, server) -> Iterable[Cause]:
     for o in s.scalars(
         select(Organisation).where(Organisation.deleted == false(), Organisation.pledge > 0)
     ):
-        if o.pledgeFrom is None:
-            continue
+        # Every pledge has the period it was set in: the database refuses one without.
         given: list[giving.Gift] = []
         for year in range(o.pledgeFrom.year, today.year + 1):
             if (o.ownerId, year) not in gifts:

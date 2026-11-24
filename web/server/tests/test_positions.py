@@ -341,6 +341,22 @@ def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, jane):
     assert r.status_code == 422 and r.json()["errors"][0]["field"] == "basisShare"
 
 
+def test_deleting_either_leg_of_a_pair_deletes_both(server, jane):
+    """S2.4: a symbol change's pair goes whole, from its first leg as from its second, so
+    neither is ever left deleted alone."""
+    from moolakata.store.entities.accounts import Transaction
+
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    add(jane, a, "-500.00", "2025-01-02", kind="buy", symbol="FB", quantity="5", price="100")
+    held = {p["symbol"]: p["instrumentId"] for p in jane.get("/ui/api/positions").json()["open"]}
+    action = _ca(jane, a, held["FB"], kind="symbol-change", date="2026-06-09", newSymbol="META")
+    old, new = action["transactions"]
+    assert remove(jane, "Txn", old).status_code == 200
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Transaction, old["id"]).deleted and s.get(Transaction, new["id"]).deleted
+    assert "FB" in _lots(server, a)[0]
+
+
 @pytest.mark.parametrize(
     ("symbol", "cash", "refused"),
     [

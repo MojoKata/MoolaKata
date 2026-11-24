@@ -132,7 +132,8 @@ def _txn(account, user_id, day, kind, inst_id, payee) -> Transaction:
 
 
 def undo(s: Session, by: str, txn: Transaction) -> None:
-    """Deleting either leg of a pair deletes the other."""
+    """Deleting either leg of a pair deletes the other: the two are only ever deleted together,
+    so the other is never deleted already."""
     others = list(
         s.scalars(
             select(Transaction).where(
@@ -143,8 +144,6 @@ def undo(s: Session, by: str, txn: Transaction) -> None:
         )
     )
     if txn.transferId:
-        other = s.get(Transaction, txn.transferId)
-        if other is not None and not other.deleted:
-            others.append(other)
+        others.append(s.get(Transaction, txn.transferId))
     for o in others:
         o.mark_deleted(by)
