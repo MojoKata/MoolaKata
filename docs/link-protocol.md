@@ -350,6 +350,7 @@ message into an alert or an email (S13.7.9).
 | `busy` | (429, with `Retry-After`) the answering server is making its own exchange of this link (section 4.3); the caller tries again at its next exchange, and isn't alerted |
 | `locked` | (503, unsigned) the answering server is locked (S13.6); the caller tries again at its next exchange |
 | `not-shared` | a file no share to that link includes |
+| `file-refused` | a delivered file whose `MK-Link-File` isn't a file id |
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
 | `code-used` | a link code was used, expired or withdrawn |
 | `already-linked` | the two servers already have a link that is neither ended nor broken (section 4.6) |

@@ -353,3 +353,12 @@ def test_a_routes_work_never_holds_the_event_loop(protocol, request, monkeypatch
     health, answered = asyncio.run(both())
     assert health.status_code == 200, "answered while the other call's work ran"
     assert answered.status_code == 200, answered.text
+
+
+def test_a_file_delivered_without_its_id_is_refused_as_the_protocol_says(link_side):
+    # link-protocol.md §7: `file-refused`, signed, when `MK-Link-File` isn't a file id.
+    path, body = "/link/v1/deliver", link_side.body("file")
+    h = link_side.headers(path, body, body_kind="file")
+    h["MK-Link-File"] = "not-a-file"
+    r = link_side.client.post(path, content=body, headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "file-refused"

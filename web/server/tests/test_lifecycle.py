@@ -105,6 +105,22 @@ def test_the_protocols_tables_are_the_modules():
         assert calls[name] == set(states), name
 
 
+def test_every_refusal_a_linked_server_is_sent_is_in_the_protocols_table():
+    # link-protocol.md §7: the codes the link routes and their gate refuse with, each named
+    # in the table; `link-<state>` stands for every state's.
+    text = (ROOT / "docs" / "link-protocol.md").read_text()
+    listed = {re.match(r"`([a-z<>-]+)`", row[0]).group(1) for row in table(text, "## 7. Refusals")}
+    src = ROOT / "web" / "server" / "src" / "moolakata" / "links"
+    sent = set()
+    for f in src.glob("*.py"):
+        code = f.read_text()
+        sent |= set(re.findall(r'(?:Refused|Unsigned)\(\s*"([a-z-]+)"', code))
+        sent |= {"link-<state>" for _ in re.findall(r'Refused\(\s*f"link-\{', code)}
+    sent.discard("answer-unsigned")  # a caller's own refusal of an answer, never sent
+    assert sent >= {"limit", "link-<state>", "file-refused", "not-linked"}
+    assert sent <= listed, sent - listed
+
+
 def test_nothing_else_in_links_writes_a_links_state():
     src = ROOT / "web" / "server" / "src" / "moolakata" / "links"
     for f in src.glob("*.py"):

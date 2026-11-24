@@ -774,8 +774,10 @@ def test_calls_no_known_key_signs_are_limited_by_address(server):
     from conftest import new_client
 
     with new_client(server) as c:
-        codes = [c.get("/link/v1/hello").status_code for _ in range(61)]
-    assert codes[:60] == [200] * 60 and codes[60] == 429
+        answers = [c.get("/link/v1/hello") for _ in range(61)]
+    assert [r.status_code for r in answers[:60]] == [200] * 60
+    # link-protocol.md §7: `limit`, unsigned for an address.
+    assert answers[60].status_code == 429 and answers[60].json()["code"] == "limit"
 
 
 def test_a_peers_refusal_is_told_in_this_servers_own_words():

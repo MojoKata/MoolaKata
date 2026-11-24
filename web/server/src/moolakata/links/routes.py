@@ -7,7 +7,7 @@ import contextlib
 import re
 import threading
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import false, select
 
@@ -15,7 +15,7 @@ from .. import clock, ratelimit
 from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import PROTOCOL, SUPPORTED, keys, lifecycle, signing
-from .gate import Call, Gate, Kind
+from .gate import Call, Gate, Kind, Unsigned
 
 KIND = Kind(
     scheme=signing.LINK,
@@ -83,19 +83,18 @@ def answering(link_id: str):
 BUSY_SECONDS = 60
 
 
-def hello_limit(request: Request) -> None:
-    """The unsigned hello, 60 a minute from one address (S13.7.5.4)."""
-    srv = request.app.state.server
-    host = request.client.host if request.client else None
-    srv.link_unknown.check(ratelimit.address_key(host), "calls from this address")
-
-
-@router.get("/hello", dependencies=[Depends(hello_limit)])
+@router.get("/hello")
 def hello(request: Request):
     """Unsigned: the protocol this server speaks and its key's fingerprint, so a joining server
     can check it against the link code before sending anything. No release: that rides on
-    signed answers alone (S13.6)."""
+    signed answers alone (S13.6). 60 a minute from one address (S13.7.5.4), past them refused
+    `limit` as the gate refuses an address (link-protocol.md §7)."""
     srv = request.app.state.server
+    host = request.client.host if request.client else None
+    wait = srv.link_unknown.hit(ratelimit.address_key(host))
+    if wait:
+        refused = Unsigned("limit", "Too many calls from this address: try again later.", wait)
+        return gate.refusal(request, refused)
     public, fp = keys.own_public(srv)
     return {"protocol": PROTOCOL, "fingerprint": fp, "key": keys.b64(public)}
 
