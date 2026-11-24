@@ -200,8 +200,8 @@ preparer.
       the access key* (S11.9.2), **Allow downloads** (S11.10.2), *Lock now* and *Reset copy*
       (S11.9.8). The section also sets **Release linked keys after** (S11.9.4), one hour
       unused by default.
-8. **Audit**: a link's records go to this household's Activity, for admins alone, a link being
-   an admin's matter (S11.7). They name a share by its kind, its owner and the people it
+8. **Audit**: a link's records go to this household's Activity, where admins see them, a link
+   being an admin's matter (S11.7), as each person sees what they did (S10.8). They name a share by its kind, its owner and the people it
    names, with counts, never by an item's name, which stays inside the linked copy (S11.3):
    *doe-parents sent 2 changed items: Candace Doe's account for Jane Doe*. Each names its link,
    by the peer's server name (*Jane unlocked the linked copy from doe-parents*). Each pull is
