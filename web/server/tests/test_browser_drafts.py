@@ -1456,6 +1456,36 @@ def test_a_corporate_action_is_a_record_its_transactions_made_from(browser, hous
     page.close()
 
 
+def test_a_corporate_action_offers_what_was_held_on_its_date(browser, household):
+    # S2.4.1: shares sold since are offered once the date goes back to when they were held,
+    # and the action recorded late reaches them.
+    h = household
+    acct = made(make(h.c, "Acct", name="Sold Since", type="brokerage"))
+    for day, kind, amount in ((f"{months_back(2)}-03", "buy", "-50.00"),
+                              (f"{months_back(1)}-03", "sell", "60.00")):  # fmt: skip
+        saved(create(h.c, "Txn", accountId=acct["id"], date=day, kind=kind, symbol="GONECO",
+                     quantity="5", price=str(-float(amount) / 5), amount=amount))  # fmt: skip
+    page, problems = signed_in(
+        browser, h, "/ui/positions/open", 'button:has-text("Corporate Action")'
+    )
+    page.click('button:has-text("Corporate Action")')
+    wait(page, "#f-holding", problems)
+    option = '#f-holding option:has-text("GONECO in Sold Since")'
+    assert page.locator(option).count() == 0, "not held today"
+    page.fill("#f-date", f"{months_back(2)}-10")
+    wait(page, option, problems, state="attached")
+    page.select_option("#f-holding", label="GONECO in Sold Since")
+    page.select_option("#f-action", "symbol-change")
+    wait(page, "#f-new-symbol", problems)
+    page.fill("#f-new-symbol", "NEWGONE")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    items = h.c.get("/ui/api/transactions", params={"account": acct["id"]}).json()["items"]
+    assert sorted(x["kind"] for x in items) == ["buy", "sell", "symbol-change", "symbol-change"]
+    assert problems == []
+    page.close()
+
+
 def test_legs_proposed_together_are_grouped_or_turned_down_as_a_strategy(browser, household):
     # S3.5: Group them makes a strategy of the proposal's legs; Not a strategy keeps the
     # proposal turned down, so it isn't proposed again.

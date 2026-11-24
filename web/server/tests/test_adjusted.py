@@ -430,6 +430,26 @@ def test_a_whole_split_adjusts_each_contract_on_the_stock_open_on_its_day(server
     }
 
 
+def test_a_split_recorded_late_adjusts_the_contracts_open_on_its_day_not_today(server, jane):
+    """S3.10.1, S2.8: a split dated Sep 10 and recorded in October carries the put open on Sep
+    10 and closed since, as many as were open then, and not the call opened after it."""
+    a = new_account(jane, type="brokerage")["id"]
+    saved(opt(jane, a, "sell-to-open", "2026-09-01", "6.40", contracts="2", fees="0"))
+    saved(opt(jane, a, "buy-to-close", "2026-09-20", "3.00", contracts="2", fees="0"))
+    saved(opt(jane, a, "buy-to-open", "2026-09-15", "2.00", right="call", strike="450",
+              fees="0"))  # fmt: skip
+    uid = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        split = _split(s, a, uid, D("2"), day=dt.date(2026, 9, 10))
+        assert adjust.with_split(s, uid, s.get(Account, a), split) == 1
+        moved = {
+            (s.get(Instrument, out.instrumentId).symbol, out.quantity, out.date, into.quantity)
+            for out, into in _pairs(s, a)
+        }
+        s.rollback()
+    assert moved == {("MSFT 20NOV26 480 P", 2, dt.date(2026, 9, 10), 4)}
+
+
 @pytest.mark.parametrize("ratio", [None, D("1"), D("1.5"), D("2.5"), D("0.5")])
 def test_a_split_below_two_or_not_whole_adjusts_no_option(server, jane, ratio):
     """S3.10.1: only a whole split of 2 or more adjusts by itself; any other waits for the

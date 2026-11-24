@@ -9144,6 +9144,68 @@
         "title": "HeldInOut",
         "type": "object"
       },
+      "HeldOn": {
+        "additionalProperties": false,
+        "description": "A holding as it stood on a day, that a corporate action may be recorded on.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "accountName": {
+            "title": "Accountname",
+            "type": "string"
+          },
+          "instrumentClass": {
+            "title": "Instrumentclass",
+            "type": "string"
+          },
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "underlyingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingid"
+          },
+          "underlyingSymbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underlyingsymbol"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "instrumentId",
+          "symbol",
+          "instrumentClass",
+          "side"
+        ],
+        "title": "HeldOn",
+        "type": "object"
+      },
       "HoldingCheckRow": {
         "additionalProperties": false,
         "properties": {
@@ -15962,6 +16024,37 @@
           "limit"
         ],
         "title": "Page[GroupRow]",
+        "type": "object"
+      },
+      "Page_HeldOn_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HeldOn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[HeldOn]",
         "type": "object"
       },
       "Page_HolidayOut_": {
@@ -33126,6 +33219,69 @@
         "summary": "Connector Info",
         "tags": [
           "connections"
+        ]
+      }
+    },
+    "/ui/api/corporate-actions/holdings": {
+      "get": {
+        "description": "What the caller's investing accounts held at the end of a day, as the dialog offers it:\nan action recorded late reaches a holding sold since (S2.4.1, S2.8).",
+        "operationId": "held_on_ui_api_corporate_actions_holdings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_HeldOn_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Held On",
+        "tags": [
+          "options"
         ]
       }
     },

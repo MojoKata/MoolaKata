@@ -1,10 +1,10 @@
-// What a corporate action may be recorded on (requirements S2.4), from the open positions
-// alone.
+// What a corporate action may be recorded on (requirements S2.4), from the positions held on
+// its day alone.
 
 /**
  * The holdings an action may be recorded on: each stock held, long or short (S2.4.6), and
  * for a split, a stock only whose options are held, the split reaching them (S3.10.1).
- * @param {any[]} open the open positions
+ * @param {any[]} open the positions held on the action's day
  * @param {string | undefined} accountId one account's alone
  * @param {string} kind
  */

@@ -6,7 +6,8 @@ and both go.
 
 ## Holding
 
-The shares it happened to, in one account.
+The shares it happened to, in one account. The list is what was held at the end of the Date below,
+so an action recorded late reaches shares sold since.
 
 ## Action
 

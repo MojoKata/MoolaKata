@@ -1550,6 +1550,19 @@
  */
 
 /**
+ * A holding as it stood on a day, that a corporate action may be recorded on.
+ * @typedef {Object} HeldOn
+ * @property {string} accountId
+ * @property {string} accountName
+ * @property {string} instrumentId
+ * @property {string} symbol
+ * @property {string} instrumentClass
+ * @property {string} side
+ * @property {(string | null)} [underlyingId]
+ * @property {(string | null)} [underlyingSymbol]
+ */
+
+/**
  * @typedef {Object} HoldingCheckRow
  * @property {string} label
  * @property {(string | null)} instrumentId
@@ -2650,6 +2663,14 @@
 /**
  * @typedef {Object} Page_GroupRow_
  * @property {Array<GroupRow>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
+ * @typedef {Object} Page_HeldOn_
+ * @property {Array<HeldOn>} items
  * @property {number} total
  * @property {number} offset
  * @property {number} limit

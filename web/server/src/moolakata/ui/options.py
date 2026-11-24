@@ -316,6 +316,48 @@ class CorporateActionOut(Model):
     version: int
 
 
+class HeldOn(Model):
+    """A holding as it stood on a day, that a corporate action may be recorded on."""
+
+    accountId: str
+    accountName: str
+    instrumentId: str
+    symbol: str
+    instrumentClass: str
+    side: str  # long or short
+    # An option's stock: a split of it reaches the option (S3.10.1).
+    underlyingId: str | None = None
+    underlyingSymbol: str | None = None
+
+
+@router.get("/corporate-actions/holdings", response_model=list[HeldOn])
+def held_on(request: Request, on: dt.date, c: Caller = Depends(caller)):
+    """What the caller's investing accounts held at the end of a day, as the dialog offers it:
+    an action recorded late reaches a holding sold since (S2.4.1, S2.8)."""
+    out = []
+    with server(request).db.read(user=c.id) as s:
+        for a, _ in access.accounts(s, c.id):
+            if not atypes.investing(a.type):
+                continue
+            for iid, qty in repo.load(s, a).replay(on).positions().items():
+                inst = s.get(Instrument, iid)
+                oc = options.contract_of(s, iid)
+                under = s.get(Instrument, oc.underlyingId) if oc is not None else None
+                out.append(
+                    HeldOn(
+                        accountId=a.id,
+                        accountName=a.name,
+                        instrumentId=iid,
+                        symbol=inst.symbol,
+                        instrumentClass=inst.instrumentClass,
+                        side="short" if qty < 0 else "long",
+                        underlyingId=under.id if under else None,
+                        underlyingSymbol=under.symbol if under else None,
+                    )
+                )
+    return sorted(out, key=lambda h: (h.accountName.lower(), h.symbol))
+
+
 ACTION_FIELDS = (
     "kind", "date", "ratio", "newSymbol", "basisShare", "cashPerShare", "newPrice"
 )  # fmt: skip

@@ -264,6 +264,32 @@ def test_symbol_changes_spin_offs_and_mergers_move_lots_never_sell_them(server, 
     assert h["cash"] == "85000.00", "the merger's cash is in the account"
 
 
+def test_a_spin_off_recorded_after_the_shares_were_sold_moves_their_basis(server, jane):
+    """S2.4.1, S2.8: XYZ spun off NEWCO on Mar 2 and was all sold in May; recorded in October,
+    the spin-off is checked and sized by what was held on Mar 2, and the May sale's basis is
+    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked."""
+    a = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, a, "2026-01-05", "buy", "100", "100", "XYZ")
+    trade(jane, a, "2026-05-01", "sell", "100", "120", "XYZ")
+
+    def offered(on):
+        r = jane.get("/ui/api/corporate-actions/holdings", params={"on": on})
+        rows = r.json()["items"]
+        return [(r["symbol"], r["accountName"], r["side"]) for r in rows]
+
+    assert offered("2026-03-02") == [("XYZ", "Brokerage", "long")]
+    assert offered("2026-10-13") == []
+    assert jane.get("/ui/api/corporate-actions/holdings").status_code == 422
+    xyz = next(i for i in jane.get("/ui/api/instruments", params={"q": "XYZ"}).json()["items"]
+               if i["symbol"] == "XYZ")["id"]  # fmt: skip
+    _ca(jane, a, xyz, kind="spin-off", date="2026-03-02", newSymbol="NEWCO", ratio="0.5",
+        basisShare="13.65")  # fmt: skip
+    lots, disposals = _lots(server, a)
+    assert lots["NEWCO"][:2] == (Decimal("50.0"), Decimal("1365.00"))
+    [sale] = disposals
+    assert (sale.basis, sale.gain) == (Decimal("8635.00"), Decimal("3365.00"))
+
+
 def test_an_all_cash_merger_is_a_sale_and_a_pair_is_undone_whole(server, jane):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     a = brk["id"]
