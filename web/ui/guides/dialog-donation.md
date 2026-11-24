@@ -35,7 +35,7 @@ How many shares were given.
 
 What was given: the cash, the goods' fair market value, or the shares' market value on the day
 given. No gain is realized on donated shares: held over a year, the deduction is their market
-value; held a year or less, it is their basis.
+value; held a year or less, it is the lesser of their market value and their basis.
 
 ## What was given {#description}
 

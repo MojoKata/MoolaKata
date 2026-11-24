@@ -53,11 +53,30 @@ def test_the_target_pace_and_pledges(jane):
     v = jane.get("/ui/api/giving").json()
     assert v["target"] == "18500.00" and v["given"] == "2000.00"
     assert v["pace"] == str(round(18500 * 286 / 365)) + ".00"
-    assert v["pledged"] == "400.00", "November and December"
-    assert v["projected"] == "2400.00"
+    assert v["pledged"] == "600.00", "October's, not yet given, November's and December's"
+    assert v["projected"] == "2600.00"
     assert v["byCause"] == [{"label": "Faith", "amount": "2000.00"}]
     bad = giving_plan(jane, 2026, incomeBasis="gross", income=None)
     assert bad.json()["errors"][0]["field"] == "income"
+
+
+def test_this_months_pledge_is_expected_less_what_was_given_to_it(jane):
+    """S7.9.6, S7.9.5: the projected year end expects this month's monthly pledge less what
+    was given to its organisation this month, never below nothing, and the year's yearly one
+    less what was given to it this year."""
+    saved(giving_plan(jane, 2026, targetKind="amount", amount="5000"))
+    food = org(jane, "Food Bank", pledge="100", pledgeEvery="month")
+    library = org(jane, "Library", pledge="300", pledgeEvery="year")
+    donate(jane, date="2026-09-30", kind="cash", organisationId=food["id"], amount="100")
+    donate(jane, date="2026-02-01", kind="cash", organisationId=library["id"], amount="120")
+    v = jane.get("/ui/api/giving").json()
+    assert v["pledged"] == "480.00", "100 for October, 200 after it, and the library's 180"
+    donate(jane, date="2026-10-02", kind="cash", organisationId=food["id"], amount="40")
+    assert jane.get("/ui/api/giving").json()["pledged"] == "440.00"
+    donate(jane, date="2026-10-05", kind="cash", organisationId=food["id"], amount="90")
+    v = jane.get("/ui/api/giving").json()
+    assert v["pledged"] == "380.00", "October met (over by 30, not carried)"
+    assert v["projected"] == "730.00"
 
 
 def test_giving_transactions_count_and_acknowledgements_are_flagged(jane):

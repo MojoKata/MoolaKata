@@ -159,7 +159,6 @@ def get_giving(
         by_org: dict[str, Decimal] = {}
         by_cause: dict[str, Decimal] = {}
         by_kind: dict[str, Decimal] = {}
-        given_to: dict[str, Decimal] = {}
         for g in counted:
             by_org[g.name] = by_org.get(g.name, Decimal(0)) + g.amount
             by_kind[giving.KINDS[g.kind]] = by_kind.get(giving.KINDS[g.kind], Decimal(0)) + g.amount
@@ -170,10 +169,8 @@ def get_giving(
             )
             for cause in causes:
                 by_cause[cause] = by_cause.get(cause, Decimal(0)) + g.amount / len(causes)
-            if g.organisation is not None:
-                given_to[g.organisation.id] = given_to.get(g.organisation.id, Decimal(0)) + g.amount
         pledged = (
-            giving.pledged_ahead(list(orgs.values()), today, given_to)
+            giving.pledged_ahead(list(orgs.values()), today, gifts)
             if year == today.year
             else Decimal(0)
         )
@@ -460,7 +457,7 @@ def _txn(s, c: Caller, account_id: str, day, kind, amount, payee, **kw) -> Trans
 
 def _shares_given(s, c: Caller, body: DonationIn, to: str) -> dict:
     """Shares from a lot: they leave the account without realizing a gain (S7.9.3); held over
-    a year, the deduction is their market value, else their basis."""
+    a year, the deduction is their market value, else the lesser of that and their basis."""
     a, _ = access.account(s, c.id, body.fromAccountId or "", "write")
     lot = s.get(Lot, body.lotId or "")
     if lot is None or lot.accountId != a.id or lot.deleted:

@@ -306,7 +306,9 @@
       yearly one, while less than it has been given to the organisation in that month or year;
       a due pledge raises an alert to its owner (S12.11.1.3), resolved by the donation.
    6. **The Giving screen**: given against the target and against the pace to date, the
-      projected year end, giving by organisation, cause and type, the DAF's balance and its
+      projected year end (what is given, and the pledges still expected: a monthly one's for
+      this month less what was given to it this month, and for each month after; a yearly
+      one's less what was given to it this year), giving by organisation, cause and type, the DAF's balance and its
       grants, the percentage of income over past years, and the donations missing an
       acknowledgement that the tax rules require (S8.9).
 10. **Reserves** (a budget's option, S7.1.4): money set aside in a category month by month

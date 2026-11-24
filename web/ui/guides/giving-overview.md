@@ -35,7 +35,9 @@ Where an even pace to the target would be by today, and how far ahead or behind 
 
 ## Projected Year End {#projected}
 
-What's given, plus the pledges still due this year.
+What's given, plus the pledges still expected this year: a monthly pledge for this month, less
+what was given to its organisation this month, and for each month after; a yearly pledge, less
+what was given to it this year.
 
 ## Given against the Target
 

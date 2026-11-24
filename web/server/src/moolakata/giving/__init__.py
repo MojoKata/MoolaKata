@@ -225,17 +225,33 @@ def target(plan: GivingPlan | None, earned: Decimal) -> Decimal:
     return (earned * (plan.percent or Decimal(10)) / 100).quantize(Decimal("1"))
 
 
-def pledged_ahead(orgs: list[Organisation], today: dt.date, given: dict[str, Decimal]) -> Decimal:
-    """Pledges still due this year: monthly ones for the months left, yearly ones not yet
-    given."""
+def given_to(gifts: list[Gift], first: dt.date, last: dt.date) -> dict[str, Decimal]:
+    """What was given to each organisation between two dates inclusive, by its id: what a
+    pledge is met by (S7.9.5)."""
+    out: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for g in gifts:
+        if g.organisation is not None and first <= g.date <= last:
+            out[g.organisation.id] += g.amount
+    return dict(out)
+
+
+def pledge_short(o: Organisation, gifts: list[Gift], today: dt.date) -> Decimal:
+    """What is still to be given of a pledge for the month or year `today` is in (S7.9.5)."""
+    if not o.pledge or o.pledgeEvery not in ("month", "year"):
+        return ZERO
+    first = today.replace(day=1) if o.pledgeEvery == "month" else today.replace(month=1, day=1)
+    return max(o.pledge - given_to(gifts, first, today).get(o.id, ZERO), ZERO)
+
+
+def pledged_ahead(orgs: list[Organisation], today: dt.date, gifts: list[Gift]) -> Decimal:
+    """Pledges still expected this year (S7.9.6): a monthly one's for this month, less what
+    was given to it this month, and for each month after; a yearly one's less what was given
+    to it this year."""
     out = ZERO
     for o in orgs:
-        if not o.pledge:
-            continue
-        if o.pledgeEvery == "month":
+        out += pledge_short(o, gifts, today)
+        if o.pledge and o.pledgeEvery == "month":
             out += o.pledge * (12 - today.month)
-        elif o.pledgeEvery == "year" and given.get(o.id, ZERO) < o.pledge:
-            out += o.pledge - given.get(o.id, ZERO)
     return out
 
 
