@@ -228,6 +228,43 @@ def test_the_roth_rollover_after_fifteen_years(jane):
     assert p["eligible"] == "20000.00" and p["available"] == "20000.00"
 
 
+@pytest.mark.parametrize(
+    ("moves", "eligible", "available"),
+    [
+        # Old contributions' earnings count: 20,000 grown to 60,000, the lifetime limit caps.
+        ([("20000.00", "2008-01-02", "deposit"), ("40000.00", "2015-01-02", "interest")],
+         "60000.00", "35000.00"),
+        # A recent contribution keeps its own earnings out: 9,000 grew 900/29,000 with the
+        # rest, so 9,279.31 of the 29,900 can't roll over yet.
+        ([("20000.00", "2012-01-02", "deposit"), ("9000.00", "2024-01-02", "deposit"),
+          ("900.00", "2025-01-02", "interest")], "20620.69", "20620.69"),
+        # Worth less than the recent contributions grown: nothing.
+        ([("9000.00", "2024-01-02", "deposit"), ("-2000.00", "2025-01-02", "fee")],
+         "0.00", "0.00"),
+        # Part of the lifetime limit already used: what is left of it caps.
+        ([("20000.00", "2008-01-02", "deposit"), ("40000.00", "2015-01-02", "interest"),
+          ("-5000.00", "2026-03-02", "roth")], "50000.00", "30000.00"),
+    ],
+)  # fmt: skip
+def test_what_could_still_roll_over_counts_the_earnings_on_old_contributions(
+    jane, moves, eligible, available
+):
+    """S1.8.4: the account's value, less the last five years' contributions and their
+    estimated earnings (each grown by the account's return since it), less what was rolled
+    over, capped by what is left of the lifetime limit."""
+    acct, _, _ = plan(jane, opened="2008-01-01")
+    for amount, day, kind in moves:
+        if kind == "roth":
+            roth = new_account(jane, name="Lisa's Roth IRA", type="roth-ira")
+            out = add(jane, acct["id"], amount, day, payee="To the Roth IRA")
+            inn = add(jane, roth["id"], amount[1:], day, payee="From the 529", kind="deposit")
+            assert inn["transferId"] == out["id"]
+        else:
+            add(jane, acct["id"], amount, day, kind=kind)
+    p = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert (p["eligible"], p["available"]) == (eligible, available)
+
+
 def test_the_goal_tab_starts_an_education_projection(jane):
     acct, _, _ = plan(jane)
     add(jane, acct["id"], "48000.00", "2023-06-01")

@@ -56,3 +56,9 @@ modelled.
 After 15 years, up to a lifetime limit can roll over to the beneficiary's Roth IRA. Contributions of
 the last five years, and their earnings, can't; each year's rollover is held to that year's IRA
 limit.
+
+## Could still roll over
+
+The account's value, less the last five years' contributions and their earnings, less what was
+already rolled over, up to what is left of the lifetime limit. A recent contribution's earnings are
+estimated: it is grown by the account's return since it went in.

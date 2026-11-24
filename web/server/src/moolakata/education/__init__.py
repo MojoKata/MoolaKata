@@ -11,10 +11,13 @@ from decimal import ROUND_DOWN, Decimal
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
+from .. import valuation
+from ..ledger import performance
 from ..projections import taxtables
 from ..store.entities.accounts import Account, Transaction
 from ..store.entities.education import Contribution, EducationPlan, Person, QualifiedExpense
 from ..store.entities.users import User
+from ..store.repos import ledger as repo
 
 ZERO = Decimal(0)
 KINDS = {
@@ -241,7 +244,9 @@ class Rollover:
     possibleFrom: dt.date | None  # 15 years after opening
     limit: Decimal  # lifetime, from the tax tables
     used: Decimal  # rolled over already
-    eligible: Decimal  # contributions made over five years ago, less what was used
+    # The account's value less the last five years' contributions and their earnings, less
+    # what was used.
+    eligible: Decimal
     available: Decimal  # what could still roll over, once possible
 
 
@@ -255,8 +260,10 @@ def rollover(
     limit = Decimal(str(taxtables.figures(s, today.year)["rothFrom529"]))
     used = sum((-t.amount for t, to in _taken(s, account) if to == "roth-ira"), ZERO)
     cutoff = _years(today, -ROTH_RECENT_YEARS)
-    old = sum((r.amount for r in rows if r.date <= cutoff), ZERO)
-    eligible = max(old - used, ZERO)
+    led = repo.load(s, account)
+    value = valuation.account_value(s, led, True)
+    recent = _grown(s, led, [r for r in rows if r.date > cutoff], today)
+    eligible = max(value - recent - used, ZERO)
     opened = plan.openedOn if plan is not None else None
     return Rollover(
         possibleFrom=_years(opened, ROTH_AFTER_YEARS) if opened else None,
@@ -265,6 +272,22 @@ def rollover(
         eligible=eligible,
         available=min(max(limit - used, ZERO), eligible),
     )
+
+
+def _grown(s: Session, led, recent: list[ContributionRow], today: dt.date) -> Decimal:
+    """Recent contributions with their estimated earnings (S1.8.4): each grown by the
+    account's time-weighted return since its day; one whose return can't be told, as it
+    went in."""
+    if not recent:
+        return ZERO
+    first = min(r.date for r in recent)
+    values = valuation.series(s, led, True, first, today)
+    flow = valuation.flows(s, led, True, first, today)
+    total = ZERO
+    for r in recent:
+        growth = performance.twr([(d, v) for d, v in values if d >= r.date], flow)
+        total += r.amount * (1 + growth) if growth is not None else r.amount
+    return total.quantize(Decimal("0.01"))
 
 
 def accounts_for(s: Session, beneficiary_id: str, account_ids: list[str]) -> list[str]:

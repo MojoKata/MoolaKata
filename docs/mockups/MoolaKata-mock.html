@@ -1449,7 +1449,7 @@ function contribTab() {
   ${rows.map((r) => `<tr><td>${r[0]}</td><td style="white-space:nowrap">${r[1]} <span class="small dim">· ${r[2]}</span></td><td class="num">${r[3] ? money(r[3], { cents: false }) : '<span class="dim">—</span>'}</td><td class="small">${r[4] || `${money(r[3], { cents: false })} of ${money(19000, { cents: false })} for ${r[0]}`}</td></tr>`).join('')}
   </tbody></table></div></div>
   <div class="grid g2 mt"><div class="card"><h3>State Tax Deduction</h3><div class="list-item"><span class="grow dim">Utah credit, ${state.year}</span>on up to ${money(2410, { cents: false })}</div></div>
-  <div class="card"><h3>Rollover to a Roth IRA</h3><div class="list-item"><span class="grow dim">Possible from</span>2033-05-02 <span class="small dim">· open 15 years</span></div><div class="list-item"><span class="grow dim">Lifetime limit</span>${money(35000, { cents: false })} · used $0</div><div class="list-item"><span class="grow dim">Not eligible</span>contributions of the last 5 years</div></div></div>`;
+  <div class="card"><h3>Rollover to a Roth IRA</h3><div class="list-item"><span class="grow dim">Possible from</span>2033-05-02 <span class="small dim">· open 15 years</span></div><div class="list-item"><span class="grow dim">Lifetime limit</span>${money(35000, { cents: false })} · used $0</div><div class="list-item"><span class="grow dim">Not eligible</span>contributions of the last 5 years and their earnings</div></div></div>`;
 }
 function withdrawTab() {
   return `<div class="card"><div class="empty" style="padding:16px 0">No withdrawals yet</div>
