@@ -98,9 +98,9 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 | `GET /link/v1/hello` | no | any | `{protocol, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a joining server check the fingerprint in a link code before it sends anything; unsigned, it names no MoolaKata release |
 | `POST /link/v1/ping` | yes | pending, requested, active, paused | `{protocol, version, state}`: the link's state on the answering side |
 | `POST /link/v1/join` | yes, by the caller's own key | an invitation | answers a link code (section 4.1); no directory crosses |
-| `POST /link/v1/exchange` | yes | active; paused, for removals alone (section 4.3.6); pending on the joining side | the directories both ways, and the answering side's change for the caller (section 4.3) |
+| `POST /link/v1/exchange` | yes | active; paused, for removals and narrowings alone (section 4.3.6); pending on the joining side | the directories both ways, and the answering side's change for the caller (section 4.3) |
 | `POST /link/v1/next` | yes | active | the next part of a large change the caller is pulling (section 4.4) |
-| `POST /link/v1/deliver` | yes | active; paused, a change of removals alone (section 4.3.6) | the caller's change for the answering side; or, before it, one of its receipts, sealed, as `deliver?file=<id>` (section 4.3) |
+| `POST /link/v1/deliver` | yes | active; paused, a change of removals and narrowings alone (section 4.3.6) | the caller's change for the answering side; or, before it, one of its receipts, sealed, as `deliver?file=<id>` (section 4.3) |
 | `POST /link/v1/file` | yes | active | `{id}`: one of the answering side's receipts, sealed to the caller's copy key (section 4.4), as `application/octet-stream`, refused `not-shared` unless a share to that link includes it; the answer's signature takes the sealed bytes' SHA-256 in place of the body's hash, and the caller checks it before keeping the file, which it can while its copy is locked; the plaintext's SHA-256, which the change carried sealed, is checked as the copy shows the file (S11.9.6.4) |
 | `POST /link/v1/certificate` | yes | active, paused | `{fingerprint}`: the caller's next TLS certificate key, announced before it is used (section 4.5) |
 | `POST /link/v1/end` | yes | requested, pending, active, paused | the link ended on the calling side |
@@ -175,9 +175,9 @@ S10.10.1), used only for gifts.
    for everything (a new or reset copy, a change out of sequence, a copy at a later schema
    revision than the change), `registryOnly` asks for the registry alone, while the caller's
    copy can't take data (no worker for the answering side's release, section 5.5, or its
-   inbox at its cap, S11.9.5.4), or its removals alone, while its link is paused (section
-   4.3.6), and `copyKey` is the public key of the caller's linked copy
-   for this link (S11.9.2.2), which the answering side seals its change to. Before the
+   inbox at its cap, S11.9.5.4), or its removals and narrowings alone, while its link is
+   paused (section 4.3.6), and `copyKey` is the public key of the caller's linked copy for
+   this link (S11.9.2.2), which the answering side seals its change to. Before the
    caller's copy has an access key, `copyKey` is absent and the answer carries only the
    change's registry (section 4.4).
 3. The answer carries `{…directory, state, version, have, wantFull, registryOnly, copyKey}`
@@ -203,21 +203,26 @@ S10.10.1), used only for gifts.
    it, the receiver keeps the receipt as not arrived, and asks for it with `file` at each
    exchange until it comes. Whatever fails after the `exchange` call is recorded on the link as
    a failed call is, so a link that keeps failing is alerted (S12.11.1).
-6. **A paused link exchanges its removals alone**, in both directions, whichever side paused
-   it, so a share taken back still crosses it while data and files don't (S11.4); an end
-   crosses with `end`, as on any link. A side whose link is paused still makes its exchanges
-   and answers the peer's, and sends `registryOnly` whether it calls, answers or delivers;
-   neither side sends its directory. Each change either way, from the paused side or to it,
-   is the items no longer shared alone: `removed`, with no `items`, no `sealed` part, no
-   further parts and no receipts. It moves no `have`, so the first exchange after the pause
-   catches up from where the last one before it stopped, and the sender sends the same
-   removals again at each paused exchange until then, so one lost on the way still arrives.
-   The receiver takes nothing more from a paused link: a paused side refuses data with
-   `link-paused`, its message saying until when (`next`, a receipt's `deliver`, a delivered
-   change holding more than removals, and `file`), and the caller waits and doesn't count it
-   as a failure, so no one is alerted; the other side refuses such a change as it refuses one
-   that isn't in the shape of a change. The side that didn't pause shows the link paused on
-   the other server, and isn't alerted either.
+6. **A paused link exchanges its removals and narrowings alone**, in both directions,
+   whichever side paused it, so a share taken back, or a person taken off a share, still
+   crosses it while data and files don't (S11.4); an end crosses with `end`, as on any link.
+   A side whose link is paused still makes its exchanges and answers the peer's, and sends
+   `registryOnly` whether it calls, answers or delivers; neither side sends its directory.
+   Each change either way, from the paused side or to it, is its removals and narrowings
+   alone: `removed`, the items no longer shared, and `narrowed`, each item still shared that
+   names fewer of the receiver's people than the sender last sent (its `id`, and in
+   `viewers` those it no longer names), with no `items`, no `sealed` part, no further parts
+   and no receipts. The receiver removes the items, and takes the people named off theirs,
+   in its registry and in the copy, where they no longer see the item or its documents;
+   nothing else about the item changes. A change moves no `have`, so the first exchange after
+   the pause catches up from where the last one before it stopped, and the sender sends the
+   same removals and narrowings again at each paused exchange until then, so one lost on the
+   way still arrives. The receiver takes nothing more from a paused link: a paused side
+   refuses data with `link-paused`, its message saying until when (`next`, a receipt's
+   `deliver`, a delivered change holding more than removals and narrowings, and `file`), and
+   the caller waits and doesn't count it as a failure, so no one is alerted; the other side
+   refuses such a change as it refuses one that isn't in the shape of a change. The side
+   that didn't pause shows the link paused on the other server, and isn't alerted either.
 
 ### 4.4 Changes
 
@@ -234,6 +239,7 @@ the receiving server keeps in its main database while the copy is locked (S11.9.
 | `full` | registry | it replaces everything the receiver has from this link |
 | `items` | registry | items added or changed: `id`, `kind`, `ownerName`, `sharedAt`, `viewers` (the receiver's user ids it names), `includeReceipts`, `version` |
 | `removed` | registry | ids of items no longer shared |
+| `narrowed` | registry | in a paused link's change alone (section 4.3.6): each item still shared whose people some were taken off, its `id` and the `viewers` it no longer names |
 | `progress` | registry | in a large change's parts: `from`, the date of the oldest record the change holds; `through`, the newest date the parts so far reach; `bytes`, what they hold; `total`, what the sender reckoned the whole change holds when it read the first part |
 | `cursor` | registry | in a large change's parts, where the next part starts (the date and record reached); absent in the last part |
 | `fetch` | registry | the ids of the receipts the part sends, so the receiver can fetch them (or take them from the `deliver` calls before it) while its copy is locked |
@@ -287,7 +293,7 @@ applied, or, for a receipt that comes after its change, as it is placed), keeps 
    a change with its registry alone (`items`, `removed`, the directory) and no `sealed` part,
    so removals and an end take effect while its copy takes no data; its `have` stays where it
    was, and its first exchange without `registryOnly` catches up from it. A paused link's
-   changes hold less: their removals alone, either way (section 4.3.6).
+   changes hold less: their removals and narrowings alone, either way (section 4.3.6).
 
 ### 4.5 A new certificate
 

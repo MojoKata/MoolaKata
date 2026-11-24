@@ -1512,6 +1512,9 @@ def test_a_paused_side_refuses_data_and_takes_nothing_but_removals(admins):
         {"seq": 1, "asOf": when, "removed": [], "full": True},
         {"seq": 1, "asOf": when, "removed": [], "fetch": ["Rcpt_x"]},
         {"seq": 1, "asOf": when, "removed": [7]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x"}]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x", "viewers": [7]}]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x", "viewers": [], "a": 1}]},
     )
     for path, body in (
         ("/link/v1/next", {"have": 0}),
@@ -1531,7 +1534,64 @@ def test_a_paused_side_refuses_data_and_takes_nothing_but_removals(admins):
     for c in beyond:
         with pytest.raises(changes.ChangeError):
             receive.take(b, b_id, changes.sign(own_a, c), registry_only=True)
-    notice = {"seq": 0, "asOf": when, "removed": ["Acct_gone"]}
+    notice = {
+        "seq": 0,
+        "asOf": when,
+        "removed": ["Acct_gone"],
+        "narrowed": [{"id": "Acct_kept", "viewers": ["User_gone"]}],
+    }
     assert receive.take(b, b_id, changes.sign(own_a, notice), registry_only=True) == set()
     with b.db.read(unscoped="test") as s:
         assert s.get(Link, b_id).gotSeq == got, "a removal alone moves no sequence"
+
+
+def test_a_person_taken_off_a_share_while_paused_stops_seeing_it_and_nothing_else_crosses(
+    admins,
+):
+    """A narrowing crosses a paused link as a removal does (S11.4, link-protocol.md §4.3.6):
+    the copy hides the item from the people taken off, the others keep it as it was, and
+    nothing else about it crosses until the resume."""
+    a, b, ca, cb, _ = admins
+    make_user(b, "bart")
+    make_user(b, "dave")
+    a_id, b_id = linked(ca, cb)
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Checking", type="checking").json()["id"]
+    add(jane, acct, amount="1200.00", payee="Pension")
+    there = {u["username"]: u["id"] for u in links_of(ca)["links"][0]["users"]}
+    share(jane, "account", acct, users={there["bart"]: "read", there["dave"]: "read"})
+    words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    bart, dave = sign_in(b, "bart"), sign_in(b, "dave")
+    bart_id = bart.get("/ui/api/session").json()["user"]["id"]
+    dave_id = dave.get("/ui/api/session").json()["user"]["id"]
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    detail = f"/accounts/{acct}"
+    assert {k[2] for k in docs_in(b, b_id)[1]} == {bart_id, dave_id}
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    add(jane, acct, amount="-40.00", payee="Pharmacy")
+    assert share(jane, "account", acct, users={there["dave"]: "none"}).status_code == 200
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["state"] == "paused" and out["lastError"] is None
+    items, docs = docs_in(b, b_id)
+    assert json.loads(items[acct].viewers) == [bart_id], "Dave is taken off in the copy"
+    assert {k[2] for k in docs} == {bart_id}, "and what was worked out for him goes"
+    assert docs[(acct, detail, bart_id)]["balance"] == "1200.00", "nothing else crosses"
+    assert dave.get(f"/ui/api/linked/{b_id}/items").status_code == 404, "named by nothing"
+    assert dave.get(f"/ui/api/linked/{b_id}/doc", params={"path": detail}).status_code == 404
+    assert [r["id"] for r in bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]] == [acct]
+    assert dave.get("/ui/api/linked").json()["items"] == []
+    (seen,) = links_of(cb)["links"][0]["incoming"]
+    assert seen["names"] == ["Bart"], "the registry here names Bart alone"
+    # Sent again at each paused exchange, it changes nothing more.
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    assert docs_in(b, b_id)[1][(acct, detail, bart_id)]["balance"] == "1200.00"
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/resume").is_success
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    items, docs = docs_in(b, b_id)
+    assert json.loads(items[acct].viewers) == [bart_id]
+    assert {k[2] for k in docs} == {bart_id}
+    assert docs[(acct, detail, bart_id)]["balance"] == "1160.00", "caught up at the resume"

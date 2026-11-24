@@ -26,17 +26,26 @@ def _missing(s, link_id: str, file_id: str):
     ).first()
 
 
-REMOVALS = {"seq", "asOf", "removed", "signature"}
+def _texts(v) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
 
 
 def removals_only(change) -> bool:
-    """Whether a change is a paused link's (link-protocol.md §4.3.6): its removals alone, with
-    no item, data, file or sealed part."""
+    """Whether a change is a paused link's (link-protocol.md §4.3.6): its removals and
+    narrowings alone (each an item still shared, and the people taken off it), with no item,
+    data, file or sealed part."""
     return (
         isinstance(change, dict)
-        and set(change) <= REMOVALS
-        and isinstance(change.get("removed"), list)
-        and all(isinstance(r, str) for r in change["removed"])
+        and set(change) <= changes.PAUSED
+        and _texts(change.get("removed"))
+        and isinstance(change.get("narrowed", []), list)
+        and all(
+            isinstance(n, dict)
+            and set(n) == {"id", "viewers"}
+            and isinstance(n["id"], str)
+            and _texts(n["viewers"])
+            for n in change.get("narrowed", [])
+        )
     )
 
 
@@ -141,14 +150,17 @@ def take(
 
 
 def _take_removals(srv, link_id: str, change: dict) -> None:
-    """A paused link's change (S11.4): its items removed here and, through the inbox, from the
-    copy, the sequence unmoved, so the first full exchange after the pause carries on from
-    where the last one stopped. Anything more in it is refused. A removal sent again (the
-    source repeats it until the resume) finds nothing left and does nothing."""
+    """A paused link's change (S11.4): its items removed here, and the people taken off those
+    still shared no longer named by them, and so, through the inbox, in the copy; the sequence
+    unmoved, so the first full exchange after the pause carries on from where the last one
+    stopped. Anything more in it is refused. One sent again (the source repeats it until the
+    resume) finds nothing left to change and does nothing."""
     if not removals_only(change):
         raise changes.ChangeError(
-            f"change {change.get('seq')} comes over a paused link but holds more than removals"
+            f"change {change.get('seq')} comes over a paused link but holds more than removals "
+            "and narrowings"
         )
+    narrowed = {n["id"]: set(n["viewers"]) for n in change.get("narrowed", [])}
     with srv.db.tx(unscoped="links.receive: take removals") as s:
         rows = list(
             s.scalars(
@@ -159,6 +171,16 @@ def _take_removals(srv, link_id: str, change: dict) -> None:
         )
         for row in rows:
             s.delete(row)
+        for row in s.scalars(
+            select(LinkedItem).where(
+                LinkedItem.linkId == link_id, LinkedItem.remoteId.in_(list(narrowed))
+            )
+        ):
+            had = json.loads(row.viewers or "[]")
+            left = [v for v in had if v not in narrowed[row.remoteId]]
+            if left != had:
+                row.viewers = json.dumps(left)
+                rows.append(row)
         if rows:
             activity.record(
                 s,

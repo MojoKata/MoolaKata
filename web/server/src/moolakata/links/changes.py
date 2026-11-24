@@ -38,6 +38,9 @@ class ChangeError(Exception):
 
 
 REGISTRY = ("seq", "asOf", "full", "items", "removed", "progress", "fetch")
+# A paused link's change (link-protocol.md §4.3.6): the items no longer shared, and those
+# still shared whose people some were taken off (`narrowed`), nothing more.
+PAUSED = frozenset({"seq", "asOf", "removed", "narrowed", "signature"})
 CONTENTS = ("names", "docs", "docsRemoved", "files", "filesRemoved")
 
 
@@ -187,11 +190,13 @@ def apply(srv, link_id: str) -> int:
                 )
             raw = p.read_bytes()
             change, local = entry["change"], entry.get("local") or {}
-            # A paused link's removals alone (link-protocol.md §4.3.6): no sealed part, and
-            # the sequence of the last change sent, which it doesn't move.
+            # A paused link's removals and narrowings alone (link-protocol.md §4.3.6): no
+            # sealed part, and the sequence of the last change sent, which it doesn't move.
             removals = bool(local.get("registryOnly"))
-            if removals and (raw or set(change) - {"seq", "asOf", "removed", "signature"}):
-                raise ChangeError(f"change {change.get('seq')} holds more than removals")
+            if removals and (raw or set(change) - PAUSED):
+                raise ChangeError(
+                    f"change {change.get('seq')} holds more than removals and narrowings"
+                )
             verify(peer, {**change, "sealed": b64(raw)})
             # Each must follow the last applied, so an older change put back is refused: the
             # sequence is the source's, signed and sealed with the change (S11.9.5.3).
@@ -282,6 +287,8 @@ def _shape(c: dict) -> None:
     ok = (
         whole(c.get("seq"))
         and texts(c.get("removed") or [])
+        and rows(c.get("narrowed") or [], "id")
+        and all(texts(n.get("viewers")) for n in c.get("narrowed") or [])
         and rows(c.get("items") or [], "id", "kind")
         and all(whole(it.get("version")) for it in c.get("items") or [])
         and rows(c.get("docsRemoved") or [], "itemId", "path", "viewer")
@@ -335,6 +342,22 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
         conn.execute(delete(copydb.Doc).where(copydb.Doc.c.itemId == item_id))
         conn.execute(delete(copydb.File).where(copydb.File.c.itemId == item_id))
         conn.execute(delete(copydb.Item).where(copydb.Item.c.id == item_id))
+    for n in c.get("narrowed") or []:
+        # People taken off an item still shared (S11.4): hidden from them, their documents
+        # gone; nothing else about it changes until the next full change.
+        had = conn.execute(select(copydb.Item.c.viewers).where(copydb.Item.c.id == n["id"]))
+        for (viewers,) in had.all():
+            left = [v for v in json.loads(viewers or "[]") if v not in n["viewers"]]
+            conn.execute(
+                copydb.Item.update()
+                .where(copydb.Item.c.id == n["id"])
+                .values(viewers=json.dumps(left))
+            )
+        conn.execute(
+            delete(copydb.Doc).where(
+                copydb.Doc.c.itemId == n["id"], copydb.Doc.c.viewer.in_(n["viewers"])
+            )
+        )
     for it in c.get("items") or []:
         conn.execute(delete(copydb.Item).where(copydb.Item.c.id == it["id"]))
         conn.execute(
