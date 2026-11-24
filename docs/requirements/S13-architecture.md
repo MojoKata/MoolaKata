@@ -108,15 +108,16 @@
       a browser restart keeps the session. After a password change, the browser that made it
       gets a new session; accepting an invitation signs in, and a reset does not. The new
       token at a change of privilege starts its own absolute lifetime.
-   2. **Re-authentication**: changing the password, the email address or two-step, making an
-      access token, creating a linked copy's access key, resetting a linked copy, sharing with
-      a linked server, pairing, confirming or unpairing the connector, sealing a Connection's
-      credentials or changing its server's address, setting a secret in Settings (the SMTP
-      password, the node's password, a price source's key), changing the SMTP host or the
-      public URL, changing Settings › Network, changing who is in Admins, re-encrypting,
-      removing a copy (which also asks for the phrase, S16.13) or forgetting a previous key,
-      pruning files, removing orphan files, and opening a written email each need the password
-      again if it was last given more than 10 minutes ago.
+   2. **Re-authentication**: changing the password, the email address or two-step, an admin
+      resetting another user's two-step (S10.1.6.4), making an access token, creating a linked
+      copy's access key, resetting a linked copy, sharing with a linked server, pairing,
+      confirming or unpairing the connector or accepting its new address (S18.2.4.4), sealing
+      a Connection's credentials or changing its server's address, setting a secret in
+      Settings (the SMTP password, the node's password, a price source's key), changing the
+      SMTP host or the public URL, changing Settings › Network, changing who is in Admins,
+      re-encrypting, removing a copy (which also asks for the phrase, S16.13) or forgetting a
+      previous key, pruning files, removing orphan files, and opening a written email each need
+      the password again if it was last given more than 10 minutes ago.
    3. **Passwords**: argon2id (64 MiB, 3 passes, parallelism 1), the minimum length of
       S16.5, at most 1,024 characters, and no other rules. Checked against a shipped list of
       the 100,000 most common passwords, which are refused.

@@ -7,7 +7,7 @@ import datetime as dt
 import json
 
 import pytest
-from conftest import ORIGIN, make_user, new_client, sign_in
+from conftest import ADMIN_PW, ORIGIN, make_user, new_client, sign_in, stale
 from edits import save_settings
 
 from moolakata import alerts, clock, exactjson, ids, settings
@@ -151,6 +151,11 @@ def test_a_connector_reporting_from_a_new_address_is_alerted_until_accepted(
     alerts.evaluate(server)
     kinds_open = [a["kind"] for a in admin.get("/ui/api/alerts").json()["open"]]
     assert "connector-moved" in kinds_open
+    # Accepting it needs the password again (S13.7.2).
+    stale(server)
+    r = admin.post("/ui/api/settings/connector/accept-address")
+    assert r.status_code == 403 and r.json()["code"] == "reauth-required"
+    assert admin.post("/ui/api/session/reauth", json={"password": ADMIN_PW}).status_code == 204
     assert admin.post("/ui/api/settings/connector/accept-address").status_code == 200
     view = admin.get("/ui/api/settings/connector").json()
     assert view["knownAddress"] == "10.9.9.9"
