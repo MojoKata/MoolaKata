@@ -91,7 +91,8 @@ def test_three_words_back_make_the_key_and_unlock(new_server):
     state = c.get("/ui/api/unlock").json()
     assert state["locked"] is False and state["uninitialised"] is False
     assert state["needsAdmin"] is True
-    assert c.get("/healthz").status_code == 200
+    r = c.get("/healthz")
+    assert r.status_code == 200 and r.json() == {"status": "ok"}, "its status alone (S13.6)"
     # The other visitor's phrase went with it, and no new one is offered.
     r = c.post("/ui/api/welcome/key", json={"token": other["token"], "words": _typed_back(other)})
     assert r.status_code == 409 and r.json()["code"] == "initialised"

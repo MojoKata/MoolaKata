@@ -232,6 +232,7 @@ def test_pairing_takes_the_code_once_and_records_the_keys(server, admin, client)
     fake = FakeConnector(server, client)
     hello = client.get("/connector/v1/hello").json()
     assert hello["protocol"] == PROTOCOL and hello["fingerprint"] == fake.fp
+    assert set(hello) == {"protocol", "fingerprint", "key"}, "unsigned: no release named"
     code = pair_code(admin)
     view = admin.get("/ui/api/settings/connector").json()
     assert view["state"] == "pairing" and view["codeExpiresAt"]

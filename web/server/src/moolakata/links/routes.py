@@ -93,15 +93,11 @@ def hello_limit(request: Request) -> None:
 @router.get("/hello", dependencies=[Depends(hello_limit)])
 def hello(request: Request):
     """Unsigned: the protocol this server speaks and its key's fingerprint, so a joining server
-    can check it against the link code before sending anything."""
+    can check it against the link code before sending anything. No release: that rides on
+    signed answers alone (S13.6)."""
     srv = request.app.state.server
     public, fp = keys.own_public(srv)
-    return {
-        "protocol": PROTOCOL,
-        "version": srv.version,
-        "fingerprint": fp,
-        "key": keys.b64(public),
-    }
+    return {"protocol": PROTOCOL, "fingerprint": fp, "key": keys.b64(public)}
 
 
 @router.post("/ping")

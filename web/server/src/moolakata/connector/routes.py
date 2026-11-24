@@ -51,12 +51,12 @@ def paired(status: bool = False):
 @router.get("/hello")
 def hello(request: Request):
     """Unsigned: the protocol this server speaks and its key's fingerprint, so a connector can
-    check it against the pairing code before sending anything."""
+    check it against the pairing code before sending anything. No release: that rides on
+    signed answers alone (S13.6)."""
     srv = request.app.state.server
     k, fp = own(srv)
     return {
         "protocol": PROTOCOL,
-        "version": srv.version,
         "fingerprint": fp,
         "key": keys.b64(keys.raw_public(k.public_key())),
     }

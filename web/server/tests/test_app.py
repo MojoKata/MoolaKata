@@ -573,7 +573,7 @@ def test_a_credential_sealed_in_the_browser_opens_only_with_the_connectors_key(p
     key = X25519PrivateKey.generate()
     public = keys.b64(key.public_key().public_bytes_raw())
     visit(page, "/ui/")
-    version = page.evaluate("fetch('/healthz').then((r) => r.json()).then((j) => j.version)")
+    version = page.evaluate("fetch('/ui/api/unlock').then((r) => r.json()).then((j) => j.version)")
     box = page.evaluate(
         "([v, key]) => import(`/ui/v/${v}/app/sealed.js`)"
         ".then((m) => m.seal('{\"password\": \"hunter2\"}', key, 'Conn_test'))",

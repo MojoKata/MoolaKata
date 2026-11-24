@@ -218,10 +218,11 @@ start:` line (§5.1).
   while the server waits for its phrase, and `unhealthy` only when nothing answers (S13.6).
   Whether it is ready is `/healthz`'s own answer. From outside,
   point an uptime monitor (Uptime Kuma, for example) at `https://<your address>/healthz`: it
-  answers `{"status": "ok", "version": …}` once the server is unlocked and ready, 503 with
+  answers `{"status": "ok"}` once the server is unlocked and ready, 503 with
   `"re-encrypting"` while a re-encryption runs at the unlock, 503 with `"locked"` while it
   waits for the phrase, which is how anyone learns that a reboot happened and the phrase is
   needed, and 503 with `"uninitialised"` on a new server, until its welcome makes the key.
+  It answers anyone, so it names no release: the version is in Settings and the log.
 - **Alerts**: problems that need someone show in Alerts for admins, and are emailed to those
   who chose it: a failed backup, a price source, email, the bitcoin node or a linked server
   failing for longer than Settings › Alerts allows, and a recovery phrase not confirmed.

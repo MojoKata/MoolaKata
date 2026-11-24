@@ -29,7 +29,7 @@ def locked(keyed_config):
 def test_a_locked_server_answers_only_what_unlocking_needs(locked):
     _, c = locked
     r = c.get("/healthz")
-    assert r.status_code == 503 and r.json()["status"] == "locked"
+    assert r.status_code == 503 and r.json() == {"status": "locked"}
     for path in ("/ui/api/session", "/mcp", "/link/v1/hello", "/connector/v1/hello"):
         r = c.get(path)
         assert r.status_code == 503 and r.json()["code"] == "locked", path

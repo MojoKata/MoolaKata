@@ -98,7 +98,7 @@ def _own(srv):
 
 
 def hello(srv, address: str, pins=None) -> dict:
-    """The unsigned hello: the peer's protocol, version and fingerprint."""
+    """The unsigned hello: the peer's protocol, fingerprint and key."""
     try:
         r = _client(srv, pins).get(_url(address, "/link/v1/hello"))
     except net.httpx.HTTPError as e:

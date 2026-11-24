@@ -95,7 +95,7 @@ document is the protocol's statement; the code that speaks it is `web/server/src
 
 | Path | Signed | Link states | What it does |
 |---|---|---|---|
-| `GET /link/v1/hello` | no | any | `{protocol, version, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a joining server check the fingerprint in a link code before it sends anything |
+| `GET /link/v1/hello` | no | any | `{protocol, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a joining server check the fingerprint in a link code before it sends anything; unsigned, it names no MoolaKata release |
 | `POST /link/v1/ping` | yes | pending, requested, active, paused | `{protocol, version, state}`: the link's state on the answering side |
 | `POST /link/v1/join` | yes, by the caller's own key | an invitation | answers a link code (section 4.1); no directory crosses |
 | `POST /link/v1/exchange` | yes | active; pending on the joining side | the directories both ways, and the answering side's change for the caller (section 4.3) |
@@ -117,8 +117,8 @@ document is the protocol's statement; the code that speaks it is `web/server/src
    certificate key's fingerprint when its certificate is its own: the inviting side has no link
    with that key yet, so the signature only proves the caller holds the key it sends, and the
    secret proves it was given the code.
-3. The inviting side turns the invitation into a request from that key and answers with no
-   directory; its admin approves or rejects it. Directories cross from the first exchange after
+3. The inviting side turns the invitation into a request from that key and answers with its
+   `version` and no directory; its admin approves or rejects it. Directories cross from the first exchange after
    the approval. The joining side's link waits as **pending** until the first `exchange` from
    the inviting side, which only an approved link makes, or until its own `exchange` is
    answered as active.
@@ -298,8 +298,8 @@ the two servers have, and the join is refused `already-linked`. The new link pul
 3. Shared items carry their kind (section 6). An item of a kind this server doesn't know is
    kept in the linked copy but not shown, and the window notes that a newer MoolaKata on the
    other side shares something this one can't show yet.
-4. Each server shows the peer's MoolaKata version (from `MK-Link-Version`) in Settings ›
-   Linked servers.
+4. Each server shows the peer's MoolaKata version (from `MK-Link-Version`, and the `version`
+   of the peer's signed answers) in Settings › Linked servers.
 5. **The copy follows the sender's release** (S11.10). Each change names the sender's release
    and schema revision (`release`, section 4.4). The receiver draws and migrates the copy with
    a worker running that release, installed from the release's bundle on GitHub (S17.10.2),

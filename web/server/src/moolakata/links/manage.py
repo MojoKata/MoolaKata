@@ -270,7 +270,7 @@ def join(srv, code: str, by: str) -> Link:
     # No directory crosses before the other side's admin approves (link-protocol.md §4.1).
     mine = certs.own_key(srv)
     body = {"code": c["c"], "address": address, **({"t": mine} if mine else {})}
-    client.call(srv, c["a"], peer, "/link/v1/join", body, pins=pinned)
+    answer = client.call(srv, c["a"], peer, "/link/v1/join", body, pins=pinned)
     with srv.db.tx(unscoped="links.manage: join") as s:
         gone = _link_again(s, peer, by)
         link = Link(
@@ -280,7 +280,7 @@ def join(srv, code: str, by: str) -> Link:
             address=client.checked_address(c["a"]),
             peerKey=keys.b64(peer),
             peerCert=theirs,
-            peerVersion=hi.get("version"),
+            peerVersion=answer.get("version"),
             peerProtocol=hi.get("protocol"),
             createdById=by,
             lastOkAt=clock.now(),

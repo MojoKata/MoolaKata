@@ -204,7 +204,8 @@ def create_app(server: Server) -> FastAPI:
     def healthz():
         """`ok` once unlocked and ready; `uninitialised` until the welcome makes the key
         (S15.4.4), `locked` until the phrase is entered (S15.4.3), and `starting` in between:
-        all 503, which an uptime monitor reports."""
+        all 503, which an uptime monitor reports. It answers any address, so it names no
+        release (S13.6)."""
         status = (
             "ok"
             if server.ready
@@ -217,7 +218,7 @@ def create_app(server: Server) -> FastAPI:
             else "uninitialised"
         )
         return JSONResponse(
-            {"status": status, "version": server.version},
+            {"status": status},
             status_code=200 if server.ready else 503,
             headers={"Cache-Control": "no-store"},
         )

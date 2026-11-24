@@ -56,6 +56,8 @@ def test_a_linked_server_answers_a_signed_call_and_signs_its_answer(pair):
     link(b, url_a, ka, role="joiner")
     hi = client.hello(a, url_b)
     assert hi["fingerprint"] == keys.fingerprint(kb) and hi["protocol"] == 1
+    # Unsigned, so it names no release (S13.6): the version rides on signed answers.
+    assert set(hi) == {"protocol", "fingerprint", "key"}
     out = client.call(a, url_b, kb, "/link/v1/ping")
     assert out["state"] == "active"
     with b.db.read(unscoped="test") as s:
@@ -169,6 +171,8 @@ def test_an_invitation_is_joined_approved_and_each_side_sees_the_others_users(ad
     assert joined.status_code == 201, joined.text
     assert joined.json()["state"] == "pending"
     assert joined.json()["fingerprint"] == links_of(ca)["fingerprint"]
+    with b.db.read(unscoped="test") as s:
+        assert s.query(Link).one().peerVersion == a.version, "from the signed join answer"
     req = links_of(ca)["links"][0]
     assert req["state"] == "requested" and req["fingerprint"] == links_of(cb)["fingerprint"]
     # Nothing of either household crosses before the approval (S10.10.1).

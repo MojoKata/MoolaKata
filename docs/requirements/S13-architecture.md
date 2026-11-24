@@ -93,7 +93,10 @@
    at the address `[server] host` binds (loopback when that is every interface):
    ready, starting, re-encrypting, locked or uninitialised, it is alive, so an orchestrator
    that waits for healthy containers (TrueNAS's catalog among them) lets it wait for its
-   phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. **Host commands**
+   phrase; whether it is ready is `/healthz`'s answer, for an uptime monitor. `/healthz` and the
+   unsigned `hello` of `/link` and `/connector` answer whoever reaches them, so they name no
+   release: the version is on signed answers and signed-in screens, and in `GET /ui/api/unlock`
+   and the app's asset paths wherever `/ui` is reached. **Host commands**
    (`keys unlock`, `keys break-glass`, `db backup`, S15.4.7) reach the running server over its Unix
    socket, `/run/moolakata/sock`, in a 0700 directory of the server's account on a tmpfs
    (`web/.dev/` in dev mode), never over the listener.

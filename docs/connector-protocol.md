@@ -19,7 +19,7 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 
 ```
  connector                                                  MoolaKata
-   |  GET  /connector/v1/hello                                 |  unsigned: {protocol, version, fingerprint, key}
+   |  GET  /connector/v1/hello                                 |  unsigned: {protocol, fingerprint, key}
    |---------------------------------------------------------->|
    |  POST /connector/v1/pair {code, sealingKey, statusKey, …} |  once; signed by the new action key
    |---------------------------------------------------------->|
@@ -142,7 +142,7 @@ to: the one sealed with it, fixed when it is filed. Requirements S18 defines the
 
 | Path | Signed by | What it does |
 |---|---|---|
-| `GET /connector/v1/hello` | no one | `{protocol, version, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything |
+| `GET /connector/v1/hello` | no one | `{protocol, fingerprint, key}`, `key` being the link key's public half, whose SHA-256 is the fingerprint: lets a connector check the fingerprint in a pairing code before it sends anything; unsigned, it names no MoolaKata release |
 | `POST /connector/v1/pair` | the connector's new action key | introduces the connector with a pairing code (section 4.1) |
 | `POST /connector/v1/report` | the action key; the status key while locked | the connector's state every 5 minutes, answered with the work waiting; locked, only that it is locked (section 4.2) |
 | `POST /connector/v1/connections/{id}/credential/taken` | the action key | the sealed credential was filed in the vault: MoolaKata deletes its copy (section 4.3) |
