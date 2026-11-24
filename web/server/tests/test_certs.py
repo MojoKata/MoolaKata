@@ -1,6 +1,6 @@
-"""This server's own certificate (S11.1.3, S18.4, S13.3): read from the listener's file in tls
-mode, or at its link address behind a proxy; a public one, which the system's roots vouch for,
-needs no pin; one that can't be read is never taken for a public one."""
+"""This server's own certificate (S11.1.3, S18.4, S13.3): read at its link address, or, when
+that can't be reached, from the listener's file in tls mode; a public one, which the system's
+roots vouch for, needs no pin; one that can't be read is never taken for a public one."""
 
 import datetime as dt
 import ssl
@@ -109,22 +109,29 @@ def test_the_listeners_file_gives_its_key_unless_it_is_public(ca, tmp_path, capl
     assert f"the certificate {tmp_path / 'missing.crt'} can't be read" in caplog.text
 
 
-def test_in_tls_mode_the_key_is_read_from_the_named_certificate_or_the_self_signed_one(
-    config, tmp_path
+def test_in_tls_mode_with_its_address_unread_the_key_is_read_from_the_certificate_it_serves(
+    server, monkeypatch, tmp_path
 ):
+    """S11.1.1: a server that serves TLS itself and can't reach its own address reads the key
+    from the certificate it was given, or the self-signed one; one that can't be read is
+    Unread, never public."""
     import dataclasses
-    from types import SimpleNamespace
 
     from moolakata.listener import self_signed
 
-    tls = dataclasses.replace(config, mode="tls")
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    tls = dataclasses.replace(server.config, mode="tls")
     cert, _ = self_signed(tls.tls_dir, ["money.lan"])
     made = x509.load_pem_x509_certificate(cert.read_bytes())
-    assert certs.own_key_read(SimpleNamespace(config=tls)) == _fingerprint(made)
-    named = dataclasses.replace(tls, tls_cert=tmp_path / "gone.crt")
+    server.config = tls
+    assert certs.own_key_read(server) == _fingerprint(made)
+    server.config = dataclasses.replace(tls, tls_cert=tmp_path / "gone.crt")
     with pytest.raises(certs.Unread):
-        certs.own_key_read(SimpleNamespace(config=named))
-    assert certs.own_key(SimpleNamespace(config=named)) is None
+        certs.own_key_read(server)
+    assert certs.own_key(server) is None
 
 
 class _Client:

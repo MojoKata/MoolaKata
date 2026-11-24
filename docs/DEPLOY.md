@@ -6,7 +6,10 @@ both serve HTTPS themselves on port 37373 with a self-signed certificate the ser
 (`tls` mode, requirements S13.3), which is what a test on a local network needs. A server the
 household relies on is given a certificate of its own, or goes behind its reverse proxy
 ([`operations.md`](operations.md) §2), and `operations.md` is the runbook for everything after
-the install: upgrades, backups, restoring, keys and the connector.
+the install: upgrades, backups, restoring, keys and the connector. A server that serves HTTPS
+itself makes link invitations and pairing codes even when it can't reach its own public
+address (a router with no NAT hairpinning); behind a proxy that terminates TLS, the server
+must reach its own address, where it reads the proxy's certificate for the code to carry.
 
 The steps were run on Proxmox VE 9.2 with a Debian 13 guest and Docker Engine 29, and on
 TrueNAS Community Edition 25.10.7, each pulling the published 0.1.0 images (§2) and, on the VM,

@@ -253,8 +253,8 @@ when they are shown, and its type is found from the bytes then, never from the c
 
 A server whose certificate is its own (S13.3) and whose key changes calls `certificate`,
 signed, on each active or paused link as soon as it sees the change, before its next exchange
-(its own listener's certificate is read from its file; a proxy's, by connecting to the server's
-own link address); the peer keeps the new fingerprint beside the old, and accepts either until
+(read by connecting to the server's own link address, or, when that can't be reached and the
+server serves TLS itself, from its listener's file); the peer keeps the new fingerprint beside the old, and accepts either until
 an exchange over the new one succeeds. A certificate whose key changes unannounced is refused, and the link shows *the
 peer's certificate changed* until an admin there accepts the new fingerprint, which the peer's
 admin reads out from their Settings › Linked servers.

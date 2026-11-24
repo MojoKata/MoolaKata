@@ -2,9 +2,10 @@
 rather than a public one, the fingerprint of its key, which link and pairing codes carry so
 that peers and the connector pin it, and which is announced to them, signed, when it changes.
 
-In `tls` mode the certificate is the listener's, read from its file. Behind a proxy it is the
-proxy's, read by connecting to this server's own link address through the egress guard
-(S13.5): one that the system's roots verify for its name is public, and needs no pin."""
+It is read by connecting to this server's own link address through the egress guard (S13.5),
+where peers will connect: one that the system's roots verify for its name is public, and
+needs no pin. When that address can't be reached, a server that serves TLS itself (`tls`
+mode) reads its listener's certificate from its file; one behind a proxy can't be read."""
 
 import datetime as dt
 import logging
@@ -118,21 +119,33 @@ def own_key(srv) -> str | None:
 
 def own_key_read(srv) -> str | None:
     """The fingerprint of this server's own certificate's key, or None when it is public;
-    Unread when it can't be read."""
-    config = srv.config
-    if config.mode == "tls":
-        path = config.tls_cert or config.tls_dir / "self-signed.crt"
-        return _from_file(path)
+    Unread when it can't be read.
+
+    It is read at the link address first, where the other server will connect (S11.1.1).
+    When that can't be reached (a router with no NAT hairpinning) and this server serves TLS
+    itself, the certificate is its listener's, from the file it loads; behind a proxy that
+    terminates TLS there is nowhere else to read it."""
     from .links.manage import own_address
 
     with srv.db.read(unscoped="certs: own key") as s:
         address = own_address(s) or ""
+    try:
+        return _at(srv.guard, address)
+    except Unread:
+        config = srv.config
+        if config.mode != "tls":
+            raise
+        return _from_file(config.tls_cert or config.tls_dir / "self-signed.crt")
+
+
+def _at(guard: net.Guard, address: str) -> str | None:
+    """The probe of an address, kept CACHE_SECONDS, an Unread among them."""
     now = clock.now()
     with _lock:
         hit = _cached.get(address)
     if hit is None or (now - hit[0]).total_seconds() >= CACHE_SECONDS:
         try:
-            fp: str | Unread | None = _probe(srv.guard, address)
+            fp: str | Unread | None = _probe(guard, address)
         except Unread as e:
             fp = e
         hit = (now, fp)

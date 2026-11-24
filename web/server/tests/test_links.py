@@ -949,11 +949,78 @@ def test_no_invitation_while_this_servers_own_certificate_cant_be_read(admins, m
     monkeypatch.setattr(certs, "_cached", {})
     with a.db.tx(unscoped="test") as s:
         settings.put(s, "linkAddress", "https://a.test", None)
+    assert a.config.mode == "proxy", "behind a proxy, whose certificate is read nowhere else"
     r = ca.post("/ui/api/settings/links/invitations")
     assert r.status_code == 422 and r.json()["code"] == "certificate-unread"
     assert r.json()["detail"] == UNREAD
     with a.db.read(unscoped="test") as s:
         assert s.query(Link).count() == 0
+
+
+def _serving_tls_itself(srv) -> str:
+    """This server in tls mode with its self-signed certificate made: its key's fingerprint."""
+    import dataclasses
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+
+    from moolakata import net
+    from moolakata.listener import self_signed
+
+    srv.config = dataclasses.replace(srv.config, mode="tls")
+    cert, _ = self_signed(srv.config.tls_dir, ["a.test"])
+    der = x509.load_pem_x509_certificate(cert.read_bytes()).public_bytes(Encoding.DER)
+    return net.key_fingerprint(der)
+
+
+def _invited_pin(ca) -> str | None:
+    r = ca.post("/ui/api/settings/links/invitations")
+    assert r.status_code == 201, r.text
+    from moolakata.links import manage
+
+    return manage.decode_code(r.json()["code"]).get("t")
+
+
+def test_an_invitation_pins_the_certificate_read_at_its_link_address(admins, monkeypatch):
+    """S11.1.1: the certificate an invitation carries is the one read at the address it
+    carries, which the other server connects to, even when this server serves TLS itself: the
+    address may lead through a proxy of its own."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+    at_address = "cc" * 32
+    read = []
+
+    def probe(guard, address):
+        read.append(address)
+        return at_address
+
+    monkeypatch.setattr(certs, "_probe", probe)
+    _serving_tls_itself(a)
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    assert _invited_pin(ca) == at_address
+    assert read == ["https://a.test"]
+
+
+def test_an_invitation_pins_the_listeners_own_certificate_when_its_address_cant_be_reached(
+    admins, monkeypatch
+):
+    """S11.1.1: a server that can't reach its own public address (a router with no NAT
+    hairpinning) and serves TLS itself pins the certificate its listener serves, from the
+    files it loads."""
+    from moolakata import certs, settings
+
+    a, _, ca, _, _ = admins
+
+    def unread(guard, address):
+        raise certs.Unread
+
+    monkeypatch.setattr(certs, "_probe", unread)
+    own = _serving_tls_itself(a)
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkAddress", "https://a.test", None)
+    assert _invited_pin(ca) == own
 
 
 def test_a_link_at_the_smtp_servers_loopback_address_is_still_refused(pair):
