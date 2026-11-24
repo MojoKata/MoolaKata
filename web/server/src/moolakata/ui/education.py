@@ -31,23 +31,12 @@ router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["education"])
 # ---- The plan ----
 
 
-class BeneficiaryRef(Model):
-    kind: str  # person, or user for a user's own person
+class BeneficiaryOut(Model):
+    kind: str  # person
     id: str
-
-
-class BeneficiaryOut(BeneficiaryRef):
     name: str
     birthYear: int | None
     deleted: bool = False
-
-
-class PlanIn(Model):
-    planState: str | None = None
-    planName: str | None = None
-    beneficiary: BeneficiaryRef | None = None
-    openedOn: dt.date | None = None
-    stateDeduction: Money | None = None
 
 
 class RolloverOut(Model):
@@ -117,15 +106,6 @@ def _person_of(s, c: Caller, kind: str, ident: str) -> Person | None:
         return None
     p = s.get(Person, ident)
     return p if p is not None and people.readable(s, c.id, p.id) else None
-
-
-def _check_beneficiary(s, c: Caller, b: BeneficiaryRef | None, owner_id: str) -> dict:
-    if b is None:
-        return {"beneficiaryId": None}
-    p = _person_of(s, c, b.kind, b.id)
-    if p is None:
-        raise refuse("beneficiary", "beneficiary-invalid", "One of the household's people.")
-    return {"beneficiaryId": p.id}
 
 
 @router.get("/accounts/{account_id}/plan529", response_model=PlanOut)

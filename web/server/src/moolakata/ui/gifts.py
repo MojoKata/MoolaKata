@@ -532,10 +532,7 @@ def _editable(s, c: Caller, gift_id: str) -> Gift:
     g = s.get(Gift, gift_id)
     if g is None or g.deleted:
         raise Problem(404, "not-found", "Not found")
-    found = [x for x in gifts_view(s, c) if x.id == gift_id]
-    if not found:
-        raise Problem(404, "not-found", "Not found")
-    if not found[0].access.writable:
+    if not _gift_for(s, c, gift_id).access.writable:
         raise Problem(403, "read-only", "This gift is shared with you to read.")
     return g
 
