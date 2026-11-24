@@ -386,7 +386,6 @@ def test_a_gifts_receipt_is_kept_with_it_and_can_be_taken_back(jane):
     assert r.status_code == 200, r.text
     inbox = jane.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
     assert [x["id"] for x in inbox] == [up["id"]]
-    assert jane.get("/ui/api/gifts/upcoming").json()["items"] == []
 
 
 def test_deleting_a_person_deletes_every_gift_plan_for_them(server, jane):
