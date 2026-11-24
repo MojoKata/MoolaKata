@@ -294,6 +294,10 @@ def test_a_directory_that_doesnt_fit_is_refused_whole_and_said_on_the_link(admin
         ({"users": [{"id": "u", "email": "a" * 255}]}, "an email is longer than 254 characters"),
         ({"users": [{"id": "u", "displayName": {"x": 1}}]}, "a display name isn't text"),
         ({"users": [{"id": "u", "username": 1}]}, "a username isn't text"),
+        (
+            {"users": [{"id": f"u{n}"} for n in range(201)]},
+            "its directory lists 201 users, more than 200",
+        ),
     ],
 )
 def test_each_field_of_a_peers_directory_is_checked_before_any_is_kept(payload, why):
@@ -328,6 +332,8 @@ def test_a_peers_directory_is_kept_within_its_bounds():
         {"id": "v", "username": None, "displayName": None, "email": "e" * 254, "sex": "female"},
     ]
     assert manage._checked({}) == (None, None), "no directory: nothing to keep"
+    _, users = manage._checked({"users": [{"id": f"u{n}"} for n in range(200)]})
+    assert len(users) == 200, "200 users are kept"
 
 
 def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):

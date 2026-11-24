@@ -153,7 +153,7 @@ its bound:
 | `household` | an object |
 | `serverName`, `name` | text of up to 60 characters |
 | `avatar` | as requirements S16.1 holds it: `{"kind": "initials", "initials", "color"}`, one to three letters and a colour `#rrggbb`, or `{"kind": "image", "image"}`, a PNG, JPEG or WebP image as a base64 `data:` URL of up to 256 KB |
-| `users` | a list of objects |
+| `users` | a list of at most 200 objects |
 | `id` | text of up to 64 characters, never absent |
 | `username`, `displayName` | text, cut as above |
 | `email` | text of up to 254 characters |

@@ -337,6 +337,10 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
     return {}
 
 
+# The most users a peer's directory lists (link-protocol.md §4.2): more is refused whole.
+MAX_USERS = 200
+
+
 class BadDirectory(ValueError):
     """A peer's directory that doesn't fit link-protocol.md §4.2: none of it is kept."""
 
@@ -375,6 +379,8 @@ def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
     if users is not None:
         if not isinstance(users, list) or not all(isinstance(r, dict) for r in users):
             raise BadDirectory("its users aren't a list of objects")
+        if len(users) > MAX_USERS:
+            raise BadDirectory(f"its directory lists {len(users)} users, more than {MAX_USERS}")
         users = [
             {
                 "id": _text(r.get("id"), "a user's id", 64),
