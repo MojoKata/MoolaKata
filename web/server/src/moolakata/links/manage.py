@@ -175,7 +175,10 @@ def announce_certificate(srv) -> int:
     told."""
     from .. import certs
 
-    key = certs.own_key(srv)
+    try:
+        key = certs.own_key_read(srv)
+    except certs.Unread:
+        return 0  # unread is not public: nothing changed that the peers can be told
     with srv.db.read(unscoped="links.manage: announce certificate") as s:
         told = settings.get(s, "linkCertificate")
         ids_ = list(

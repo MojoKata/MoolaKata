@@ -864,6 +864,26 @@ def test_a_released_copys_key_opens_nothing_more():
         k.text()
 
 
+def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, monkeypatch):
+    """link-protocol.md §4.5, S13.5: when this server's own link address can't be read for its
+    certificate (the guard refuses it, or it doesn't answer), nothing is announced and the key
+    last told stays; it isn't taken for a public certificate."""
+    from moolakata import certs, settings
+    from moolakata.links import manage
+
+    a, b, _, _ = pair
+    link(a, "https://b.test", public(b))
+    told = "aa" * 32
+    with a.db.tx(unscoped="test") as s:
+        settings.put(s, "linkCertificate", told, None)
+        settings.put(s, "linkAddress", "https://127.0.0.1:8443", None)
+    monkeypatch.setattr(certs, "_cached", {})
+    assert certs.own_key(a) is None
+    assert manage.announce_certificate(a) == 0
+    with a.db.read(unscoped="test") as s:
+        assert settings.get(s, "linkCertificate") == told
+
+
 def test_a_link_at_the_smtp_servers_loopback_address_is_still_refused(pair):
     """S11.2, S13.5: a link's address is never loopback, whoever names that host: an SMTP
     server an admin set at 127.0.0.1 is exempt for the mail client alone."""

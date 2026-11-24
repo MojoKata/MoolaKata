@@ -356,3 +356,22 @@ def test_a_servers_own_certificate_is_pinned_by_its_key(tls_peer):
         net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "long")
     with pytest.raises(net.ResponseTooLarge):
         net.Client(guard, use="link", max_bytes=10_000, pins=[fp]).get(url + "gzip").json()
+
+
+def test_this_servers_own_certificate_is_read_through_the_guard(tls_peer):
+    """S13.5: the probe of this server's own link address for its certificate is an outbound
+    call like any other: to the address the guard checked, never to loopback unless allowed;
+    one it can't read is told apart from a public certificate."""
+    from moolakata import certs
+
+    port, fp = tls_peer
+    guard = net.Guard(resolver=lambda host, p: ["127.0.0.1"])
+    guard.allow(["127.0.0.1", "peer.lan"])
+    with pytest.raises(certs.Unread):
+        certs._probe(guard, f"https://127.0.0.1:{port}")
+    with pytest.raises(certs.Unread):
+        certs._probe(guard, f"https://money.example:{port}")  # not a host it may reach
+    # Allowed by name for a link, as between two dev servers on one machine.
+    guard.allow(["peer.lan"], allowed_by_name={"link": ["peer.lan"]})
+    assert certs._probe(guard, f"https://peer.lan:{port}") == fp
+    assert certs._probe(guard, "http://peer.lan") is None, "plain HTTP has no certificate"

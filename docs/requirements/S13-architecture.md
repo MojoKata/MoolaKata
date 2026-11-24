@@ -44,7 +44,10 @@
    Each records its last run and error, which Settings shows. They run in a thread pool with
    per-provider rate limits and never block a request.
 5. **Outbound calls** go through one httpx client with an **egress guard**: only the hosts of
-   enabled price sources, the bitcoin explorer or node, the SMTP server, and links; never
+   enabled price sources, the bitcoin explorer or node, the SMTP server, links, and this
+   server's own link address, read behind a proxy for the certificate it presents (S11.1.3),
+   which counts as public only when the system's roots verify it, never when it can't be read;
+   never
    loopback, link-local or cloud metadata addresses unless an admin allows one by name, and the
    only hosts allowed by name are the Email and Bitcoin hosts an admin types in Settings, each
    for its own client alone: a link's address, which another server supplies, never is, even

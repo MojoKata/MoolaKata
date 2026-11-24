@@ -3,12 +3,11 @@ rather than a public one, the fingerprint of its key, which link and pairing cod
 that peers and the connector pin it, and which is announced to them, signed, when it changes.
 
 In `tls` mode the certificate is the listener's, read from its file. Behind a proxy it is the
-proxy's, read by connecting to this server's own link address: one that the system's roots
-verify for its name is public, and needs no pin."""
+proxy's, read by connecting to this server's own link address through the egress guard
+(S13.5): one that the system's roots verify for its name is public, and needs no pin."""
 
 import datetime as dt
 import logging
-import socket
 import ssl
 import threading
 from urllib.parse import urlsplit
@@ -22,7 +21,7 @@ log = logging.getLogger("moolakata.certs")
 CACHE_SECONDS = 600
 
 _lock = threading.Lock()
-_cached: dict[str, tuple[dt.datetime, str | None]] = {}
+_cached: dict[str, tuple[dt.datetime, str | Unread | None]] = {}
 
 
 def _from_file(path) -> str | None:
@@ -58,41 +57,63 @@ def _public_by_name(cert) -> bool:
         return False
 
 
-def _probe(address: str) -> str | None:
+class Unread(Exception):
+    """This server's own link address couldn't be read for its certificate: not the same as a
+    public one, which needs no pin."""
+
+
+def _verify_failed(e: BaseException | None) -> bool:
+    while e is not None:
+        if isinstance(e, ssl.SSLCertVerificationError):
+            return True
+        e = e.__cause__ or e.__context__
+    return False
+
+
+def _probe(guard: net.Guard, address: str) -> str | None:
     """The certificate presented at this server's own link address, by its key; None when the
-    system's roots verify it for its name, or when the address can't be reached."""
+    system's roots verify it for its name. Read as any outbound call is, through the guard and
+    to the address it checked (S13.5); Unread when it can't be reached or the guard refuses
+    it."""
     u = urlsplit(address or "")
     if u.scheme != "https" or not u.hostname:
         return None
-    host, port = u.hostname, u.port or 443
     try:
-        with (
-            socket.create_connection((host, port), timeout=5) as raw,
-            ssl.create_default_context().wrap_socket(raw, server_hostname=host),
-        ):
-            return None  # public
-    except ssl.SSLCertVerificationError:
+        with net.Client(guard, use="link") as c:
+            c.head(address, timeout=5)
+        return None  # public
+    except net.httpx.HTTPError as e:
+        if not _verify_failed(e):
+            log.info(
+                "this server's own link address %s can't be read for its certificate: %s",
+                address,
+                type(e).__name__,
+            )
+            raise Unread from None
+    # Its own: the key, read in a handshake held to no pin, so nothing is sent.
+    try:
+        with net.Client(guard, use="link", pins=()) as c:
+            c.head(address, timeout=5)
+    except net.CertificateRefused as e:
+        if e.fingerprint:
+            return e.fingerprint
+    except net.httpx.HTTPError:
         pass
-    except OSError as e:
-        log.info(
-            "this server's own link address %s can't be read for its certificate: %s", address, e
-        )
-        return None
-    ctx = ssl.create_default_context()
-    ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
-    try:
-        with (
-            socket.create_connection((host, port), timeout=5) as raw,
-            ctx.wrap_socket(raw, server_hostname=host) as tls,
-        ):
-            der = tls.getpeercert(binary_form=True)
-    except OSError:
-        return None
-    return net.key_fingerprint(der) if der else None
+    raise Unread
 
 
 def own_key(srv) -> str | None:
-    """The fingerprint of this server's own certificate's key, or None when it is public."""
+    """The fingerprint of this server's own certificate's key, or None when it is public or
+    can't be read."""
+    try:
+        return own_key_read(srv)
+    except Unread:
+        return None
+
+
+def own_key_read(srv) -> str | None:
+    """The fingerprint of this server's own certificate's key, or None when it is public;
+    Unread when its link address can't be read for it."""
     config = srv.config
     if config.mode == "tls":
         path = config.tls_cert or config.tls_dir / "self-signed.crt"
@@ -104,9 +125,14 @@ def own_key(srv) -> str | None:
     now = clock.now()
     with _lock:
         hit = _cached.get(address)
-        if hit and (now - hit[0]).total_seconds() < CACHE_SECONDS:
-            return hit[1]
-    fp = _probe(address)
-    with _lock:
-        _cached[address] = (now, fp)
-    return fp
+    if hit is None or (now - hit[0]).total_seconds() >= CACHE_SECONDS:
+        try:
+            fp: str | Unread | None = _probe(srv.guard, address)
+        except Unread as e:
+            fp = e
+        hit = (now, fp)
+        with _lock:
+            _cached[address] = hit
+    if isinstance(hit[1], Unread):
+        raise Unread
+    return hit[1]

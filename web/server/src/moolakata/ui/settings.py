@@ -68,6 +68,8 @@ def _secrets():
 # The passwords a section saves with its keys: written, never read back (S14.4), each bound to
 # the host its section names, which clears it when it changes (S16.2, S16.7).
 SECRETS = {"smtpPassword": "smtpHost", "bitcoinPassword": "bitcoinNodeHost"}
+# The settings that name a host the egress guard allows (S13.5), with every bitcoin one.
+EGRESS = {"smtpHost", "linkAddress", "publicUrl"}
 
 
 @router.get("/settings", response_model=SettingsView)
@@ -217,7 +219,7 @@ def _settings_after(ctx) -> None:
     if changed:
         activity.record(s, "settings.changed", actor=c.id, for_admins=True,
                         detail={"fields": sorted(set(changed + cleared))})  # fmt: skip
-    if any(k == "smtpHost" or k.startswith("bitcoin") for k in changed):
+    if any(k in EGRESS or k.startswith("bitcoin") for k in changed):
         from .prices import apply_egress
 
         ctx.after("egress", lambda: apply_egress(srv))
