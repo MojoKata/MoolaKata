@@ -10,8 +10,10 @@
       spreads one contribution over five years of exclusions and is shown that way.
    3. **Withdrawals** are matched with **qualified expenses** (tuition and fees, room and
       board, books, a computer, K-12 tuition, apprenticeships, student-loan repayment), each
-      with its receipts (S9). Each year shows distributions (from Form 1099-Q) against the
-      qualified expenses, and the part not covered, whose earnings may be taxable (S8.10).
+      with its receipts (S9). Each year shows distributions (from Form 1099-Q, rollovers
+      included) against the qualified expenses and what was **rolled over** (moved to the
+      beneficiary's Roth IRA, or to another 529), and the part neither covers, whose earnings
+      may be taxable (S8.10). A rollover's limits are the preparer's to apply.
    4. **Rollover to a Roth IRA**: once the account has been open 15 years, it shows how much
       could still roll over to the beneficiary's Roth IRA under the lifetime limit (in the
       tax tables), excluding contributions of the last five years.

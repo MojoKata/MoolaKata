@@ -911,10 +911,10 @@ def _row(name: str, day, amount, five_year=False):
     return ContributionRow("t", day, D(amount), "owner", name, None, five_year)
 
 
-def _year(year: int, taken, expenses="0", not_covered="0"):
+def _year(year: int, taken, expenses="0", not_covered="0", rolled="0"):
     from moolakata.education import WithdrawalYear
 
-    return WithdrawalYear(year, D(taken), D(expenses), D(not_covered))
+    return WithdrawalYear(year, D(taken), D(expenses), D(not_covered), D(rolled))
 
 
 def test_education_lists_each_529_with_the_years_contributions_and_withdrawals(db, monkeypatch):
@@ -931,7 +931,7 @@ def test_education_lists_each_529_with_the_years_contributions_and_withdrawals(d
                 _row("Ann", d(2025, 12, 31), "1000"),
                 _row("Zed", d(2027, 1, 1), "1000"),
             ],
-            "years": [_year(2025, "9"), _year(2026, "800", "600", "200"), _year(2027, "8")],
+            "years": [_year(2025, "9"), _year(2026, "800", "600", "50", "150"), _year(2027, "8")],
         },
         "Spare 529": {"plan": _plan(None), "years": [_year(2025, "9")]},
         "No plan 529": {},
@@ -947,7 +947,8 @@ def test_education_lists_each_529_with_the_years_contributions_and_withdrawals(d
     kid = rows["Kid 529"]
     assert (kid.beneficiary, kid.stateDeduction) == ("Kid", D("500"))
     assert kid.contributions == [("Ann", D("70")), ("Grandma", D("150"))]
-    assert (kid.distributions, kid.expenses, kid.notCovered) == (D(800), D(600), D(200))
+    assert (kid.distributions, kid.expenses, kid.notCovered) == (D(800), D(600), D(50))
+    assert kid.rolledOver == D(150), "a rollover covers its part (S1.8.3)"
     spare = rows["Spare 529"]
     assert (spare.beneficiary, spare.stateDeduction, spare.contributions) == ("—", None, [])
     assert (spare.distributions, spare.expenses, spare.notCovered) == (0, 0, 0)

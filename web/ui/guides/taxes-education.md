@@ -12,7 +12,8 @@ out.
 ## 529 Plans
 
 Each 529's contributions by contributor, the state deduction the owner expects, the year's
-distributions (Form 1099-Q) against the qualified expenses, and the part not covered. The earnings
+distributions (Form 1099-Q) against the qualified expenses and what was rolled over to a Roth IRA
+or another 529, and the part not covered. The earnings
 in what isn't covered may be taxable, with a 10% additional tax; the preparer applies the rules
 with education credits.
 

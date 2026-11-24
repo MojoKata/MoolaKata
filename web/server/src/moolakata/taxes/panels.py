@@ -982,6 +982,7 @@ class EducationRow:
     distributions: Decimal
     expenses: Decimal
     notCovered: Decimal
+    rolledOver: Decimal = ZERO
 
 
 def education_panel(s: Session, book: TaxBook) -> list[EducationRow]:
@@ -1005,6 +1006,7 @@ def education_panel(s: Session, book: TaxBook) -> list[EducationRow]:
                 w.distributions if w else ZERO,
                 w.expenses if w else ZERO,
                 w.notCovered if w else ZERO,
+                w.rolledOver if w else ZERO,
             )
         )
     return out

@@ -1090,6 +1090,7 @@
  * @property {(import('../kit/dec.js').Dec | null)} stateDeduction
  * @property {import('../kit/dec.js').Dec} distributions
  * @property {import('../kit/dec.js').Dec} expenses
+ * @property {import('../kit/dec.js').Dec} rolledOver
  * @property {import('../kit/dec.js').Dec} notCovered
  */
 
@@ -4850,6 +4851,7 @@
  * @property {number} year
  * @property {import('../kit/dec.js').Dec} distributions
  * @property {import('../kit/dec.js').Dec} expenses
+ * @property {import('../kit/dec.js').Dec} rolledOver
  * @property {import('../kit/dec.js').Dec} notCovered
  */
 

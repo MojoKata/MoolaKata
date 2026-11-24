@@ -78,8 +78,8 @@ produces worksheets and exports. It never files, and says so (R1.16).
    non-deductible organisations are listed apart, as not deductible.
 10. **Education (529)** (S1.8): contributions per beneficiary and per contributor (with what
     the owner noted about the state deduction), distributions from Form 1099-Q against the
-    qualified expenses and their receipts, and the part not covered, whose earnings may be
-    taxable with a 10% additional tax. MoolaKata shows the figures. The preparer applies the
+    qualified expenses and their receipts and what was rolled over (S1.8.3), and the part not
+    covered, whose earnings may be taxable with a 10% additional tax. MoolaKata shows the figures. The preparer applies the
     rules, and the coordination with education credits.
 11. **Gifts** (S7.8.7): each person who received more than the annual exclusion in the
     year, from cash gifts and 529 contributions, with the five-year 529 elections still

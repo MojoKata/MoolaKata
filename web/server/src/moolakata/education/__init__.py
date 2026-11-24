@@ -175,14 +175,23 @@ def gift_years(s: Session, rows: list[ContributionRow]) -> list[GiftYear]:
 @dataclass
 class WithdrawalYear:
     year: int
-    distributions: Decimal  # taken out (Form 1099-Q)
+    distributions: Decimal  # taken out (Form 1099-Q), rollovers included
     expenses: Decimal  # qualified expenses
-    notCovered: Decimal  # distributions beyond the expenses: their earnings may be taxable
+    # Distributions beyond the expenses and the rollovers: their earnings may be taxable.
+    notCovered: Decimal
+    rolledOver: Decimal = ZERO  # to the beneficiary's Roth IRA or another 529
 
 
-def withdrawals(s: Session, account: Account) -> list[WithdrawalYear]:
-    taken: dict[int, Decimal] = defaultdict(lambda: ZERO)
-    for t in s.scalars(
+ROLLED_TO = ("roth-ira", "529")  # where a rollover goes, by the receiving account's type
+
+
+def _taken(s: Session, account: Account) -> list[tuple[Transaction, str | None]]:
+    """Every cash outflow of the 529, each with the type of the account it went to when it is
+    a matched transfer, read as the server: the reader of a 529 needn't see that account
+    (S7.1.1)."""
+    from ..budgets import other_halves
+
+    txns = s.scalars(
         select(Transaction).where(
             Transaction.accountId == account.id,
             Transaction.deleted == false(),
@@ -190,13 +199,28 @@ def withdrawals(s: Session, account: Account) -> list[WithdrawalYear]:
             Transaction.kind.not_in(NOT_MONEY_IN_OR_OUT),
             Transaction.instrumentId.is_(None),
         )
-    ):
+    ).all()
+    others = other_halves(s, [t.transferId for t in txns if t.transferId])
+    return [(t, others[t.transferId].type if t.transferId in others else None) for t in txns]
+
+
+def withdrawals(s: Session, account: Account) -> list[WithdrawalYear]:
+    """Each year's distributions (as Form 1099-Q reports them) against what covers them:
+    qualified expenses, and money rolled over to a Roth IRA or another 529 (S1.8.3, S8.10)."""
+    taken: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    rolled: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    for t, to in _taken(s, account):
         taken[t.date.year] += -t.amount
+        if to in ROLLED_TO:
+            rolled[t.date.year] += -t.amount
     spent: dict[int, Decimal] = defaultdict(lambda: ZERO)
     for e in expenses(s, account):
         spent[e.year] += e.amount
     years = sorted(set(taken) | set(spent), reverse=True)
-    return [WithdrawalYear(y, taken[y], spent[y], max(taken[y] - spent[y], ZERO)) for y in years]
+    return [
+        WithdrawalYear(y, taken[y], spent[y], max(taken[y] - spent[y] - rolled[y], ZERO), rolled[y])
+        for y in years
+    ]
 
 
 def expenses(s: Session, account: Account) -> list[QualifiedExpense]:
@@ -226,19 +250,7 @@ def rollover(
     today: dt.date,
 ) -> Rollover:
     limit = Decimal(str(taxtables.figures(s, today.year)["rothFrom529"]))
-    used = ZERO
-    for t in s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == account.id,
-            Transaction.deleted == false(),
-            Transaction.transferId.is_not(None),
-            Transaction.amount < 0,
-        )
-    ):
-        other = s.get(Transaction, t.transferId)
-        a = s.get(Account, other.accountId) if other is not None else None
-        if a is not None and a.type == "roth-ira":
-            used += -t.amount
+    used = sum((-t.amount for t, to in _taken(s, account) if to == "roth-ira"), ZERO)
     cutoff = _years(today, -ROTH_RECENT_YEARS)
     old = sum((r.amount for r in rows if r.date <= cutoff), ZERO)
     eligible = max(old - used, ZERO)

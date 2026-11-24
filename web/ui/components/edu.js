@@ -422,6 +422,7 @@ export function Withdrawals({ a }) {
                   <th>Year</th>
                   <th class="num">Distributions</th>
                   <th class="num">Qualified Expenses</th>
+                  <th class="num">Rolled Over</th>
                   <th class="num">Not Covered</th>
                 </tr>
               </thead>
@@ -435,6 +436,9 @@ export function Withdrawals({ a }) {
                     <td class="num">
                       <${Amt} v=${y.expenses} />
                     </td>
+                    <td class="num">${num(y.rolledOver)
+                      ? html`<${Amt} v=${y.rolledOver} />`
+                      : html`<span class="dim">—</span>`}</td>
                     <td class="num">${num(
                         y.notCovered,
                       )

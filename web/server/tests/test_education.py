@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import attach, change, detach, make, new_id, plan529, remove, saved
+from edits import attach, change, detach, make, new_id, plan529, remove, saved, share
 from test_accounts import add, new_account
 
 from moolakata import clock
@@ -154,6 +154,41 @@ def test_withdrawals_against_qualified_expenses(jane):
     assert e["documents"] == []
     assert remove(jane, "QExpn", e).status_code == 200
     assert jane.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["expenses"] == []
+
+
+def test_a_rollover_is_a_distribution_covered_by_its_own_column(server, jane):
+    """S1.8.3, S8.10: money moved to the beneficiary's Roth IRA or another 529 is in the
+    year's distributions, as Form 1099-Q has it, and covered as Rolled Over, not left
+    uncovered."""
+    acct, _, _ = plan(jane, opened="2010-05-01")
+    roth = new_account(jane, name="Lisa's Roth IRA", type="roth-ira")
+    sibling = new_account(jane, name="Sam's 529", type="529")
+    add(jane, acct["id"], "40000.00", "2012-01-02")
+    for to, amount, day in ((roth, "7000.00", "2026-03-02"), (sibling, "3000.00", "2026-04-01")):
+        out = add(jane, acct["id"], f"-{amount}", day, payee=to["name"])
+        inn = add(jane, to["id"], amount, day, payee="From the 529", kind="deposit")
+        assert inn["transferId"] == out["id"]
+    add(jane, acct["id"], "-5000.00", "2026-08-20", payee="Withdrawal")
+    r = make(jane, "QExpn", accountId=acct["id"], date="2026-08-15", kind="tuition", amount="4000")
+    assert r.status_code == 200, r.text
+    (y,) = jane.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["years"]
+    assert (y["distributions"], y["expenses"], y["rolledOver"], y["notCovered"]) == (
+        "15000.00",
+        "4000.00",
+        "10000.00",
+        "1000.00",
+    )
+    p = jane.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert p["used"] == "7000.00", "only the Roth IRA's counts against the lifetime limit"
+    # One who reads the 529 alone sees the same: the receiving accounts are read as the
+    # server, and never named (S7.1.1).
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    share(jane, "account", acct["id"], users={john_id: "read"})
+    assert john.get(f"/ui/api/accounts/{acct['id']}/withdrawals").json()["years"] == [y]
+    p = john.get(f"/ui/api/accounts/{acct['id']}/plan529").json()["rollover"]
+    assert p["used"] == "7000.00"
 
 
 def test_the_roth_rollover_after_fifteen_years(jane):

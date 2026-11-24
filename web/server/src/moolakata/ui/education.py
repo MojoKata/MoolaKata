@@ -452,8 +452,9 @@ class ExpenseOut(Model):
 
 class WithdrawalYearOut(Model):
     year: int
-    distributions: Money
+    distributions: Money  # Form 1099-Q's, rollovers included
     expenses: Money
+    rolledOver: Money  # to the beneficiary's Roth IRA or another 529 (S1.8.3)
     notCovered: Money
 
 

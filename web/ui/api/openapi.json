@@ -6384,6 +6384,14 @@
             "title": "Notcovered",
             "type": "number"
           },
+          "rolledOver": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Rolledover",
+            "type": "number"
+          },
           "stateDeduction": {
             "anyOf": [
               {
@@ -6407,6 +6415,7 @@
           "stateDeduction",
           "distributions",
           "expenses",
+          "rolledOver",
           "notCovered"
         ],
         "title": "EducationOut",
@@ -28392,6 +28401,14 @@
             "title": "Notcovered",
             "type": "number"
           },
+          "rolledOver": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Rolledover",
+            "type": "number"
+          },
           "year": {
             "title": "Year",
             "type": "integer"
@@ -28401,6 +28418,7 @@
           "year",
           "distributions",
           "expenses",
+          "rolledOver",
           "notCovered"
         ],
         "title": "WithdrawalYearOut",
