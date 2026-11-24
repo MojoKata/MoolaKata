@@ -61,7 +61,8 @@
          again under S13.7.2.
    7. **Active.** Each user has an **active** flag, which admins switch off and on. An inactive
       user cannot sign in, and cannot be added to a share, here or from a linked server; shares
-      they already hold give them nothing while they are inactive. Switching it off ends their
+      they already hold give them nothing while they are inactive. They are left out of what
+      offers people for something new, never out of a record that names them (R3.14). Switching it off ends their
       sessions at once and shows an *account is disabled* screen, from which they can ask to be
       reactivated (once a week), with their username and password, which count toward the
       lockout of S13.7.5.1 as a sign-in's do. What they shared stays shared: one it is
@@ -200,7 +201,9 @@
        changes whether the person is private.
     2. **People are the household's.** A new person is seen by every local user. Its creator
        may make it **private**, and then share it as any item (S10.3); a person who is a user
-       here is never made private, by anyone. A person is changed by
+       here is never made private, by anyone. A private person is left out of the lists and
+       choices of those it isn't shared with, never out of a record that names them, which
+       shows their name and no more (R3.14). A person is changed by
        that person once they are a user here, by its creator until then (and for a linked
        server's user, who never signs in here), and by an admin.
     3. **One person, once.** Adding a person whose name matches one already here, ignoring
