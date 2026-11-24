@@ -4058,6 +4058,14 @@
  */
 
 /**
+ * Who Share these accounts too shares accounts with: a group, or a person (S5.1.2).
+ * @typedef {Object} ShareToo
+ * @property {(string | null)} [groupId]
+ * @property {(string | null)} [userId]
+ * @property {Array<string>} accountIds
+ */
+
+/**
  * @typedef {Object} ShareView
  * @property {string} kind
  * @property {string} itemId
@@ -4066,6 +4074,7 @@
  * @property {Array<GroupGrant>} groups
  * @property {Array<LinkedPeople>} links
  * @property {Object<string, Array<string>>} hidden
+ * @property {Array<ShareToo>} shareToo
  * @property {Array<AccountName>} accounts
  */
 

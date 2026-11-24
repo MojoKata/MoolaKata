@@ -117,8 +117,9 @@ def share_prefix(kind: str) -> str:
 def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, too=False):
     """An item shared as its dialog's draft shares it (S10.4): for each user and group named,
     its grant made, changed or taken away (`none`); Include receipts per linked server; with
-    `too`, a portfolio's accounts its people can't see shared at Read in a second save, as the
-    dialog's Share these accounts too does. The last save's answer."""
+    `too`, a portfolio's accounts its people can't see shared at Read in a second save, each
+    with the group or person the portfolio is shared with, as the dialog's Share these
+    accounts too does. The last save's answer."""
     v = c.get(f"/ui/api/shares/{kind}/{item_id}").json()
     linked = {u["id"]: link["linkId"] for link in v["links"] for u in link["users"]}
     people = v["users"] + [x for g in v["links"] for x in g["users"]]
@@ -167,10 +168,11 @@ def share(c, kind: str, item_id: str, users=None, groups=None, receipts=None, to
                 "op": "create",
                 "entity": share_prefix("account"),
                 "id": new_id(share_prefix("account")),
-                "fields": {"targetId": aid, "userId": uid, "allow": "read"},
+                "fields": {"targetId": aid, key: to[key], "allow": "read"},
             }
-            for uid, aids in v["hidden"].items()
-            for aid in aids
+            for to in v["shareToo"]
+            for key in ("groupId" if to["groupId"] else "userId",)
+            for aid in to["accountIds"]
             if aid in yours
         ]
         if ops:

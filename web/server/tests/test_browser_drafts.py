@@ -1315,6 +1315,33 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
     page.close()
 
 
+def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_with(
+    browser, household
+):
+    # S5.1.2, S10.5: a portfolio shared with Household; the button shares its account with
+    # Household, not with each of its members.
+    h = household
+    acct = made(make(h.c, "Acct", name="Group Only", type="brokerage"))
+    p = made(make(h.c, "Portf", name="For the Group", accountIds=[acct["id"]]))
+    page, problems = signed_in(browser, h, f"/ui/portfolios/{p['id']}", 'button:has-text("Share")')
+    page.click('button:has-text("Share")')
+    wait(page, '[aria-label="Access for Household"]', problems)
+    page.click('[aria-label="Access for Household"] button:has-text("Read")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    page.click('button:has-text("Share")')
+    wait(page, 'button:has-text("Share These Accounts Too")', problems)
+    assert "John Doe can't see Group Only" in page.locator(".dialog .notice").inner_text()
+    page.click('button:has-text("Share These Accounts Too")')
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    v = h.c.get(f"/ui/api/shares/account/{acct['id']}").json()
+    assert [g["name"] for g in v["groups"] if g["allow"] == "read"] == ["Household"]
+    assert [u["displayName"] for u in v["users"] if u["allow"] != "none"] == []
+    assert problems == []
+    page.close()
+
+
 def test_tags_typed_are_made_with_the_save_and_a_rename_reaches_them(browser, household):
     h = household
     path = f"/ui/accounts/{h.checking['id']}/transactions"

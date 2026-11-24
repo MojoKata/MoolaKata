@@ -7,8 +7,10 @@
       portfolio's value is the value of what they can see. This holds across a link too.
    2. **Sharing a portfolio** whose accounts are not all shared with the people chosen: the
       Share dialog names the accounts each of them can't see and offers **Share these
-      accounts too** (at read, and only for accounts the owner may share). Declining keeps
-      them hidden from those people.
+      accounts too** (at read, and only for accounts the owner may share), each with the
+      group or person the portfolio is shared with, so a group's members hold the accounts
+      while they are in it (S10.5); a person gets a share of their own only for what no group
+      of theirs gets. Declining keeps them hidden from those people.
    3. A portfolio never includes an account from a linked server: linked data is shown only
       in its own window (S12.10).
 2. **Charts each portfolio has:**

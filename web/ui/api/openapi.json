@@ -23969,6 +23969,46 @@
         "title": "Share",
         "type": "object"
       },
+      "ShareToo": {
+        "additionalProperties": false,
+        "description": "Who Share these accounts too shares accounts with: a group, or a person (S5.1.2).",
+        "properties": {
+          "accountIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accountids",
+            "type": "array"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Userid"
+          }
+        },
+        "required": [
+          "accountIds"
+        ],
+        "title": "ShareToo",
+        "type": "object"
+      },
       "ShareView": {
         "additionalProperties": false,
         "properties": {
@@ -24015,6 +24055,13 @@
             "title": "Links",
             "type": "array"
           },
+          "shareToo": {
+            "items": {
+              "$ref": "#/components/schemas/ShareToo"
+            },
+            "title": "Sharetoo",
+            "type": "array"
+          },
           "users": {
             "items": {
               "$ref": "#/components/schemas/UserGrant"
@@ -24031,6 +24078,7 @@
           "groups",
           "links",
           "hidden",
+          "shareToo",
           "accounts"
         ],
         "title": "ShareView",
