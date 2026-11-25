@@ -215,6 +215,79 @@ def test_assumptions_are_each_users_and_checked(jane):
     assert got["id"] is None and got["figures"]["classes"]["usStocks"]["return"] == 7.0
 
 
+US = "classes.usStocks"
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "words"),
+    [
+        (f"{US}.return", None, "Between −50% and 100%."),
+        (f"{US}.return", "7", "Between −50% and 100%."),
+        (f"{US}.return", True, "Between −50% and 100%."),
+        (f"{US}.return", -51, "Between −50% and 100%."),
+        (f"{US}.return", float("nan"), "Between −50% and 100%."),
+        (f"{US}.volatility", 201, "Between 0% and 200%."),
+        (f"{US}.volatility", False, "Between 0% and 200%."),
+        ("inflation", -1, "Between 0% and 20%."),
+        ("inflation", True, "Between 0% and 20%."),
+        ("educationInflation", "5", "Between 0% and 20%."),
+        ("bitcoinModel", "moon", "Choose a model."),
+    ],
+)
+def test_each_assumption_is_refused_at_its_field(jane, path, value, words):
+    """S6.3, R3.11: a figure that isn't a number in its range, a yes or no among them, is
+    refused at its field, never read as a figure."""
+    import copy
+
+    figures = copy.deepcopy(jane.get("/ui/api/assumptions").json()["figures"])
+    *group, key = path.split(".")
+    at = figures
+    for part in group:
+        at = at[part]
+    at[key] = value
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    r = jane.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        (f"figures.{path}", "assumption-invalid", words)
+    ]
+
+
+def test_ones_own_assumptions_are_made_once_and_only_by_them(server, jane):
+    """S6.3: a user's own figures are one record: a second is refused, and another user's is
+    not found to them."""
+    figures = jane.get("/ui/api/assumptions").json()["figures"]
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    mine = saved(jane.post("/ui/api/save", json={"ops": [op]}))
+    again = {**op, "id": new_id("Asmpt")}
+    r = jane.post("/ui/api/save", json={"ops": [again]})
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "assumptions-exist"
+    make_user(server, "john")
+    r = change(sign_in(server, "john"), "Asmpt", mine, figures=figures)
+    assert r.status_code == 404
+    r = change(jane, "Asmpt", {**mine, "id": new_id("Asmpt")}, figures=figures)
+    assert r.status_code == 404
+    changed = saved(change(jane, "Asmpt", mine, figures={**figures, "inflation": 3.5}))
+    assert changed["figures"]["inflation"] == 3.5
+    assert jane.get("/ui/api/assumptions").json()["figures"]["inflation"] == 3.5
+
+
+def test_assumptions_saved_in_part_keep_the_shipped_rest(server, jane):
+    """What is kept is laid over the shipped figures: a class or a figure not kept is the
+    shipped one; one MoolaKata has no row for is passed over."""
+    from moolakata.projections import assumptions
+
+    uid = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.tx(unscoped="test: assumptions kept in part") as s:
+        assumptions.save(s, uid, {"classes": {"bonds": {"return": 5.5}}})
+        assumptions.save(s, uid, {"classes": {"bonds": {"return": 4.5}, "gold": {"return": 9}},
+                                  "inflation": 3.0})  # fmt: skip
+        got = assumptions.load(s, uid)
+    assert got["classes"]["bonds"] == {"return": 4.5, "volatility": 6.0}
+    assert "gold" not in got["classes"]
+    assert (got["inflation"], got["educationInflation"]) == (3.0, 5.0)
+
+
 def test_bitcoin_models_compare(server, jane):
     from test_account_world import _closes_installed
     from test_projection_edges import _bitcoin
