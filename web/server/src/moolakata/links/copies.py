@@ -198,9 +198,3 @@ def size(srv, link_id: str) -> tuple[int, int]:
         sum(1 for _ in (path / "receipts").glob("*.mkr")) if (path / "receipts").exists() else 0
     )
     return total, receipts
-
-
-def live_links(s) -> list[Link]:
-    return list(
-        s.scalars(select(Link).where(Link.deleted == false(), Link.state.in_(("active", "paused"))))
-    )

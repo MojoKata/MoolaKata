@@ -191,9 +191,7 @@ def _sent(s, link: Link) -> list[Incoming]:
             try:
                 obj = sharing.item(s, g.kind, g.targetId)
             except Problem:
-                continue
-            if getattr(obj, "deleted", False):
-                continue
+                continue  # gone, deleted among them: not sent, so not listed (S11.7)
             owner_id = getattr(obj, "ownerId", None)
             owner = s.get(User, owner_id) if owner_id else None
             e = out[(g.kind, g.targetId)] = Incoming(
