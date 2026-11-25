@@ -10,6 +10,7 @@ from edits import change, make, remove, saved
 from sqlalchemy import select
 from test_users import kinds, mails, set_public_url
 
+from moolakata.auth import passwords
 from moolakata.auth import users as accounts
 from moolakata.store.entities.users import User, UserGroup
 
@@ -458,3 +459,50 @@ def test_a_user_or_group_that_isnt_here_is_not_found(admin_client):
     r = change(admin_client, "Group", {"id": "Group_00000000000000000000000000", "version": 1},
                name="Gone")  # fmt: skip
     assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+
+
+# ---------- sign-up's approval (S10.1.4) ----------
+
+
+def _waiting(server, username: str, email: str) -> str:
+    """A sign-up request confirmed and waiting for the admins (S10.1.4.1)."""
+    from moolakata import ids
+    from moolakata.store.entities.users import SignupRequest
+
+    with server.db.tx(unscoped="test") as s:
+        req = SignupRequest(
+            id=ids.new_id("Sgnup"),
+            displayName=username.title(),
+            username=username,
+            email=email,
+            passwordHash=passwords.hash_password(PW),
+            sex="female",
+            status="waiting",
+            confirmedAt=dt.datetime.now(dt.UTC),
+            confirmTokenHash=f"x-{username}",
+            confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+        )
+        s.add(req)
+        return req.id
+
+
+def test_an_approval_after_the_address_joined_otherwise_is_refused(admin_client, server):
+    rid = _waiting(server, "erin", "erin@shaw.family")
+    r = admin_client.post(f"/ui/api/signup-requests/{rid}/approve", json={"groupIds": ["Group_0"]})
+    refused(r, 422, "groupIds", "group-unknown", "Choose existing groups.")
+    make_user(server, "erin2", email="erin@shaw.family")
+    r = admin_client.post(f"/ui/api/signup-requests/{rid}/approve", json={"groupIds": []})
+    refused(r, 409, None, "email-taken", "erin@shaw.family already has an account.")
+
+
+def test_a_request_approved_into_the_admins_gets_each_alert_by_email(admin_client, server):
+    """S12.11.5, as for an admin invited."""
+    set_public_url(server)
+    with server.db.read(unscoped="test") as s:
+        admins = accounts.admins_group(s).id
+    rid = _waiting(server, "fay", "fay@shaw.family")
+    r = admin_client.post(f"/ui/api/signup-requests/{rid}/approve", json={"groupIds": [admins]})
+    assert r.status_code == 200, r.text
+    with server.db.read(unscoped="test") as s:
+        u = s.scalars(select(User).where(User.username == "fay")).one()
+        assert u.alertEmails == "each" and accounts.group_ids(s, u.id) == [admins]
