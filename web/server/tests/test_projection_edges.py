@@ -371,6 +371,44 @@ def test_no_figure_is_nan_or_infinite(key):
             taxtables.check(key, value)
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "words"),
+    [
+        ("btcArk2030", [500_000, 1_200_000], "3 numbers"),
+        ("btcArk2030", [], "numbers separated by commas"),
+        ("btcArk2030", "1,2,3", "numbers separated by commas"),
+        ("collectablesRate", 101, "a percentage up to 100"),
+        ("iraLimit", -1, "a number, zero or more"),
+        ("iraLimit", True, "a number, zero or more"),
+        ("noSuchFigure", 1, "there is no such figure"),
+    ],
+)
+def test_a_correction_is_of_its_figures_kind(key, value, words):
+    """S16.11, R3.11: a correction is a figure's kind: so many numbers for a model, a
+    percentage up to 100, an amount of zero or more; and only of a figure MoolaKata ships."""
+    from moolakata.projections import taxtables
+
+    with pytest.raises(taxtables.Invalid) as e:
+        taxtables.check(key, value)
+    assert str(e.value) == words
+    assert taxtables.check("collectablesRate", 100) == 100
+
+
+def test_a_correction_of_a_figure_no_longer_shipped_is_passed_over(server):
+    """A year's figures read only the corrections of figures this release ships: one kept of
+    a figure since dropped is left out, never sent on as a figure."""
+    from moolakata import ids
+    from moolakata.projections import taxtables
+    from moolakata.store.entities.projections import TaxFigure
+
+    with server.db.tx(unscoped="test: a correction of a dropped figure") as s:
+        s.add(TaxFigure(id=ids.new_id("TaxFg"), year=2026, key="oldFigure", value="5"))
+        s.add(TaxFigure(id=ids.new_id("TaxFg"), year=2026, key="iraLimit", value="7600"))
+        s.flush()
+        got = taxtables.figures(s, 2026)
+    assert "oldFigure" not in got and got["iraLimit"] == 7600
+
+
 def test_a_bad_due_date_is_refused_and_the_books_still_open(server, admin_client):
     """A due date no calendar has is refused at its field, so the year's books still find
     their due date."""
