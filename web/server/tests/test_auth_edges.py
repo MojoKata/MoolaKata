@@ -524,3 +524,41 @@ def test_a_tokens_scope_is_one_of_two_and_a_token_is_never_changed(server):
         "token-fixed",
         "A token isn't changed: revoke it and make another.",
     )
+
+
+# ---------- Profile's refusals (S12.2.16) ----------
+
+
+@pytest.mark.parametrize(
+    ("fields", "field", "code", "message"),
+    [
+        ({"displayName": "x" * 81}, "displayName", "name-invalid",
+         "Enter a name of up to 80 characters."),
+        ({"sex": "other"}, "sex", "sex-invalid", "Female or male."),
+        ({"birthMonth": 4, "birthDay": None}, "birthDay", "birthday-incomplete",
+         "A month and a day."),
+        ({"birthMonth": 13, "birthDay": 1}, "birthDay", "day-invalid", "A day of the year."),
+        ({"birthMonth": 2, "birthDay": 0}, "birthDay", "day-invalid", "A day of the year."),
+        ({"alertEmails": "hourly"}, "alertEmails", "choice-invalid",
+         "Each alert, a daily summary or none."),
+        ({"bitcoinUnit": "mbtc"}, "bitcoinUnit", "choice-invalid", "BTC or sats."),
+        ({"avatar": "data:image/png;base64," + "A" * 300_000}, "avatar", "avatar-invalid",
+         "Use a PNG, JPEG or WebP image under 192 KB."),
+    ],
+)  # fmt: skip
+def test_profile_refuses_each_field_at_its_own(server, fields, field, code, message):
+    make_user(server, "una")
+    c = sign_in(server, "una")
+    refused(change(c, "User", c.get("/ui/api/profile").json(), **fields), 422, field, code, message)
+
+
+def test_profile_keeps_what_it_takes(server):
+    make_user(server, "vic", sex="female")
+    c = sign_in(server, "vic")
+    avatar = "data:image/png;base64,iVBORw0KGgo="
+    fields = {"sex": "male", "birthMonth": 4, "birthDay": 12, "alertEmails": "none",
+              "bitcoinUnit": "sats", "avatar": avatar}  # fmt: skip
+    out = saved(change(c, "User", c.get("/ui/api/profile").json(), **fields))
+    assert {k: out[k] for k in fields} == fields
+    out = saved(change(c, "User", out, avatar=None))
+    assert out["avatar"] is None

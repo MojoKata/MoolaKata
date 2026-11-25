@@ -430,6 +430,21 @@ def test_a_shared_projection_shows_on_a_dashboard_when_its_receiver_asks(server,
     me = jane.get("/ui/api/profile").json()
     r = change(jane, "User", me, shownProjectionIds=[p["id"]])
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "owner-sees-it"
+    # Hidden again, then shown again: the one row, taken up again.
+    me = saved(change(john, "User", john.get("/ui/api/profile").json(), shownProjectionIds=[]))
+    assert me["shownProjectionIds"] == []
+    assert john.get(f"/ui/api/projections/{p['id']}").json()["shown"] is False
+    me = saved(change(john, "User", me, shownProjectionIds=[p["id"]]))
+    assert me["shownProjectionIds"] == [p["id"]]
+    # One not shared with them is refused at its field.
+    r = change(john, "User", me, shownProjectionIds=["Prjct_00000000000000000000000000"])
+    assert r.status_code == 422
+    (e,) = r.json()["errors"]
+    assert (e["field"], e["code"], e["message"]) == (
+        "shownProjectionIds",
+        "projection-unknown",
+        "A projection shared with you.",
+    )
 
 
 # ---------- the saving that reaches a target (S6.4.2.4)
