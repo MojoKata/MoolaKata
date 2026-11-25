@@ -17,6 +17,7 @@ import {
   Field,
   FormError,
   Input,
+  ReadValue,
   Seg,
   Select,
   SpinInput,
@@ -595,6 +596,16 @@ function BuiltOn({ value, onChange, error }) {
     ...(/** @type {any[]} */ (accts.data) || []).map((a) => [`accounts:${a.id}`, a.name]),
     ['typed', 'A typed amount (what if)'],
   ]);
+  // Shared none of the accounts it is built on, a writer can't choose among them: shown off,
+  // saying why, never as the first option; a save keeps them as they are (S6.1).
+  if (value.kind === 'accounts' && !value.ids?.length) {
+    return html`
+      <${Field} label="Built on" id="built-on" error=${error}>
+        <${ReadValue} text="Not shared with you" select
+          data-tip="None of the accounts it is built on is shared with you: it stays built on them." />
+        </${Field}>
+    `;
+  }
   const current = value.kind === 'portfolio'
     ? `portfolio:${value.id}`
     : value.kind === 'accounts'

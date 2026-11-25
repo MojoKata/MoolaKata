@@ -64,6 +64,9 @@ export function ReadValue({ text, href, external, select, rows, id, style, ...re
     'aria-labelledby': rest['aria-label'] || !id ? undefined : 'lbl-' + id,
     'aria-describedby': rest['aria-describedby'],
     'data-help': rest['data-help'],
+    // Why it can't be changed, where it is a permission's (S12.19.1).
+    'data-tip': rest['data-tip'],
+    'aria-description': rest['data-tip'],
   };
   if (href && !blank) {
     return html`<span class=${cls} style=${style}><a id=${id} href=${href} ...${named}

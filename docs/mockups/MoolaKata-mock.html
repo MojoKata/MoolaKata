@@ -1190,7 +1190,7 @@ const act = (label, why, cls = 'btn sm', attrs = '') => why
 const rowTool = (name, attrs, read = false, label = '') => { const l = label || `${read ? 'View' : 'Edit'} ${name}`; return `<button type="button" class="icon-btn row-tool" ${attrs} aria-label="${esc(l)}" title="${esc(l)}">${icon(read ? 'eye' : 'pencil')}</button>`; };
 const toolCell = (name, attrs, read = false, label = '') => `<td class="tool">${rowTool(name, attrs, read, label)}</td>`;
 // A value read (S12.18.6): the control's box, unframed; a link where it leads somewhere.
-const readVal = (text, o = {}) => `<span class="in read${o.select ? ' select' : ''}${o.rows ? ' multi' : ''}${!text ? ' blank' : ''}" ${o.href ? '' : 'role="textbox" aria-readonly="true" tabindex="0"'}>${o.href && text ? `<a href="${o.href}">${esc(text)}</a>` : esc(text || '—')}</span>`;
+const readVal = (text, o = {}) => `<span class="in read${o.select ? ' select' : ''}${o.rows ? ' multi' : ''}${!text ? ' blank' : ''}" ${o.href ? '' : 'role="textbox" aria-readonly="true" tabindex="0"'}${o.tip ? ` data-tip="${esc(o.tip)}"` : ''}>${o.href && text ? `<a href="${o.href}">${esc(text)}</a>` : esc(text || '—')}</span>`;
 const readSw = (on) => `<span class="switch read${on ? ' on' : ''}" role="switch" aria-readonly="true" aria-checked="${on}" tabindex="0">${icon(on ? 'check' : 'minus')}</span>`;
 // Something needing attention (S12.19.4): one line, its actions after it.
 const attention = (text, actions = '', tone = 'warn', ic = 'info') => `<div class="notice attention ${tone}" role="status">${icon(ic)}<span class="grow">${text}</span>${actions ? `<span class="attention-actions">${actions}</span>` : ''}</div>`;
@@ -1777,7 +1777,15 @@ SCREENS.projections = (id) => {
       ${x.leftOut ? `<p class="small dim" data-help="left-out">Left out: ${x.leftOut.map(([n, v]) => `${esc(n)} ${money(v, { cents: false })}`).join('; ')}</p>` : ''}</div>
     <div class="grid">
       <div class="card kpi"><div class="label">Chance the Money Lasts to 95</div><div class="value ${success > 90 ? 'up' : ''}">${success}%</div><div class="delta dim">median at retirement ${money(p50[Math.max(0, retire)], { cents: false })}</div></div>
-      ${x.sharedBy ? `<div class="card"><h3>Inputs</h3>
+      ${x.sharedBy && state.sharedWrite ? `<div class="card"><h3>Inputs</h3>
+        ${field('Built on', readVal('Not shared with you', { select: true, tip: 'None of the accounts it is built on is shared with you: it stays built on them.' }))}
+        ${field('Retirement age', inp(String(x.age), '', 'spin', '30-90'), 'John, born 1977')}
+        ${field('Runs to age', withReset(inp('95', '', 'count'), '95', '95'))}
+        <div class="row">${field('Contribution per year', withMin(inp(String(contrib), '', 'money'), '0.00', '$0.00'))}${field('Grows yearly by', inp('3%'))}</div>
+        ${field('Withdrawal', sel(['The 4% rule', 'A fixed amount, rising with inflation', 'A percentage of the balance'], 'The 4% rule'))}
+        ${field('Other income', inp('Social Security: John from 67, $2,400/mo'))}
+        ${field('Fees a year (%)', withWords(inp('0.1', '', 'quantity'), [['min', '0', 'Min: 0%'], ['default', '0.1', 'Use the default: 0.1%']]))}
+        <button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div></div>` : x.sharedBy ? `<div class="card"><h3>Inputs</h3>
         ${field('Built on', readVal('Not shared with you', { select: true }))}
         ${field('Retirement age', readVal(String(x.age)), 'John, born 1977')}
         ${field('Runs to age', readVal('95'))}
@@ -3281,7 +3289,7 @@ const GUIDES = {
     <h2>Education</h2><p>An education projection is worked out on its 529’s Goal tab, where its inputs live.</p>
     <h2 id="h-projected-value">Projected Value</h2><p>A model, not a forecast: 1,000 runs, contributions stopping and withdrawals starting at each retirement. Under the chart, what it is worked out from: the value it starts from and its mix of asset classes; each class’s return and volatility, from its owner’s assumptions in Profile, drawn log-normal, each class on its own; inflation; and the fees taken from the balance each year. Shared a projection but not every account it is built on, you see the value it starts from, but not their mix: <i>its mix: not shared with you</i>. Where a bitcoin model is chosen, bitcoin follows it, a model others publish; other coins keep the crypto assumption. With no bitcoin price on the server yet, the model isn’t used and bitcoin grows by the crypto assumption. Its runs are seeded, so the same inputs give the same figures. A savings target shows its chance of reaching the target by the date, and what a month would reach it with a 90% chance.</p>
     <h2>Show on my Dashboard</h2><p>For a plan someone shares with you. Off by default, so other people’s plans don’t fill your Dashboard.</p>
-    <h2 id="h-built-on">Built on</h2><p>A portfolio or chosen accounts, read at their current values each time, or a typed amount for a what-if.</p>
+    <h2 id="h-built-on">Built on</h2><p>A portfolio or chosen accounts, read at their current values each time, or a typed amount for a what-if. In a projection shared with you to change, you choose among the accounts shared with you, and the others stay; shared none of them, it reads <b>Not shared with you</b>, and it stays built on them.</p>
     <h2 id="h-left-out">Left out</h2><p>What a projection doesn’t grow, named under its chart with its value today: a loan, a home, a car or another item, and options. It grows cash, securities and precious metals, the money that can be drawn on.</p>
     <h2 id="h-who">Who</h2><p>One person, or a couple: each with their own birth year, retirement age and Social Security.</p>
     <h2 id="h-retirement-age">Retirement age</h2><p>Contributions stop and withdrawals start.</p>
@@ -3835,6 +3843,7 @@ const MOCK_STATES = [
   ['tls-own', 'The listener on its own certificate (Settings › Network)', 'Settings', () => !!state.tlsOwn, (v) => { state.tlsOwn = v; }],
   ['no-btc-price', 'No bitcoin price yet (no price source): models unused', 'Projections', () => !!state.noBtcPrice, (v) => { state.noBtcPrice = v; }],
   ['no-saving', 'A target no saving reaches (savings and education answers)', 'Projections', () => !!state.noSaving, (v) => { state.noSaving = v; }],
+  ['shared-write', 'A projection shared with you to change, none of its accounts shared (John retires at 67)', 'Projections', () => !!state.sharedWrite, (v) => { state.sharedWrite = v; }],
   ['not-priced', 'A strategy not priced (a takeover’s shares)', 'Positions', () => !!state.notPriced, (v) => { state.notPriced = v; }],
   ['reencrypt', 'A re-encryption waits for the restart', 'Settings', () => !!state.reencryptScheduled, (v) => { state.reencryptScheduled = v; }],
   ['restored', 'After a restore', 'Settings', () => !!state.restored, (v) => { state.restored = v; }],
