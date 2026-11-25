@@ -167,6 +167,8 @@
       queues every receipt uploaded while it was off, but those deleted or whose file was
       pruned; a new number of jobs starts more, or lets the extra ones go once the receipt in
       hand is read.
-   8. **Not in this version**: line items, handwriting, multi-receipt photos, currencies
-      other than USD, and non-Latin scripts. A receipt that the parser can't
-      make sense of still has its searchable text.
+   8. **Not read**: line items ([#628](https://github.com/MojoKata/MoolaKata/issues/628));
+      handwriting, several receipts in one photo and fields from receipts in other languages
+      ([NO#629](https://github.com/MojoKata/MoolaKata/issues/629)); currencies other than USD
+      are out of scope (R1.23). A receipt that the parser can't make sense of still has its
+      searchable text.
