@@ -425,6 +425,89 @@ def test_a_bad_due_date_is_refused_and_the_books_still_open(server, admin_client
         assert books.federal_due(s, 2026).month == 4
 
 
+@pytest.mark.parametrize(
+    ("cls", "symbol", "name", "grows"),
+    [
+        ("cash", "SWVXX", "Schwab Value Advantage", "cash"),
+        ("money-market", "VMFXX", "Federal Money Market", "cash"),
+        ("bond", "T 4 30", "Treasury note", "bonds"),
+        ("crypto", "ETH", "Ether", "crypto"),
+        ("metal", "GLD", "Gold", "metals"),
+        ("option", "AAPL 261218C200", "AAPL call", None),
+        ("etf", "VNQ", "Vanguard Real Estate", "realEstate"),
+        ("etf", "BND", "Total Bond Market", "bonds"),
+        ("etf", "VXUS", "Total International", "intlStocks"),
+        ("stock", "AAPL", "Apple", "usStocks"),
+    ],
+)
+def test_a_holding_grows_by_its_class(cls, symbol, name, grows):
+    """S6.4.2.2: cash and money-market funds are cash, bonds and bond funds bonds, crypto
+    crypto, metals metals; an option isn't grown; other funds and shares are US stocks unless
+    their name says international or real estate."""
+    from moolakata.projections import asset_class
+    from moolakata.store.entities.accounts import Instrument
+
+    inst = Instrument(id="Instr_test", symbol=symbol, name=name, instrumentClass=cls)
+    assert asset_class(inst) == grows
+
+
+def test_tracking_follows_only_what_a_projection_grows(server, jane):
+    """S6.4.2.2, S6.7.3: tracking counts what the start counted: cash, and a metal item at its
+    value; a loan isn't drawn on, so it is left out of both."""
+    from test_accounts import add, new_account
+    from test_assets import item
+
+    cash = new_account(jane, name="Savings", type="savings")
+    add(jane, cash["id"], "1000.00", "2026-10-01")
+    metals = new_account(jane, name="Metals", type="precious-metals")
+    item(jane, metals["id"], name="Silver bar", valuation="spot", metal="silver",
+         unitWeight="100", weightUnit="ozt", purity=".999", costBasis="2800")  # fmt: skip
+    loan = new_account(jane, name="Car loan", type="auto-loan")
+    ids_ = [cash["id"], metals["id"], loan["id"]]
+    p = made(make(jane, "Prjct", name="House", goal="savings",
+                  builtOn={"kind": "accounts", "ids": ids_},
+                  inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
+    assert p["result"]["start"] == Decimal("3800.00")
+    assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    t = jane.get(f"/ui/api/projections/{p['id']}").json()["tracking"]
+    assert t["points"][-1][1] == Decimal("3800.00") and t["status"] == "on track"
+
+
+def test_tracking_with_the_account_gone_has_nothing_to_draw(server, jane):
+    """S6.7.3: the one account it is built on removed, it starts from nothing and tracking has
+    no balance to draw."""
+    from edits import remove
+    from test_accounts import add, new_account
+
+    cash = new_account(jane, name="Savings", type="savings")
+    add(jane, cash["id"], "1000.00", "2026-10-01")
+    p = made(make(jane, "Prjct", name="House", goal="savings",
+                  builtOn={"kind": "accounts", "ids": [cash["id"]]},
+                  inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
+    assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    acct = jane.get(f"/ui/api/accounts/{cash['id']}").json()
+    r = remove(jane, "Acct", acct, confirm=True)
+    assert r.status_code == 200, r.text
+    got = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert (got["builtOnLabel"], got["result"]["start"]) == ("no accounts", 0)
+    assert (got["tracking"]["points"], got["tracking"]["band"]) == ([], [])
+
+
+def test_one_active_education_plan_per_beneficiary(jane):
+    """S6.7.1: an education goal's subject is its beneficiary: making a second for the same
+    person active turns off the first, and one for another person stays."""
+    me = {"kind": "person", "id": jane.get("/ui/api/profile").json()["personId"]}
+    gift = made(make(jane, "GfPln", name="Lisa Doe", sex="female", birthYear=2018))
+    lisa = {"kind": "person", "id": gift["personId"]}
+    goal = {"name": "College", "goal": "education", "builtOn": TYPED}
+    a = made(make(jane, "Prjct", **goal, inputs={"beneficiary": me, **SPENT}))
+    b = made(make(jane, "Prjct", **goal, inputs={"beneficiary": me, **SPENT}))
+    other = made(make(jane, "Prjct", **goal, inputs={"beneficiary": lisa, **SPENT}))
+    for p in (a, other):
+        assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    assert _replaces(jane, b) == [{"id": a["id"], "name": "College", "accounts": []}]
+
+
 def test_an_education_goal_is_for_a_person_never_a_user(server, jane):
     """S6.2.2, S1.8.1, S10.10: a beneficiary is a person the user can see; a user's id, their
     own or anyone's (a private person's, a linked server's), is refused at its field."""
