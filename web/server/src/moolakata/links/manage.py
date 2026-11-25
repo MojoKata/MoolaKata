@@ -598,7 +598,9 @@ def exchange(srv, link_id: str) -> None:
             raise
         except Exception as e:
             log.exception("exchanging with link %s failed", link_id)
-            why = f"the exchange failed here: {type(e).__name__}: {e}"[:500]
+            # Its words may quote what the peer sent, so only as `shown` keeps them (S13.7.9).
+            said = client.shown(str(e), "")
+            why = f"the exchange failed here: {type(e).__name__}" + (f": {said}" if said else "")
             refused(srv, link_id, why)
             raise LinkError("refused", why) from e
 

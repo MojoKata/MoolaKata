@@ -1681,6 +1681,70 @@ def test_a_peer_whose_change_is_refused_shows_refusing_on_either_side(admins, mo
     assert links_of(ca)["links"][0]["refusal"] == "change 4 fails its signature check"
 
 
+def test_a_value_the_peer_sent_reaches_the_refusing_alert_only_as_shown(server):
+    """S11.7, S13.7.9: a value the peer chose, quoted in this server's reason for refusing a
+    change it delivered, reaches the *refusing* alert with its tags stripped, as one line of
+    at most 200 characters, else not at all."""
+    from moolakata.links import changes, manage
+
+    peer = keys.raw_public(signing.Ed25519PrivateKey.generate().public_key())
+    link_id = link(server, "https://1.test", peer)
+    for seq, said in (("<b>4</b>", "4"), ("9" * 201, "(not shown)")):
+        why = f"change {said} fails its signature check"
+        with server.db.read(unscoped="test") as s:
+            row = s.get(Link, link_id)
+        with pytest.raises(changes.ChangeError, match=r"^change"):
+            manage.answer_deliver(server, row, {"change": {"seq": seq, "removed": []}})
+        with server.db.read(unscoped="test") as s:
+            assert s.get(Link, link_id).refusal == why
+        alerts.evaluate(server)
+        with server.db.read(unscoped="test") as s:
+            titles = {x.title for x in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+        assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_an_exchanges_failure_reaches_the_refusing_alert_only_as_shown(server, monkeypatch):
+    # S13.7.9: an exchange failing here on something unexpected names it, its words only as
+    # one line of at most 200 characters with tags stripped, since they may quote the peer.
+    from moolakata.links import manage
+
+    link_id = link(server, "https://1.test", bytes([1]) * 32)
+    for said, why in (
+        ("bad literal: '<b>x</b>'", "the exchange failed here: ValueError: bad literal: 'x'"),
+        ("x" * 201, "the exchange failed here: ValueError"),
+    ):
+
+        def broken(srv, link_id, said=said):
+            raise ValueError(said)
+
+        monkeypatch.setattr(manage, "_exchange", broken)
+        with pytest.raises(client.LinkError) as e:
+            manage.exchange(server, link_id)
+        assert e.value.message == why
+        alerts.evaluate(server)
+        with server.db.read(unscoped="test") as s:
+            titles = {x.title for x in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+        assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_a_receipt_that_came_unsigned_is_named_only_as_shown(server, monkeypatch):
+    # S13.7.9: a receipt's id is the peer's, so the reason it wasn't taken quotes it only with
+    # its tags stripped, as one line of at most 200 characters.
+    from moolakata.links import client as lclient
+    from moolakata.links import receive
+
+    link_id = link(server, "https://1.test", bytes([1]) * 32)
+    with server.db.tx(unscoped="test") as s:
+        s.get(Link, link_id).copyPublicKey = keys.b64(bytes(32))
+    monkeypatch.setattr(lclient, "iter_file", lambda *a, **k: iter([b"sealed"]))
+    names, failed = receive.fetch_files(server, link_id, ["<b>r1</b>", "r" * 201])
+    assert names == {}
+    assert failed == {
+        "<b>r1</b>": "receipt r1 came unsigned",
+        "r" * 201: "receipt (not shown) came unsigned",
+    }
+
+
 def test_a_change_the_peer_refuses_shows_refused_by_it_never_unreachable_or_refusing(
     admins, monkeypatch
 ):

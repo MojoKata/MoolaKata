@@ -157,8 +157,8 @@ def _take_removals(srv, link_id: str, change: dict) -> None:
     resume) finds nothing left to change and does nothing."""
     if not removals_only(change):
         raise changes.ChangeError(
-            f"change {change.get('seq')} comes over a paused link but holds more than removals "
-            "and narrowings"
+            f"change {changes.seq_of(change)} comes over a paused link but holds more than "
+            "removals and narrowings"
         )
     narrowed = {n["id"]: set(n["viewers"]) for n in change.get("narrowed", [])}
     with srv.db.tx(unscoped="links.receive: take removals") as s:
@@ -241,6 +241,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
     import secrets
 
     from . import client, manage, sealed
+    from .client import NOT_SHOWN, shown
     from .copy import folder
 
     with srv.db.read(unscoped="links.receive: fetch files") as s:
@@ -259,7 +260,8 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
         try:
             sealed.write(d / name, client.iter_file(srv, address, peer, fid, digest, pins))
             if not digest:
-                raise changes.ChangeError(f"receipt {fid} came unsigned")
+                # The id is the peer's, so only as `shown` keeps it (S13.7.9).
+                raise changes.ChangeError(f"receipt {shown(str(fid), NOT_SHOWN)} came unsigned")
         except (client.LinkError, changes.ChangeError, OSError) as e:
             (d / name).unlink(missing_ok=True)
             (d / (name + ".tmp")).unlink(missing_ok=True)

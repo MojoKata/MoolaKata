@@ -215,6 +215,46 @@ def test_a_peers_reason_for_refusing_a_change_is_kept_tags_stripped_as_one_short
     assert e.value.reason is None, "only a change refused carries the peer's reason"
 
 
+@pytest.mark.parametrize(
+    ("seq", "said"),
+    [(7, "7"), ("<b>7</b>", "7"), ("<script>alert(1)</script>", "alert(1)"), ("9" * 201, None)],
+    ids=["whole", "tagged", "script", "overlong"],
+)
+def test_a_value_the_peer_sent_is_quoted_in_this_servers_refusals_only_as_shown(seq, said):
+    # S13.7.9: a change's sequence, chosen by the peer, is quoted in each of this server's own
+    # reasons for refusing it with its tags stripped, as one line of at most 200 characters,
+    # else not at all.
+    from moolakata.links import changes, receive
+
+    said = said or "(not shown)"
+    with pytest.raises(changes.ChangeError) as e:
+        changes.verify(keys.raw_public(_key().public_key()), {"seq": seq})
+    assert str(e.value) == f"change {said} fails its signature check"
+    if not isinstance(seq, int):  # a sequence that isn't a whole number isn't a change's
+        with pytest.raises(changes.ChangeError) as e:
+            changes._shape({"seq": seq})
+        assert str(e.value) == f"change {said} isn't in the shape of a change"
+    with pytest.raises(changes.ChangeError) as e:
+        receive._take_removals(None, "Lnk_1", {"seq": seq, "items": []})
+    assert str(e.value) == (
+        f"change {said} comes over a paused link but holds more than removals and narrowings"
+    )
+
+
+def test_the_protocols_a_peer_says_it_speaks_are_quoted_only_as_shown():
+    # S13.7.9: the list a `protocol-unsupported` answer gives is the peer's, so it is quoted
+    # only as one line of at most 200 characters; a longer one, or none, is said in this
+    # server's words alone.
+    from moolakata.links import client
+
+    assert client.refusal("protocol-unsupported", 426, [2, 3]).startswith(
+        "The other server speaks link protocol 2, 3; this one speaks"
+    )
+    alone = "The other server doesn't answer this protocol."
+    assert client.refusal("protocol-unsupported", 426, list(range(100))) == alone
+    assert client.refusal("protocol-unsupported", 426, ["<b>2</b>"]) == alone
+
+
 def test_a_receipt_refused_or_unsigned_is_never_taken(peer):
     import hashlib
 

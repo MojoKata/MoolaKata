@@ -26,6 +26,7 @@ from .. import clock, exactjson
 from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import copydb, sealed
+from .client import NOT_SHOWN, shown
 from .copy import folder, private_key
 from .keys import b64, unb64
 
@@ -35,6 +36,12 @@ MAX_BYTES = 500 * 1024 * 1024
 
 class ChangeError(Exception):
     pass
+
+
+def seq_of(change: dict) -> str:
+    """A change's sequence as this server's reasons quote it: the peer chose it, so only as
+    `shown` keeps it (S13.7.9)."""
+    return shown(str(change.get("seq")), NOT_SHOWN)
 
 
 REGISTRY = ("seq", "asOf", "full", "items", "removed", "progress", "fetch")
@@ -95,7 +102,7 @@ def verify(public: bytes, change: dict) -> None:
             unb64(change.get("signature", "")), _canonical(change)
         )
     except InvalidSignature, ValueError:
-        raise ChangeError(f"change {change.get('seq')} fails its signature check") from None
+        raise ChangeError(f"change {seq_of(change)} fails its signature check") from None
 
 
 def inbox(data_dir, link_id: str):
@@ -195,7 +202,7 @@ def apply(srv, link_id: str) -> int:
             removals = bool(local.get("registryOnly"))
             if removals and (raw or set(change) - PAUSED):
                 raise ChangeError(
-                    f"change {change.get('seq')} holds more than removals and narrowings"
+                    f"change {seq_of(change)} holds more than removals and narrowings"
                 )
             verify(peer, {**change, "sealed": b64(raw)})
             # Each must follow the last applied, so an older change put back is refused: the
@@ -203,8 +210,8 @@ def apply(srv, link_id: str) -> int:
             seq = int(change.get("seq") or 0)
             if seq < last or (seq == last and not removals):
                 raise ChangeError(
-                    f"change {seq} doesn't follow the last one applied ({last}); if the other "
-                    "server was restored from a backup, reset the copy"
+                    f"change {shown(str(seq), NOT_SHOWN)} doesn't follow the last one applied "
+                    f"({last}); if the other server was restored from a backup, reset the copy"
                 )
             last = seq
             opened = change if removals else open_part(priv, change, way, raw)
@@ -221,7 +228,9 @@ def apply(srv, link_id: str) -> int:
         OSError,
     ) as e:
         # Nothing of the inbox is applied: it is set aside, the failure recorded on the link,
-        # and the next pull asks for everything (S11.9.5.3).
+        # and the next pull asks for everything (S11.9.5.3). Another error's words may quote
+        # what the peer sent, so only as `shown` keeps them (S13.7.9).
+        why = str(e) if isinstance(e, ChangeError) else shown(str(e), type(e).__name__)
         aside = folder(srv.config.data_dir, link_id) / "set-aside"
         shutil.rmtree(aside, ignore_errors=True)
         aside.mkdir(parents=True, exist_ok=True)
@@ -231,9 +240,9 @@ def apply(srv, link_id: str) -> int:
                     part.rename(aside / part.name)
         with srv.db.tx(unscoped="links.changes: apply") as s:
             row = s.get(Link, link_id)
-            row.lastError = f"A pulled change can't be applied, so everything is asked for: {e}"
+            row.lastError = f"A pulled change can't be applied, so everything is asked for: {why}"
             row.needsFull, row.inboxAsOf = True, None
-        raise ChangeError(str(e)) from None
+        raise ChangeError(why) from None
     receipts_dir = folder(srv.config.data_dir, link_id) / "receipts"
     lost: list[str] = []
     with o.engine.begin() as conn:
@@ -304,7 +313,7 @@ def _shape(c: dict) -> None:
         and all(whole(f.get("length")) for f in c.get("files") or [])
     )
     if not ok:
-        raise ChangeError(f"change {c.get('seq')} isn't in the shape of a change")
+        raise ChangeError(f"change {seq_of(c)} isn't in the shape of a change")
 
 
 def _type_of(private, way: str, file_id: str, path) -> str:

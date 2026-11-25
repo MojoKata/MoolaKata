@@ -38,11 +38,13 @@ REFUSALS = {
 
 def refusal(code: str, status: int, protocols=None) -> str:
     if code == "protocol-unsupported" and isinstance(protocols, list) and protocols:
-        spoken = ", ".join(str(int(p)) for p in protocols if isinstance(p, int))
-        return (
-            f"The other server speaks link protocol {spoken}; this one speaks {PROTOCOL}. "
-            "The older server needs updating."
-        )
+        # The peer's list, quoted as `shown` keeps it, else this server's words alone.
+        spoken = shown(", ".join(str(int(p)) for p in protocols if isinstance(p, int)), "")
+        if spoken:
+            return (
+                f"The other server speaks link protocol {spoken}; this one speaks {PROTOCOL}. "
+                "The older server needs updating."
+            )
     if code.startswith("link-"):
         return f"The link is {code.removeprefix('link-')} on the other server."
     return REFUSALS.get(code, f"The other server refused the call ({code}, HTTP {status}).")
@@ -122,6 +124,8 @@ class LinkError(Exception):
 SHOWN_MAX = 200  # the longest text a peer chose that this server's alerts carry (S13.7.9)
 # What a peer's refusal of a change shows when its reason isn't one `shown` keeps.
 NO_REASON = "it gave no reason this server shows"
+# What this server's own reason quotes of a value the peer sent that `shown` doesn't keep.
+NOT_SHOWN = "(not shown)"
 # An HTML tag: `<` then a letter, `/`, `!` or `?`, up to the next `>`. A `<` that opens none
 # (`1 < 2`) is kept as text.
 _TAG = re.compile(r"<[A-Za-z/!?][^<>]*>")
