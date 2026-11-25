@@ -826,28 +826,29 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
             "Too many wrong phrases: try again later.",
             headers={"Retry-After": str(int(wait) + 1)},
         )
-    delay = guard.delay(LOGIN, address)
-    if delay:
-        await asyncio.sleep(delay)
-    try:
-        key = phrase.from_words(body.phrase)
-    except phrase.PhraseError as e:
-        guard.failed(LOGIN, address)
-        raise Problem(422, "phrase-invalid", f"Not a recovery phrase: {e}") from None
-    ring = master.read_keyring(srv.config.keyring_path)
-    try:
-        master.unwrap(key, ring)
-    except ValueError:  # a valid phrase, but not the key that wrapped this keyring
-        guard.failed(LOGIN, address)
-        with srv.db.tx(user=c.id) as s:
-            activity.record(
-                s,
-                "key.check-failed",
-                actor=c.id,
-                for_admins=True,
-                detail={"fingerprint": master.fingerprint(key)},
-            )
-        raise Problem(403, "phrase-wrong", "Those words are not this server's key.") from None
+    with guard.attempt(address):
+        delay = guard.delay(LOGIN, address)
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            key = phrase.from_words(body.phrase)
+        except phrase.PhraseError as e:
+            guard.failed(LOGIN, address)
+            raise Problem(422, "phrase-invalid", f"Not a recovery phrase: {e}") from None
+        ring = master.read_keyring(srv.config.keyring_path)
+        try:
+            master.unwrap(key, ring)
+        except ValueError:  # a valid phrase, but not the key that wrapped this keyring
+            guard.failed(LOGIN, address)
+            with srv.db.tx(user=c.id) as s:
+                activity.record(
+                    s,
+                    "key.check-failed",
+                    actor=c.id,
+                    for_admins=True,
+                    detail={"fingerprint": master.fingerprint(key)},
+                )
+            raise Problem(403, "phrase-wrong", "Those words are not this server's key.") from None
     fingerprint = master.fingerprint(key)
     with srv.db.tx(user=c.id) as s:
         entry = activity.record(
@@ -1015,24 +1016,24 @@ def rotate(body: RotateIn, request: Request, c: Caller = Depends(admin)):
         raise Problem(410, "phrase-gone", "That phrase isn't on offer now: show a new one.")
     words_wrong(made, body.words)
     choices = _copies_choices(srv, dict(body.copies))
-    address = guarded(request, c.user.username)
-    if body.code:
-        how, right = "break-glass", srv.break_glass.use(body.code)
-    else:
-        try:
-            given = phrase.from_words(body.phrase or "")
-            right = master.key_id(given) == srv.store.keys.master_id
-        except phrase.PhraseError:
-            right = False
-        how = "phrase"
-    if not right:
-        with srv.db.tx(user=c.id) as s:
-            count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
-        if how == "break-glass":
-            raise refuse(
-                "code", "code-wrong", "That code isn't the one issued, or it expired.", 403
-            )
-        raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
+    with guarded(request, c.user.username) as address:
+        if body.code:
+            how, right = "break-glass", srv.break_glass.use(body.code)
+        else:
+            try:
+                given = phrase.from_words(body.phrase or "")
+                right = master.key_id(given) == srv.store.keys.master_id
+            except phrase.PhraseError:
+                right = False
+            how = "phrase"
+        if not right:
+            with srv.db.tx(user=c.id) as s:
+                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+            if how == "break-glass":
+                raise refuse(
+                    "code", "code-wrong", "That code isn't the one issued, or it expired.", 403
+                )
+            raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
     old_fp = master.fingerprint(srv.store.keys.master_id)
     with srv.maintenance_lock:
         try:
@@ -1129,15 +1130,15 @@ def remove_copy(name: str, body: PhraseIn, request: Request, c: Caller = Depends
 
     recent_auth(c)
     srv = server(request)
-    address = guarded(request, c.user.username)
-    try:
-        right = master.key_id(phrase.from_words(body.phrase)) == srv.store.keys.master_id
-    except phrase.PhraseError:
-        right = False
-    if not right:
-        with srv.db.tx(user=c.id) as s:
-            count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
-        raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
+    with guarded(request, c.user.username) as address:
+        try:
+            right = master.key_id(phrase.from_words(body.phrase)) == srv.store.keys.master_id
+        except phrase.PhraseError:
+            right = False
+        if not right:
+            with srv.db.tx(user=c.id) as s:
+                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+            raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
     found = copies.find(srv.config, name)
     if found is None:
         raise Problem(404, "not-found", "No such copy.")
@@ -1268,15 +1269,17 @@ def backup_copies(body: CopiesIn, request: Request, c: Caller = Depends(admin)):
         recent_auth(c)
         if not body.phrase:
             raise refuse("phrase", "phrase-needed", "Fewer days than the backups kept: the phrase.")
-        address = guarded(request, c.user.username)
-        try:
-            right = master.key_id(phrase.from_words(body.phrase)) == srv.store.keys.master_id
-        except phrase.PhraseError:
-            right = False
-        if not right:
-            with srv.db.tx(user=c.id) as s:
-                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
-            raise refuse("phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403)
+        with guarded(request, c.user.username) as address:
+            try:
+                right = master.key_id(phrase.from_words(body.phrase)) == srv.store.keys.master_id
+            except phrase.PhraseError:
+                right = False
+            if not right:
+                with srv.db.tx(user=c.id) as s:
+                    count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+                raise refuse(
+                    "phrase", "phrase-wrong", "That isn't this server's recovery phrase.", 403
+                )
     with srv.db.tx(user=c.id) as s:
         settings.put(s, "backupCopies", value, c.id)
         activity.record(

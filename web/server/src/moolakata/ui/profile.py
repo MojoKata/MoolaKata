@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, people, settings, timezones
-from ..auth import sessions, twostep
+from ..auth import passwords, sessions, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
 from ..people import tree
@@ -242,7 +242,10 @@ def change(s, u: User, body, sent: set[str]) -> None:
         name = (body.displayName or "").strip()
         if not name or len(name) > 80:
             raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
-        people.change(s, me, {"name": name})
+        if people.CONTROL.search(name):
+            raise refuse("displayName", "name-invalid", people.ONE_LINE)
+        if name != u.displayName:
+            accounts.rename(s, u, name)
         fields.append("displayName")
     if "avatar" in sent:
         if body.avatar is not None and (
@@ -308,17 +311,22 @@ def change_password(body: PasswordChange, request: Request, c: Caller = Depends(
     """Ends every session; this browser gets a fresh one (S13.7.1). A wrong current password
     counts toward the sign-in's lockout (S13.7.5.1)."""
     srv = server(request)
-    address = guarded(request, c.user.username)
-    try:
-        with srv.db.tx(user=c.id) as s:
-            u = s.get(User, c.id)
-            accounts.change_password(s, srv.services, u, body.currentPassword, body.newPassword)
-            token = sessions.create(s, u.id, c.admin, False)
-    except Problem as e:
-        if e.code == "password-wrong":
+    with guarded(request, c.user.username) as address:
+        with srv.db.read(user=c.id) as s:
+            stored = s.get(User, c.id).passwordHash
+        # Checked and hashed outside the write, which only keeps the result (S13.7.3).
+        checked = stored if passwords.verify(stored, body.currentPassword) else None
+        new = accounts.new_password(srv.db, body.newPassword) if checked else None
+        try:
             with srv.db.tx(user=c.id) as s:
-                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
-        raise
+                u = s.get(User, c.id)
+                accounts.change_password(s, srv.services, u, checked, new)
+                token = sessions.create(s, u.id, c.admin, False)
+        except Problem as e:
+            if e.code == "password-wrong":
+                with srv.db.tx(user=c.id) as s:
+                    count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+            raise
     srv.events.end_user(c.id, "signed-out")
     set_cookie(request, token)
     return Response(status_code=204)

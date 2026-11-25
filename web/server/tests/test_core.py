@@ -189,10 +189,10 @@ def test_the_sign_in_guard_forgets_what_has_lapsed():
         g.failed(f"user{n}", f"10.0.{n}.1", threshold=1)
         g.code_wrong(f"pending{n}")
     assert g.delay("someone-new", "10.9.9.9") == 0
-    assert g.held() == {"addresses": 50, "usernames": 50, "locks": 50, "codes": 50}
+    assert g.held() == {"addresses": 50, "usernames": 50, "locks": 50, "codes": 50, "trying": 0}
     clock[0] = 15 * 60
     g.failed("jane", "10.1.1.1")
-    assert g.held() == {"addresses": 1, "usernames": 1, "locks": 0, "codes": 0}
+    assert g.held() == {"addresses": 1, "usernames": 1, "locks": 0, "codes": 0, "trying": 0}
 
 
 def test_a_login_longer_than_any_username_or_email_counts_against_the_address_alone():

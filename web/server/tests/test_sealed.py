@@ -149,6 +149,62 @@ def test_changes_wait_in_the_inbox_and_apply_in_order_once_unlocked(server, setu
         assert conn.execute(select(copydb.Item.c.id)).all() == []
 
 
+def _modes(top) -> dict[str, int]:
+    """Every folder and file under `top`, and `top`, with its mode."""
+    import stat
+
+    return {
+        str(p.relative_to(top.parent)): stat.S_IMODE(p.stat().st_mode)
+        for p in [top, *top.rglob("*")]
+    }
+
+
+def _loosen(top) -> None:
+    for p in [top, *top.rglob("*")]:
+        os.chmod(p, 0o755 if p.is_dir() else 0o644)
+
+
+def _private(modes: dict[str, int]) -> dict[str, int]:
+    """What isn't as S14.2 has it: a folder 0700, a file 0600."""
+    return {k: m for k, m in modes.items() if m not in (0o700, 0o600)}
+
+
+def test_a_copys_files_are_0600_in_0700_folders(server, setup, tmp_path):  # noqa: F811
+    """S14.2: a linked copy's files are the server's own as receipts are, 0600 in folders of
+    0700 (its database, its receipts, its inbox), set when written, and a folder made looser
+    (by an image or a restore) set back at the next write into it."""
+    from moolakata.links import receive
+
+    link_id, admin, jane, _ = setup
+    peer = Ed25519PrivateKey.generate()
+    with server.db.tx(unscoped="test") as s:
+        s.get(Link, link_id).peerKey = b64(
+            peer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        )
+    words = admin.post(f"/ui/api/settings/links/{link_id}/copy-key").json()["words"]
+    top = server.config.data_dir / "links"
+    made = _modes(top)
+    assert any(k.endswith("shared.db") for k in made) and _private(made) == {}
+    _loosen(top)
+    changes.enqueue(server, link_id, signed_change(peer, 1, server, link_id, items=[]))
+    receive.keep_delivered(server, link_id, [b"sealed by the peer"])
+    kept = _modes(top)
+    assert any("/inbox/" in k for k in kept) and any("/receipts/" in k for k in kept)
+    assert _private({k: m for k, m in kept.items() if "inbox" in k or "receipts" in k}) == {}
+    assert kept["links"] == 0o700, "the folders above it too"
+    _loosen(top)
+    r = jane.post(f"/ui/api/linked/{link_id}/unlock", json={"words": " ".join(words)})
+    assert r.status_code == 200
+    with server.copies.get(link_id).engine.connect() as conn:
+        conn.execute(select(copydb.Item.c.id)).all()
+    opened = _modes(top)
+    assert _private({k: m for k, m in opened.items() if "receipts/" not in k}) == {}
+    # What is sent the peer waits in links-out, sealed by the same write.
+    out = tmp_path / "out" / "a.mkr"
+    sealed.write(out, [b"x"])
+    assert _private(_modes(out.parent)) == {}
+
+
 def test_a_change_not_signed_by_the_peer_stops_the_apply(server, setup):  # noqa: F811
     link_id, admin, jane, _ = setup
     peer, stranger = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()

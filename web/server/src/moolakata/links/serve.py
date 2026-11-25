@@ -525,7 +525,6 @@ def sealed_receipt(srv, link_id: str, receipt_id: str):
     if copy_key is None or r is None:
         raise changes.ChangeError("the peer's copy has no access key yet")
     out = srv.config.data_dir / "links-out"
-    out.mkdir(mode=0o700, exist_ok=True)
     path = out / (secrets.token_hex(12) + ".mkr")
     way = keys.direction(keys.fingerprint(own), keys.fingerprint(peer))
     sealed.write(

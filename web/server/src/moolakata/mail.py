@@ -255,7 +255,8 @@ class Mailer:
         household = settings.get(s, "householdName")
         msg["From"] = f"MoolaKata ({household}) <moolakata@localhost>"
         msg["To"] = email.to
-        msg["Subject"] = email.subject
+        # On one line whatever names it quotes: a header can't hold a line break.
+        msg["Subject"] = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", email.subject).split())
         msg["Date"] = format_datetime(dt.datetime.now(dt.UTC))
         msg["Message-ID"] = make_msgid(domain="moolakata.local")
         expires = clock.now() + email.keep

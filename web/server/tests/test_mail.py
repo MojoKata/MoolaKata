@@ -346,8 +346,8 @@ def test_sign_up_checks_its_fields_and_domains(admin_client, server, smtp):
     make_user(server, "john")
     r = sign_up(server, email="erin@elsewhere.lan")
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "email-domain"
-    r = sign_up(server, username="john")
-    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "username"
+    r = sign_up(server, username="John Doe")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "username-invalid"
     with new_client(server) as c:
         r = c.post(
             "/ui/api/signup",
@@ -359,6 +359,60 @@ def test_sign_up_checks_its_fields_and_domains(admin_client, server, smtp):
             },
         )
         assert r.status_code == 422 and r.json()["errors"][0]["field"] == "password"
+
+
+def test_sign_up_answers_the_same_whether_a_username_is_taken(admin_client, server, smtp):
+    """S10.1.4.1: the answer to a request never says whether a username exists."""
+    open_signup(admin_client, server)
+    make_user(server, "john")
+    taken, free = sign_up(server, "not-an-email", "john"), sign_up(server, "not-an-email", "jim")
+    assert taken.status_code == free.status_code == 422
+    assert taken.json()["errors"] == free.json()["errors"]
+    assert [e["field"] for e in taken.json()["errors"]] == ["email"]
+    waiting = len(server.services.mailer.waiting())
+    assert sign_up(server, "erin@shaw.family", "john").status_code == 204
+    assert len(server.services.mailer.waiting()) == waiting + 1, "the link goes out all the same"
+
+
+def test_confirming_a_taken_username_asks_for_another(admin_client, server, smtp):
+    """S10.1.4.1: the username is checked once the email is confirmed; a taken one is asked
+    for again before the request reaches the admins."""
+    open_signup(admin_client, server)
+    make_user(server, "john")
+    sign_up(server, "erin@shaw.family", "erin")
+    _, first = outbox_link(server)
+    sign_up(server, "erin@elsewhere.lan", "john")
+    _, token = outbox_link(server)
+    with new_client(server) as c:
+        assert c.post("/ui/api/signup/confirm", json={"token": first}).status_code == 200
+        r = c.post("/ui/api/signup/confirm", json={"token": token})
+        assert r.status_code == 422, r.text
+        assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+            ("username", "username-taken")
+        ]
+        assert [
+            x["username"] for x in admin_client.get("/ui/api/signup-requests").json()["items"]
+        ] == ["erin"], "not to the admins with a taken username"
+        for name, code in (("erin", "username-taken"), ("Erin Shaw", "username-invalid")):
+            r = c.post("/ui/api/signup/confirm", json={"token": token, "username": name})
+            assert r.status_code == 422 and r.json()["errors"][0]["code"] == code, name
+        r = c.post("/ui/api/signup/confirm", json={"token": token, "username": " Erin2 "})
+        assert r.status_code == 200 and r.json()["displayName"] == "Erin Shaw"
+        assert c.post("/ui/api/signup/confirm", json={"token": token}).status_code == 404
+    rows = admin_client.get("/ui/api/signup-requests").json()["items"]
+    assert sorted(x["username"] for x in rows) == ["erin", "erin2"]
+
+
+def test_a_username_taken_after_confirming_is_refused_at_approval(admin_client, server, smtp):
+    open_signup(admin_client, server)
+    sign_up(server)
+    _, token = outbox_link(server)
+    with new_client(server) as c:
+        assert c.post("/ui/api/signup/confirm", json={"token": token}).status_code == 200
+    make_user(server, "erin", email="erin@home.lan")
+    rid = admin_client.get("/ui/api/signup-requests").json()["items"][0]["id"]
+    r = admin_client.post(f"/ui/api/signup-requests/{rid}/approve", json={})
+    assert r.status_code == 409 and r.json()["code"] == "username-taken"
 
 
 def test_signup_settings_are_off_by_default(server):

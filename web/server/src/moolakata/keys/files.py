@@ -14,6 +14,7 @@ the `cryptography` library alone.
 """
 
 import os
+import stat
 import struct
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -97,11 +98,28 @@ def open_stream(
             block, counter = following, counter + 1
 
 
+def private_folder(path: Path) -> Path:
+    """A folder of the server's own files, 0700 (S14.2): made so, or set back to it when found
+    otherwise (made by an image or a restore)."""
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if stat.S_IMODE(path.stat().st_mode) != 0o700:
+        os.chmod(path, 0o700)
+    return path
+
+
+def open_private(path: Path, truncate: bool = True) -> int:
+    """A file of the server's own, opened to be written: 0600 (S14.2), even one left looser."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | (os.O_TRUNC if truncate else 0), 0o600)
+    os.fchmod(fd, 0o600)
+    return fd
+
+
 def write(path: Path, chunks: Iterable[bytes], recipient: X25519PublicKey, name: str) -> None:
-    """Written under a temporary name, synced and renamed (S11.9.6.6), never changed after."""
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    """Written under a temporary name, synced and renamed (S11.9.6.6), never changed after;
+    0600 in a 0700 folder (S14.2), one found looser (made by an image or a restore) set back."""
+    private_folder(path.parent)
     tmp = path.with_suffix(".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = open_private(tmp)
     try:
         with os.fdopen(fd, "wb") as f:
             for piece in seal(chunks, recipient, name):

@@ -263,6 +263,26 @@ def test_schema_follows_the_conventions(db):
         assert schema_check.check_database(conn, metadata) == []
 
 
+def test_schema_names_each_share_as_a_grant_of_one_item_to_a_user_or_group():
+    """R2.9: a share grants one item, of the eight kinds of S10.3, to a user or a group; a
+    linked server's named users are `User` records (S10.3.3.1), never the server itself. Each
+    share table's row in schema.md says so, one per kind."""
+    from pathlib import Path
+
+    from moolakata.links.serve import KINDS
+    from moolakata.store.tables.shares import SHARES
+
+    assert sorted(SHARES) == sorted(KINDS)
+    doc = (Path(__file__).resolve().parents[3] / "docs" / "schema.md").read_text()
+    for kind, table in SHARES.items():
+        row = re.search(rf"^\| \w+ +\| {table.name} +\| (.*?) +\|$", doc, re.M)
+        assert row, f"{table.name} has its row"
+        said = re.fullmatch(
+            r"A grant of an? (.+) to a user or a group, at an access class\.", row[1]
+        )
+        assert said and said[1].endswith(kind.replace("-", " ")), row[1]
+
+
 def test_schema_checks_catch_breaks():
     md = MetaData()
     Table(

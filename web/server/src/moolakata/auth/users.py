@@ -5,7 +5,6 @@ Every function works inside the caller's unit of work and records what Activity 
 """
 
 import datetime as dt
-import json
 import re
 from dataclasses import dataclass
 
@@ -24,6 +23,9 @@ DEFAULT_ADMIN = "admin"
 # The password a server made before the welcome (S10.1.2) published for its first admin, which
 # reached only the setup step; refused as anyone's new password.
 DEFAULT_PASSWORD = "moolakata-setup"  # noqa: S105
+IS_DEFAULT = FieldError(
+    "password", "password-is-default", "Choose a password other than the published one."
+)
 INVITATION_DAYS = 7
 RESET_HOURS = 1
 EMAIL_CHANGE_HOURS = 24
@@ -132,9 +134,12 @@ def has_users(s: Db) -> bool:
     return s.scalar(select(func.count()).select_from(User)) > 0
 
 
-def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: str) -> User:
-    """The welcome's last step: `admin`, with the name, sex, email address and password given,
-    made only while the server has no users, and an admin at once (S10.1.2)."""
+def make_first_admin(
+    s: Db, display_name: str, sex: str, email: str, password: passwords.Chosen
+) -> User:
+    """The welcome's last step: `admin`, with the name, sex, email address and password given
+    (judged and hashed before this write: `new_password`), made only while the server has no
+    users, and an admin at once (S10.1.2)."""
     from .. import people
 
     if has_users(s):
@@ -145,8 +150,8 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
         errors.insert(
             0, FieldError("displayName", "name-invalid", "Your name, 80 characters at most.")
         )
-    if sex is None:
-        errors.append(FieldError("sex", "sex-invalid", "Female or male."))
+    elif people.CONTROL.search(name):
+        errors.insert(0, FieldError("displayName", "name-invalid", people.ONE_LINE))
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     at = now()
@@ -156,7 +161,7 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
         username=DEFAULT_ADMIN,
         displayName=name,
         email=email.strip().lower(),
-        passwordHash=passwords.hash_password(password),
+        passwordHash=password.hash,
         passwordChangedAt=at,
         needsSetup=False,
         alertEmails="each",
@@ -177,30 +182,33 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
 
 
 def _setup_problems(
-    s: Db, password: str, email: str, user_id: str | None, sex: str | None
+    s: Db, password: passwords.Chosen, email: str, user_id: str | None, sex: str | None
 ) -> list[FieldError]:
     from .. import people
 
     errors = []
     if sex is not None and sex not in people.SEXES:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
-    min_len = settings.get(s, "passwordMinLength")
-    why = passwords.problem(password, min_len)
-    if why:
-        errors.append(FieldError("password", *why))
-    if password == DEFAULT_PASSWORD:
-        errors.append(
-            FieldError(
-                "password", "password-is-default", "Choose a password other than the published one."
-            )
-        )
+    if password.problem:
+        errors.append(FieldError("password", *password.problem))
     return errors + _email_problems(s, email, user_id)
+
+
+def new_password(db, password: str, setup: bool = False) -> passwords.Chosen:
+    """A new password judged by Settings' rule and hashed before the write that keeps it, so
+    no write waits on a hash (S13.7.3); `setup`: an admin's own at the welcome or the setup
+    step, where the published password is refused too (S10.1.2)."""
+    with db.read(unscoped="the password rule") as s:
+        min_len = settings.get(s, "passwordMinLength")
+    if setup and password == DEFAULT_PASSWORD:
+        return passwords.Chosen((IS_DEFAULT.code, IS_DEFAULT.message))
+    return passwords.choose(password, min_len)
 
 
 def finish_setup(
     s: Db,
     user: User,
-    password: str,
+    password: passwords.Chosen,
     email: str,
     display_name: str | None,
     sex: str | None = None,
@@ -210,9 +218,11 @@ def finish_setup(
     from .. import people
 
     errors = _setup_problems(s, password, email, user.id, sex)
+    if display_name and display_name.strip():
+        errors += _name_problems(display_name)
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
-    user.passwordHash = passwords.hash_password(password)
+    user.passwordHash = password.hash
     user.passwordChangedAt = now()
     _set_email(s, user, email.strip().lower())
     me = people.of_user(s, user.id)
@@ -250,7 +260,7 @@ def _email_problems(s: Db, email: str | None, user_id: str | None) -> list[Field
     return []
 
 
-def _username_problems(s: Db, username: str) -> list[FieldError]:
+def _username_shape(username: str) -> list[FieldError]:
     if not USERNAME.match(username):
         return [
             FieldError(
@@ -260,15 +270,25 @@ def _username_problems(s: Db, username: str) -> list[FieldError]:
                 "starting with a letter or digit.",
             )
         ]
+    return []
+
+
+def _username_problems(s: Db, username: str) -> list[FieldError]:
+    if bad := _username_shape(username):
+        return bad
     if by_login(s, username) is not None:
         return [FieldError("username", "username-taken", "This username is taken.")]
     return []
 
 
 def _name_problems(name: str, field: str = "displayName") -> list[FieldError]:
+    from ..people import CONTROL, ONE_LINE
+
     name = (name or "").strip()
     if not name or len(name) > 80:
         return [FieldError(field, "name-invalid", "Enter a name of up to 80 characters.")]
+    if CONTROL.search(name):
+        return [FieldError(field, "name-invalid", ONE_LINE)]
     return []
 
 
@@ -325,8 +345,6 @@ def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
     """A token is used once: found, checked and removed."""
     row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != purpose or row.expiresAt <= now():
-        if row is not None and row.expiresAt <= now():
-            s.delete(row)
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
     return row
 
@@ -430,16 +448,16 @@ def _resent(s: Db, by: User, user: User) -> None:
     )
 
 
-def accept_invitation(s: Db, token: str, password: str) -> User:
+def accept_invitation(s: Db, token: str, password: passwords.Chosen) -> User:
+    """`password`: judged and hashed before this write (`new_password`)."""
     row = _take(s, token, "invitation")
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("password", *why)
+    if password.problem:
+        raise refuse("password", *password.problem)
     s.delete(row)
-    user.passwordHash = passwords.hash_password(password)
+    user.passwordHash = password.hash
     user.passwordChangedAt = now()
     activity.record(
         s,
@@ -485,30 +503,34 @@ def request_reset(s: Db, svc: Services, login: str) -> None:
     )
 
 
-def reset_password(s: Db, svc: Services, token: str, password: str) -> User:
+def reset_password(s: Db, svc: Services, token: str, password: passwords.Chosen) -> User:
+    """`password`: judged and hashed before this write (`new_password`)."""
     row = _take(s, token, "reset")
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("password", *why)
+    if password.problem:
+        raise refuse("password", *password.problem)
     s.delete(row)
-    _set_password(s, svc, user, password, "user.password-reset")
+    _set_password(s, svc, user, password.hash, "user.password-reset")
     return user
 
 
-def change_password(s: Db, svc: Services, user: User, current: str, new: str) -> None:
-    if not passwords.verify(user.passwordHash, current):
+def change_password(
+    s: Db, svc: Services, user: User, checked: str | None, new: passwords.Chosen | None
+) -> None:
+    """`checked`: the stored hash the current password was found right against, before this
+    write, or None if it was wrong; one changed since leaves it wrong. `new`: judged and
+    hashed before it too (`new_password`), so no write waits on a hash (S13.7.3)."""
+    if checked is None or new is None or checked != user.passwordHash:
         raise refuse("currentPassword", "password-wrong", "That is not your current password.")
-    why = passwords.problem(new, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("newPassword", *why)
-    _set_password(s, svc, user, new, "user.password-changed")
+    if new.problem:
+        raise refuse("newPassword", *new.problem)
+    _set_password(s, svc, user, new.hash, "user.password-changed")
 
 
-def _set_password(s: Db, svc: Services, user: User, password: str, kind: str) -> None:
-    user.passwordHash = passwords.hash_password(password)
+def _set_password(s: Db, svc: Services, user: User, password_hash: str, kind: str) -> None:
+    user.passwordHash = password_hash
     user.passwordChangedAt = now()
     sessions.end_all(s, user.id)
     from .. import tokens
@@ -614,9 +636,8 @@ def _last_admin_guard(s: Db, user_id: str) -> None:
 
 
 def set_active(s: Db, svc: Services, by: User, user: User, active: bool) -> list[str]:
-    """Switch a user off or on. Off ends their sessions at once; returns the ended ones."""
-    if user.active == active:
-        return []
+    """Switch a user off or on (the route asks only when it differs, S10.1.7). Off ends their
+    sessions at once; returns the ended ones."""
     ended: list[str] = []
     if not active:
         _last_admin_guard(s, user.id)
@@ -658,12 +679,14 @@ def set_active(s: Db, svc: Services, by: User, user: User, active: bool) -> list
     return ended
 
 
-def ask_reactivation(s: Db, login: str, password: str) -> bool:
+def ask_reactivation(s: Db, login: str, checked: str | None) -> bool:
     """From the *account is disabled* screen, once a week (S10.1.7). Whether the password was
-    right; the request is recorded only for a disabled account not asked for in the past week,
-    and the asker is told the same either way."""
+    right: `checked` is the stored hash it was found right against, before this write, or
+    None (S13.7.3); one changed since leaves it wrong. The request is recorded only for a
+    disabled account not asked for in the past week, and the asker is told the same either
+    way."""
     user = by_login(s, login)
-    if not passwords.verify(user.passwordHash if user else None, password):
+    if user is None or checked is None or checked != user.passwordHash:
         return False
     if user.active or (
         user.reactivationAskedAt
@@ -683,6 +706,19 @@ def ask_reactivation(s: Db, login: str, password: str) -> bool:
     return True
 
 
+def rename(s: Db, user: User, name: str) -> None:
+    """A user's display name, which is their person's name, so the household's people, gifts
+    and family tree follow it (S10.10.1); the name of someone else here is refused, one person
+    once (S10.10.3)."""
+    from .. import people
+
+    me = people.of_user(s, user.id)
+    other = people.clash(s, name, me.birthYear, exclude=me.id)
+    if other is not None:
+        raise refuse("displayName", "person-exists", f"{other.name} is already here.", 409)
+    people.change(s, me, {"name": name})
+
+
 def update_user(
     s: Db, svc: Services, by: User, user: User, display_name: str | None, email: str | None
 ) -> list[str]:
@@ -693,7 +729,7 @@ def update_user(
     fields = []
     if display_name is not None and display_name.strip() != user.displayName:
         refuse_all(_name_problems(display_name))
-        user.displayName = display_name.strip()
+        rename(s, user, display_name.strip())
         fields.append("displayName")
     if email is not None and email.strip().lower() != (user.email or ""):
         if user.passwordHash is not None:
@@ -774,16 +810,13 @@ def _group_name_taken(s: Db, name: str, group_id: str | None) -> list[FieldError
 def update_group(
     s: Db, by: User, g: Group, name: str | None, active: bool | None, member_ids: list[str] | None
 ) -> None:
+    # The Admins group's name and flag never reach here: the route refuses them (S10.1.8).
     fields = []
     if name is not None and name.strip() != g.name:
-        if g.builtIn:
-            raise refuse("name", "built-in", "The Admins group keeps its name.", 409)
         refuse_all(_name_problems(name, "name") + _group_name_taken(s, name.strip(), g.id))
         g.name = name.strip()
         fields.append("name")
     if active is not None and active != g.active:
-        if g.builtIn:
-            raise refuse("active", "built-in", "The Admins group is always active.", 409)
         g.active = active
         fields.append("active")
     if fields:
@@ -853,7 +886,3 @@ def set_user_groups(s: Db, by: User, user: User, group_ids_wanted: list[str]) ->
         g = groups[gid]
         others = [m for m in members(s, gid) if m != user.id]
         set_members(s, by, g, others + ([user.id] if gid in group_ids_wanted else []))
-
-
-def detail(entry_detail: str) -> dict:
-    return json.loads(entry_detail or "{}")

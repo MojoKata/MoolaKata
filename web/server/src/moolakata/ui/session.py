@@ -5,6 +5,8 @@ import asyncio
 import datetime as dt
 import json
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -106,6 +108,13 @@ class SignupForm(Model):
     sex: str | None = None
 
 
+class SignupConfirmation(Model):
+    """A sign-up's link, with another username when the one asked for was taken."""
+
+    token: str
+    username: str | None = None
+
+
 class SignupConfirmed(Model):
     displayName: str
     household: str
@@ -173,35 +182,54 @@ def get_session(request: Request, c: Caller = Depends(caller_in_setup)):
     responses={202: {"model": TwoStepNeeded}, 401: {}, 403: {}, 429: {}},
 )
 def sign_in(body: SignIn, request: Request):
+    """The password is checked outside any write, so a sign-in never holds up the server's
+    one writer while it is hashed (S13.7.3), and each attempt is counted toward the lockout
+    before its check (S13.7.5.1)."""
     srv = server(request)
     guard = srv.sign_in
     login = body.login.strip().lower()
+    if not login:
+        # R3.11: a blank names nobody, so it is refused at its field, never counted or hashed.
+        raise refuse("login", "login-missing", "Enter your username.")
     address = _address(request)
     locked = guard.locked(address)
     if locked:
         raise too_many(locked, "failed sign-ins from this address")
-    delay = guard.delay(login, address)
-    if delay:
-        time.sleep(delay)
+    with srv.db.read(unscoped="sign-in") as s:
+        found = accounts.by_login(s, login)
+        stored = found.passwordHash if found else None
+        threshold = settings.get(s, "lockoutFailures")
     two_step = None
-    with srv.db.tx(unscoped="sign-in") as s:
-        user = accounts.by_login(s, login)
-        ok = passwords.verify(user.passwordHash if user else None, body.password)
-        if not ok:
-            count_failure(s, guard, login, address, user)
-            failed = True
-        else:
-            failed = False
-            if not user.active:
-                raise Problem(403, "account-disabled", "This account is disabled.")
-            if passwords.needs_rehash(user.passwordHash):
-                user.passwordHash = passwords.hash_password(body.password)
-            if twostep.is_on(user):
-                # No session until the code: failed codes count toward the same lockout.
-                two_step = twostep.start_sign_in(s, user)
+    with guard.attempt(address, threshold):
+        delay = guard.delay(login, address)
+        if delay:
+            time.sleep(delay)
+        ok = passwords.verify(stored, body.password)
+        fresh = (
+            passwords.hash_password(body.password)
+            if ok and passwords.needs_rehash(stored)
+            else None
+        )
+        with srv.db.tx(unscoped="sign-in") as s:
+            user = s.get(User, found.id) if found else None
+            # Read again: a password changed or a user deleted meanwhile decides it.
+            if ok and (user is None or user.deleted or user.passwordHash != stored):
+                ok = False
+            if not ok:
+                count_failure(s, guard, login, address, user)
+                failed = True
             else:
-                guard.succeeded(login)
-                admin, token = _signed_in(s, user, address=address, svc=srv.services)
+                failed = False
+                if not user.active:
+                    raise Problem(403, "account-disabled", "This account is disabled.")
+                if fresh:
+                    user.passwordHash = fresh
+                if twostep.is_on(user):
+                    # No session until the code: failed codes count toward the same lockout.
+                    two_step = twostep.start_sign_in(s, user)
+                else:
+                    guard.succeeded(login)
+                    admin, token = _signed_in(s, user, address=address, svc=srv.services)
     if failed:
         # Committed above: failures and lockouts stay in Activity.
         raise Problem(401, "bad-credentials", "The username or password is not right.")
@@ -281,20 +309,25 @@ def sign_in_code(body: TwoStepCode, request: Request):
     return info(request, user, admin)
 
 
-def guarded(request: Request, login: str) -> str:
+@contextmanager
+def guarded(request: Request, login: str) -> Iterator[str]:
     """A password asked for outside the sign-in itself (re-authentication, the current
-    password, a reactivation request) behind the sign-in's guard: refused while its address is
-    locked, slowed for a username that keeps failing. The address it counts against
-    (S13.7.5.1)."""
-    guard = server(request).sign_in
+    password, a reactivation request, the phrase) behind the sign-in's guard: refused while its
+    address is locked or its attempts at once reach the lockout's figure, slowed for a username
+    that keeps failing. Gives the address it counts against (S13.7.5.1)."""
+    srv = server(request)
+    guard = srv.sign_in
     address = _address(request)
     locked = guard.locked(address)
     if locked:
         raise too_many(locked, "failed sign-ins from this address")
-    delay = guard.delay(login, address)
-    if delay:
-        time.sleep(delay)
-    return address
+    with srv.db.read(unscoped="the lockout's figure") as s:
+        threshold = settings.get(s, "lockoutFailures")
+    with guard.attempt(address, threshold):
+        delay = guard.delay(login, address)
+        if delay:
+            time.sleep(delay)
+        yield address
 
 
 def count_failure(s, guard, login: str, address: str, user: User | None) -> None:
@@ -321,6 +354,7 @@ def _signed_in(
 ) -> tuple[bool, str]:
     admin = accounts.is_admin(s, user.id)
     token = sessions.create(s, user.id, admin, user.needsSetup, address=address)
+    before = user.lastSignInAt is not None
     user.lastSignInAt = sessions.now()
     activity.record(
         s,
@@ -331,13 +365,14 @@ def _signed_in(
         owner=user.id,
         for_admins=kind != "signin",
     )
-    _note_address(s, user, address, svc)
+    _note_address(s, user, address, svc, before)
     return admin, token
 
 
-def _note_address(s, user: User, address: str | None, svc) -> None:
+def _note_address(s, user: User, address: str | None, svc, before: bool) -> None:
     """A sign-in from an address not seen in 30 days is emailed to the user (S10.1.9), once
-    they have signed in from somewhere before; the addresses seen are kept on the user."""
+    they have signed in from somewhere before, however long ago (`before`: their last sign-in
+    is kept, the addresses only 30 days); the addresses seen are kept on the user."""
     import ipaddress
 
     try:
@@ -354,7 +389,7 @@ def _note_address(s, user: User, address: str | None, svc) -> None:
         for k, v in seen.items()
         if t - dt.datetime.fromisoformat(v) < dt.timedelta(days=ADDRESS_DAYS)
     }
-    new = bool(seen) and address not in seen
+    new = before and address not in seen
     seen[address] = t.isoformat()
     user.recentAddresses = json.dumps(seen)
     if new:
@@ -399,9 +434,10 @@ def setup(body: Setup, request: Request, c: Caller = Depends(caller_in_setup)):
     if not c.user.needsSetup:
         raise Problem(409, "setup-done", "This account is already set up.")
     srv = server(request)
+    chosen = accounts.new_password(srv.db, body.password, setup=True)
     with srv.db.tx(user=c.id) as s:
         user = s.get(User, c.id)
-        accounts.finish_setup(s, user, body.password, body.email, body.displayName, body.sex)
+        accounts.finish_setup(s, user, chosen, body.email, body.displayName, body.sex)
         sessions.end_all(s, user.id)
         admin = accounts.is_admin(s, user.id)
         token = sessions.create(s, user.id, admin, False)
@@ -414,15 +450,20 @@ def reauth(body: Password, request: Request, c: Caller = Depends(caller_in_setup
     """The password again, counted toward the sign-in's lockout (S13.7.2, S13.7.5.1)."""
     srv = server(request)
     _throttle(request)
-    address = guarded(request, c.user.username)
-    with srv.db.tx(user=c.id) as s:
-        user = s.get(User, c.id)
-        right = passwords.verify(user.passwordHash, body.password)
-        if right:
-            row = sessions.find(s, request.cookies.get(sessions.COOKIE)).session
-            row.authAt = sessions.now()
-        else:
-            count_failure(s, srv.sign_in, user.username, address, user)
+    with guarded(request, c.user.username) as address:
+        with srv.db.read(user=c.id) as s:
+            stored = s.get(User, c.id).passwordHash
+        # Checked outside the write, which only records what it found (S13.7.3).
+        right = passwords.verify(stored, body.password)
+        with srv.db.tx(user=c.id) as s:
+            user = s.get(User, c.id)
+            if right and user.passwordHash == stored:
+                # The caller's own row: a change of privilege may have just given it a
+                # new token, the cookie sent naming none (S13.7.1).
+                sessions.by_hash(s, c.session.tokenHash).authAt = sessions.now()
+            else:
+                right = False
+                count_failure(s, srv.sign_in, user.username, address, user)
     if not right:
         raise Problem(401, "password-wrong", "That is not your password.")
     return Response(status_code=204)
@@ -449,8 +490,9 @@ def password_reset(body: Login, request: Request):
 def password_reset_confirm(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="a password reset") as s:
-        user = accounts.reset_password(s, srv.services, body.token, body.password)
+        user = accounts.reset_password(s, srv.services, body.token, chosen)
     srv.events.end_user(user.id, "signed-out")
     return Response(status_code=204)
 
@@ -468,6 +510,9 @@ def signup_request(body: SignupForm, request: Request):
     """The answer is the same whether or not the email already has an account (S10.1.4)."""
     srv = server(request)
     _throttle(request)
+    with srv.db.read(unscoped="whether sign-up is open") as s:
+        signup.must_be_open(s, srv.config.dev)  # before any hash of its password
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="a sign-up asked") as s:
         signup.request(
             s,
@@ -475,18 +520,19 @@ def signup_request(body: SignupForm, request: Request):
             body.displayName,
             body.username,
             body.email,
-            body.password,
+            chosen,
             body.sex,
         )
     return Response(status_code=204)
 
 
-@router.post("/signup/confirm", response_model=SignupConfirmed)
-def signup_confirm(body: Token, request: Request):
+@router.post("/signup/confirm", response_model=SignupConfirmed, responses={404: {}, 422: {}})
+def signup_confirm(body: SignupConfirmation, request: Request):
+    """A taken username is refused here, at its field, and the link stays good (S10.1.4.1)."""
     srv = server(request)
     _throttle(request)
     with srv.db.tx(unscoped="a sign-up confirmed") as s:
-        req = signup.confirm(s, body.token)
+        req = signup.confirm(s, body.token, body.username)
         out = SignupConfirmed(
             displayName=req.displayName, household=settings.get(s, "householdName")
         )
@@ -512,11 +558,15 @@ def invitation_lookup(body: Token, request: Request):
 def invitation_accept(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="an invitation accepted") as s:
-        user = accounts.accept_invitation(s, body.token, body.password)
+        user = accounts.accept_invitation(s, body.token, chosen)
         admin = accounts.is_admin(s, user.id)
-        token = sessions.create(s, user.id, admin, False)
+        address = _address(request)
+        token = sessions.create(s, user.id, admin, False, address=address)
         user.lastSignInAt = sessions.now()
+        # The first sign-in: its address is known from now on, and nothing to report.
+        _note_address(s, user, address, None, before=False)
     set_cookie(request, token)
     return info(request, user, admin)
 
@@ -535,12 +585,20 @@ def reactivation_request(body: SignIn, request: Request):
     """The same answer whatever the account's state, and a wrong password counted as a
     sign-in's (S10.1.7)."""
     srv = server(request)
-    _throttle(request)
     login = body.login.strip().lower()
-    address = guarded(request, login)
-    with srv.db.tx(unscoped="a reactivation asked") as s:
-        if not accounts.ask_reactivation(s, login, body.password):
-            count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
+    if not login:
+        # R3.11: a blank names nobody, refused at its field as at sign-in, never counted.
+        raise refuse("login", "login-missing", "Enter your username.")
+    _throttle(request)
+    with guarded(request, login) as address:
+        with srv.db.read(unscoped="a reactivation asked") as s:
+            found = accounts.by_login(s, login)
+            stored = found.passwordHash if found else None
+        # Checked outside the write, which only records what it found (S13.7.3).
+        checked = stored if passwords.verify(stored, body.password) else None
+        with srv.db.tx(unscoped="a reactivation asked") as s:
+            if not accounts.ask_reactivation(s, login, checked):
+                count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
     return Response(status_code=204)
 
 

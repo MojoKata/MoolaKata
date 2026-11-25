@@ -139,7 +139,11 @@
       the password again if it was last given more than 10 minutes ago.
    3. **Passwords**: argon2id (64 MiB, 3 passes, parallelism 1), the minimum length of
       S16.5, at most 1,024 characters, and no other rules. Checked against a shipped list of
-      the 100,000 most common passwords, which are refused.
+      the 100,000 most common passwords, which are refused. A password is checked, and a new
+      one hashed, outside any write to the database (sign-in, re-authentication, the first
+      admin's setup, an invitation accepted, a change, a reset, sign-up and a reactivation
+      request), and at most two passwords are hashed or checked at once: one past them waits
+      up to three seconds, then is answered 429 with a `Retry-After`.
    4. **Cross-site requests**: `SameSite=Strict` plus an `Origin` check on every request
       that changes something; a missing or foreign `Origin` is refused with 403. No CORS: the
       API answers only its own origin.
@@ -148,9 +152,11 @@
       1. sign-in, two-step codes, re-authentication, the current-password check, a reactivation
          request and the unlock (S15.4.3): 10 failures in 15 minutes lock **the address they
          came from** for 15 minutes, whoever they named, and so do 10 password-reset requests;
-         an IPv6 address counts by its /64; a username that keeps failing, from anywhere, is
-         only slowed (half a second per failure past the third, up to five), never locked, so
-         nobody can lock an admin out from afar (S10.1);
+         an attempt still being checked counts toward the 10, so attempts sent at once are
+         refused unchecked once they and the failures reach it; an IPv6 address counts by its
+         /64; a username that keeps failing, from anywhere, is only slowed (half a second per
+         failure past the third, up to five), never locked, so nobody can lock an admin out
+         from afar (S10.1);
       2. linked copies' access keys: S11.9.3.3;
       3. the API: 600 requests a minute per session; uploads: 60 files an hour per user;
       4. `/mcp`: 60 calls a minute per token (S10.9.4); `/link`: 60 calls a minute per link,

@@ -121,8 +121,9 @@ def first_admin(body: FirstAdmin, request: Request):
     """The welcome's last step: the first admin, signed in at once (S10.1.2)."""
     srv = server(request)
     _throttle(request)
+    chosen = accounts.new_password(srv.db, body.password, setup=True)
     with srv.db.tx(unscoped="the welcome: the first admin") as s:
-        user = accounts.make_first_admin(s, body.displayName, body.sex, body.email, body.password)
+        user = accounts.make_first_admin(s, body.displayName, body.sex, body.email, chosen)
         token = sessions.create(s, user.id, True, False)
     set_cookie(request, token)
     return info(request, user, True)

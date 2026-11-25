@@ -19,6 +19,7 @@ import hashlib
 import inspect
 import logging
 import math
+import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -272,10 +273,11 @@ class Unsigned(signing.Refused):
 async def _to_file(srv, request: Request, h) -> Path:
     """Sealed bytes as they arrive, hashed, written through a thread to a file in `links-in/`
     (the caller removes it); never whole in memory."""
-    folder = srv.config.data_dir / "links-in"
-    folder.mkdir(mode=0o700, exist_ok=True)
+    from ..keys.files import open_private, private_folder
+
+    folder = private_folder(srv.config.data_dir / "links-in")
     tmp = folder / (secrets.token_hex(12) + ".tmp")
-    f = await run_in_threadpool(open, tmp, "wb")
+    f = await run_in_threadpool(lambda: os.fdopen(open_private(tmp), "wb"))
     try:
         async for chunk in request.stream():
             h.update(chunk)

@@ -6,8 +6,9 @@
       The password's rules are S13.7.3's: a minimum length that admins set (12 by default), a
       maximum, and none of the most common passwords. A username is 2 to 32 lowercase letters,
       digits, dots, dashes or underscores, beginning with a letter or digit; usernames and
-      email addresses match without regard to case. A display name is at most 80 characters, an
-      email address at most 254.
+      email addresses match without regard to case. A display name is at most 80 characters,
+      on one line (no line break, tab or other control character; a person's name, a group's
+      and the first admin's alike), an email address at most 254.
    2. **The first admin** is made by the welcome (S12.14): once the key is made, **Set up the
       admin account** asks for the admin's name, sex (S10.10.1), email address and password,
       makes `admin` with them, and signs them in. No password is published, and nobody signs
@@ -25,8 +26,11 @@
       request.
       1. **Asking**: from **Sign up** on the sign-in screen, with a username and a password
          chosen then, so approval leaves nothing more to do. The answer is the same, and takes
-         as long, whether or not the address already has an account; only a new address gets a
-         link, which works once, for 24 hours.
+         as long, whether or not the address already has an account or the username is taken;
+         only a new address gets a link, which works once, for 24 hours. The username is checked
+         once the link confirms the address: when a user or a request already waiting has it,
+         the page the link opens says it is taken and asks for another, and the request reaches
+         the admins only with a free one. Approval checks it again.
       2. **Deciding**: confirmed requests show under **Requests** in Users and Groups, with a
          count on its badge. **Approve** makes the user, in a group if one is chosen;
          **Reject** turns it down. An email tells the person either way, and Activity records
@@ -73,9 +77,10 @@
    9. **Emails** (plain text): invitation, sign-up confirmation and decision, reset,
       email-change confirmation (to the new address) and notice (to the old one, once the
       change took effect, so a change the person didn't make is noticed), a sign-in from an
-      address the user hasn't signed in from in 30 days (once they have signed in from
-      somewhere; the addresses seen are kept on the user for those 30 days, and each session
-      records its own), password changed, two-step turned on or off, a sign-in with a recovery
+      address the user hasn't signed in from in 30 days (once they have signed in before,
+      however long ago, accepting an invitation counting as their first; the addresses seen
+      are kept on the user for those 30 days, and each session records its own), password
+      changed, two-step turned on or off, a sign-in with a recovery
       code, an access token made (S10.9.1), reactivated, and alerts (S12.11). In dev mode they
       are written to a folder (S17.7).
 2. **Admins are trusted operators.** An admin manages users, groups and Settings, and the app
@@ -123,7 +128,9 @@
       1. **A remote user is a `User` record** with its `linkId` set, so it appears wherever
          a share is chosen, beside local users, under its server's name. It has no password,
          two-step or sessions (a `CHECK` enforces it), and its fields come only from its
-         server (S11.3).
+         server (S11.3), within the bounds of `docs/link-protocol.md` §4.2 rather than
+         S10.1.1's: a display name of up to 120 characters and a username of up to 64 in any
+         form, a longer one cut there, never refused.
       2. **Only local users** appear where a user signs in, owns or changes something here:
          sign-in, Users and Groups, group membership (a group can hold write shares, and a
          remote user only ever reads), the Admins group, tax-book filers (S8.14.1), a
@@ -147,7 +154,8 @@
 6. **A shared account appears in the receiver's lists** with a *shared with me* mark, the
    owner's avatar, and the level (an eye for read, a pencil for write). The owner's lists
    mark *shared by me* and how many people have it. Filters: All, Mine, Shared with me,
-   Shared by me, From linked servers.
+   Shared by me. A linked household's accounts are never among them: they open in its own
+   window (S12.10.1, S12.10.5).
 7. **A receiver's totals** (net worth, Dashboard) include shared accounts only if the
    receiver ticks **Count in my totals** on them, which is off by default. A spouse's accounts
    then count once, and a parent's shared accounts don't inflate a child's net worth. What a
@@ -194,7 +202,7 @@
     1. **A person** has a name, a **sex** (*male* or *female*, required), a **birthday** (the
        year optional, for their age) and, once they have died, the date (`diedOn`). **Every
        user is a person**: a user's display name and birthday are their person's, edited in
-       Profile. A remote user's person is filled from its server (S10.3.3.1) and is used only
+       Profile (the name by an admin in Edit user too). A remote user's person is filled from its server (S10.3.3.1) and is used only
        for gifts. A new local user whose name is already that of a person here who isn't a user
        becomes that person. A remote user gets a person of its own, joined to an existing
        person only when a local user who can change that person confirms it, which never
@@ -209,7 +217,9 @@
     3. **One person, once.** Adding a person whose name matches one already here, ignoring
        case, shows that person instead. A private one shows **Ask to share**, which asks its
        creator and the admins (an alert, S12.11). **A different person** adds the new one
-       only once both have birth years and they differ, so the two can be told apart.
+       only once both have birth years and they differ, so the two can be told apart. A user
+       renamed, in Profile or Edit user, to the name of someone else here is refused at the
+       name.
     4. **A relationship** joins two people from a date (optional) to a date (empty while it
        holds): *spouse*, *couple*, *child*, *friend*, *colleague* or *family*, the last with an
        optional label (*godmother*). *Child* runs from the parent to the child; the rest run

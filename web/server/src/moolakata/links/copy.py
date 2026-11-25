@@ -12,6 +12,7 @@ SQLCipher database under the link's own access key.
    (the key only ever lived in memory)."""
 
 import datetime as dt
+import os
 import shutil
 import threading
 import time
@@ -26,6 +27,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import Engine
 
 from ..keys import phrase
+from ..keys.files import open_private, private_folder
 from ..store.db import HeldKey, make_engine
 from . import copydb
 from .keys import b64
@@ -79,6 +81,15 @@ NAMES: dict[str, str] = {}
 
 def folder(data_dir: Path, link_id: str) -> Path:
     return data_dir / "links" / NAMES.get(link_id, link_id)
+
+
+def private(data_dir: Path, link_id: str, *parts: str) -> Path:
+    """A copy's folder, or one in it, made 0700 as is each between it and the data folder, a
+    looser one set back (S14.2)."""
+    path = private_folder(data_dir / "links")
+    for part in (NAMES.get(link_id, link_id), *parts):
+        path = private_folder(path / part)
+    return path
 
 
 def new_name() -> str:
@@ -159,10 +170,11 @@ class Copies:
             return self._open(data_dir, link_id, key, user_id, at)
 
     def _open(self, data_dir, link_id, key: bytes, user_id: str, at) -> Open:
-        path = folder(data_dir, link_id)
-        path.mkdir(parents=True, exist_ok=True)
-        (path / "receipts").mkdir(exist_ok=True)
-        (path / "inbox").mkdir(exist_ok=True)
+        path = private(data_dir, link_id)
+        private(data_dir, link_id, "receipts")
+        private(data_dir, link_id, "inbox")
+        # 0600 before SQLite opens it, so its journal files are made the same (S14.2).
+        os.close(open_private(path / "shared.db", truncate=False))
         db_key = HeldKey(_derive(key, DB_LABEL))
         engine = make_engine(path / "shared.db", db_key)
         copydb.upgrade(engine)

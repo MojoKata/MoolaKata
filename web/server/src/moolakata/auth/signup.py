@@ -2,8 +2,10 @@
 with their name, email, a username and a password; confirms the email from a link; and waits
 until an admin approves or rejects the request. Approval makes the user.
 
-Whether an email address already has an account is never revealed: the answer to a request
-is the same either way, and only a new address gets a link.
+Whether an email address or a username already has an account is never revealed: the answer
+to a request is the same either way, and only a new address gets a link. The username is
+checked once the link proves the address, and a taken one is asked for again then
+(S10.1.4.1).
 """
 
 import datetime as dt
@@ -22,6 +24,7 @@ from .users import (
     Services,
     _name_problems,
     _username_problems,
+    _username_shape,
     admins_group,
     by_login,
 )
@@ -55,25 +58,32 @@ def _waiting_for(s: Db, column, value: str) -> bool:
     )
 
 
+def must_be_open(s: Db, dev: bool) -> list[str]:
+    """Sign-up's domains, or 403 when it is closed."""
+    on, domains = open_to(s, dev)
+    if not on:
+        raise Problem(403, "signup-off", "Sign-up is not open on this server.")
+    return domains
+
+
 def request(
     s: Db,
     svc: Services,
     display_name: str,
     username: str,
     email: str,
-    password: str,
+    password: passwords.Chosen,
     sex: str | None = None,
 ) -> None:
+    """`password`: judged and hashed before this write (`users.new_password`), so no write
+    waits on a hash (S13.7.3) and a known address takes as long as a new one (S10.1.4.1)."""
     from .. import people
 
-    on, domains = open_to(s, svc.config.dev)
-    if not on:
-        raise Problem(403, "signup-off", "Sign-up is not open on this server.")
+    domains = must_be_open(s, svc.config.dev)
     username = (username or "").strip().lower()
     email = (email or "").strip().lower()
-    errors = _name_problems(display_name) + _username_problems(s, username)
-    if not username_errors(errors) and _waiting_for(s, SignupRequest.username, username):
-        errors.append(FieldError("username", "username-taken", "That username is taken."))
+    # Its shape only: whether it is taken waits for the confirmed address (S10.1.4.1).
+    errors = _name_problems(display_name) + _username_shape(username)
     if not EMAIL.fullmatch(email):
         errors.append(FieldError("email", "email-invalid", "Enter an email address."))
     elif domains and email.rsplit("@", 1)[1] not in domains:
@@ -84,14 +94,11 @@ def request(
                 "Sign-up is open to addresses at " + ", ".join(domains) + ".",
             )
         )
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        errors.append(FieldError("password", *why))
+    if password.problem:
+        errors.append(FieldError("password", *password.problem))
     if sex not in people.SEXES:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
     refuse_all(errors)
-    # Hashed before the address is looked up, so a known address takes as long (S10.1.4.1).
-    password_hash = passwords.hash_password(password)
     if by_login(s, email) is not None or _waiting_for(s, SignupRequest.email, email):
         # The same answer as a new address; nothing is sent.
         return
@@ -101,7 +108,7 @@ def request(
         displayName=display_name.strip(),
         username=username,
         email=email,
-        passwordHash=password_hash,
+        passwordHash=password.hash,
         sex=sex,
         confirmTokenHash=token_hash,
         confirmBy=clock.now() + dt.timedelta(hours=CONFIRM_HOURS),
@@ -126,11 +133,28 @@ def request(
     )
 
 
-def username_errors(errors: list[FieldError]) -> bool:
-    return any(e.field == "username" for e in errors)
+def _username_taken(s: Db, username: str, req: SignupRequest) -> bool:
+    """A user has it, or another request already waiting for the admins does."""
+    if by_login(s, username) is not None:
+        return True
+    return (
+        s.scalar(
+            select(func.count())
+            .select_from(SignupRequest)
+            .where(
+                func.lower(SignupRequest.username) == username,
+                SignupRequest.id != req.id,
+                SignupRequest.deleted == false(),
+                SignupRequest.status == "waiting",
+            )
+        )
+        > 0
+    )
 
 
-def confirm(s: Db, token: str) -> SignupRequest:
+def confirm(s: Db, token: str, username: str | None = None) -> SignupRequest:
+    """The link proves the address; only then is the username checked, and a taken one is
+    refused at its field, the link still good, until another is given (S10.1.4.1)."""
     req = s.scalars(
         select(SignupRequest).where(
             SignupRequest.confirmTokenHash == digest(token or ""),
@@ -139,6 +163,11 @@ def confirm(s: Db, token: str) -> SignupRequest:
     ).first()
     if req is None or req.status != "confirming" or req.confirmBy <= clock.now():
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
+    name = req.username if username is None else username.strip().lower()
+    refuse_all(_username_shape(name))
+    if _username_taken(s, name, req):
+        raise refuse("username", "username-taken", "That username is taken: choose another.")
+    req.username = name
     req.status = "waiting"
     req.confirmedAt = clock.now()
     req.confirmTokenHash = None

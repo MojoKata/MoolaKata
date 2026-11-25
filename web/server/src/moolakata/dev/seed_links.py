@@ -117,10 +117,9 @@ def seed_links(server, s, people: dict) -> None:
 
 def _keep(server, link_id: str, change: dict) -> None:
     """The change in the copy's inbox as a pull keeps it (link-protocol.md §4.4)."""
-    from ..links.copy import folder
+    from ..links.copy import private
 
-    d = folder(server.config.data_dir, link_id) / "inbox"
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(server.config.data_dir, link_id, "inbox")
     changes.keep(d, link_id, "0000000001", change, {}, keys.unb64(public_of(DEV_COPY_KEY)))
 
 

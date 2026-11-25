@@ -18,7 +18,8 @@ An admin may have limited sign-up to some email domains.
 
 ## Username
 
-What you'll sign in with: lowercase letters, digits, dots, dashes or underscores.
+What you'll sign in with: lowercase letters, digits, dots, dashes or underscores. Whether it is
+taken is checked once your email is confirmed, and you choose another then if it is.
 
 ## Password
 

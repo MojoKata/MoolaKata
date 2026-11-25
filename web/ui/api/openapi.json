@@ -19276,7 +19276,6 @@
               "book-fixed",
               "budget-required",
               "budget-unknown",
-              "built-in",
               "built-on-invalid",
               "busy",
               "cadence-invalid",
@@ -19443,6 +19442,7 @@
               "loan-fixed",
               "locked",
               "locked-out",
+              "login-missing",
               "long-assign",
               "lot-invalid",
               "lot-method-invalid",
@@ -19813,7 +19813,6 @@
                   "book-fixed",
                   "budget-required",
                   "budget-unknown",
-                  "built-in",
                   "built-on-invalid",
                   "busy",
                   "cadence-invalid",
@@ -19980,6 +19979,7 @@
                   "loan-fixed",
                   "locked",
                   "locked-out",
+                  "login-missing",
                   "long-assign",
                   "lot-invalid",
                   "lot-method-invalid",
@@ -24197,6 +24197,32 @@
           "password"
         ],
         "title": "SignIn",
+        "type": "object"
+      },
+      "SignupConfirmation": {
+        "additionalProperties": false,
+        "description": "A sign-up's link, with another username when the one asked for was taken.",
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SignupConfirmation",
         "type": "object"
       },
       "SignupConfirmed": {
@@ -37344,6 +37370,7 @@
         ]
       },
       "post": {
+        "description": "The password is checked outside any write, so a sign-in never holds up the server's\none writer while it is hashed (S13.7.3), and each attempt is counted toward the lockout\nbefore its check (S13.7.5.1).",
         "operationId": "sign_in_ui_api_session_post",
         "requestBody": {
           "content": {
@@ -39205,12 +39232,13 @@
     },
     "/ui/api/signup/confirm": {
       "post": {
+        "description": "A taken username is refused here, at its field, and the link stays good (S10.1.4.1).",
         "operationId": "signup_confirm_ui_api_signup_confirm_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Token"
+                "$ref": "#/components/schemas/SignupConfirmation"
               }
             }
           },
@@ -39226,6 +39254,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
           },
           "422": {
             "$ref": "#/components/responses/Problem"

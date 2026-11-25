@@ -1,6 +1,8 @@
 """Receipts (requirements S9.1–S9.7)."""
 
 import io
+import os
+import stat
 
 import pytest
 from conftest import make_user, sign_in
@@ -79,6 +81,19 @@ def test_stored_encrypted_once_and_served_back(server, jane):
     theirs = upload(john, data).json()
     assert theirs["id"] != first["id"]
     assert len(list(server.config.receipts_dir.glob("*.mkr"))) == 1
+
+
+def test_a_receipt_file_is_0600_in_a_0700_folder(server, jane):
+    """S14.2: owned by the server's account, mode 0600 in a 0700 directory, a folder made
+    looser (by an image or a restore) set back at the next write."""
+    folder = server.config.receipts_dir
+    folder.mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o755)
+    assert upload(jane, png()).status_code == 201
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+    (path,) = folder.glob("*.mkr")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert path.stat().st_uid == os.geteuid()
 
 
 def test_a_thumbnail_follows_the_photos_orientation(jane):

@@ -545,6 +545,93 @@ def test_a_user_named_twice_in_a_directory_is_kept_once(server):
     assert kept == [("u1", "Bart")]
 
 
+def test_a_remote_users_fields_follow_the_protocols_bounds_not_a_local_users(server):
+    """S10.3.3.1, link protocol §4.2: a username S10.1.1 would refuse here is kept, cut to
+    64; a display name cut to 120."""
+    from moolakata.links import manage
+    from moolakata.store.entities.links import Link
+
+    link_id = _a_link(server)
+    users = [{"id": "u1", "username": "Bart Simpson-" + "x" * 60, "displayName": "B" * 130}]
+    with server.db.tx(unscoped="test") as s:
+        manage.apply_directory(s, s.get(Link, link_id), {"users": users})
+    with server.db.read(unscoped="test") as s:
+        (u,) = s.scalars(select(User).where(User.linkId == link_id))
+    assert (u.username, u.displayName) == (("Bart Simpson-" + "x" * 60)[:64], "B" * 120)
+
+
+# A linked owner's name, as a peer might send it: lines, a tab, an escape, and past its bound.
+OWNER = "Candace\r\nDoe\t\x1b[31m " + "x" * 130
+OWNER_KEPT = ("Candace Doe [31m " + "x" * 130)[:120]
+
+
+def test_a_linked_items_owner_name_is_kept_on_one_line_within_its_bound(server):
+    """Link protocol §4.2: of each item, an owner's name of up to 120 characters, on one line
+    as a peer's user names are (a control character becomes a space), in the main database's
+    registry and in Activity's line for the pull."""
+    import json
+
+    from moolakata.links import changes, receive
+    from moolakata.store.entities.core import Activity
+    from moolakata.store.entities.links import Link, LinkedItem
+
+    key, link_id = _key(), _a_link(server)
+    with server.db.tx(unscoped="test") as s:
+        s.get(Link, link_id).peerKey = keys.b64(keys.raw_public(key.public_key()))
+    item = {"id": "Acct_1", "kind": "account", "ownerName": OWNER, "viewers": []}
+    change = {"seq": 1, "asOf": "2026-11-01T00:00:00", "removed": [], "items": [item]}
+    assert receive.take(server, link_id, changes.sign(key, change)) == set()
+    with server.db.read(unscoped="test") as s:
+        (kept,) = s.scalars(select(LinkedItem.ownerName).where(LinkedItem.linkId == link_id))
+        shares = [
+            json.loads(a.detail)["shares"]
+            for a in s.scalars(select(Activity).where(Activity.kind == "link.pulled"))
+        ]
+    assert kept == OWNER_KEPT
+    assert shares == [[OWNER_KEPT + "'s account"]]
+
+
+def test_a_linked_items_owner_name_is_one_line_in_the_copy():
+    """The same name, as the linked copy keeps it from a change (link protocol §4.2, §4.4)."""
+    from sqlalchemy import create_engine
+
+    from moolakata.links import changes, copydb
+
+    engine = create_engine("sqlite://")
+    copydb.metadata.create_all(engine)
+    item = {"id": "Acct_1", "kind": "account", "ownerName": OWNER, "viewers": []}
+    with engine.begin() as conn:
+        changes._apply_one(conn, {"items": [item]}, {}, {})
+        kept = conn.execute(select(copydb.Item.c.ownerName)).scalar_one()
+    assert kept == OWNER_KEPT
+
+
+def test_a_linked_items_own_name_is_one_line_within_a_local_items_bound():
+    """Link protocol §4.4: an item's `name`, as the copy keeps it, is on one line (a control
+    character becomes a space) and cut at 80 characters, a local account's or plan's bound;
+    one that isn't text is kept as text."""
+    from sqlalchemy import create_engine
+
+    from moolakata.links import changes, copydb
+
+    engine = create_engine("sqlite://")
+    copydb.metadata.create_all(engine)
+    name = "Mom's\r\nRoth\tIRA \x1b[2J " + "y" * 100
+    items = [
+        {"id": "Acct_1", "kind": "account", "name": name, "viewers": []},
+        {"id": "Acct_2", "kind": "account", "name": 42, "viewers": []},
+        {"id": "Acct_3", "kind": "account", "viewers": []},
+    ]
+    with engine.begin() as conn:
+        changes._apply_one(conn, {"items": items}, {}, {})
+        kept = dict(conn.execute(select(copydb.Item.c.id, copydb.Item.c.name)).all())
+    assert kept == {
+        "Acct_1": ("Mom's Roth IRA [2J " + "y" * 100)[:80],
+        "Acct_2": "42",
+        "Acct_3": "",
+    }
+
+
 # ---------- Settings › Linked Servers (S11.7)
 
 

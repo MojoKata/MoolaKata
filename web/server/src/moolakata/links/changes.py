@@ -24,10 +24,11 @@ from sqlalchemy import delete, func, select
 
 from .. import clock, exactjson
 from ..checkpoints import checkpoint
+from ..people import one_line
 from ..store.entities.links import Link
 from . import copydb, sealed
 from .client import NOT_SHOWN, shown
-from .copy import folder, private_key
+from .copy import folder, private, private_key
 from .keys import b64, unb64
 
 MAX_CHANGES = 1000
@@ -109,6 +110,10 @@ def inbox(data_dir, link_id: str):
     return folder(data_dir, link_id) / "inbox"
 
 
+# A linked item's own name is kept as long as a local account's or plan's may be, so it
+# shows as theirs do (link protocol §4.4).
+ITEM_NAME_MOST = 80
+
 ENTRY = ".mke"  # beside each waiting change: its registry and local names, sealed
 
 
@@ -140,8 +145,7 @@ def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
         public = unb64(link.copyPublicKey) if link and link.copyPublicKey else None
     if public is None or not (change.get("sealed") or (local or {}).get("registryOnly")):
         return True  # no copy yet: nothing is kept until its access key is made
-    d = inbox(srv.config.data_dir, link_id)
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(srv.config.data_dir, link_id, "inbox")
     have = waiting(srv.config.data_dir, link_id)
     seq = int(have[-1].stem) + 1 if have else 1
     name = f"{seq:010d}"
@@ -233,7 +237,7 @@ def apply(srv, link_id: str) -> int:
         why = str(e) if isinstance(e, ChangeError) else shown(str(e), type(e).__name__)
         aside = folder(srv.config.data_dir, link_id) / "set-aside"
         shutil.rmtree(aside, ignore_errors=True)
-        aside.mkdir(parents=True, exist_ok=True)
+        private(srv.config.data_dir, link_id, "set-aside")
         for f in files:
             for part in (f, f.with_suffix(ENTRY)):
                 with contextlib.suppress(OSError):
@@ -374,8 +378,8 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
             {
                 "id": it["id"],
                 "kind": it["kind"],
-                "name": it.get("name") or "",
-                "ownerName": it.get("ownerName") or "",
+                "name": one_line(str(it.get("name") or ""))[:ITEM_NAME_MOST],  # §4.4
+                "ownerName": one_line(str(it.get("ownerName") or ""))[:120],  # §4.2
                 "viewers": json.dumps(it.get("viewers") or []),
                 "version": int(it.get("version") or 0),
                 "asOf": it.get("asOf") or c.get("asOf") or "",

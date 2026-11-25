@@ -22,6 +22,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
+from ..keys.files import open_private, private_folder
+
 MAGIC = b"MKR1"
 CHUNK = 64 * 1024
 TAG = 16
@@ -127,11 +129,12 @@ def open_sealed(
 
 
 def write(path: Path, pieces: Iterable[bytes]) -> int:
-    """Written under a temporary name, synced to disk and renamed (S11.9.6.6). Returns the
-    bytes written."""
+    """Written under a temporary name, synced to disk and renamed (S11.9.6.6), 0600 in a 0700
+    folder, one found looser set back, as receipts are (S14.2). Returns the bytes written."""
+    private_folder(path.parent)
     tmp = path.with_name(path.name + ".tmp")
     total = 0
-    with open(tmp, "wb") as f:
+    with os.fdopen(open_private(tmp), "wb") as f:
         for p in pieces:
             f.write(p)
             total += len(p)

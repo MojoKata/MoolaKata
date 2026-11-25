@@ -147,6 +147,22 @@ def test_ten_wrong_phrases_lock_the_unlock_out(locked):
     assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
 
 
+def test_phrases_being_judged_count_toward_the_lockout(locked, master_key):
+    """S13.7.5.1: ten phrases still being judged leave no room for an eleventh, even the right
+    one, until they are done."""
+    from contextlib import ExitStack
+
+    srv, c = locked
+    right = " ".join(phrase.to_words(master_key))
+    with ExitStack() as held:
+        for _ in range(10):
+            held.enter_context(srv.sign_in.attempt(LOOPBACK[0]))
+        r = c.post("/ui/api/unlock", json={"phrase": right}, headers={"Origin": ORIGIN})
+        assert r.status_code == 429 and srv.store is None
+    r = c.post("/ui/api/unlock", json={"phrase": right}, headers={"Origin": ORIGIN})
+    assert r.status_code == 200 and srv.store is not None
+
+
 def test_break_glass_and_backups_go_over_the_host_socket_only(locked, master_key):
     """Host commands reach the running server over its Unix socket (S13.6); the listener has
     no route for them, whatever address a request claims to come from. A locked server issues
@@ -382,3 +398,72 @@ def test_fewer_backup_days_than_are_kept_takes_the_phrase(server, admin_client, 
     r = admin_client.post("/ui/api/settings/backups/copies", json={"copies": 30})
     assert r.status_code == 200 and r.json()["copies"] == 30
     assert save_settings(admin_client, {"backupCopies": 31}).status_code == 200
+
+
+# ---------- the unlock's rarer answers (S15.4.3, S15.7.2) ----------
+
+
+def _unlock(c, key: bytes):
+    return c.post(
+        "/ui/api/unlock",
+        json={"phrase": " ".join(phrase.to_words(key))},
+        headers={"Origin": ORIGIN},
+    )
+
+
+def test_a_phrase_while_a_reencryption_runs_is_asked_to_wait(locked, master_key):
+    from moolakata.store import reencrypt
+
+    srv, c = locked
+    srv.reencrypting = reencrypt.Progress()
+    try:
+        r = _unlock(c, master_key)
+    finally:
+        srv.reencrypting = None
+    assert r.status_code == 409 and r.json()["code"] == "re-encrypting"
+    assert r.json()["detail"] == "MoolaKata is re-encrypting: wait for it." and srv.store is None
+
+
+def test_a_phrase_beaten_by_another_unlock_is_told_it_is_unlocked(locked, master_key, monkeypatch):
+    """Two phrases at once: the one that finds the store opened meanwhile is told so."""
+    from moolakata import runtime
+
+    srv, c = locked
+
+    async def opened_meanwhile(server, key, seed=False, wait=True):
+        raise runtime.AlreadyUnlocked
+
+    monkeypatch.setattr(runtime, "unlock", opened_meanwhile)
+    r = _unlock(c, master_key)
+    assert r.status_code == 409 and r.json()["code"] == "unlocked-already"
+    assert r.json()["detail"] == "MoolaKata is already unlocked." and srv.store is None
+
+
+def test_a_rotation_pending_under_another_phrase_names_it(locked, master_key):
+    """S15.7.2: a rotation's re-encryption finishes only with the new phrase; the old one is
+    told which."""
+    from moolakata.store import reencrypt
+
+    srv, c = locked
+    new = os.urandom(16)
+    ring = master.read_keyring(srv.config.keyring_path)
+    data_key = master.unwrap(master_key, ring)
+    later = master.wrap(new, data_key, ring.master_created, ring.data_key_created)
+    reencrypt.schedule(srv.config, {}, None, "rotation", to=master.key_id(new))
+    master.write_keyring(reencrypt.next_keyring(srv.config), later)
+    r = _unlock(c, master_key)
+    assert r.status_code == 409 and r.json()["code"] == "reencrypt-pending"
+    assert r.json()["detail"] == (
+        f"A re-encryption is pending under {master.fingerprint(new)}: unlock with that phrase "
+        "so it can finish."
+    )
+
+
+def test_a_database_that_wont_open_is_answered_without_its_reason(locked, master_key):
+    """The reason is in the server's log; the page says only that it can't (S13.7.9)."""
+    srv, c = locked
+    srv.config.db_path.write_bytes(b"not a database" * 100)
+    r = _unlock(c, master_key)
+    assert r.status_code == 503 and r.json()["code"] == "cannot-unlock"
+    assert r.json()["detail"] == "The server cannot open its data: see its log."
+    assert srv.store is None

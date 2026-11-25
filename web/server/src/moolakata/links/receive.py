@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 
 from .. import activity, clock, ids
 from ..checkpoints import checkpoint
+from ..people import one_line
 from ..store.entities.links import Link, LinkedItem, LinkFile
 from ..store.entities.users import User
 from . import changes
@@ -113,7 +114,7 @@ def take(
                     linkId=link_id,
                     remoteId=it["id"],
                     kind=str(it.get("kind") or "?")[:20],
-                    ownerName=str(it.get("ownerName") or "?")[:120],
+                    ownerName=owner_name(it),
                     sharedAt=shared,
                     viewers=json.dumps([v for v in it.get("viewers") or [] if v in local]),
                     includeReceipts=bool(it.get("includeReceipts")),
@@ -195,6 +196,11 @@ def _take_removals(srv, link_id: str, change: dict) -> None:
         changes.enqueue(srv, link_id, change, {"registryOnly": True})
 
 
+def owner_name(item: dict, none: str = "?") -> str:
+    """An item's owner's name as a peer sent it, kept to §4.2's bound, on one line."""
+    return one_line(str(item.get("ownerName") or ""))[:120] or none
+
+
 def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
     """Which shares a change carried, for Activity (S11.8): whose item, of what kind, and for
     whom, never its name (*Jane Doe's account for Bart*). `here`: its viewers are this
@@ -210,9 +216,7 @@ def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
     for it in (change.get("items") or [])[:20]:
         whom = ", ".join(sorted(names.get(v, "someone") for v in it.get("viewers") or []))
         kind = str(it.get("kind") or "item").replace("-", " ")
-        out.append(
-            f"{it.get('ownerName') or 'someone'}'s {kind}" + (f" for {whom}" if whom else "")
-        )
+        out.append(f"{owner_name(it, 'someone')}'s {kind}" + (f" for {whom}" if whom else ""))
     return out
 
 
@@ -242,7 +246,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
 
     from . import client, manage, sealed
     from .client import NOT_SHOWN, shown
-    from .copy import folder
+    from .copy import private
 
     with srv.db.read(unscoped="links.receive: fetch files") as s:
         link = s.get(Link, link_id)
@@ -250,8 +254,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
         address, peer, pins = link.address, unb64(link.peerKey), manage.pins(link)
     if not file_ids or not has_key:
         return {}, {}
-    d = folder(srv.config.data_dir, link_id) / "receipts"
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(srv.config.data_dir, link_id, "receipts")
     names: dict[str, str] = {}
     failed: dict[str, str] = {}
     for fid in file_ids:
@@ -359,10 +362,9 @@ def keep_delivered(srv, link_id: str, chunks) -> str:
     import secrets
 
     from . import sealed
-    from .copy import folder
+    from .copy import private
 
-    d = folder(srv.config.data_dir, link_id) / "receipts"
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(srv.config.data_dir, link_id, "receipts")
     name = secrets.token_hex(12) + ".mkr"
     sealed.write(d / name, chunks)
     return name

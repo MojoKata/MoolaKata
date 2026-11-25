@@ -385,7 +385,8 @@ def make_server(path: Path):
     key = os.urandom(16)
     master.create_keyring(config, key)
     srv = Server(config=config, store=open_store(config, key), ready=True)
+    chosen = accounts.new_password(srv.db, ADMIN_PW, setup=True)
     with srv.db.tx(unscoped="test") as s:
-        accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", ADMIN_PW)
+        accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", chosen)
         ensure_categories(s)
     return srv
