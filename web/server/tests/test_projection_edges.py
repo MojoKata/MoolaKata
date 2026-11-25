@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, new_id
+from edits import change, make, new_id, saved
 from test_projections import T0
 
 from moolakata import clock
@@ -451,6 +451,43 @@ def test_a_viewer_not_shared_its_accounts_isnt_told_its_bitcoin_share(server, ja
     assert share(jane, "account", wallet["id"], users={john.id: "read"}).status_code == 200
     whole = johns.get(f"/ui/api/projections/{p['id']}").json()["result"]
     assert whole["bitcoinShare"] == 1
+
+
+def test_a_writer_not_shared_its_accounts_keeps_the_owners_unseen_ones(server, jane):
+    """S6.1: a writer shared the projection but not every account it is built on changes what
+    it is built on among the accounts they see; those they don't see stay, and are still not
+    named to them."""
+    from edits import share
+    from test_accounts import add, new_account
+
+    joint = new_account(jane, name="Joint savings", type="savings")
+    own = new_account(jane, name="Jane's savings", type="savings")
+    house = new_account(jane, name="House fund", type="savings")
+    for a in (joint, own, house):
+        add(jane, a["id"], "1000.00", "2026-10-01")
+    p = made(make(jane, "Prjct", name="House", goal="savings",
+                  builtOn={"kind": "accounts", "ids": [joint["id"], own["id"]]},
+                  inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "write"}).status_code == 200
+    for a in (joint, house):
+        assert share(jane, "account", a["id"], users={john.id: "read"}).status_code == 200
+    johns = sign_in(server, "john")
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()
+    assert theirs["builtOn"]["ids"] == [joint["id"]]
+    chosen = {"kind": "accounts", "ids": [joint["id"], house["id"]]}
+    after = saved(change(johns, "Prjct", theirs, builtOn=chosen))
+    assert after["builtOn"] == chosen, "the unseen one still not named to them"
+    mine = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert sorted(mine["builtOn"]["ids"]) == sorted([joint["id"], house["id"], own["id"]])
+    assert mine["result"]["start"] == Decimal("3000.00")
+    # Changing only its inputs leaves what it is built on as it is.
+    after = saved(change(johns, "Prjct", after, inputs={**after["inputs"], "monthly": 100}))
+    assert len(jane.get(f"/ui/api/projections/{p['id']}").json()["builtOn"]["ids"]) == 3
+    # Down to none they see, the owner's unseen one stays.
+    saved(change(johns, "Prjct", after, builtOn={"kind": "accounts", "ids": [house["id"]]}))
+    mine = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert sorted(mine["builtOn"]["ids"]) == sorted([house["id"], own["id"]])
 
 
 def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):

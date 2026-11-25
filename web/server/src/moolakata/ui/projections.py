@@ -470,12 +470,34 @@ def _projection_current(ctx, p: Projection) -> dict:
             "inputs": json.loads(p.inputs or "{}"), "rebaseline": False}  # fmt: skip
 
 
+def _unseen(s, user_id: str, p: Projection, built) -> list[str]:
+    """The accounts it is built on that a writer saving `built` isn't shared: they neither see
+    nor choose them, and they stay as they were (S6.1)."""
+    old = json.loads(p.builtOn or "{}")
+    if (
+        user_id == p.ownerId
+        or old.get("kind") != "accounts"
+        or not isinstance(built, dict)
+        or built.get("kind") != "accounts"
+        or not isinstance(built.get("ids"), list)
+    ):
+        return []
+    seen = {a.id for a, _ in access.accounts(s, user_id)}
+    return [i for i in old.get("ids", []) if i not in seen]
+
+
 def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
     s, c = ctx.s, ctx.caller
     if body.goal != p.goal:
         raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
     kept = json.loads(p.inputs or "{}").get("beneficiary")
-    refuse_all(_check(s, p.ownerId, body.name, p.goal, body.builtOn, body.inputs, kept))
+    built, unseen = body.builtOn, _unseen(s, c.id, p, body.builtOn)
+    if unseen:
+        # What they chose is checked; those they aren't shared are added back as they were.
+        chosen = [i for i in built["ids"] if i not in unseen]
+        built = {**built, "ids": chosen} if chosen else None
+        body.builtOn = {**body.builtOn, "ids": [*chosen, *unseen]}
+    refuse_all(_check(s, p.ownerId, body.name, p.goal, built, body.inputs, kept))
     current = _projection_current(ctx, p)
     fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
     p.name = body.name.strip()
