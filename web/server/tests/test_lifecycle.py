@@ -11,7 +11,7 @@ import pytest
 from linkpair import linked
 from test_links import admins, links_of, pair  # noqa: F401
 
-from moolakata.links import keys, lifecycle, signing
+from moolakata.links import keys, lifecycle, serve, signing
 from moolakata.links.client import LinkError
 from moolakata.store.entities.links import Link
 
@@ -103,6 +103,15 @@ def test_the_protocols_tables_are_the_modules():
         calls[name] = set(re.findall(r"\b(" + "|".join(lifecycle.STATES) + r")\b", states))
     for name, states in lifecycle.CALLS.items():
         assert calls[name] == set(states), name
+
+
+def test_the_protocols_kinds_are_the_ones_served():
+    """link-protocol.md §6 names each kind as an item's `kind` spells it, since §5.3 hides an
+    item whose kind the receiver doesn't know: the table and `serve.KINDS` are one list."""
+    text = (ROOT / "docs" / "link-protocol.md").read_text()
+    names = [re.fullmatch(r"`([a-z-]+)`", kind) for kind, *_ in table(text, "## 6. Shared items")]
+    assert all(names), "each kind in §6 as its wire name, in code"
+    assert sorted(m.group(1) for m in names) == sorted(serve.KINDS)
 
 
 def test_every_refusal_a_linked_server_is_sent_is_in_the_protocols_table():

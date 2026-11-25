@@ -248,7 +248,7 @@ the receiving server keeps in its main database while the copy is locked (S11.9.
 | `release` | registry | the sender's MoolaKata release and schema revision, which draw and migrate the receiver's copy (section 5.5) |
 | `asOf` | registry | when it was read |
 | `full` | registry | it replaces everything the receiver has from this link |
-| `items` | registry | items added or changed: `id`, `kind`, `ownerName`, `sharedAt`, `viewers` (the receiver's user ids it names), `includeReceipts`, `version` |
+| `items` | registry | items added or changed: `id`, `kind` (section 6), `ownerName`, `sharedAt`, `viewers` (the receiver's user ids it names), `includeReceipts`, `version` |
 | `removed` | registry | ids of items no longer shared |
 | `narrowed` | registry | in a paused link's change alone (section 4.3.6): each item still shared whose people some were taken off, its `id` and the `viewers` it no longer names |
 | `progress` | registry | in a large change's parts: `from`, the date of the oldest record the change holds; `through`, the newest date the parts so far reach; `bytes`, what they hold; `total`, what the sender reckoned the whole change holds when it read the first part |
@@ -373,18 +373,19 @@ the two servers have, and the join is refused `already-linked`. The new link pul
 ## 6. Shared items
 
 Each shared item travels as its source's own release needs to draw it (S11.3.1), in the
-changes of section 4.4:
+changes of section 4.4. Its `kind` is one of the eight of S10.3, spelled exactly as the
+first column has it, in every release:
 
 | Kind | Records (`rows`) | Worked out at the source |
 |---|---|---|
-| account | the account and its type's rows, its transactions, splits, reimbursements, transfer pairs, lots, picks, corporate actions, stated holdings, holding checks, option contracts, strategies, statement balances and reconciliations; the instruments and categories they use; its transactions' public tags; the closes of what it holds or watches, and its owner's typed prices for them; a wallet as its balance, transactions and holdings, never its keys or addresses | — |
-| person | the person, and relationships between two people both shared with the viewer | — |
-| gift plan | the plan, its occasions and gifts; a gift's linked transaction as a small entry (date, amount, account or *an account not shared*); when the share includes receipts, a gift's documents (their file names, notes and links) and their files (`files`), which otherwise stay home (S11.5.1) | — |
-| portfolio | the portfolio and which accounts it holds; the closes of its benchmark, from the earliest day of its accounts | — |
-| budget | the budget, the accounts it counts by month, its plan lines, moves and reviews | `totals`: per month and category, per month and account, per recurring series (S7.3.10) |
-| tax book | the book, its filers, the accounts it counts, dependents, filings, changes, estimated payments and documents; when the share includes receipts, the documents' files (`files`) and file names; otherwise the documents alone, with no file name or file (S11.5.1) | `docs`: each panel; an unticked book's document list leaves out the file names |
-| giving plan | the plan, its organisations and donations | `docs`: the year's giving and its donations |
-| projection | — | `docs`: the projection |
+| `account` | the account and its type's rows, its transactions, splits, reimbursements, transfer pairs, lots, picks, corporate actions, stated holdings, holding checks, option contracts, strategies, statement balances and reconciliations; the instruments and categories they use; its transactions' public tags; the closes of what it holds or watches, and its owner's typed prices for them; a wallet as its balance, transactions and holdings, never its keys or addresses | — |
+| `person` | the person, and relationships between two people both shared with the viewer | — |
+| `gift-plan` | the plan, its occasions and gifts; a gift's linked transaction as a small entry (date, amount, account or *an account not shared*); when the share includes receipts, a gift's documents (their file names, notes and links) and their files (`files`), which otherwise stay home (S11.5.1) | — |
+| `portfolio` | the portfolio and which accounts it holds; the closes of its benchmark, from the earliest day of its accounts | — |
+| `budget` | the budget, the accounts it counts by month, its plan lines, moves and reviews | `totals`: per month and category, per month and account, per recurring series (S7.3.10) |
+| `tax-book` | the book, its filers, the accounts it counts, dependents, filings, changes, estimated payments and documents; when the share includes receipts, the documents' files (`files`) and file names; otherwise the documents alone, with no file name or file (S11.5.1) | `docs`: each panel; an unticked book's document list leaves out the file names |
+| `giving-plan` | the plan, its organisations and donations | `docs`: the year's giving and its donations |
+| `projection` | — | `docs`: the projection |
 
 Items of a kind the receiver's worker doesn't know are kept in its copy and not shown
 (section 5.3).
