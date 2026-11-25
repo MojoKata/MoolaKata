@@ -205,10 +205,10 @@ function Detail({ id, reloadList }) {
             }%`
           ).join(', ')}</div>
           <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
-          ${r.noBitcoinPrice
-            ? html`<div>No bitcoin price yet: the model isn't used</div>`
-            : r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
-            ? html`<div>Bitcoin: the ${r.bitcoinModel} model</div>`
+          ${r.noBitcoinPrice || (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0)
+            ? html`<div>Bitcoin: ${
+              r.noBitcoinPrice ? 'no model, no price yet' : `the ${r.bitcoinModel} model`
+            }</div>`
             : null}
           <div>Seed: ${r.seed}</div>
         </div>
@@ -664,7 +664,7 @@ function MakeActive({ close, p }) {
             ? 'Its tracking ends, and it stays as a scenario.'
             : 'Their tracking ends, and they stay as scenarios.'
         }</p>`
-        : html`<p style=${{ marginTop: 0 }}>It becomes an active plan.</p>`}
+        : null}
       <${FormError} error=${go.error} />
       </${Dialog}>
   `;

@@ -150,9 +150,8 @@ def test_with_no_bitcoin_price_no_model_is_drawn_or_followed(browser, household)
         page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')
         page.click('button:has-text("Compare models")')
         wait(page, '.dialog .empty:has-text("No bitcoin price yet")', problems)
-        assert "Settings › Prices" in page.locator(".dialog").inner_text()
         page.goto(h.base + f"/ui/projections/{pr['id']}")
-        wait(page, "text=No bitcoin price yet: the model isn't used", problems)
+        wait(page, "text=Bitcoin: no model, no price yet", problems)
         assert problems == []
         page.close()
     finally:
