@@ -439,22 +439,57 @@ export function FanChart({ label, years, p: p0, paths: paths0, marks = [] }) {
   `;
 }
 
+/** A day as a year and its fraction: 2026-07-02 is about 2026.5. */
+const yearOf = (/** @type {string} */ day) => {
+  const d = new Date(day + 'T00:00:00Z');
+  const first = Date.UTC(d.getUTCFullYear(), 0, 1);
+  return d.getUTCFullYear() + (d.getTime() - first) / (365.25 * 86400000);
+};
+
 /**
- * The bitcoin models side by side on a log scale (S6.3.1.1).
- * @param {{ rows: { model: string, path: [number, number][] }[], names: Record<string, string> }} p
+ * The bitcoin models side by side on a log scale, with the price history behind them
+ * (S6.3.1.1): each path starts from today's price, the history's last close.
+ * @param {{ rows: { model: string, path: [number, number][] }[], history: [string, any][],
+ *   names: Record<string, string> }} p
  */
-export function ModelsChart({ rows: given, names }) {
+export function ModelsChart({ rows: given, history: closes, names }) {
   const rows = floats(given);
+  const history = closes.map(([day, v]) => /** @type {[number, number]} */ ([yearOf(day), num(v)]));
   const colors = ['--c1', '--c5', '--c4', '--c3', '--c2'];
-  const years = rows[0]?.path.map(([y]) => String(y)) || [];
+  // A path's first point is today's price: drawn where the history ends.
+  const last = history.length ? history[history.length - 1][0] : 0;
+  const shift = last ? last - Math.floor(last) : 0;
   const fmt = (/** @type {number} */ v) =>
-    v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`;
+    v >= 1e9
+      ? `$${(v / 1e9).toFixed(1)}B`
+      : v >= 1e6
+      ? `$${(v / 1e6).toFixed(1)}M`
+      : v >= 1e3
+      ? `$${Math.round(v / 1e3)}K`
+      : `$${Math.round(v)}`;
+  const years = [
+    ...new Set([...history.map(([y]) => Math.floor(y)), ...(rows[0]?.path.map(([y]) => y) || [])]),
+  ];
+  const closeIn = (/** @type {number} */ y) => {
+    const inYear = history.filter(([x]) => Math.floor(x) === y);
+    return inYear.length ? fmt(inYear[inYear.length - 1][1]) : '';
+  };
   return html`
-    <${Chart} label="Bitcoin models' median paths, log scale"
-      legend=${rows.map((r, i) => [names[r.model] || r.model, colors[i % colors.length]])}
-      head=${['Year', ...rows.map((r) => names[r.model] || r.model)]}
-      rows=${years.map((y, i) => [y, ...rows.map((r) => fmt(r.path[i][1]))])}
-      deps=${[JSON.stringify(rows.map((r) => r.path.length))]}
+    <${Chart} label="Bitcoin's price history and the models' median paths, log scale"
+      legend=${[
+        ['Price history', '--fg'],
+        ...rows.map((r, i) => [names[r.model] || r.model, colors[i % colors.length]]),
+      ]}
+      head=${['Year', 'Price history', ...rows.map((r) => names[r.model] || r.model)]}
+      rows=${years.map((y) => [
+        String(y),
+        closeIn(y),
+        ...rows.map((r) => {
+          const at = r.path.find(([x]) => x === y);
+          return at ? fmt(at[1]) : '';
+        }),
+      ])}
+      deps=${[JSON.stringify(rows.map((r) => r.path.length)), history.length]}
       option=${(/** @type {(n: string) => string} */ t) => ({
         grid: { left: 64, right: 16, top: 16, bottom: 28 },
         tooltip: {
@@ -464,20 +499,40 @@ export function ModelsChart({ rows: given, names }) {
           textStyle: { color: t('--fg') },
           valueFormatter: (/** @type {number} */ v) => fmt(v),
         },
-        xAxis: { type: 'category', data: years, axisLabel: { color: t('--fg-muted') } },
+        xAxis: {
+          type: 'value',
+          min: years.length ? years[0] : undefined,
+          max: years.length ? years[years.length - 1] + shift : undefined,
+          minInterval: 1,
+          axisLabel: {
+            color: t('--fg-muted'),
+            formatter: (/** @type {number} */ y) => String(Math.floor(y)),
+          },
+          splitLine: { show: false },
+        },
         yAxis: {
           type: 'log',
           splitLine: { lineStyle: { color: t('--border') } },
           axisLabel: { color: t('--fg-muted'), formatter: fmt },
         },
-        series: rows.map((r, i) => ({
-          name: names[r.model] || r.model,
-          type: 'line',
-          symbol: 'none',
-          data: r.path.map(([, v]) => v),
-          lineStyle: { color: t(colors[i % colors.length]), width: 2 },
-          itemStyle: { color: t(colors[i % colors.length]) },
-        })),
+        series: [
+          {
+            name: 'Price history',
+            type: 'line',
+            symbol: 'none',
+            data: history,
+            lineStyle: { color: t('--fg'), width: 1 },
+            itemStyle: { color: t('--fg') },
+          },
+          ...rows.map((r, i) => ({
+            name: names[r.model] || r.model,
+            type: 'line',
+            symbol: 'none',
+            data: r.path.map(([y, v]) => [y + shift, v]),
+            lineStyle: { color: t(colors[i % colors.length]), width: 2 },
+            itemStyle: { color: t(colors[i % colors.length]) },
+          })),
+        ],
       })} />
   `;
 }

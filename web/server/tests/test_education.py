@@ -291,7 +291,7 @@ def test_the_goal_tab_starts_an_education_projection(jane):
         name="X",
         goal="education",
         builtOn={"kind": "typed", "amount": 1},
-        inputs={"beneficiary": {"kind": "person", "id": "Persn_nope"}},
+        inputs={"beneficiary": {"kind": "person", "id": "Persn_nope"}, "monthly": 0, "fees": 0.1},
     )
     assert bad.json()["errors"][0]["field"] == "inputs.beneficiary"
 

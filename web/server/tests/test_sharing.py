@@ -221,7 +221,7 @@ def test_receivers_see_what_happens_to_what_is_shared_and_its_removal(server):
         name="Retire early",
         goal="savings",
         builtOn={"kind": "typed", "amount": "1000"},
-        inputs={"target": 5000, "date": "2031-01-01"},
+        inputs={"target": 5000, "date": "2031-01-01", "monthly": 0, "fees": 0.1},
     ).json()
     share(c["jane"], "projection", p["id"], users={u["john"].id: "read"})
     texts = [e["text"] for e in c["john"].get("/ui/api/activity").json()["items"]]

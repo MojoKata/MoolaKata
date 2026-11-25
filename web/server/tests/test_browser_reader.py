@@ -462,6 +462,68 @@ def test_a_readers_projection_shows_its_inputs_read_and_run_off(browser, househo
     page.close()
 
 
+def test_a_writer_shared_none_of_its_accounts_sees_built_on_off_and_changes_the_rest(
+    browser, household, reader
+):
+    """S6.1, S12.19.1: a writer shared a projection but none of the accounts it is built on
+    sees Built on read as not shared with them, saying why, never as the first option; what
+    they may change stays theirs to, and a save keeps what it is built on."""
+    h = household
+    on = {"kind": "accounts", "ids": [h.extra["savings"]["id"]]}
+    goal = {"target": 50000, "date": "2030-01-01", "monthly": 0, "fees": 0.1}
+    p = made(make(h.c, "Prjct", name="Reader's house", goal="savings", builtOn=on, inputs=goal))
+    try:
+        made(share(h.c, "projection", p["id"], users={reader["id"]: "write"}))
+        page, problems = signed_in_as_reader(
+            browser, h, f"/ui/projections/{p['id']}", "h3:has-text('Inputs')"
+        )
+        card = page.locator("form.card:has(h3:has-text('Inputs'))")
+        built = card.locator("#f-built-on")
+        assert built.inner_text() == "Not shared with you"
+        assert built.get_attribute("data-tip").startswith("None of the accounts it is built on")
+        page.fill("#f-monthly", "250")
+        card.locator("button.primary").click()
+        wait(page, '.toast:has-text("Recomputed")', problems)
+        after = h.c.get(f"/ui/api/projections/{p['id']}").json()
+        assert (after["builtOn"], after["inputs"]["monthly"]) == (on, 250)
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Prjct", h.c.get(f"/ui/api/projections/{p['id']}").json(), confirm=True))
+
+
+def test_a_writer_not_shared_its_portfolio_sees_built_on_off_and_changes_the_rest(
+    browser, household, reader
+):
+    """S6.1, S12.19.1: a writer shared a projection but not the portfolio it is built on sees
+    Built on read as not shared with them, saying why, never as the first option; a save of
+    the rest keeps the portfolio, never refused as one they didn't choose."""
+    h = household
+    port = made(make(h.c, "Portf", name="Reader's nest egg", accountIds=[h.extra["savings"]["id"]]))
+    on = {"kind": "portfolio", "id": port["id"]}
+    goal = {"target": 50000, "date": "2030-01-01", "monthly": 0, "fees": 0.1}
+    p = made(make(h.c, "Prjct", name="Reader's nest", goal="savings", builtOn=on, inputs=goal))
+    try:
+        made(share(h.c, "projection", p["id"], users={reader["id"]: "write"}))
+        page, problems = signed_in_as_reader(
+            browser, h, f"/ui/projections/{p['id']}", "h3:has-text('Inputs')"
+        )
+        card = page.locator("form.card:has(h3:has-text('Inputs'))")
+        built = card.locator("#f-built-on")
+        assert built.inner_text() == "Not shared with you"
+        assert built.get_attribute("data-tip").startswith("The portfolio it is built on")
+        page.fill("#f-monthly", "250")
+        card.locator("button.primary").click()
+        wait(page, '.toast:has-text("Recomputed")', problems)
+        after = h.c.get(f"/ui/api/projections/{p['id']}").json()
+        assert (after["builtOn"], after["inputs"]["monthly"]) == (on, 250)
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Prjct", h.c.get(f"/ui/api/projections/{p['id']}").json(), confirm=True))
+        made(remove(h.c, "Portf", h.c.get(f"/ui/api/portfolios/{port['id']}").json(), confirm=True))
+
+
 def test_a_readers_tax_book_opens_what_holds_more_than_its_row(browser, household, reader):
     """S12.19.5: a dependent whose line shows all of them has no tool; a tax document with
     notes, and a filing, open read through the eye, leaving out what their row or card shows."""

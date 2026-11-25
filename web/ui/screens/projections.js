@@ -17,6 +17,7 @@ import {
   Field,
   FormError,
   Input,
+  ReadValue,
   Seg,
   Select,
   SpinInput,
@@ -25,11 +26,12 @@ import {
 import { toast } from '../kit/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
-import { num } from '../kit/dec.js';
+import { copied, num } from '../kit/dec.js';
 import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { Action, StatePill } from '../kit/state.js';
+import { MODEL_NAMES } from './profile.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -131,9 +133,15 @@ function Detail({ id, reloadList }) {
       : a.kind === 'education'
       ? [[a.firstYear, 'school starts']]
       : []);
-  const classes = Object.entries(r.weights).map(([k, w]) =>
-    `${r.assumptions.classes[k] ? labelOf(k) : k} ${Math.round(num(w) * 100)}%`
-  ).join(', ');
+  // The cases and the bitcoin model follow the bitcoin in its mix: one not shared every
+  // account it is built on sees neither, the fan in their place (S6.3.1.4).
+  const cases = r.weights && Object.keys(r.scenarios || {}).length ? r.scenarios : null;
+  // No mix for one not shared every account it is built on: it is what they hold (S6.1).
+  const classes = r.weights
+    ? Object.entries(r.weights).map(([k, w]) =>
+      `${r.assumptions.classes[k] ? labelOf(k) : k} ${Math.round(num(w) * 100)}%`
+    ).join(', ')
+    : 'its mix: not shared with you';
   return html`
     <div class="toolbar mt">
       <b style=${{ fontSize: '16px' }}>${x.name}</b> <span class="small dim">${GOAL[x.goal]?.[0] ||
@@ -178,32 +186,40 @@ function Detail({ id, reloadList }) {
       : x.active
       ? html`
         <div class="mt">
-          <${StatePill}
-            why="Built on a typed amount: there is no balance to track it against."
-          >untracked</${StatePill}></div>
+          <${StatePill} why=${`${
+            x.builtOn?.kind === 'typed'
+              ? 'Built on a typed amount'
+              : 'None of the accounts it is built on is left'
+          }: there is no balance to track it against.`}>untracked</${StatePill}></div>
       `
       : null}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Projected Value · ${r.scenarios && Object.keys(r.scenarios).length
+        <h3>Projected Value · ${cases
           ? 'Bear, Base and Bull'
           : `Monte Carlo, ${r.runs.toLocaleString()} runs`}<span class="spacer"></span>
         <${Chips} label="Dollars" value=${real} onChange=${setReal}
           options=${[['nominal', 'Nominal'], ['real', "Today's dollars"]]} /></h3>
         <${FanChart} label=${`${x.name}: projected value by year`} years=${r.years} p=${p}
-          paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
+          paths=${real === 'nominal' ? cases : null} marks=${marks} />
         <div class="small dim" data-help="projected-value">
           <div>Starts from: ${dollars(r.start)} (${classes})</div>
-          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.entries(
-            r.weights,
-          ).map(([k]) =>
+          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.keys(
+            r.weights || r.assumptions.classes,
+          ).map((k) =>
             `${labelOf(k)} ${r.assumptions.classes[k].return}% ± ${
               r.assumptions.classes[k].volatility
             }%`
           ).join(', ')}</div>
-          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
-          ${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
-            ? html`<div>Bitcoin: the ${r.bitcoinModel} model</div>`
+          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees}% a year</div>
+          ${r.weights &&
+              (r.noBitcoinPrice ||
+                (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0))
+            ? html`<div>Bitcoin: ${
+              r.noBitcoinPrice
+                ? 'no model, no price yet'
+                : `the ${MODEL_NAMES[r.bitcoinModel]} model`
+            }</div>`
             : null}
           <div>Seed: ${r.seed}</div>
         </div>
@@ -376,7 +392,7 @@ function Inputs({ x, reload }) {
     return false;
   };
   const set = (/** @type {string} */ path, num = true) => (/** @type {string} */ v) => {
-    const next = structuredClone(f);
+    const next = copied(f);
     const keys = path.split('.');
     let o = next;
     for (const k of keys.slice(0, -1)) o = o[k] ??= {};
@@ -407,7 +423,7 @@ function Inputs({ x, reload }) {
                   <${SpinInput} min=${30} max=${90} value=${p.retireAge} onInput=${(
                     /** @type {string} */ v,
                   ) => {
-                    const next = structuredClone(f);
+                    const next = copied(f);
                     next.people[i].retireAge = Number(v);
                     setF(next);
                   }} />
@@ -415,39 +431,48 @@ function Inputs({ x, reload }) {
                   </div>
             `
           )}
-          <div class="row">
-            <${Field} label="Contribution per year" id="contribution"
-              error=${errAt(e, 'inputs.contribution.amount')}>
-              <${TypedInput} kind="money" value=${f.contribution?.amount ?? ''}
-                onInput=${set('contribution.amount')} />
-              </${Field}>
-              <${Field} label="Grows yearly by (%)" id="contribution-growth"
-                error=${errAt(e, 'inputs.contribution.growth')}>
-                <${TypedInput} kind="quantity" value=${f.contribution?.growth ?? ''}
-                  onInput=${set('contribution.growth')} />
+          <${Field} label="Runs to age" id="horizon-age" error=${errAt(e, 'inputs.horizonAge')}>
+            <${TypedInput} kind="count" above=${59} atMost=${120}
+              reset=${{ value: '95', label: '95' }} value=${String(f.horizonAge ?? '')}
+              onInput=${set('horizonAge')} />
+            </${Field}>
+            <div class="row">
+              <${Field} label="Contribution per year" id="contribution"
+                error=${errAt(e, 'inputs.contribution.amount')}>
+                <${TypedInput} kind="money" min=${0} value=${f.contribution?.amount ?? ''}
+                  onInput=${set('contribution.amount')} />
                 </${Field}>
-                </div>
-                <${Field} label="Withdrawal" id="withdrawal" error=${errAt(
-                  e,
-                  'inputs.withdrawal.method',
-                )}>
+                <${Field} label="Grows yearly by (%)" id="contribution-growth"
+                  error=${errAt(e, 'inputs.contribution.growth')}>
+                  <${TypedInput} kind="quantity" min=${-20} atMost=${50}
+                    reset=${{ value: '0', label: '0%' }} value=${f.contribution?.growth ?? ''}
+                    onInput=${set('contribution.growth')} />
+                  </${Field}>
+                  </div>
+                  <${Field} label="Withdrawal" id="withdrawal" error=${errAt(
+                    e,
+                    'inputs.withdrawal.method',
+                  )}>
             <${Select} value=${f.withdrawal?.method || 'fourPercent'}
               onChange=${set('withdrawal.method', false)} options=${[
-                ['fourPercent', 'The 4% rule: 4% at retirement, then rising with inflation'],
-                ['fixed', 'A fixed amount a year, rising with inflation'],
-                ['percent', 'A percentage of the balance each year'],
+                // Each defined in the field's guide (S6.2.1).
+                ['fourPercent', 'The 4% rule'],
+                ['fixed', 'A fixed amount, rising with inflation'],
+                ['percent', 'A percentage of the balance'],
               ]} />
           </${Field}>
           ${f.withdrawal?.method === 'fixed'
             ? html`
-              <${Field} label="Withdrawal a year, in today's dollars" id="withdrawal-amount">
+              <${Field} label="Withdrawal a year, in today's dollars" id="withdrawal-amount"
+                error=${errAt(e, 'inputs.withdrawal.amount')}>
                 <${TypedInput} kind="money" value=${f.withdrawal?.amount ?? ''}
                   onInput=${set('withdrawal.amount')} />
                 </${Field}>
             `
             : f.withdrawal?.method === 'percent'
             ? html`
-              <${Field} label="Percentage of the balance" id="withdrawal-percent">
+              <${Field} label="Percentage of the balance" id="withdrawal-percent"
+                error=${errAt(e, 'inputs.withdrawal.percent')}>
                 <${TypedInput} kind="quantity" value=${f.withdrawal?.percent ?? 4}
                   onInput=${set('withdrawal.percent')} />
                 </${Field}>
@@ -457,12 +482,12 @@ function Inputs({ x, reload }) {
             html`
               <div class="row">
                 <${Field} label=${`${inc.label || 'Other income'} a month`} id=${'income-' + i}
-                  help="other-income"
+                  help="other-income" error=${errAt(e, `inputs.income.${i}.monthly`)}
                   hint=${`From age ${inc.fromAge}`}>
                   <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
                   ) => {
-                    const next = structuredClone(f);
+                    const next = copied(f);
                     next.income[i].monthly = Number(v);
                     setF(next);
                   }} />
@@ -483,14 +508,15 @@ function Inputs({ x, reload }) {
                 </${Field}>
                 </div>
                 <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-                  <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set(
+                  <${TypedInput} kind="money" min=${0} value=${f.monthly ?? ''} onInput=${set(
                     'monthly',
                   )} />
                   </${Field}>
         `}
       <div class="row">
         <${Field} label="Fees a year (%)" id="fees" error=${errAt(e, 'inputs.fees')}>
-          <${TypedInput} kind="quantity" value=${f.fees ?? 0.1} onInput=${set('fees')} />
+          <${TypedInput} kind="quantity" min=${0} atMost=${5}
+            reset=${{ value: '0.1', label: '0.1%' }} value=${f.fees ?? ''} onInput=${set('fees')} />
         </${Field}>
         <${Field} label="Bitcoin model" id="bitcoin-model">
           <${Select} value=${f.bitcoinModel || ''} onChange=${set('bitcoinModel', false)}
@@ -554,7 +580,7 @@ function EducationInputs({ f, set, setF, e }) {
       `
       : null}
     <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-      <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set('monthly')} />
+      <${TypedInput} kind="money" min=${0} value=${f.monthly ?? ''} onInput=${set('monthly')} />
     </${Field}>
   `;
 }
@@ -574,6 +600,20 @@ function BuiltOn({ value, onChange, error }) {
     ...(/** @type {any[]} */ (accts.data) || []).map((a) => [`accounts:${a.id}`, a.name]),
     ['typed', 'A typed amount (what if)'],
   ]);
+  // Shared none of the accounts it is built on, or not its portfolio, a writer can't choose
+  // among them: shown off, saying why, never as the first option; a save keeps them (S6.1).
+  const unseen = value.kind === 'accounts' && !value.ids?.length
+    ? 'None of the accounts it is built on is shared with you: it stays built on them.'
+    : value.kind === 'portfolio' && !value.id
+    ? 'The portfolio it is built on isn’t shared with you: it stays built on it.'
+    : null;
+  if (unseen) {
+    return html`
+      <${Field} label="Built on" id="built-on" error=${error}>
+        <${ReadValue} text="Not shared with you" select data-tip=${unseen} />
+        </${Field}>
+    `;
+  }
   const current = value.kind === 'portfolio'
     ? `portfolio:${value.id}`
     : value.kind === 'accounts'
@@ -619,25 +659,44 @@ function Rebaseline({ close, name }) {
   `;
 }
 
-/** @param {{ close: (v?: any) => void, p: any }} props */
+const AND = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+
+/**
+ * Asks before turning off what it replaces (S6.7.1): the active plan for the same people or
+ * beneficiary, or a savings target sharing an account with it, as the server reads them.
+ * @param {{ close: (v?: any) => void, p: any }} props
+ */
 function MakeActive({ close, p }) {
   useDialogGuide('dialog-make-active');
-  const list = useList('/projections');
+  const asks = useList(`/projections/${p.id}/replaces`);
   const go = useSubmit(async () => {
     await api.post(`/projections/${p.id}/activate`);
     close(true);
   });
-  const others = (/** @type {any[]} */ (list.data) || []).filter((r) =>
-    r.active && r.goal === p.goal && r.id !== p.id && r.access.mine
-  );
+  const others = /** @type {any[] | null} */ (asks.data);
+  const why = (/** @type {any} */ o) =>
+    o.accounts.length
+      ? `is active on ${AND.format(o.accounts)}`
+      : `is the active plan for the same ${p.goal === 'education' ? 'beneficiary' : 'people'}`;
   return html`
     <${Dialog} title=${`Make “${p.name}” Active?`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${go.busy}>Make Active</button>`}>
-      <p style=${{ marginTop: 0 }}>${others.length && p.goal === 'retirement'
-        ? html`<b>${others[0].name}</b> stops being the active plan for the same people, if
-          they are the same. Its tracking ends, and it stays as a scenario.`
-        : 'It becomes an active plan.'}</p>
+      footer=${html`<button class="btn primary" disabled=${
+        go.busy || !others
+      }>Make Active</button>`}>
+      ${asks.error
+        ? html`<${Failed} error=${asks.error} />`
+        : !others
+        ? html`<${Loading} lines=${1} />`
+        : others.length
+        ? html`${
+          others.map((o) => html`<p style=${{ marginTop: 0 }}><b>${o.name}</b> ${why(o)}.</p>`)
+        }<p>Make ${p.name} active instead? ${
+          others.length === 1
+            ? 'Its tracking ends, and it stays as a scenario.'
+            : 'Their tracking ends, and they stay as scenarios.'
+        }</p>`
+        : null}
       <${FormError} error=${go.error} />
       </${Dialog}>
   `;
@@ -672,6 +731,7 @@ function NewProjection({ close }) {
         contribution: { amount: 20000, growth: 3 },
         withdrawal: { method: 'fourPercent' },
         income: [{ label: 'Social Security', person: 0, fromAge: 67, monthly: 2500 }],
+        horizonAge: 95,
         fees: 0.1,
       }
       : goal === 'education'

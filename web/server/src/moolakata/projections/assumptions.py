@@ -73,20 +73,40 @@ def save(s: Session, user_id: str, figures: dict) -> None:
         row.figures = text
 
 
+def _figure(v, lo: float, hi: float) -> bool:
+    """A number within its bounds: never a yes or no, NaN or an infinity (R3.11)."""
+    return isinstance(v, int | float) and not isinstance(v, bool) and lo <= v <= hi
+
+
 def check(figures: dict) -> list[tuple[str, str]]:
     """Problems as (field, message): returns from −50% to 100%, volatility 0 to 200%,
     inflation 0 to 20%."""
     problems = []
+    # Each class a group of its figures, never read as none: refused at its field, as a
+    # projection's overrides refuse one (S6.3, R3.11).
+    classes = figures.get("classes", {})
+    if not isinstance(classes, dict):
+        problems.append(("classes", "A group of figures."))
+        classes = {k: {"return": 0, "volatility": 0} for k in CLASS_KEYS}
     for k in CLASS_KEYS:
-        c = figures.get("classes", {}).get(k, {})
+        c = classes.get(k, {})
+        if not isinstance(c, dict):
+            problems.append((f"classes.{k}", "An asset class's figures."))
+            continue
         r, v = c.get("return"), c.get("volatility")
-        if not isinstance(r, int | float) or not -50 <= r <= 100:
+        if not _figure(r, -50, 100):
             problems.append((f"classes.{k}.return", "Between −50% and 100%."))
-        if not isinstance(v, int | float) or not 0 <= v <= 200:
+        if not _figure(v, 0, 200):
             problems.append((f"classes.{k}.volatility", "Between 0% and 200%."))
+        # A figure a class has none of is refused, as a projection's overrides refuse one.
+        for name in c.keys() - {"return", "volatility"}:
+            problems.append((f"classes.{k}.{name}", "Not a figure."))
+    # So is a class MoolaKata has none of (S6.3).
+    for k in classes.keys() - set(CLASS_KEYS):
+        problems.append((f"classes.{k}", "An asset class's figures."))
     for k in ("inflation", "educationInflation"):
         v = figures.get(k)
-        if not isinstance(v, int | float) or not 0 <= v <= 20:
+        if not _figure(v, 0, 20):
             problems.append((k, "Between 0% and 20%."))
     if figures.get("bitcoinModel") not in [m for m, _ in BITCOIN_MODELS]:
         problems.append(("bitcoinModel", "Choose a model."))

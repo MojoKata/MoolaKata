@@ -125,3 +125,14 @@ def test_the_hand_written_mockup_carries_the_same_forms():
         for m in re.finditer(r"^  '([^']+)': \['(.*?)', '(.*?)', '(.*?)', '(.*?)'\],$", block, re.M)
     }
     assert mock == forms()
+
+
+def test_the_guides_say_what_the_screens_and_sections_do():
+    """S6.2: education is one of a projection's three goals; S8.1: from 2025 a digital
+    asset's sale goes in G to L, never C or F."""
+    prose = guides()
+    intro = " ".join(prose["projections"].split("\n\n")[1].split())
+    assert all(g in intro for g in ("**retirement**", "**education**", "**savings target**"))
+    assert "come with 529" not in prose["projections"]
+    gains = " ".join(prose["taxes-gains"].split())
+    assert "as for crypto" not in gains and "G–I short term and J–L long term" in gains

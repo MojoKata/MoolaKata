@@ -14,4 +14,5 @@ The tax year shown. A year after the latest shipped uses the latest.
 ## Figure
 
 Dollars, a percentage, a number, or several numbers separated by commas (a model's parameters, or
-bear, base and bull targets).
+bear, base and bull targets). The federal return's due date is a month and a day, *4, 15* for
+April 15.

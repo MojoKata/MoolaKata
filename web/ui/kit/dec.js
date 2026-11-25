@@ -196,6 +196,21 @@ export function parseJson(text) {
   );
 }
 
+/**
+ * A deep copy of plain objects and arrays, each Dec in it kept as it is: structuredClone turns
+ * a Dec into {}, and a form's other figures would go out as nothing.
+ * @template T @param {T} x @returns {T}
+ */
+export function copied(x) {
+  if (Array.isArray(x)) return /** @type {any} */ (x.map(copied));
+  if (x && typeof x === 'object' && Object.getPrototypeOf(x) === Object.prototype) {
+    return /** @type {any} */ (
+      Object.fromEntries(Object.entries(x).map(([k, v]) => [k, copied(v)]))
+    );
+  }
+  return x;
+}
+
 /** Whether a value is a Dec. @param {unknown} x @returns {x is Dec} */
 export function isDec(x) {
   return x instanceof Dec;

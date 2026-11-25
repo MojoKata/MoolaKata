@@ -270,7 +270,8 @@ def _a_projection_leaves_out_what_it_doesnt_grow(made):
     jane, w = made.c["jane"], made.w
     r = _ok(make(jane, "Prjct", name="Grow", goal="savings",
                  builtOn={"kind": "portfolio", "id": made.portfolio},
-                 inputs={"target": 50000, "targetDate": "2030-01-01"}))  # fmt: skip
+                 inputs={"target": 50000, "targetDate": "2030-01-01", "monthly": 0,
+                         "fees": 0.1}))  # fmt: skip
     res = jane.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
     got = sorted((x["name"], _d(x["value"])) for x in res["leftOut"])
     assert got == aw.left_out(w, w.accounts)

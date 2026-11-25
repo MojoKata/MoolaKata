@@ -43,7 +43,8 @@ def test_holdings_and_a_projection_show_loans_and_items(browser, household):
     p = made(make(h.c, "Portf", name="Figures", accountIds=ids))
     pr = made(make(h.c, "Prjct", name="Figures grow", goal="savings",
                    builtOn={"kind": "portfolio", "id": p["id"]},
-                   inputs={"target": 50000, "targetDate": "2030-01-01"}))  # fmt: skip
+                   inputs={"target": 50000, "targetDate": "2030-01-01", "monthly": 0,
+                           "fees": 0.1}))  # fmt: skip
     try:
         # Read exactly: a float parse of $207,036.40 is 207036.3999… (money is a JSON number).
         api = json.loads(
@@ -137,3 +138,124 @@ def test_an_uncovered_call_on_its_own_risks_without_limit(browser, household):
         page.close()
     finally:
         _drop(h.c, "Acct", f"/accounts/{a['id']}")
+
+
+def test_with_no_bitcoin_price_no_model_is_drawn_or_followed(browser, household):
+    """S6.3.1.5: the household has no bitcoin price; Compare models says so, and a projection
+    that chose a model says under its chart that it isn't used."""
+    h = household
+    crypto = {"kind": "typed", "amount": 50000, "allocation": {"crypto": 100}}
+    goal = {"target": 90000, "date": "2030-01-01", "monthly": 0, "fees": 0.1, "bitcoinModel": "ark"}
+    pr = made(make(h.c, "Prjct", name="Figures stack", goal="savings", builtOn=crypto, inputs=goal))
+    try:
+        page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')
+        page.click('button:has-text("Compare models")')
+        wait(page, '.dialog .empty:has-text("No bitcoin price yet")', problems)
+        page.goto(h.base + f"/ui/projections/{pr['id']}")
+        wait(page, "text=Bitcoin: no model, no price yet", problems)
+        assert problems == []
+        page.close()
+    finally:
+        _drop(h.c, "Prjct", f"/projections/{pr['id']}")
+
+
+@pytest.mark.parametrize(("share", "line"), [(0.5, True), (None, False)])
+def test_a_bitcoin_model_is_named_only_with_its_share(browser, household, share, line):
+    """S6.1: the bitcoin share is of the mix of what it is built on; sent none (a viewer not
+    shared every account), the screen names no model under the chart. Named, it is by its
+    name, as Compare models shows it, never its key."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        body["result"].update(bitcoinModel="powerLaw", bitcoinShare=share)
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    assert page.locator("text=Bitcoin: the Power law model").count() == (1 if line else 0)
+    assert problems == []
+    page.close()
+
+
+@pytest.mark.parametrize("whole", [True, False])
+def test_one_not_shared_its_mix_sees_the_fan_and_no_model(browser, household, whole):
+    """S6.3.1.4, S6.1: the bear, base and bull cases and the bitcoin model follow the bitcoin
+    in its mix: one not shared it (sent no mix) sees the fan and no bitcoin model line, the
+    no-price one included; one shared it, the cases."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        r = body["result"]
+        cases = {
+            k: r["percentiles"][n] for k, n in (("bear", "10"), ("base", "50"), ("bull", "90"))
+        }
+        r.update(bitcoinModel="ark", bitcoinShare=None, noBitcoinPrice=True, scenarios=cases)
+        if not whole:
+            r["weights"] = None
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    card = page.locator('.card:has(h3:has-text("Projected Value"))')
+    head = card.locator("h3").inner_text()
+    assert ("Bear, Base and Bull" in head) == whole and ("Monte Carlo" in head) != whole
+    assert page.locator("text=Bitcoin: no model, no price yet").count() == (1 if whole else 0)
+    assert problems == []
+    page.close()
+
+
+def test_compare_models_shows_a_dash_after_a_targets_year(browser, household):
+    """S6.3.1.6: a target's figures after its year are none, shown as —."""
+    h = household
+    ark = {"model": "ark", "path": [[2026, 100000], [2030, 1200000]],
+           "at": {"2030": 1200000, "2035": None, "2045": None}, "record": "ARK"}  # fmt: skip
+    power = {**ark, "model": "powerLaw", "path": [[2026, 100000], [2045, 900000]],
+             "at": {"2030": 200000, "2035": 400000, "2045": 900000}}  # fmt: skip
+    body = {"price": 100000, "rows": [power, ark], "history": [], "figuresYear": 2026}
+    page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')
+    page.route("**/ui/api/bitcoin-models", lambda route: route.fulfill(json=body))
+    page.click('button:has-text("Compare models")')
+    wait(page, '.dialog tr:has-text("ARK base")', problems)
+    cells = page.locator('.dialog tr:has-text("ARK base") td.num').all_inner_texts()
+    assert cells == ["$1.2M", "—", "—"]
+    assert page.locator('.dialog tr:has-text("Power law") td.num').all_inner_texts() == [
+        "$200K", "$400K", "$900K"]  # fmt: skip
+    assert problems == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    ("kind", "why"),
+    [("typed", "Built on a typed amount"), ("accounts", "None of the accounts it is built on")],
+)
+def test_an_untracked_projection_says_why(browser, household, kind, why):
+    """S6.7.3: an active projection with no balance to track, built on a typed amount or on
+    accounts none of which is left, is untracked, its pill saying which."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        body.update(active=True, status="untracked", builtOn={"kind": kind, "ids": []})
+        body["tracking"] = {"status": "untracked", "points": [], "since": "2026-01-01"}
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    pill = page.locator('.pill[data-tip]:text-is("untracked")')
+    assert pill.get_attribute("data-tip").startswith(why)
+    assert problems == []
+    page.close()

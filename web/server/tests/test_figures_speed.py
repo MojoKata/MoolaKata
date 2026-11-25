@@ -88,7 +88,8 @@ def _household(server, accounts: int):
 
 def _projection(c, ids_: list[str]) -> str:
     r = make(c, "Prjct", name="Grow", goal="savings", builtOn={"kind": "accounts", "ids": ids_},
-             inputs={"target": 50000, "targetDate": "2030-01-01"})  # fmt: skip
+             inputs={"target": 50000, "targetDate": "2030-01-01", "monthly": 0,
+                     "fees": 0.1})  # fmt: skip
     assert r.status_code == 200, r.text
     return r.json()["id"]
 

@@ -37,6 +37,8 @@ def retirement(c, **inputs):
             "contribution": {"amount": 30000, "growth": 3},
             "withdrawal": {"method": "fourPercent"},
             "income": [{"label": "Social Security", "person": 0, "fromAge": 67, "monthly": 2900}],
+            "horizonAge": 95,
+            "fees": 0.1,
             **inputs,
         },
     }
@@ -73,7 +75,7 @@ def test_a_savings_target_says_how_likely_and_what_would_do_it(jane):
         name="House deposit",
         goal="savings",
         builtOn={"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
-        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300},
+        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300, "fees": 0.1},
     )
     assert r.status_code == 200, r.text
     a = r.json()["result"]["answer"]
@@ -116,14 +118,15 @@ def test_a_changed_projection_is_checked_as_a_new_one_is(jane):
 def test_an_education_projection_keeps_its_beneficiary_made_or_changed(jane):
     """S6.6, S10.10: an education goal is for someone: made or changed without them, it is
     refused at the beneficiary."""
-    me = jane.get("/ui/api/profile").json()["id"]
+    me = jane.get("/ui/api/profile").json()["personId"]
     body = {"name": "College", "goal": "education",
             "builtOn": {"kind": "typed", "amount": 1000, "allocation": {"bonds": 100}},
-            "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000}}  # fmt: skip
+            "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000, "monthly": 0,
+                       "fees": 0.1}}  # fmt: skip
     r = make(jane, "Prjct", **body)
     assert r.status_code == 422
     assert [e["field"] for e in r.json()["errors"]] == ["inputs.beneficiary"]
-    who = {"beneficiary": {"kind": "user", "id": me}}
+    who = {"beneficiary": {"kind": "person", "id": me}}
     r = make(jane, "Prjct", **{**body, "inputs": {**body["inputs"], **who}})
     assert r.status_code == 200, r.text
     r = change(jane, "Prjct", r.json(), inputs=body["inputs"])
@@ -140,7 +143,7 @@ def test_built_on_accounts_starts_from_their_value(jane):
         name="Car",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [acct["id"]]},
-        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250},
+        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250, "fees": 0.1},
     )
     res = r.json()["result"]
     assert res["start"] == 12000.0 and res["weights"] == {"cash": 1.0}
@@ -150,9 +153,9 @@ def test_built_on_accounts_starts_from_their_value(jane):
 def test_one_active_plan_per_subject_and_its_baseline(jane):
     a = retirement(jane)
     b = retirement(jane, contribution={"amount": 40000, "growth": 3})
-    assert jane.post(f"/ui/api/projections/{a['id']}/activate").json() == {"replaced": None}
+    assert jane.post(f"/ui/api/projections/{a['id']}/activate").json() == {"replaced": []}
     assert jane.post(f"/ui/api/projections/{b['id']}/activate").json() == {
-        "replaced": "Retire at 62"
+        "replaced": ["Retire at 62"]
     }
     rows = {p["id"]: p for p in jane.get("/ui/api/projections").json()["items"]}
     assert rows[b["id"]]["active"] and not rows[a["id"]]["active"]
@@ -180,7 +183,7 @@ def test_tracking_against_the_band_and_the_alert_when_behind(server, jane):
         name="Nest egg",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [acct["id"]]},
-        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500, "fees": 0.1},
     )
     pid = r.json()["id"]
     jane.post(f"/ui/api/projections/{pid}/activate")
@@ -212,8 +215,91 @@ def test_assumptions_are_each_users_and_checked(jane):
     assert got["id"] is None and got["figures"]["classes"]["usStocks"]["return"] == 7.0
 
 
-def test_bitcoin_models_compare(jane):
-    rows = {r["model"]: r for r in jane.get("/ui/api/bitcoin-models").json()["rows"]}
+US = "classes.usStocks"
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "words"),
+    [
+        (f"{US}.return", None, "Between −50% and 100%."),
+        (f"{US}.return", "7", "Between −50% and 100%."),
+        (f"{US}.return", True, "Between −50% and 100%."),
+        (f"{US}.return", -51, "Between −50% and 100%."),
+        (f"{US}.return", float("nan"), "Between −50% and 100%."),
+        (f"{US}.volatility", 201, "Between 0% and 200%."),
+        (f"{US}.volatility", False, "Between 0% and 200%."),
+        ("inflation", -1, "Between 0% and 20%."),
+        ("inflation", True, "Between 0% and 20%."),
+        ("educationInflation", "5", "Between 0% and 20%."),
+        ("bitcoinModel", "moon", "Choose a model."),
+        ("classes.gold", {"return": 5, "volatility": 10}, "An asset class's figures."),
+        (f"{US}.growth", 5, "Not a figure."),
+        (US, 5, "An asset class's figures."),
+        ("classes", "x", "A group of figures."),
+    ],
+)
+def test_each_assumption_is_refused_at_its_field(jane, path, value, words):
+    """S6.3, R3.11: a figure that isn't a number in its range, a yes or no among them, is
+    refused at its field, never read as a figure; so is an asset class MoolaKata has none of,
+    or a figure an asset class has none of, as a projection's overrides refuse one."""
+    import copy
+
+    figures = copy.deepcopy(jane.get("/ui/api/assumptions").json()["figures"])
+    *group, key = path.split(".")
+    at = figures
+    for part in group:
+        at = at[part]
+    at[key] = value
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    r = jane.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        (f"figures.{path}", "assumption-invalid", words)
+    ]
+
+
+def test_ones_own_assumptions_are_made_once_and_only_by_them(server, jane):
+    """S6.3: a user's own figures are one record: a second is refused, and another user's is
+    not found to them."""
+    figures = jane.get("/ui/api/assumptions").json()["figures"]
+    op = {"op": "create", "entity": "Asmpt", "id": new_id("Asmpt"), "fields": {"figures": figures}}
+    mine = saved(jane.post("/ui/api/save", json={"ops": [op]}))
+    again = {**op, "id": new_id("Asmpt")}
+    r = jane.post("/ui/api/save", json={"ops": [again]})
+    assert r.status_code == 409 and r.json()["errors"][0]["code"] == "assumptions-exist"
+    make_user(server, "john")
+    r = change(sign_in(server, "john"), "Asmpt", mine, figures=figures)
+    assert r.status_code == 404
+    r = change(jane, "Asmpt", {**mine, "id": new_id("Asmpt")}, figures=figures)
+    assert r.status_code == 404
+    changed = saved(change(jane, "Asmpt", mine, figures={**figures, "inflation": 3.5}))
+    assert changed["figures"]["inflation"] == 3.5
+    assert jane.get("/ui/api/assumptions").json()["figures"]["inflation"] == 3.5
+
+
+def test_assumptions_saved_in_part_keep_the_shipped_rest(server, jane):
+    """What is kept is laid over the shipped figures: a class or a figure not kept is the
+    shipped one; one MoolaKata has no row for is passed over."""
+    from moolakata.projections import assumptions
+
+    uid = jane.get("/ui/api/session").json()["user"]["id"]
+    with server.db.tx(unscoped="test: assumptions kept in part") as s:
+        assumptions.save(s, uid, {"classes": {"bonds": {"return": 5.5}}})
+        assumptions.save(s, uid, {"classes": {"bonds": {"return": 4.5}, "gold": {"return": 9}},
+                                  "inflation": 3.0})  # fmt: skip
+        got = assumptions.load(s, uid)
+    assert got["classes"]["bonds"] == {"return": 4.5, "volatility": 6.0}
+    assert "gold" not in got["classes"]
+    assert (got["inflation"], got["educationInflation"]) == (3.0, 5.0)
+
+
+def test_bitcoin_models_compare(server, jane):
+    from test_account_world import _closes_installed
+    from test_projection_edges import _bitcoin
+
+    _bitcoin(server)
+    with _closes_installed():
+        rows = {r["model"]: r for r in jane.get("/ui/api/bitcoin-models").json()["rows"]}
     assert set(rows) == {"powerLaw", "logRegression", "stockToFlow", "saylor", "ark"}
     assert rows["ark"]["at"]["2030"] == pytest.approx(1_200_000, rel=0.01)
     assert rows["saylor"]["at"]["2045"] == pytest.approx(13_000_000, rel=0.01)
@@ -242,23 +328,58 @@ def test_tax_tables_ship_and_can_be_corrected(server, frozen, admin_client):
     assert not next(x for x in t["rows"] if x["key"] == "iraLimit")["corrected"]
 
 
-def test_a_bitcoin_model_with_cases_gives_three_paths(server, jane):
-    from moolakata import ids
-    from moolakata.store.entities.accounts import Instrument
+def _figure(c, **fields):
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fields}
+    return c.post("/ui/api/save", json={"ops": [op]})
 
-    with server.db.tx(unscoped="test") as s:
-        s.add(
-            Instrument(
-                id=ids.new_id("Instr"), symbol="BTC", name="Bitcoin", instrumentClass="crypto"
-            )
-        )
-    p = retirement(
-        jane,
-        bitcoinModel="ark",
-    )
+
+def _refused(r, status, field, code, words):
+    assert r.status_code == status, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        (field, code, words)
+    ]
+
+
+def test_a_tax_figure_correction_is_one_per_figure_and_year(server, frozen, admin_client):
+    """S16.11: a correction is of a year this release ships, one per figure and year, kept
+    with them, and changed in its place."""
+    _refused(_figure(admin_client, year=1999, key="iraLimit", value=1), 422, "year",
+             "year-unknown", "That year's tables don't ship with this release.")  # fmt: skip
+    t = saved(_figure(admin_client, year=2026, key="iraLimit", value=8000))
+    _refused(_figure(admin_client, year=2026, key="iraLimit", value=8100), 409, "key",
+             "figure-corrected", "It is corrected: change its correction.")  # fmt: skip
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    correction = {"id": ira["figureId"], "version": ira["version"]}
+    _refused(change(admin_client, "TaxFg", correction, year=2026, key="iraCatchUp", value=1),
+             422, "key", "figure-fixed",
+             "A correction stays with its figure and year.")  # fmt: skip
+    t = saved(change(admin_client, "TaxFg", correction, year=2026, key="iraLimit", value=8200))
+    assert next(x for x in t["rows"] if x["key"] == "iraLimit")["value"] == 8200
+    r = change(admin_client, "TaxFg", {"id": new_id("TaxFg"), "version": 1}, value=1)
+    assert r.status_code == 404
+
+
+def test_only_an_admin_corrects_a_tax_figure(server, frozen, admin_client):
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    r = _figure(jane, year=2026, key="iraLimit", value=8000)
+    _refused(r, 403, None, "admins-only", "Only admins can do this.")
+    t = saved(_figure(admin_client, year=2026, key="iraLimit", value=8000))
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    r = change(jane, "TaxFg", {"id": ira["figureId"], "version": ira["version"]}, value=1)
+    _refused(r, 403, None, "admins-only", "Only admins can do this.")
+
+
+def test_a_bitcoin_model_with_cases_gives_three_paths(server, jane):
+    from test_account_world import _closes_installed
+    from test_projection_edges import _bitcoin
+
+    _bitcoin(server)
+    p = retirement(jane, bitcoinModel="ark")
     # A typed amount with some crypto in it.
     typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 80, "crypto": 20}}
-    sc = saved(change(jane, "Prjct", p, builtOn=typed))["result"]["scenarios"]
+    with _closes_installed():
+        sc = saved(change(jane, "Prjct", p, builtOn=typed))["result"]["scenarios"]
     assert set(sc) == {"bear", "base", "bull"}
     assert sc["bear"][-1] < sc["base"][-1] < sc["bull"][-1]
 
@@ -352,7 +473,7 @@ def test_the_years_a_projection_runs_are_bounded(jane):
         builtOn={"kind": "typed", "amount": "1000"},
         inputs={"people": [{"birthYear": 1800}]},
     )
-    assert r.json()["errors"][0]["field"] == "inputs.people.0.birthYear"
+    assert "inputs.people.0.birthYear" in {e["field"] for e in r.json()["errors"]}
 
 
 def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, jane):
@@ -367,7 +488,7 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, jane):
         name="House",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [shared["id"], own["id"]]},
-        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500},
+        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500, "fees": 0.1},
     )
     pid = r.json()["id"]
     jane.post(f"/ui/api/projections/{pid}/activate")
@@ -394,7 +515,8 @@ def test_one_shared_a_projection_sees_its_results_over_what_it_is_built_on(serve
         assert port.status_code == 200, port.text
         built = {"kind": "portfolio", "id": port.json()["id"]}
     r = make(jane, "Prjct", name="House", goal="savings", builtOn=built,
-             inputs={"target": 50000, "date": "2030-01-01", "monthly": 500})  # fmt: skip
+             inputs={"target": 50000, "date": "2030-01-01", "monthly": 500,
+                     "fees": 0.1})  # fmt: skip
     pid = r.json()["id"]
     john = make_user(server, "john")
     assert share(jane, "projection", pid, users={john.id: "read"}).status_code == 200
@@ -504,7 +626,7 @@ def test_no_saving_changes_todays_balance_and_the_search_has_an_end(monkeypatch)
 def test_a_target_months_away_names_a_saving_that_reaches_it(jane):
     """A target under a year: $12,000 by Apr 13, 2027 from nothing, in cash: the saving named
     reaches it, where $1,000 a month (a bound assumed enough) reaches half."""
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
     assert r.status_code == 200, r.text
@@ -517,7 +639,7 @@ def test_a_target_months_away_names_a_saving_that_reaches_it(jane):
 
 def test_an_answer_no_saving_reaches_says_so(jane, monkeypatch):
     monkeypatch.setattr(engine, "DOUBLINGS", 0)
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 0}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 0, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
     assert r.status_code == 200, r.text
@@ -555,7 +677,7 @@ def test_a_target_under_a_year_away_is_one_part_year(server, jane):
     from moolakata import projections
     from moolakata.store.entities.projections import Projection
 
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     p = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs).json()
     with server.db.read(unscoped="test") as s:

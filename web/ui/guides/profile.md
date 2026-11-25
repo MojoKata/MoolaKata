@@ -131,3 +131,4 @@ College costs rise faster: 5% by default.
 
 For the bitcoin in your projections: your crypto assumption, or a published model. **Compare
 models** shows them side by side with their sources and records. Other coins use the crypto row.
+With no bitcoin price on the server yet, no model is used: bitcoin grows by the crypto row.

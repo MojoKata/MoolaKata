@@ -16,7 +16,7 @@ import { applyTheme, theme } from '../store/prefs.js';
 import { loadSession, session } from '../store/session.js';
 import { AccessTokens } from '../components/tokens.js';
 import { Connections } from '../components/connections.js';
-import { num } from '../kit/dec.js';
+import { copied, num } from '../kit/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
@@ -636,7 +636,7 @@ function Assumptions() {
   (
     /** @type {string} */ x,
   ) => {
-    const next = structuredClone(f);
+    const next = copied(f);
     next.classes[k][field] = x === '' ? null : Number(x);
     setF(next);
   };
@@ -707,7 +707,7 @@ function Assumptions() {
   `;
 }
 
-const MODEL_NAMES = /** @type {Record<string, string>} */ ({
+export const MODEL_NAMES = /** @type {Record<string, string>} */ ({
   powerLaw: 'Power law',
   logRegression: 'Log regression',
   stockToFlow: 'Stock-to-flow',
@@ -731,14 +731,10 @@ function BitcoinModels({ close }) {
       <button type="button"
         class="btn" onClick=${() => close()}>Close</button>
     `}>
-      ${v
+      ${v && !v.price ? html`<${Empty}>No bitcoin price yet</${Empty}>` : v
         ? html`
-          ${v.price
-            ? html`<p class="small dim" style=${{ marginTop: 0 }}>Today's price: ${
-              fmt(v.price)
-            }</p>`
-            : null}
-          <${ModelsChart} rows=${v.rows} names=${MODEL_NAMES} />
+          <p class="small dim" style=${{ marginTop: 0 }}>Today's price: ${fmt(v.price)}</p>
+          <${ModelsChart} rows=${v.rows} history=${v.history} names=${MODEL_NAMES} />
           <div class="table-wrap mt">
             <table class="t">
               <thead>
@@ -752,7 +748,11 @@ function BitcoinModels({ close }) {
               </thead>
               <tbody>${v.rows.map((/** @type {any} */ r) =>
                 html`<tr><td>${MODEL_NAMES[r.model]}</td>${
-                  [2030, 2035, 2045].map((y) => html`<td class="num">${fmt(r.at[y])}</td>`)
+                  [2030, 2035, 2045].map((y) =>
+                    html`<td class="num">${
+                      r.at[y] == null ? html`<span class="dim">—</span>` : fmt(r.at[y])
+                    }</td>`
+                  )
                 }<td class="small dim">${r.record}</td></tr>`
               )}</tbody>
             </table>

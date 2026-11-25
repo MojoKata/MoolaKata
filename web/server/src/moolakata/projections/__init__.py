@@ -1,16 +1,14 @@
 """Projections (requirements S6.1–S6.9): what a projection is built on and worth today, its
-asset mix, the plan the model runs, the goal's answer, and tracking an active one against its
-baseline. Retirement and savings-target goals are built now; education comes with 529s
-(S1.8, milestone 3).
+asset mix, the plan the model runs, the answer of each of its goals (retirement, education
+for a person, a savings target), and tracking an active one against its baseline.
 """
 
 import datetime as dt
-import itertools
 import json
 import math
 import re
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import Context, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -38,6 +36,7 @@ SLACK = Decimal("0.02")
 CENTS = Decimal("0.01")
 MAX_YEARS = 101  # a projection runs at most 100 years on from this one
 BTC = re.compile(r"^(BTC|XBT)\b", re.I)
+GENESIS = dt.date(2009, 1, 3)
 
 
 def asset_class(inst: Instrument) -> str | None:
@@ -73,6 +72,8 @@ class BuiltOn:
     # The parts a projection doesn't grow (S6.4.2.2): loans, items other than metals, options;
     # (account id, name, value), named under its chart.
     leftOut: list[tuple[str, str, Decimal]] = field(default_factory=list)
+    # Whether the reader is shared every account it is built on, and so sees their mix (S6.1).
+    whole: bool = True
 
     @property
     def bitcoin_share(self) -> float:
@@ -80,6 +81,24 @@ class BuiltOn:
         rest (S6.3.1)."""
         crypto = self.weights.get("crypto", 0) * float(self.value) if self.value > 0 else 0
         return min(1.0, float(self.bitcoin) / crypto) if crypto else 0.0
+
+
+def _accounts(s: Session, user_id: str, spec: dict) -> tuple[list[Account], str]:
+    """The accounts a projection built on accounts or a portfolio is built on, those the user
+    sees, and its label."""
+    if spec.get("kind") == "portfolio":
+        from ..ui.portfolios import seen_accounts
+
+        p, _ = access.portfolio(s, user_id, spec["id"])
+        return seen_accounts(s, user_id, p), f"Portfolio: {p.name}"
+    visible = {a.id: a for a, _ in access.accounts(s, user_id)}
+    accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
+    label = (
+        (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
+        if accounts
+        else "no accounts"
+    )
+    return accounts, label
 
 
 def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
@@ -99,20 +118,7 @@ def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
             f"a typed {amount:,.0f}",
             (amount * crypto).quantize(Decimal("0.01")),
         )
-    if kind == "portfolio":
-        from ..ui.portfolios import seen_accounts
-
-        p, _ = access.portfolio(s, user_id, spec["id"])
-        accounts = seen_accounts(s, user_id, p)
-        label = f"Portfolio: {p.name}"
-    else:
-        visible = {a.id: a for a, _ in access.accounts(s, user_id)}
-        accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
-        label = (
-            (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
-            if accounts
-            else "no accounts"
-        )
+    accounts, label = _accounts(s, user_id, spec)
     by_class: dict[str, Decimal] = {}
     btc = Decimal(0)
     left: dict[tuple[str, str], Decimal] = {}
@@ -180,12 +186,25 @@ def _grown_series(s: Session, a: Account, first: dt.date, last: dt.date, step: i
     )
 
 
-def _btc_price(s: Session) -> float | None:
-    inst = s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
+def _btc(s: Session) -> Instrument | None:
+    return s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
+
+
+def btc_price(s: Session) -> Decimal | None:
+    """Bitcoin's latest stored close: none until a price source has fetched one (R3.5), and
+    nothing stands in for it (S6.3.1.5)."""
+    inst = _btc(s)
+    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id) if inst else None
+    return found.price if found else None
+
+
+def btc_history(s: Session) -> list[tuple[dt.date, Decimal]]:
+    """Bitcoin's stored daily closes, oldest first: the history behind Compare models
+    (S6.3.1.1)."""
+    inst = _btc(s)
     if inst is None:
-        return None
-    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id)
-    return float(found.price) if found else None
+        return []
+    return valuation.market_points(s, [inst.id], GENESIS, clock.today())[inst.id]
 
 
 def people_of(s: Session, owner: User, inputs: dict) -> list[dict]:
@@ -218,6 +237,16 @@ class Prepared:
     model: str
     # Education: the share of the year school starts in that comes before Sep 1, saved too.
     start_part: float = 1.0
+    # Today's bitcoin price a model starts from: none on the server, no model (S6.3.1.5).
+    btc_now: float | None = None
+
+    @property
+    def follows_model(self) -> bool:
+        return self.model not in ("assumption", None) and self.base.bitcoin > 0
+
+    @property
+    def no_btc_price(self) -> bool:
+        return self.follows_model and self.btc_now is None
 
 
 def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
@@ -231,13 +260,29 @@ def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
     with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         base = built_on(srv, p.ownerId, spec)
     kind = spec.get("kind")
+    seen = _seen(s, viewer)
+    # The mix is what the accounts hold: seen only by one shared them all (S5.1.1).
+    base.whole = all(a.id in seen for a in base.accounts)
     if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
         base.label = "a portfolio not shared with you"
-    elif kind == "accounts" and len(base.accounts) == 1:
-        seen = {a.id for a, _ in access.accounts(s, viewer)}
-        if base.accounts[0].id not in seen:
-            base.label = "an account not shared with you"
+    elif kind == "accounts" and len(base.accounts) == 1 and not base.whole:
+        base.label = "an account not shared with you"
     return base
+
+
+def seen_spec(s: Session, p: Projection, viewer: str) -> dict:
+    """What it is built on, as the reader may see it (S6.1): the ids of only the accounts, or
+    the portfolio, shared with them."""
+    spec = json.loads(p.builtOn)
+    if viewer == p.ownerId:
+        return spec
+    kind = spec.get("kind")
+    if kind == "accounts":
+        seen = _seen(s, viewer)
+        return {**spec, "ids": [i for i in spec.get("ids", []) if i in seen]}
+    if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
+        return {k: v for k, v in spec.items() if k != "id"}
+    return spec
 
 
 def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
@@ -259,11 +304,14 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     retire_index = target_index = None
     start_part = contribute_part = 1.0
     people = []
-    contribution = float(inputs.get("contribution", {}).get("amount", 0) or 0)
-    growth = float(inputs.get("contribution", {}).get("growth", 0) or 0) / 100
+    # A contribution and its growth, a monthly saving, the fees and the age it runs to are
+    # each given: a blank is refused at its field, never read as 0 or a default (R3.11).
+    growth = 0.0
     if p.goal == "retirement":
         people = people_of(s, owner, inputs)
-        horizon = int(inputs.get("horizonAge") or 95)
+        contribution = float(inputs["contribution"]["amount"])
+        growth = float(inputs["contribution"]["growth"]) / 100
+        horizon = int(inputs["horizonAge"])
         youngest = max(x["birthYear"] for x in people)
         years = min(MAX_YEARS, max(2, youngest + horizon - year + 1))
         # The household retires when the last of them does: contributions stop and the
@@ -291,7 +339,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         if target_index > MAX_YEARS - school["years"]:
             target_index, start_part = MAX_YEARS - school["years"], 1.0
         years = target_index + school["years"]
-        contribution = float(inputs.get("monthly", 0) or 0) * 12
+        contribution = float(inputs["monthly"]) * 12
         contribute_years = target_index
         contribute_part = start_part
         income = []
@@ -310,19 +358,21 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         # The last year counts only up to the date: 1.6 years is a year and 0.6 of one.
         last_part = span - (target_index - 1)
         years = target_index + 1
-        contribution = float(inputs.get("monthly", 0) or 0) * 12
+        contribution = float(inputs["monthly"]) * 12
         contribute_years = target_index
         income, withdrawal = [], {}
     if p.goal in ("retirement", "education"):
         last_part = 1.0
-    btc_now = _btc_price(s) or 100_000.0
+    price = btc_price(s)
+    btc_now = float(price) if price is not None else None
     crypto_path = None
-    if model not in ("assumption", None) and base.bitcoin > 0:
+    # With no price, the crypto assumption grows the bitcoin as it does other coins.
+    if model not in ("assumption", None) and base.bitcoin > 0 and btc_now is not None:
         prices = bitcoin.median_path(
-            model, taxtables.figures(s, year), btc_now, list(range(year, year + years + 1))
+            model, taxtables.figures(s, year), btc_now, list(range(year, year + years))
         )
         if prices:
-            crypto_path = [b / a for a, b in itertools.pairwise(prices)]
+            crypto_path = engine.growth_by_year(prices)
     c = figures["classes"]
     plan = engine.Plan(
         start=float(base.value),
@@ -330,7 +380,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         returns={k: v["return"] / 100 for k, v in c.items()},
         vols={k: v["volatility"] / 100 for k, v in c.items()},
         inflation=figures["inflation"] / 100,
-        fees=float(inputs.get("fees", 0.1) or 0) / 100,
+        fees=float(inputs["fees"]) / 100,
         first_year=year,
         years=years,
         contribution=contribution,
@@ -346,7 +396,9 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         runs=int(inputs.get("runs", engine.RUNS)),
         seed=engine.seed_of(p.id, inputs, str(base.value)),
     )
-    return Prepared(plan, base, figures, retire_index, target_index, people, model, start_part)
+    return Prepared(
+        plan, base, figures, retire_index, target_index, people, model, start_part, btc_now
+    )
 
 
 def compute(s: Session, p: Projection, viewer: str) -> dict:
@@ -362,7 +414,8 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         "expected": result.expected,
         "start": prep.base.value,  # exact, as the tracking figures are (S6.9)
         "builtOnLabel": prep.base.label,
-        "weights": prep.base.weights,
+        # Its start is a result; the mix is the accounts', for one shared them all (S6.1).
+        "weights": prep.base.weights if prep.base.whole else None,
         # Named for the viewer only where they can see the account (S6.1).
         "leftOut": [
             {"name": name, "value": value}
@@ -371,22 +424,31 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         ],
         "assumptions": prep.figures,
         "bitcoinModel": prep.model,
-        "bitcoinShare": prep.base.bitcoin_share,
+        # Bitcoin's part of the crypto is of their mix too: sent only with it (S6.1).
+        "bitcoinShare": prep.base.bitcoin_share if prep.base.whole else None,
+        # That a model would follow its bitcoin is of their mix too (S6.3.1.5).
+        "noBitcoinPrice": prep.no_btc_price and prep.base.whole,
         "runs": plan.runs,
         "seed": plan.seed,
         "scenarios": {},
     }
-    if prep.model in ("saylor", "ark") and prep.base.bitcoin > 0:
+    # The cases follow the bitcoin in their mix: one not shared it sees the fan of the same
+    # runs in their place (S6.3.1.4).
+    cases = prep.model in ("saylor", "ark") and prep.follows_model and prep.base.whole
+    if cases and prep.btc_now is not None:
         out["scenarios"] = engine.scenario_paths(
-            plan, prep.model, taxtables.figures(s, plan.first_year), _btc_price(s) or 100_000.0
+            plan, prep.model, taxtables.figures(s, plan.first_year), prep.btc_now
         )
+    for k in ("percentiles", "real", "scenarios"):
+        out[k] = {name: _cents(path) for name, path in out[k].items()}
+    out["expected"] = _cents(out["expected"])
     if p.goal == "retirement":
-        horizon = int(inputs.get("horizonAge") or 95)
+        horizon = int(inputs["horizonAge"])
         out["answer"] = {
             "kind": "retirement",
             "chance": result.lasted,
             "horizonAge": horizon,
-            "atRetirement": result.percentiles[50][min(prep.retire_index, plan.years - 1)],
+            "atRetirement": _cents(result.percentiles[50][min(prep.retire_index, plan.years - 1)]),
             "retireYear": plan.first_year + prep.retire_index,
             "people": prep.people,
         }
@@ -401,12 +463,26 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         out["answer"] = {
             "kind": "savings",
             "chance": chance,
-            "target": target,
+            "target": _cents(target),
             "date": inputs.get("date"),
-            "monthly": float(inputs.get("monthly", 0) or 0),
-            "neededMonthly": needed,
+            "monthly": _cents(float(inputs["monthly"])),
+            "neededMonthly": _cents(needed),
         }
     return out
+
+
+# Room for every whole dollar a float holds: a path may run past Decimal's usual 28 places.
+_WIDE = Context(prec=400)
+
+
+def _cents(x):
+    """The model's dollars, which it works out in floats, rounded to cents as exact numbers
+    (S6.9): a figure, a path of them, or None."""
+    if x is None:
+        return None
+    if isinstance(x, list):
+        return [_cents(v) for v in x]
+    return Decimal(repr(float(x))).quantize(CENTS, context=_WIDE)
 
 
 def education_school(s: Session, inputs: dict, year: int) -> dict:
@@ -417,9 +493,6 @@ def education_school(s: Session, inputs: dict, year: int) -> dict:
 
     who = inputs.get("beneficiary") or {}
     name, birth = "the beneficiary", None
-    if who.get("kind") == "user":
-        u = s.get(User, who.get("id") or "")
-        who = {"kind": "person", "id": u.personId if u else ""}
     if who.get("kind") == "person":
         # The person it names, seen by the reader or not: their name shown, their birth year
         # used for when school starts (R3.14).
@@ -475,15 +548,15 @@ def _education_answer(s: Session, p: Projection, prep: Prepared, result, inputs:
         "name": school["name"],
         "firstYear": school["firstYear"],
         "years": school["years"],
-        "costToday": school["cost"],
+        "costToday": _cents(school["cost"]),
         "costBasis": school["basis"],
-        "costs": costs,
-        "atStart": at_start,
-        "needed": needed,
+        "costs": _cents(costs),
+        "atStart": _cents(at_start),
+        "needed": _cents(needed),
         "funded": funded,
         "chance": result.lasted,
-        "monthly": float(inputs.get("monthly", 0) or 0),
-        "neededMonthly": monthly,
+        "monthly": _cents(float(inputs["monthly"])),
+        "neededMonthly": _cents(monthly),
     }
 
 
@@ -499,8 +572,8 @@ def headline(p: Projection, answer: dict) -> str:
 
 
 def subject(p: Projection) -> str:
-    """At most one active projection per subject: the people of a retirement, a savings
-    target's own name."""
+    """A retirement's people, an education goal's beneficiary: at most one active projection
+    each (S6.7.1). A savings target is the accounts it is built on, which `replaces` reads."""
     inputs = json.loads(p.inputs or "{}")
     if p.goal == "retirement":
         people = sorted(
@@ -508,13 +581,38 @@ def subject(p: Projection) -> str:
             for x in (inputs.get("people") or [{"name": p.ownerId}])
         )
         return f"{p.ownerId}:retirement:{'|'.join(people)}"
-    if p.goal == "education":
-        who = inputs.get("beneficiary") or {}
-        return f"{p.ownerId}:education:{who.get('kind')}:{who.get('id')}"
-    return f"{p.ownerId}:{p.goal}:{p.id}"
+    who = inputs.get("beneficiary") or {}
+    return f"{p.ownerId}:education:{who.get('kind')}:{who.get('id')}"
+
+
+def _backing(s: Session, user_id: str, p: Projection) -> dict[str, str]:
+    """A savings target's accounts, by id with their names; a typed amount's none."""
+    spec = json.loads(p.builtOn or "{}")
+    if spec.get("kind") not in ("accounts", "portfolio"):
+        return {}
+    return {a.id: a.name for a in _accounts(s, user_id, spec)[0]}
+
+
+def replaces(s: Session, user_id: str, p: Projection) -> list[tuple[Projection, list[str]]]:
+    """The user's own active projections that making `p` active turns off (S6.7.1), each with
+    the names of the accounts it shares with `p`: for a savings target, any it shares an
+    account with, since tracking counts an account's whole balance toward each (S6.7.3)."""
+    found = []
+    mine = _backing(s, user_id, p) if p.goal == "savings" else {}
+    for other, held in visible(s, user_id):
+        if other.id == p.id or not other.active or not held.mine or other.goal != p.goal:
+            continue
+        if p.goal == "savings":
+            shared = [n for i, n in _backing(s, user_id, other).items() if i in mine]
+            if shared:
+                found.append((other, sorted(shared)))
+        elif subject(other) == subject(p):
+            found.append((other, []))
+    return found
 
 
 def make_baseline(result: dict) -> dict:
+    """Its median and band as of today, kept in cents as they went out (S6.7.2)."""
     return {
         "years": result["years"],
         "p10": result["percentiles"]["10"],
@@ -557,9 +655,14 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
     start = p.baselineAt.date()
     today = upto or clock.today()
     points: list[tuple[dt.date, Decimal]] = []
+    untracked = {"status": "untracked", "points": [], "baseline": base, "since": start.isoformat()}
     if spec.get("kind", "typed") == "typed":
-        return {"status": "untracked", "points": [], "baseline": base, "since": start.isoformat()}
+        return untracked
     on = built_on(s, p.ownerId, spec)
+    if not on.accounts:
+        # None of its accounts left, there is no balance to compare: untracked, as a typed
+        # amount is, never on track with nothing to show it (S6.7.3).
+        return untracked
     seen = (
         None
         if viewer == p.ownerId

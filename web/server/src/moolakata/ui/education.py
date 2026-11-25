@@ -558,9 +558,6 @@ def _goals(s, c: Caller, b: education.Beneficiary) -> list[Projection]:
         if p.goal != "education":
             continue
         who = json.loads(p.inputs or "{}").get("beneficiary") or {}
-        if who.get("kind") == "user":
-            u = s.get(User, who.get("id") or "")
-            who = {"kind": "person", "id": u.personId if u else None}
         if who.get("kind") == b.kind and who.get("id") == b.id:
             out.append(p)
     return sorted(out, key=lambda p: (not p.active, p.createdAt))
@@ -616,6 +613,7 @@ def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
                     "schoolYears": 4,
                     "costBasis": "public",
                     "monthly": round(float(recent) / 24, 2),
+                    "fees": 0.1,
                 }
             ),
         )

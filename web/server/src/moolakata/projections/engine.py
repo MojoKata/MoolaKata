@@ -48,7 +48,9 @@ class Plan:
     income: list[tuple[int, float, bool]] = field(
         default_factory=list
     )  # (from index, a year, inflates)
-    crypto_path: list[float] | None = None  # yearly growth ratios of a bitcoin model
+    # A bitcoin model's growth into each year, as `growth_by_year` gives it (index 0 today's);
+    # None for a year after a target's, which the crypto assumption grows (S6.3.1.6).
+    crypto_path: list[float | None] | None = None
     bitcoin_share: float = 1.0  # of the crypto, the part the model drives
     runs: int = RUNS
     seed: int = 0
@@ -72,6 +74,23 @@ def seed_of(*parts) -> int:
     )
 
 
+def growth_by_year(prices: list[float | None]) -> list[float | None]:
+    """A model's price each year, from this one, as the growth that brings the balance to
+    that year: index t is year t's over year t − 1's, as the simulation grows year t, and
+    index 0 is 1, today's balance not grown (S6.4.2.3). None for a year the model has no price
+    for, past a target's year (S6.3.1.6)."""
+    return [
+        1.0,
+        *(None if a is None or b is None else b / a for a, b in itertools.pairwise(prices)),
+    ]
+
+
+def _followed(path: list[float | None], years: int) -> tuple[np.ndarray, np.ndarray]:
+    """A model's growth for each year, 1 where it has none, and which years it has one."""
+    given = [g is not None for g in path[:years]]
+    return np.array([g if g is not None else 1.0 for g in path[:years]]), np.array(given)
+
+
 def _lognormal(rng, mean: float, vol: float, shape) -> np.ndarray:
     """Yearly returns with this arithmetic mean and volatility, never below −100%."""
     if vol <= 0:
@@ -90,13 +109,15 @@ def _returns(plan: Plan, rng, runs: int) -> np.ndarray:
         if cls == "crypto" and plan.crypto_path is not None:
             # The bitcoin: the model's median growth each year, spread by the crypto
             # volatility; other coins keep the crypto assumption (S6.3.1).
-            ratios = np.array(plan.crypto_path[: plan.years])
+            ratios, followed = _followed(plan.crypto_path, plan.years)
             s2 = np.log(1 + vol**2)
             noise = np.exp(rng.normal(-s2 / 2, np.sqrt(s2), (runs, plan.years)))
             share = plan.bitcoin_share
             drawn = share * (ratios[None, :] * noise - 1)
-            if share < 1:
-                drawn = drawn + (1 - share) * _lognormal(rng, mean, vol, (runs, plan.years))
+            if share < 1 or not followed.all():
+                # Other coins, and every coin after a target's year, by the crypto assumption.
+                assumed = _lognormal(rng, mean, vol, (runs, plan.years))
+                drawn = np.where(followed[None, :], drawn + (1 - share) * assumed, assumed)
         else:
             drawn = _lognormal(rng, mean, vol, (runs, plan.years))
         total += w * drawn
@@ -107,9 +128,9 @@ def _expected_return(plan: Plan) -> np.ndarray:
     out = np.zeros(plan.years)
     for cls, w in plan.weights.items():
         if cls == "crypto" and plan.crypto_path is not None:
-            share = plan.bitcoin_share
-            model = np.array(plan.crypto_path[: plan.years]) - 1
-            out += w * (share * model + (1 - share) * plan.returns.get(cls, 0.0))
+            share, mean = plan.bitcoin_share, plan.returns.get(cls, 0.0)
+            ratios, followed = _followed(plan.crypto_path, plan.years)
+            out += w * np.where(followed, share * (ratios - 1) + (1 - share) * mean, mean)
         else:
             out += w * plan.returns.get(cls, 0.0)
     return out
@@ -198,11 +219,10 @@ def scenario_paths(plan: Plan, model: str, figures: dict, btc_now: float) -> dic
         return {}
     year, targets = found
     out = {}
-    years = [plan.first_year + t for t in range(plan.years + 1)]
+    years = [plan.first_year + t for t in range(plan.years)]
     for name, target in zip(("bear", "base", "bull"), targets, strict=True):
         prices = [bitcoin.toward(btc_now, plan.first_year, target, year, y) for y in years]
-        ratios = [b / a for a, b in itertools.pairwise(prices)]
-        p = Plan(**{**plan.__dict__, "crypto_path": ratios})
+        p = Plan(**{**plan.__dict__, "crypto_path": growth_by_year(prices)})
         path, _ = _simulate(p, _expected_return(p)[None, :])
         out[name] = path[0].tolist()
     return out

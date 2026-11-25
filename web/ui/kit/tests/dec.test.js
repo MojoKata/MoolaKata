@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 // Exact decimals (requirements S12.12).
-import { Dec, parseJson } from '../dec.js';
+import { copied, Dec, parseJson } from '../dec.js';
 import { equal, throws, truthy } from './assert.js';
 
 Deno.test('a decimal keeps its own digits and adds exactly', () => {
@@ -28,4 +28,15 @@ Deno.test('JSON numbers with a point arrive as decimals, whole numbers as number
   equal(x.amount.toString(), '10.0');
   equal(x.count, 3);
   equal(JSON.stringify({ amount: Dec.parse('1234.50') }), '{"amount":1234.50}');
+});
+
+Deno.test('a copy keeps each decimal in it, and changing it leaves the first as it was', () => {
+  const first = parseJson(
+    '{"fees": 0.1, "people": [{"age": 62}], "contribution": {"amount": 20.5}}',
+  );
+  const copy = copied(first);
+  truthy(copy.fees instanceof Dec);
+  equal(JSON.stringify(copy), '{"fees":0.1,"people":[{"age":62}],"contribution":{"amount":20.5}}');
+  copy.people[0].age = 65;
+  equal(first.people[0].age, 62);
 });

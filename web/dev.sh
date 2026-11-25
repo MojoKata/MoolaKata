@@ -203,7 +203,8 @@ case "$cmd" in
     sha=$(gh pr view "$pr" -R "$repo" --json headRefOid -q .headRefOid)
     run=$(gh run list -R "$repo" --commit "$sha" --workflow check --limit 1 --json databaseId \
       -q '.[0].databaseId')
-    id=$(gh api "repos/$repo/actions/runs/$run/artifacts" \
+    # A run keeps more artifacts than one page lists (30), so every page is read.
+    id=$(gh api --paginate "repos/$repo/actions/runs/$run/artifacts?per_page=100" \
       -q ".artifacts[] | select(.name == \"$file\") | .id")
     [[ -n "$id" ]] || { echo "run $run kept no $file (yet)" >&2; exit 1; }
     echo "https://github.com/$repo/actions/runs/$run/artifacts/$id"

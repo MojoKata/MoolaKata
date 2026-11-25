@@ -626,6 +626,7 @@ def transactions(h: Household) -> dict:
                     {"label": "Social Security", "person": 0, "fromAge": 67, "monthly": 2900}
                 ],
                 "fees": 0.2,
+                "horizonAge": 95,
             },
         )
     )

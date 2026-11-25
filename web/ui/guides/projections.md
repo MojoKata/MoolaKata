@@ -1,7 +1,7 @@
 # Projections
 
-How your money might grow toward a goal, and whether it will pay for it: **retirement**, or a
-**savings target** by a date. A model, not a forecast. (Education goals come with 529 accounts.)
+How your money might grow toward a goal, and whether it will pay for it: **retirement**,
+**education**, or a **savings target** by a date. A model, not a forecast.
 
 ![Projections](shots/projections.png)
 
@@ -10,8 +10,9 @@ savings target by a date.
 
 ## Active
 
-The plans you follow; make a scenario active to follow it. At most one per subject: one retirement plan for the same people, one per
-savings target. Making one active stores its median path and its 10th–90th percentile band as of
+The plans you follow; make a scenario active to follow it. At most one per subject: one retirement
+plan for the same people, one education plan per beneficiary, and one savings target per account,
+since each counts the whole balance of the accounts it is built on. Making one active stores its median path and its 10th–90th percentile band as of
 that day: its **baseline**.
 
 ## Scenarios
@@ -24,8 +25,8 @@ $500 more a month. **New Projection** starts one.
 For an active projection, the actual balance of what it is built on against its baseline: **on
 track** inside the baseline's 10th–90th percentile band, **ahead** above it, **behind** below it.
 Falling behind raises an alert, checked at each month's end. Tracking starts from the baseline, and
-the chart fills in as days pass. One built on a typed amount is **untracked**: there is no balance
-to track it against. In a projection shared with you, you see the status, and the balance of only
+the chart fills in as days pass. One built on a typed amount, or on accounts none of which is left,
+is **untracked**: there is no balance to track it against. In a projection shared with you, you see the status, and the balance of only
 the accounts that are shared with you too; when some aren't, it is marked **partly
 shared**, and there is no band to show it against.
 
@@ -44,7 +45,9 @@ A model, not a forecast. Under the chart, what it is worked out from: the value 
 its mix of asset classes; each class's return and volatility, from its owner's assumptions in
 Profile, drawn log-normal, each class on its own; inflation; and the fees taken from the balance
 each year. Where a bitcoin model is chosen, bitcoin follows it, a model others publish; other coins
-keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures.
+keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures. Shared
+a projection but not every account it is built on, you see the value it starts from, but not their
+mix: *its mix: not shared with you*.
 
 ## Left Out {#left-out}
 
@@ -55,7 +58,10 @@ money that can be drawn on; a home isn't sold to pay for retirement, and a car l
 ## Built on
 
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
-value today and their mix of asset classes; each class follows your assumptions in Profile.
+value today and their mix of asset classes; each class follows your assumptions in Profile. In a
+projection shared with you to change, you choose among the accounts shared with you, and the
+others stay; shared none of them, or built on a portfolio not shared with you, it reads **Not
+shared with you**, and it stays built on them.
 
 ## Amount {#typed-amount}
 
@@ -70,13 +76,20 @@ retires.
 
 Your partner's, for a couple.
 
+## Runs to age {#horizon-age}
+
+The age it runs to, of the youngest of the people in it: the answer is the chance the money lasts
+until then. From 60 to 120: **default** fills in 95. Left blank, it is refused.
+
 ## Contribution per year {#contribution}
 
-What is added each year until retirement.
+What is added each year until retirement: **min** fills in $0.00 for none. Left blank, it is
+refused.
 
 ## Grows yearly by (%) {#contribution-growth}
 
-How much the contribution rises each year, with your pay.
+How much the contribution rises each year, with your pay, from −20% to 50%: **default** fills
+in 0% and **min** −20%. Left blank, it is refused.
 
 ## Withdrawal
 
@@ -132,16 +145,22 @@ By when.
 ## Saving per month {#monthly}
 
 What goes in each month until then. The answer says what a month would reach it with a 90% chance,
-or that no monthly saving reaches it by then.
+or that no monthly saving reaches it by then. **min** fills in $0.00 for none; left blank, it is
+refused.
 
 ## Fees a year (%) {#fees}
 
-Fund and advisory fees, taken from the balance each year.
+Fund and advisory fees, taken from the balance each year, from 0% to 5%: **default** fills in
+0.1% and **min** 0%. Left blank, they are refused.
 
 ## Bitcoin model
 
 For the bitcoin in what it is built on: your crypto assumption, or a model others publish. A model
-with bear, base and bull cases shows those three paths instead of a fan.
+with bear, base and bull cases shows those three paths instead of a fan; its targets are for a year
+(2030 or 2045), and after it bitcoin grows by the crypto assumption. A model starts from today's
+bitcoin price: with none on the server yet, the model isn't used, and bitcoin grows by the crypto
+assumption. In a projection shared with you without every account it is built on, you see the
+fan, and no model named: they follow the bitcoin in its mix.
 
 ## Run
 

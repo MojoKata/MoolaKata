@@ -5,17 +5,24 @@
    shared like an account (S10.3): a viewer sees its results, worked out over its owner's
    accounts, and the values and tracking of only the accounts shared with them. What it is
    built on, when it isn't shared with them, is named *a portfolio not shared with you* or
-   *an account not shared with you*.
+   *an account not shared with you*. The value it starts from is one of its results; the mix
+   of asset classes it starts from is what the accounts hold, shown only to one shared every
+   account it is built on (S5.1.1): to another, *its mix: not shared with you*. One who may
+   change it chooses among the accounts shared with them, and those that aren't stay as they
+   are; shared none of them, or built on a portfolio not shared with them, they see what it
+   is built on as *not shared with you*, shown off, and change the rest, and it stays built on
+   them.
    1. **Built on** chosen accounts, a portfolio, or a typed amount for a what-if. Built on
       accounts or a portfolio, it starts from their **current values** each time it opens,
       with their *as of*, and from their allocation by asset class.
-   2. **Contributions**: an amount, its frequency, growth per year, and until when. Capping
-      them, for retirement accounts, by the limits of S1.4 comes later ([F#563](https://github.com/MojoKata/MoolaKata/issues/563)).
+   2. **Contributions**: an amount, its frequency, growth per year (0% by default), and until
+      when. Capping them, for retirement accounts, by the limits of S1.4 comes later ([F#563](https://github.com/MojoKata/MoolaKata/issues/563)).
 2. **Goal types.** All three use the same models (S6.4).
    1. **Retirement**, for one person or a **couple**: each person's birth year and
       retirement age, and the accounts that are theirs. After retirement come
-      **withdrawals** (the 4% rule, a fixed amount rising with inflation, or a percentage
-      of the balance) set against **other income**: Social Security from an age, a pension,
+      **withdrawals** (the 4% rule: 4% of the balance at retirement, then that amount rising
+      with inflation; a fixed amount rising with inflation; or a percentage of each year's
+      balance) set against **other income**: Social Security from an age, a pension,
       each with its amount. The answer: the **chance the money lasts** to the horizon (age
       95 by default), and the balance by age.
    2. **Education**, for one beneficiary, built on their 529 accounts (S1.8). The beneficiary's
@@ -54,8 +61,8 @@
       | **ARK Invest** (2030 targets) | $500K, $1.2M and $2.4M by 2030 (bear, base, bull) |
 
       1. **Compare models** shows every model's median path on one chart (log scale) with
-         the price history behind it, and a table of each model's figures for 2030, 2035 and
-         2045.
+         the price history behind it (bitcoin's stored daily closes, S4.6), and a table of each
+         model's figures for 2030, 2035 and 2045.
       2. **Each model states its source and record.** Stock-to-flow has run below its own
          band since 2022; the targets of Saylor and ARK are forecasts by people with a stake
          in the outcome; the curve fits describe the past and say nothing about why it
@@ -64,12 +71,26 @@
       3. **Their figures ship with the app**, dated and with their source, in Settings ›
          Tax Tables, and are updated with it (a new ARK target, a refit of the power law).
       4. A projection that uses a model with bear, base and bull cases shows those three
-         paths in place of a fan, since they are not percentiles.
+         paths in place of a fan, since they are not percentiles. They follow the bitcoin in
+         its mix, so one shared it but not every account it is built on (S6.1) sees the fan of
+         the same runs in their place, and no bitcoin model named under its chart, nor that
+         there is no price for one.
+      5. **No bitcoin price, no model.** A model starts from today's price, and nothing stands
+         in for one the server doesn't have (price sources are off until set up, R3.5):
+         *Compare models* shows *No bitcoin price yet*, with where an admin sets up a price
+         source, and a projection's bitcoin grows by the crypto assumption, with *No bitcoin
+         price yet: the model isn't used* under its chart.
+      6. **A target stops at its year.** A model of targets (ARK's for 2030, Saylor's for 2045)
+         says nothing of the years after them: *Compare models* draws its path to its target's
+         year and shows *—* for its figures after it, and a projection following it grows its
+         bitcoin by the crypto assumption from the year after.
 4. **Models:**
    1. **deterministic**: future value at a constant rate, in nominal and today's dollars;
    2. **Monte Carlo**: *N* runs (1000 by default) drawing yearly returns from the asset
-      classes' mean and volatility (log-normal; a historical bootstrap later), showing the
-      10th/50th/90th percentile **fan** and the type's answer (S6.2).
+      classes' mean and volatility (log-normal), showing the 10th/50th/90th percentile
+      **fan** and the type's answer (S6.2). Drawing whole past years instead, from a shipped
+      table of yearly returns per asset class over a span of years the user chooses, comes
+      later ([F#673](https://github.com/MojoKata/MoolaKata/issues/673)).
       1. **Each year**, the balance grows by its mix of asset classes' returns, each drawn
          log-normal on its own (correlation between classes is not modelled), less fees;
          contributions are added, rising by their growth, until retirement or the target
@@ -89,16 +110,25 @@
       4. **The savings answer** names the monthly saving that reaches the target with a 90%
          chance, to the dollar a year, a date part-way through a year counting only that
          part of a year's saving.
-   3. **Glide path** *(later)*: the allocation shifting toward bonds as the goal nears, as
-      age-based 529 portfolios and target-date funds do.
-5. **Tax-aware buckets** (later): taxable, deferred and free balances projected apart, with
-   RMDs from the required age and an assumed tax rate on withdrawals.
+   3. **Glide path**, later ([F#671](https://github.com/MojoKata/MoolaKata/issues/671)):
+      the mix changing over a projection's run as the user describes it (the allocation at
+      chosen dates or ages, or a shift from one mix to another over a span), with no
+      schedule built in. A projection's mix is the same for its whole run.
+5. **Tax-aware buckets**, later ([F#672](https://github.com/MojoKata/MoolaKata/issues/672)):
+   taxable, tax-deferred and tax-free balances projected apart, with RMDs from the required
+   age by the shipped tax rules and the user's own tax rate on withdrawals. A projection's
+   balances and withdrawals are before tax.
 6. **Scenarios compare** side by side, for example retiring at 60 against 65, or contributing
    $500 more a month. Projections that are not active are the scenarios.
 7. **Active projections** are the plans being followed.
    1. **At most one per subject**: one retirement projection per person or couple, one
-      education projection per beneficiary, one per savings target. Making one active asks
-      before turning off the one it replaces.
+      education projection per beneficiary, and one savings target per account: tracking
+      counts the whole balance of what a projection is built on (S6.7.3), so two active
+      savings targets sharing an account, directly or through a portfolio, would count the
+      same money toward both. One built on a typed amount shares no account. Making one
+      active asks before turning off those it replaces, naming each and, for a savings
+      target, the accounts they share (*Car is active on Joint Savings. Make House active
+      instead?*).
    2. **The baseline**: making a projection active stores its median path and its 10th–90th
       percentile band as of that day.
    3. **Tracking**: the actual balance of what it is built on, plotted against the baseline
@@ -106,7 +136,8 @@
       below it. The band grows from the actual balance on the baseline's day (prices that
       arrive later that day don't count against it), and is never narrower than 2% of its
       median either way, so day-to-day noise isn't called a plan going wrong. A projection built on a
-      typed amount has nothing to track. Beside it, the type's answer run again from today's balance.
+      typed amount, or on accounts none of which is left, has nothing to track: it is
+      **untracked**. Beside it, the type's answer run again from today's balance.
    4. **Changing an active projection's inputs** asks whether to **re-baseline**. Without
       it, tracking keeps comparing against the plan as it was made active.
    5. **Falling behind** raises an alert (S12.11), checked monthly, and resolves when the

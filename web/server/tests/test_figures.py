@@ -255,7 +255,8 @@ def test_a_projection_leaves_a_loan_out_and_names_it(server):
     c, p, loan = _checking_and_mortgage(server)
     owed = c.get(f"/ui/api/accounts/{loan['id']}/loan").json()["balance"]
     r = make(c, "Prjct", name="Save", goal="savings", builtOn={"kind": "portfolio", "id": p["id"]},
-             inputs={"target": 20000, "targetDate": "2030-01-01"})  # fmt: skip
+             inputs={"target": 20000, "targetDate": "2030-01-01", "monthly": 0,
+                     "fees": 0.1})  # fmt: skip
     assert r.status_code == 200, r.text
     res = c.get(f"/ui/api/projections/{r.json()['id']}").json()["result"]
     assert res["start"] == "5000.00" and res["weights"] == {"cash": 1.0}
