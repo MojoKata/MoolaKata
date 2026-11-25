@@ -247,6 +247,51 @@ def test_a_code_from_a_locked_address_or_one_already_being_checked_waits(server)
     b.__exit__(None, None, None)
 
 
+def test_a_code_after_an_admins_reset_is_only_a_recovery_code(server, admin_client):
+    """Two-step reset by an admin while a sign-in waited for its code: no seed is left, and
+    no recovery code either, so the code is wrong."""
+
+    b, token, _, codes = _two_step_pending(server, "quin")
+    with server.db.read(unscoped="test") as s:
+        uid = s.scalars(select(User.id).where(User.username == "quin")).one()
+    assert admin_client.post(f"/ui/api/users/{uid}/two-step/reset").status_code == 200
+    r = b.post("/ui/api/session/two-step", json={"token": token, "code": codes[0]})
+    assert r.status_code == 401 and r.json()["errors"][0]["field"] == "code"
+    b.__exit__(None, None, None)
+
+
+def test_two_step_refuses_steps_out_of_order(server):
+    from test_twostep import turn_on
+
+    u = make_user(server, "ray")
+    c = sign_in(server, "ray")
+    refused(
+        c.post("/ui/api/profile/two-step/recovery-codes"),
+        409,
+        None,
+        "two-step-off",
+        "Two-step sign-in is off.",
+    )
+    refused(
+        c.post("/ui/api/profile/two-step/confirm", json={"code": "123456"}),
+        409,
+        None,
+        "two-step-not-started",
+        "Start setting up two-step sign-in first.",
+    )
+    _set(server, u.id, email=None)
+    sent = len(mails(server))
+    turn_on(c)
+    assert len(mails(server)) == sent, "no address, no mail"
+    refused(
+        c.post("/ui/api/profile/two-step"),
+        409,
+        None,
+        "two-step-on",
+        "Two-step sign-in is already on.",
+    )
+
+
 def test_an_admin_resets_their_own_two_step_and_stays_signed_in(server, admin_client):
     from test_twostep import turn_on
 
