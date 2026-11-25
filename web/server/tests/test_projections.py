@@ -233,12 +233,13 @@ US = "classes.usStocks"
         ("educationInflation", "5", "Between 0% and 20%."),
         ("bitcoinModel", "moon", "Choose a model."),
         ("classes.gold", {"return": 5, "volatility": 10}, "An asset class's figures."),
+        (f"{US}.growth", 5, "Not a figure."),
     ],
 )
 def test_each_assumption_is_refused_at_its_field(jane, path, value, words):
     """S6.3, R3.11: a figure that isn't a number in its range, a yes or no among them, is
     refused at its field, never read as a figure; so is an asset class MoolaKata has none of,
-    as a projection's overrides refuse one."""
+    or a figure an asset class has none of, as a projection's overrides refuse one."""
     import copy
 
     figures = copy.deepcopy(jane.get("/ui/api/assumptions").json()["figures"])
