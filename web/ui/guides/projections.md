@@ -60,7 +60,8 @@ money that can be drawn on; a home isn't sold to pay for retirement, and a car l
 A portfolio, an account, or a typed amount for a what-if. Built on accounts, it starts from their
 value today and their mix of asset classes; each class follows your assumptions in Profile. In a
 projection shared with you to change, you choose among the accounts shared with you, and the
-others stay; shared none of them, it reads **Not shared with you**, and it stays built on them.
+others stay; shared none of them, or built on a portfolio not shared with you, it reads **Not
+shared with you**, and it stays built on them.
 
 ## Amount {#typed-amount}
 

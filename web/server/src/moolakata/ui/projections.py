@@ -492,7 +492,12 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
         raise refuse("goal", "goal-fixed", "A projection keeps its goal; make another.")
     kept = json.loads(p.inputs or "{}").get("beneficiary")
     built, unseen = body.builtOn, _unseen(s, c.id, p, body.builtOn)
-    if unseen:
+    seen, stored = projections.seen_spec(s, p, c.id), json.loads(p.builtOn)
+    if seen.get("kind") == "portfolio" and "id" not in seen and body.builtOn in (seen, stored):
+        # A portfolio not shared with a writer is sent them without its id; sent back so, or
+        # left as it is, it stays, never refused as one they didn't choose (S6.1).
+        built, body.builtOn = None, stored
+    elif unseen:
         # What they chose is checked, a blank refused; those they aren't shared are added back
         # as they were. What they see of it unchanged, it stays as it is, checked when saved.
         old = json.loads(p.builtOn)

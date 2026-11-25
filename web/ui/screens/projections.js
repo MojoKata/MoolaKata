@@ -599,13 +599,17 @@ function BuiltOn({ value, onChange, error }) {
     ...(/** @type {any[]} */ (accts.data) || []).map((a) => [`accounts:${a.id}`, a.name]),
     ['typed', 'A typed amount (what if)'],
   ]);
-  // Shared none of the accounts it is built on, a writer can't choose among them: shown off,
-  // saying why, never as the first option; a save keeps them as they are (S6.1).
-  if (value.kind === 'accounts' && !value.ids?.length) {
+  // Shared none of the accounts it is built on, or not its portfolio, a writer can't choose
+  // among them: shown off, saying why, never as the first option; a save keeps them (S6.1).
+  const unseen = value.kind === 'accounts' && !value.ids?.length
+    ? 'None of the accounts it is built on is shared with you: it stays built on them.'
+    : value.kind === 'portfolio' && !value.id
+    ? 'The portfolio it is built on isn’t shared with you: it stays built on it.'
+    : null;
+  if (unseen) {
     return html`
       <${Field} label="Built on" id="built-on" error=${error}>
-        <${ReadValue} text="Not shared with you" select
-          data-tip="None of the accounts it is built on is shared with you: it stays built on them." />
+        <${ReadValue} text="Not shared with you" select data-tip=${unseen} />
         </${Field}>
     `;
   }

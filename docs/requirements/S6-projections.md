@@ -9,8 +9,9 @@
    of asset classes it starts from is what the accounts hold, shown only to one shared every
    account it is built on (S5.1.1): to another, *its mix: not shared with you*. One who may
    change it chooses among the accounts shared with them, and those that aren't stay as they
-   are; shared none of them, they see what it is built on as *not shared with you*, shown off,
-   and change the rest.
+   are; shared none of them, or built on a portfolio not shared with them, they see what it
+   is built on as *not shared with you*, shown off, and change the rest, and it stays built on
+   them.
    1. **Built on** chosen accounts, a portfolio, or a typed amount for a what-if. Built on
       accounts or a portfolio, it starts from their **current values** each time it opens,
       with their *as of*, and from their allocation by asset class.

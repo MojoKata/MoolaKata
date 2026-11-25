@@ -729,6 +729,33 @@ def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):
     assert theirs["builtOn"] == {"kind": "portfolio"} and theirs["result"]["weights"] is None
 
 
+def test_a_writer_not_shared_its_portfolio_changes_the_rest_and_it_stays(server, jane):
+    """S6.1: a writer shared a projection but not the portfolio it is built on saves the
+    whole record as they were sent it, and changes its inputs: it stays built on the
+    portfolio, never refused as one they didn't choose, and is still not named to them."""
+    from edits import share
+    from test_accounts import add, new_account
+
+    own = new_account(jane, name="Jane's savings", type="savings")
+    add(jane, own["id"], "9000.00", "2026-10-01")
+    port = made(make(jane, "Portf", name="Nest egg", accountIds=[own["id"]]))
+    on = {"kind": "portfolio", "id": port["id"]}
+    p = made(make(jane, "Prjct", name="House", goal="savings", builtOn=on,
+                  inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "write"}).status_code == 200
+    johns = sign_in(server, "john")
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()
+    # The whole record as they were sent it, and only its inputs changed.
+    for monthly, whole in ((200, {"builtOn": theirs["builtOn"]}), (300, {})):
+        inputs = {**theirs["inputs"], "monthly": monthly}
+        theirs = saved(change(johns, "Prjct", theirs, inputs=inputs, **whole))
+        assert theirs["builtOn"] == {"kind": "portfolio"}, "still not named to them"
+        mine = jane.get(f"/ui/api/projections/{p['id']}").json()
+        assert (mine["builtOn"], mine["inputs"]["monthly"]) == (on, monthly)
+        assert mine["result"]["start"] == Decimal("9000.00")
+
+
 def test_a_typed_mix_is_the_projections_own_and_shown_to_a_viewer(server, jane):
     from edits import share
 
