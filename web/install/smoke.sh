@@ -3,7 +3,8 @@
 # (requirements S17.8.1, docs/test-plan.md): the server refuses a keyring it can't read; starts
 # uninitialised, locked down as compose runs it, and alive to its health check; makes its key
 # and first admin through the welcome's routes; stops cleanly, starts again locked, is unlocked
-# with `keys unlock`, answers /healthz and a sign-in, reads a receipt, and stops cleanly; the
+# with `keys unlock`, answers /healthz and a sign-in, reads an uploaded receipt as a running
+# server does (its worker, in that worker's sandbox), and stops cleanly; the
 # connector starts with no vault, its page's welcome makes one, it stops cleanly, starts again
 # locked, is unlocked with its words, and stops cleanly.
 #
@@ -92,20 +93,64 @@ docker exec mk-smoke moolakata health >/dev/null || { echo "FAILED: not alive wh
 echo "$PHRASE" | docker exec -i mk-smoke moolakata keys unlock >/dev/null
 wait_for ok 60
 echo "   unlocked and healthy"
-code="$(post /ui/api/session '{"login":"admin","password":"a long smoke passphrase"}')"
+# The session cookie is Secure: taken from the answer and sent by hand over this plain HTTP.
+code="$(curl -s -o /dev/null -D "$WORK/signin" -w '%{http_code}' -X POST "${JSON[@]}" \
+  -d '{"login":"admin","password":"a long smoke passphrase"}' "$URL/ui/api/session")"
 [[ "$code" == 200 ]] || { echo "FAILED: sign-in answered $code"; exit 1; }
+SESSION="$(grep -io 'mk_session=[^;]*' "$WORK/signin" | head -1)"
+[[ -n "$SESSION" ]] || { echo "FAILED: sign-in set no session"; exit 1; }
+get() { curl -sf -H "Cookie: $SESSION" "$URL$1"; }
 echo "   signed in"
+echo "== the server: a receipt uploaded and read, as the server reads one (S9.8.4)"
+# Read by the server's own worker under this architecture's seccomp filter, Landlock, -I and no
+# environment, on the read-only root: a filter that refuses what the reader needs fails the
+# read, and one that refuses nothing fails the worker's self-test below.
+docker exec mk-smoke python -c '
+import sys
+from PIL import Image, ImageDraw, ImageFont
+img = Image.new("RGB", (420, 130), "white")
+pen = ImageDraw.Draw(img)
+for i, text in enumerate(["CORNER STORE", "OCT 9, 2026", "TOTAL 12.34"]):
+    pen.text((24, 20 + i * 30), text, fill=(20, 20, 20), font=ImageFont.load_default(size=20))
+img.save(sys.stdout.buffer, "PNG")' > "$WORK/receipt.png"
+RID="$(curl -sf -H "Cookie: $SESSION" -H "Origin: $URL" \
+  -F "file=@$WORK/receipt.png;filename=receipt.png" "$URL/ui/api/receipts" \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" \
+  || { echo "FAILED: the upload was refused"; exit 1; }
+for i in $(seq 1 300); do
+  READ="$(get "/ui/api/receipts/$RID" | python3 -c 'import json, sys
+r = json.load(sys.stdin)
+print(r["readStatus"], r["amount"], r["readMethod"], r["readError"] or "")')"
+  [[ "$READ" == waiting* || "$READ" == reading* ]] || break
+  sleep 1
+done
+[[ "$READ" == "read 12.34 ocr"* ]] || {
+  echo "FAILED: the receipt read as: $READ"; docker logs mk-smoke 2>&1 | tail -20; exit 1; }
+echo "   read by OCR in the server's worker after ${i}s, total 12.34"
+SANDBOX="$(get /ui/api/settings/receipts | python3 -c 'import json, sys; print(json.load(sys.stdin)["fileSandbox"])')"
+echo "   Settings › Receipts: the reader kept out of the data directory: $SANDBOX"
+# The worker's self-test in the running container: no socket, no signal to the server, no
+# environment, no core, and the data directory closed wherever Landlock holds (S9.8.4.2).
+docker exec mk-smoke python -I -c '
+from moolakata.receipts.reading import Worker
+w = Worker("/var/lib/moolakata")
+try:
+    out = w.call("selftest", path="/var/lib/moolakata")
+    assert "error" not in out, out
+    s = w.state
+    assert s["seccomp"] and s["core"], ("sandbox", s)
+    assert out["network"] is False and out["local"] is False and out["signal"] is False, out
+    assert set(out["environment"]) <= {"OMP_NUM_THREADS", "LC_CTYPE"}, out["environment"]
+    assert out["path"] is (not s["landlock"]), ("the data directory", s, out)
+    print("   the worker: seccomp, no core, Landlock", "on" if s["landlock"] else "not offered")
+finally:
+    w.stop()' || { echo "FAILED: the worker's sandbox"; exit 1; }
+[[ "$SANDBOX" != False ]] || docker exec mk-smoke python -I -c '
+from moolakata.sandbox import landlock_abi; assert landlock_abi() < 1' \
+  || { echo "FAILED: Landlock is offered but the server says its reader is not kept out"; exit 1; }
 docker stop -t 10 mk-smoke >/dev/null
 [[ "$(docker inspect mk-smoke --format '{{.State.ExitCode}}')" == 0 ]] || { echo "FAILED: unclean stop"; exit 1; }
 echo "   stopped cleanly"
-echo "== the server: a receipt read"
-docker run --rm "${PF[@]}" "${LOCKED[@]}" --entrypoint python "moolakata:$TAG" -c '
-import io
-from PIL import Image, ImageDraw
-from moolakata.receipts import ocr
-img = Image.new("L", (600, 300), 255); ImageDraw.Draw(img).text((20, 20), "TOTAL 12.34", fill=0)
-b = io.BytesIO(); img.save(b, "PNG")
-r = ocr.read(b.getvalue(), "image/png"); assert r.lines, "nothing read"; print("   read", r.method)'
 
 echo "== the connector: no vault, and its page's welcome makes one"
 docker volume create mkc-smoke >/dev/null
