@@ -30,7 +30,9 @@ A server that can't be reached shows **unreachable**, since when in its tooltip,
 One that answers, but whose data this server refuses (a list of users that doesn't fit, a change
 that doesn't check), shows **refusing**, what was refused and why in its tooltip, and admins are
 alerted at once; it is fixed on the other server, and clears at the first exchange that takes
-all it sends. One that answers it has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
+all it sends. One that refuses what this server sent shows **refused by** its name, its reason
+in the tooltip, and admins are alerted at once; it is fixed on this server, and clears once the
+other server takes what this one sends. One that answers it has no link with this one (restored from an older backup, say) shows **broken**: end the link, or
 link again. Only the other server ending the link ends it here.
 
 What crosses a link is sealed by the server that sends it to the receiving copy's key, so

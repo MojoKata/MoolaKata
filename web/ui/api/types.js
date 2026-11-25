@@ -5046,6 +5046,7 @@
  * @property {(string | null)} lastError
  * @property {(string | null)} failingSince
  * @property {(string | null)} [refusal]
+ * @property {(string | null)} [peerRefusal]
  * @property {string} createdAt
  * @property {(string | null)} endedAt
  * @property {(string | null)} pausedUntil

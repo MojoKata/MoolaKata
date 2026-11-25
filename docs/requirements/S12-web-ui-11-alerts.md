@@ -9,7 +9,9 @@
           not reached for 2 days*; a pull refused for a clock more than a minute off says *the
           clocks disagree*, which NTP on one host fixes); a linked server that answers but whose
           data is refused (S11.7), at once, paused or not: *<server name> answered, but what it
-          sent was refused: <reason>*; a backup that failed; the bitcoin node presenting a
+          sent was refused: <reason>*; a linked server that refused what this server sent
+          (S11.7), at once, paused or not: *<server name> refused what this server sent:
+          <reason>*, its reason as S11.7 keeps it; a backup that failed; the bitcoin node presenting a
           certificate other than the one trusted (S1.6.2.4); a link's first share waiting for its access key (S11.9.2), and a link
           marked broken (S11.6); the MoolaKata Connector locked, not heard from for 15 minutes,
           or reporting from an address other than the one admins know, until one accepts it or

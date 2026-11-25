@@ -79,6 +79,9 @@ Link = record(
     # What the peer sent that was refused here, and why (S11.7): it answered, so the link shows
     # refusing, not unreachable, until an exchange takes all it sends.
     Column("refusal", Text),
+    # The other way round: the peer refused what this server sent, with its reason (S11.7),
+    # so the link shows refused by it until the peer takes a change this server sends.
+    Column("peerRefusal", Text),
     CheckConstraint(
         "state IN ('invited', 'requested', 'pending', 'active', 'paused', 'ended')", name="state"
     ),

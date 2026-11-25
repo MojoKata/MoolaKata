@@ -202,7 +202,9 @@
       slow-query log) is never turned on: the database key travels in the `PRAGMA key`
       statement, and a logged statement would hold it. The engines hide statement parameters
       from their errors, so a failed write logs no value, and a linked server's own message is
-      kept in the log, never copied into an alert or an email.
+      kept in the log, never copied into an alert or an email, but for its reason for refusing
+      a change this server sent, shown only as one printable line of up to 200 characters
+      (S11.7).
    10. **TLS** (in `tls` mode): TLS 1.2 and 1.3 only, with the server's default modern cipher
        suites; HTTP/2.
    11. **Supply chain**: Python dependencies pinned with hashes in `uv.lock`; the image built

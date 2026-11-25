@@ -1681,6 +1681,46 @@ def test_a_peer_whose_change_is_refused_shows_refusing_on_either_side(admins, mo
     assert links_of(ca)["links"][0]["refusal"] == "change 4 fails its signature check"
 
 
+def test_a_change_the_peer_refuses_shows_refused_by_it_never_unreachable_or_refusing(
+    admins, monkeypatch
+):
+    """S11.7, S12.11.1.1: the peer's `change-refused` answer to what this server delivers shows
+    *refused by* the peer, its reason kept, apart from *refusing* and *unreachable*; it is
+    alerted at once in those words, paused or not, Pull now says the same, and it clears once
+    the peer has taken what this server sends."""
+    from moolakata.links import serve
+
+    _a, b, ca, cb, _ = admins
+    _a_id, b_id = linked(ca, cb)
+    own = serve.change_for
+    bad = {"seq": 7, "removed": []}  # unsigned: the peer refuses it
+    monkeypatch.setattr(
+        serve, "change_for", lambda srv, *args: [bad] if srv is b else own(srv, *args)
+    )
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    why = "change 7 fails its signature check"
+    assert out["peerRefusal"] == why
+    assert out["refusal"] is None, "nothing the peer sent was refused here"
+    assert out["failingSince"] is None and out["lastError"] is None, "it answered"
+    assert out["state"] == "active"
+    alerts.evaluate(b)
+    (alert,) = [x for x in cb.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refused"]
+    assert alert["title"] == f"{out['peerName']} refused what this server sent: {why}"
+    assert not [x for x in cb.get("/ui/api/alerts").json()["open"] if "not reached" in x["title"]]
+    # Paused, it is alerted all the same: what crosses a paused link can be refused too.
+    with b.db.tx(unscoped="test") as s:
+        s.get(Link, b_id).state = "paused"
+    with b.db.read(unscoped="test") as s:
+        assert [c.kind for c in alerts.linked_servers(s, b)] == ["link-refused"]
+    with b.db.tx(unscoped="test") as s:
+        s.get(Link, b_id).state = "active"
+    monkeypatch.setattr(serve, "change_for", own)
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert out["peerRefusal"] is None, "nothing it hasn't taken is left to send"
+    alerts.evaluate(b)
+    assert not [x for x in cb.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refused"]
+
+
 def test_linking_again_over_a_broken_link_ends_it_and_deletes_its_copy_on_both_sides(admins):
     # S11.6: linking again makes way for the new link; a broken one is ended first, its copy
     # deleted, on the joining side as on the inviting one.

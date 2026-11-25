@@ -581,6 +581,8 @@ PULLS = Pulls()
 FOR_NOW = ("link-paused", "busy")
 # Said on a link whose peer has paused it (S11.7.2): not a failure, so no one is alerted.
 PEER_PAUSED = client.refusal("link-paused", 403)
+# A peer's refusal of what this side sent, when it gives no reason `client.peer_reason` keeps.
+NO_REASON = "it gave no reason this server shows"
 
 
 def exchange(srv, link_id: str) -> None:
@@ -679,14 +681,19 @@ def _exchange(srv, link_id: str) -> None:
         refused(srv, link_id, str(e))
         raise LinkError("change-failed", str(e)) from e
     except LinkError as e:
-        # A call after the first that got no answer is recorded on the link like a failed
-        # call, so a link that keeps failing is alerted (S12.11.1), never left showing a good
-        # exchange.
         with srv.db.tx(unscoped="links.manage: exchange") as s:
             link = _get(s, link_id)
-            link.lastError = e.message
-            if e.code not in FOR_NOW:
-                link.failingSince = link.failingSince or clock.now()
+            if e.code == "change-refused":
+                # The peer refused what this side sent: it answered, so the link shows refused
+                # by it, with its reason, never unreachable (S11.7).
+                link.peerRefusal = e.reason or NO_REASON
+            else:
+                # A call after the first that got no answer is recorded on the link like a
+                # failed call, so a link that keeps failing is alerted (S12.11.1), never left
+                # showing a good exchange.
+                link.lastError = e.message
+                if e.code not in FOR_NOW:
+                    link.failingSince = link.failingSince or clock.now()
         raise
 
 
@@ -714,6 +721,7 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
                 more = int(nxt.get("more") or 0)
         receive.fetch_missing(srv, link_id, tried)
     mine = serve.change_for(srv, link_id, int(out.get("have") or 0), bool(out.get("wantFull")))
+    taken = not mine  # the peer has all this side has
     for part in mine:
         for fid in part.get("fetch") or []:
             try:
@@ -725,8 +733,19 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
         answer = call(srv, link_id, "/link/v1/deliver", {"change": part})
         if answer.get("have") != part.get("seq"):
             break  # the peer missed one: its next exchange asks again
+        taken = True
+    if taken:
+        _taken(srv, link_id)
     if mine:
         _served(srv, link_id, mine[0])
+
+
+def _taken(srv, link_id: str) -> None:
+    """The peer took what this side sent, or has all of it: no longer refused by it (S11.7)."""
+    with srv.db.tx(unscoped="links.manage: taken") as s:
+        link = _get(s, link_id)
+        if link.peerRefusal is not None:
+            link.peerRefusal = None
 
 
 def _removals_exchanged(srv, link_id: str, out: dict) -> None:
@@ -740,6 +759,7 @@ def _removals_exchanged(srv, link_id: str, out: dict) -> None:
     mine, newly = serve.removals_for(srv, link_id)
     if mine is not None:
         call(srv, link_id, "/link/v1/deliver", {"change": mine, "registryOnly": True})
+    _taken(srv, link_id)  # sent and not refused, or nothing to send
     if newly:
         _served(srv, link_id, {"removed": newly})
 

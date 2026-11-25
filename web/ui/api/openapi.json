@@ -29634,6 +29634,17 @@
             ],
             "title": "Peername"
           },
+          "peerRefusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peerrefusal"
+          },
           "peerVersion": {
             "anyOf": [
               {

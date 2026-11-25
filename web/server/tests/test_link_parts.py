@@ -152,6 +152,55 @@ def test_a_hello_that_isnt_a_moolakata_servers_is_refused(peer):
     )
 
 
+@pytest.mark.parametrize(
+    ("message", "reason"),
+    [
+        ("change 1 fails its signature check", "change 1 fails its signature check"),
+        ("  change 1 isn't in the shape of a change ", "change 1 isn't in the shape of a change"),
+        ("x" * 200, "x" * 200),
+        ("x" * 201, None),
+        ("", None),
+        ("   ", None),
+        ("two\nlines", None),
+        ("a\x1b[31m colour", None),
+        (42, None),
+        (None, None),
+    ],
+)
+def test_a_peers_reason_for_refusing_a_change_is_kept_only_as_one_short_printable_line(
+    peer, message, reason
+):
+    # S11.7, S13.7.9: a `change-refused` answer's message is the peer's reason only when it is
+    # one printable line of up to 200 characters; any other is never kept.
+    import json
+
+    import httpx
+
+    from moolakata.links import client
+
+    srv, k, public, answer = peer
+
+    def refusing(code, said):
+        def fn(r):
+            body = json.dumps({"code": code, "message": said}).encode()
+            return httpx.Response(403, content=body, headers=_signed_answer(k, r, 403, body))
+
+        return fn
+
+    answer(refusing("change-refused", message))
+    with pytest.raises(client.LinkError) as e:
+        client.call(srv, ADDRESS, public, "/link/v1/deliver", {"change": {}})
+    assert (e.value.code, e.value.message, e.value.reason) == (
+        "change-refused",
+        "The other server refused a change this one sent.",
+        reason,
+    )
+    answer(refusing("not-shared", "change 1 fails its signature check"))
+    with pytest.raises(client.LinkError) as e:
+        client.call(srv, ADDRESS, public, "/link/v1/file", {})
+    assert e.value.reason is None, "only a change refused carries the peer's reason"
+
+
 def test_a_receipt_refused_or_unsigned_is_never_taken(peer):
     import hashlib
 

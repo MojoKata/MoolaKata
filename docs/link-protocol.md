@@ -208,7 +208,11 @@ S10.10.1), used only for gifts.
    narrowings, section 4.3.6), or an exchange failing here on something unexpected, is
    recorded apart, as refused, with its reason: the peer answered, so the link shows
    *refusing*, never *unreachable*, and is alerted at once (requirements S11.7, S12.11.1.1),
-   until an exchange takes all it sends.
+   until an exchange takes all it sends. A `change-refused` answer to this side's `deliver`
+   is the other way round: recorded apart again, with the peer's reason (its `message`, kept
+   only when it is one printable line of up to 200 characters, section 7), the link shows
+   *refused by* the peer, never *unreachable*, and is alerted at once, until the peer takes a
+   change this side delivers or has all this side has.
 6. **A paused link exchanges its removals and narrowings alone**, in both directions,
    whichever side paused it, so a share taken back, or a person taken off a share, still
    crosses it while data and files don't (S11.4); an end crosses with `end`, as on any link.
@@ -389,7 +393,9 @@ Items of a kind the receiver's worker doesn't know are kept in its copy and not 
 A refusal is JSON `{code, message}`, with HTTP 403 unless the table says otherwise, signed to
 the call as section 3 says, unless the table says unsigned. The `message` is for the caller's
 log: the caller tells its admins of a refusal in its own words, by its code, and never copies the
-message into an alert or an email (S13.7.9).
+message into an alert or an email (S13.7.9), but for `change-refused`'s: the peer's reason for
+refusing a change, shown as its reason when it is one printable line of up to 200 characters,
+and never when it is anything else (section 4.3.5).
 
 | Code | When |
 |---|---|
@@ -409,7 +415,7 @@ message into an alert or an email (S13.7.9).
 | `protocol-unsupported` | (426) the call's protocol isn't one this server answers; `protocols` lists those it does (section 5) |
 | `code-used` | a link code was used, expired or withdrawn |
 | `already-linked` | the two servers already have a link that is neither ended nor broken (section 4.6) |
-| `change-refused` | a delivered change fails its signature check |
+| `change-refused` | a delivered change is refused: it fails its signature check or another of its checks, or holds more than a paused link takes (section 4.3.6); `message` says why |
 
 A `link-ended` answer to a signed call ends the link on the calling side, as `end` would: its
 copy, the shares to it and its remote users go. A `not-linked` answer (a peer restored from an

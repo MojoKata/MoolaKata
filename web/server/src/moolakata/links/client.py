@@ -106,12 +106,32 @@ class LinkError(Exception):
         "unsigned",
     )
 
-    def __init__(self, code: str, message: str, offered: str | None = None):
+    def __init__(
+        self, code: str, message: str, offered: str | None = None, reason: str | None = None
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
         # A certificate key the peer presented that isn't the one pinned for it.
         self.offered = offered
+        # The peer's own reason for refusing a change this server sent, as `peer_reason`
+        # keeps it (S11.7).
+        self.reason = reason
+
+
+REASON_MAX = 200  # the longest reason a peer gives for refusing a change that is kept
+
+
+def peer_reason(message) -> str | None:
+    """A peer's reason for refusing a change this server sent, kept to be shown (S11.7) only
+    when it is one printable line of up to `REASON_MAX` characters; any other is none, since
+    a peer never puts more than that into this server's alerts and emails (S13.7.9)."""
+    if not isinstance(message, str):
+        return None
+    message = message.strip()
+    if not message or len(message) > REASON_MAX or not message.isprintable():
+        return None
+    return message
 
 
 def checked_address(address: str) -> str:
@@ -215,13 +235,15 @@ def call(
 
 def _refused(address: str, path: str, status: int, out) -> LinkError:
     """A peer's signed refusal as this server's own: its code as `peer_code` keeps it, and the
-    peer's own words in the log only, never in an alert or email (S13.7.9)."""
+    peer's own words in the log only, never in an alert or email (S13.7.9), but for its reason
+    for refusing a change, checked by `peer_reason` (S11.7)."""
     out = out if isinstance(out, dict) else {}
     sent = out.get("code")
     log.info("%s refused %s: %r %r", address, path, str(sent)[:40], str(out.get("message"))[:200])
     code = peer_code(sent)
     told = sent if code == "refused" and isinstance(sent, str) and _CODE.match(sent) else code
-    return LinkError(code, refusal(told, status, out.get("protocols")))
+    reason = peer_reason(out.get("message")) if code == "change-refused" else None
+    return LinkError(code, refusal(told, status, out.get("protocols")), reason=reason)
 
 
 def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list, pins=None):
