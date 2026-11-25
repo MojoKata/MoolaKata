@@ -24,6 +24,7 @@ from sqlalchemy import delete, func, select
 
 from .. import clock, exactjson
 from ..checkpoints import checkpoint
+from ..people import one_line
 from ..store.entities.links import Link
 from . import copydb, sealed
 from .client import NOT_SHOWN, shown
@@ -375,7 +376,7 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
                 "id": it["id"],
                 "kind": it["kind"],
                 "name": it.get("name") or "",
-                "ownerName": it.get("ownerName") or "",
+                "ownerName": one_line(str(it.get("ownerName") or ""))[:120],  # §4.2
                 "viewers": json.dumps(it.get("viewers") or []),
                 "version": int(it.get("version") or 0),
                 "asOf": it.get("asOf") or c.get("asOf") or "",

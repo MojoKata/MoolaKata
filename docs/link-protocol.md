@@ -144,7 +144,7 @@ added, updated in place, soft-deleted when it leaves the list and restored when 
 It keeps a display name of up to 120 characters and a username of up to 64, cutting a longer
 one there, each on one line (a control character in it, or in the server's or household's
 name, becomes a space), and a sex other than `female` or `male` as `male`; of each item, a kind of up to 20
-characters and an owner's name of up to 120.
+characters and an owner's name of up to 120, cut there and on one line in the same way.
 
 Every field is checked before any of the directory is kept, each absent or `null` or within
 its bound:

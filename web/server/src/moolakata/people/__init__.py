@@ -21,6 +21,14 @@ SEXES = ("male", "female")
 # control character shows oddly wherever the name does (S10.1.1, S10.10.1).
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 ONE_LINE = "Enter a name on one line, without tabs or control characters."
+
+
+def one_line(text: str) -> str:
+    """A name another server sent, on one line as a name typed here must be (S10.1.1): each
+    control character a space, and runs of spaces one."""
+    return " ".join(CONTROL.sub(" ", text).split())
+
+
 RELATIONS = ("spouse", "couple", "child", "friend", "colleague", "family")
 
 

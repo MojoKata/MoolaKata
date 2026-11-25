@@ -362,7 +362,7 @@ def _name(v, field: str, most: int, cut: bool = False) -> str | None:
     v = _text(v, field, most, cut)
     if v is None:
         return None
-    return " ".join(people.CONTROL.sub(" ", v).split()) or None
+    return people.one_line(v) or None
 
 
 def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
