@@ -15,7 +15,7 @@ you get the receipt you have.
 
 ## Show
 
-**All** your receipts, and those attached to transactions in accounts shared with you; or the
+**All**: every receipt you can see, yours and those kept with things shared with you; or the
 **Inbox**: your receipts attached to nothing yet.
 
 ## Search
@@ -30,5 +30,9 @@ are filled in. **unreadable** says why; the receipt still works with its fields 
 
 ## Sharing
 
-A receipt is seen by whoever can read a transaction it is attached to. One attached to nothing is
-yours alone. Only you can delete your receipt, and only once nothing links to it.
+A receipt is seen through what it is kept with: a transaction's by whoever can read the
+transaction; a gift's through the gift plans that show the gift; a donation's by its owner and those
+who see the giving plan it counts in; one kept with a physical-asset item, a loan, a 529 expense or
+an account (a statement) by whoever can read that account; and a tax document's file by whoever can
+read the tax book. One attached to nothing is yours alone. Only you can delete your receipt, and
+only once nothing links to it.

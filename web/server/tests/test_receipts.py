@@ -283,3 +283,16 @@ def test_a_slow_thumbnail_holds_no_one_elses_write(server, jane, monkeypatch):
         t.join(30)
     assert answers and answers[0].status_code == 201, answers
     assert answers[0].json()["hasThumbnail"] is False, "it keeps its icon"
+
+
+def test_the_receipts_guide_shares_a_receipt_through_everything_s9_6_names():
+    """S9.6, S9.3: *All* lists every receipt the reader can see, and *Sharing* names each kind
+    of thing a receipt is seen through, not transactions alone."""
+    from moolakata import paths
+
+    guide = (paths.UI / "guides" / "receipts.md").read_text()
+    show = guide.split("## Show", 1)[1].split("\n## ", 1)[0]
+    sharing = " ".join(guide.split("## Sharing", 1)[1].split())
+    assert "every receipt you can see" in " ".join(show.split())
+    for kind in ("transaction", "gift", "donation", "item", "loan", "529", "statement", "tax"):
+        assert kind in sharing, kind
