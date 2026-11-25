@@ -191,7 +191,13 @@ def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared
                     Receipt.filePrunedAt.is_(None),
                 )
             ).first()
-            any_file = s.scalars(select(Receipt.fileId).where(Receipt.sha256 == digest)).first()
+            # A row whose file is kept, deleted or not (S9.2); a pruned one's file is gone, so
+            # taking it would write the bytes again beside another's copy.
+            any_file = s.scalars(
+                select(Receipt.fileId).where(
+                    Receipt.sha256 == digest, Receipt.filePrunedAt.is_(None)
+                )
+            ).first()
         if mine is not None:
             yield Prepared(name, media, len(data), digest, existing=mine)
             return

@@ -182,6 +182,32 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
     assert not path.exists()
 
 
+def test_after_a_prune_the_same_file_uploaded_again_is_stored_once(server, frozen):
+    # S9.2, S14.10.5: the pruned receipt's file is gone; the next upload of the bytes writes
+    # one new file, and every later one, anyone's, is kept with it.
+    from moolakata.receipts import retention
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    data = png((3, 1, 4))
+    first = upload(jane, data).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        a = s.get(Receipt, first)
+        assert retention.prune_files(server, s, [a], a.ownerId) > 0
+    again = upload(jane, data).json()["id"]
+    theirs = upload(john, data).json()["id"]
+    with server.db.read(unscoped="test") as s:
+        ids = {rid: s.get(Receipt, rid).fileId for rid in (first, again, theirs)}
+    assert ids[again] != ids[first], "the pruned file is not brought back"
+    assert ids[theirs] == ids[again], "one file for the same bytes"
+    on_disk = {
+        f for f in set(ids.values()) if retention.file_path(server.config.receipts_dir, f).exists()
+    }
+    assert on_disk == {ids[again]}
+
+
 def test_how_long_a_categorys_receipts_are_kept_is_an_admins(server, admin_client):
     make_user(server, "jane")
     jane = sign_in(server, "jane")
