@@ -110,6 +110,10 @@ def inbox(data_dir, link_id: str):
     return folder(data_dir, link_id) / "inbox"
 
 
+# A linked item's own name is kept as long as a local account's or plan's may be, so it
+# shows as theirs do (link protocol §4.4).
+ITEM_NAME_MOST = 80
+
 ENTRY = ".mke"  # beside each waiting change: its registry and local names, sealed
 
 
@@ -374,7 +378,7 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
             {
                 "id": it["id"],
                 "kind": it["kind"],
-                "name": it.get("name") or "",
+                "name": one_line(str(it.get("name") or ""))[:ITEM_NAME_MOST],  # §4.4
                 "ownerName": one_line(str(it.get("ownerName") or ""))[:120],  # §4.2
                 "viewers": json.dumps(it.get("viewers") or []),
                 "version": int(it.get("version") or 0),

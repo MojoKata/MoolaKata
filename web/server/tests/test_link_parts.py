@@ -606,6 +606,32 @@ def test_a_linked_items_owner_name_is_one_line_in_the_copy():
     assert kept == OWNER_KEPT
 
 
+def test_a_linked_items_own_name_is_one_line_within_a_local_items_bound():
+    """Link protocol §4.4: an item's `name`, as the copy keeps it, is on one line (a control
+    character becomes a space) and cut at 80 characters, a local account's or plan's bound;
+    one that isn't text is kept as text."""
+    from sqlalchemy import create_engine
+
+    from moolakata.links import changes, copydb
+
+    engine = create_engine("sqlite://")
+    copydb.metadata.create_all(engine)
+    name = "Mom's\r\nRoth\tIRA \x1b[2J " + "y" * 100
+    items = [
+        {"id": "Acct_1", "kind": "account", "name": name, "viewers": []},
+        {"id": "Acct_2", "kind": "account", "name": 42, "viewers": []},
+        {"id": "Acct_3", "kind": "account", "viewers": []},
+    ]
+    with engine.begin() as conn:
+        changes._apply_one(conn, {"items": items}, {}, {})
+        kept = dict(conn.execute(select(copydb.Item.c.id, copydb.Item.c.name)).all())
+    assert kept == {
+        "Acct_1": ("Mom's Roth IRA [2J " + "y" * 100)[:80],
+        "Acct_2": "42",
+        "Acct_3": "",
+    }
+
+
 # ---------- Settings › Linked Servers (S11.7)
 
 
