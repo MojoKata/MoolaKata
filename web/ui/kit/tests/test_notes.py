@@ -31,6 +31,26 @@ def settle(page):
     page.evaluate("document.dispatchEvent(new Event('selectionchange'))")
 
 
+def select_end(page, demo: str, words: str):
+    """The last words of the first paragraph selected, as the editor has them. The editor may put
+    back its own selection over one the browser reports (just after typing, on a busy machine),
+    so the range is set again until it has held for two frames, never by waiting a set time."""
+    page.wait_for_function(
+        """([demo, words]) => {
+          const s = getSelection();
+          if (s.toString() === words) return ++window.selectHeld >= 2;
+          window.selectHeld = 0;
+          const p = document.querySelector(`[data-demo='${demo}'] .ProseMirror p`);
+          const t = p.lastChild, r = document.createRange();
+          r.setStart(t, t.length - words.length); r.setEnd(t, t.length);
+          s.removeAllRanges(); s.addRange(r);
+          document.dispatchEvent(new Event('selectionchange'));
+          return false;
+        }""",
+        arg=[demo, words],
+    )
+
+
 def paste(page, demo: str, data: dict[str, str]):
     """A paste into the editor, with what the clipboard holds by type, over the selection as
     the browser has it."""
@@ -157,12 +177,7 @@ def test_an_address_typed_becomes_a_link_and_the_popover_makes_changes_and_refus
     expect(link).to_have_text("www.example.com/a")
     expect(link).to_have_attribute("href", "https://www.example.com/a")
     # The words "then" selected, Ctrl+K: the popover; a script's address refused at its field.
-    ed.evaluate(
-        """el => { const t = el.querySelector('p').lastChild; const r = document.createRange();
-          r.setStart(t, t.length - 4); r.setEnd(t, t.length); const s = getSelection();
-          s.removeAllRanges(); s.addRange(r); }"""
-    )
-    settle(page)
+    select_end(page, "note-empty", "then")
     page.keyboard.press("Control+k")
     field = page.locator(f"{d} .note-pop input")
     expect(field).to_be_focused()
