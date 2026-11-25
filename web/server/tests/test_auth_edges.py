@@ -506,3 +506,21 @@ def test_a_request_approved_into_the_admins_gets_each_alert_by_email(admin_clien
     with server.db.read(unscoped="test") as s:
         u = s.scalars(select(User).where(User.username == "fay")).one()
         assert u.alertEmails == "each" and accounts.group_ids(s, u.id) == [admins]
+
+
+# ---------- tokens (S10.9) ----------
+
+
+def test_a_tokens_scope_is_one_of_two_and_a_token_is_never_changed(server):
+    make_user(server, "tia")
+    c = sign_in(server, "tia")
+    r = make(c, "Token", name="Claude", scope="some", days=30)
+    save_refused(r, 422, "scope", "scope-invalid", "Everything you can see, or chosen items.")
+    t = make(c, "Token", name="Claude", scope="all", days=30).json()
+    save_refused(
+        change(c, "Token", t, name="Other"),
+        422,
+        None,
+        "token-fixed",
+        "A token isn't changed: revoke it and make another.",
+    )
