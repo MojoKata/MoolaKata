@@ -1005,6 +1005,38 @@ def test_a_receipt_is_attached_and_detached_with_save(browser, household):
     page.close()
 
 
+def test_a_receipt_whose_file_was_pruned_has_no_read_again(browser, household):
+    """S14.10.5, S9.8.6: a pruned file never comes back, so its receipt has nothing to read
+    again; the button is left out, not shown off (the file's note says why)."""
+    import json
+
+    h = household
+    r = h.extra["receipt"]
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    again = '.dialog button:has-text("Read Again")'
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+    page.click(card)
+    wait(page, again, problems)
+    page.keyboard.press("Escape")
+    wait(page, ".dialog", problems, state="detached")
+
+    def pruned(route):
+        out = route.fetch()
+        body = {
+            **out.json(),
+            "filePrunedAt": "2026-10-01T12:00:00Z",
+            "kept": "File pruned Oct 1, 2026",
+        }
+        route.fulfill(response=out, body=json.dumps(body))
+
+    page.route(f"**/ui/api/receipts/{r['id']}", pruned)
+    page.click(card)
+    wait(page, ".dialog :text('File pruned Oct 1, 2026')", problems)
+    assert page.locator(again).count() == 0
+    assert problems == []
+    page.close()
+
+
 def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household):
     """Uploaded at once, into the inbox; attached by the transaction's draft on Save."""
     h = household

@@ -7,9 +7,9 @@ When it was uploaded, MoolaKata read it on the server: its date, total and merch
 fields, marked _read from the receipt_ with how sure the reader was. Check them; anything you type
 stays yours and is never replaced. **Read Again** reads it once more.
 
-A receipt whose file is pruned keeps its record: its amounts, dates and links. One being read on the
-server fills in its fields when it's done, and they can be typed meanwhile; one that couldn't be
-read is typed by hand.
+A receipt whose file is pruned keeps its record: its amounts, dates and links, and the text read
+from it; with no file, it has no **Read Again**. One being read on the server fills in its fields
+when it's done, and they can be typed meanwhile; one that couldn't be read is typed by hand.
 
 A transaction of the receipt's amount within five days of its date is offered to attach it to; one
 that hasn't arrived is attached from the transaction when it does. A receipt without a date and

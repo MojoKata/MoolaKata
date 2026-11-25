@@ -230,12 +230,15 @@ export function ReceiptDialog({ close, id }) {
             : r.readMethod === 'ocr'
             ? 'Read with OCR'
             : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span><span
-              class="spacer"></span><${Action} class="btn sm" disabled=${again.busy}
-                why=${whyRead(r) || (reading ? 'Being read now' : null)}
-                onClick=${() =>
-                  again.run().catch((e) =>
-                    toast(e.message)
-                  )}><${Icon} name="refresh" /> Read Again</${Action}></div>
+              class="spacer"></span>${// A pruned file never comes back: nothing to read again (S14.10.5).
+              r.filePrunedAt ? null : html`
+                <${Action} class="btn sm" disabled=${again.busy}
+                  why=${whyRead(r) || (reading ? 'Being read now' : null)}
+                  onClick=${() =>
+                    again.run().catch((e) =>
+                      toast(e.message)
+                    )}><${Icon} name="refresh" /> Read Again</${Action}>
+              `}</div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'

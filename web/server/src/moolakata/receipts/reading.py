@@ -319,12 +319,10 @@ class Reader:
         srv = self.server
         with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
-            if (
-                r is None
-                or r.deleted
-                or r.filePrunedAt is not None
-                or r.readStatus not in ("waiting", "reading")
-            ):
+            if r is None or r.deleted or r.readStatus not in ("waiting", "reading"):
+                return
+            if r.filePrunedAt is not None:  # never left *Reading…* for good (S14.10.5)
+                r.readStatus, r.readError, r.readAt = "failed", "its file was pruned", clock.now()
                 return
             if not settings.get(s, "readReceipts"):
                 r.readStatus = "off"

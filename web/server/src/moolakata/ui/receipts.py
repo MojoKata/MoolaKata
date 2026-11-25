@@ -375,6 +375,10 @@ def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     srv = server(request)
     with srv.db.tx(user=c.id) as s:
         r, held = receipts.get(s, c.id, receipt_id, "write")
+        if r.filePrunedAt is not None:  # nothing left to read (S14.10.5)
+            raise Problem(
+                409, "file-pruned", f"Its file was pruned on {r.filePrunedAt:%b %-d, %Y}."
+            )
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Reading receipts is off in Settings › Receipts.")
         reading.read_again(s, r)

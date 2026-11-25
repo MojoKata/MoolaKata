@@ -381,6 +381,33 @@ def test_reading_off_leaves_receipts_unread(server, admin_client):
     assert q["waiting"] == 0
 
 
+def test_a_receipt_whose_file_was_pruned_is_never_left_reading(server, admin_client):
+    """S9.8.6, S14.10.5: Read again is refused on a pruned receipt, before reading being off is;
+    and one queued already (at a start, or before the prune) fails, saying why."""
+    from moolakata import clock
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    rid = upload(c, _png(draw(["TOTAL 1.00"]))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, rid).filePrunedAt = dt.datetime(2026, 10, 1, 12, tzinfo=dt.UTC)
+    r = c.post(f"/ui/api/receipts/{rid}/read")
+    assert (r.status_code, r.json()["code"]) == (409, "file-pruned")
+    assert r.json()["detail"] == "Its file was pruned on Oct 1, 2026."
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    assert c.post(f"/ui/api/receipts/{rid}/read").json()["code"] == "file-pruned"
+    assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "waiting"
+    clock.fix(dt.datetime(2026, 10, 2, 9, tzinfo=dt.UTC))
+    try:
+        Reader(server, workers=1).read_one(rid, None)
+    finally:
+        clock.fix(None)
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["readStatus"], got["readError"]) == ("failed", "its file was pruned")
+
+
 class _Queue:
     """The running reader as a save reaches it: what it was asked, in order."""
 
