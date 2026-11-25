@@ -134,14 +134,29 @@ def _check(s, user_id: str, name, goal, built, inputs, kept=None) -> list[FieldE
         elif kind == "typed":
             if not _amount(built.get("amount")):
                 errors.append(FieldError("builtOn.amount", "amount-invalid", "An amount."))
+            if "allocation" in built and not _mix(built["allocation"]):
+                errors.append(
+                    FieldError(
+                        "builtOn.allocation",
+                        "allocation-invalid",
+                        "Each class's share from 0 to 100, some of it held.",
+                    )
+                )
         elif kind == "portfolio":
             try:
-                access.portfolio(s, user_id, built.get("id", ""))
+                if not isinstance(built.get("id"), str):
+                    raise Problem(404, "not-found", "Not found")
+                access.portfolio(s, user_id, built["id"])
             except Problem:
                 errors.append(FieldError("builtOn", "portfolio-unknown", "Choose a portfolio."))
         else:
             mine = {a.id for a, _ in access.accounts(s, user_id)}
-            if not built.get("ids") or any(i not in mine for i in built["ids"]):
+            ids = built.get("ids")
+            if (
+                not ids
+                or not isinstance(ids, list)
+                or any(not isinstance(i, str) or i not in mine for i in ids)
+            ):
                 errors.append(FieldError("builtOn", "accounts-unknown", "Choose accounts."))
     if inputs is not None:
         errors += _check_inputs(inputs)
@@ -186,34 +201,103 @@ def _amount(v) -> bool:
     return _number(v, 0, MOST)
 
 
-def _num(inputs: dict, path: str, lo: float, hi: float, errors: list, message: str) -> None:
+def _mix(mix) -> bool:
+    """A typed amount's own mix (S6.4.2.2): each asset class's share from 0 to 100, adding up
+    to more than nothing, so no share is negative and levers another."""
+    return (
+        isinstance(mix, dict)
+        and all(k in assumptions.CLASS_KEYS and _number(v, 0, 100) for k, v in mix.items())
+        and sum(mix.values()) > 0
+    )
+
+
+def _num(
+    inputs: dict, path: str, lo: float, hi: float, errors: list, message: str, required=False
+) -> None:
+    """The figure at `path`, a number within its bounds when given. `required`: the model
+    reads it as it is (no default stands in for a blank), so a blank is refused too."""
     v: Any = inputs
+    there = True
     for part in path.split("."):
-        v = v.get(part) if isinstance(v, dict) else None
-    if v is not None and not _number(v, lo, hi):
+        if isinstance(v, list) and part.isdigit() and int(part) < len(v):
+            v = v[int(part)]
+        elif isinstance(v, dict) and part in v:
+            v = v[part]
+        else:
+            v, there = None, False
+    if (v is not None or (there and required)) and not _number(v, lo, hi):
         errors.append(FieldError(f"inputs.{path}", "input-invalid", message))
+
+
+def _shape(inputs: dict, e: list) -> bool:
+    """The parts the model reads into are each of their kind: a group of figures an object, a
+    list a list of objects. False when one isn't, and the figures in it aren't read."""
+    for key in ("contribution", "withdrawal", "overrides"):
+        # No withdrawal is the 4% rule (S6.2.1); no other group may be blank.
+        if (
+            key in inputs
+            and not isinstance(inputs[key], dict)
+            and (key != "withdrawal" or inputs[key] is not None)
+        ):
+            e.append(FieldError(f"inputs.{key}", "input-invalid", "A group of figures."))
+    for key in ("people", "income"):
+        items = inputs.get(key)
+        for i, item in enumerate(items if isinstance(items, list) else []):
+            if not isinstance(item, dict):
+                e.append(FieldError(f"inputs.{key}.{i}", "input-invalid", "A group of figures."))
+    return not e
+
+
+def _check_overrides(overrides: dict, e: list) -> None:
+    """A projection's own figures in place of the owner's assumptions (S6.3), each as the
+    assumptions check theirs."""
+    for k, v in overrides.items():
+        at = f"inputs.overrides.{k}"
+        if k == "inflation":
+            if not _number(v, 0, 20):
+                e.append(FieldError(at, "input-invalid", "Between 0% and 20%."))
+        elif k != "classes":
+            e.append(FieldError(at, "input-invalid", "Not a figure a projection overrides."))
+        elif not isinstance(v, dict):
+            e.append(FieldError(at, "input-invalid", "A group of figures."))
+        else:
+            for cls, figures in v.items():
+                where = f"{at}.{cls}"
+                if cls not in assumptions.CLASS_KEYS or not isinstance(figures, dict):
+                    e.append(FieldError(where, "input-invalid", "An asset class's figures."))
+                    continue
+                for name, (lo, hi, words) in {
+                    "return": (-50, 100, "Between −50% and 100%."),
+                    "volatility": (0, 200, "Between 0% and 200%."),
+                }.items():
+                    if name in figures and not _number(figures[name], lo, hi):
+                        e.append(FieldError(f"{where}.{name}", "input-invalid", words))
+                for name in figures.keys() - {"return", "volatility"}:
+                    e.append(FieldError(f"{where}.{name}", "input-invalid", "Not a figure."))
 
 
 def _check_inputs(inputs: dict) -> list[FieldError]:
     e: list[FieldError] = []
+    if not _shape(inputs, e):
+        return e
     _num(inputs, "contribution.amount", 0, 10_000_000, e, "Zero or more.")
     _num(inputs, "contribution.growth", -20, 50, e, "Between −20% and 50%.")
     _num(inputs, "monthly", 0, 1_000_000, e, "Zero or more.")
     _num(inputs, "target", 0, MOST, e, "Zero or more.")
     _num(inputs, "horizonAge", 60, 120, e, "Between 60 and 120.")
     _num(inputs, "fees", 0, 5, e, "Between 0% and 5%.")
-    _num(inputs, "runs", 100, 5000, e, "Between 100 and 5,000.")
     _num(inputs, "startAge", 3, 40, e, "Between 3 and 40.")
     _num(inputs, "schoolYears", 1, 12, e, "Between 1 and 12.")
     _num(inputs, "cost", 0, 1_000_000, e, "Zero or more.")
     if inputs.get("costBasis") not in (None, "public", "private", "typed"):
         e.append(FieldError("inputs.costBasis", "input-invalid", "Public, private or typed."))
-    for i, p in enumerate(inputs.get("people") or []):
-        _num({"x": p}, "x.retireAge", 30, 90, e, "Between 30 and 90.")
-        if e and e[-1].field == "inputs.x.retireAge":
-            e[-1] = FieldError(f"inputs.people.{i}.retireAge", "input-invalid", e[-1].message)
+    for i, _ in enumerate(inputs.get("people") or []):
+        _num(inputs, f"people.{i}.retireAge", 30, 90, e, "Between 30 and 90.")
+    _num(inputs, "runs", 100, 5000, e, "Between 100 and 5,000.", required=True)
     if inputs.get("date"):
         try:
+            if not isinstance(inputs["date"], str):
+                raise ValueError
             when = dt.date.fromisoformat(inputs["date"])
             if when <= clock.today():
                 e.append(FieldError("inputs.date", "date-past", "A date in the future."))
@@ -229,7 +313,9 @@ def _check_inputs(inputs: dict) -> list[FieldError]:
         e.append(FieldError("inputs.people", "input-invalid", "One person, or a couple."))
         people = []
     for i, p in enumerate(people):
-        born = p.get("birthYear") if isinstance(p, dict) else None
+        if not isinstance(p.get("name", ""), str):
+            e.append(FieldError(f"inputs.people.{i}.name", "input-invalid", "A name."))
+        born = p.get("birthYear")
         if born is not None and (
             isinstance(born, bool) or not isinstance(born, int) or not year - 120 <= born <= year
         ):
@@ -243,18 +329,31 @@ def _check_inputs(inputs: dict) -> list[FieldError]:
     if not isinstance(income, list) or len(income) > 10:
         e.append(FieldError("inputs.income", "input-invalid", "At most 10 sources of income."))
     else:
+        # Whose age an income starts at: one of the people, the owner when none are listed.
+        whose = max(1, len(people))
         for i, item in enumerate(income):
-            _num({"x": item}, "x.fromAge", 0, 120, e, "Between 0 and 120.")
-            _num({"x": item}, "x.monthly", 0, 1_000_000, e, "Zero or more.")
-            if e and e[-1].field.startswith("inputs.x."):
-                e[-1] = FieldError(
-                    e[-1].field.replace("inputs.x.", f"inputs.income.{i}."),
-                    "input-invalid",
-                    e[-1].message,
-                )
-    w = (inputs.get("withdrawal") or {}).get("method")
+            at = f"income.{i}"
+            _num(inputs, f"{at}.person", 0, whose - 1, e, "One of the people.", required=True)
+            _num(inputs, f"{at}.fromAge", 0, 120, e, "Between 0 and 120.", required=True)
+            _num(inputs, f"{at}.monthly", 0, 1_000_000, e, "Zero or more.", required=True)
+            if not isinstance(item.get("inflates", True), bool):
+                e.append(FieldError(f"inputs.{at}.inflates", "input-invalid", "Yes or no."))
+            if not isinstance(item.get("label", ""), str):
+                e.append(FieldError(f"inputs.{at}.label", "input-invalid", "A name."))
+    withdrawal = inputs.get("withdrawal") or {}
+    w = withdrawal.get("method")
     if w is not None and w not in ("fourPercent", "fixed", "percent"):
         e.append(FieldError("inputs.withdrawal.method", "input-invalid", "Choose a rule."))
+    if w == "fixed":
+        # A fixed withdrawal is the amount typed, never none for a blank (R3.11).
+        if withdrawal.get("amount") is None:
+            e.append(FieldError("inputs.withdrawal.amount", "input-invalid", "Zero or more."))
+        _num(inputs, "withdrawal.amount", 0, 10_000_000, e, "Zero or more.")
+    elif w == "percent":
+        _num(inputs, "withdrawal.percent", 0, 100, e, "Between 0% and 100%.", required=True)
+    _check_overrides(inputs.get("overrides") or {}, e)
+    if inputs.get("bitcoinModel") not in (None, "", *(m for m, _ in assumptions.BITCOIN_MODELS)):
+        e.append(FieldError("inputs.bitcoinModel", "input-invalid", "Choose a model."))
     return e
 
 

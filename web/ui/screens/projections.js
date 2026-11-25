@@ -440,14 +440,16 @@ function Inputs({ x, reload }) {
           </${Field}>
           ${f.withdrawal?.method === 'fixed'
             ? html`
-              <${Field} label="Withdrawal a year, in today's dollars" id="withdrawal-amount">
+              <${Field} label="Withdrawal a year, in today's dollars" id="withdrawal-amount"
+                error=${errAt(e, 'inputs.withdrawal.amount')}>
                 <${TypedInput} kind="money" value=${f.withdrawal?.amount ?? ''}
                   onInput=${set('withdrawal.amount')} />
                 </${Field}>
             `
             : f.withdrawal?.method === 'percent'
             ? html`
-              <${Field} label="Percentage of the balance" id="withdrawal-percent">
+              <${Field} label="Percentage of the balance" id="withdrawal-percent"
+                error=${errAt(e, 'inputs.withdrawal.percent')}>
                 <${TypedInput} kind="quantity" value=${f.withdrawal?.percent ?? 4}
                   onInput=${set('withdrawal.percent')} />
                 </${Field}>
@@ -457,7 +459,7 @@ function Inputs({ x, reload }) {
             html`
               <div class="row">
                 <${Field} label=${`${inc.label || 'Other income'} a month`} id=${'income-' + i}
-                  help="other-income"
+                  help="other-income" error=${errAt(e, `inputs.income.${i}.monthly`)}
                   hint=${`From age ${inc.fromAge}`}>
                   <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
