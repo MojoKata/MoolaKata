@@ -190,3 +190,39 @@ def test_a_baseline_is_kept_in_cents(server, jane):
     with server.db.read(unscoped="test") as s:
         base = json.loads(s.get(Projection, p["id"]).baseline)
     assert all(_in_cents(base[k]) for k in ("p10", "p50", "p90"))
+
+
+def test_the_bitcoin_grows_as_the_model_does_in_the_same_year(server, jane):
+    """S6.3.1, S6.4.2.3: a bitcoin model sets the bitcoin's growth each year; the projection's
+    year grows by the model's growth into that year, its first year's included, so the
+    stock-to-flow step at the 2028 halving lands in 2028."""
+    from moolakata.projections import bitcoin, taxtables
+
+    _bitcoin(server)
+    btc = {"kind": "typed", "amount": 100000, "allocation": {"crypto": 100}}
+    r = make(jane, "Prjct", name="Stack", goal="savings", builtOn=btc,
+             inputs={"target": 1, "date": "2033-12-31", "fees": 0,
+                     "bitcoinModel": "stockToFlow"})  # fmt: skip
+    res = made(r)["result"]
+    years, path = res["years"], [float(v) for v in res["expected"]]
+    with server.db.read(unscoped="test") as s:
+        f = taxtables.figures(s, 2026)
+    model = [bitcoin.stock_to_flow(y, f) for y in years]
+    # Every whole year: the last counts only the part up to the target date.
+    for t in range(1, len(years) - 1):
+        assert path[t] / path[t - 1] == pytest.approx(model[t] / model[t - 1], rel=1e-6)
+    jump = max(range(1, len(years) - 1), key=lambda t: path[t] / path[t - 1])
+    assert years[jump] == 2028
+
+
+def test_a_cases_path_grows_from_its_first_year():
+    """The bear, base and bull paths take the same year's growth as the fan: the first year's
+    growth brings today's balance to next year's."""
+    from moolakata.projections import engine
+
+    plan = engine.Plan(start=100.0, weights={"crypto": 1.0}, returns={"crypto": 0.0},
+                       vols={"crypto": 0.0}, inflation=0.0, fees=0.0, first_year=2026,
+                       years=4)  # fmt: skip
+    f = {"btcArk2030": [200_000.0, 400_000.0, 800_000.0]}
+    paths = engine.scenario_paths(plan, "ark", f, 100_000.0)
+    assert paths["base"] == pytest.approx([100.0, 100.0 * 4**0.25, 200.0, 100.0 * 4**0.75])

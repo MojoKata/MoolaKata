@@ -5,7 +5,6 @@ baseline. Retirement and savings-target goals are built now; education comes wit
 """
 
 import datetime as dt
-import itertools
 import json
 import math
 import re
@@ -319,10 +318,10 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     crypto_path = None
     if model not in ("assumption", None) and base.bitcoin > 0:
         prices = bitcoin.median_path(
-            model, taxtables.figures(s, year), btc_now, list(range(year, year + years + 1))
+            model, taxtables.figures(s, year), btc_now, list(range(year, year + years))
         )
         if prices:
-            crypto_path = [b / a for a, b in itertools.pairwise(prices)]
+            crypto_path = engine.growth_by_year(prices)
     c = figures["classes"]
     plan = engine.Plan(
         start=float(base.value),

@@ -48,7 +48,8 @@ class Plan:
     income: list[tuple[int, float, bool]] = field(
         default_factory=list
     )  # (from index, a year, inflates)
-    crypto_path: list[float] | None = None  # yearly growth ratios of a bitcoin model
+    # A bitcoin model's growth into each year, as `growth_by_year` gives it (index 0 today's).
+    crypto_path: list[float] | None = None
     bitcoin_share: float = 1.0  # of the crypto, the part the model drives
     runs: int = RUNS
     seed: int = 0
@@ -70,6 +71,13 @@ def seed_of(*parts) -> int:
         hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode()).digest()[:4],
         "big",
     )
+
+
+def growth_by_year(prices: list[float]) -> list[float]:
+    """A model's price each year, from this one, as the growth that brings the balance to
+    that year: index t is year t's over year t − 1's, as the simulation grows year t, and
+    index 0 is 1, today's balance not grown (S6.4.2.3)."""
+    return [1.0, *(b / a for a, b in itertools.pairwise(prices))]
 
 
 def _lognormal(rng, mean: float, vol: float, shape) -> np.ndarray:
@@ -198,11 +206,10 @@ def scenario_paths(plan: Plan, model: str, figures: dict, btc_now: float) -> dic
         return {}
     year, targets = found
     out = {}
-    years = [plan.first_year + t for t in range(plan.years + 1)]
+    years = [plan.first_year + t for t in range(plan.years)]
     for name, target in zip(("bear", "base", "bull"), targets, strict=True):
         prices = [bitcoin.toward(btc_now, plan.first_year, target, year, y) for y in years]
-        ratios = [b / a for a, b in itertools.pairwise(prices)]
-        p = Plan(**{**plan.__dict__, "crypto_path": ratios})
+        p = Plan(**{**plan.__dict__, "crypto_path": growth_by_year(prices)})
         path, _ = _simulate(p, _expected_return(p)[None, :])
         out[name] = path[0].tolist()
     return out
