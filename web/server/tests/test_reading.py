@@ -182,6 +182,7 @@ def no_process(monkeypatch):
     monkeypatch.setattr(Worker, "_start", lambda self: setattr(self, "proc", _Process()))
     from moolakata import parsing
 
+    monkeypatch.setattr(Worker, "_send", lambda self, data, deadline: None)
     monkeypatch.setattr(
         Worker, "_recv", lambda self, deadline: {"lines": [], "method": "text", "engine": "x"}
     )
@@ -291,6 +292,53 @@ def test_a_worker_past_its_time_is_stopped():
         )
     finally:
         w.stop()
+
+
+def test_a_worker_that_stops_reading_its_job_is_stopped_at_the_jobs_deadline(monkeypatch):
+    """S9.8.4.2: the time limit counts from the job's start, its sending included, so a worker
+    that stops reading (a hostile file's code, a library wedged) is stopped, not waited on."""
+    import os
+    import threading
+
+    pipes = []
+
+    class Deaf:
+        """A started worker that never reads its stdin and never answers."""
+
+        def __init__(self):
+            r_in, w_in = os.pipe()
+            r_out, w_out = os.pipe()
+            pipes.extend((r_in, w_out))
+            self.pid = os.getpid()
+            self.stdin = os.fdopen(w_in, "wb")
+            self.stdout = os.fdopen(r_out, "rb")
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(Worker, "_start", lambda self: setattr(self, "proc", Deaf()))
+    w = Worker()
+    out = []
+    job = threading.Thread(
+        target=lambda: out.append(w.call("thumbnail", b"x" * (4 << 20), 0.2, user="User_a")),
+        daemon=True,
+    )
+    try:
+        job.start()
+        job.join(30)
+        assert not job.is_alive(), "the caller waits on the worker for good"
+        assert out == [{"error": "it took longer than 0 seconds"}]
+        assert w.proc is None, "the worker is stopped"
+    finally:
+        for fd in pipes:  # a caller still stuck in its write is let go
+            os.close(fd)
+        job.join(30)
 
 
 def test_reading_fills_empty_fields_never_typed_ones(server):

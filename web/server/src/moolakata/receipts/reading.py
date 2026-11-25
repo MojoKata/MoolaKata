@@ -109,6 +109,25 @@ class Worker:
         out, self._buf = self._buf[:n], self._buf[n:]
         return out
 
+    def _send(self, data: bytes, deadline: float) -> None:
+        """Bytes into the worker's stdin under the job's deadline and memory watch: a worker
+        that stops reading (a hostile file's code, a library wedged between jobs) is stopped
+        when it passes, never waited on by its caller and the quick jobs behind it (S9.8.4.2)."""
+        fd = self.proc.stdin.fileno()
+        os.set_blocking(fd, False)
+        # poll, not select, as in _exactly.
+        ready = select.poll()
+        ready.register(fd, select.POLLOUT)
+        view = memoryview(data)
+        while view:
+            if time.monotonic() > deadline:
+                raise TimeoutError
+            if resident(self.proc.pid) > MEMORY_CAP:
+                raise MemoryError
+            if ready.poll(250):
+                with contextlib.suppress(BlockingIOError):
+                    view = view[os.write(fd, view[: 1 << 16]) :]
+
     def _recv(self, deadline: float):
         n = int.from_bytes(self._exactly(4, deadline), "big")
         if n > MAX_ANSWER:
@@ -137,12 +156,12 @@ class Worker:
                 self.stop()
                 return {"error": "the reader couldn't start"}
         head = json.dumps({"op": op, **params, "length": len(data)}).encode()
+        # The limit counts from the job's start, its sending included.
+        deadline = time.monotonic() + limit
         try:
-            stdin = self.proc.stdin
-            stdin.write(len(head).to_bytes(4, "big") + head + len(data).to_bytes(4, "big"))
-            stdin.write(data)
-            stdin.flush()
-            out = self._recv(time.monotonic() + limit)
+            self._send(len(head).to_bytes(4, "big") + head + len(data).to_bytes(4, "big"), deadline)
+            self._send(data, deadline)
+            out = self._recv(deadline)
         except TimeoutError:
             self.stop()
             return {"error": f"it took longer than {int(limit)} seconds"}
