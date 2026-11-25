@@ -505,3 +505,19 @@ def test_a_phrase_is_of_128_bits_from_the_shipped_list_only(monkeypatch):
         monkeypatch.undo()
         phrase.wordlist.cache_clear()
     assert len(phrase.wordlist()) == 2048
+
+
+def test_the_welcomes_phrases_on_offer_are_bounded_and_last_an_hour(monkeypatch):
+    """S15.4.4: at most KEEP on offer, a new one past them dropping the oldest; an hour each."""
+    import time
+
+    from moolakata.keys import welcome
+
+    now = [time.monotonic()]  # an offer's own clock is the real one
+    monkeypatch.setattr(welcome.time, "monotonic", lambda: now[0])
+    offers = welcome.Phrases()
+    tokens = [offers.offer()[0] for _ in range(welcome.KEEP + 1)]
+    assert offers.get(tokens[0]) is None, "the oldest dropped"
+    assert all(offers.get(t) is not None for t in tokens[1:])
+    now[0] += welcome.LIFE + 1
+    assert all(offers.get(t) is None for t in tokens)
