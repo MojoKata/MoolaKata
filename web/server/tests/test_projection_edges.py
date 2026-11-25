@@ -166,7 +166,7 @@ def test_its_figures_go_out_in_cents(server, jane):
                   inputs={"target": 600000.5, "date": "2029-06-30", "monthly": 333.33})  # fmt: skip
     a = made(saving)["result"]["answer"]
     assert _in_cents([a["target"], a["monthly"], a["neededMonthly"]])
-    assert not _in_cents([a["chance"]])
+    assert 0 <= a["chance"] <= 1  # a share of the runs, as it is
 
 
 def test_an_education_answer_goes_out_in_cents(jane):
