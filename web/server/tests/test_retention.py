@@ -307,6 +307,41 @@ def test_a_deleted_receipts_file_is_a_part_of_storage_of_its_own_and_prunable(
     assert c.get(f"/ui/api/receipts/{live}/file").status_code == 200
 
 
+def test_a_prune_marks_every_receipt_of_a_file_it_removes(server, frozen, admin_client):
+    """S14.10.5, S14.10.4: an expired receipt's file that a deleted receipt names too is removed
+    once no live one needs it, and the deleted one is marked pruned in the same prune, so
+    Settings › Storage's deleted part never counts a file that is gone."""
+    from moolakata.receipts import retention
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    c, john = sign_in(server, "jane"), sign_in(server, "john")
+    cid, _ = cat(server, "Groceries", 1)
+    acct = new_account(c)
+    t = add(c, acct["id"], "-12.00", "2030-01-02", payee="Market", categoryId=cid)
+    rid = receipt_on(c, t["id"], png((12, 34, 56)))
+    twin = upload(john, png((12, 34, 56))).json()["id"]
+    assert drop(john, "Rcpt", f"/ui/api/receipts/{twin}").status_code == 200
+    with server.db.read(unscoped="test") as s:
+        a, b = s.get(Receipt, rid), s.get(Receipt, twin)
+        assert a.fileId == b.fileId
+        path = retention.file_path(server.config.receipts_dir, a.fileId)
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["expired"]["files"] == 1 and st["deleted"] == {"files": 0, "bytes": 0}
+    _reauth(server)
+    r = admin_client.post(
+        "/ui/api/settings/storage/prune",
+        json={"categories": ["Groceries"], "deleted": False, "count": 1},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["files"] == 1 and not path.exists()
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Receipt, twin).filePrunedAt == s.get(Receipt, rid).filePrunedAt
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["deleted"] == {"files": 0, "bytes": 0} and st["pruned"] == 2
+
+
 def test_after_a_prune_the_same_file_uploaded_again_is_stored_once(server, frozen):
     # S9.2, S14.10.5: the pruned receipt's file is gone; the next upload of the bytes writes
     # one new file, and every later one, anyone's, is kept with it.

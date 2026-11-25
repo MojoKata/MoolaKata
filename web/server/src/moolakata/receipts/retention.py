@@ -371,5 +371,11 @@ def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
         )
         if still is not None:
             continue
+        # Every receipt naming the file goes with it, deleted ones included, so none is left
+        # counted as a deleted receipt's file that is gone (S14.10.4).
+        for other in s.scalars(
+            select(Receipt).where(Receipt.fileId == file_id, Receipt.filePrunedAt.is_(None))
+        ):
+            other.filePrunedAt, other.filePrunedById, other.thumbnail = now, by, None
         freed += store.remove(file_path(receipts_dir, file_id).name)
     return freed
