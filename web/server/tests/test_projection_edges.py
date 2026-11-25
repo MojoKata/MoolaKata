@@ -691,6 +691,15 @@ def test_a_model_with_no_cases_has_no_case_paths():
     assert engine.scenario_paths(plan, "powerLaw", {}, 100_000.0) == {}
 
 
+def test_your_assumption_is_no_published_model():
+    """S6.3.1: the crypto assumption has no median path of a model's, and no targets."""
+    from moolakata.projections import bitcoin
+
+    assert bitcoin.median_path("assumption", {}, 100_000.0, [2026, 2027]) is None
+    assert bitcoin.scenarios("assumption", {}) is None
+    assert bitcoin.scenarios("powerLaw", {}) is None
+
+
 def test_only_the_figures_its_goal_reads_are_asked_for(jane):
     """A savings target has no contribution, age or people to give: only what its model reads
     is asked for."""
