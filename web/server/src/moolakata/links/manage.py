@@ -581,8 +581,6 @@ PULLS = Pulls()
 FOR_NOW = ("link-paused", "busy")
 # Said on a link whose peer has paused it (S11.7.2): not a failure, so no one is alerted.
 PEER_PAUSED = client.refusal("link-paused", 403)
-# A peer's refusal of what this side sent, when it gives no reason `client.peer_reason` keeps.
-NO_REASON = "it gave no reason this server shows"
 
 
 def exchange(srv, link_id: str) -> None:
@@ -686,7 +684,7 @@ def _exchange(srv, link_id: str) -> None:
             if e.code == "change-refused":
                 # The peer refused what this side sent: it answered, so the link shows refused
                 # by it, with its reason, never unreachable (S11.7).
-                link.peerRefusal = e.reason or NO_REASON
+                link.peerRefusal = e.reason
             else:
                 # A call after the first that got no answer is recorded on the link like a
                 # failed call, so a link that keeps failing is alerted (S12.11.1), never left

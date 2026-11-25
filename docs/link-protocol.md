@@ -209,10 +209,10 @@ S10.10.1), used only for gifts.
    recorded apart, as refused, with its reason: the peer answered, so the link shows
    *refusing*, never *unreachable*, and is alerted at once (requirements S11.7, S12.11.1.1),
    until an exchange takes all it sends. A `change-refused` answer to this side's `deliver`
-   is the other way round: recorded apart again, with the peer's reason (its `message`, kept
-   only when it is one printable line of up to 200 characters, section 7), the link shows
-   *refused by* the peer, never *unreachable*, and is alerted at once, until the peer takes a
-   change this side delivers or has all this side has.
+   is the other way round: recorded apart again, with the peer's reason (its `message`, its
+   HTML tags stripped, kept only when what is left is one printable line of up to 200
+   characters, section 7), the link shows *refused by* the peer, never *unreachable*, and is
+   alerted at once, until the peer takes a change this side delivers or has all this side has.
 6. **A paused link exchanges its removals and narrowings alone**, in both directions,
    whichever side paused it, so a share taken back, or a person taken off a share, still
    crosses it while data and files don't (S11.4); an end crosses with `end`, as on any link.
@@ -394,8 +394,9 @@ A refusal is JSON `{code, message}`, with HTTP 403 unless the table says otherwi
 the call as section 3 says, unless the table says unsigned. The `message` is for the caller's
 log: the caller tells its admins of a refusal in its own words, by its code, and never copies the
 message into an alert or an email (S13.7.9), but for `change-refused`'s: the peer's reason for
-refusing a change, shown as its reason when it is one printable line of up to 200 characters,
-and never when it is anything else (section 4.3.5).
+refusing a change, shown as its reason with its HTML tags (`<` and a letter, `/`, `!` or `?`,
+up to the next `>`) stripped, when what is left is one printable line of up to 200 characters,
+and never when it is anything else, a tag left by the stripping among them (section 4.3.5).
 
 | Code | When |
 |---|---|

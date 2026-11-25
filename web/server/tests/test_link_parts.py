@@ -152,26 +152,40 @@ def test_a_hello_that_isnt_a_moolakata_servers_is_refused(peer):
     )
 
 
+NONE_SHOWN = "it gave no reason this server shows"
+
+
 @pytest.mark.parametrize(
     ("message", "reason"),
     [
         ("change 1 fails its signature check", "change 1 fails its signature check"),
         ("  change 1 isn't in the shape of a change ", "change 1 isn't in the shape of a change"),
+        ("change <b>1</b> is <i>refused</i>", "change 1 is refused"),
+        ("<script>alert(1)</script>change 1", "alert(1)change 1"),
+        ('<a href="https://x.example">click</a> <!-- note -->', "click"),
+        ("1 < 2 and 3 > 2", "1 < 2 and 3 > 2"),
+        ("a <b", "a <b"),
+        ("<<b>script>alert(1)<</b>/script>", NONE_SHOWN),
+        ("<b>only tags</b>" + "<i></i>" * 100, "only tags"),
+        ("<b></b>", NONE_SHOWN),
         ("x" * 200, "x" * 200),
-        ("x" * 201, None),
-        ("", None),
-        ("   ", None),
-        ("two\nlines", None),
-        ("a\x1b[31m colour", None),
-        (42, None),
-        (None, None),
+        ("x" * 201, NONE_SHOWN),
+        ("<b>" + "x" * 201 + "</b>", NONE_SHOWN),
+        ("", NONE_SHOWN),
+        ("   ", NONE_SHOWN),
+        ("two\nlines", NONE_SHOWN),
+        ("<b>two</b>\r\nlines", NONE_SHOWN),
+        ("a\x1b[31m colour", NONE_SHOWN),
+        (42, NONE_SHOWN),
+        (None, NONE_SHOWN),
     ],
 )
-def test_a_peers_reason_for_refusing_a_change_is_kept_only_as_one_short_printable_line(
+def test_a_peers_reason_for_refusing_a_change_is_kept_tags_stripped_as_one_short_printable_line(
     peer, message, reason
 ):
-    # S11.7, S13.7.9: a `change-refused` answer's message is the peer's reason only when it is
-    # one printable line of up to 200 characters; any other is never kept.
+    # S11.7, S13.7.9: a `change-refused` answer's message is the peer's reason with its HTML
+    # tags stripped, when what is left is one printable line of up to 200 characters; any
+    # other is never kept, and the reason says the peer gave none this server shows.
     import json
 
     import httpx

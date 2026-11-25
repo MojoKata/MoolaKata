@@ -191,8 +191,9 @@ preparer.
    a paused link's change holding more than removals and narrowings, or an exchange failing
    here on something unexpected. It lasts until an exchange takes all the peer sends.
    **Refused by** the peer is the other way round: it answered a change this server sent
-   with `change-refused`, its reason in the tooltip (one printable line of up to 200
-   characters; any other reason isn't shown), and it lasts until the peer takes a change this
+   with `change-refused`, its reason in the tooltip and alert (its HTML tags stripped, one
+   printable line of up to 200 characters; any other reason isn't shown, and *it gave no
+   reason this server shows* is said instead), and it lasts until the peer takes a change this
    server sends, or has all of it. *Pull now* says each the same way its alert does
    (S12.11.1.1).
    1. **Progress**: while a pull is under way, how far it has come both in time and in
