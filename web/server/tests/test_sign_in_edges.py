@@ -380,3 +380,26 @@ def test_the_share_levels_are_read_and_write_in_the_requirements_and_the_code():
     assert len(files) > 20
     for f in files:
         assert "read/write" not in f.read_text(), f.name  # a level is read or write
+
+
+def test_the_account_lists_filters_are_the_same_in_the_requirements_and_the_app():
+    """S10.6: nothing from a linked household among this one's lists (S12.10.5)."""
+    import re as regex
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    s10 = (root / "docs" / "requirements" / "S10-users-and-sharing.md").read_text()
+    said = regex.search(r"Filters: ([^.]+)\.", s10).group(1)
+    shown = regex.findall(
+        r"\['[\w-]+', '([^']+)'\]", (root / "web/ui/screens/accounts.js").read_text()
+    )
+    assert (
+        [f.strip() for f in regex.split(r",\s*", said)]
+        == shown[:4]
+        == [
+            "All",
+            "Mine",
+            "Shared with me",
+            "Shared by me",
+        ]
+    )

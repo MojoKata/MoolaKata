@@ -151,7 +151,8 @@
 6. **A shared account appears in the receiver's lists** with a *shared with me* mark, the
    owner's avatar, and the level (an eye for read, a pencil for write). The owner's lists
    mark *shared by me* and how many people have it. Filters: All, Mine, Shared with me,
-   Shared by me, From linked servers.
+   Shared by me. A linked household's accounts are never among them: they open in its own
+   window (S12.10.1, S12.10.5).
 7. **A receiver's totals** (net worth, Dashboard) include shared accounts only if the
    receiver ticks **Count in my totals** on them, which is off by default. A spouse's accounts
    then count once, and a parent's shared accounts don't inflate a child's net worth. What a
