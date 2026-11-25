@@ -82,20 +82,28 @@ def check(figures: dict) -> list[tuple[str, str]]:
     """Problems as (field, message): returns from −50% to 100%, volatility 0 to 200%,
     inflation 0 to 20%."""
     problems = []
+    # Each class a group of its figures, never read as none: refused at its field, as a
+    # projection's overrides refuse one (S6.3, R3.11).
+    classes = figures.get("classes", {})
+    if not isinstance(classes, dict):
+        problems.append(("classes", "A group of figures."))
+        classes = {k: {"return": 0, "volatility": 0} for k in CLASS_KEYS}
     for k in CLASS_KEYS:
-        c = figures.get("classes", {}).get(k, {})
+        c = classes.get(k, {})
+        if not isinstance(c, dict):
+            problems.append((f"classes.{k}", "An asset class's figures."))
+            continue
         r, v = c.get("return"), c.get("volatility")
         if not _figure(r, -50, 100):
             problems.append((f"classes.{k}.return", "Between −50% and 100%."))
         if not _figure(v, 0, 200):
             problems.append((f"classes.{k}.volatility", "Between 0% and 200%."))
-    # A class MoolaKata has none of, or a figure a class has none of, is refused, as a
-    # projection's overrides refuse one (S6.3).
-    for k in figures.get("classes", {}).keys() - set(CLASS_KEYS):
-        problems.append((f"classes.{k}", "An asset class's figures."))
-    for k in CLASS_KEYS:
-        for name in figures.get("classes", {}).get(k, {}).keys() - {"return", "volatility"}:
+        # A figure a class has none of is refused, as a projection's overrides refuse one.
+        for name in c.keys() - {"return", "volatility"}:
             problems.append((f"classes.{k}.{name}", "Not a figure."))
+    # So is a class MoolaKata has none of (S6.3).
+    for k in classes.keys() - set(CLASS_KEYS):
+        problems.append((f"classes.{k}", "An asset class's figures."))
     for k in ("inflation", "educationInflation"):
         v = figures.get(k)
         if not _figure(v, 0, 20):

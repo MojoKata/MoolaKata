@@ -234,6 +234,8 @@ US = "classes.usStocks"
         ("bitcoinModel", "moon", "Choose a model."),
         ("classes.gold", {"return": 5, "volatility": 10}, "An asset class's figures."),
         (f"{US}.growth", 5, "Not a figure."),
+        (US, 5, "An asset class's figures."),
+        ("classes", "x", "A group of figures."),
     ],
 )
 def test_each_assumption_is_refused_at_its_field(jane, path, value, words):
