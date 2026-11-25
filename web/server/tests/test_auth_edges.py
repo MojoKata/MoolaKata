@@ -4,6 +4,7 @@ requests take."""
 
 import datetime as dt
 
+import pytest
 from conftest import make_user, new_client, sign_in
 from edits import change, make, remove, saved
 from sqlalchemy import select
@@ -180,6 +181,72 @@ def test_a_blank_login_matches_nobody(client, server):
     problem(r, 401, "bad-credentials", "The username or password is not right.")
 
 
+def test_too_many_password_asks_from_an_address_are_slowed_to_a_stop(client, server):
+    """The throttle in front of the password-asking forms (S13.7.5)."""
+    server.password_asks.hit = lambda key: 7.0
+    r = client.post("/ui/api/password-reset/confirm", json={"token": "x", "password": NEW_PW})
+    assert r.status_code == 429 and r.headers["retry-after"] == "7"
+
+
+def test_an_address_that_isnt_one_is_not_remembered(server):
+    """S10.1.9: a sign-in through a test client or a socket has no address to keep."""
+    from moolakata.ui import session
+
+    u = make_user(server, "nia")
+    import json
+
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(User, u.id)
+        had = row.recentAddresses
+        session._note_address(s, row, "testclient", None, before=True)
+        assert row.recentAddresses == had
+        row.recentAddresses = "not json"  # kept by an older release, or damaged
+        session._note_address(s, row, "10.0.0.9", None, before=False)
+        assert list(json.loads(row.recentAddresses)) == ["10.0.0.9"]
+
+
+# ---------- the second step (S10.1.6) ----------
+
+
+def _two_step_pending(server, username: str):
+    """A user with two-step on, a client and its sign-in waiting for the code."""
+    from test_twostep import turn_on
+
+    make_user(server, username)
+    seed, codes = turn_on(sign_in(server, username))
+    b = new_client(server)
+    b.__enter__()
+    r = b.post("/ui/api/session", json={"login": username, "password": PW})
+    assert r.status_code == 202
+    return b, r.json()["twoStepToken"], seed, codes
+
+
+def test_a_code_for_someone_made_inactive_meanwhile_is_refused(server):
+    from test_twostep import code
+
+    b, token, seed, _ = _two_step_pending(server, "oda")
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(User).where(User.username == "oda")).one().active = False
+    r = b.post("/ui/api/session/two-step", json={"token": token, "code": code(seed)})
+    problem(r, 403, "account-disabled", "This account is disabled.")
+    b.__exit__(None, None, None)
+
+
+def test_a_code_from_a_locked_address_or_one_already_being_checked_waits(server):
+    from moolakata.auth.tokens import digest
+
+    b, token, _, _ = _two_step_pending(server, "pia")
+    assert server.sign_in.checking(digest(token))  # another request has it in hand
+    r = b.post("/ui/api/session/two-step", json={"token": token, "code": "123456"})
+    assert r.status_code == 429 and r.headers["retry-after"] == "1"
+    server.sign_in.checked(digest(token))
+    for _ in range(10):
+        server.sign_in.failed("someone", "127.0.0.1", threshold=10, lock_minutes=15)
+    r = b.post("/ui/api/session/two-step", json={"token": token, "code": "123456"})
+    assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
+    b.__exit__(None, None, None)
+
+
 def test_an_admin_resets_their_own_two_step_and_stays_signed_in(server, admin_client):
     from test_twostep import turn_on
 
@@ -188,6 +255,36 @@ def test_an_admin_resets_their_own_two_step_and_stays_signed_in(server, admin_cl
     r = admin_client.post(f"/ui/api/users/{me}/two-step/reset")
     assert r.status_code == 200 and r.json()["twoStep"] is False
     assert admin_client.get("/ui/api/session").status_code == 200
+
+
+# ---------- the live stream's end (S12.6) ----------
+
+
+@pytest.mark.parametrize("how", ["signed-out", "expired", "disabled"])
+def test_the_stream_ends_saying_why_the_session_did(server, monkeypatch, how):
+    from moolakata.store.entities.users import Session
+
+    u = make_user(server, "sam")
+    c = sign_in(server, "sam")
+    server.stream_seconds = 0.2
+    real = server.events.subscribe
+
+    def subscribe(user_id, token_hash):
+        sub = real(user_id, token_hash)
+        with server.db.tx(unscoped="test") as s:
+            row = s.scalars(select(Session).where(Session.tokenHash == token_hash)).one()
+            if how == "signed-out":
+                s.delete(row)
+            elif how == "expired":
+                row.expiresAt = row.expiresAt - dt.timedelta(days=365)
+            else:
+                s.get(User, u.id).active = False
+        return sub
+
+    monkeypatch.setattr(server.events, "subscribe", subscribe)
+    with c.stream("GET", "/ui/api/events") as r:
+        body = "".join(r.iter_text())
+    assert "event: session" in body and f'"state": "{how}"' in body.replace('":"', '": "')
 
 
 # ---------- users and groups, an admin's (S10.1, S10.2) ----------
