@@ -242,6 +242,8 @@ def change(s, u: User, body, sent: set[str]) -> None:
         name = (body.displayName or "").strip()
         if not name or len(name) > 80:
             raise refuse("displayName", "name-invalid", "Enter a name of up to 80 characters.")
+        if people.CONTROL.search(name):
+            raise refuse("displayName", "name-invalid", people.ONE_LINE)
         if name != u.displayName:
             accounts.rename(s, u, name)
         fields.append("displayName")

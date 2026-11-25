@@ -4,6 +4,7 @@ married to whom on a given day, for wash sales (S3.8) and joint tax books (S8.14
 either spouse has confirmed it."""
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import false, func, or_, select
@@ -16,6 +17,10 @@ from ..store.entities.education import Person, Relationship
 from ..store.entities.users import User
 
 SEXES = ("male", "female")
+# A name is one line of printable text: a line break would break an email's subject, and any
+# control character shows oddly wherever the name does (S10.1.1, S10.10.1).
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+ONE_LINE = "Enter a name on one line, without tabs or control characters."
 RELATIONS = ("spouse", "couple", "child", "friend", "colleague", "family")
 
 

@@ -142,7 +142,8 @@ exchange after the link is approved:
 Only active local users are listed. The receiver keeps each as a remote user by its `id`:
 added, updated in place, soft-deleted when it leaves the list and restored when it returns.
 It keeps a display name of up to 120 characters and a username of up to 64, cutting a longer
-one there, and a sex other than `female` or `male` as `male`; of each item, a kind of up to 20
+one there, each on one line (a control character in it, or in the server's or household's
+name, becomes a space), and a sex other than `female` or `male` as `male`; of each item, a kind of up to 20
 characters and an owner's name of up to 120.
 
 Every field is checked before any of the directory is kept, each absent or `null` or within

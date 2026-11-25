@@ -190,6 +190,8 @@ def check_person_fields(body) -> dict:
     name = (body.name or "").strip()
     if not name or len(name) > 80:
         e.append(FieldError("name", "name-invalid", "A name, up to 80 characters."))
+    elif people.CONTROL.search(name):
+        e.append(FieldError("name", "name-invalid", people.ONE_LINE))
     if body.sex not in people.SEXES:
         e.append(FieldError("sex", "sex-invalid", "Female or male."))
     if body.birthMonth is not None and not 1 <= body.birthMonth <= 12:

@@ -356,6 +356,15 @@ def _text(v, field: str, most: int, cut: bool = False) -> str | None:
     return v[:most]
 
 
+def _name(v, field: str, most: int, cut: bool = False) -> str | None:
+    """A name from a peer's directory, as `_text` takes it, on one line: a control character
+    becomes a space, as a name typed here can't hold one (S10.1.1, §4.2)."""
+    v = _text(v, field, most, cut)
+    if v is None:
+        return None
+    return " ".join(people.CONTROL.sub(" ", v).split()) or None
+
+
 def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
     """The household and users a peer's directory sends, each field checked against §4.2's
     bounds before anything is kept, since a peer's data is checked before it is kept: a
@@ -371,8 +380,8 @@ def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
             except settings.Invalid as e:
                 raise BadDirectory(f"its household's avatar isn't {e}") from e
         h = {
-            "serverName": _text(h.get("serverName"), "its server name", 60),
-            "name": _text(h.get("name"), "its household's name", 60),
+            "serverName": _name(h.get("serverName"), "its server name", 60),
+            "name": _name(h.get("name"), "its household's name", 60),
             "avatar": avatar,
         }
     users = payload.get("users")
@@ -384,8 +393,8 @@ def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
         users = [
             {
                 "id": _text(r.get("id"), "a user's id", 64),
-                "username": _text(r.get("username"), "a username", 64, cut=True),
-                "displayName": _text(r.get("displayName"), "a display name", 120, cut=True),
+                "username": _name(r.get("username"), "a username", 64, cut=True),
+                "displayName": _name(r.get("displayName"), "a display name", 120, cut=True),
                 "email": _text(r.get("email"), "an email", 254),
                 "sex": r.get("sex") if r.get("sex") in people.SEXES else "male",
             }

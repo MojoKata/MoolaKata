@@ -302,3 +302,64 @@ def test_a_rename_in_profile_to_someone_already_here_is_refused(server):
     assert r.status_code == 409, r.text
     assert r.json()["errors"][0]["field"] == "displayName"
     assert saved(change(c, "User", p, displayName="Ivy Lee"))["displayName"] == "Ivy Lee"
+
+
+# ---------- a name is one line (S10.1.1, S10.10.1) ----------
+
+BROKEN = ("Ada\nAdmin", "Ada\rAdmin", "Ada\tAdmin", "Ada\x00", "Ada\x1bAdmin", "Ada\x7f")
+
+
+@pytest.mark.parametrize("name", BROKEN)
+def test_a_name_with_a_control_character_is_refused_everywhere(admin_client, server, name):
+    from edits import change, make
+
+    jo = make_user(server, "jo")
+    c = sign_in(server, "jo")
+    for r, field in (
+        (change(c, "User", c.get("/ui/api/profile").json(), displayName=name), "displayName"),
+        (change(admin_client, "User", _listed(admin_client, jo.id), displayName=name), None),
+        (
+            make(
+                admin_client, "User", displayName=name, username="kay", email="k@h.lan", sex="male"
+            ),
+            "displayName",
+        ),
+        (make(admin_client, "Group", name=name, memberIds=[]), "name"),
+        (make(c, "Persn", name=name, sex="female"), "name"),
+    ):
+        assert r.status_code == 422, r.text
+        assert r.json()["errors"][0]["field"] == (field or "displayName")
+
+
+def test_an_invitation_from_a_name_stored_with_a_line_break_still_goes(admin_client, server):
+    """The subject takes the name on one line, whatever was stored before the rule."""
+    from edits import make
+
+    from moolakata import settings
+    from moolakata.auth import users as accounts
+    from moolakata.store.entities.users import User
+
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "publicUrl", "https://money.home.lan", None)
+        admin = s.get(User, accounts.admin_ids(s)[0])
+        admin.displayName = "Ada\nAdmin"
+    r = make(admin_client, "User", displayName="Kay", username="kay", email="k@h.lan", sex="male")
+    assert r.status_code == 200, r.text
+    assert _subjects(server)[-1] == "Ada Admin invited you to MoolaKata"
+
+
+def test_a_peers_names_are_kept_on_one_line():
+    """A linked server's names can't be refused at a field: their control characters become
+    spaces (S10.3.3.1, link protocol §4.2)."""
+    from moolakata.links import manage
+
+    h, users = manage._checked(
+        {
+            "household": {"serverName": "doe\nparents", "name": "The\r\nDoes\x00"},
+            "users": [{"id": "u", "username": "ann\tb", "displayName": "Ann\x1b[2J\nBee"}],
+        }
+    )
+    assert (h["serverName"], h["name"]) == ("doe parents", "The Does")
+    assert (users[0]["username"], users[0]["displayName"]) == ("ann b", "Ann [2J Bee")
+    _, users = manage._checked({"users": [{"id": "v", "displayName": "\n\t"}]})
+    assert users[0]["displayName"] is None  # nothing left of it

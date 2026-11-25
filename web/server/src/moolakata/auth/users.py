@@ -145,6 +145,8 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
         errors.insert(
             0, FieldError("displayName", "name-invalid", "Your name, 80 characters at most.")
         )
+    elif people.CONTROL.search(name):
+        errors.insert(0, FieldError("displayName", "name-invalid", people.ONE_LINE))
     if sex is None:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
     if errors:
@@ -210,6 +212,8 @@ def finish_setup(
     from .. import people
 
     errors = _setup_problems(s, password, email, user.id, sex)
+    if display_name and display_name.strip():
+        errors += _name_problems(display_name)
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     user.passwordHash = passwords.hash_password(password)
@@ -266,9 +270,13 @@ def _username_problems(s: Db, username: str) -> list[FieldError]:
 
 
 def _name_problems(name: str, field: str = "displayName") -> list[FieldError]:
+    from ..people import CONTROL, ONE_LINE
+
     name = (name or "").strip()
     if not name or len(name) > 80:
         return [FieldError(field, "name-invalid", "Enter a name of up to 80 characters.")]
+    if CONTROL.search(name):
+        return [FieldError(field, "name-invalid", ONE_LINE)]
     return []
 
 

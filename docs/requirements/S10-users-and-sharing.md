@@ -6,8 +6,9 @@
       The password's rules are S13.7.3's: a minimum length that admins set (12 by default), a
       maximum, and none of the most common passwords. A username is 2 to 32 lowercase letters,
       digits, dots, dashes or underscores, beginning with a letter or digit; usernames and
-      email addresses match without regard to case. A display name is at most 80 characters, an
-      email address at most 254.
+      email addresses match without regard to case. A display name is at most 80 characters,
+      on one line (no line break, tab or other control character; a person's name, a group's
+      and the first admin's alike), an email address at most 254.
    2. **The first admin** is made by the welcome (S12.14): once the key is made, **Set up the
       admin account** asks for the admin's name, sex (S10.10.1), email address and password,
       makes `admin` with them, and signs them in. No password is published, and nobody signs
