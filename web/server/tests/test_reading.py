@@ -548,9 +548,13 @@ def test_reading_off_leaves_receipts_unread(server, admin_client):
 
 
 def test_text_and_scan_disagreeing_flag_the_total_until_someone_confirms_it(server):
-    """S9.8.2.1.1: both readings shown, no transaction offered, until its amount is picked or
-    typed and saved; then it is the person's, as a typed one is."""
+    """S9.8.2.1.1: the scan's reading kept beside the amount and no transaction offered, until
+    its amount is picked or typed and saved; then it is the person's, as a typed one is. The
+    receipt's own columns say so (`scanTotal`, `totalChecked`), nothing inside `suggested`."""
     from test_accounts import add, new_account
+    from test_budget_refusals import refused
+
+    from moolakata.store.entities.receipts import Receipt
 
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -560,40 +564,66 @@ def test_text_and_scan_disagreeing_flag_the_total_until_someone_confirms_it(serv
     rid = upload(c, text_pdf(lines), name="r.pdf").json()["id"]
     answer = ("ok", lines, "text", "pypdfium2 text layer", None)
     w = Worker()
+    once = ("totalChecked", "total-check-fixed", "Only a total waiting to be checked is confirmed.")
 
     def read_with(check):
         w.read = lambda data, media, *a, user, check=False: (*answer[:4], found if check else None)
         found = check
         assert c.post(f"/ui/api/receipts/{rid}/read").status_code == 200
         Reader(server, workers=1).read_one(rid, w)
+        with server.db.read(unscoped="test") as s:
+            assert "totalCheck" not in json.loads(s.get(Receipt, rid).suggested)
         return c.get(f"/ui/api/receipts/{rid}").json()
 
+    got = read_with(None)
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None), "nothing checked"
     got = read_with({"text": "72.34", "scan": "72.34", "agrees": True})
-    assert got["totalCheck"] is None and got["totalChecked"]
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None), "they agree"
     assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    # A total the server's own reading doesn't give checks nothing.
+    got = read_with({"text": "99.99", "scan": "12.34", "agrees": False})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None)
     got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
-    assert got["totalCheck"] == {"text": "72.34", "scan": "12.34"}
-    assert got["matches"] == [] and not got["totalChecked"], "nothing offered meanwhile"
-    assert "totalCheck" not in got["suggested"] and got["amount"] == "72.34"
-    # A save of anything else leaves it waiting; picking the text's reading confirms it.
+    assert (got["scanTotal"], got["totalChecked"]) == ("12.34", False)
+    assert got["matches"] == [], "nothing offered meanwhile"
+    assert got["suggested"]["total"]["value"] == "72.34" and got["amount"] == "72.34"
+    # A save of anything else leaves it waiting.
     assert change(c, "Rcpt", got, notes="from the shoebox").status_code == 200
     got = c.get(f"/ui/api/receipts/{rid}").json()
-    assert got["totalCheck"] is not None and "amount" in got["filled"]
+    assert got["totalChecked"] is False and "amount" in got["filled"]
+    refused(change(c, "Rcpt", got, totalChecked=None), *once)
+    # Picking the text's reading confirms it, once.
     assert change(c, "Rcpt", got, totalChecked=True).status_code == 200
     got = c.get(f"/ui/api/receipts/{rid}").json()
-    assert got["totalCheck"] is None and got["totalChecked"] and got["amount"] == "72.34"
+    assert (got["scanTotal"], got["totalChecked"], got["amount"]) == ("12.34", True, "72.34")
     assert "amount" not in got["filled"], "the person's now"
     assert [m["amount"] for m in got["matches"]] == ["-72.34"]
-    # Read again, it disagrees again over the person's amount: nothing to confirm.
+    for wrong in (None, False):
+        refused(change(c, "Rcpt", got, totalChecked=wrong), *once)
+    # Read again, it disagrees again over the person's amount: theirs, nothing to confirm.
     got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
-    assert got["totalCheck"] is None
+    assert (got["scanTotal"], got["totalChecked"]) == ("12.34", True)
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
     # A scan with no total at all disagrees too.
     assert change(c, "Rcpt", got, amount=None).status_code == 200
     got = read_with({"text": "72.34", "scan": None, "agrees": False})
-    assert got["totalCheck"] == {"text": "72.34", "scan": None}
+    assert (got["scanTotal"], got["totalChecked"]) == (None, False)
+    # Clearing the amount confirms nothing; a total confirmed blank is refused.
+    blank = ("amount", "total-check-blank", "Pick or type the total to confirm it.")
+    refused(change(c, "Rcpt", got, amount=None, totalChecked=True), *blank)
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["amount"], got["totalChecked"]) == (None, False)
     # Typing the amount confirms it as well.
     assert change(c, "Rcpt", got, amount="12.34").status_code == 200
-    assert c.get(f"/ui/api/receipts/{rid}").json()["totalCheck"] is None
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["totalChecked"], got["amount"]) == (True, "12.34")
+    # Agreeing, there is nothing to confirm.
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = read_with({"text": "72.34", "scan": "72.34", "agrees": True})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None)
+    refused(change(c, "Rcpt", got, totalChecked=True), *once)
+    refused(change(c, "Rcpt", got, totalChecked=False), *once)
 
 
 def test_a_receipt_whose_file_was_pruned_is_never_left_reading(server, admin_client):

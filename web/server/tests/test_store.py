@@ -1388,6 +1388,39 @@ def test_0066_gives_each_row_its_version_and_times_from_its_own(tmp_path):
     engine.dispose()
 
 
+def test_0070_gives_a_receipt_the_scans_total_and_whether_it_was_checked(tmp_path):
+    """S9.8.2.1.1: `Receipt.scanTotal` and `totalChecked` start empty on every receipt read
+    before (nothing checked), and a scan's total is never kept without whether it was checked."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    uid, pid, rid = ids.new_id("User"), ids.new_id("Persn"), ids.new_id("Rcpt")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0069")
+        conn.commit()
+        q = conn.exec_driver_sql
+        q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+          "VALUES (?, 'Jane', 'female', ?, ?)", (pid, made, made))  # fmt: skip
+        q('INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+          "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)", (uid, pid, made, made))  # fmt: skip
+        q('INSERT INTO "Receipt" (id, "ownerId", "fileName", "mediaType", size, sha256, '
+          '"fileId", amount, "createdAt", "updatedAt") VALUES (?, ?, \'r.pdf\', '
+          "'application/pdf', 3, 'h', 'f', 7234, ?, ?)", (rid, uid, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = q('SELECT amount, "scanTotal", "totalChecked" FROM "Receipt"').one()
+        assert tuple(got) == (7234, None, None)
+        with pytest.raises(Exception, match="ck_Receipt_scan_total"):
+            q('UPDATE "Receipt" SET "scanTotal" = 1234 WHERE id = ?', (rid,))
+        q('UPDATE "Receipt" SET "scanTotal" = 1234, "totalChecked" = 0 WHERE id = ?', (rid,))
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

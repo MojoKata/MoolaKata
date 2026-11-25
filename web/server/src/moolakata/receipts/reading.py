@@ -42,8 +42,6 @@ TIME_LIMIT = 60
 STATEMENT_TIME_LIMIT = 300  # a scanned statement's every page, at about 10 s a page
 MEMORY_CAP = 1536 * 1024 * 1024
 FIELDS = ("date", "amount", "payee")
-# Beside the suggested fields: the text layer's total and the scan's, when they disagree.
-DISAGREE = "totalCheck"
 
 
 def resident(pid: int) -> int:
@@ -418,20 +416,19 @@ def save_reading(
     s, r: Receipt, lines: list[str], method: str, engine: str, check: dict | None = None
 ) -> None:
     """Store what was read, and fill the fields nobody typed (S9.8.1). A total its text layer
-    gives that the scan of its page doesn't is kept with both readings (S9.8.2.1.1)."""
+    gives that the scan of its page doesn't keeps the scan's reading, and waits for a person
+    to confirm the amount unless it is already theirs (S9.8.2.1.1)."""
     found = parser.parse(lines, clock.today(), _not_before(s, r))
     r.text = "\n".join(lines)
     r.readMethod, r.readEngine = method, engine
     r.readStatus, r.readError, r.readAt = "read", None, clock.now()
-    suggested = found.as_dict()
-    if (
+    r.suggested = json.dumps(found.as_dict())
+    disagree = (
         check is not None
         and not check["agrees"]
         and found.total is not None
         and Decimal(check["text"]) == found.total.value
-    ):
-        suggested[DISAGREE] = {"text": check["text"], "scan": check["scan"]}
-    r.suggested = json.dumps(suggested)
+    )
     filled = set(json.loads(r.filled or "[]"))
     values = {
         "date": found.date.value if found.date else None,
@@ -454,6 +451,11 @@ def save_reading(
             setattr(r, f, Decimal(v) if f == "amount" else v)
             filled.add(f)
     r.filled = json.dumps(sorted(filled))
+    if check is not None and disagree:
+        r.scanTotal = None if check["scan"] is None else Decimal(check["scan"])
+        r.totalChecked = "amount" not in filled  # a person's amount is confirmed already
+    else:
+        r.scanTotal = r.totalChecked = None
     index(s, r)
 
 
@@ -503,12 +505,3 @@ def turned_on(s) -> list[str]:
 def read_again(s, r: Receipt) -> None:
     """Queue it again: only empty or suggested fields will be replaced (S9.8.6)."""
     r.readStatus, r.readError = "waiting", None
-
-
-def disagreeing(r: Receipt) -> dict | None:
-    """The text layer's total and the scan's, while they disagree and the amount is still the
-    one read: until someone picks or types it, no transaction is offered (S9.8.2.1.1)."""
-    got = json.loads(r.suggested or "{}").get(DISAGREE)
-    if got is None or "amount" not in json.loads(r.filled or "[]"):
-        return None
-    return got

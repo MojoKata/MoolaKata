@@ -19749,6 +19749,8 @@
               "too-many-rules",
               "too-many-tries",
               "too-many-wrong",
+              "total-check-blank",
+              "total-check-fixed",
               "trade-incomplete",
               "transaction-fixed",
               "transaction-unknown",
@@ -20287,6 +20289,8 @@
                   "too-many-rules",
                   "too-many-tries",
                   "too-many-wrong",
+                  "total-check-blank",
+                  "total-check-fixed",
                   "trade-incomplete",
                   "transaction-fixed",
                   "transaction-unknown",
@@ -21437,6 +21441,21 @@
             "title": "Readstatus",
             "type": "string"
           },
+          "scanTotal": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scantotal"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -21473,19 +21492,16 @@
             ],
             "title": "Text"
           },
-          "totalCheck": {
+          "totalChecked": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TotalCheck"
+                "type": "boolean"
               },
               {
                 "type": "null"
               }
-            ]
-          },
-          "totalChecked": {
-            "title": "Totalchecked",
-            "type": "boolean"
+            ],
+            "title": "Totalchecked"
           },
           "uploadedAt": {
             "format": "date-time",
@@ -21524,7 +21540,7 @@
           "matches",
           "text",
           "suggested",
-          "totalCheck",
+          "scanTotal",
           "totalChecked",
           "readMethod",
           "readEngine",
@@ -21660,9 +21676,16 @@
             "uniqueItems": true
           },
           "totalChecked": {
-            "default": false,
-            "title": "Totalchecked",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Totalchecked"
           }
         },
         "title": "ReceiptRecord",
@@ -26423,41 +26446,6 @@
           "who": "own"
         },
         "x-entity": "Token"
-      },
-      "TotalCheck": {
-        "additionalProperties": false,
-        "description": "The total its text layer gives and the one the scan of that page reads, which disagree\n(S9.8.2.1.1); `scan` is none when the scan reads no total.",
-        "properties": {
-          "scan": {
-            "anyOf": [
-              {
-                "examples": [
-                  1234.5
-                ],
-                "format": "money",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scan"
-          },
-          "text": {
-            "examples": [
-              1234.5
-            ],
-            "format": "money",
-            "title": "Text",
-            "type": "number"
-          }
-        },
-        "required": [
-          "text",
-          "scan"
-        ],
-        "title": "TotalCheck",
-        "type": "object"
       },
       "TransferAnswer": {
         "additionalProperties": false,

@@ -1049,21 +1049,32 @@ def test_a_total_the_text_and_the_scan_disagree_on_is_confirmed_by_picking_one(b
 
     def disagreeing(route):
         out = route.fetch()
-        check = {"text": r["amount"], "scan": "6.90"}
-        body = {**out.json(), "totalCheck": check, "totalChecked": False}
+        got = out.json()
+        total = {"value": r["amount"], "confidence": 100}
+        body = {**got, "suggested": {**got["suggested"], "total": total}}
+        body |= {"scanTotal": "6.90", "totalChecked": False}
         route.fulfill(response=out, body=json.dumps(body))
 
+    sent = []
+
+    def confirmed(route):
+        # What the dialog sends is the test's; the server, whose receipt was never read so,
+        # gets the save without it.
+        body = json.loads(route.request.post_data)
+        sent.append(body["ops"][0]["fields"])
+        body["ops"][0]["fields"] = {}
+        route.continue_(post_data=json.dumps(body))
+
     page.route(f"**/ui/api/receipts/{r['id']}", disagreeing)
+    page.route("**/ui/api/save", confirmed)
     page.click(card)
     wait(page, flag, problems)
-    assert "scan $6.90" in page.inner_text(flag)
+    assert "Text $6.40 · scan $6.90" in page.inner_text(flag)
     page.click(f"{flag} button:has-text('Use $6.40')")
     wait(page, flag, problems, state="detached")
-    with page.expect_request("**/ui/api/save") as sent:
-        page.click(".dialog footer button.primary")
-    ops = json.loads(sent.value.post_data)["ops"]
-    assert ops[0]["fields"] == {"totalChecked": True}, "the amount it had, confirmed"
+    page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
+    assert sent == [{"totalChecked": True}], "the amount it had, confirmed"
     assert problems == []
     page.close()
 

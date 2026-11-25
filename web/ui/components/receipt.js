@@ -263,15 +263,15 @@ export function ReceiptDialog({ close, id }) {
               <${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>Couldn't read it:${' '}
                 ${r.readError}</${Attention}>
             `
-            : r.totalCheck && !rec.get('totalChecked')
+            : r.totalChecked === false && !rec.get('totalChecked')
             ? html`
               <${Attention} tone="warn" icon=${html`<${Icon} name="alert" />`}>The text and the
-                scan disagree: check the total. Text ${money(r.totalCheck.text)} · scan ${r
-                    .totalCheck.scan === null
+                scan disagree: check the total. Text ${money(r.suggested.total?.value)} · scan ${r
+                    .scanTotal === null
                   ? 'reads no total'
-                  : money(r.totalCheck.scan)}<div class="toolbar" style=${{
+                  : money(r.scanTotal)}<div class="toolbar" style=${{
                   margin: '8px 0 0',
-                }}>${[r.totalCheck.text, r.totalCheck.scan].filter((v) => v !== null).map((
+                }}>${[r.suggested.total?.value ?? null, r.scanTotal].filter((v) => v !== null).map((
                   /** @type {string} */ v,
                 ) =>
                   html`
