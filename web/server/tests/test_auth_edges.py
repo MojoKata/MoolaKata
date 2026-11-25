@@ -117,6 +117,22 @@ def test_a_change_of_password_refuses_a_poor_new_one_at_its_field(server):
     assert sign_in(server, "pat")  # the password stands
 
 
+def test_a_new_password_past_1024_characters_is_refused(server):
+    """S13.7.3: at most 1,024 characters, at the field that took it."""
+    make_user(server, "lon")
+    c = sign_in(server, "lon")
+    body = {"currentPassword": PW, "newPassword": "x" * 1025}
+    refused(
+        c.post("/ui/api/profile/password", json=body),
+        422,
+        "newPassword",
+        "password-too-long",
+        "Use at most 1,024 characters.",
+    )
+    body["newPassword"] = "x" * 1024
+    assert c.post("/ui/api/profile/password", json=body).status_code == 204
+
+
 # ---------- the setup step and the first admin (S10.1.2) ----------
 
 
