@@ -155,7 +155,7 @@
    own window (S12.10).
 8. **Activity** lists the changes worth showing, each naming who made it and what it is about,
    to the people concerned (the owner, the receivers of any of the eight kinds, and admins for
-   users and groups): shares given or taken away, accounts created, closed or deleted, imports,
+   users, groups and links): shares given or taken away, accounts created, closed or deleted, imports,
    rule changes, links made or ended, a written email opened (S10.2), changes to the
    categories (to every local user, S7.2.5), and who did each. A
    receiver whose share is removed keeps the entry that says so. Amounts are never named

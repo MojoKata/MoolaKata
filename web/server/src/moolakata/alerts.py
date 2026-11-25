@@ -171,16 +171,44 @@ def bitcoin_source(s: Session, server) -> Iterable[Cause]:
 
 @check
 def linked_servers(s: Session, server) -> Iterable[Cause]:
-    """A linked server failing for longer than the source threshold, and a link whose shares
-    wait for this side's access key (S12.11.1): admins."""
+    """A linked server failing for longer than the source threshold, one that answers but
+    whose data is refused, one that refused what this server sent, and a link whose shares
+    wait for this side's access key (S12.11.1): admins. A paused link is alerted only for
+    refused data, either way (S11.7.2)."""
     from .store.entities.links import Link, LinkedItem
 
     limit = dt.timedelta(hours=settings.get(s, "alertSourceHours"))
     now = clock.now()
     for link in s.scalars(
-        select(Link).where(Link.deleted == false(), Link.state.in_(("active", "pending")))
+        select(Link).where(Link.deleted == false(), Link.state.in_(("active", "pending", "paused")))
     ):
         name = link.peerName or "A linked server"
+        # At once: the same data is refused again at every exchange until its source changes.
+        refusing = Cause(
+            key=f"link-refused:{link.id}",
+            kind="link-refusing",
+            title=f"{name} answered, but what it sent was refused: {link.refusal}",
+            about="linked server",
+            link="/ui/settings/links",
+            fix="Linked Servers",
+            icon="link",
+        )
+        # The other way round, at once too: the peer refused what this server sent.
+        refused_by = Cause(
+            key=f"link-refused-by:{link.id}",
+            kind="link-refused",
+            title=f"{name} refused what this server sent: {link.peerRefusal}",
+            about="linked server",
+            link="/ui/settings/links",
+            fix="Linked Servers",
+            icon="link",
+        )
+        if link.state == "paused":
+            if link.refusal:
+                yield refusing
+            if link.peerRefusal:
+                yield refused_by
+            continue
         # Both at once, not after the failing threshold: an admin decides each (S11.6, §4.5).
         if link.brokenAt:
             yield Cause(
@@ -205,6 +233,10 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
                 icon="link",
             )
             continue
+        if link.refusal:
+            yield refusing
+        if link.peerRefusal:
+            yield refused_by
         if link.failingSince and link.lastError:
             yield Cause(
                 key=f"link:{link.id}",
@@ -957,7 +989,14 @@ _KEYS = {
     "price_sources": {"prices"},
     "email": {"mail"},
     "bitcoin_source": {"bitcoin"},
-    "linked_servers": {"link-broken", "link-cert", "link", "link-key"},
+    "linked_servers": {
+        "link-broken",
+        "link-cert",
+        "link",
+        "link-key",
+        "link-refused",
+        "link-refused-by",
+    },
     "backups": {"backups"},
     "reader_sandbox": {"reader-sandbox"},
     "recovery_phrase": {"keys:phrase"},

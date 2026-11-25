@@ -39,11 +39,14 @@ def new_user(s, name="jane"):
 
 
 def test_database_is_encrypted_at_rest(store, keyed_config):
+    # A plaintext long enough that the file's random bytes can't hold it by chance, as a
+    # name of four letters would now and then.
+    marker = "plaintextthatmustnotshowonthedisk"
     with store.db.tx(unscoped="test") as s:
-        new_user(s)
+        new_user(s, marker)
     raw = keyed_config.db_path.read_bytes()
     assert b"SQLite format 3" not in raw[:100]
-    assert b"jane" not in raw
+    assert marker.encode() not in raw
     with pytest.raises(sqlite3.DatabaseError):
         sqlite3.connect(keyed_config.db_path).execute("SELECT * FROM User").fetchall()
 

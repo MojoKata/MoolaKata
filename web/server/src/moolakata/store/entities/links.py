@@ -42,7 +42,10 @@ class Link(Record):
     peerCert: str | None = None
     peerCertNext: str | None = None
     peerCertOffered: str | None = None
+    ownCertTold: str | None = None
     brokenAt: dt.datetime | None = None
+    refusal: str | None = None
+    peerRefusal: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

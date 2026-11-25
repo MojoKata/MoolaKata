@@ -46,7 +46,7 @@ def make_key(srv, link_id: str, by: str) -> list[str]:
         link.copyPublicKey, link.copyKeyAt, link.copyKeyById = public, clock.now(), by
         link.copyFolder = name
         link.needsFull = True  # pulls into the copy begin now, with everything
-        activity.record(s, "link.copy-key-made", actor=by, for_admins=True)
+        activity.record(s, "link.copy-key-made", actor=by, **activity.about_link(link_id))
     return words
 
 
@@ -67,10 +67,12 @@ def unlock(srv, link_id: str, user_id: str, words: str) -> None:
             srv.copies.unlock(srv.config.data_dir, link_id, public, words, user_id, clock.now())
         except CopyError:
             with srv.db.tx(unscoped="links.copies: unlock") as s:
-                activity.record(s, "link.copy-unlock-failed", actor=user_id, for_admins=True)
+                activity.record(
+                    s, "link.copy-unlock-failed", actor=user_id, **activity.about_link(link_id)
+                )
             raise
         with srv.db.tx(unscoped="links.copies: unlock") as s:
-            activity.record(s, "link.copy-unlocked", actor=user_id, for_admins=True)
+            activity.record(s, "link.copy-unlocked", actor=user_id, **activity.about_link(link_id))
         checkpoint("unlock.opened")
         # What arrived while it was locked is applied now; a change that fails is reported
         # on the link and the copy stays as it was.
@@ -89,7 +91,7 @@ def lock(srv, link_id: str, user_id: str, admin: bool) -> None:
                 s,
                 "link.copy-locked",
                 actor=user_id,
-                for_admins=True,
+                **activity.about_link(link_id),
                 detail={"why": "Lock now"},
             )
 
@@ -102,7 +104,27 @@ def reset(srv, link_id: str, by: str) -> None:
         link = _link(s, link_id)
         link.copyPublicKey = link.copyKeyAt = link.copyKeyById = None
         link.needsFull = True
-        activity.record(s, "link.copy-reset", actor=by, for_admins=True)
+        activity.record(s, "link.copy-reset", actor=by, **activity.about_link(link_id))
+
+
+def record_restart(s) -> None:
+    """A restart locks every linked copy, its keys being held only in memory (S11.9.4): one
+    release recorded for each copy with an access key, at the unlock after it (S11.8)."""
+    keyed = s.scalars(
+        select(Link.id).where(
+            Link.deleted == false(),
+            Link.state.in_(("active", "paused")),
+            Link.copyPublicKey.is_not(None),
+        )
+    )
+    for link_id in keyed:
+        activity.record(
+            s,
+            "link.copy-locked",
+            actor=None,
+            **activity.about_link(link_id),
+            detail={"why": "restart"},
+        )
 
 
 def receipt_files(srv, link_id: str):
@@ -155,12 +177,12 @@ def sweep(srv) -> list[str]:
     locked = srv.copies.sweep(minutes)
     if locked:
         with srv.db.tx(unscoped="links.copies: sweep") as s:
-            for _ in locked:
+            for link_id in locked:
                 activity.record(
                     s,
                     "link.copy-locked",
                     actor=None,
-                    for_admins=True,
+                    **activity.about_link(link_id),
                     detail={"why": "unused"},
                 )
     return locked
@@ -176,9 +198,3 @@ def size(srv, link_id: str) -> tuple[int, int]:
         sum(1 for _ in (path / "receipts").glob("*.mkr")) if (path / "receipts").exists() else 0
     )
     return total, receipts
-
-
-def live_links(s) -> list[Link]:
-    return list(
-        s.scalars(select(Link).where(Link.deleted == false(), Link.state.in_(("active", "paused"))))
-    )

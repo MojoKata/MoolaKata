@@ -47,12 +47,13 @@ REFUSED = {
     "link-again": ("already-linked", "These two servers are already linked."),
 }
 
-# Which calls the peer may make in each state (link-protocol.md §4): the routes' finders.
+# Which calls the peer may make in each state (link-protocol.md §4): the routes' finders. A
+# paused link still exchanges and delivers, its removals alone (§4.3.6).
 CALLS: dict[str, tuple[str, ...]] = {
     "ping": ("requested", "pending", "active", "paused"),
-    "exchange": ("pending", "active"),
+    "exchange": ("pending", "active", "paused"),
     "next": ("active",),
-    "deliver": ("active",),
+    "deliver": ("active", "paused"),
     "file": ("active",),
     "certificate": ("active", "paused"),
     "end": ("requested", "pending", "active", "paused"),

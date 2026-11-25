@@ -14,7 +14,7 @@ import re
 import secrets
 import threading
 
-from sqlalchemy import false, select
+from sqlalchemy import false, or_, select
 
 from .. import activity, clock, ids, people, settings
 from ..checkpoints import checkpoint
@@ -151,7 +151,7 @@ def ended_by_peer(srv, link_id: str) -> None:
         if not lifecycle.apply(row, "link-ended").ended:
             return
         end_users(s, row)
-        activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
+        activity.record(s, "link.ended-by-peer", actor=None, **activity.about_link(row.id))
     receive.forget(srv, link_id)
 
 
@@ -165,36 +165,43 @@ def accept_certificate(srv, link_id: str, by: str) -> Link:
         link.peerCert, link.peerCertNext = link.peerCertOffered, None
         link.peerCertOffered = None
         link.lastError = link.failingSince = None
-        activity.record(s, "link.certificate-accepted", actor=by, for_admins=True)
+        activity.record(s, "link.certificate-accepted", actor=by, **activity.about_link(link.id))
         return link
 
 
 def announce_certificate(srv) -> int:
-    """This server's own certificate key, when it changed since it was last told to the peers:
-    told to each active or paused link, signed (link-protocol.md §4.5). Returns how many were
-    told."""
+    """This server's own certificate key, told, signed, to each active or paused link that
+    hasn't confirmed it yet, at every run until it has (link-protocol.md §4.5). Returns how
+    many were told."""
     from .. import certs
 
     try:
         key = certs.own_key_read(srv)
     except certs.Unread:
         return 0  # unread is not public: nothing changed that the peers can be told
+    if key is None:
+        # A public certificate: checked against the system's roots, so there is nothing to
+        # pin, and the key last told stays for a later one of this server's own.
+        return 0
     with srv.db.read(unscoped="links.manage: announce certificate") as s:
-        told = settings.get(s, "linkCertificate")
         ids_ = list(
             s.scalars(
-                select(Link.id).where(Link.deleted == false(), Link.state.in_(("active", "paused")))
+                select(Link.id).where(
+                    Link.deleted == false(),
+                    Link.state.in_(("active", "paused")),
+                    or_(Link.ownCertTold.is_(None), Link.ownCertTold != key),
+                )
             )
         )
-    if (key or None) == (told or None):
-        return 0
     n = 0
     for link_id in ids_:
-        with contextlib.suppress(LinkError):  # it learns at the next exchange instead
+        try:
             call(srv, link_id, "/link/v1/certificate", {"fingerprint": key})
-            n += 1
-    with srv.db.tx(unscoped="links.manage: announce certificate") as s:
-        settings.put(s, "linkCertificate", key, None)
+        except LinkError:
+            continue  # told again at the next run
+        with srv.db.tx(unscoped="links.manage: announce certificate") as s:
+            _get(s, link_id).ownCertTold = key
+        n += 1
     return n
 
 
@@ -239,7 +246,7 @@ def invite(srv, by: str) -> tuple[Link, str]:
             createdById=by,
         )
         s.add(link)
-        activity.record(s, "link.invited", actor=by, for_admins=True)
+        activity.record(s, "link.invited", actor=by, **activity.about_link(link.id))
         s.flush()
         return link, encode_code(address, fp, secret, cert)
 
@@ -290,7 +297,7 @@ def join(srv, code: str, by: str) -> Link:
         )
         s.add(link)
         s.flush()
-        activity.record(s, "link.requested", actor=by, for_admins=True)
+        activity.record(s, "link.requested", actor=by, **activity.about_link(link.id))
     if gone:
         from . import receive
 
@@ -321,7 +328,7 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
         link.peerCert = _cert(body.get("t"))
         link.lastOkAt = clock.now()
         s.flush()
-        activity.record(s, "link.request-received", actor=None, for_admins=True)
+        activity.record(s, "link.request-received", actor=None, **activity.about_link(link.id))
     if gone:
         from . import receive
 
@@ -330,46 +337,107 @@ def answer_join(srv, caller_key: bytes, body: dict) -> dict:
     return {}
 
 
+# The most users a peer's directory lists (link-protocol.md §4.2): more is refused whole.
+MAX_USERS = 200
+
+
+class BadDirectory(ValueError):
+    """A peer's directory that doesn't fit link-protocol.md §4.2: none of it is kept."""
+
+
+def _text(v, field: str, most: int, cut: bool = False) -> str | None:
+    """A directory's text field: absent, or text of up to `most` characters (or cut there)."""
+    if v is None or v == "":
+        return None
+    if not isinstance(v, str):
+        raise BadDirectory(f"{field} isn't text")
+    if len(v) > most and not cut:
+        raise BadDirectory(f"{field} is longer than {most} characters")
+    return v[:most]
+
+
+def _checked(payload: dict) -> tuple[dict | None, list[dict] | None]:
+    """The household and users a peer's directory sends, each field checked against §4.2's
+    bounds before anything is kept, since a peer's data is checked before it is kept: a
+    directory that doesn't fit is refused whole."""
+    h = payload.get("household")
+    if h is not None:
+        if not isinstance(h, dict):
+            raise BadDirectory("its household isn't an object")
+        avatar = h.get("avatar")
+        if avatar is not None:
+            try:
+                avatar = settings.avatar(avatar)
+            except settings.Invalid as e:
+                raise BadDirectory(f"its household's avatar isn't {e}") from e
+        h = {
+            "serverName": _text(h.get("serverName"), "its server name", 60),
+            "name": _text(h.get("name"), "its household's name", 60),
+            "avatar": avatar,
+        }
+    users = payload.get("users")
+    if users is not None:
+        if not isinstance(users, list) or not all(isinstance(r, dict) for r in users):
+            raise BadDirectory("its users aren't a list of objects")
+        if len(users) > MAX_USERS:
+            raise BadDirectory(f"its directory lists {len(users)} users, more than {MAX_USERS}")
+        users = [
+            {
+                "id": _text(r.get("id"), "a user's id", 64),
+                "username": _text(r.get("username"), "a username", 64, cut=True),
+                "displayName": _text(r.get("displayName"), "a display name", 120, cut=True),
+                "email": _text(r.get("email"), "an email", 254),
+                "sex": r.get("sex") if r.get("sex") in people.SEXES else "male",
+            }
+            for r in users
+        ]
+        if not all(r["id"] for r in users):
+            raise BadDirectory("a user has no id")
+    return h, users
+
+
 def apply_directory(s, link: Link, payload: dict) -> None:
     """The peer's household and active users, kept as remote users by their id there: added,
-    updated in place, soft-deleted when gone, and restored when they return (S11.3)."""
-    h = payload.get("household") or {}
-    link.peerName = h.get("serverName") or link.peerName
-    link.householdName = h.get("name") or link.householdName
-    if h.get("avatar") is not None:
-        link.householdAvatar = json.dumps(h["avatar"])
+    updated in place, soft-deleted when gone, and restored when they return (S11.3). Raises
+    `BadDirectory`, having kept nothing, for one that doesn't fit link-protocol.md §4.2."""
+    h, users = _checked(payload)
+    if h is not None:
+        link.peerName = h["serverName"] or link.peerName
+        link.householdName = h["name"] or link.householdName
+        if h["avatar"] is not None:
+            link.householdAvatar = json.dumps(h["avatar"])
     seen = set()
     now = clock.now()
     have = {u.remoteId: u for u in s.scalars(select(User).where(User.linkId == link.id))}
-    for r in payload.get("users") or []:
-        rid = str(r.get("id") or "")
-        if not rid or rid in seen:
+    for r in users or []:
+        rid = r["id"]
+        if rid in seen:
             continue
         seen.add(rid)
         u = have.get(rid)
-        name = str(r.get("displayName") or r.get("username") or "?")[:120]
+        name = r["displayName"] or r["username"] or "?"
         # A remote user's person is its own, filled from its server, for gifts; it is joined
         # to a person here only when someone who may change that one confirms it (S10.10.1).
-        sex = r.get("sex") if r.get("sex") in people.SEXES else "male"
+        sex = r["sex"]
         if u is None:
             u = User(
                 id=ids.new_id("User"),
                 personId=people.make(s, name, sex).id,
-                username=str(r.get("username") or rid)[:64],
+                username=r["username"] or rid,
                 displayName=name,
-                email=r.get("email"),
+                email=r["email"],
                 linkId=link.id,
                 remoteId=rid,
                 alertEmails="none",
             )
             s.add(u)
             continue
-        u.username = str(r.get("username") or u.username)[:64]
-        u.displayName = str(r.get("displayName") or u.displayName)[:120]
+        u.username = r["username"] or u.username
+        u.displayName = r["displayName"] or u.displayName
         p = s.get(Person, u.personId)
         if p is not None and p.ownerId is None:  # its own person, never one joined to it here
             people.change(s, p, {"name": u.displayName, "sex": sex})
-        u.email = r.get("email")
+        u.email = r["email"]
         u.active = True
         if u.deleted:
             u.restore()
@@ -377,6 +445,22 @@ def apply_directory(s, link: Link, payload: dict) -> None:
         if rid not in seen and not u.deleted:
             u.mark_deleted(None, now)
     s.flush()
+
+
+def _take_directory(s, link: Link, payload: dict) -> None:
+    """The peer's directory at an exchange, either side; one that doesn't fit is refused and
+    the link shows refusing (S11.7), and the exchange goes on with the directory kept before."""
+    try:
+        apply_directory(s, link, payload)
+    except BadDirectory as e:
+        link.refusal = f"{e}, so the household and users kept before stay"
+
+
+def refused(srv, link_id: str, why: str) -> None:
+    """What the peer sent, refused here: it answered, so the link shows refusing with the
+    reason, never unreachable (S11.7), and admins are alerted (S12.11.1.1)."""
+    with srv.db.tx(unscoped="links.manage: refused") as s:
+        _get(s, link_id).refusal = why[:500]
 
 
 def end_users(s, link: Link) -> None:
@@ -415,7 +499,7 @@ def _link_again(s, peer: bytes, by: str | None = None) -> str | None:
     if got.ended:
         old.codeHash = None
         end_users(s, old)
-        activity.record(s, "link.ended", actor=by, for_admins=True)
+        activity.record(s, "link.ended", actor=by, **activity.about_link(old.id))
     s.flush()  # put aside before the new link takes its key
     return old.id if got.ended else None
 
@@ -426,7 +510,7 @@ def approve(srv, link_id: str, by: str) -> Link:
         lifecycle.apply(link, "approve")
         link.approvedById = by
         link.approvedAt = clock.now()
-        activity.record(s, "link.approved", actor=by, for_admins=True)
+        activity.record(s, "link.approved", actor=by, **activity.about_link(link.id))
     with contextlib.suppress(LinkError):  # else the other side learns at its next exchange
         exchange(srv, link_id)  # tells the other side at once when it can be reached
     return link
@@ -451,7 +535,7 @@ def set_state(
             link.codeHash = None
             end_users(s, link)
         kind = {"paused": "link.paused", "active": "link.resumed", "ended": "link.ended"}[state]
-        activity.record(s, kind, actor=by, for_admins=True)
+        activity.record(s, kind, actor=by, **activity.about_link(link.id))
         peer = link.peerKey
     if state == "ended":
         from . import receive
@@ -495,15 +579,30 @@ class Pulls:
 PULLS = Pulls()
 # Refused for the moment, never a failing link: asked again at the next exchange, unalerted.
 FOR_NOW = ("link-paused", "busy")
+# Said on a link whose peer has paused it (S11.7.2): not a failure, so no one is alerted.
+PEER_PAUSED = client.refusal("link-paused", 403)
 
 
 def exchange(srv, link_id: str) -> None:
     """One exchange with the peer (S11.2–S11.4), made by whichever side can reach the other:
     each side's directory and copy key for the other's, the peer's change for this side in its
-    answer, and then this side's change for the peer, its receipts sent ahead of it. Only a
-    signed `link-ended` ends the link here (S11.6). One at a time per link (`PULLS`)."""
+    answer, and then this side's change for the peer, its receipts sent ahead of it. A link
+    paused on either side exchanges its removals alone (link-protocol.md §4.3.6). Only a
+    signed `link-ended` ends the link here (S11.6). One at a time per link (`PULLS`). Whatever
+    else fails is recorded as refused (S11.7), the hourly run and Pull now alike, and raised as
+    `refused`."""
     with PULLS.pulling(link_id):
-        _exchange(srv, link_id)
+        try:
+            _exchange(srv, link_id)
+        except LinkError:
+            raise
+        except Exception as e:
+            log.exception("exchanging with link %s failed", link_id)
+            # Its words may quote what the peer sent, so only as `shown` keeps them (S13.7.9).
+            said = client.shown(str(e), "")
+            why = f"the exchange failed here: {type(e).__name__}" + (f": {said}" if said else "")
+            refused(srv, link_id, why)
+            raise LinkError("refused", why) from e
 
 
 def _exchange(srv, link_id: str) -> None:
@@ -511,7 +610,7 @@ def _exchange(srv, link_id: str) -> None:
 
     with srv.db.read(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
-        if link.state not in ("active", "pending"):
+        if link.state not in ("active", "pending", "paused"):
             return
     # A peer's host joins the egress guard's list when its request arrives; make sure the
     # guard knows it before calling (S13.5).
@@ -519,11 +618,14 @@ def _exchange(srv, link_id: str) -> None:
     with srv.db.read(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
         pending = link.state == "pending"
-        # A link not yet approved over there gets no directory (link-protocol.md §4.1).
+        paused = link.state == "paused"
+        # A link not yet approved over there gets no directory (link-protocol.md §4.1), and
+        # a paused one sends none (§4.3.6).
         mine = {
-            **({} if pending else directory(s)),
+            **({} if pending or paused else directory(s)),
             "have": link.gotSeq,
             "wantFull": link.needsFull,
+            **({"registryOnly": True} if paused else {}),
             **({"copyKey": link.copyPublicKey} if link.copyPublicKey else {}),
         }
     try:
@@ -550,33 +652,49 @@ def _exchange(srv, link_id: str) -> None:
         raise
     with srv.db.tx(unscoped="links.manage: exchange") as s:
         link = _get(s, link_id)
-        if out.get("state") == "active":
-            lifecycle.apply(link, "peer-active")
+        # Paused here or there: removals alone, and no directory either way (§4.3.6).
+        removals = link.state == "paused" or out.get("registryOnly") is True
+        if out.get("state") in ("active", "paused") and link.state != "paused":
+            lifecycle.apply(link, "peer-active")  # a paused peer has approved the link too
         lifecycle.apply(link, "good-call")
-        link.lastOkAt, link.lastError, link.failingSince = clock.now(), None, None
+        link.lastOkAt, link.failingSince = clock.now(), None
+        link.lastError = PEER_PAUSED if out.get("state") == "paused" else None
+        link.refusal = None  # until something it sends now is refused
         link.peerVersion = out.get("version") or link.peerVersion
         link.peerCopyKey = _copy_key(out.get("copyKey"))
-        apply_directory(s, link, out)
-        active = link.state == "active"
-    if not active:
+        if not removals:
+            _take_directory(s, link, out)
+        live = link.state in ("active", "paused")
+    if not live:
         return
     if pending:
         # Approved there: this side's directory goes now, with the first exchange proper.
         return _exchange(srv, link_id)
     try:
-        _rest_of_exchange(srv, link_id, out)
-    except (LinkError, ChangeError) as e:
-        # What fails after the first call is recorded on the link like a failed call, so a
-        # link that keeps failing is alerted (S12.11.1), never left showing a good exchange.
-        message = e.message if isinstance(e, LinkError) else f"A change failed: {e}"
+        if removals:
+            _removals_exchanged(srv, link_id, out)
+        else:
+            _rest_of_exchange(srv, link_id, out)
+    except ChangeError as e:
+        # A change the peer sent, refused here: it answered, so the link shows refusing
+        # (S11.7), never unreachable.
+        refused(srv, link_id, str(e))
+        raise LinkError("change-failed", str(e)) from e
+    except LinkError as e:
         with srv.db.tx(unscoped="links.manage: exchange") as s:
             link = _get(s, link_id)
-            link.lastError = message
-            if getattr(e, "code", None) not in FOR_NOW:
-                link.failingSince = link.failingSince or clock.now()
-        if isinstance(e, LinkError):
-            raise
-        raise LinkError("change-failed", message) from e
+            if e.code == "change-refused":
+                # The peer refused what this side sent: it answered, so the link shows refused
+                # by it, with its reason, never unreachable (S11.7).
+                link.peerRefusal = e.reason
+            else:
+                # A call after the first that got no answer is recorded on the link like a
+                # failed call, so a link that keeps failing is alerted (S12.11.1), never left
+                # showing a good exchange.
+                link.lastError = e.message
+                if e.code not in FOR_NOW:
+                    link.failingSince = link.failingSince or clock.now()
+        raise
 
 
 def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
@@ -603,6 +721,7 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
                 more = int(nxt.get("more") or 0)
         receive.fetch_missing(srv, link_id, tried)
     mine = serve.change_for(srv, link_id, int(out.get("have") or 0), bool(out.get("wantFull")))
+    taken = not mine  # the peer has all this side has
     for part in mine:
         for fid in part.get("fetch") or []:
             try:
@@ -614,8 +733,35 @@ def _rest_of_exchange(srv, link_id: str, out: dict) -> None:
         answer = call(srv, link_id, "/link/v1/deliver", {"change": part})
         if answer.get("have") != part.get("seq"):
             break  # the peer missed one: its next exchange asks again
+        taken = True
+    if taken:
+        _taken(srv, link_id)
     if mine:
         _served(srv, link_id, mine[0])
+
+
+def _taken(srv, link_id: str) -> None:
+    """The peer took what this side sent, or has all of it: no longer refused by it (S11.7)."""
+    with srv.db.tx(unscoped="links.manage: taken") as s:
+        link = _get(s, link_id)
+        if link.peerRefusal is not None:
+            link.peerRefusal = None
+
+
+def _removals_exchanged(srv, link_id: str, out: dict) -> None:
+    """After the exchange call on a link paused on either side (S11.4, link-protocol.md
+    §4.3.6): the peer's removals taken, and this side's sent, nothing else either way; no
+    further parts, and no receipts delivered or fetched."""
+    from . import receive, serve
+
+    if out.get("change"):
+        receive.take(srv, link_id, out["change"], registry_only=True)
+    mine, newly = serve.removals_for(srv, link_id)
+    if mine is not None:
+        call(srv, link_id, "/link/v1/deliver", {"change": mine, "registryOnly": True})
+    _taken(srv, link_id)  # sent and not refused, or nothing to send
+    if newly:
+        _served(srv, link_id, {"removed": newly})
 
 
 def _copy_key(value) -> str | None:
@@ -664,22 +810,37 @@ def answer_exchange(srv, link: Link, body: dict, version: str | None) -> dict:
 
     with srv.db.tx(unscoped="links.manage: answer exchange") as s:
         row = _get(s, link.id)
-        lifecycle.apply(row, "peer-active")  # only an approved link calls this way
+        asked = body.get("registryOnly") is True
+        # Paused here or there: removals alone, and no directory either way (§4.3.6).
+        removals = row.state == "paused" or asked
+        if row.state != "paused":
+            lifecycle.apply(row, "peer-active")  # only an approved link calls this way
         lifecycle.apply(row, "good-call")
-        row.lastOkAt, row.lastError, row.failingSince = clock.now(), None, None
+        row.lastOkAt, row.failingSince = clock.now(), None
+        row.lastError = PEER_PAUSED if asked else None
+        row.refusal = None  # until something it sends now is refused
         row.peerVersion = version or row.peerVersion
         row.peerCopyKey = _copy_key(body.get("copyKey"))
-        apply_directory(s, row, body)
+        if not removals:
+            _take_directory(s, row, body)
         out = {
-            **directory(s),
+            **({} if removals else directory(s)),
             "state": row.state,
             "version": srv.version,
             "have": row.gotSeq,
             "wantFull": row.needsFull,
+            **({"registryOnly": True} if removals else {}),
             **({"copyKey": row.copyPublicKey} if row.copyPublicKey else {}),
         }
         active = row.state == "active"
-    if active:
+    if removals:
+        PENDING.pop(link.id, None)
+        change, newly = serve.removals_for(srv, link.id)
+        if change is not None:
+            out["change"], out["more"] = change, 0
+        if newly:
+            _served(srv, link.id, {"removed": newly})
+    elif active:
         parts = serve.change_for(
             srv, link.id, int(body.get("have") or 0), bool(body.get("wantFull"))
         )
@@ -713,9 +874,18 @@ def answer_deliver(srv, link: Link, body: dict) -> dict:
     from .copies import receipt_files
     from .routes import DELIVERED
 
-    if body.get("change"):
-        with receipt_files(srv, link.id).busy():
-            receive.take(srv, link.id, body["change"], DELIVERED.take(link.id))
+    change = body.get("change")
+    try:
+        if change and (link.state == "paused" or body.get("registryOnly") is True):
+            # A paused link's change: its removals and narrowings alone (link-protocol.md
+            # §4.3.6).
+            receive.take(srv, link.id, change, registry_only=True)
+        elif change:
+            with receipt_files(srv, link.id).busy():
+                receive.take(srv, link.id, change, DELIVERED.take(link.id))
+    except ChangeError as e:
+        refused(srv, link.id, str(e))  # the peer called: refused here all the same (S11.7)
+        raise
     with srv.db.read(unscoped="links.manage: answer deliver") as s:
         return {"have": _get(s, link.id).gotSeq}
 
@@ -727,7 +897,7 @@ def answer_end(srv, link: Link) -> None:
         row = _get(s, link.id)
         if lifecycle.apply(row, "link-ended").ended:
             end_users(s, row)
-            activity.record(s, "link.ended-by-peer", actor=None, for_admins=True)
+            activity.record(s, "link.ended-by-peer", actor=None, **activity.about_link(row.id))
     receive.forget(srv, link.id)
 
 
@@ -750,19 +920,21 @@ def resume_due(srv) -> int:
 
 
 def exchange_all(srv, ctx=None) -> None:
-    """Every link that exchanges: active ones, and joined ones waiting for approval; a pause
-    that has run out ends first."""
+    """Every link that exchanges: active ones, paused ones for their removals (S11.4), and
+    joined ones waiting for approval; a pause that has run out ends first."""
     resume_due(srv)
     with srv.db.read(unscoped="links.manage: exchange all") as s:
         wanted = list(
             s.scalars(
                 select(Link.id).where(
-                    Link.deleted == false(), Link.state.in_(("active", "pending"))
+                    Link.deleted == false(), Link.state.in_(("active", "paused", "pending"))
                 )
             )
         )
     for link_id in wanted:
         if ctx is not None and ctx.stop.is_set():
             break
-        with contextlib.suppress(LinkError):  # recorded on the link; alerts follow it
+        # Whatever fails is recorded on that link, and alerts follow it; it never stops the
+        # exchanges of the links after it (link-protocol.md §4.3, S11.9.5.3).
+        with contextlib.suppress(LinkError):
             exchange(srv, link_id)

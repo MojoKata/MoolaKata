@@ -23,6 +23,7 @@ from moolakata.links import routes as link_routes
 from moolakata.store.entities.links import Link
 from moolakata.store.tables._base import metadata
 
+RECEIPT = "Rcpt_" + "0" * 26  # a delivered receipt's id, named in the signed path
 ATTACKS = ("unsigned", "bad-signature", "unknown-key", "replayed", "stale", "too-large", "mismatch")
 KINDS = (("link", "json"), ("link", "file"), ("connector", "json"), ("connector", "multipart"))
 EXPECTED = {
@@ -54,7 +55,7 @@ class Side:
     def path(self, body_kind: str) -> str:
         return {
             ("link", "json"): "/link/v1/ping",
-            ("link", "file"): "/link/v1/deliver",
+            ("link", "file"): "/link/v1/deliver?file=" + RECEIPT,
             ("connector", "json"): "/connector/v1/report",
             ("connector", "multipart"): "/connector/v1/accounts/Acct_x/files",
         }[(self.protocol, body_kind)]
@@ -82,8 +83,6 @@ class Side:
             self.scheme.h("Protocol"): "1",
             "Content-Type": self.content_type(body_kind),
         }
-        if body_kind == "file":
-            h["MK-Link-File"] = "Rcpt_" + "0" * 26
         if named is not None:
             h[self.scheme.h("Key")] = keys.b64(keys.raw_public(named.public_key()))
         return h
@@ -355,10 +354,89 @@ def test_a_routes_work_never_holds_the_event_loop(protocol, request, monkeypatch
     assert answered.status_code == 200, answered.text
 
 
-def test_a_file_delivered_without_its_id_is_refused_as_the_protocol_says(link_side):
-    # link-protocol.md §7: `file-refused`, signed, when `MK-Link-File` isn't a file id.
-    path, body = "/link/v1/deliver", link_side.body("file")
+@pytest.mark.parametrize(
+    "query", ["", "?file=not-a-file", f"?file={RECEIPT}&file={RECEIPT}", f"?id={RECEIPT}"]
+)
+def test_a_file_delivered_without_its_id_is_refused_as_the_protocol_says(link_side, query):
+    # link-protocol.md §7: `file-refused`, signed, when the path's `file` isn't one file id.
+    path, body = "/link/v1/deliver" + query, link_side.body("file")
     h = link_side.headers(path, body, body_kind="file")
-    h["MK-Link-File"] = "not-a-file"
     r = link_side.client.post(path, content=body, headers=h)
     assert r.status_code == 403 and r.json()["code"] == "file-refused"
+
+
+def test_a_delivered_files_name_is_inside_its_signature(link_side):
+    # link-protocol.md §4.3: a receipt's id changed on the way (a proxy swapping two) fails
+    # the signature, and nothing is kept.
+    from moolakata.links.routes import DELIVERED
+
+    body = link_side.body("file")
+    h = link_side.headers(f"/link/v1/deliver?file={RECEIPT}", body, body_kind="file")
+    other = "Rcpt_" + "1" * 26
+    r = link_side.client.post(f"/link/v1/deliver?file={other}", content=body, headers=h)
+    assert r.status_code == 403 and r.json()["code"] == "bad-signature"
+    assert DELIVERED.names(link_side.counted) == set()
+
+
+def _signed(r, side: Side) -> bool:
+    return side.scheme.lower("signature") in {k.lower() for k in r.headers}
+
+
+def test_an_address_past_its_limit_is_refused_unsigned_and_a_key_past_its_own_signed(link_side):
+    # S13.7.5.4, link-protocol.md §7: `limit`, unsigned for an address, signed for a key.
+    from moolakata import ratelimit
+
+    srv, path, body = link_side.srv, "/link/v1/ping", b"{}"
+    srv.link_limit = ratelimit.Window(1, 60)
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 200
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 429 and _signed(r, link_side)
+    assert r.json()["code"] == "limit"
+    assert r.json()["message"] == "Too many calls: try again in a moment."
+    srv.link_unknown = ratelimit.Window(1, 60)
+    srv.link_unknown.hit(ratelimit.address_key("127.0.0.1"))
+    r = link_side.client.post(path, content=body, headers=link_side.headers(path, body))
+    assert r.status_code == 429 and not _signed(r, link_side)
+    assert r.json()["code"] == "limit"
+    assert r.json()["message"] == "Too many calls from this address: try again later."
+
+
+def test_a_body_past_a_routes_cap_is_refused_by_its_length_or_as_it_is_read(link_side):
+    # S13.7.5.4: a join's body is at most 16 KB, checked on its headers and as it is read, so a
+    # body sent without its length is held to the same cap.
+    from moolakata.links.routes import JOIN_BODY
+
+    path, body = "/link/v1/join", b'{"x":"' + b"x" * JOIN_BODY + b'"}'
+    words = f"This call's body is at most {JOIN_BODY} bytes."
+    stranger = Ed25519PrivateKey.generate()
+    h = link_side.headers(path, body, key=stranger)
+    r = link_side.client.post(path, content=body, headers=h)
+    assert r.status_code == 413 and r.json() == {"code": "too-large", "message": words}
+    h = link_side.headers(path, body, key=stranger)
+    r = link_side.client.post(path, content=iter([body[:100], body[100:]]), headers=h)
+    assert r.status_code == 413 and r.json() == {"code": "too-large", "message": words}
+    assert "content-length" not in {k.lower() for k in r.request.headers}
+
+
+def test_a_length_that_isnt_a_number_is_read_as_none_and_the_body_held_to_its_hash(link_side):
+    path, body = "/link/v1/ping", b"{}"
+    h = {**link_side.headers(path, body), "Content-Length": "two"}
+    r = link_side.client.post(path, content=body, headers=h)
+    assert r.status_code == 200, r.text
+
+
+def test_sealed_bytes_cut_off_as_they_arrive_leave_no_file(server):
+    import asyncio
+    import hashlib
+
+    from moolakata.links import gate
+
+    class Cut:
+        async def stream(self):
+            yield b"sealed"
+            raise ConnectionResetError("the caller went away")
+
+    with pytest.raises(ConnectionResetError):
+        asyncio.run(gate._to_file(server, Cut(), hashlib.sha256()))
+    assert list((server.config.data_dir / "links-in").iterdir()) == []

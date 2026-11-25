@@ -432,6 +432,7 @@ async def _serve(server: Server, seed: bool) -> None:
     # (S15.6.5).
     from . import activity
     from .keys import master
+    from .links import copies as linked
 
     with server.db.tx(unscoped="runtime: serve") as s:
         activity.record(
@@ -441,6 +442,8 @@ async def _serve(server: Server, seed: bool) -> None:
             for_admins=True,
             detail={"fingerprint": master.fingerprint(server.store.keys.master_id)},
         )
+        # The restart before this unlock locked every linked copy (S11.8).
+        linked.record_restart(s)
     if server.config.dev:
         from .dev import devmode
 

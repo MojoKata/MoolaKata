@@ -38,7 +38,8 @@
        the access key (S11.9.3). If the copy locks while the window is open, the window
        returns to that request.
     5. **Never mixed**: nothing from a linked household appears in this household's lists,
-       totals, charts, search, portfolios, budgets, taxes or Activity.
+       totals, charts, search, portfolios, budgets, taxes or Activity, but for S11.8's records
+       of the link, which name kinds, owners and counts, never an item's name.
     6. **Can't show yet**: while no worker can run the source's release (S11.10.4), the
        window shows only the household's name and avatar, its sync line and what's missing:
        *doe-parents runs MoolaKata 1.6, which this server can't show yet: allow downloads in

@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from .. import exactjson, net
 from . import PROTOCOL, keys, signing
@@ -38,11 +38,13 @@ REFUSALS = {
 
 def refusal(code: str, status: int, protocols=None) -> str:
     if code == "protocol-unsupported" and isinstance(protocols, list) and protocols:
-        spoken = ", ".join(str(int(p)) for p in protocols if isinstance(p, int))
-        return (
-            f"The other server speaks link protocol {spoken}; this one speaks {PROTOCOL}. "
-            "The older server needs updating."
-        )
+        # The peer's list, quoted as `shown` keeps it, else this server's words alone.
+        spoken = shown(", ".join(str(int(p)) for p in protocols if isinstance(p, int)), "")
+        if spoken:
+            return (
+                f"The other server speaks link protocol {spoken}; this one speaks {PROTOCOL}. "
+                "The older server needs updating."
+            )
     if code.startswith("link-"):
         return f"The link is {code.removeprefix('link-')} on the other server."
     return REFUSALS.get(code, f"The other server refused the call ({code}, HTTP {status}).")
@@ -106,12 +108,43 @@ class LinkError(Exception):
         "unsigned",
     )
 
-    def __init__(self, code: str, message: str, offered: str | None = None):
+    def __init__(
+        self, code: str, message: str, offered: str | None = None, reason: str | None = None
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
         # A certificate key the peer presented that isn't the one pinned for it.
         self.offered = offered
+        # The peer's own reason for refusing a change this server sent, as `shown` keeps it
+        # (S11.7).
+        self.reason = reason
+
+
+SHOWN_MAX = 200  # the longest text a peer chose that this server's alerts carry (S13.7.9)
+# What a peer's refusal of a change shows when its reason isn't one `shown` keeps.
+NO_REASON = "it gave no reason this server shows"
+# What this server's own reason quotes of a value the peer sent that `shown` doesn't keep.
+NOT_SHOWN = "(not shown)"
+# An HTML tag: `<` then a letter, `/`, `!` or `?`, up to the next `>`. A `<` that opens none
+# (`1 < 2`) is kept as text.
+_TAG = re.compile(r"<[A-Za-z/!?][^<>]*>")
+
+
+def shown(text, otherwise: str = NO_REASON) -> str:
+    """A text a peer chose, as this server's alerts and emails may carry it (S13.7.9): its
+    HTML tags stripped, then one printable line of up to `SHOWN_MAX` characters. Any other,
+    and one whose stripping leaves a tag (`<<b>b>`), is `otherwise`, since a peer never puts
+    more than that into this server's alerts and emails."""
+    if not isinstance(text, str):
+        return otherwise
+    text = _TAG.sub("", text)
+    if _TAG.search(text):
+        return otherwise
+    text = text.strip()
+    if not text or len(text) > SHOWN_MAX or not text.isprintable():
+        return otherwise
+    return text
 
 
 def checked_address(address: str) -> str:
@@ -130,7 +163,8 @@ def checked_address(address: str) -> str:
 def _url(address: str, path: str) -> str:
     """The base's own path with the call's appended, never the two strings run together."""
     u = urlsplit(checked_address(address))
-    return urlunsplit((u.scheme, u.netloc, u.path + path, "", ""))
+    path, _, query = path.partition("?")
+    return urlunsplit((u.scheme, u.netloc, u.path + path, query, ""))
 
 
 def _client(srv, pins, max_bytes: int = net.MAX_RESPONSE) -> net.Client:
@@ -214,13 +248,15 @@ def call(
 
 def _refused(address: str, path: str, status: int, out) -> LinkError:
     """A peer's signed refusal as this server's own: its code as `peer_code` keeps it, and the
-    peer's own words in the log only, never in an alert or email (S13.7.9)."""
+    peer's own words in the log only, never in an alert or email (S13.7.9), but for its reason
+    for refusing a change, as `shown` keeps it (S11.7)."""
     out = out if isinstance(out, dict) else {}
     sent = out.get("code")
     log.info("%s refused %s: %r %r", address, path, str(sent)[:40], str(out.get("message"))[:200])
     code = peer_code(sent)
     told = sent if code == "refused" and isinstance(sent, str) and _CODE.match(sent) else code
-    return LinkError(code, refusal(told, status, out.get("protocols")))
+    reason = shown(out.get("message")) if code == "change-refused" else None
+    return LinkError(code, refusal(told, status, out.get("protocols")), reason=reason)
 
 
 def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list, pins=None):
@@ -270,16 +306,17 @@ def iter_file(srv, address: str, peer_key: bytes, file_id: str, digest_out: list
 
 def send_file(srv, address: str, peer_key: bytes, file_id: str, path, digest: str, pins=None):
     """One receipt, sealed to the peer's copy key, sent ahead of the change that names it: its
-    sealed bytes as the body, read from the file as they go (link-protocol.md §4.3)."""
+    sealed bytes as the body, read from the file as they go (link-protocol.md §4.3). The
+    receipt is named in the path's query, which the signature covers, so nothing between the
+    servers can deliver it under another receipt's name."""
     own, own_fp = _own(srv)
-    call_path = "/link/v1/deliver"
+    call_path = f"/link/v1/deliver?file={quote(file_id, safe='')}"
     # Signed over the sealed bytes' hash in place of a body in hand.
     signed = signing.sign_request_digest(own, "POST", call_path, digest, keys.fingerprint(peer_key))
     headers = {
         **signed.headers,
         "MK-Link-Body-SHA256": digest,
         "Content-Type": "application/octet-stream",
-        "MK-Link-File": file_id,
         "MK-Link-Protocol": str(PROTOCOL),
         "MK-Link-Version": srv.version,
     }

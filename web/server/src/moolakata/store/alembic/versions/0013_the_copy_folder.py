@@ -1,5 +1,5 @@
 """A linked copy's folder has a random name, never the link's id, which would date the link on
-disk (schema.md §2.5, requirements S11.9.1): the name is kept on the Link.
+disk (schema.md §2, requirements S11.9.1): the name is kept on the Link.
 
 `Link` is rebuilt to add the column where the table declares it, as 0012 rebuilds `Connector`.
 

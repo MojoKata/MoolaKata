@@ -10,7 +10,7 @@
        machine. It runs with `--no-network`: a runner's egress is open, so the hosts the
        project downloads from (the installer ISOs among them) aren't probed, and one that is
        slow or down fails only a step that uses it. It runs `web/check`'s parts as jobs
-       side by side (the server's tests in eight parts (`MK_TEST_PART`), the first with the
+       side by side (the server's tests in nine parts (`MK_TEST_PART`), the first with the
        static checks and the last with the connector's tests; the browser tests in five parts
        the same way; the parts split by measured time, each test weighing what it took in a
        recent run (`web/server/tests/durations.json`, which `web/dev.sh ci-durations` gathers

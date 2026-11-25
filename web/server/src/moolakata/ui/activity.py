@@ -121,23 +121,23 @@ TEXT = {
     "token.revoked": "{actor} revoked the access token {name}",
     "email.opened": "{actor} opened a written email to {to}: {subject}",
     "link.invited": "{actor} made an invitation for another server",
-    "link.requested": "{actor} asked to link with another server",
+    "link.requested": "{actor} asked to link with {subject}",
     "link.request-received": "Another server asked to link with this one",
-    "link.approved": "{actor} approved a link with another server",
-    "link.paused": "{actor} paused a link",
-    "link.resumed": "{actor} resumed a link",
-    "link.ended": "{actor} ended a link",
-    "link.ended-by-peer": "A linked server ended its link with this one",
+    "link.approved": "{actor} approved the link with {subject}",
+    "link.paused": "{actor} paused the link with {subject}",
+    "link.resumed": "{actor} resumed the link with {subject}",
+    "link.ended": "{actor} ended the link with {subject}",
+    "link.ended-by-peer": "The link with {subject} was ended on its side",
     "link.pulled": "{subject} sent {count} changed items{shares}",
     "link.served": "This server sent {subject} {count} changed items{shares}",
-    "link.pull-asked": "{actor} asked a linked server for its changes now",
-    "link.copy-key-made": "{actor} created a linked copy's access key",
-    "link.copy-unlocked": "{actor} unlocked a linked copy",
+    "link.pull-asked": "{actor} asked {subject} for its changes now",
+    "link.copy-key-made": "{actor} created the access key of the linked copy from {subject}",
+    "link.copy-unlocked": "{actor} unlocked the linked copy from {subject}",
     "link.viewed": "{actor} viewed what {subject} shares",
-    "link.copy-unlock-failed": "{actor} gave wrong words for a linked copy",
-    "link.copy-locked": "{actor} locked a linked copy ({why})",
-    "link.copy-reset": "{actor} reset a linked copy",
-    "link.certificate-accepted": "{actor} accepted a linked server's new certificate",
+    "link.copy-unlock-failed": "{actor} gave wrong words for the linked copy from {subject}",
+    "link.copy-locked": "{actor} locked the linked copy from {subject} ({why})",
+    "link.copy-reset": "{actor} reset the linked copy from {subject}",
+    "link.certificate-accepted": "{actor} accepted the new certificate of {subject}",
     "mcp.called": "{actor}'s access token {name} read {tool}",
     "wallet.changed": "{actor} changed the keys and addresses {subject} watches",
     "option.settled": "{actor} recorded an option's expiry, assignment or exercise in {subject}",
@@ -361,7 +361,9 @@ def _names(s, rows: list[Activity]) -> dict[tuple[str, str], str]:
             if kind not in ("person",) or gone is None:
                 names[(kind, i)] = n
     for i, h, p in read(Link.id, Link.householdName, Link.peerName, where=Link.id.in_(ids("link"))):
-        names[("link", i)] = h or p or "a linked household"
+        # A link is named as its server, unique among them, as Settings › Linked Servers
+        # lists it (S11.8); before its first directory, "another server".
+        names[("link", i)] = p or h or "another server"
     # The other kinds that are shared (S10.3), named as the Share dialog names them; one
     # deleted since is "something".
     for i, n in read(

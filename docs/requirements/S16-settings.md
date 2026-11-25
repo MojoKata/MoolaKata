@@ -4,8 +4,8 @@ One screen with a section list on the left, **General first** and selected when 
 Each section has its own help guide. In the order below, except Storage (17), which follows
 Backups, and Connector (18), which follows Linked servers; 15 is not a section:
 
-1. **General**: server name (shown to linked servers), the **household name and avatar** (an
-   image, or initials; shown at the top of the sidebar here, and sent to linked servers,
+1. **General**: server name (shown to linked servers), the **household name and avatar** (a
+   PNG, JPEG or WebP image of up to 256 KB, or one to three letters on a colour; shown at the top of the sidebar here, and sent to linked servers,
    which always show them as set here, S12.10), public URL (links in emails are built from
    it, never from the request), and the server's time zone, read from the host (S14.9).
 2. **Email (SMTP)**: host, port, security (STARTTLS, TLS or none), username, password (a

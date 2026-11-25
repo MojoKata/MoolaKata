@@ -14,8 +14,10 @@ preparer.
       the one A's listener serves. When neither is known, no invitation is made, since its code
       would carry no key to pin: the dialog says so.
    2. Admin B enters the code on server B, which connects to A, checks A's key against the
-      fingerprint, and sends B's own address and key, signed with it, and nothing else: no user
-      list crosses before A's admin approves. A's admin sees the request with B's fingerprint,
+      fingerprint, and sends the code, B's own address and key, and, when B's certificate is
+      its own, the fingerprint of the certificate's key, which A checks B's certificate
+      against when it calls B, all signed with B's key: no user list crosses before A's admin
+      approves. A's admin sees the request with B's fingerprint,
       compares it with B's admin, and approves or rejects it. B's link waits for the approval,
       which reaches it at once or at its next exchange.
    3. Each server then holds the other's **Ed25519 public key**. Every call between them is
@@ -107,8 +109,8 @@ preparer.
       transfer's other half, a gift's transaction. An account shared as well arrives as its
       own item. The receiving server shows what arrived, drawn by the source's release, with
       its age.
-4. **How data moves**: the receiving server **pulls what changed** in each linked share on a
-   schedule (hourly by default, and on demand), **one pull of a link at a time**: a second
+4. **How data moves**: the receiving server **pulls what changed** in each linked share every
+   hour, and on demand (*Pull now*), **one pull of a link at a time**: a second
    pull of a link waits for the one under way, and a server answering the peer's pull while
    its own pull of that link runs refuses it as busy, never waiting on the peer, so two
    servers pulling each other at once never hold each other up; the refused side asks again
@@ -141,14 +143,18 @@ preparer.
    unlocked the copy. A receipt that doesn't come with its change never holds the change back:
    the change is applied without it, the receipt shows as *not arrived*, and it is asked for
    again at each exchange (`docs/link-protocol.md` §4.3.5). Whatever fails in an exchange is
-   recorded on the link, and alerts as unreachable pulls do (S12.11.1). When the source is
-   unreachable, the copy stays, marked stale. When the
+   recorded on the link and alerted (S12.11.1): a peer that doesn't answer as *unreachable*,
+   one that answers but whose data is refused here as *refusing*, and one that refuses what
+   this server sent as *refused by* it (S11.7). When the source
+   is unreachable, the copy stays, marked stale. When the
    share or the link is removed, the other side learns at its next exchange and deletes the
-   copy, or the receiving admin does at once. A Pause (S11.7.2) stops data, never a removal or
-   an end, which still cross. While a copy can't take data (no release to draw it, S11.10.4,
-   or its inbox at its cap, S11.9.5.4), its pulls bring only what is shared and removed, so a
-   removal or an end still takes effect, and the first full pull after it catches up from
-   what the copy holds.
+   copy, or the receiving admin does at once. A **Pause** (S11.7.2) stops data and files, in
+   both directions, never a removal, a narrowing or an end: a paused link still pulls both
+   ways, but brings only its removals and narrowings, the shares taken back and the people
+   taken off a share still shared, who then no longer see it in the copy. The pulls of a copy
+   that can't take data (no release to draw it, S11.10.4, or its inbox at its cap, S11.9.5.4)
+   bring only what is shared and removed. Either way a removal or an end still takes effect,
+   and the first full pull after it catches up from what the copy holds.
 5. **What crosses a link, and what never does**:
    1. **Receipts** cross only when the owner ticks **Include receipts** on the share to that
       link (off by default). Receipts are large and personal, so sending them is a choice made
@@ -176,19 +182,31 @@ preparer.
    two servers have, and a second join with it is refused. The states and what moves a link
    between them are `docs/link-protocol.md` §4.6.
 7. **Settings › Linked Servers** lists each link: the peer's name and address, its
-   fingerprint, state (invited, requested, pending, active, paused, unreachable, broken,
-   ended; until when a pause lasts and since when it is unreachable in the state's tooltip),
-   the last pull, and
-   what flows each way, with *Pull now*, *Pause* and *End link*.
+   fingerprint, state (invited, requested, pending, active, paused, unreachable, refusing,
+   refused by *<peer's server name>*, broken, ended; until when a pause lasts, since when it
+   is unreachable, and what was refused and why in the state's tooltip), the last pull, and
+   what flows each way, with *Pull now*, *Pause* and *End link*. **Unreachable** is a peer
+   that doesn't answer; **refusing** is one that answers but whose data this server refuses:
+   a directory that doesn't fit (`docs/link-protocol.md` §4.2), a change that doesn't check,
+   a paused link's change holding more than removals and narrowings, or an exchange failing
+   here on something unexpected. It lasts until an exchange takes all the peer sends.
+   **Refused by** the peer is the other way round: it answered a change this server sent
+   with `change-refused`, its reason in the tooltip and alert (its HTML tags stripped, one
+   printable line of up to 200 characters; any other reason isn't shown, and *it gave no
+   reason this server shows* is said instead), and it lasts until the peer takes a change this
+   server sends, or has all of it. *Pull now* says each the same way its alert does
+   (S12.11.1.1).
    1. **Progress**: while a pull is under way, how far it has come both in time and in
       quantity: *Up to Jul 1, 2024 (47 MB of 2 GB)*, the day being the newest record applied so
       far and the sizes what has arrived of what the source said it would send, with **two
       thin bars** under it: one by date, from the oldest record the change holds to today,
       filled to the day reached, and one by size.
-   2. **Pause** stops pulling, and answering the peer's pulls, for a **duration** the admin
-      types (S12.13), at most 52 weeks, after which the link resumes on its own; a longer stop
-      is what *End link* is for. The field starts empty, its **default** fills in `1d` and its
-      **max** `52w` (R3.11); a blank is refused. *Resume now* ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
+   2. **Pause** stops data and files crossing the link, both ways, for a **duration** the
+      admin types (S12.13), at most 52 weeks, after which the link resumes on its own; a longer
+      stop is what *End link* is for. A paused link still pulls, and answers the peer's pulls,
+      for its removals and narrowings alone, so a share taken back, or someone taken off one,
+      still crosses, as an end does (S11.4). The field starts empty, its **default** fills in
+      `1d` and its **max** `52w` (R3.11); a blank is refused. *Resume now* ends it early. A paused link shows when it resumes, and isn't alerted as unreachable.
    3. **The linked copy**: the changes waiting to be applied (*waiting for an unlock* at the
       inbox's cap, S11.9.5.4), when its access key was made and by whom, whether it is
       unlocked (by whom, and when it will lock), and the source's release with whether this
@@ -196,10 +214,15 @@ preparer.
       the access key* (S11.9.2), **Allow downloads** (S11.10.2), *Lock now* and *Reset copy*
       (S11.9.8). The section also sets **Release linked keys after** (S11.9.4), one hour
       unused by default.
-8. **Audit**: each pull is recorded on both sides (who, when, which shares, how much changed),
-   and each pause and resume on the side that made it. The receiving side records who viewed
-   linked data, and every unlock (who), failed unlock, release (unused, Lock now or restart),
-   access key made, and reset of a linked copy.
+8. **Audit**: a link's records go to this household's Activity, where admins see them, a link
+   being an admin's matter (S11.7), as each person sees what they did (S10.8). They name a share by its kind, its owner and the people it
+   names, with counts, never by an item's name, which stays inside the linked copy (S11.3):
+   *doe-parents sent 2 changed items: Candace Doe's account for Jane Doe*. Each names its link,
+   by the peer's server name (*Jane unlocked the linked copy from doe-parents*). Each pull is
+   recorded on both sides (who, when, which shares, how much changed), and each pause and
+   resume on the side that made it. The receiving side records who viewed linked data, and
+   every unlock (who), failed unlock, release (unused, Lock now or restart), access key made,
+   and reset of a linked copy.
 9. **Linked copies: kept apart and encrypted**. What a link brings in is
    someone else's money. A copy of it should not sit readable on this server's disk or in
    its backups, or be readable by malware on this server while nobody is using it. Its
@@ -209,7 +232,7 @@ preparer.
       directory, `links/<random name>/`, never in the main database:
 
       ```
-      links/<random name>/        named at random, never by the link's id (schema.md §2.5)
+      links/<random name>/        named at random, never by the link's id (schema.md §2)
         shared.db                 SQLCipher: the shared items' rows in the source's own
                                   schema (S11.3.1), budgets' monthly totals, the documents
                                   worked out at the source, receipt records, the text read
@@ -285,9 +308,11 @@ preparer.
          never wait in the inbox; one that arrives after its change (S11.4) reaches the copy
          as soon as it is open.
       3. The inbox is **applied** in order, in one transaction, as soon as the copy is
-         unlocked. Each change's signature is checked first, and where it starts, sealed
-         inside it, must be where the last one applied reached (S11.4), so an older change put
-         back is refused; a
+         unlocked. Each change's signature is checked first. Where it starts is in its
+         registry, which the signature covers and which waits beside it sealed to the copy's
+         key (S11.9.1), and must be where the last one applied reached (S11.4); where it
+         reaches is named in its sealed part's associated data, so the sealed part opens only
+         as the change the registry says. An older change put back is therefore refused; a
          change that fails (its signature, its sequence or its shape) is set aside and
          reported, and the copy asks the source for everything. Applied files are deleted.
          While a copy stays unlocked, new pulls are applied as they arrive.

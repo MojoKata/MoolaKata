@@ -574,11 +574,10 @@ def test_a_node_certificate_is_trusted_once_confirmed(server, admin_client):
     assert "The bitcoin node's certificate changed" not in titles
 
 
-@pytest.mark.parametrize("key", ["bitcoinNodeCert", "bitcoinNodeCertOffered", "linkCertificate"])
+@pytest.mark.parametrize("key", ["bitcoinNodeCert", "bitcoinNodeCertOffered"])
 def test_what_the_server_keeps_for_itself_is_no_setting_a_save_writes(server, admin_client, key):
-    """The certificate pins and the key told to peers are written by their own routes and tasks
-    (S1.6.2.4, link-protocol.md §4.5): a save naming one is refused, made or changed, and
-    Settings never sends them."""
+    """The certificate pins are written by their own routes (S1.6.2.4): a save naming one is
+    refused, made or changed, and Settings never sends them."""
     from moolakata import settings
 
     r = save_settings(admin_client, {key: "ab" * 32})

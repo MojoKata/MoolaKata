@@ -69,7 +69,11 @@ class LinkOut(Model):
     codeExpiresAt: dt.datetime | None
     lastOkAt: dt.datetime | None
     lastError: str | None
-    failingSince: dt.datetime | None
+    failingSince: dt.datetime | None  # no answer since then: unreachable (S11.7)
+    # What the peer sent that was refused, and why: it answered, so refusing (S11.7).
+    refusal: str | None = None
+    # What this server sent that the peer refused, and its reason: refused by it (S11.7).
+    peerRefusal: str | None = None
     createdAt: dt.datetime
     endedAt: dt.datetime | None
     pausedUntil: dt.datetime | None  # a pause resumes on its own then (S11.7.2)
@@ -158,9 +162,15 @@ def _incoming(s, link: Link) -> list[Incoming]:
     return out
 
 
-def _outgoing(s, link: Link) -> list[Incoming]:
+def _outgoing(srv, link: Link) -> list[Incoming]:
     """The shares this server sends over the link: one entry per item, with the people there
-    it names."""
+    it names. Read as the server reads them to send them, not as the admin may read each
+    item: only its kind, owner and people are shown (S11.7)."""
+    with srv.db.read(unscoped="ui.links: outgoing") as s:
+        return _sent(s, link)
+
+
+def _sent(s, link: Link) -> list[Incoming]:
     from .. import sharing
     from ..errors import Problem
 
@@ -181,9 +191,7 @@ def _outgoing(s, link: Link) -> list[Incoming]:
             try:
                 obj = sharing.item(s, g.kind, g.targetId)
             except Problem:
-                continue
-            if getattr(obj, "deleted", False):
-                continue
+                continue  # gone, deleted among them: not sent, so not listed (S11.7)
             owner_id = getattr(obj, "ownerId", None)
             owner = s.get(User, owner_id) if owner_id else None
             e = out[(g.kind, g.targetId)] = Incoming(
@@ -220,6 +228,8 @@ def _out(s, link: Link, srv=None) -> LinkOut:
         lastOkAt=link.lastOkAt,
         lastError=link.lastError,
         failingSince=link.failingSince,
+        refusal=link.refusal,
+        peerRefusal=link.peerRefusal,
         createdAt=link.createdAt,
         endedAt=link.endedAt,
         pausedUntil=link.pausedUntil,
@@ -235,7 +245,7 @@ def _out(s, link: Link, srv=None) -> LinkOut:
         brokenAt=link.brokenAt,
         linkedCopy=_copy(s, srv, link) if srv is not None else None,
         incoming=_incoming(s, link),
-        outgoing=_outgoing(s, link),
+        outgoing=_outgoing(srv, link) if srv is not None else [],
     )
 
 
@@ -365,7 +375,7 @@ def pull_now(link_id: str, request: Request, c: Caller = Depends(admin)):
     """An exchange now rather than at the next hour (S11.7), recorded with who asked (S11.8)."""
     with server(request).db.tx(user=c.id) as s:
         if s.get(Link, link_id) is not None:
-            activity.record(s, "link.pull-asked", actor=c.id, for_admins=True)
+            activity.record(s, "link.pull-asked", actor=c.id, **activity.about_link(link_id))
     return _act(request, c, link_id, lambda srv: manage.exchange(srv, link_id))
 
 
@@ -411,8 +421,13 @@ def accept_certificate(link_id: str, request: Request, c: Caller = Depends(admin
 @router.post("/settings/links/{link_id}/lock", response_model=LinkOut)
 def lock_copy(link_id: str, request: Request, c: Caller = Depends(admin)):
     from ..links import copies
+    from ..links.copy import CopyError
 
-    return _act(request, c, link_id, lambda srv: copies.lock(srv, link_id, c.id, True))
+    try:
+        copies.lock(server(request), link_id, c.id, True)
+    except CopyError as e:
+        raise _copy_problem(e) from None
+    return _act(request, c, link_id, lambda srv: None)
 
 
 @router.post("/settings/links/{link_id}/reset-copy", response_model=JobOut, status_code=202)

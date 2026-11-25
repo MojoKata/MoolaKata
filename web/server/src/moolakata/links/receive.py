@@ -26,16 +26,49 @@ def _missing(s, link_id: str, file_id: str):
     ).first()
 
 
-def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = None) -> set[str]:
+def _texts(v) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+def removals_only(change) -> bool:
+    """Whether a change is a paused link's (link-protocol.md §4.3.6): its removals and
+    narrowings alone (each an item still shared, and the people taken off it), with no item,
+    data, file or sealed part."""
+    return (
+        isinstance(change, dict)
+        and set(change) <= changes.PAUSED
+        and _texts(change.get("removed"))
+        and isinstance(change.get("narrowed", []), list)
+        and all(
+            isinstance(n, dict)
+            and set(n) == {"id", "viewers"}
+            and isinstance(n["id"], str)
+            and _texts(n["viewers"])
+            for n in change.get("narrowed", [])
+        )
+    )
+
+
+def take(
+    srv,
+    link_id: str,
+    change: dict,
+    delivered: dict[str, str] | None = None,
+    registry_only: bool = False,
+) -> set[str]:
     """Take a change from the peer. Out of sequence, the next exchange asks for everything.
     `delivered`: the receipts the peer sent with it (their ids and the names they were kept
     under); any other it names is fetched. A receipt that can't be fetched never holds the
     change back: it is kept as not arrived, and asked for again at each exchange. Returns the
-    receipts that weren't fetched."""
+    receipts that weren't fetched. `registry_only`: the link is paused on either side, and the
+    change is taken only when it holds removals alone (S11.4)."""
     with srv.db.read(unscoped="links.receive: take") as s:
         link = s.get(Link, link_id)
         peer, got = unb64(link.peerKey), link.gotSeq
     changes.verify(peer, change)
+    if registry_only:
+        _take_removals(srv, link_id, change)
+        return set()
     seq = int(change.get("seq") or 0)
     full = bool(change.get("full"))
     if not full and seq != got + 1:
@@ -116,6 +149,52 @@ def take(srv, link_id: str, change: dict, delivered: dict[str, str] | None = Non
     return set(failed)
 
 
+def _take_removals(srv, link_id: str, change: dict) -> None:
+    """A paused link's change (S11.4): its items removed here, and the people taken off those
+    still shared no longer named by them, and so, through the inbox, in the copy; the sequence
+    unmoved, so the first full exchange after the pause carries on from where the last one
+    stopped. Anything more in it is refused. One sent again (the source repeats it until the
+    resume) finds nothing left to change and does nothing."""
+    if not removals_only(change):
+        raise changes.ChangeError(
+            f"change {changes.seq_of(change)} comes over a paused link but holds more than "
+            "removals and narrowings"
+        )
+    narrowed = {n["id"]: set(n["viewers"]) for n in change.get("narrowed", [])}
+    with srv.db.tx(unscoped="links.receive: take removals") as s:
+        rows = list(
+            s.scalars(
+                select(LinkedItem).where(
+                    LinkedItem.linkId == link_id, LinkedItem.remoteId.in_(change["removed"])
+                )
+            )
+        )
+        for row in rows:
+            s.delete(row)
+        for row in s.scalars(
+            select(LinkedItem).where(
+                LinkedItem.linkId == link_id, LinkedItem.remoteId.in_(list(narrowed))
+            )
+        ):
+            had = json.loads(row.viewers or "[]")
+            left = [v for v in had if v not in narrowed[row.remoteId]]
+            if left != had:
+                row.viewers = json.dumps(left)
+                rows.append(row)
+        if rows:
+            activity.record(
+                s,
+                "link.pulled",
+                actor=None,
+                subject_kind="link",
+                subject_id=link_id,
+                for_admins=True,
+                detail={"count": len(rows), "shares": []},
+            )
+    if rows:
+        changes.enqueue(srv, link_id, change, {"registryOnly": True})
+
+
 def shares_of(s, link_id: str, change: dict, here: bool) -> list[str]:
     """Which shares a change carried, for Activity (S11.8): whose item, of what kind, and for
     whom, never its name (*Jane Doe's account for Bart*). `here`: its viewers are this
@@ -162,6 +241,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
     import secrets
 
     from . import client, manage, sealed
+    from .client import NOT_SHOWN, shown
     from .copy import folder
 
     with srv.db.read(unscoped="links.receive: fetch files") as s:
@@ -180,7 +260,8 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
         try:
             sealed.write(d / name, client.iter_file(srv, address, peer, fid, digest, pins))
             if not digest:
-                raise changes.ChangeError(f"receipt {fid} came unsigned")
+                # The id is the peer's, so only as `shown` keeps it (S13.7.9).
+                raise changes.ChangeError(f"receipt {shown(str(fid), NOT_SHOWN)} came unsigned")
         except (client.LinkError, changes.ChangeError, OSError) as e:
             (d / name).unlink(missing_ok=True)
             (d / (name + ".tmp")).unlink(missing_ok=True)

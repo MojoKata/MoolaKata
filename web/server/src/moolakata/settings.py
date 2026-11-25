@@ -158,21 +158,31 @@ def _address(v: Any) -> str | None:
     return v.strip()
 
 
-def _avatar(v: Any) -> dict:
-    """The household's avatar: initials with a colour, or an uploaded image's id."""
+# A household's image avatar (S16.1): a PNG, JPEG or WebP image as a data URL of up to
+# 256 KB, the bound a user's avatar has, so what one server keeps its peers keep too (S11.3).
+AVATAR_IMAGE = re.compile(r"data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+")
+AVATAR_MAX = 256 * 1024
+
+
+def avatar(v: Any) -> dict:
+    """The household's avatar: initials with a colour, or an image. A linked server's is
+    checked the same way before it is kept (link-protocol.md §4.2)."""
     if not isinstance(v, dict) or v.get("kind") not in ("initials", "image"):
         raise Invalid("initials or an image")
     if v["kind"] == "initials":
-        initials = str(v.get("initials", "")).strip()
+        initials = v.get("initials", "")
+        initials = initials.strip() if isinstance(initials, str) else ""
         if not 1 <= len(initials) <= 3:
             raise Invalid("one to three letters")
-        color = str(v.get("color", "#3b7a57"))
-        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        color = v.get("color", "#3b7a57")
+        if not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
             raise Invalid("a colour such as #3b7a57")
         return {"kind": "initials", "initials": initials, "color": color}
     image = v.get("image")
-    if not isinstance(image, str) or not image.startswith("data:image/"):
-        raise Invalid("an image")
+    if not isinstance(image, str) or not AVATAR_IMAGE.fullmatch(image):
+        raise Invalid("a PNG, JPEG or WebP image")
+    if len(image) > AVATAR_MAX:
+        raise Invalid("an image of up to 256 KB")
     return {"kind": "image", "image": image}
 
 
@@ -206,7 +216,7 @@ _d(
     "householdAvatar",
     "general",
     {"kind": "initials", "initials": "MK", "color": "#3b7a57"},
-    _avatar,
+    avatar,
 )
 _d("publicUrl", "general", None, _url)
 # Email (S16.2): until a host is set, emails are written to the mail folder
@@ -243,8 +253,6 @@ _d("bitcoinNodeCertOffered", "bitcoin", None, _optional_text(64), internal=True)
 # Linked servers (S16.9, S11): the address peers reach this server's /link at (the public URL
 # when not set), and how long an unlocked linked copy may go unused (S11.9.4)
 _d("linkAddress", "links", None, _link_url)
-# This server's own certificate key as last told to its peers (link-protocol.md §4.5).
-_d("linkCertificate", "links", None, _optional_text(64), internal=True)
 _d("linkReleaseMinutes", "links", 60, _int(5, 24 * 60))
 # The connector (S16.18, S18.4.1): the address the connector reaches this server at, which a
 # pairing code carries (the public URL when not set); never the link address, which may lead to

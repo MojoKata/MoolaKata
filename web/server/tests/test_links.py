@@ -5,9 +5,11 @@ import time
 
 import pytest
 from linkpair import Wire, make_server
+from sqlalchemy import select
 
-from moolakata import ids
+from moolakata import alerts, clock, ids
 from moolakata.links import client, keys, signing
+from moolakata.store.entities.alerts import Alert
 from moolakata.store.entities.links import Link
 
 
@@ -232,6 +234,108 @@ def test_the_directory_follows_the_peers_users(admins):
     )
 
 
+def test_a_directory_that_doesnt_fit_is_refused_whole_and_said_on_the_link(admins):
+    from moolakata import settings
+    from moolakata.store.entities.core import Setting
+
+    a, b, ca, cb, _ = admins
+    a_id, _b_id = linked(ca, cb)
+    before = links_of(ca)["links"][0]
+    assert before["householdAvatar"]["kind"] == "initials"
+    # A peer's avatar that isn't an object, written past b's own check.
+    with b.db.tx(unscoped="test") as s:
+        s.add(Setting(id=ids.new_id("Setng"), key="householdAvatar", value='["x"]'))
+        settings.put(s, "householdName", "Not kept", None)
+    make_user(b, "dave")
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    # Refusing, never unreachable: it answered (S11.7).
+    why = (
+        "its household's avatar isn't initials or an image, so the household and users kept "
+        "before stay"
+    )
+    assert out["refusal"] == why
+    assert out["failingSince"] is None and out["lastError"] is None, "it was reached"
+    after = links_of(ca)["links"][0]  # answered, not a 500
+    assert after["householdAvatar"] == before["householdAvatar"]
+    assert after["householdName"] == before["householdName"], "none of it is kept"
+    assert "dave" not in {u["username"] for u in after["users"]}
+    assert after["state"] == "active"
+    # Alerted at once, in its own words (S12.11.1.1).
+    alerts.evaluate(a)
+    (alert,) = [x for x in ca.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refusing"]
+    assert alert["title"] == f"{after['peerName']} answered, but what it sent was refused: {why}"
+    assert not [x for x in ca.get("/ui/api/alerts").json()["open"] if "not reached" in x["title"]]
+    with b.db.tx(unscoped="test") as s:
+        s.query(Setting).filter(Setting.key == "householdAvatar").delete()
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["refusal"] is None
+    assert "dave" in {u["username"] for u in out["users"]}
+    alerts.evaluate(a)
+    assert not [x for x in ca.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refusing"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "why"),
+    [
+        ({"household": ["x"]}, "its household isn't an object"),
+        ({"household": {"avatar": ["x"]}}, "its household's avatar isn't initials or an image"),
+        (
+            {"household": {"avatar": {"kind": "image", "image": "data:image/gif;base64,R0"}}},
+            "its household's avatar isn't a PNG, JPEG or WebP image",
+        ),
+        ({"household": {"serverName": 7}}, "its server name isn't text"),
+        ({"household": {"name": "x" * 61}}, "its household's name is longer than 60 characters"),
+        ({"users": {"id": "u"}}, "its users aren't a list of objects"),
+        ({"users": ["u"]}, "its users aren't a list of objects"),
+        ({"users": [{"username": "jo"}]}, "a user has no id"),
+        ({"users": [{"id": 5}]}, "a user's id isn't text"),
+        ({"users": [{"id": "u" * 65}]}, "a user's id is longer than 64 characters"),
+        ({"users": [{"id": "u", "email": ["a@b.c"]}]}, "an email isn't text"),
+        ({"users": [{"id": "u", "email": "a" * 255}]}, "an email is longer than 254 characters"),
+        ({"users": [{"id": "u", "displayName": {"x": 1}}]}, "a display name isn't text"),
+        ({"users": [{"id": "u", "username": 1}]}, "a username isn't text"),
+        (
+            {"users": [{"id": f"u{n}"} for n in range(201)]},
+            "its directory lists 201 users, more than 200",
+        ),
+    ],
+)
+def test_each_field_of_a_peers_directory_is_checked_before_any_is_kept(payload, why):
+    from moolakata.links import manage
+
+    with pytest.raises(manage.BadDirectory) as e:
+        manage._checked(payload)
+    assert str(e.value) == why
+
+
+def test_a_peers_directory_is_kept_within_its_bounds():
+    from moolakata.links import manage
+
+    h, users = manage._checked(
+        {
+            "household": {"serverName": "doe-parents", "name": "x" * 60},
+            "users": [
+                {"id": "u" * 64, "username": "n" * 70, "displayName": "d" * 130, "sex": "other"},
+                {"id": "v", "email": "e" * 254, "sex": "female"},
+            ],
+        }
+    )
+    assert h == {"serverName": "doe-parents", "name": "x" * 60, "avatar": None}
+    assert users == [
+        {
+            "id": "u" * 64,
+            "username": "n" * 64,
+            "displayName": "d" * 120,
+            "email": None,
+            "sex": "male",
+        },
+        {"id": "v", "username": None, "displayName": None, "email": "e" * 254, "sex": "female"},
+    ]
+    assert manage._checked({}) == (None, None), "no directory: nothing to keep"
+    _, users = manage._checked({"users": [{"id": f"u{n}"} for n in range(200)]})
+    assert len(users) == 200, "200 users are kept"
+
+
 def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):
     _a, _b, ca, cb, _ = admins
     code = ca.post("/ui/api/settings/links/invitations").json()["code"]
@@ -245,7 +349,65 @@ def test_a_code_for_another_key_or_a_damaged_code_is_refused(admins):
     assert r.json()["code"] == "code-invalid"
 
 
-def test_pausing_stops_exchanges_and_ending_reaches_the_other_side(admins):
+def test_any_failure_of_one_links_exchange_is_recorded_on_it_and_the_next_goes_on(
+    server, monkeypatch
+):
+    """link-protocol.md §4.3, S11.9.5.3: a peer's answer the exchange can't read (a `more`
+    that isn't a number, an item without an id) fails that link alone, recorded on it as
+    refused, since the peer answered (S11.7), and alerted; the hourly run goes on to every link
+    after it, and Pull now says the same."""
+    from moolakata.links import client, manage
+
+    ids_ = [link(server, f"https://{n}.test", bytes([n]) * 32) for n in (1, 2)]
+    called = []
+
+    def broken(srv, link_id):
+        called.append(link_id)
+        raise ValueError("invalid literal for int() with base 10: 'x'")
+
+    monkeypatch.setattr(manage, "_exchange", broken)
+    manage.exchange_all(server)
+    assert sorted(called) == sorted(ids_), "each link's exchange is made"
+    why = "the exchange failed here: ValueError: invalid literal for int() with base 10: 'x'"
+    with server.db.read(unscoped="test") as s:
+        for link_id in ids_:
+            row = s.get(Link, link_id)
+            assert row.refusal == why
+            assert row.failingSince is None and row.lastError is None, "it answered"
+    with pytest.raises(client.LinkError) as e:
+        manage.exchange(server, ids_[0])  # Pull now's
+    assert (e.value.code, e.value.message) == ("refused", why)
+    alerts.evaluate(server)
+    with server.db.read(unscoped="test") as s:
+        titles = {a.title for a in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+    assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_a_refusing_link_is_alerted_even_while_paused_and_never_as_unreachable(server):
+    # S11.7.2, S12.11.1.1: a paused link isn't alerted as unreachable; refused data still is.
+    from moolakata import clock
+
+    paused, failing = (link(server, f"https://{n}.test", bytes([n]) * 32) for n in (1, 2))
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(Link, paused)
+        row.state, row.peerName = "paused", "doe-parents"
+        row.refusal = "change 3 isn't in the shape of a change"
+        row.failingSince, row.lastError = clock.now(), "doe-parents didn't answer"
+        row = s.get(Link, failing)
+        row.peerName = "ortiz-cpa"
+        row.failingSince, row.lastError = clock.now(), "ortiz-cpa didn't answer"
+    with server.db.read(unscoped="test") as s:
+        causes = {c.kind: c for c in alerts.linked_servers(s, server)}
+    assert set(causes) == {"link-refusing", "source-failing"}
+    assert causes["link-refusing"].title == (
+        "doe-parents answered, but what it sent was refused: change 3 isn't in the shape of a "
+        "change"
+    )
+    assert causes["link-refusing"].key == f"link-refused:{paused}"
+    assert causes["source-failing"].title.startswith("ortiz-cpa not reached for")
+
+
+def test_a_pause_is_told_to_the_peer_and_ending_reaches_the_other_side(admins):
     _a, _b, ca, cb, wire = admins
     a_id, b_id = linked(ca, cb)
     # The duration is asked for: missing, blank or empty is refused, never read as 1d (R3.11).
@@ -742,7 +904,7 @@ def test_a_malformed_change_is_set_aside_and_everything_asked_for(admins, monkey
     cb.post(f"/ui/api/settings/links/{b_id}/pull")
     assert changes.waiting(b.config.data_dir, b_id)
     texts = [e["text"] for e in cb.get("/ui/api/activity").json()["items"]]
-    assert any(t.endswith("asked a linked server for its changes now") for t in texts)
+    assert "Admin B asked moolakata for its changes now" in texts, texts[:4]
     assert any("changed items: Jane" in t and "account for Bart" in t for t in texts), texts[:4]
     real = changes.open_part
     monkeypatch.setattr(changes, "open_part", lambda *x: {**real(*x), "items": [{"id": 5}]})
@@ -919,16 +1081,46 @@ def test_an_own_certificate_that_cant_be_read_is_not_announced_as_public(pair, m
     from moolakata.links import manage
 
     a, b, _, _ = pair
-    link(a, "https://b.test", public(b))
+    a_id = link(a, "https://b.test", public(b))
     told = "aa" * 32
     with a.db.tx(unscoped="test") as s:
-        settings.put(s, "linkCertificate", told, None)
+        s.get(Link, a_id).ownCertTold = told
         settings.put(s, "linkAddress", "https://127.0.0.1:8443", None)
     monkeypatch.setattr(certs, "_cached", {})
     assert certs.own_key(a) is None
     assert manage.announce_certificate(a) == 0
     with a.db.read(unscoped="test") as s:
-        assert settings.get(s, "linkCertificate") == told
+        assert s.get(Link, a_id).ownCertTold == told
+
+
+def test_a_new_certificate_is_told_again_until_each_peer_has_it(admins, monkeypatch):
+    """link-protocol.md §4.5: a peer that missed the announcement (down at that run) is told
+    at the next run; one told isn't told again; a public certificate is never announced, and
+    the key last told stays for a later one of this server's own."""
+    from moolakata import certs
+    from moolakata.links import manage
+
+    a, b, ca, cb, wire = admins
+    a_id, b_id = linked(ca, cb)
+    own = {"key": "dd" * 32}
+    monkeypatch.setattr(certs, "own_key_read", lambda srv, use="link": own["key"])
+    wire.down.add("a.test")
+    assert manage.announce_certificate(b) == 0
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).peerCertNext is None
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold is None, "not reached, so not told"
+    wire.down.clear()
+    assert manage.announce_certificate(b) == 1, "told at the next run"
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).peerCertNext == own["key"]
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold == own["key"]
+    assert manage.announce_certificate(b) == 0, "told once it has it"
+    own["key"] = None
+    assert manage.announce_certificate(b) == 0
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).ownCertTold == "dd" * 32
 
 
 UNREAD = (
@@ -1258,3 +1450,359 @@ def test_a_tax_books_document_files_cross_when_included(admins):
     assert [f["meta"]["payee"] for f in files] == ["W-2 · Acme Corp"]
     got = bart.get(f"/ui/api/linked/{b_id}/files/{files[0]['id']}")
     assert got.status_code == 200 and got.content == image
+
+
+# ---------- a paused link (S11.4, S11.7.2, link-protocol.md §4.3.6)
+
+
+def test_a_paused_link_takes_removals_both_ways_and_never_data_or_files(admins):
+    """A pause stops data and files both ways, never a removal: shares taken back on either
+    side cross a paused link, whichever side calls; a changed record and a receipt wait for the
+    resume, and an item shared again while paused comes back whole then."""
+    from test_receipts import png
+
+    a, b, ca, cb, wire = admins
+    make_user(a, "anna")
+    make_user(b, "bart")
+    a_id, b_id = linked(ca, cb)
+    make_user(a, "jane")
+    make_user(b, "john")
+    jane, john = sign_in(a, "jane"), sign_in(b, "john")
+    bart_here = next(u for u in links_of(ca)["links"][0]["users"] if u["username"] == "bart")
+    anna_there = next(u for u in links_of(cb)["links"][0]["users"] if u["username"] == "anna")
+    to_bart, to_anna = {bart_here["id"]: "read"}, {anna_there["id"]: "read"}
+    gone_bart, gone_anna = {bart_here["id"]: "none"}, {anna_there["id"]: "none"}
+    brokerage = make(jane, "Acct", name="Brokerage", type="brokerage").json()["id"]
+    checking = make(jane, "Acct", name="Checking", type="checking").json()["id"]
+    ira = make(jane, "Acct", name="IRA", type="ira").json()["id"]
+    savings = make(john, "Acct", name="Savings", type="savings").json()["id"]
+    add(jane, checking, amount="1200.00", payee="Pension")
+    words_b = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    words_a = ca.post(f"/ui/api/settings/links/{a_id}/copy-key").json()["words"]
+    for acct in (brokerage, ira):
+        assert share(jane, "account", acct, users=to_bart).status_code == 200
+    r = share(jane, "account", checking, users=to_bart, receipts={a_id: True})
+    assert r.status_code == 200
+    assert share(john, "account", savings, users=to_anna).status_code == 200
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    bart, anna = sign_in(b, "bart"), sign_in(a, "anna")
+    bart_id = bart.get("/ui/api/session").json()["user"]["id"]
+    balance = (checking, f"/accounts/{checking}", bart_id)
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words_b)}).is_success
+    assert anna.post(f"/ui/api/linked/{a_id}/unlock", json={"words": " ".join(words_a)}).is_success
+    assert set(docs_in(b, b_id)[0]) == {brokerage, checking, ira}
+    assert set(docs_in(a, a_id)[0]) == {savings}
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    make_user(b, "carl")  # nor does a directory cross while paused
+    t = add(jane, checking, amount="-40.00", payee="Pharmacy")
+    rid = jane.post(
+        "/ui/api/receipts", files={"file": ("r.png", png(), "application/octet-stream")}
+    ).json()["id"]
+    saved(attach(jane, rid, t["id"]))
+    assert share(jane, "account", brokerage, users=gone_bart).status_code == 200
+    assert share(john, "account", savings, users=gone_anna).status_code == 200
+    calls: list[str] = []
+    wire.fail = lambda m, url, kw: calls.append(url)
+    # Pull now on the paused side: its exchange carries the removals alone, both ways.
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["state"] == "paused" and out["lastError"] is None
+    assert docs_in(a, a_id)[0] == {}, "John's share taken back reaches A's copy"
+    assert anna.get("/ui/api/linked").json()["items"] == []
+    items, docs = docs_in(b, b_id)
+    assert set(items) == {checking, ira}, "Jane's share taken back reaches B's copy"
+    assert docs[balance]["balance"] == "1200.00", "no data crosses"
+    assert bart.get(f"/ui/api/linked/{b_id}/files").json()["items"] == [], "nor a receipt"
+    # The other side's exchange with the paused one: the same, and it isn't alerted; a locked
+    # copy takes the removal at its unlock.
+    assert share(jane, "account", ira, users=gone_bart).status_code == 200
+    bart.post(f"/ui/api/linked/{b_id}/lock")
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert "paused" in out["lastError"] and out["failingSince"] is None
+    assert bart.get(f"/ui/api/linked/{b_id}").json()["waiting"] == 1
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words_b)}).is_success
+    assert set(docs_in(b, b_id)[0]) == {checking}
+    # Shared again while paused: nothing of it crosses until the pause ends.
+    assert share(jane, "account", brokerage, users=to_bart).status_code == 200
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    assert set(docs_in(b, b_id)[0]) == {checking}
+    assert not [u for u in calls if "/next" in u or "/file" in u or "?file=" in u], calls
+    wire.fail = None
+    users_a = lambda: {u["username"] for u in links_of(ca)["links"][0]["users"]}  # noqa: E731
+    assert "carl" not in users_a()
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/resume").is_success
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert out["lastError"] is None
+    assert "carl" in users_a()
+    items, docs = docs_in(b, b_id)
+    assert set(items) == {brokerage, checking}, "caught up, the item shared again whole"
+    assert docs[balance]["balance"] == "1160.00"
+    assert (brokerage, f"/accounts/{brokerage}", bart_id) in docs
+    (f,) = bart.get(f"/ui/api/linked/{b_id}/files").json()["items"]
+    assert f["arrived"] is True
+
+
+def test_a_paused_side_refuses_data_and_takes_nothing_but_removals(admins):
+    """link-protocol.md §4.3.6: a paused side refuses `next`, `file`, a receipt's `deliver` and
+    a delivered change holding more than removals with `link-paused`; a change from a paused
+    link that holds more than its removals is refused, and one that holds them moves no
+    sequence."""
+    import hashlib
+
+    from moolakata.links import changes, manage, receive
+
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    with a.db.read(unscoped="test") as s:
+        own_a = keys.private_key(s, a.keys.secrets)
+    with b.db.read(unscoped="test") as s:
+        own_b = keys.private_key(s, b.keys.secrets)
+        row = s.get(Link, b_id)
+        url_a, key_a, got = row.address, keys.unb64(row.peerKey), row.gotSeq
+    when = "2026-01-01T00:00:00"
+    beyond = (
+        {"seq": 1, "asOf": when, "removed": [], "items": [{"id": "x", "kind": "account"}]},
+        {"seq": 1, "asOf": when, "removed": [], "sealed": "AAAA"},
+        {"seq": 1, "asOf": when, "removed": [], "full": True},
+        {"seq": 1, "asOf": when, "removed": [], "fetch": ["Rcpt_x"]},
+        {"seq": 1, "asOf": when, "removed": [7]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x"}]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x", "viewers": [7]}]},
+        {"seq": 1, "asOf": when, "removed": [], "narrowed": [{"id": "x", "viewers": [], "a": 1}]},
+    )
+    for path, body in (
+        ("/link/v1/next", {"have": 0}),
+        ("/link/v1/file", {"id": "Rcpt_" + "0" * 26}),
+        *(("/link/v1/deliver", {"change": changes.sign(own_b, c)}) for c in beyond),
+    ):
+        with pytest.raises(client.LinkError) as e:
+            manage.call(b, b_id, path, body)
+        assert e.value.code == "link-paused", (path, body)
+    sealed_file = b.config.data_dir / "r.mkr"
+    sealed_file.write_bytes(b"sealed")
+    digest = hashlib.sha256(b"sealed").hexdigest()
+    with pytest.raises(client.LinkError) as e:
+        client.send_file(b, url_a, key_a, "Rcpt_" + "0" * 26, sealed_file, digest)
+    assert e.value.code == "link-paused"
+    # The other side takes a paused link's change only when it holds removals alone.
+    for c in beyond:
+        with pytest.raises(changes.ChangeError):
+            receive.take(b, b_id, changes.sign(own_a, c), registry_only=True)
+    notice = {
+        "seq": 0,
+        "asOf": when,
+        "removed": ["Acct_gone"],
+        "narrowed": [{"id": "Acct_kept", "viewers": ["User_gone"]}],
+    }
+    assert receive.take(b, b_id, changes.sign(own_a, notice), registry_only=True) == set()
+    with b.db.read(unscoped="test") as s:
+        assert s.get(Link, b_id).gotSeq == got, "a removal alone moves no sequence"
+
+
+def test_a_person_taken_off_a_share_while_paused_stops_seeing_it_and_nothing_else_crosses(
+    admins,
+):
+    """A narrowing crosses a paused link as a removal does (S11.4, link-protocol.md §4.3.6):
+    the copy hides the item from the people taken off, the others keep it as it was, and
+    nothing else about it crosses until the resume."""
+    a, b, ca, cb, _ = admins
+    make_user(b, "bart")
+    make_user(b, "dave")
+    a_id, b_id = linked(ca, cb)
+    make_user(a, "jane")
+    jane = sign_in(a, "jane")
+    acct = make(jane, "Acct", name="Checking", type="checking").json()["id"]
+    add(jane, acct, amount="1200.00", payee="Pension")
+    there = {u["username"]: u["id"] for u in links_of(ca)["links"][0]["users"]}
+    share(jane, "account", acct, users={there["bart"]: "read", there["dave"]: "read"})
+    words = cb.post(f"/ui/api/settings/links/{b_id}/copy-key").json()["words"]
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    bart, dave = sign_in(b, "bart"), sign_in(b, "dave")
+    bart_id = bart.get("/ui/api/session").json()["user"]["id"]
+    dave_id = dave.get("/ui/api/session").json()["user"]["id"]
+    assert bart.post(f"/ui/api/linked/{b_id}/unlock", json={"words": " ".join(words)}).is_success
+    detail = f"/accounts/{acct}"
+    assert {k[2] for k in docs_in(b, b_id)[1]} == {bart_id, dave_id}
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    add(jane, acct, amount="-40.00", payee="Pharmacy")
+    assert share(jane, "account", acct, users={there["dave"]: "none"}).status_code == 200
+    out = ca.post(f"/ui/api/settings/links/{a_id}/pull").json()
+    assert out["state"] == "paused" and out["lastError"] is None
+    items, docs = docs_in(b, b_id)
+    assert json.loads(items[acct].viewers) == [bart_id], "Dave is taken off in the copy"
+    assert {k[2] for k in docs} == {bart_id}, "and what was worked out for him goes"
+    assert docs[(acct, detail, bart_id)]["balance"] == "1200.00", "nothing else crosses"
+    assert dave.get(f"/ui/api/linked/{b_id}/items").status_code == 404, "named by nothing"
+    assert dave.get(f"/ui/api/linked/{b_id}/doc", params={"path": detail}).status_code == 404
+    assert [r["id"] for r in bart.get(f"/ui/api/linked/{b_id}/items").json()["items"]] == [acct]
+    assert dave.get("/ui/api/linked").json()["items"] == []
+    (seen,) = links_of(cb)["links"][0]["incoming"]
+    assert seen["names"] == ["Bart"], "the registry here names Bart alone"
+    # Sent again at each paused exchange, it changes nothing more.
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    assert docs_in(b, b_id)[1][(acct, detail, bart_id)]["balance"] == "1200.00"
+
+    assert ca.post(f"/ui/api/settings/links/{a_id}/resume").is_success
+    cb.post(f"/ui/api/settings/links/{b_id}/pull")
+    items, docs = docs_in(b, b_id)
+    assert json.loads(items[acct].viewers) == [bart_id]
+    assert {k[2] for k in docs} == {bart_id}
+    assert docs[(acct, detail, bart_id)]["balance"] == "1160.00", "caught up at the resume"
+
+
+def test_a_peer_whose_change_is_refused_shows_refusing_on_either_side(admins, monkeypatch):
+    """S11.7: a paused link's change holding more than removals and narrowings, taken by the
+    side that calls or by the side that answers, is refused and shows *refusing* there, with
+    its reason, never *unreachable*; Pull now says so."""
+    from moolakata.links import changes, manage, serve
+
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    assert ca.post(f"/ui/api/settings/links/{a_id}/pause", json={"for": "1d"}).is_success
+    with a.db.read(unscoped="test") as s:
+        own_a = keys.private_key(s, a.keys.secrets)
+    beyond = {"seq": 0, "asOf": "2026-01-01T00:00:00", "removed": [], "items": []}
+    monkeypatch.setattr(
+        serve, "removals_for", lambda srv, link_id: (changes.sign(own_a, beyond), [])
+    )
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    why = "change 0 comes over a paused link but holds more than removals and narrowings"
+    assert out["refusal"] == why
+    assert out["failingSince"] is None and out["state"] == "active"
+    # The side that answers refuses a delivered change that doesn't check, and says so too.
+    with pytest.raises(client.LinkError) as e:
+        manage.call(b, b_id, "/link/v1/deliver", {"change": {"seq": 4, "removed": []}})
+    assert e.value.code == "change-refused"
+    with a.db.read(unscoped="test") as s:
+        assert s.get(Link, a_id).refusal == "change 4 fails its signature check"
+    assert links_of(ca)["links"][0]["refusal"] == "change 4 fails its signature check"
+
+
+def test_a_value_the_peer_sent_reaches_the_refusing_alert_only_as_shown(server):
+    """S11.7, S13.7.9: a value the peer chose, quoted in this server's reason for refusing a
+    change it delivered, reaches the *refusing* alert with its tags stripped, as one line of
+    at most 200 characters, else not at all."""
+    from moolakata.links import changes, manage
+
+    peer = keys.raw_public(signing.Ed25519PrivateKey.generate().public_key())
+    link_id = link(server, "https://1.test", peer)
+    for seq, said in (("<b>4</b>", "4"), ("9" * 201, "(not shown)")):
+        why = f"change {said} fails its signature check"
+        with server.db.read(unscoped="test") as s:
+            row = s.get(Link, link_id)
+        with pytest.raises(changes.ChangeError, match=r"^change"):
+            manage.answer_deliver(server, row, {"change": {"seq": seq, "removed": []}})
+        with server.db.read(unscoped="test") as s:
+            assert s.get(Link, link_id).refusal == why
+        alerts.evaluate(server)
+        with server.db.read(unscoped="test") as s:
+            titles = {x.title for x in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+        assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_an_exchanges_failure_reaches_the_refusing_alert_only_as_shown(server, monkeypatch):
+    # S13.7.9: an exchange failing here on something unexpected names it, its words only as
+    # one line of at most 200 characters with tags stripped, since they may quote the peer.
+    from moolakata.links import manage
+
+    link_id = link(server, "https://1.test", bytes([1]) * 32)
+    for said, why in (
+        ("bad literal: '<b>x</b>'", "the exchange failed here: ValueError: bad literal: 'x'"),
+        ("x" * 201, "the exchange failed here: ValueError"),
+    ):
+
+        def broken(srv, link_id, said=said):
+            raise ValueError(said)
+
+        monkeypatch.setattr(manage, "_exchange", broken)
+        with pytest.raises(client.LinkError) as e:
+            manage.exchange(server, link_id)
+        assert e.value.message == why
+        alerts.evaluate(server)
+        with server.db.read(unscoped="test") as s:
+            titles = {x.title for x in s.scalars(select(Alert).where(Alert.resolvedAt.is_(None)))}
+        assert f"A linked server answered, but what it sent was refused: {why}" in titles
+
+
+def test_a_receipt_that_came_unsigned_is_named_only_as_shown(server, monkeypatch):
+    # S13.7.9: a receipt's id is the peer's, so the reason it wasn't taken quotes it only with
+    # its tags stripped, as one line of at most 200 characters.
+    from moolakata.links import client as lclient
+    from moolakata.links import receive
+
+    link_id = link(server, "https://1.test", bytes([1]) * 32)
+    with server.db.tx(unscoped="test") as s:
+        s.get(Link, link_id).copyPublicKey = keys.b64(bytes(32))
+    monkeypatch.setattr(lclient, "iter_file", lambda *a, **k: iter([b"sealed"]))
+    names, failed = receive.fetch_files(server, link_id, ["<b>r1</b>", "r" * 201])
+    assert names == {}
+    assert failed == {
+        "<b>r1</b>": "receipt r1 came unsigned",
+        "r" * 201: "receipt (not shown) came unsigned",
+    }
+
+
+def test_a_change_the_peer_refuses_shows_refused_by_it_never_unreachable_or_refusing(
+    admins, monkeypatch
+):
+    """S11.7, S12.11.1.1: the peer's `change-refused` answer to what this server delivers shows
+    *refused by* the peer, its reason kept, apart from *refusing* and *unreachable*; it is
+    alerted at once in those words, paused or not, Pull now says the same, and it clears once
+    the peer has taken what this server sends."""
+    from moolakata.links import serve
+
+    _a, b, ca, cb, _ = admins
+    _a_id, b_id = linked(ca, cb)
+    own = serve.change_for
+    bad = {"seq": 7, "removed": []}  # unsigned: the peer refuses it
+    monkeypatch.setattr(
+        serve, "change_for", lambda srv, *args: [bad] if srv is b else own(srv, *args)
+    )
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    why = "change 7 fails its signature check"
+    assert out["peerRefusal"] == why
+    assert out["refusal"] is None, "nothing the peer sent was refused here"
+    assert out["failingSince"] is None and out["lastError"] is None, "it answered"
+    assert out["state"] == "active"
+    alerts.evaluate(b)
+    (alert,) = [x for x in cb.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refused"]
+    assert alert["title"] == f"{out['peerName']} refused what this server sent: {why}"
+    assert not [x for x in cb.get("/ui/api/alerts").json()["open"] if "not reached" in x["title"]]
+    # Paused, it is alerted all the same: what crosses a paused link can be refused too.
+    with b.db.tx(unscoped="test") as s:
+        s.get(Link, b_id).state = "paused"
+    with b.db.read(unscoped="test") as s:
+        assert [c.kind for c in alerts.linked_servers(s, b)] == ["link-refused"]
+    with b.db.tx(unscoped="test") as s:
+        s.get(Link, b_id).state = "active"
+    monkeypatch.setattr(serve, "change_for", own)
+    out = cb.post(f"/ui/api/settings/links/{b_id}/pull").json()
+    assert out["peerRefusal"] is None, "nothing it hasn't taken is left to send"
+    alerts.evaluate(b)
+    assert not [x for x in cb.get("/ui/api/alerts").json()["open"] if x["kind"] == "link-refused"]
+
+
+def test_linking_again_over_a_broken_link_ends_it_and_deletes_its_copy_on_both_sides(admins):
+    # S11.6: linking again makes way for the new link; a broken one is ended first, its copy
+    # deleted, on the joining side as on the inviting one.
+    a, b, ca, cb, _ = admins
+    a_id, b_id = linked(ca, cb)
+    ca.post(f"/ui/api/settings/links/{a_id}/copy-key")
+    cb.post(f"/ui/api/settings/links/{b_id}/copy-key")
+    copies = lcopy.folder(a.config.data_dir, a_id), lcopy.folder(b.config.data_dir, b_id)
+    assert all(c.exists() for c in copies)
+    for srv, link_id in ((a, a_id), (b, b_id)):
+        with srv.db.tx(unscoped="test") as s:
+            s.get(Link, link_id).brokenAt = clock.now()
+    code = ca.post("/ui/api/settings/links/invitations").json()["code"]
+    r = cb.post("/ui/api/settings/links/join", json={"code": code})
+    assert r.status_code == 201, r.text
+    for srv, link_id in ((a, a_id), (b, b_id)):
+        with srv.db.read(unscoped="test") as s:
+            assert s.get(Link, link_id).state == "ended"
+    assert not any(c.exists() for c in copies)
+    assert [x["state"] for x in links_of(cb)["links"]] == ["pending"], "the old one made way"
+    assert [x["state"] for x in links_of(ca)["links"]] == ["requested"]

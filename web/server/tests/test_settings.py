@@ -8,6 +8,8 @@ from moolakata import settings
 from moolakata.errors import Problem
 
 LONG = "x" * 61
+PREFIX = "data:image/png;base64,"
+AT_MOST = PREFIX + "A" * (settings.AVATAR_MAX - len(PREFIX))  # an image avatar at its bound
 
 
 @pytest.mark.parametrize(
@@ -84,8 +86,28 @@ LONG = "x" * 61
             {"kind": "initials", "initials": "MK", "color": "green"},
             "a colour such as #3b7a57",
         ),
-        ("householdAvatar", {"kind": "image"}, "an image"),
-        ("householdAvatar", {"kind": "image", "image": "https://x/y.png"}, "an image"),
+        ("householdAvatar", {"kind": "initials", "initials": ["MK"]}, "one to three letters"),
+        (
+            "householdAvatar",
+            {"kind": "initials", "initials": "MK", "color": 3881815},
+            "a colour such as #3b7a57",
+        ),
+        ("householdAvatar", {"kind": "image"}, "a PNG, JPEG or WebP image"),
+        (
+            "householdAvatar",
+            {"kind": "image", "image": "https://x/y.png"},
+            "a PNG, JPEG or WebP image",
+        ),
+        (
+            "householdAvatar",
+            {"kind": "image", "image": "data:image/svg+xml;base64,PHN2Zz4="},
+            "a PNG, JPEG or WebP image",
+        ),
+        (
+            "householdAvatar",
+            {"kind": "image", "image": AT_MOST + "A"},
+            "an image of up to 256 KB",
+        ),
     ],
 )
 def test_a_value_out_of_its_setting_is_refused_at_its_key(key, value, words):
@@ -146,6 +168,11 @@ def test_a_key_that_is_no_setting_is_refused_at_itself():
             "householdAvatar",
             {"kind": "image", "image": "data:image/png;base64,AAAA"},
             {"kind": "image", "image": "data:image/png;base64,AAAA"},
+        ),
+        (
+            "householdAvatar",
+            {"kind": "image", "image": AT_MOST},
+            {"kind": "image", "image": AT_MOST},
         ),
     ],
 )

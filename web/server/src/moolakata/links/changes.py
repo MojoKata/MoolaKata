@@ -26,6 +26,7 @@ from .. import clock, exactjson
 from ..checkpoints import checkpoint
 from ..store.entities.links import Link
 from . import copydb, sealed
+from .client import NOT_SHOWN, shown
 from .copy import folder, private_key
 from .keys import b64, unb64
 
@@ -37,7 +38,16 @@ class ChangeError(Exception):
     pass
 
 
+def seq_of(change: dict) -> str:
+    """A change's sequence as this server's reasons quote it: the peer chose it, so only as
+    `shown` keeps it (S13.7.9)."""
+    return shown(str(change.get("seq")), NOT_SHOWN)
+
+
 REGISTRY = ("seq", "asOf", "full", "items", "removed", "progress", "fetch")
+# A paused link's change (link-protocol.md §4.3.6): the items no longer shared, and those
+# still shared whose people some were taken off (`narrowed`), nothing more.
+PAUSED = frozenset({"seq", "asOf", "removed", "narrowed", "signature"})
 CONTENTS = ("names", "docs", "docsRemoved", "files", "filesRemoved")
 
 
@@ -92,7 +102,7 @@ def verify(public: bytes, change: dict) -> None:
             unb64(change.get("signature", "")), _canonical(change)
         )
     except InvalidSignature, ValueError:
-        raise ChangeError(f"change {change.get('seq')} fails its signature check") from None
+        raise ChangeError(f"change {seq_of(change)} fails its signature check") from None
 
 
 def inbox(data_dir, link_id: str):
@@ -116,18 +126,19 @@ def keep(d, link_id: str, name: str, change: dict, local: dict | None, public: b
     sealed.write(
         d / f"{name}{ENTRY}", sealed.seal(public, sealed.ENTRY, link_id, name, [entry.encode()])
     )
-    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])])
+    # A paused link's change has no sealed part (link-protocol.md §4.3.6): an empty one.
+    sealed.write(d / f"{name}.mks", [unb64(change["sealed"])] if change.get("sealed") else [])
 
 
 def enqueue(srv, link_id: str, change: dict, local: dict | None = None) -> bool:
     """Keep a signed change's sealed part in the inbox as it came, beside its registry and
-    what this side added (the random names its receipts were written under); apply it at once
-    if the copy is unlocked. Returns False when the inbox overflowed and was discarded: the
-    next pull asks for everything."""
+    what this side added (the random names its receipts were written under, or that it is a
+    paused link's removals alone); apply it at once if the copy is unlocked. Returns False
+    when the inbox overflowed and was discarded: the next pull asks for everything."""
     with srv.db.read(unscoped="links.changes: enqueue") as s:
         link = s.get(Link, link_id)
         public = unb64(link.copyPublicKey) if link and link.copyPublicKey else None
-    if public is None or not change.get("sealed"):
+    if public is None or not (change.get("sealed") or (local or {}).get("registryOnly")):
         return True  # no copy yet: nothing is kept until its access key is made
     d = inbox(srv.config.data_dir, link_id)
     d.mkdir(parents=True, exist_ok=True)
@@ -186,17 +197,24 @@ def apply(srv, link_id: str) -> int:
                 )
             raw = p.read_bytes()
             change, local = entry["change"], entry.get("local") or {}
+            # A paused link's removals and narrowings alone (link-protocol.md §4.3.6): no
+            # sealed part, and the sequence of the last change sent, which it doesn't move.
+            removals = bool(local.get("registryOnly"))
+            if removals and (raw or set(change) - PAUSED):
+                raise ChangeError(
+                    f"change {seq_of(change)} holds more than removals and narrowings"
+                )
             verify(peer, {**change, "sealed": b64(raw)})
             # Each must follow the last applied, so an older change put back is refused: the
             # sequence is the source's, signed and sealed with the change (S11.9.5.3).
             seq = int(change.get("seq") or 0)
-            if seq <= last:
+            if seq < last or (seq == last and not removals):
                 raise ChangeError(
-                    f"change {seq} doesn't follow the last one applied ({last}); if the other "
-                    "server was restored from a backup, reset the copy"
+                    f"change {shown(str(seq), NOT_SHOWN)} doesn't follow the last one applied "
+                    f"({last}); if the other server was restored from a backup, reset the copy"
                 )
             last = seq
-            opened = open_part(priv, change, way, raw)
+            opened = change if removals else open_part(priv, change, way, raw)
             _shape(opened)
             changes.append((opened, local))
             checkpoint("apply.opened")
@@ -210,7 +228,9 @@ def apply(srv, link_id: str) -> int:
         OSError,
     ) as e:
         # Nothing of the inbox is applied: it is set aside, the failure recorded on the link,
-        # and the next pull asks for everything (S11.9.5.3).
+        # and the next pull asks for everything (S11.9.5.3). Another error's words may quote
+        # what the peer sent, so only as `shown` keeps them (S13.7.9).
+        why = str(e) if isinstance(e, ChangeError) else shown(str(e), type(e).__name__)
         aside = folder(srv.config.data_dir, link_id) / "set-aside"
         shutil.rmtree(aside, ignore_errors=True)
         aside.mkdir(parents=True, exist_ok=True)
@@ -220,9 +240,9 @@ def apply(srv, link_id: str) -> int:
                     part.rename(aside / part.name)
         with srv.db.tx(unscoped="links.changes: apply") as s:
             row = s.get(Link, link_id)
-            row.lastError = f"A pulled change can't be applied, so everything is asked for: {e}"
+            row.lastError = f"A pulled change can't be applied, so everything is asked for: {why}"
             row.needsFull, row.inboxAsOf = True, None
-        raise ChangeError(str(e)) from None
+        raise ChangeError(why) from None
     receipts_dir = folder(srv.config.data_dir, link_id) / "receipts"
     lost: list[str] = []
     with o.engine.begin() as conn:
@@ -235,6 +255,8 @@ def apply(srv, link_id: str) -> int:
             types = {fid: _type_of(priv, way, fid, receipts_dir / n) for fid, n in names.items()}
             for name in _apply_one(conn, change, names, types):
                 (receipts_dir / name).unlink(missing_ok=True)
+            if local.get("registryOnly"):
+                continue  # a paused link's removals: the next change follows the one before
             conn.execute(
                 copydb.Applied.insert().prefix_with("OR REPLACE"),
                 {"seq": int(change.get("seq") or 0), "appliedAt": clock.now().isoformat()},
@@ -274,6 +296,8 @@ def _shape(c: dict) -> None:
     ok = (
         whole(c.get("seq"))
         and texts(c.get("removed") or [])
+        and rows(c.get("narrowed") or [], "id")
+        and all(texts(n.get("viewers")) for n in c.get("narrowed") or [])
         and rows(c.get("items") or [], "id", "kind")
         and all(whole(it.get("version")) for it in c.get("items") or [])
         and rows(c.get("docsRemoved") or [], "itemId", "path", "viewer")
@@ -289,7 +313,7 @@ def _shape(c: dict) -> None:
         and all(whole(f.get("length")) for f in c.get("files") or [])
     )
     if not ok:
-        raise ChangeError(f"change {c.get('seq')} isn't in the shape of a change")
+        raise ChangeError(f"change {seq_of(c)} isn't in the shape of a change")
 
 
 def _type_of(private, way: str, file_id: str, path) -> str:
@@ -327,6 +351,22 @@ def _apply_one(conn, c: dict, names: dict[str, str], types: dict[str, str]) -> l
         conn.execute(delete(copydb.Doc).where(copydb.Doc.c.itemId == item_id))
         conn.execute(delete(copydb.File).where(copydb.File.c.itemId == item_id))
         conn.execute(delete(copydb.Item).where(copydb.Item.c.id == item_id))
+    for n in c.get("narrowed") or []:
+        # People taken off an item still shared (S11.4): hidden from them, their documents
+        # gone; nothing else about it changes until the next full change.
+        had = conn.execute(select(copydb.Item.c.viewers).where(copydb.Item.c.id == n["id"]))
+        for (viewers,) in had.all():
+            left = [v for v in json.loads(viewers or "[]") if v not in n["viewers"]]
+            conn.execute(
+                copydb.Item.update()
+                .where(copydb.Item.c.id == n["id"])
+                .values(viewers=json.dumps(left))
+            )
+        conn.execute(
+            delete(copydb.Doc).where(
+                copydb.Doc.c.itemId == n["id"], copydb.Doc.c.viewer.in_(n["viewers"])
+            )
+        )
     for it in c.get("items") or []:
         conn.execute(delete(copydb.Item).where(copydb.Item.c.id == it["id"]))
         conn.execute(
@@ -427,23 +467,3 @@ def _thumbnail(value) -> str | None:
     if isinstance(value, str) and len(value) < 1_000_000 and THUMBNAIL.fullmatch(value):
         return value
     return None
-
-
-def orphans(srv, link_id: str) -> int:
-    """Remove files no row names, left behind after a crash (S11.9.6.6); needs the copy open.
-    Temporary files go whether or not it is."""
-    base = folder(srv.config.data_dir, link_id)
-    gone = 0
-    for p in list(base.rglob("*.tmp")):
-        p.unlink(missing_ok=True)
-        gone += 1
-    o = srv.copies.get(link_id, for_person=False)
-    if o is None or not (base / "receipts").exists():
-        return gone
-    with o.engine.connect() as conn:
-        named = set(conn.execute(select(copydb.File.c.fileName)).scalars())
-    for p in (base / "receipts").glob("*.mkr"):
-        if p.name not in named:
-            p.unlink(missing_ok=True)
-            gone += 1
-    return gone

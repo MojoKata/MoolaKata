@@ -29634,6 +29634,17 @@
             ],
             "title": "Peername"
           },
+          "peerRefusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peerrefusal"
+          },
           "peerVersion": {
             "anyOf": [
               {
@@ -29644,6 +29655,17 @@
               }
             ],
             "title": "Peerversion"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal"
           },
           "role": {
             "title": "Role",

@@ -49,7 +49,7 @@ Link = record(
     Column("syncTotal", Integer),
     # The linked copy's access key (S11.9.2): its public key only, and who made it when. The
     # copy key itself is never stored.
-    Column("copyFolder", Text),  # the copy's folder under links/, a random name (schema.md §2.5)
+    Column("copyFolder", Text),  # the copy's folder under links/, a random name (schema.md §2)
     Column("copyPublicKey", Text),
     Column("copyKeyAt", UtcTimestamp),
     Column("copyKeyById", Text, ForeignKey("User.id")),
@@ -70,9 +70,18 @@ Link = record(
     Column("peerCert", Text),
     Column("peerCertNext", Text),
     Column("peerCertOffered", Text),
+    # This server's own certificate key as the peer last confirmed it was told (link-protocol.md
+    # §4.5): until it is the key in use, it is told again at every run of the links task.
+    Column("ownCertTold", Text),
     # The peer answered that it has no link with this one (S11.6): broken until an admin ends
     # it or links again.
     Column("brokenAt", UtcTimestamp),
+    # What the peer sent that was refused here, and why (S11.7): it answered, so the link shows
+    # refusing, not unreachable, until an exchange takes all it sends.
+    Column("refusal", Text),
+    # The other way round: the peer refused what this server sent, with its reason (S11.7),
+    # so the link shows refused by it until the peer takes a change this server sends.
+    Column("peerRefusal", Text),
     CheckConstraint(
         "state IN ('invited', 'requested', 'pending', 'active', 'paused', 'ended')", name="state"
     ),

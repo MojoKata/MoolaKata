@@ -462,6 +462,49 @@ def change_for(srv, link_id: str, have: int, full: bool) -> list[dict]:
     return [changes.sign(own, changes.seal_part(part, copy_key, way)) for part in parts]
 
 
+# What a paused link's change marks as sent for an item it removed: no document's hash, so an
+# item shared again before the resume is sent whole then.
+REMOVED = "removed"
+
+
+def removals_for(srv, link_id: str) -> tuple[dict | None, list[str]]:
+    """A paused link's change (S11.4, link-protocol.md §4.3.6): the items sent to the peer that
+    are no longer shared with its people, and those still shared whose people some were taken
+    off (`narrowed`: each item's id and the people it no longer names), and nothing else,
+    signed, with no data, no files and no sequence of its own (`seq` is the last change sent).
+    It is sent at every paused exchange until the resume, so one lost on the way is sent
+    again; the next full change carries them again, and what changed while paused. Returns the
+    change, or None, and the items it removes or narrows for the first time, for Activity."""
+    items, _ = shared_items(srv, link_id)
+    with srv.db.tx(unscoped="links.serve: removals for") as s:
+        link = s.get(Link, link_id)
+        rows = list(s.scalars(select(LinkSent).where(LinkSent.linkId == link_id)))
+        # A row's viewer is one the peer's person it was worked out for; "" is an item's file.
+        lost = [
+            r
+            for r in rows
+            if r.itemId not in items or (r.viewer and r.viewer not in items[r.itemId].viewers)
+        ]
+        if not lost:
+            return None, []
+        gone = sorted({r.itemId for r in lost} - set(items))
+        narrowed: dict[str, set[str]] = defaultdict(set)
+        for r in lost:
+            if r.itemId in items:
+                narrowed[r.itemId].add(r.viewer)
+        newly = sorted({r.itemId for r in lost if r.hash != REMOVED})
+        for r in lost:
+            r.hash = REMOVED
+        change = {
+            "seq": link.sentSeq,
+            "asOf": clock.now().isoformat(),
+            "removed": gone,
+            "narrowed": [{"id": i, "viewers": sorted(v)} for i, v in sorted(narrowed.items())],
+        }
+        own = keys.private_key(s, srv.keys.secrets)
+    return changes.sign(own, change), newly
+
+
 def sealed_receipt(srv, link_id: str, receipt_id: str):
     """One receipt sealed to the peer's copy key, written aside so its sealed bytes can be
     hashed and signed before they are sent; the caller removes the file once it is sent. The
