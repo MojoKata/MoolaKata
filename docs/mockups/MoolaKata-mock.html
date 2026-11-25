@@ -1782,7 +1782,7 @@ SCREENS.projections = (id) => {
         ${field('Who', sel(['John & Jane (couple)', 'Jane Doe', 'John Doe'], 'John & Jane (couple)'))}
         <div class="row">${field('Retirement age', inp(String(x.age), '', 'spin', '30-90'), 'Jane, born 1979')}${field('Partner retirement age', inp(String(x.age), '', 'spin', '30-90'), 'John, born 1977')}</div>
         <div class="row">${field('Contribution per year', inp('$' + nf0.format(contrib)))}${field('Grows yearly by', inp('3%'))}</div>
-        ${field('Withdrawal', sel(['4% of balance', 'Fixed $80,000/yr, rising with inflation', 'Fixed % …'], '4% of balance'))}
+        ${field('Withdrawal', sel(['The 4% rule', 'A fixed amount, rising with inflation', 'A percentage of the balance'], 'The 4% rule'))}
         ${field('Other income', inp('Social Security: Jane from 67, $2,900/mo · John from 67, $2,400/mo'))}
         <div class="row">${field('Expected return', inp('', 'from Profile (6.2% blended)'))}${field('Volatility', inp('', 'from Profile (14%)'))}</div>
         <button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div></div>`;
@@ -3278,7 +3278,7 @@ const GUIDES = {
     <h2 id="h-partner-retirement-age">Partner retirement age</h2><p>For a couple, the second person’s.</p>
     <h2 id="h-contribution-per-year">Contribution per year</h2><p>Added until retirement.</p>
     <h2 id="h-grows-yearly-by">Grows yearly by</h2><p>How much the contribution rises each year, such as with pay rises.</p>
-    <h2 id="h-withdrawal">Withdrawal</h2><p>A percentage of the balance each year, or a fixed amount that rises with inflation.</p>
+    <h2 id="h-withdrawal">Withdrawal</h2><p>How much is taken each year in retirement: the <b>4% rule</b> (4% of the balance at retirement, then that amount rising with inflation), a <b>fixed amount</b> rising with inflation, or a <b>percentage</b> of each year’s balance.</p>
     <h2 id="h-other-income">Other income</h2><p>Social Security and pensions, each from an age, which reduce what the savings must pay.</p>
     <h2 id="h-expected-return">Expected return</h2><p>From your assumptions in Profile unless you override it here.</p>
     <h2 id="h-volatility">Volatility</h2><p>How much a year can swing. From your assumptions unless overridden.</p>

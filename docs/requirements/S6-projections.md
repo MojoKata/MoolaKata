@@ -16,8 +16,9 @@
 2. **Goal types.** All three use the same models (S6.4).
    1. **Retirement**, for one person or a **couple**: each person's birth year and
       retirement age, and the accounts that are theirs. After retirement come
-      **withdrawals** (the 4% rule, a fixed amount rising with inflation, or a percentage
-      of the balance) set against **other income**: Social Security from an age, a pension,
+      **withdrawals** (the 4% rule: 4% of the balance at retirement, then that amount rising
+      with inflation; a fixed amount rising with inflation; or a percentage of each year's
+      balance) set against **other income**: Social Security from an age, a pension,
       each with its amount. The answer: the **chance the money lasts** to the horizon (age
       95 by default), and the balance by age.
    2. **Education**, for one beneficiary, built on their 529 accounts (S1.8). The beneficiary's

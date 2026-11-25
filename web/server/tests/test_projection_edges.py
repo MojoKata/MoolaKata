@@ -269,6 +269,22 @@ def test_compare_models_draws_the_price_history_behind_the_paths(server, jane, c
     assert not _stack(jane, "ark")["result"]["noBitcoinPrice"]
 
 
+@pytest.mark.parametrize(
+    ("method", "second"),
+    [("fourPercent", 96000 - 4400), ("percent", 96000 - 3840)],
+)
+def test_the_4_percent_rule_is_4_percent_at_retirement_then_rising_with_inflation(method, second):
+    """S6.2.1: the 4% rule takes 4% of the balance at retirement, then that amount rising with
+    inflation (10% here), never 4% of each year's balance, which is the percentage method."""
+    from moolakata.projections import engine
+
+    plan = engine.Plan(start=100000.0, weights={"cash": 1.0}, returns={"cash": 0.0},
+                       vols={"cash": 0.0}, inflation=0.1, fees=0.0, first_year=2026, years=3,
+                       withdraw_from=1, withdrawal={"method": method, "percent": 4})  # fmt: skip
+    path = engine.run(plan).percentiles[50]
+    assert path[1] == pytest.approx(96000) and path[2] == pytest.approx(second)
+
+
 def test_a_cases_path_grows_from_its_first_year():
     """The bear, base and bull paths take the same year's growth as the fan: the first year's
     growth brings today's balance to next year's."""

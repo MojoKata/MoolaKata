@@ -438,9 +438,10 @@ function Inputs({ x, reload }) {
                 )}>
             <${Select} value=${f.withdrawal?.method || 'fourPercent'}
               onChange=${set('withdrawal.method', false)} options=${[
-                ['fourPercent', 'The 4% rule: 4% at retirement, then rising with inflation'],
-                ['fixed', 'A fixed amount a year, rising with inflation'],
-                ['percent', 'A percentage of the balance each year'],
+                // Each defined in the field's guide (S6.2.1).
+                ['fourPercent', 'The 4% rule'],
+                ['fixed', 'A fixed amount, rising with inflation'],
+                ['percent', 'A percentage of the balance'],
               ]} />
           </${Field}>
           ${f.withdrawal?.method === 'fixed'
