@@ -31,6 +31,7 @@ import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { Action, StatePill } from '../kit/state.js';
+import { MODEL_NAMES } from './profile.js';
 
 const GOAL = /** @type {Record<string, [string, string]>} */ ({
   retirement: ['Retirement', 'retire'],
@@ -215,7 +216,9 @@ function Detail({ id, reloadList }) {
               (r.noBitcoinPrice ||
                 (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0))
             ? html`<div>Bitcoin: ${
-              r.noBitcoinPrice ? 'no model, no price yet' : `the ${r.bitcoinModel} model`
+              r.noBitcoinPrice
+                ? 'no model, no price yet'
+                : `the ${MODEL_NAMES[r.bitcoinModel]} model`
             }</div>`
             : null}
           <div>Seed: ${r.seed}</div>

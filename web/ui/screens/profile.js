@@ -707,7 +707,7 @@ function Assumptions() {
   `;
 }
 
-const MODEL_NAMES = /** @type {Record<string, string>} */ ({
+export const MODEL_NAMES = /** @type {Record<string, string>} */ ({
   powerLaw: 'Power law',
   logRegression: 'Log regression',
   stockToFlow: 'Stock-to-flow',
