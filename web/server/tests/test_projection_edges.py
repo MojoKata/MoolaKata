@@ -31,7 +31,8 @@ def test_a_typed_amount_is_a_finite_number_in_range(jane, amount):
     its field, never sent on to the model."""
     built = {"kind": "typed", "amount": amount, "allocation": {"usStocks": 100}}
     r = make(jane, "Prjct", name="What if", goal="savings", builtOn=built,
-             inputs={"target": 1000, "date": "2028-01-01"})  # fmt: skip
+             inputs={"target": 1000, "date": "2028-01-01", "monthly": 0,
+                     "fees": 0.1})  # fmt: skip
     refused(r, "builtOn.amount", "amount-invalid")
 
 
@@ -39,15 +40,19 @@ def test_a_typed_amount_of_nothing_its_most_or_a_decimal_is_taken(jane):
     for amount in (0, 1e10, "1000.50"):
         built = {"kind": "typed", "amount": amount, "allocation": {"cash": 100}}
         r = make(jane, "Prjct", name="What if", goal="savings", builtOn=built,
-                 inputs={"target": 1000, "date": "2028-01-01"})  # fmt: skip
+                 inputs={"target": 1000, "date": "2028-01-01", "monthly": 0,
+                     "fees": 0.1})  # fmt: skip
         assert r.status_code == 200, r.text
 
 
 RETIRE = {"people": [{"name": "Jane", "birthYear": 1979, "retireAge": 62}],
-          "income": [{"label": "Pension", "person": 0, "fromAge": 67, "monthly": 900}]}  # fmt: skip
+          "income": [{"label": "Pension", "person": 0, "fromAge": 67, "monthly": 900}],
+          "contribution": {"amount": 30000, "growth": 3}, "horizonAge": 95,
+          "fees": 0.1}  # fmt: skip
 PENSION = {"person": 0, "fromAge": 67, "monthly": 1}
 US = "overrides.classes.usStocks"
 TYPED = {"kind": "typed", "amount": 500000, "allocation": {"usStocks": 60, "bonds": 40}}
+SPENT = {"monthly": 0, "fees": 0.1}  # a goal saving nothing more, at the usual fees
 
 
 def _retire(c, built=TYPED, **inputs):
@@ -97,7 +102,8 @@ def test_every_input_the_model_reads_is_checked_at_its_field(jane, inputs, field
 
 def test_a_target_date_that_isnt_text_is_refused(jane):
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=TYPED,
-             inputs={"target": 1000, "date": 20280101})  # fmt: skip
+             inputs={"target": 1000, "date": 20280101, "monthly": 0,
+                     "fees": 0.1})  # fmt: skip
     refused(r, "inputs.date", "date-invalid")
 
 
@@ -125,7 +131,7 @@ def test_what_it_is_built_on_names_ids(jane, built):
 def test_the_inputs_the_form_sends_are_taken(jane):
     r = _retire(jane, withdrawal={"method": "fixed", "amount": 60000},
                 overrides={"inflation": 3, "classes": {"bonds": {"return": 3.5}}},
-                bitcoinModel="", contribution={"amount": None, "growth": None})  # fmt: skip
+                bitcoinModel="", contribution={"amount": 0, "growth": None})  # fmt: skip
     assert r.status_code == 200, r.text
     assert r.json()["result"]["assumptions"]["inflation"] == 3
     r = _retire(jane, {**TYPED, "allocation": {"usStocks": 100, "cash": 0}},
@@ -179,7 +185,8 @@ def test_its_figures_go_out_in_cents(server, jane, closes):
     assert _in_cents([res["answer"]["atRetirement"]])
     assert res["percentiles"]["50"][0] == Decimal("123456.78")
     saving = make(jane, "Prjct", name="Car", goal="savings", builtOn=TYPED,
-                  inputs={"target": 600000.5, "date": "2029-06-30", "monthly": 333.33})  # fmt: skip
+                  inputs={"target": 600000.5, "date": "2029-06-30", "monthly": 333.33,
+                          "fees": 0.1})  # fmt: skip
     a = made(saving)["result"]["answer"]
     assert _in_cents([a["target"], a["monthly"], a["neededMonthly"]])
     assert 0 <= a["chance"] <= 1  # a share of the runs, as it is
@@ -189,7 +196,7 @@ def test_an_education_answer_goes_out_in_cents(jane):
     who = {"kind": "person", "id": jane.get("/ui/api/profile").json()["personId"]}
     r = make(jane, "Prjct", name="College", goal="education", builtOn=TYPED,
              inputs={"beneficiary": who, "firstYear": 2031, "costBasis": "typed",
-                     "cost": 23456.789, "monthly": 100.5})  # fmt: skip
+                     "cost": 23456.789, "monthly": 100.5, "fees": 0.1})  # fmt: skip
     a = made(r)["result"]["answer"]
     money = [a["costToday"], *a["costs"], a["atStart"], a["needed"], a["monthly"]]
     assert _in_cents(money) and a["costs"][0] != a["costToday"]
@@ -217,7 +224,7 @@ def test_the_bitcoin_grows_as_the_model_does_in_the_same_year(server, jane, clos
     _bitcoin(server)
     btc = {"kind": "typed", "amount": 100000, "allocation": {"crypto": 100}}
     r = make(jane, "Prjct", name="Stack", goal="savings", builtOn=btc,
-             inputs={"target": 1, "date": "2033-12-31", "fees": 0,
+             inputs={"target": 1, "date": "2033-12-31", "fees": 0, "monthly": 0,
                      "bitcoinModel": "stockToFlow"})  # fmt: skip
     res = made(r)["result"]
     years, path = res["years"], [float(v) for v in res["expected"]]
@@ -235,7 +242,7 @@ CRYPTO = {"kind": "typed", "amount": 100000, "allocation": {"crypto": 100}}
 
 
 def _stack(c, model):
-    goal = {"target": 1, "date": "2033-12-31", "bitcoinModel": model}
+    goal = {"target": 1, "date": "2033-12-31", "monthly": 0, "fees": 0.1, "bitcoinModel": model}
     return made(make(c, "Prjct", name="Stack", goal="savings", builtOn=CRYPTO, inputs=goal))
 
 
@@ -350,12 +357,14 @@ def test_an_education_goal_is_for_a_person_never_a_user(server, jane):
     college = {"name": "College", "goal": "education", "builtOn": TYPED}
     for user in ("jane", "john"):
         who = {"kind": "user", "id": users[user].id}
-        r = make(jane, "Prjct", **college, inputs={"beneficiary": who})
+        r = make(jane, "Prjct", **college, inputs={"beneficiary": who, **SPENT})
         refused(r, "inputs.beneficiary", "beneficiary-invalid")
     me = {"kind": "person", "id": users["jane"].personId}
-    p = made(make(jane, "Prjct", **college, inputs={"beneficiary": me}))
+    p = made(make(jane, "Prjct", **college, inputs={"beneficiary": me, **SPENT}))
     assert p["result"]["answer"]["name"] == users["jane"].displayName
-    r = change(jane, "Prjct", p, inputs={"beneficiary": {"kind": "user", "id": users["jane"].id}})
+    r = change(
+        jane, "Prjct", p, inputs={"beneficiary": {"kind": "user", "id": users["jane"].id}, **SPENT}
+    )
     refused(r, "inputs.beneficiary", "beneficiary-invalid")
 
 
@@ -372,7 +381,8 @@ def test_a_viewer_not_shared_its_accounts_sees_its_start_but_not_their_mix(serve
     add(jane, own["id"], "9000.00", "2026-10-01")
     built = {"kind": "accounts", "ids": [joint["id"], own["id"]]}
     p = made(make(jane, "Prjct", name="House", goal="savings", builtOn=built,
-                  inputs={"target": 50000, "date": "2030-01-01", "monthly": 500}))  # fmt: skip
+                  inputs={"target": 50000, "date": "2030-01-01", "monthly": 500,
+                          "fees": 0.1}))  # fmt: skip
     assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
     john = make_user(server, "john")
     for kind, item in (("projection", p["id"]), ("account", joint["id"])):
@@ -402,7 +412,7 @@ def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):
     port = made(make(jane, "Portf", name="Nest egg", accountIds=[own["id"]]))
     p = made(make(jane, "Prjct", name="House", goal="savings",
                   builtOn={"kind": "portfolio", "id": port["id"]},
-                  inputs={"target": 50000, "date": "2030-01-01"}))  # fmt: skip
+                  inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
     john = make_user(server, "john")
     assert share(jane, "projection", p["id"], users={john.id: "read"}).status_code == 200
     theirs = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}").json()
@@ -422,7 +432,7 @@ def test_a_typed_mix_is_the_projections_own_and_shown_to_a_viewer(server, jane):
 
 def _saving(c, name, built):
     return made(make(c, "Prjct", name=name, goal="savings", builtOn=built,
-                     inputs={"target": 50000, "date": "2030-01-01"}))  # fmt: skip
+                     inputs={"target": 50000, "date": "2030-01-01", **SPENT}))  # fmt: skip
 
 
 def _active(c) -> set[str]:
@@ -485,3 +495,48 @@ def test_only_its_owner_asks_what_making_it_active_replaces(server, jane):
     assert share(jane, "projection", p["id"], users={john.id: "read"}).status_code == 200
     r = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}/replaces")
     assert r.status_code == 403
+
+
+# Every figure each goal's model reads, given: a blank of any one is refused at its field.
+GIVEN = {
+    "retirement": RETIRE,
+    "savings": {"target": 1000, "date": "2028-01-01", "monthly": 100, "fees": 0.1},
+    "education": {"firstYear": 2031, "monthly": 100, "fees": 0.1},
+}  # fmt: skip
+BLANK = object()  # the key left out
+
+
+@pytest.mark.parametrize("blank", [BLANK, None, ""], ids=["missing", "null", "empty"])
+@pytest.mark.parametrize(
+    ("goal", "path"),
+    [("retirement", "contribution.amount"), ("retirement", "horizonAge"),
+     ("retirement", "fees"), ("savings", "monthly"), ("savings", "fees"),
+     ("education", "monthly"), ("education", "fees")],
+)  # fmt: skip
+def test_a_blank_the_model_would_read_as_0_or_its_default_is_refused(jane, goal, path, blank):
+    """R3.11: a contribution, a monthly saving, the fees and the age a retirement runs to are
+    each refused blank at their field, never read as 0 or the default; made or changed."""
+    import copy
+
+    inputs = copy.deepcopy(GIVEN[goal])
+    if goal == "education":
+        inputs["beneficiary"] = {"kind": "person",
+                                 "id": jane.get("/ui/api/profile").json()["personId"]}  # fmt: skip
+    p = made(make(jane, "Prjct", name="Goal", goal=goal, builtOn=TYPED, inputs=inputs))
+    *group, key = path.split(".")
+    at = inputs
+    for part in group:
+        at = at[part]
+    if blank is BLANK:
+        del at[key]
+    else:
+        at[key] = blank
+    refused(make(jane, "Prjct", name="Goal", goal=goal, builtOn=TYPED, inputs=inputs),
+            f"inputs.{path}")  # fmt: skip
+    refused(change(jane, "Prjct", p, inputs=inputs), f"inputs.{path}")
+
+
+def test_only_the_figures_its_goal_reads_are_asked_for(jane):
+    """A savings target has no contribution, age or people to give: only what its model reads
+    is asked for."""
+    made(make(jane, "Prjct", name="Car", goal="savings", builtOn=TYPED, inputs=GIVEN["savings"]))

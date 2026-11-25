@@ -163,7 +163,7 @@ def test_a_savings_line_shows_its_projections_monthly(server, frozen):
         name="Nest egg",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [acct["id"]]},
-        inputs={"target": 150000, "date": "2030-01-01", "monthly": 650},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 650, "fees": 0.1},
     )
     pid = r.json()["id"]
     c.post(f"/ui/api/projections/{pid}/activate")

@@ -1230,12 +1230,40 @@ def test_an_active_projections_new_inputs_ask_about_its_baseline(browser, househ
     page.close()
 
 
+def test_a_projections_blank_figures_are_refused_and_their_words_fill_them_in(browser, household):
+    """R3.11: fees left blank are refused at their field, never read as the default, which
+    **default** under the field fills in; the age it runs to and the contribution have theirs."""
+    h = household
+    p = h.extra["retire"]
+    page, problems = signed_in(browser, h, f"/ui/projections/{p['id']}", "#f-fees")
+    form = 'form.card:has-text("Inputs")'
+    assert page.get_by_role("button", name="Use the default: 95").is_disabled()
+    assert page.locator(".field:has(#f-contribution) .value-bar button").all_inner_texts() == [
+        "min"
+    ]
+    fees = page.get_by_role("button", name="Use the default: 0.1%")
+    page.fill("#f-fees", "")
+    page.click(f"{form} button.primary")
+    wait(page, '.dialog:has-text("Re-baseline?")', problems)
+    page.click('.dialog button:has-text("Keep the Baseline")')
+    wait(page, f'{form} .err:has-text("Between 0% and 5%.")', problems)
+    fees.click()
+    assert page.input_value("#f-fees") == "0.1" and fees.is_disabled()
+    page.click(f"{form} button.primary")
+    wait(page, '.dialog:has-text("Re-baseline?")', problems)
+    page.click('.dialog button:has-text("Keep the Baseline")')
+    wait(page, '.toast:has-text("Recomputed")', problems)
+    assert h.c.get(f"/ui/api/projections/{p['id']}").json()["inputs"]["fees"] == 0.1
+    assert [x for x in problems if not x.startswith("422 for")] == [], "the blank, refused"
+    page.close()
+
+
 def test_making_a_savings_target_active_asks_about_one_on_the_same_account(browser, household):
     """S6.7.1: an account backs at most one active savings target; the dialog names the one
     it turns off and the account they share."""
     h = household
     on = {"kind": "accounts", "ids": [h.extra["savings"]["id"]]}
-    goal = {"target": 50000, "date": "2030-01-01"}
+    goal = {"target": 50000, "date": "2030-01-01", "monthly": 0, "fees": 0.1}
     car = made(make(h.c, "Prjct", name="Drafts car", goal="savings", builtOn=on, inputs=goal))
     house = made(make(h.c, "Prjct", name="Drafts house", goal="savings", builtOn=on, inputs=goal))
     try:

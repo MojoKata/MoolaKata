@@ -1755,7 +1755,7 @@ SCREENS.projections = (id) => {
   if (x.type === 'education') return `${list}${head}${tracking}<div class="card mt"><p style="margin:0">On <b>Lisa’s 529</b>’s Goal tab. <a data-act="gogoal">Open the Goal Tab</a></p></div>`;
   if (x.type === 'savings') {
     return `${list}${head}${tracking}<div class="grid g-main mt"><div class="card"><h3>Chance of Reaching the Target by the Date</h3><div style="font-size:30px;font-weight:650">81%</div><p class="small dim">Saving $900 a month. ${state.noSaving ? 'No monthly saving reaches it by then.' : '$1,050 a month would reach it with a 90% chance.'}</p></div>
-      <div class="card"><h3>Inputs</h3>${field('Built on', sel(['High-Yield Savings ($38,200)', 'Choose accounts…', 'Typed amount…'], 'High-Yield Savings ($38,200)'))}<div class="row">${field('Target amount', inp('$60,000'))}${field('Target date', inp('2028-06-01', '', 'text'))}</div>${field('Contribution per month', inp('$900'))}<button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div>`;
+      <div class="card"><h3>Inputs</h3>${field('Built on', sel(['High-Yield Savings ($38,200)', 'Choose accounts…', 'Typed amount…'], 'High-Yield Savings ($38,200)'))}<div class="row">${field('Target amount', inp('$60,000'))}${field('Target date', inp('2028-06-01', '', 'text'))}</div>${field('Saving per month', withMin(inp('900', '', 'money'), '0.00', '$0.00'))}${field('Fees a year (%)', withWords(inp('0.1', '', 'quantity'), [['min', '0', 'Min: 0%'], ['default', '0.1', 'Use the default: 0.1%']]))}<button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div>`;
   }
   state.scenario = x.sc;
   const years = Array.from({ length: 41 }, (_, i) => String(2026 + i));
@@ -1781,9 +1781,11 @@ SCREENS.projections = (id) => {
         ${field('Built on', sel(['Portfolio: Retirement ($478,741)', 'Portfolio: All my accounts', 'Choose accounts…', 'Typed amount…'], 'Portfolio: Retirement ($478,741)'))}
         ${field('Who', sel(['John & Jane (couple)', 'Jane Doe', 'John Doe'], 'John & Jane (couple)'))}
         <div class="row">${field('Retirement age', inp(String(x.age), '', 'spin', '30-90'), 'Jane, born 1979')}${field('Partner retirement age', inp(String(x.age), '', 'spin', '30-90'), 'John, born 1977')}</div>
-        <div class="row">${field('Contribution per year', inp('$' + nf0.format(contrib)))}${field('Grows yearly by', inp('3%'))}</div>
+        ${field('Runs to age', withReset(inp('95', '', 'count'), '95', '95'))}
+        <div class="row">${field('Contribution per year', withMin(inp(String(contrib), '', 'money'), '0.00', '$0.00'))}${field('Grows yearly by', inp('3%'))}</div>
         ${field('Withdrawal', sel(['The 4% rule', 'A fixed amount, rising with inflation', 'A percentage of the balance'], 'The 4% rule'))}
         ${field('Other income', inp('Social Security: Jane from 67, $2,900/mo · John from 67, $2,400/mo'))}
+        ${field('Fees a year (%)', withWords(inp('0.1', '', 'quantity'), [['min', '0', 'Min: 0%'], ['default', '0.1', 'Use the default: 0.1%']]))}
         <div class="row">${field('Expected return', inp('', 'from Profile (6.2% blended)'))}${field('Volatility', inp('', 'from Profile (14%)'))}</div>
         <button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div></div>`;
 };
@@ -3276,7 +3278,8 @@ const GUIDES = {
     <h2 id="h-who">Who</h2><p>One person, or a couple: each with their own birth year, retirement age and Social Security.</p>
     <h2 id="h-retirement-age">Retirement age</h2><p>Contributions stop and withdrawals start.</p>
     <h2 id="h-partner-retirement-age">Partner retirement age</h2><p>For a couple, the second person’s.</p>
-    <h2 id="h-contribution-per-year">Contribution per year</h2><p>Added until retirement.</p>
+    <h2 id="h-runs-to-age">Runs to age</h2><p>The age it runs to, of the youngest of the people in it: the answer is the chance the money lasts until then. From 60 to 120: <b>default</b> fills in 95. Left blank, it is refused.</p>
+    <h2 id="h-contribution-per-year">Contribution per year</h2><p>Added until retirement: <b>min</b> fills in $0.00 for none. Left blank, it is refused.</p>
     <h2 id="h-grows-yearly-by">Grows yearly by</h2><p>How much the contribution rises each year, such as with pay rises.</p>
     <h2 id="h-withdrawal">Withdrawal</h2><p>How much is taken each year in retirement: the <b>4% rule</b> (4% of the balance at retirement, then that amount rising with inflation), a <b>fixed amount</b> rising with inflation, or a <b>percentage</b> of each year’s balance.</p>
     <h2 id="h-other-income">Other income</h2><p>Social Security and pensions, each from an age, which reduce what the savings must pay.</p>
@@ -3284,7 +3287,8 @@ const GUIDES = {
     <h2 id="h-volatility">Volatility</h2><p>How much a year can swing. From your assumptions unless overridden.</p>
     <h2 id="h-target-amount">Target amount</h2><p>What the savings target needs, such as a house deposit.</p>
     <h2 id="h-target-date">Target date</h2><p>When it’s needed.</p>
-    <h2 id="h-contribution-per-month">Contribution per month</h2><p>What you plan to add each month.</p>
+    <h2 id="h-saving-per-month">Saving per month</h2><p>What you plan to add each month: <b>min</b> fills in $0.00 for none. Left blank, it is refused.</p>
+    <h2 id="h-fees-a-year">Fees a year (%)</h2><p>Fund and advisory fees, taken from the balance each year, from 0% to 5%: <b>default</b> fills in 0.1% and <b>min</b> 0%. Left blank, they are refused.</p>
     <h2 id="h-name">Name</h2><p>How the projection is listed.</p>`,
   taxes: `<h1>Taxes</h1><p>For one tax book: what a preparer or tax software needs, from your own records. These are worksheets for you or your preparer.</p><div class="shot">screenshot · taxes</div>
     <h2 id="h-tax-book">Tax book</h2><p>One user, or a married couple filing jointly, for one tax year. It holds the documents received and a filing per return. Each family member who files has their own; a couple filing separately has two.</p>

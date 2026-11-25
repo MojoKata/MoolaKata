@@ -43,7 +43,8 @@ def test_holdings_and_a_projection_show_loans_and_items(browser, household):
     p = made(make(h.c, "Portf", name="Figures", accountIds=ids))
     pr = made(make(h.c, "Prjct", name="Figures grow", goal="savings",
                    builtOn={"kind": "portfolio", "id": p["id"]},
-                   inputs={"target": 50000, "targetDate": "2030-01-01"}))  # fmt: skip
+                   inputs={"target": 50000, "targetDate": "2030-01-01", "monthly": 0,
+                           "fees": 0.1}))  # fmt: skip
     try:
         # Read exactly: a float parse of $207,036.40 is 207036.3999… (money is a JSON number).
         api = json.loads(
@@ -144,7 +145,7 @@ def test_with_no_bitcoin_price_no_model_is_drawn_or_followed(browser, household)
     that chose a model says under its chart that it isn't used."""
     h = household
     crypto = {"kind": "typed", "amount": 50000, "allocation": {"crypto": 100}}
-    goal = {"target": 90000, "date": "2030-01-01", "bitcoinModel": "ark"}
+    goal = {"target": 90000, "date": "2030-01-01", "monthly": 0, "fees": 0.1, "bitcoinModel": "ark"}
     pr = made(make(h.c, "Prjct", name="Figures stack", goal="savings", builtOn=crypto, inputs=goal))
     try:
         page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')

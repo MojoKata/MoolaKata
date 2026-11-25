@@ -251,7 +251,7 @@ def test_a_writer_who_cant_see_the_beneficiary_starts_their_projection_from_the_
             "inputs.beneficiary", "beneficiary-invalid", "Choose who it is for.")  # fmt: skip
     typed = {"kind": "typed", "amount": 1000}
     refused(make(jane, "Prjct", name="Zoe's", goal="education", builtOn=typed,
-                 inputs={"beneficiary": zoe}),
+                 inputs={"beneficiary": zoe, "monthly": 0, "fees": 0.1}),
             "inputs.beneficiary", "beneficiary-invalid", "Choose who it is for.")  # fmt: skip
 
 
@@ -287,7 +287,11 @@ def test_the_goal_tab_finds_the_projection_for_its_beneficiary(server, jane):
         ("Lisa's school", "education", {"kind": "person", "id": lisa["id"]}),
         ("John's school", "education", {"kind": "person", "id": john_person}),
     ):
-        inputs = {"beneficiary": who} if who else {}
+        inputs = (
+            {"beneficiary": who, "monthly": 0, "fees": 0.1}
+            if who
+            else {"contribution": {"amount": 0}, "horizonAge": 95, "fees": 0.1}
+        )
         made(make(jane, "Prjct", name=name, goal=goal, builtOn=typed, inputs=inputs))
     v = jane.get(f"/ui/api/accounts/{acct['id']}/goal").json()
     assert v["beneficiary"]["id"] == john_person and v["others"] == 0

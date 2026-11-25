@@ -305,11 +305,13 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     retire_index = target_index = None
     start_part = contribute_part = 1.0
     people = []
-    contribution = float(inputs.get("contribution", {}).get("amount", 0) or 0)
+    # A contribution, a monthly saving, the fees and the age it runs to are each given: a blank
+    # is refused at its field, never read as 0 or a default (R3.11).
     growth = float(inputs.get("contribution", {}).get("growth", 0) or 0) / 100
     if p.goal == "retirement":
         people = people_of(s, owner, inputs)
-        horizon = int(inputs.get("horizonAge") or 95)
+        contribution = float(inputs["contribution"]["amount"])
+        horizon = int(inputs["horizonAge"])
         youngest = max(x["birthYear"] for x in people)
         years = min(MAX_YEARS, max(2, youngest + horizon - year + 1))
         # The household retires when the last of them does: contributions stop and the
@@ -337,7 +339,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         if target_index > MAX_YEARS - school["years"]:
             target_index, start_part = MAX_YEARS - school["years"], 1.0
         years = target_index + school["years"]
-        contribution = float(inputs.get("monthly", 0) or 0) * 12
+        contribution = float(inputs["monthly"]) * 12
         contribute_years = target_index
         contribute_part = start_part
         income = []
@@ -356,7 +358,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         # The last year counts only up to the date: 1.6 years is a year and 0.6 of one.
         last_part = span - (target_index - 1)
         years = target_index + 1
-        contribution = float(inputs.get("monthly", 0) or 0) * 12
+        contribution = float(inputs["monthly"]) * 12
         contribute_years = target_index
         income, withdrawal = [], {}
     if p.goal in ("retirement", "education"):
@@ -378,7 +380,7 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         returns={k: v["return"] / 100 for k, v in c.items()},
         vols={k: v["volatility"] / 100 for k, v in c.items()},
         inflation=figures["inflation"] / 100,
-        fees=float(inputs.get("fees", 0.1) or 0) / 100,
+        fees=float(inputs["fees"]) / 100,
         first_year=year,
         years=years,
         contribution=contribution,
@@ -436,7 +438,7 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         out[k] = {name: _cents(path) for name, path in out[k].items()}
     out["expected"] = _cents(out["expected"])
     if p.goal == "retirement":
-        horizon = int(inputs.get("horizonAge") or 95)
+        horizon = int(inputs["horizonAge"])
         out["answer"] = {
             "kind": "retirement",
             "chance": result.lasted,
@@ -458,7 +460,7 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
             "chance": chance,
             "target": _cents(target),
             "date": inputs.get("date"),
-            "monthly": _cents(float(inputs.get("monthly", 0) or 0)),
+            "monthly": _cents(float(inputs["monthly"])),
             "neededMonthly": _cents(needed),
         }
     return out
@@ -548,7 +550,7 @@ def _education_answer(s: Session, p: Projection, prep: Prepared, result, inputs:
         "needed": _cents(needed),
         "funded": funded,
         "chance": result.lasted,
-        "monthly": _cents(float(inputs.get("monthly", 0) or 0)),
+        "monthly": _cents(float(inputs["monthly"])),
         "neededMonthly": _cents(monthly),
     }
 

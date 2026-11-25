@@ -613,6 +613,7 @@ def start_goal(account_id: str, request: Request, c: Caller = Depends(caller)):
                     "schoolYears": 4,
                     "costBasis": "public",
                     "monthly": round(float(recent) / 24, 2),
+                    "fees": 0.1,
                 }
             ),
         )

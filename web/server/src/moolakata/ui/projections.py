@@ -168,7 +168,7 @@ def _check(s, user_id: str, name, goal, built, inputs, kept=None) -> list[FieldE
             ):
                 errors.append(FieldError("builtOn", "accounts-unknown", "Choose accounts."))
     if inputs is not None:
-        errors += _check_inputs(inputs)
+        errors += _check_inputs(inputs, goal)
         who = inputs.get("beneficiary")
         # The one it already names stays, seen by the user or not (R3.14).
         if (goal == "education" or who is not None) and not (who and who == kept):
@@ -216,11 +216,28 @@ def _mix(mix) -> bool:
     )
 
 
+# The figures each goal's model reads with nothing standing in for them: a blank, missing or
+# null, is refused at its field, never read as 0 or a default (R3.11).
+READS = {
+    "retirement": ("contribution.amount", "horizonAge", "fees"),
+    "savings": ("monthly", "fees"),
+    "education": ("monthly", "fees"),
+}
+
+
 def _num(
-    inputs: dict, path: str, lo: float, hi: float, errors: list, message: str, required=False
+    inputs: dict,
+    path: str,
+    lo: float,
+    hi: float,
+    errors: list,
+    message: str,
+    required=False,
+    asked=False,
 ) -> None:
     """The figure at `path`, a number within its bounds when given. `required`: the model
-    reads it as it is (no default stands in for a blank), so a blank is refused too."""
+    reads it as it is (no default stands in for a blank), so a blank is refused too. `asked`:
+    its goal's model reads it, so it is refused missing as well."""
     v: Any = inputs
     there = True
     for part in path.split("."):
@@ -230,7 +247,7 @@ def _num(
             v = v[part]
         else:
             v, there = None, False
-    if (v is not None or (there and required)) and not _number(v, lo, hi):
+    if (v is not None or (there and required) or asked) and not _number(v, lo, hi):
         errors.append(FieldError(f"inputs.{path}", "input-invalid", message))
 
 
@@ -281,16 +298,20 @@ def _check_overrides(overrides: dict, e: list) -> None:
                     e.append(FieldError(f"{where}.{name}", "input-invalid", "Not a figure."))
 
 
-def _check_inputs(inputs: dict) -> list[FieldError]:
+def _check_inputs(inputs: dict, goal=None) -> list[FieldError]:
     e: list[FieldError] = []
     if not _shape(inputs, e):
         return e
-    _num(inputs, "contribution.amount", 0, 10_000_000, e, "Zero or more.")
+    reads = READS.get(goal, ())
+    for path, lo, hi, words in (
+        ("contribution.amount", 0, 10_000_000, "Zero or more."),
+        ("monthly", 0, 1_000_000, "Zero or more."),
+        ("horizonAge", 60, 120, "Between 60 and 120."),
+        ("fees", 0, 5, "Between 0% and 5%."),
+    ):
+        _num(inputs, path, lo, hi, e, words, asked=path in reads)
     _num(inputs, "contribution.growth", -20, 50, e, "Between −20% and 50%.")
-    _num(inputs, "monthly", 0, 1_000_000, e, "Zero or more.")
     _num(inputs, "target", 0, MOST, e, "Zero or more.")
-    _num(inputs, "horizonAge", 60, 120, e, "Between 60 and 120.")
-    _num(inputs, "fees", 0, 5, e, "Between 0% and 5%.")
     _num(inputs, "startAge", 3, 40, e, "Between 3 and 40.")
     _num(inputs, "schoolYears", 1, 12, e, "Between 1 and 12.")
     _num(inputs, "cost", 0, 1_000_000, e, "Zero or more.")

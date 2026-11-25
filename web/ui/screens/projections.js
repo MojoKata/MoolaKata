@@ -204,7 +204,7 @@ function Detail({ id, reloadList }) {
               r.assumptions.classes[k].volatility
             }%`
           ).join(', ')}</div>
-          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
+          <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees}% a year</div>
           ${r.noBitcoinPrice || (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0)
             ? html`<div>Bitcoin: ${
               r.noBitcoinPrice ? 'no model, no price yet' : `the ${r.bitcoinModel} model`
@@ -420,22 +420,27 @@ function Inputs({ x, reload }) {
                   </div>
             `
           )}
-          <div class="row">
-            <${Field} label="Contribution per year" id="contribution"
-              error=${errAt(e, 'inputs.contribution.amount')}>
-              <${TypedInput} kind="money" value=${f.contribution?.amount ?? ''}
-                onInput=${set('contribution.amount')} />
-              </${Field}>
-              <${Field} label="Grows yearly by (%)" id="contribution-growth"
-                error=${errAt(e, 'inputs.contribution.growth')}>
-                <${TypedInput} kind="quantity" value=${f.contribution?.growth ?? ''}
-                  onInput=${set('contribution.growth')} />
+          <${Field} label="Runs to age" id="horizon-age" error=${errAt(e, 'inputs.horizonAge')}>
+            <${TypedInput} kind="count" above=${59} atMost=${120}
+              reset=${{ value: '95', label: '95' }} value=${String(f.horizonAge ?? '')}
+              onInput=${set('horizonAge')} />
+            </${Field}>
+            <div class="row">
+              <${Field} label="Contribution per year" id="contribution"
+                error=${errAt(e, 'inputs.contribution.amount')}>
+                <${TypedInput} kind="money" min=${0} value=${f.contribution?.amount ?? ''}
+                  onInput=${set('contribution.amount')} />
                 </${Field}>
-                </div>
-                <${Field} label="Withdrawal" id="withdrawal" error=${errAt(
-                  e,
-                  'inputs.withdrawal.method',
-                )}>
+                <${Field} label="Grows yearly by (%)" id="contribution-growth"
+                  error=${errAt(e, 'inputs.contribution.growth')}>
+                  <${TypedInput} kind="quantity" value=${f.contribution?.growth ?? ''}
+                    onInput=${set('contribution.growth')} />
+                  </${Field}>
+                  </div>
+                  <${Field} label="Withdrawal" id="withdrawal" error=${errAt(
+                    e,
+                    'inputs.withdrawal.method',
+                  )}>
             <${Select} value=${f.withdrawal?.method || 'fourPercent'}
               onChange=${set('withdrawal.method', false)} options=${[
                 // Each defined in the field's guide (S6.2.1).
@@ -491,14 +496,15 @@ function Inputs({ x, reload }) {
                 </${Field}>
                 </div>
                 <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-                  <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set(
+                  <${TypedInput} kind="money" min=${0} value=${f.monthly ?? ''} onInput=${set(
                     'monthly',
                   )} />
                   </${Field}>
         `}
       <div class="row">
         <${Field} label="Fees a year (%)" id="fees" error=${errAt(e, 'inputs.fees')}>
-          <${TypedInput} kind="quantity" value=${f.fees ?? 0.1} onInput=${set('fees')} />
+          <${TypedInput} kind="quantity" min=${0} atMost=${5}
+            reset=${{ value: '0.1', label: '0.1%' }} value=${f.fees ?? ''} onInput=${set('fees')} />
         </${Field}>
         <${Field} label="Bitcoin model" id="bitcoin-model">
           <${Select} value=${f.bitcoinModel || ''} onChange=${set('bitcoinModel', false)}
@@ -562,7 +568,7 @@ function EducationInputs({ f, set, setF, e }) {
       `
       : null}
     <${Field} label="Saving per month" id="monthly" error=${errAt(e, 'inputs.monthly')}>
-      <${TypedInput} kind="money" value=${f.monthly ?? ''} onInput=${set('monthly')} />
+      <${TypedInput} kind="money" min=${0} value=${f.monthly ?? ''} onInput=${set('monthly')} />
     </${Field}>
   `;
 }
@@ -699,6 +705,7 @@ function NewProjection({ close }) {
         contribution: { amount: 20000, growth: 3 },
         withdrawal: { method: 'fourPercent' },
         income: [{ label: 'Social Security', person: 0, fromAge: 67, monthly: 2500 }],
+        horizonAge: 95,
         fees: 0.1,
       }
       : goal === 'education'

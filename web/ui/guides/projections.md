@@ -73,9 +73,15 @@ retires.
 
 Your partner's, for a couple.
 
+## Runs to age {#horizon-age}
+
+The age it runs to, of the youngest of the people in it: the answer is the chance the money lasts
+until then. From 60 to 120: **default** fills in 95. Left blank, it is refused.
+
 ## Contribution per year {#contribution}
 
-What is added each year until retirement.
+What is added each year until retirement: **min** fills in $0.00 for none. Left blank, it is
+refused.
 
 ## Grows yearly by (%) {#contribution-growth}
 
@@ -135,11 +141,13 @@ By when.
 ## Saving per month {#monthly}
 
 What goes in each month until then. The answer says what a month would reach it with a 90% chance,
-or that no monthly saving reaches it by then.
+or that no monthly saving reaches it by then. **min** fills in $0.00 for none; left blank, it is
+refused.
 
 ## Fees a year (%) {#fees}
 
-Fund and advisory fees, taken from the balance each year.
+Fund and advisory fees, taken from the balance each year, from 0% to 5%: **default** fills in
+0.1% and **min** 0%. Left blank, they are refused.
 
 ## Bitcoin model
 

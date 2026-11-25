@@ -26,6 +26,7 @@ def seed_projections(s, people: dict) -> None:
             {"label": "Jane's Social Security", "person": 0, "fromAge": 67, "monthly": 2900},
             {"label": "John's Social Security", "person": 1, "fromAge": 67, "monthly": 2400},
         ],
+        "horizonAge": 95,
         "fees": 0.1,
     }
     built = (
@@ -69,7 +70,12 @@ def seed_projections(s, people: dict) -> None:
         make(
             "House deposit",
             "savings",
-            {"target": 22000, "date": f"{clock.today().year + 2}-06-01", "monthly": 800},
+            {
+                "target": 22000,
+                "date": f"{clock.today().year + 2}-06-01",
+                "monthly": 800,
+                "fees": 0.1,
+            },
             on={"kind": "accounts", "ids": [fund.id]},
             active=True,
         )

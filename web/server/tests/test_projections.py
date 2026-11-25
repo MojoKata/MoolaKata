@@ -37,6 +37,8 @@ def retirement(c, **inputs):
             "contribution": {"amount": 30000, "growth": 3},
             "withdrawal": {"method": "fourPercent"},
             "income": [{"label": "Social Security", "person": 0, "fromAge": 67, "monthly": 2900}],
+            "horizonAge": 95,
+            "fees": 0.1,
             **inputs,
         },
     }
@@ -73,7 +75,7 @@ def test_a_savings_target_says_how_likely_and_what_would_do_it(jane):
         name="House deposit",
         goal="savings",
         builtOn={"kind": "typed", "amount": 38200, "allocation": {"cash": 100}},
-        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300},
+        inputs={"target": 60000, "date": "2028-10-01", "monthly": 300, "fees": 0.1},
     )
     assert r.status_code == 200, r.text
     a = r.json()["result"]["answer"]
@@ -119,7 +121,8 @@ def test_an_education_projection_keeps_its_beneficiary_made_or_changed(jane):
     me = jane.get("/ui/api/profile").json()["personId"]
     body = {"name": "College", "goal": "education",
             "builtOn": {"kind": "typed", "amount": 1000, "allocation": {"bonds": 100}},
-            "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000}}  # fmt: skip
+            "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000, "monthly": 0,
+                       "fees": 0.1}}  # fmt: skip
     r = make(jane, "Prjct", **body)
     assert r.status_code == 422
     assert [e["field"] for e in r.json()["errors"]] == ["inputs.beneficiary"]
@@ -140,7 +143,7 @@ def test_built_on_accounts_starts_from_their_value(jane):
         name="Car",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [acct["id"]]},
-        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250},
+        inputs={"target": 20000, "date": "2028-01-01", "monthly": 250, "fees": 0.1},
     )
     res = r.json()["result"]
     assert res["start"] == 12000.0 and res["weights"] == {"cash": 1.0}
@@ -180,7 +183,7 @@ def test_tracking_against_the_band_and_the_alert_when_behind(server, jane):
         name="Nest egg",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [acct["id"]]},
-        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500},
+        inputs={"target": 150000, "date": "2030-01-01", "monthly": 500, "fees": 0.1},
     )
     pid = r.json()["id"]
     jane.post(f"/ui/api/projections/{pid}/activate")
@@ -350,7 +353,7 @@ def test_the_years_a_projection_runs_are_bounded(jane):
         builtOn={"kind": "typed", "amount": "1000"},
         inputs={"people": [{"birthYear": 1800}]},
     )
-    assert r.json()["errors"][0]["field"] == "inputs.people.0.birthYear"
+    assert "inputs.people.0.birthYear" in {e["field"] for e in r.json()["errors"]}
 
 
 def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, jane):
@@ -365,7 +368,7 @@ def test_a_viewer_tracks_only_the_accounts_shared_with_them(server, jane):
         name="House",
         goal="savings",
         builtOn={"kind": "accounts", "ids": [shared["id"], own["id"]]},
-        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500},
+        inputs={"target": 50000, "date": "2030-01-01", "monthly": 500, "fees": 0.1},
     )
     pid = r.json()["id"]
     jane.post(f"/ui/api/projections/{pid}/activate")
@@ -392,7 +395,8 @@ def test_one_shared_a_projection_sees_its_results_over_what_it_is_built_on(serve
         assert port.status_code == 200, port.text
         built = {"kind": "portfolio", "id": port.json()["id"]}
     r = make(jane, "Prjct", name="House", goal="savings", builtOn=built,
-             inputs={"target": 50000, "date": "2030-01-01", "monthly": 500})  # fmt: skip
+             inputs={"target": 50000, "date": "2030-01-01", "monthly": 500,
+                     "fees": 0.1})  # fmt: skip
     pid = r.json()["id"]
     john = make_user(server, "john")
     assert share(jane, "projection", pid, users={john.id: "read"}).status_code == 200
@@ -502,7 +506,7 @@ def test_no_saving_changes_todays_balance_and_the_search_has_an_end(monkeypatch)
 def test_a_target_months_away_names_a_saving_that_reaches_it(jane):
     """A target under a year: $12,000 by Apr 13, 2027 from nothing, in cash: the saving named
     reaches it, where $1,000 a month (a bound assumed enough) reaches half."""
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
     assert r.status_code == 200, r.text
@@ -515,7 +519,7 @@ def test_a_target_months_away_names_a_saving_that_reaches_it(jane):
 
 def test_an_answer_no_saving_reaches_says_so(jane, monkeypatch):
     monkeypatch.setattr(engine, "DOUBLINGS", 0)
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 0}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 0, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     r = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs)
     assert r.status_code == 200, r.text
@@ -553,7 +557,7 @@ def test_a_target_under_a_year_away_is_one_part_year(server, jane):
     from moolakata import projections
     from moolakata.store.entities.projections import Projection
 
-    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000}
+    inputs = {"target": 12000, "date": "2027-04-13", "monthly": 1000, "fees": 0.1}
     built = {"kind": "typed", "amount": 0, "allocation": {"cash": 100}}
     p = make(jane, "Prjct", name="Car", goal="savings", builtOn=built, inputs=inputs).json()
     with server.db.read(unscoped="test") as s:
