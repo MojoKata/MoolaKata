@@ -631,17 +631,27 @@ class ModelRow(Model):
 class ModelsView(Model):
     price: Ratio | None
     rows: list[ModelRow]
+    # Bitcoin's stored daily closes, oldest first, drawn behind the paths (S6.3.1.1).
+    history: list[tuple[dt.date, Ratio]]
     figuresYear: int
 
 
 @router.get("/bitcoin-models", response_model=ModelsView)
 def bitcoin_models(request: Request, c: Caller = Depends(caller)):
-    """Compare models: each one's median path and its figures for 2030, 2035 and 2045."""
+    """Compare models: each one's median path from today's price and its figures for 2030,
+    2035 and 2045, with the price history behind them; with no price, none (S6.3.1.5)."""
     with server(request).db.read(user=c.id) as s:
-        price = projections._btc_price(s)
+        price = projections.btc_price(s)
         year = clock.today().year
-        rows = bitcoin.compare(taxtables.figures(s, year), price or 100_000.0, clock.today())
-    return ModelsView(price=price, rows=[ModelRow(**r) for r in rows], figuresYear=year)
+        rows = (
+            bitcoin.compare(taxtables.figures(s, year), float(price), clock.today())
+            if price is not None
+            else []
+        )
+        history = projections.btc_history(s)
+    return ModelsView(
+        price=price, rows=[ModelRow(**r) for r in rows], history=history, figuresYear=year
+    )
 
 
 # ---------- Settings › Tax Tables (S16.11) ----------

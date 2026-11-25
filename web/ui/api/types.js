@@ -2236,6 +2236,7 @@
  * @typedef {Object} ModelsView
  * @property {(import('../kit/dec.js').Dec | null)} price
  * @property {Array<ModelRow>} rows
+ * @property {Array<Array<unknown>>} history
  * @property {number} figuresYear
  */
 

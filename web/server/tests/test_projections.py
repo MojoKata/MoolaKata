@@ -212,8 +212,13 @@ def test_assumptions_are_each_users_and_checked(jane):
     assert got["id"] is None and got["figures"]["classes"]["usStocks"]["return"] == 7.0
 
 
-def test_bitcoin_models_compare(jane):
-    rows = {r["model"]: r for r in jane.get("/ui/api/bitcoin-models").json()["rows"]}
+def test_bitcoin_models_compare(server, jane):
+    from test_account_world import _closes_installed
+    from test_projection_edges import _bitcoin
+
+    _bitcoin(server)
+    with _closes_installed():
+        rows = {r["model"]: r for r in jane.get("/ui/api/bitcoin-models").json()["rows"]}
     assert set(rows) == {"powerLaw", "logRegression", "stockToFlow", "saylor", "ark"}
     assert rows["ark"]["at"]["2030"] == pytest.approx(1_200_000, rel=0.01)
     assert rows["saylor"]["at"]["2045"] == pytest.approx(13_000_000, rel=0.01)
@@ -243,22 +248,15 @@ def test_tax_tables_ship_and_can_be_corrected(server, frozen, admin_client):
 
 
 def test_a_bitcoin_model_with_cases_gives_three_paths(server, jane):
-    from moolakata import ids
-    from moolakata.store.entities.accounts import Instrument
+    from test_account_world import _closes_installed
+    from test_projection_edges import _bitcoin
 
-    with server.db.tx(unscoped="test") as s:
-        s.add(
-            Instrument(
-                id=ids.new_id("Instr"), symbol="BTC", name="Bitcoin", instrumentClass="crypto"
-            )
-        )
-    p = retirement(
-        jane,
-        bitcoinModel="ark",
-    )
+    _bitcoin(server)
+    p = retirement(jane, bitcoinModel="ark")
     # A typed amount with some crypto in it.
     typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 80, "crypto": 20}}
-    sc = saved(change(jane, "Prjct", p, builtOn=typed))["result"]["scenarios"]
+    with _closes_installed():
+        sc = saved(change(jane, "Prjct", p, builtOn=typed))["result"]["scenarios"]
     assert set(sc) == {"bear", "base", "bull"}
     assert sc["bear"][-1] < sc["base"][-1] < sc["bull"][-1]
 

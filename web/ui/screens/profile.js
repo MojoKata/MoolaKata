@@ -731,14 +731,14 @@ function BitcoinModels({ close }) {
       <button type="button"
         class="btn" onClick=${() => close()}>Close</button>
     `}>
-      ${v
+      ${v && !v.price
+        ? html`<${Empty} action=${html`<span class="small dim">Each model starts from today's
+            price: an admin sets up a price source in Settings › Prices.</span>`}>No bitcoin
+            price yet</${Empty}>`
+        : v
         ? html`
-          ${v.price
-            ? html`<p class="small dim" style=${{ marginTop: 0 }}>Today's price: ${
-              fmt(v.price)
-            }</p>`
-            : null}
-          <${ModelsChart} rows=${v.rows} names=${MODEL_NAMES} />
+          <p class="small dim" style=${{ marginTop: 0 }}>Today's price: ${fmt(v.price)}</p>
+          <${ModelsChart} rows=${v.rows} history=${v.history} names=${MODEL_NAMES} />
           <div class="table-wrap mt">
             <table class="t">
               <thead>

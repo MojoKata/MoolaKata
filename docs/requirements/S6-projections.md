@@ -56,8 +56,8 @@
       | **ARK Invest** (2030 targets) | $500K, $1.2M and $2.4M by 2030 (bear, base, bull) |
 
       1. **Compare models** shows every model's median path on one chart (log scale) with
-         the price history behind it, and a table of each model's figures for 2030, 2035 and
-         2045.
+         the price history behind it (bitcoin's stored daily closes, S4.6), and a table of each
+         model's figures for 2030, 2035 and 2045.
       2. **Each model states its source and record.** Stock-to-flow has run below its own
          band since 2022; the targets of Saylor and ARK are forecasts by people with a stake
          in the outcome; the curve fits describe the past and say nothing about why it
@@ -67,6 +67,11 @@
          Tax Tables, and are updated with it (a new ARK target, a refit of the power law).
       4. A projection that uses a model with bear, base and bull cases shows those three
          paths in place of a fan, since they are not percentiles.
+      5. **No bitcoin price, no model.** A model starts from today's price, and nothing stands
+         in for one the server doesn't have (price sources are off until set up, R3.5):
+         *Compare models* shows *No bitcoin price yet*, with where an admin sets up a price
+         source, and a projection's bitcoin grows by the crypto assumption, with *No bitcoin
+         price yet: the model isn't used* under its chart.
 4. **Models:**
    1. **deterministic**: future value at a constant rate, in nominal and today's dollars;
    2. **Monte Carlo**: *N* runs (1000 by default) drawing yearly returns from the asset

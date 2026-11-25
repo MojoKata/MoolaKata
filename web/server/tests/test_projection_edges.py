@@ -142,16 +142,32 @@ def _in_cents(xs) -> bool:
     return all(Decimal(str(x)) == Decimal(str(x)).quantize(Decimal("0.01")) for x in xs)
 
 
-def _bitcoin(server):
+def _bitcoin(server, closes=(("2026-10-12", "100000"),)):
+    """Bitcoin, with its stored daily closes (S4.6)."""
+    import datetime as dt
+
     from moolakata import ids
     from moolakata.store.entities.accounts import Instrument
+    from moolakata.store.entities.prices import Price
 
+    iid = ids.new_id("Instr")
     with server.db.tx(unscoped="test") as s:
-        s.add(Instrument(id=ids.new_id("Instr"), symbol="BTC", name="Bitcoin",
-                         instrumentClass="crypto"))  # fmt: skip
+        s.add(Instrument(id=iid, symbol="BTC", name="Bitcoin", instrumentClass="crypto"))
+        for day, close in closes:
+            s.add(Price(instrumentId=iid, date=dt.date.fromisoformat(day), close=Decimal(close),
+                        source="test"))  # fmt: skip
 
 
-def test_its_figures_go_out_in_cents(server, jane):
+@pytest.fixture
+def closes():
+    """Stored closes value bitcoin, as on the running server."""
+    from test_account_world import _closes_installed
+
+    with _closes_installed():
+        yield
+
+
+def test_its_figures_go_out_in_cents(server, jane, closes):
     """S6.9: the fan's percentiles, its path at expected returns, each scenario's path and
     every money answer are rounded to cents and sent as exact numbers; chances aren't money."""
     _bitcoin(server)
@@ -192,7 +208,7 @@ def test_a_baseline_is_kept_in_cents(server, jane):
     assert all(_in_cents(base[k]) for k in ("p10", "p50", "p90"))
 
 
-def test_the_bitcoin_grows_as_the_model_does_in_the_same_year(server, jane):
+def test_the_bitcoin_grows_as_the_model_does_in_the_same_year(server, jane, closes):
     """S6.3.1, S6.4.2.3: a bitcoin model sets the bitcoin's growth each year; the projection's
     year grows by the model's growth into that year, its first year's included, so the
     stock-to-flow step at the 2028 halving lands in 2028."""
@@ -213,6 +229,44 @@ def test_the_bitcoin_grows_as_the_model_does_in_the_same_year(server, jane):
         assert path[t] / path[t - 1] == pytest.approx(model[t] / model[t - 1], rel=1e-6)
     jump = max(range(1, len(years) - 1), key=lambda t: path[t] / path[t - 1])
     assert years[jump] == 2028
+
+
+CRYPTO = {"kind": "typed", "amount": 100000, "allocation": {"crypto": 100}}
+
+
+def _stack(c, model):
+    goal = {"target": 1, "date": "2033-12-31", "bitcoinModel": model}
+    return made(make(c, "Prjct", name="Stack", goal="savings", builtOn=CRYPTO, inputs=goal))
+
+
+def test_with_no_bitcoin_price_no_model_starts_from_a_made_up_one(server, jane, closes):
+    """S6.3.1: a model's path starts from today's price; with none on the server, Compare
+    models has nothing to show, and a projection's bitcoin grows by the crypto assumption,
+    saying the model isn't used, its bear, base and bull cases too."""
+    _bitcoin(server, closes=())
+    v = jane.get("/ui/api/bitcoin-models").json()
+    assert (v["price"], v["rows"], v["history"]) == (None, [], [])
+    plain = _stack(jane, "assumption")["result"]
+    assert not plain["noBitcoinPrice"]
+    for model in ("powerLaw", "ark"):
+        res = _stack(jane, model)["result"]
+        assert res["noBitcoinPrice"] and res["scenarios"] == {}
+        assert res["expected"] == plain["expected"], "the crypto assumption's growth"
+
+
+def test_compare_models_draws_the_price_history_behind_the_paths(server, jane, closes):
+    """S6.3.1.1: the stored daily closes go out with the paths, oldest first, exact; the
+    paths start from the latest."""
+    days = (("2024-01-02", "45000.5"), ("2025-06-30", "107000"), ("2026-10-12", "98000.25"))
+    _bitcoin(server, closes=days)
+    v = jane.get("/ui/api/bitcoin-models").json()
+    assert v["price"] == Decimal("98000.25")
+    assert v["history"] == [[d, Decimal(c)] for d, c in days]
+    assert {r["model"] for r in v["rows"]} == {"powerLaw", "logRegression", "stockToFlow",
+                                                "saylor", "ark"}  # fmt: skip
+    ark = next(r for r in v["rows"] if r["model"] == "ark")
+    assert ark["path"][0] == [2026, 98000]
+    assert not _stack(jane, "ark")["result"]["noBitcoinPrice"]
 
 
 def test_a_cases_path_grows_from_its_first_year():

@@ -37,6 +37,7 @@ SLACK = Decimal("0.02")
 CENTS = Decimal("0.01")
 MAX_YEARS = 101  # a projection runs at most 100 years on from this one
 BTC = re.compile(r"^(BTC|XBT)\b", re.I)
+GENESIS = dt.date(2009, 1, 3)
 
 
 def asset_class(inst: Instrument) -> str | None:
@@ -186,12 +187,25 @@ def _grown_series(s: Session, a: Account, first: dt.date, last: dt.date, step: i
     )
 
 
-def _btc_price(s: Session) -> float | None:
-    inst = s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
+def _btc(s: Session) -> Instrument | None:
+    return s.scalars(select(Instrument).where(Instrument.symbol.in_(("BTC", "BTC-USD")))).first()
+
+
+def btc_price(s: Session) -> Decimal | None:
+    """Bitcoin's latest stored close: none until a price source has fetched one (R3.5), and
+    nothing stands in for it (S6.3.1.5)."""
+    inst = _btc(s)
+    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id) if inst else None
+    return found.price if found else None
+
+
+def btc_history(s: Session) -> list[tuple[dt.date, Decimal]]:
+    """Bitcoin's stored daily closes, oldest first: the history behind Compare models
+    (S6.3.1.1)."""
+    inst = _btc(s)
     if inst is None:
-        return None
-    found = valuation.closes(s, [inst.id], clock.today()).get(inst.id)
-    return float(found.price) if found else None
+        return []
+    return valuation.market_points(s, [inst.id], GENESIS, clock.today())[inst.id]
 
 
 def people_of(s: Session, owner: User, inputs: dict) -> list[dict]:
@@ -224,6 +238,16 @@ class Prepared:
     model: str
     # Education: the share of the year school starts in that comes before Sep 1, saved too.
     start_part: float = 1.0
+    # Today's bitcoin price a model starts from: none on the server, no model (S6.3.1.5).
+    btc_now: float | None = None
+
+    @property
+    def follows_model(self) -> bool:
+        return self.model not in ("assumption", None) and self.base.bitcoin > 0
+
+    @property
+    def no_btc_price(self) -> bool:
+        return self.follows_model and self.btc_now is None
 
 
 def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
@@ -337,9 +361,11 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         income, withdrawal = [], {}
     if p.goal in ("retirement", "education"):
         last_part = 1.0
-    btc_now = _btc_price(s) or 100_000.0
+    price = btc_price(s)
+    btc_now = float(price) if price is not None else None
     crypto_path = None
-    if model not in ("assumption", None) and base.bitcoin > 0:
+    # With no price, the crypto assumption grows the bitcoin as it does other coins.
+    if model not in ("assumption", None) and base.bitcoin > 0 and btc_now is not None:
         prices = bitcoin.median_path(
             model, taxtables.figures(s, year), btc_now, list(range(year, year + years))
         )
@@ -368,7 +394,9 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
         runs=int(inputs.get("runs", engine.RUNS)),
         seed=engine.seed_of(p.id, inputs, str(base.value)),
     )
-    return Prepared(plan, base, figures, retire_index, target_index, people, model, start_part)
+    return Prepared(
+        plan, base, figures, retire_index, target_index, people, model, start_part, btc_now
+    )
 
 
 def compute(s: Session, p: Projection, viewer: str) -> dict:
@@ -395,13 +423,14 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         "assumptions": prep.figures,
         "bitcoinModel": prep.model,
         "bitcoinShare": prep.base.bitcoin_share,
+        "noBitcoinPrice": prep.no_btc_price,
         "runs": plan.runs,
         "seed": plan.seed,
         "scenarios": {},
     }
-    if prep.model in ("saylor", "ark") and prep.base.bitcoin > 0:
+    if prep.model in ("saylor", "ark") and prep.follows_model and prep.btc_now is not None:
         out["scenarios"] = engine.scenario_paths(
-            plan, prep.model, taxtables.figures(s, plan.first_year), _btc_price(s) or 100_000.0
+            plan, prep.model, taxtables.figures(s, plan.first_year), prep.btc_now
         )
     for k in ("percentiles", "real", "scenarios"):
         out[k] = {name: _cents(path) for name, path in out[k].items()}

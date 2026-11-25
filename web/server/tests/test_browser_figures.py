@@ -137,3 +137,23 @@ def test_an_uncovered_call_on_its_own_risks_without_limit(browser, household):
         page.close()
     finally:
         _drop(h.c, "Acct", f"/accounts/{a['id']}")
+
+
+def test_with_no_bitcoin_price_no_model_is_drawn_or_followed(browser, household):
+    """S6.3.1.5: the household has no bitcoin price; Compare models says so, and a projection
+    that chose a model says under its chart that it isn't used."""
+    h = household
+    crypto = {"kind": "typed", "amount": 50000, "allocation": {"crypto": 100}}
+    goal = {"target": 90000, "date": "2030-01-01", "bitcoinModel": "ark"}
+    pr = made(make(h.c, "Prjct", name="Figures stack", goal="savings", builtOn=crypto, inputs=goal))
+    try:
+        page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')
+        page.click('button:has-text("Compare models")')
+        wait(page, '.dialog .empty:has-text("No bitcoin price yet")', problems)
+        assert "Settings › Prices" in page.locator(".dialog").inner_text()
+        page.goto(h.base + f"/ui/projections/{pr['id']}")
+        wait(page, "text=No bitcoin price yet: the model isn't used", problems)
+        assert problems == []
+        page.close()
+    finally:
+        _drop(h.c, "Prjct", f"/projections/{pr['id']}")

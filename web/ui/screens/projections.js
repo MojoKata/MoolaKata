@@ -205,7 +205,9 @@ function Detail({ id, reloadList }) {
             }%`
           ).join(', ')}</div>
           <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees ?? 0.1}% a year</div>
-          ${r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
+          ${r.noBitcoinPrice
+            ? html`<div>No bitcoin price yet: the model isn't used</div>`
+            : r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0
             ? html`<div>Bitcoin: the ${r.bitcoinModel} model</div>`
             : null}
           <div>Seed: ${r.seed}</div>

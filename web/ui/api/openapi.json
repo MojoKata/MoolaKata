@@ -13496,6 +13496,28 @@
             "title": "Figuresyear",
             "type": "integer"
           },
+          "history": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "examples": [
+                    12.5
+                  ],
+                  "format": "decimal",
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "History",
+            "type": "array"
+          },
           "price": {
             "anyOf": [
               {
@@ -13522,6 +13544,7 @@
         "required": [
           "price",
           "rows",
+          "history",
           "figuresYear"
         ],
         "title": "ModelsView",
@@ -32231,7 +32254,7 @@
     },
     "/ui/api/bitcoin-models": {
       "get": {
-        "description": "Compare models: each one's median path and its figures for 2030, 2035 and 2045.",
+        "description": "Compare models: each one's median path from today's price and its figures for 2030,\n2035 and 2045, with the price history behind them; with no price, none (S6.3.1.5).",
         "operationId": "bitcoin_models_ui_api_bitcoin_models_get",
         "responses": {
           "200": {
