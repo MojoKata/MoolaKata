@@ -3476,6 +3476,7 @@
 /**
  * @typedef {Object} PruneIn
  * @property {Array<string>} categories
+ * @property {boolean} deleted
  * @property {number} count
  */
 
@@ -4266,6 +4267,7 @@
  * @property {Array<CategorySize>} expiredBy
  * @property {(number | null)} keepStatementsYears
  * @property {Size} orphans
+ * @property {Size} deleted
  */
 
 /**

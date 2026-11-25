@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 from conftest import make_user, sign_in
-from edits import attach, change, edit, make, save_settings, saved
+from edits import attach, change, drop, edit, make, save_settings, saved
 from sqlalchemy import select
 from test_accounts import add, new_account
 from test_receipts import png, upload
@@ -172,7 +172,7 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     with server.db.tx(unscoped="test") as s:
         for row in s.scalars(select(Session)):
             row.authAt -= dt.timedelta(minutes=11)
-    body = {"categories": ["Groceries"], "count": 1}
+    body = {"categories": ["Groceries"], "deleted": False, "count": 1}
     r = admin_client.post("/ui/api/settings/storage/prune", json=body)
     assert r.json()["code"] == "reauth-required"
     admin_client.post("/ui/api/session/reauth", json={"password": "a long admin passphrase"})
@@ -186,7 +186,7 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     assert d["links"] and d["links"][0]["transactionId"] == t["id"], "the record keeps its links"
     assert c.get(f"/ui/api/receipts/{rid}/file").json()["code"] == "file-pruned"
     acts = admin_client.get("/ui/api/activity").json()["items"]
-    assert any("pruned 1 expired files" in a["text"] for a in acts)
+    assert any("pruned 1 files" in a["text"] for a in acts)
     # The same file uploaded again is a new receipt with its file.
     again = upload(c, png((50, 60, 70))).json()
     assert again["id"] != rid
@@ -233,6 +233,56 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
         assert path.exists()
         assert retention.prune_files(server, s, [a], a.ownerId) > 0
     assert not path.exists()
+
+
+def _reauth(server):
+    from moolakata.store.entities.users import Session
+
+    with server.db.tx(unscoped="test") as s:
+        for row in s.scalars(select(Session)):
+            row.authAt = clock.now()
+
+
+def test_a_deleted_receipts_file_is_a_part_of_storage_of_its_own_and_prunable(
+    server, frozen, admin_client
+):
+    # S14.10.4, S14.10.5, S9.7: a file only deleted receipts name is counted in a part of its
+    # own, so the parts add up to the directory's size, and Prune offers it on its own.
+    from moolakata.receipts import retention
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    c, john = sign_in(server, "jane"), sign_in(server, "john")
+    gone = upload(c, png((11, 22, 33))).json()["id"]
+    live = upload(c, png((44, 55, 66))).json()["id"]
+    # John's upload of the same bytes is his own receipt over the one file, which Jane's
+    # live receipt still needs once he deletes his.
+    twin = upload(john, png((44, 55, 66))).json()["id"]
+    assert drop(john, "Rcpt", f"/ui/api/receipts/{twin}").status_code == 200
+    assert drop(c, "Rcpt", f"/ui/api/receipts/{gone}").status_code == 200
+    with server.db.read(unscoped="test") as s:
+        gone_file = retention.file_path(server.config.receipts_dir, s.get(Receipt, gone).fileId)
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["deleted"] == {"files": 1, "bytes": gone_file.stat().st_size}
+    parts = ("expired", "later", "forever", "deleted", "orphans")
+    assert sum(st[k]["bytes"] for k in parts) == st["receiptsBytes"]
+    _reauth(server)
+    # Left unticked, a deleted receipt's file stays.
+    r = admin_client.post(
+        "/ui/api/settings/storage/prune", json={"categories": [], "deleted": False, "count": 1}
+    )
+    assert r.json()["code"] == "nothing-to-prune"
+    r = admin_client.post(
+        "/ui/api/settings/storage/prune", json={"categories": [], "deleted": True, "count": 1}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["files"] == 1 and not gone_file.exists()
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Receipt, gone).filePrunedAt is not None, "the row stays, File pruned"
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["deleted"]["files"] == 0 and st["pruned"] == 1
+    assert c.get(f"/ui/api/receipts/{live}/file").status_code == 200
 
 
 def test_after_a_prune_the_same_file_uploaded_again_is_stored_once(server, frozen):

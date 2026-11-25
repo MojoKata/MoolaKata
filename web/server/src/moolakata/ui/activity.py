@@ -79,7 +79,7 @@ TEXT = {
     "signin.new-address": "{actor} signed in from an address not used in the last 30 days",
     "files.orphans-removed": "{actor} removed {files} files no record names",
     "backups.started": "{actor} started a backup",
-    "files.pruned": "{actor} pruned {files} expired files",
+    "files.pruned": "{actor} pruned {files} files",
     "account.created": "{actor} made the account {subject}",
     "account.updated": "{actor} changed {fields} of {subject}",
     "account.closed": "{actor} closed {subject}",

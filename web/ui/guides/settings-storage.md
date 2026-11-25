@@ -9,8 +9,9 @@ their record ended, and for ever by default. Sizes and counts only, never what t
 
 ## Prune
 
-Opens the files that have expired, by category, to prune. No backup is made first: a backup holds
-no files, and a pruned file survives only in the host's own backups of the data directory.
+Opens the files that have expired, by category, and the deleted receipts' files, to prune. No
+backup is made first: a backup holds no files, and a pruned file survives only in the host's own
+backups of the data directory.
 
 ## Files no record names {#files-no-record-names}
 
@@ -25,7 +26,9 @@ Years after each statement's period. Empty keeps them for ever, the default.
 ## Receipt and Statement Files {#files}
 
 The files expired and prunable, those that expire later or are kept while their record is open,
-and those kept for ever.
+those kept for ever, and the deleted receipts' files: a deleted receipt keeps no file, so its file
+can be pruned once no other receipt uses it. With the files no record names, they add up to the
+size of *Receipts and statements*.
 
 ## What Expires Each Year {#what-expires-each-year}
 

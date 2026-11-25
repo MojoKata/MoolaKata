@@ -1363,6 +1363,7 @@ class StorageOut(Model):
     expiredBy: list[CategorySize]  # what can be pruned now, by category
     keepStatementsYears: int | None
     orphans: Size  # files no record names (S14.6)
+    deleted: Size  # files only deleted receipts name, prunable on their own (S14.10.4)
 
 
 def _size(g) -> Size:
@@ -1401,11 +1402,13 @@ def storage(request: Request, c: Caller = Depends(admin)):
             ],
             keepStatementsYears=settings.get(s, "keepStatementsYears"),
             orphans=_size(st.orphans),
+            deleted=_size(st.deleted),
         )
 
 
 class PruneIn(Model):
     categories: list[str]  # those ticked in the preview
+    deleted: bool  # the deleted receipts' files ticked too (S14.10.5)
     count: int  # typed by the admin, to confirm
 
 
@@ -1416,30 +1419,35 @@ class PruneOut(Model):
 
 @router.post("/settings/storage/prune", response_model=PruneOut)
 def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
-    """Remove the expired files of the categories ticked, keeping every record; recorded in
-    Activity with its counts (S14.10.5). No backup first: a backup holds no files, the host's
-    own backups do."""
+    """Remove the expired files of the categories ticked, and the deleted receipts' files if
+    ticked, keeping every record; recorded in Activity with its counts (S14.10.5). No backup
+    first: a backup holds no files, the host's own backups do."""
     from ..receipts import retention
     from .deps import recent_auth
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.read(unscoped="storage: the household's expired files, for an admin") as s:
-        rows = retention.prunable(s, body.categories)
+    with srv.db.read(unscoped="storage: the household's prunable files, for an admin") as s:
+        rows = retention.prunable(s, body.categories, body.deleted)
     if not rows:
-        raise refuse("categories", "nothing-to-prune", "No expired files in what is ticked.")
+        raise refuse("categories", "nothing-to-prune", "No files to prune in what is ticked.")
     if body.count != len(rows):
         raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
     # Whether a file is still named is every receipt's to say, whoever's it is.
-    with srv.db.tx(unscoped="storage: expired files pruned by an admin") as s:
-        rows = retention.prunable(s, body.categories)
+    with srv.db.tx(unscoped="storage: files pruned by an admin") as s:
+        rows = retention.prunable(s, body.categories, body.deleted)
         freed = retention.prune_files(srv, s, rows, c.id)
         activity.record(
             s,
             "files.pruned",
             actor=c.id,
             for_admins=True,
-            detail={"files": len(rows), "bytes": freed, "categories": body.categories},
+            detail={
+                "files": len(rows),
+                "bytes": freed,
+                "categories": body.categories,
+                "deleted": body.deleted,
+            },
         )
     return PruneOut(files=len(rows), bytes=freed)
 

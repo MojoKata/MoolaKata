@@ -1,7 +1,7 @@
 """File retention and pruning (requirements S14.10): when each file of a receipt or statement
 expires, worked out from when the records it is attached to ended (docs/schema.md §6) and their
 retention periods, never stored; what Settings › Storage shows; and file pruning, which removes
-expired files after a verified backup and keeps every record.
+expired files and those only deleted receipts name, and keeps every record.
 
 A record's end and period, by what the file is attached to:
 
@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import sqlalchemy as sa
-from sqlalchemy import false, select
+from sqlalchemy import false, select, true
 from sqlalchemy.orm import Session
 
 from .. import clock, settings
@@ -255,6 +255,8 @@ class Storage:
     # Files in the receipts directory that no receipt row names, deleted rows included: left
     # behind when an older database was restored under files written later (S14.6).
     orphans: Group = field(default_factory=Group)
+    # Files only deleted receipts name, which keep no file (S9.7): prunable on their own.
+    deleted: Group = field(default_factory=Group)
 
 
 def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Storage:
@@ -262,10 +264,11 @@ def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Sto
     out = Storage(_dir_bytes(receipts_dir), Group(), Group(), Group(), 0)
     years: dict[int, dict[str, Group]] = defaultdict(lambda: defaultdict(Group))
     seen_files: set[str] = set()
+    pruned = select(sa.func.count()).select_from(Receipt).where(Receipt.filePrunedAt.is_not(None))
+    out.pruned = s.scalar(pruned) or 0
     for r in s.scalars(select(Receipt).where(Receipt.deleted == false())):
         rt = retention(ctx, r)
         if rt.state == "pruned":
-            out.pruned += 1
             continue
         # A file shared by several receipts counts once, with the first.
         size = 0 if r.fileId in seen_files else _size(receipts_dir, r.fileId)
@@ -282,6 +285,10 @@ def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Sto
             y.files += 1
             y.bytes += size
     out.byYear = {k: dict(v) for k, v in sorted(years.items())}
+    for r in deleted_only(s):
+        out.deleted.files += 1
+        out.deleted.bytes += 0 if r.fileId in seen_files else _size(receipts_dir, r.fileId)
+        seen_files.add(r.fileId)
     for p in orphan_files(s, receipts_dir):
         out.orphans.files += 1
         out.orphans.bytes += p.stat().st_size
@@ -308,15 +315,37 @@ def remove_orphans(srv, s: Session) -> tuple[int, int]:
     return len(gone), sum(size for _, size in gone)
 
 
-def prunable(s: Session, categories: list[str] | None, today: dt.date | None = None):
-    """The expired receipts, of the categories named (all when none are)."""
+def deleted_only(s: Session) -> list[Receipt]:
+    """The deleted receipts with a file no live receipt needs (S9.7, S14.10.5)."""
+    needed = select(Receipt.fileId).where(
+        Receipt.deleted == false(), Receipt.filePrunedAt.is_(None), Receipt.fileId.is_not(None)
+    )
+    return list(
+        s.scalars(
+            select(Receipt)
+            .where(
+                Receipt.deleted == true(),
+                Receipt.filePrunedAt.is_(None),
+                Receipt.fileId.is_not(None),
+                Receipt.fileId.not_in(needed),
+            )
+            .order_by(Receipt.id)
+        )
+    )
+
+
+def prunable(
+    s: Session, categories: list[str] | None, deleted: bool = False, today: dt.date | None = None
+):
+    """The expired receipts, of the categories named (all when none are), and with `deleted`
+    the deleted receipts whose file no live one needs."""
     ctx = Context(s, today)
     out = []
     for r in s.scalars(select(Receipt).where(Receipt.deleted == false())):
         rt = retention(ctx, r)
         if rt.state == "expired" and (categories is None or (rt.category or "Other") in categories):
             out.append(r)
-    return out
+    return out + (deleted_only(s) if deleted else [])
 
 
 def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
