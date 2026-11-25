@@ -63,12 +63,23 @@
       *read from the receipt*, and the user confirms or corrects them. OCR never overwrites a
       value a person entered, and never attaches a receipt by itself.
    2. **The pipeline**, per receipt:
-      1. **PDF with a text layer** (an emailed invoice, a downloaded statement): the text is
-         read with pypdfium2, with no OCR. A page counts as having a text layer when it gives
-         at least 20 characters.
+      1. **A PDF is read page by page.** A page with a text layer (an emailed invoice, a
+         downloaded statement) is read from it with pypdfium2, with no OCR: a text layer is
+         the document's exact text. A page counts as having one when it gives at least 20
+         characters. Any other page (a scan) is rendered and read by OCR. The receipt's method
+         is *text layer*, *OCR*, or both, for a file with pages of each (a typed cover letter
+         before a scanned receipt).
+         1. **The total is checked against the scan.** When a page's text layer gives the
+            receipt's total, that one page is also rendered and read by OCR. If the OCR
+            doesn't find the same amount there, the receipt is flagged *The text and the scan
+            disagree: check the total*, showing both readings, and no transaction is offered
+            for it (S9.8.2.6) until someone confirms its amount: picks one of the readings or
+            types it, and saves. Only that page is read twice, never the whole file, and a
+            page with no text layer is read by OCR once.
       2. **Images and scanned PDFs** are prepared first. Pillow applies the EXIF orientation,
          converts HEIC, converts to greyscale, and scales the long side to 2,000 pixels.
-         pypdfium2 renders at most the first 3 PDF pages at 300 DPI.
+         pypdfium2 renders at 300 DPI at most 3 of a PDF's pages without a text layer, the
+         first ones.
       3. **RapidOCR** (the `rapidocr` package on **ONNX Runtime**, CPU only) runs the
          PP-OCR models: text detection, orientation classification, then text recognition.
          It returns each line's box, text and confidence. Skewed, curled and faded thermal

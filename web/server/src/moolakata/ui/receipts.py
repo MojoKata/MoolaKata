@@ -94,10 +94,22 @@ class Suggestion(Model):
     payee: str | None
 
 
+class TotalCheck(Model):
+    """The total its text layer gives and the one the scan of that page reads, which disagree
+    (S9.8.2.1.1); `scan` is none when the scan reads no total."""
+
+    text: Money
+    scan: Money | None
+
+
 class ReceiptDetail(ReceiptRow):
     matches: list[Suggestion]
     text: str | None
     suggested: dict[str, Suggested]
+    # Its text and its scan disagree on the total, and nobody has confirmed it yet: no
+    # transaction is offered meanwhile (S9.8.2.1.1).
+    totalCheck: TotalCheck | None
+    totalChecked: bool  # the record's: not waiting for its total to be confirmed
     readMethod: str | None
     readEngine: str | None
     readAt: dt.datetime | None
@@ -265,6 +277,7 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
     with scoping.as_server(s, "how long a receipt's file is kept") as srv:
         rt = retention.retention(retention.Context(srv), srv.get(Receipt, r.id))
     named = rt.link is None or access.perms(s, ReceiptLink, rt.link, user_id) is not None
+    check = reading.disagreeing(r)
     return ReceiptDetail(
         **base.model_dump(),
         matches=[
@@ -281,7 +294,10 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
         suggested={
             k: Suggested(value=v["value"], confidence=v["confidence"])
             for k, v in json.loads(r.suggested or "{}").items()
+            if k != reading.DISAGREE
         },
+        totalCheck=TotalCheck(**check) if check else None,
+        totalChecked=check is None,
         readMethod=r.readMethod,
         readEngine=r.readEngine,
         readAt=r.readAt,
@@ -402,6 +418,9 @@ class ReceiptRecord(Model):
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
     keep: bool = False
+    # Its amount confirmed where its text and its scan disagree (S9.8.2.1.1): the amount is
+    # then the person's, as one typed is.
+    totalChecked: bool = False
 
 
 RECEIPT_FIELDS = ("date", "amount", "payee", "notes")
@@ -416,6 +435,7 @@ def _receipt_current(ctx, r: Receipt) -> dict:
         **{f: getattr(r, f) for f in RECEIPT_FIELDS},
         "tagIds": tags.ids_of(ctx.s, "receipt", ctx.caller.id, r.id),
         "keep": bool(r.keep),
+        "totalChecked": reading.disagreeing(r) is None,
     }
 
 
@@ -437,6 +457,8 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
             # A value a person gives is theirs: reading again won't replace it.
             filled.discard(f)
             setattr(r, f, value)
+    if body.totalChecked and reading.disagreeing(r) is not None:
+        filled.discard("amount")
     r.filled = exactjson.dumps(sorted(filled))
     tags.owned(ctx.s, ctx.caller.id, body.tagIds)
     tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)

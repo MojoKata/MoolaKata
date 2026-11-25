@@ -1037,6 +1037,37 @@ def test_a_receipt_whose_file_was_pruned_has_no_read_again(browser, household):
     page.close()
 
 
+def test_a_total_the_text_and_the_scan_disagree_on_is_confirmed_by_picking_one(browser, household):
+    """S9.8.2.1.1: both readings shown; picking one confirms the amount, sent with the save."""
+    import json
+
+    h = household
+    r = h.extra["receipt"]
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    flag = ".dialog .notice:has-text('The text and the scan disagree')"
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+
+    def disagreeing(route):
+        out = route.fetch()
+        check = {"text": r["amount"], "scan": "6.90"}
+        body = {**out.json(), "totalCheck": check, "totalChecked": False}
+        route.fulfill(response=out, body=json.dumps(body))
+
+    page.route(f"**/ui/api/receipts/{r['id']}", disagreeing)
+    page.click(card)
+    wait(page, flag, problems)
+    assert "scan $6.90" in page.inner_text(flag)
+    page.click(f"{flag} button:has-text('Use $6.40')")
+    wait(page, flag, problems, state="detached")
+    with page.expect_request("**/ui/api/save") as sent:
+        page.click(".dialog footer button.primary")
+    ops = json.loads(sent.value.post_data)["ops"]
+    assert ops[0]["fields"] == {"totalChecked": True}, "the amount it had, confirmed"
+    wait(page, ".dialog", problems, state="detached")
+    assert problems == []
+    page.close()
+
+
 def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household):
     """Uploaded at once, into the inbox; attached by the transaction's draft on Save."""
     h = household

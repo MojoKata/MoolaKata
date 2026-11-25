@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import queue
+import re
 import select
 import subprocess
 import sys
@@ -41,6 +42,8 @@ TIME_LIMIT = 60
 STATEMENT_TIME_LIMIT = 300  # a scanned statement's every page, at about 10 s a page
 MEMORY_CAP = 1536 * 1024 * 1024
 FIELDS = ("date", "amount", "payee")
+# Beside the suggested fields: the text layer's total and the scan's, when they disagree.
+DISAGREE = "totalCheck"
 
 
 def resident(pid: int) -> int:
@@ -58,6 +61,21 @@ def resident(pid: int) -> int:
 MAX_ANSWER = 64 * 1024 * 1024
 MAX_LINES = 20_000
 MAX_LINE = 2_000
+AMOUNT = re.compile(r"-?\d{1,12}\.\d{2}")
+
+
+def _a_check(found) -> bool:
+    """The total against the scan as the worker answers it: two amounts, the scan's or none,
+    and whether they agree."""
+    return (
+        isinstance(found, dict)
+        and set(found) == {"text", "scan", "agrees"}
+        and isinstance(found["text"], str)
+        and AMOUNT.fullmatch(found["text"]) is not None
+        and (found["scan"] is None or isinstance(found["scan"], str))
+        and (found["scan"] is None or AMOUNT.fullmatch(found["scan"]) is not None)
+        and isinstance(found["agrees"], bool)
+    )
 
 
 class Worker:
@@ -187,26 +205,32 @@ class Worker:
         pages: int | None = None,
         *,
         user: str,
+        check: bool = False,
     ) -> tuple:
-        """A receipt or statement read: ("ok", lines, method, engine), or ("error", why). A
-        statement asks for more pages than a receipt's three, with a longer limit. `user` is
+        """A receipt or statement read: ("ok", lines, method, engine, check), or ("error",
+        why). A statement asks for more pages than a receipt's three, with a longer limit; a
+        receipt asks for its total to be checked against the scan (S9.8.2.1.1). `user` is
         whose file it is."""
         extra = {"pages": pages} if pages else {}
+        if check:
+            extra["check"] = True
         out = self.call("read", data, limit, user=user, media=media, **extra)
         if "error" in out:
             return ("error", out["error"])
         lines, method, engine = out.get("lines"), out.get("method"), out.get("engine")
+        found = out.get("check")
         if (
             not isinstance(lines, list)
             or len(lines) > MAX_LINES
             or not all(isinstance(x, str) and len(x) <= MAX_LINE for x in lines)
-            or method not in ("text", "ocr")
+            or method not in ("text", "ocr", "both")
             or not isinstance(engine, str)
             or len(engine) > 200
+            or not (found is None or _a_check(found))
         ):
             self.stop()
             return ("error", "the reader answered out of turn")
-        return ("ok", lines, method, engine)
+        return ("ok", lines, method, engine, found)
 
     def stop(self) -> None:
         if self.proc is not None:
@@ -337,7 +361,7 @@ class Reader:
         try:
             data = whole(srv, file)
             # The owner's file: read in a worker no other user's file has been in (S9.8.4.2).
-            outcome = worker.read(data, media, user=owner)
+            outcome = worker.read(data, media, user=owner, check=True)
             if not drawn:  # one the upload couldn't draw is tried again
                 thumb = parsing.thumbnail(data, media, user=owner)
         except Exception as e:
@@ -350,8 +374,8 @@ class Reader:
             if thumb is not None and r.thumbnail is None:
                 r.thumbnail = thumb
             if outcome[0] == "ok":
-                _, lines, method, engine = outcome
-                save_reading(s, r, lines, method, engine)
+                _, lines, method, engine, found = outcome
+                save_reading(s, r, lines, method, engine, found)
             else:
                 r.readStatus, r.readError, r.readAt = "failed", outcome[1], clock.now()
         srv.events.publish("receipt", {"id": rid}, users=[owner])
@@ -368,13 +392,24 @@ def _not_before(s, r: Receipt):
     )
 
 
-def save_reading(s, r: Receipt, lines: list[str], method: str, engine: str) -> None:
-    """Store what was read, and fill the fields nobody typed (S9.8.1)."""
+def save_reading(
+    s, r: Receipt, lines: list[str], method: str, engine: str, check: dict | None = None
+) -> None:
+    """Store what was read, and fill the fields nobody typed (S9.8.1). A total its text layer
+    gives that the scan of its page doesn't is kept with both readings (S9.8.2.1.1)."""
     found = parser.parse(lines, clock.today(), _not_before(s, r))
     r.text = "\n".join(lines)
     r.readMethod, r.readEngine = method, engine
     r.readStatus, r.readError, r.readAt = "read", None, clock.now()
-    r.suggested = json.dumps(found.as_dict())
+    suggested = found.as_dict()
+    if (
+        check is not None
+        and not check["agrees"]
+        and found.total is not None
+        and Decimal(check["text"]) == found.total.value
+    ):
+        suggested[DISAGREE] = {"text": check["text"], "scan": check["scan"]}
+    r.suggested = json.dumps(suggested)
     filled = set(json.loads(r.filled or "[]"))
     values = {
         "date": found.date.value if found.date else None,
@@ -442,3 +477,12 @@ def turned_on(s) -> list[str]:
 def read_again(s, r: Receipt) -> None:
     """Queue it again: only empty or suggested fields will be replaced (S9.8.6)."""
     r.readStatus, r.readError = "waiting", None
+
+
+def disagreeing(r: Receipt) -> dict | None:
+    """The text layer's total and the scan's, while they disagree and the amount is still the
+    one read: until someone picks or types it, no transaction is offered (S9.8.2.1.1)."""
+    got = json.loads(r.suggested or "{}").get(DISAGREE)
+    if got is None or "amount" not in json.loads(r.filled or "[]"):
+        return None
+    return got

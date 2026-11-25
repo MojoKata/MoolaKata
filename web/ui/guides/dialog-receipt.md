@@ -11,9 +11,19 @@ A receipt whose file is pruned keeps its record: its amounts, dates and links, a
 from it; with no file, it has no **Read Again**. One being read on the server fills in its fields
 when it's done, and they can be typed meanwhile; one that couldn't be read is typed by hand.
 
+A PDF is read page by page: a page with text in it directly, a scanned page by OCR, so an emailed
+letter with a scanned receipt behind it is read whole.
+
 A transaction of the receipt's amount within five days of its date is offered to attach it to; one
 that hasn't arrived is attached from the transaction when it does. A receipt without a date and
 amount is attached from the transaction itself.
+
+## The text and the scan disagree
+
+A total read from a PDF's text is checked against the picture of that page. When they differ (a
+scanner's own text can misread a digit), both readings are shown and no transaction is offered
+until you confirm the amount: **Use** one of them, or type it, and save. It is then yours, as a
+typed amount is.
 
 ## Keep
 

@@ -62,7 +62,7 @@ def test_nothing_leaves_the_server_with_no_network(server, admin_client, watched
 
     w = Worker()
     try:
-        status, lines, _, _ = w.read(
+        status, lines, _, _, _ = w.read(
             _png(draw(["KROGER", "TOTAL 12.34"])), "image/png", user="User_a"
         )
     finally:

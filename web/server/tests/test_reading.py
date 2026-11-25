@@ -114,7 +114,7 @@ def test_ocr_in_the_worker_reads_a_tilted_receipt():
     ).rotate(3, expand=True, fillcolor="white")
     w = Worker()
     try:
-        status, lines, method, engine = w.read(_png(img), "image/png", user="User_a")
+        status, lines, method, engine, _ = w.read(_png(img), "image/png", user="User_a")
     finally:
         w.stop()
     assert status == "ok" and method == "ocr" and "PP-OCRv6" in engine
@@ -154,6 +154,114 @@ def test_a_pdf_with_a_text_layer_is_read_without_ocr():
     )
     assert r.method == "text" and "AMOUNT DUE 153.58" in r.lines
     assert parser.parse(r.lines, TODAY).total.value == Decimal("153.58")
+
+
+def pdf(*pages: dict) -> bytes:
+    """A PDF of these pages, each a dict: `text`, lines in its text layer (`hidden`: drawn
+    invisible, as a scanner's own OCR layer is); `scan`, lines drawn as an image, as a scanned
+    page is."""
+    objs = ["<< /Type /Catalog /Pages 2 0 R >>", None]
+    font = len(objs) + 1
+    objs.append("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    kids = []
+    for p in pages:
+        content, xobjects = "", ""
+        if p.get("scan"):
+            img = draw(p["scan"]).convert("L")
+            w, h = img.size
+            raw = img.tobytes()
+            objs.append(
+                f"<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace"
+                f" /DeviceGray /BitsPerComponent 8 /Length {len(raw)} >>\nstream\n"
+                + raw.decode("latin-1")
+                + "\nendstream"
+            )
+            xobjects = f"/XObject << /Im1 {len(objs)} 0 R >>"
+            height = 300 * h / w
+            content += f"q 300 0 0 {height:.2f} 0 {400 - height:.2f} cm /Im1 Do Q "
+        if p.get("text"):
+            mode = "3 Tr " if p.get("hidden") else ""
+            content += f"BT {mode}/F1 12 Tf 40 360 Td 14 TL "
+            content += " ".join(f"({x}) '" for x in p["text"]) + " ET"
+        objs.append(f"<< /Length {len(content)} >>\nstream\n{content}\nendstream")
+        contents = len(objs)
+        objs.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << /Font << /F1"
+            f" {font} 0 R >> {xobjects} >> /Contents {contents} 0 R >>"
+        )
+        kids.append(f"{len(objs)} 0 R")
+    objs[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>"
+    out = "%PDF-1.4\n"
+    offsets = []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n{o}\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n"
+    out += "".join(f"{o:010d} 00000 n \n" for o in offsets)
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    return out.encode("latin-1")
+
+
+LETTER = {"text": ["Dear Jane,", "Please find your receipt for the repair attached."]}
+INVOICE = {"text": ["City Power & Water", "Invoice 2026-117", "AMOUNT DUE 153.58"]}
+SCAN = {"scan": ["CORNER STORE", "OCT 9, 2026", "TOTAL 12.34"]}
+
+
+@pytest.fixture
+def ocr_calls(monkeypatch):
+    """The pages read by OCR, counted."""
+    calls = []
+    real = ocr._ocr
+    monkeypatch.setattr(ocr, "_ocr", lambda images: calls.append(1) or real(images))
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("pages", "method", "read", "ocred"),
+    [
+        ([LETTER, INVOICE], "text", ["Dear Jane,", "AMOUNT DUE 153.58"], 0),
+        ([SCAN, {"scan": ["PAGE TWO"]}], "ocr", ["TOTAL 12.34", "PAGE TWO"], 2),
+        ([LETTER, SCAN], "both", ["Dear Jane,", "TOTAL 12.34"], 1),
+        ([SCAN, LETTER], "both", ["TOTAL 12.34", "Dear Jane,"], 1),
+    ],
+    ids=["all text", "all scanned", "a letter, then a scan", "a scan, then a letter"],
+)
+def test_a_pdf_is_read_page_by_page(pages, method, read, ocred, ocr_calls):
+    """S9.8.2.1: a page with a text layer is read from it, any other by OCR, in page order;
+    the method says which, or both."""
+    r = ocr.read(pdf(*pages), "application/pdf")
+    assert r.method == method
+    assert [x for x in r.lines if x in read] == read, r.lines
+    assert len(ocr_calls) == ocred
+    if method == "both":
+        assert r.engine.startswith("pypdfium2 text layer, rapidocr")
+        assert parser.parse(r.lines, TODAY).total.value == Decimal("12.34")
+
+
+def test_the_page_cap_counts_only_the_pages_read_by_ocr(ocr_calls):
+    """S9.8.2.2: the cap is on scanned pages; a text page past it is still read."""
+    r = ocr.read(pdf(SCAN, LETTER, {"scan": ["PAGE THREE"]}, INVOICE), "application/pdf", 1)
+    assert r.method == "both" and len(ocr_calls) == 1
+    assert "TOTAL 12.34" in r.lines and "PAGE THREE" not in r.lines
+    assert "AMOUNT DUE 153.58" in r.lines, "the text page after the cap"
+
+
+def test_the_total_is_checked_against_the_scan_of_its_page(ocr_calls):
+    """S9.8.2.1.1: the page whose text layer gives the total is read by OCR too, alone."""
+    agrees = pdf(LETTER, {**INVOICE, "scan": INVOICE["text"], "hidden": True})
+    r = ocr.read(agrees, "application/pdf", check=True)
+    assert r.method == "text" and len(ocr_calls) == 1, "that one page, not the letter"
+    assert r.check == {"text": "153.58", "scan": "153.58", "agrees": True}
+    # A scanner's text layer that misread the total: the scan says otherwise.
+    misread = {"text": ["CORNER STORE", "TOTAL 72.34"], "hidden": True, "scan": SCAN["scan"]}
+    r = ocr.read(pdf(misread), "application/pdf", check=True)
+    assert r.check == {"text": "72.34", "scan": "12.34", "agrees": False}
+    # Not asked (a statement), or a total read by OCR already: nothing read twice.
+    ocr_calls.clear()
+    assert ocr.read(pdf(misread), "application/pdf").check is None
+    assert ocr.read(pdf(LETTER, SCAN), "application/pdf", check=True).check is None
+    assert len(ocr_calls) == 1, "the scanned page, once"
 
 
 class _Process:
@@ -381,6 +489,55 @@ def test_reading_off_leaves_receipts_unread(server, admin_client):
     assert q["waiting"] == 0
 
 
+def test_text_and_scan_disagreeing_flag_the_total_until_someone_confirms_it(server):
+    """S9.8.2.1.1: both readings shown, no transaction offered, until its amount is picked or
+    typed and saved; then it is the person's, as a typed one is."""
+    from test_accounts import add, new_account
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    acct = new_account(c)
+    add(c, acct["id"], "-72.34", "2026-10-09", payee="Corner Store")
+    lines = ["CORNER STORE", "OCT 9, 2026", "TOTAL 72.34"]
+    rid = upload(c, text_pdf(lines), name="r.pdf").json()["id"]
+    answer = ("ok", lines, "text", "pypdfium2 text layer", None)
+    w = Worker()
+
+    def read_with(check):
+        w.read = lambda data, media, *a, user, check=False: (*answer[:4], found if check else None)
+        found = check
+        assert c.post(f"/ui/api/receipts/{rid}/read").status_code == 200
+        Reader(server, workers=1).read_one(rid, w)
+        return c.get(f"/ui/api/receipts/{rid}").json()
+
+    got = read_with({"text": "72.34", "scan": "72.34", "agrees": True})
+    assert got["totalCheck"] is None and got["totalChecked"]
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
+    assert got["totalCheck"] == {"text": "72.34", "scan": "12.34"}
+    assert got["matches"] == [] and not got["totalChecked"], "nothing offered meanwhile"
+    assert "totalCheck" not in got["suggested"] and got["amount"] == "72.34"
+    # A save of anything else leaves it waiting; picking the text's reading confirms it.
+    assert change(c, "Rcpt", got, notes="from the shoebox").status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert got["totalCheck"] is not None and "amount" in got["filled"]
+    assert change(c, "Rcpt", got, totalChecked=True).status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert got["totalCheck"] is None and got["totalChecked"] and got["amount"] == "72.34"
+    assert "amount" not in got["filled"], "the person's now"
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    # Read again, it disagrees again over the person's amount: nothing to confirm.
+    got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
+    assert got["totalCheck"] is None
+    # A scan with no total at all disagrees too.
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = read_with({"text": "72.34", "scan": None, "agrees": False})
+    assert got["totalCheck"] == {"text": "72.34", "scan": None}
+    # Typing the amount confirms it as well.
+    assert change(c, "Rcpt", got, amount="12.34").status_code == 200
+    assert c.get(f"/ui/api/receipts/{rid}").json()["totalCheck"] is None
+
+
 def test_a_receipt_whose_file_was_pruned_is_never_left_reading(server, admin_client):
     """S9.8.6, S14.10.5: Read again is refused on a pruned receipt, before reading being off is;
     and one queued already (at a start, or before the prune) fails, saying why."""
@@ -577,6 +734,19 @@ def test_an_answer_out_of_shape_is_refused(monkeypatch):
         w, "call", lambda *a, **k: {"lines": ["ok", 7], "method": "ocr", "engine": "x"}
     )
     assert w.read(b"", "image/png", user="User_a") == ("error", "the reader answered out of turn")
+    good = {"text": "72.34", "scan": None, "agrees": False}
+    for check in (
+        "yes",
+        {**good, "text": "NaN"},
+        {**good, "scan": "1e9"},
+        {**good, "agrees": "no"},
+        {**good, "more": 1},
+    ):
+        answer = {"lines": ["ok"], "method": "both", "engine": "x", "check": check}
+        monkeypatch.setattr(w, "call", lambda *a, answer=answer, **k: answer)
+        assert w.read(b"", "application/pdf", user="User_a", check=True)[0] == "error", check
+    monkeypatch.setattr(w, "call", lambda *a, **k: {**answer, "check": good})
+    assert w.read(b"", "application/pdf", user="User_a", check=True)[4] == good
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"webp": "not base64!"})
     assert parsing.thumbnail(b"", "image/png", user="User_a") is None
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"jpeg": "aGVsbG8="})

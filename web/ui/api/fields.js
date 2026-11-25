@@ -464,6 +464,7 @@ export const FIELDS = {
     notes: {"type": "text", "nullable": true},
     tagIds: {"type": "list", "items": {"type": "ref", "prefix": "Tag"}, "set": true},
     keep: {"type": "bool"},
+    totalChecked: {"type": "bool"},
   },
   ReconciliationRecord: {
     statementDate: {"type": "date"},

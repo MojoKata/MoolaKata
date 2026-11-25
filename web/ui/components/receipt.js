@@ -229,6 +229,8 @@ export function ReceiptDialog({ close, id }) {
             ? "Read from the PDF's text layer"
             : r.readMethod === 'ocr'
             ? 'Read with OCR'
+            : r.readMethod === 'both'
+            ? "Read from the PDF's text layer and with OCR"
             : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span><span
               class="spacer"></span>${// A pruned file never comes back: nothing to read again (S14.10.5).
               r.filePrunedAt ? null : html`
@@ -260,6 +262,26 @@ export function ReceiptDialog({ close, id }) {
             ? html`
               <${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>Couldn't read it:${' '}
                 ${r.readError}</${Attention}>
+            `
+            : r.totalCheck && !rec.get('totalChecked')
+            ? html`
+              <${Attention} tone="warn" icon=${html`<${Icon} name="alert" />`}>The text and the
+                scan disagree: check the total. Text ${money(r.totalCheck.text)} · scan ${r
+                    .totalCheck.scan === null
+                  ? 'reads no total'
+                  : money(r.totalCheck.scan)}<div class="toolbar" style=${{
+                  margin: '8px 0 0',
+                }}>${[r.totalCheck.text, r.totalCheck.scan].filter((v) => v !== null).map((
+                  /** @type {string} */ v,
+                ) =>
+                  html`
+                    <${Action} class="btn sm" why=${whyRead(r)} onClick=${() => {
+                      // Picked, it is the person's amount, as one typed is (S9.8.2.1.1).
+                      rec.set('amount', v);
+                      rec.set('totalChecked', true);
+                    }}>Use ${money(v)}</${Action}>
+                  `
+                )}</div></${Attention}>
             `
             : null}
           <div class="row">

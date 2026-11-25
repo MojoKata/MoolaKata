@@ -21468,6 +21468,20 @@
             ],
             "title": "Text"
           },
+          "totalCheck": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TotalCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalChecked": {
+            "title": "Totalchecked",
+            "type": "boolean"
+          },
           "uploadedAt": {
             "format": "date-time",
             "title": "Uploadedat",
@@ -21505,6 +21519,8 @@
           "matches",
           "text",
           "suggested",
+          "totalCheck",
+          "totalChecked",
           "readMethod",
           "readEngine",
           "readAt",
@@ -21637,6 +21653,11 @@
             "title": "Tagids",
             "type": "array",
             "uniqueItems": true
+          },
+          "totalChecked": {
+            "default": false,
+            "title": "Totalchecked",
+            "type": "boolean"
           }
         },
         "title": "ReceiptRecord",
@@ -26393,6 +26414,41 @@
           "who": "own"
         },
         "x-entity": "Token"
+      },
+      "TotalCheck": {
+        "additionalProperties": false,
+        "description": "The total its text layer gives and the one the scan of that page reads, which disagree\n(S9.8.2.1.1); `scan` is none when the scan reads no total.",
+        "properties": {
+          "scan": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan"
+          },
+          "text": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Text",
+            "type": "number"
+          }
+        },
+        "required": [
+          "text",
+          "scan"
+        ],
+        "title": "TotalCheck",
+        "type": "object"
       },
       "TransferAnswer": {
         "additionalProperties": false,

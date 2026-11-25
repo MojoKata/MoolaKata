@@ -3552,6 +3552,8 @@
  * @property {Array<Suggestion>} matches
  * @property {(string | null)} text
  * @property {Object<string, Suggested>} suggested
+ * @property {(TotalCheck | null)} totalCheck
+ * @property {boolean} totalChecked
  * @property {(string | null)} readMethod
  * @property {(string | null)} readEngine
  * @property {(string | null)} readAt
@@ -3582,6 +3584,7 @@
  * @property {(string | null)} [notes]
  * @property {Array<string>} [tagIds]
  * @property {boolean} [keep]
+ * @property {boolean} [totalChecked]
  */
 
 /**
@@ -4491,6 +4494,14 @@
  * @property {string} [scope]
  * @property {Array<TokenItem>} [items]
  * @property {number} [days]
+ */
+
+/**
+ * The total its text layer gives and the one the scan of that page reads, which disagree
+ * (S9.8.2.1.1); `scan` is none when the scan reads no total.
+ * @typedef {Object} TotalCheck
+ * @property {import('../kit/dec.js').Dec} text
+ * @property {(import('../kit/dec.js').Dec | null)} scan
  */
 
 /**

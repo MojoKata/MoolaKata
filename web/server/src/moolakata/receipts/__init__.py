@@ -578,8 +578,11 @@ class Match:
 def matches(s: Session, user_id: str, r: Receipt, limit: int = 3) -> list[Match]:
     """Transactions in accounts the user can write to with the receipt's amount, within 5 days
     of its date; one up to 25% larger matches too, for a tip added after it was printed.
-    Ranked by days apart, then by how alike the payees are."""
-    if r.amount is None:
+    Ranked by days apart, then by how alike the payees are. None while its text and its scan
+    disagree on the total, until someone confirms it (S9.8.2.1.1)."""
+    from .reading import disagreeing
+
+    if r.amount is None or disagreeing(r) is not None:
         return []
     amount = abs(r.amount)
     day = r.date or r.createdAt.date()
