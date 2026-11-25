@@ -13,6 +13,7 @@ from test_receipts import png, upload
 
 from moolakata import clock
 from moolakata.store.entities.accounts import Category
+from moolakata.store.entities.receipts import Receipt
 
 T0 = dt.datetime(2033, 3, 1, 12, tzinfo=dt.UTC)
 
@@ -419,3 +420,165 @@ def test_an_admins_reading_queue_and_wallets_are_the_households(server, admin_cl
     assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
     admin_client.post("/ui/api/settings/receipts/reread")
     assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] != "off", "hers too"
+
+
+# ---------- edges ----------
+
+
+def test_a_period_from_29_february_ends_on_the_28th():
+    from moolakata.receipts.retention import Retention, add_years
+
+    assert add_years(dt.date(2028, 2, 29), 3) == dt.date(2031, 2, 28)
+    assert add_years(dt.date(2028, 2, 29), 4) == dt.date(2032, 2, 29)
+    assert Retention("pruned").label == "File pruned"
+    assert Retention("open").label == "Kept while what it belongs to is open"
+
+
+def _linked(server, c, kind: str, item_id: str, color=(1, 2, 3)) -> str:
+    """A receipt linked to `item_id`, whether or not that is there."""
+    from moolakata.ids import new_id
+    from moolakata.store.entities.receipts import ReceiptLink
+
+    rid = upload(c, png(color)).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        s.add(ReceiptLink(id=new_id("RcLnk"), receiptId=rid, kind=kind, itemId=item_id))
+    return rid
+
+
+def test_a_link_to_a_record_not_there_ended_long_ago(server, frozen, admin_client):
+    """schema.md §6: a record a link names that isn't there (rows are never removed: a copy
+    missing it) ended long ago; with no period it is kept for ever, and a statement's counts
+    from when its file was uploaded."""
+    from moolakata.ids import new_id
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    for i, (kind, prefix) in enumerate((("transaction", "Txn"), ("gift", "Gift"))):
+        rid = _linked(server, c, kind, new_id(prefix), (i, 9, 9))
+        assert kept(c, rid) == ("forever", "Kept for ever"), kind
+    statement = _linked(server, c, "account", new_id("Acct"), (8, 8, 8))
+    assert save_settings(admin_client, {"keepStatementsYears": 5}).status_code == 200
+    assert kept(c, statement) == ("until", "Kept until Mar 2038")
+
+
+def test_a_transfers_receipt_is_kept_for_ever(server, frozen):
+    """S14.10.2: a transfer has no period, whatever its category."""
+    from moolakata.store.entities.accounts import Transaction
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    cid, _ = cat(server, "Groceries", 1)
+    acct, other = new_account(c), new_account(c, name="Savings")
+    t = add(c, acct["id"], "-100.00", "2020-01-02", categoryId=cid)
+    u = add(c, other["id"], "55.00", "2020-03-04")  # not matched as its other side
+    rid = receipt_on(c, t["id"], png((5, 5, 1)))
+    assert kept(c, rid)[0] == "expired"
+    with server.db.tx(unscoped="test") as s:
+        s.get(Transaction, t["id"]).transferId = u["id"]
+    assert kept(c, rid) == ("forever", "Kept for ever")
+
+
+def test_a_gifts_receipt_is_kept_while_it_is_not_given_then_from_its_occasion(server, frozen):
+    """S14.10.2: a gift given or received ends at the later of its occasion's year end and its
+    purchase, with its transaction's period; until then it is open; with no transaction it has
+    no period."""
+    from moolakata.ids import new_id
+    from moolakata.store.entities.education import Gift
+
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
+    cid, _ = cat(server, "Groceries", 2)
+    t = add(c, new_account(c)["id"], "-40.00", "2029-05-01", categoryId=cid)
+    gid = new_id("Gift")
+    with server.db.tx(unscoped="test") as s:
+        s.add(Gift(id=gid, ownerId=jane.id, description="Scarf", status="bought",
+                   transactionId=t["id"]))  # fmt: skip
+    rid = _linked(server, c, "gift", gid)
+    assert kept(c, rid) == ("open", "Kept while the gift is open")
+    with server.db.tx(unscoped="test") as s:
+        g = s.get(Gift, gid)
+        g.status, g.occasionYear = "given", 2030
+    assert kept(c, rid) == ("expired", "Expired Dec 2032, prunable")
+    with server.db.tx(unscoped="test") as s:
+        g = s.get(Gift, gid)
+        g.occasionYear = None
+    assert kept(c, rid) == ("until", "Kept until Mar 2035"), "its last change, Mar 2033"
+    with server.db.tx(unscoped="test") as s:
+        s.get(Gift, gid).transactionId = None
+    assert kept(c, rid) == ("forever", "Kept for ever")
+
+
+def test_a_lot_partly_sold_is_open_and_each_accounts_lots_are_replayed_once(server, frozen):
+    """S14.10.2: a lot ends at the sale of its last share; an account not there has none."""
+    from moolakata.receipts import retention
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    acct = new_account(c, type="brokerage")
+    cid, _ = cat(server, "Groceries", 2)
+    trade = {"accountId": acct["id"], "symbol": "VTI", "price": "100", "categoryId": cid}
+    buy = make(c, "Txn", date="2020-01-02", kind="buy", quantity="10", amount="-1000.00",
+               **trade)  # fmt: skip
+    assert buy.status_code == 200, buy.text
+    sold = make(c, "Txn", date="2030-02-03", kind="sell", quantity="4", amount="400.00",
+                **{**trade, "categoryId": None})  # fmt: skip
+    assert sold.status_code == 200, sold.text
+    rid = receipt_on(c, buy.json()["id"], png((6, 1, 6)))
+    assert kept(c, rid) == ("open", "Kept while the lot is open")
+    with server.db.read(unscoped="test") as s:
+        ctx = retention.Context(s)
+        ends = ctx.lot_ends(acct["id"])
+        assert list(ends.values()) == [None]
+        assert ctx.lot_ends(acct["id"]) is ends, "replayed once"
+        assert ctx.lot_ends("Acct_00000000000000000000000000") == {}
+
+
+def test_storage_counts_each_coming_year_a_lost_file_and_files_no_record_names(
+    server, frozen, admin_client
+):
+    """S14.10.4: a bar per coming year by category; a receipt whose file is lost counts no
+    bytes; a file in the folder no row names is an orphan; no folder, nothing."""
+    from moolakata.receipts import file_path, retention
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    cid, _ = cat(server, "Groceries", 3)
+    acct = new_account(c)
+    t = add(c, acct["id"], "-10.00", "2032-06-01", categoryId=cid)
+    later = receipt_on(c, t["id"], png((3, 6, 9)))
+    lost = upload(c, png((9, 6, 3))).json()["id"]
+    with server.db.read(unscoped="test") as s:
+        file_path(server.config.receipts_dir, s.get(Receipt, lost).fileId).unlink()
+        size = file_path(server.config.receipts_dir, s.get(Receipt, later).fileId).stat().st_size
+    stray = server.config.receipts_dir / ("0" * 32 + ".mkr")
+    stray.write_bytes(b"stray")
+    st = admin_client.get("/ui/api/settings/storage").json()
+    assert st["byYear"] == [
+        {"year": 2035, "categories": [{"category": "Groceries", "files": 1, "bytes": size}]}
+    ]
+    assert st["forever"] == {"files": 1, "bytes": 0}, "the lost file counts no bytes"
+    assert st["orphans"] == {"files": 1, "bytes": 5}
+    with server.db.read(unscoped="test") as s:
+        none = server.config.receipts_dir / "none"
+        assert retention.storage(s, none).receiptsBytes == 0
+        assert retention.orphan_files(s, none) == []
+
+
+def test_a_prune_leaves_a_file_a_live_receipt_still_needs(server, frozen):
+    """S14.10.5: the expired receipt is marked pruned; the file stays for the other's."""
+    from moolakata.receipts import file_path, retention
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    c, john = sign_in(server, "jane"), sign_in(server, "john")
+    cid, _ = cat(server, "Groceries", 1)
+    t = add(c, new_account(c)["id"], "-12.00", "2030-01-02", categoryId=cid)
+    rid = receipt_on(c, t["id"], png((2, 7, 1)))
+    his = upload(john, png((2, 7, 1))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        a = s.get(Receipt, rid)
+        path = file_path(server.config.receipts_dir, a.fileId)
+        assert retention.prune_files(server, s, [a], a.ownerId) == 0
+        assert s.get(Receipt, his).filePrunedAt is None
+    assert path.exists()
+    assert john.get(f"/ui/api/receipts/{his}/file").status_code == 200
