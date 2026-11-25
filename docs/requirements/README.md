@@ -5,7 +5,7 @@ household or a small group of people. It holds their accounts (bank, brokerage, 
 exchange, self-custody wallets, IRA, Roth IRA, 401(k)), tracks holdings and positions (options
 included), charts portfolios, projects future value, keeps budgets and receipts, and prepares
 the numbers a tax return needs. Several people use one server. They share accounts and
-portfolios with each other, read-only or read/write, and share read-only with people on
+portfolios with each other, at **read** or **write**, and share at **read** with people on
 **other MoolaKata servers** on other LANs.
 
 **How the requirements are organised.** This file holds what applies everywhere: the
@@ -108,11 +108,11 @@ The rulings the rest of the requirements apply.
    are trusted operators**: the app keeps other users' money off their screens unless it is
    shared with them, but cannot keep out someone who holds the recovery phrase and the host
    (S10.2).
-7. **Users own accounts.** Any user can create accounts and portfolios and share them with
-   users or groups, **read** or **read/write** (S10).
+7. **Users own accounts.** Any user can create accounts, portfolios and the other shareable
+   kinds (eight in all, S10.3) and share them with users or groups, **read** or **write** (S10).
 8. **Linked servers.** Two MoolaKata servers on different LANs can be linked. A link carries
    **read-only** shares of any of the eight shareable kinds (S10.3), each to named people on
-   the other server, both ways, and is never read/write (S11).
+   the other server, both ways, and is never **write** (S11).
 9. **Money is never a float.** Amounts and quantities are decimals end to end: `Decimal` in
    Python, exact number literals in JSON (S13.8.2.1), and integers or decimal text in SQLite
    (S14.3).

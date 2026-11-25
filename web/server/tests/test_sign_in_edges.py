@@ -363,3 +363,20 @@ def test_a_peers_names_are_kept_on_one_line():
     assert (users[0]["username"], users[0]["displayName"]) == ("ann b", "Ann [2J Bee")
     _, users = manage._checked({"users": [{"id": "v", "displayName": "\n\t"}]})
     assert users[0]["displayName"] is None  # nothing left of it
+
+
+# ---------- the share levels' names (R2.9, S10.3) ----------
+
+
+def test_the_share_levels_are_read_and_write_in_the_requirements_and_the_code():
+    import typing
+    from pathlib import Path
+
+    from moolakata.ui import sharing
+
+    assert typing.get_args(sharing.Allow) == ("read", "write")
+    docs = Path(__file__).resolve().parents[3] / "docs" / "requirements"
+    files = sorted(docs.glob("*.md"))
+    assert len(files) > 20
+    for f in files:
+        assert "read/write" not in f.read_text(), f.name  # a level is read or write
