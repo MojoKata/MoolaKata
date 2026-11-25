@@ -403,6 +403,56 @@ def test_a_viewer_not_shared_its_accounts_sees_its_start_but_not_their_mix(serve
     assert whole["result"]["weights"] == {"cash": 1} and whole["builtOn"] == built
 
 
+def _coins(server, account_id: str, btc: str) -> None:
+    """Bitcoin held in a wallet, received on Oct 1."""
+    import datetime as dt
+
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Lot, Transaction
+    from moolakata.store.repos import ledger as repo
+
+    day = dt.date(2026, 10, 1)
+    with server.db.tx(unscoped="test: coins held") as s:
+        coin = repo.instrument(s, "BTC", "Bitcoin", "crypto")
+        got = Transaction(id=ids.new_id("Txn"), accountId=account_id, date=day,
+                          kind="transfer-in", amount=Decimal(0), instrumentId=coin.id,
+                          quantity=Decimal(btc))  # fmt: skip
+        s.add(got)
+        s.flush()
+        s.add(Lot(id=ids.new_id("Lot"), accountId=account_id, instrumentId=coin.id,
+                  transactionId=got.id, acquiredOn=day, quantity=Decimal(btc),
+                  costBasis=Decimal("50000")))  # fmt: skip
+
+
+def test_a_viewer_not_shared_its_accounts_isnt_told_its_bitcoin_share(server, jane, closes):
+    """S6.1, S5.1.1: the share of bitcoin in what it is built on is of their mix: a viewer
+    shared the projection but not every account it is built on isn't sent it; shared them
+    all, they are, as its owner is."""
+    from edits import share
+    from test_accounts import add, new_account
+
+    _bitcoin(server)
+    joint = new_account(jane, name="Joint savings", type="savings")
+    add(jane, joint["id"], "1000.00", "2026-10-01")
+    wallet = new_account(jane, name="Cold storage", type="crypto-wallet")
+    _coins(server, wallet["id"], "0.5")
+    built = {"kind": "accounts", "ids": [joint["id"], wallet["id"]]}
+    p = made(make(jane, "Prjct", name="Stack", goal="savings", builtOn=built,
+                  inputs={"target": 90000, "date": "2030-01-01", **SPENT,
+                          "bitcoinModel": "powerLaw"}))  # fmt: skip
+    mine = p["result"]
+    assert (mine["bitcoinModel"], mine["bitcoinShare"]) == ("powerLaw", 1)
+    john = make_user(server, "john")
+    for kind, item in (("projection", p["id"]), ("account", joint["id"])):
+        assert share(jane, kind, item, users={john.id: "read"}).status_code == 200
+    johns = sign_in(server, "john")
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()["result"]
+    assert theirs["start"] == mine["start"] and theirs["bitcoinShare"] is None
+    assert share(jane, "account", wallet["id"], users={john.id: "read"}).status_code == 200
+    whole = johns.get(f"/ui/api/projections/{p['id']}").json()["result"]
+    assert whole["bitcoinShare"] == 1
+
+
 def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):
     from edits import share
     from test_accounts import add, new_account

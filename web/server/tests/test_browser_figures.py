@@ -157,3 +157,25 @@ def test_with_no_bitcoin_price_no_model_is_drawn_or_followed(browser, household)
         page.close()
     finally:
         _drop(h.c, "Prjct", f"/projections/{pr['id']}")
+
+
+@pytest.mark.parametrize(("share", "line"), [(0.5, True), (None, False)])
+def test_a_bitcoin_model_is_named_only_with_its_share(browser, household, share, line):
+    """S6.1: the bitcoin share is of the mix of what it is built on; sent none (a viewer not
+    shared every account), the screen names no model under the chart."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        body["result"].update(bitcoinModel="powerLaw", bitcoinShare=share)
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    assert page.locator("text=Bitcoin: the powerLaw model").count() == (1 if line else 0)
+    assert problems == []
+    page.close()

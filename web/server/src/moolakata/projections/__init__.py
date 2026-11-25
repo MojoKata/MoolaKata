@@ -424,7 +424,8 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         ],
         "assumptions": prep.figures,
         "bitcoinModel": prep.model,
-        "bitcoinShare": prep.base.bitcoin_share,
+        # Bitcoin's part of the crypto is of their mix too: sent only with it (S6.1).
+        "bitcoinShare": prep.base.bitcoin_share if prep.base.whole else None,
         "noBitcoinPrice": prep.no_btc_price,
         "runs": plan.runs,
         "seed": plan.seed,
