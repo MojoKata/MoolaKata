@@ -10,7 +10,7 @@ import pytest
 from conftest import make_user, sign_in
 from edits import change, remove, save_settings
 from PIL import Image
-from test_receipts import upload
+from test_receipts import png, upload
 
 from moolakata.dev.seed_receipts import draw
 from moolakata.receipts import ocr, parser
@@ -76,6 +76,64 @@ def test_merchant_card_and_tax():
     assert f.merchant.value == "Blue Bottle Coffee"
     assert f.card.value == "1123" and f.tax.value == Decimal("0.52")
     assert fields(["Paid with card ending in 4821"]).card.value == "4821"
+
+
+@pytest.mark.parametrize(
+    ("read", "payees", "known"),
+    [
+        # The same words, whatever the case, store number or state.
+        ("Blue Bottle Coffee", ["Blue Apron", "BLUE BOTTLE COFFEE SF"], "BLUE BOTTLE COFFEE SF"),
+        ("Kroger", ["KROGER #123"], "KROGER #123"),
+        ("trader joe's", ["Trader Joe's"], "Trader Joe's"),
+        # All of the shorter name's words, when it has two or more.
+        ("Whole Foods Market", ["WHOLE FOODS"], "WHOLE FOODS"),
+        ("The Home Depot", ["Home Depot"], "Home Depot"),
+        # One word in a longer name, or a word in common, is a near miss.
+        ("Kroger", ["Kroger Fuel"], None),
+        ("Blue Bottle Coffee", ["Blue Apron"], None),
+        ("Shell", ["Shell Oil", "Shellfish Shack"], None),
+        ("#042", ["Store 042"], None),
+        # The closest wins; among equals, the first given (the most used).
+        ("Whole Foods", ["Whole Foods Market Austin", "WHOLE FOODS MARKET"], "WHOLE FOODS MARKET"),
+        ("Whole Foods Market", ["WHOLE FOODS", "Whole Foods"], "WHOLE FOODS"),
+    ],
+)
+def test_a_merchant_is_matched_to_a_payee_its_owner_has(read, payees, known):
+    """S9.8.2.5.3: the payee the merchant names, else none."""
+    assert parser.known_payee(read, payees) == known
+
+
+def test_a_receipts_merchant_takes_the_payee_its_owner_already_has(server):
+    """S9.8.2.5.3: after the rules, the owner's own payee the merchant names replaces it, from
+    their accounts only, and a payee typed by hand stays."""
+    from edits import make
+    from test_accounts import add, new_account
+
+    from moolakata.receipts.reading import save_reading
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    add(jane, new_account(jane)["id"], "-5.75", "2026-10-02", payee="BLUE BOTTLE COFFEE SF")
+    add(john, new_account(john)["id"], "-5.75", "2026-10-02", payee="Blue Bottle Coffee Oakland")
+    make(jane, "Rule", payeeMatch="kroger", payee="Kroger Groceries")
+    lines = ["BLUE BOTTLE COFFEE #042", "TOTAL 5.75"]
+    theirs = upload(john, png((1, 2, 3))).json()["id"]
+    mine = upload(jane, png((4, 5, 6))).json()["id"]
+    renamed = upload(jane, png((7, 8, 9))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        save_reading(s, s.get(Receipt, mine), lines, "text", "test")
+        save_reading(s, s.get(Receipt, theirs), lines, "text", "test")
+        save_reading(s, s.get(Receipt, renamed), ["KROGER #12", "TOTAL 9.10"], "text", "test")
+    assert jane.get(f"/ui/api/receipts/{mine}").json()["payee"] == "BLUE BOTTLE COFFEE SF"
+    assert john.get(f"/ui/api/receipts/{theirs}").json()["payee"] == "Blue Bottle Coffee Oakland"
+    assert jane.get(f"/ui/api/receipts/{renamed}").json()["payee"] == "Kroger Groceries"
+    r = change(jane, "Rcpt", jane.get(f"/ui/api/receipts/{mine}").json(), payee="Blue Bottle")
+    assert r.status_code == 200, r.text
+    with server.db.tx(unscoped="test") as s:
+        save_reading(s, s.get(Receipt, mine), lines, "text", "test")
+    assert jane.get(f"/ui/api/receipts/{mine}").json()["payee"] == "Blue Bottle", "typed stays"
 
 
 def test_the_shipped_models_are_the_pinned_ones():

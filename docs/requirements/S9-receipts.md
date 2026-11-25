@@ -93,8 +93,12 @@
          2. **date**: every common format (`10/09/2026`, `2026-10-09`, `09 OCT 26`,
             `Oct 9, 2026`), the most plausible one: not in the future, not before the
             account's opening;
-         3. **merchant**: from the top lines, normalised by the user's payee rules (S2.7) and
-            matched against payees they already have;
+         3. **merchant**: from the top lines, normalised by the user's payee rules (S2.7), or,
+            when no rule renames it, matched against the payees of their own accounts'
+            transactions: one with the same words, or all of the shorter name's when it has
+            two or more, store numbers and words of two letters left out (*Blue Bottle Coffee
+            #042* is *BLUE BOTTLE COFFEE SF*; *Kroger* is never *Kroger Fuel*), the closest,
+            then the most used, taking its place;
          4. **card**: `XXXX1234`, `****1234`, `ending in 1234`.
       6. **Matching**: the user's transactions (in accounts they can write to) with the same
          amount, within 5 days of the date, ranked by date distance and payee similarity. A

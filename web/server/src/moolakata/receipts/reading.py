@@ -392,6 +392,28 @@ def _not_before(s, r: Receipt):
     )
 
 
+def _payees(s, owner_id: str) -> list[str]:
+    """The payees of the transactions in the owner's own accounts, the most used first."""
+    from ..store.entities.accounts import Transaction
+
+    used = sa.func.count(Transaction.id)
+    return list(
+        s.scalars(
+            sa.select(Transaction.payee)
+            .join(Account, Account.id == Transaction.accountId)
+            .where(
+                Account.ownerId == owner_id,
+                Account.deleted == sa.false(),
+                Transaction.deleted == sa.false(),
+                Transaction.payee.is_not(None),
+                Transaction.payee != "",
+            )
+            .group_by(Transaction.payee)
+            .order_by(used.desc(), Transaction.payee)
+        )
+    )
+
+
 def save_reading(
     s, r: Receipt, lines: list[str], method: str, engine: str, check: dict | None = None
 ) -> None:
@@ -417,10 +439,14 @@ def save_reading(
         "payee": found.merchant.value if found.merchant else None,
     }
     if values["payee"]:
-        # The merchant as the uploader's payee rules show it (S2.7.7, S9.8.2.5.3).
+        # The merchant as the uploader's payee rules show it (S2.7.7, S9.8.2.5.3), else as a
+        # payee they already have names it.
         from ..store.repos.rules import Rules
 
-        values["payee"] = Rules(s, r.ownerId).rename(values["payee"])
+        read = values["payee"]
+        values["payee"] = Rules(s, r.ownerId).rename(read)
+        if values["payee"] == read:
+            values["payee"] = parser.known_payee(read, _payees(s, r.ownerId)) or read
     for f in FIELDS:
         empty = getattr(r, f) in (None, "")
         if (empty or f in filled) and values[f] is not None:
