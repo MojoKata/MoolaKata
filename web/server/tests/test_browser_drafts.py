@@ -1258,6 +1258,34 @@ def test_a_projections_blank_figures_are_refused_and_their_words_fill_them_in(br
     page.close()
 
 
+def test_a_blank_contribution_growth_is_refused_and_min_fills_it_in(browser, household):
+    """R3.11: the contribution's growth left blank is refused at its field, never read as no
+    growth; **min** under it fills in its least, −20%."""
+    h = household
+    inputs = {**h.extra["retire"]["inputs"], "fees": 0.1}
+    typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 100}}
+    p = made(make(h.c, "Prjct", name="Drafts growth", goal="retirement", builtOn=typed,
+                  inputs=inputs))  # fmt: skip
+    try:
+        page, problems = signed_in(browser, h, f"/ui/projections/{p['id']}", "#f-fees")
+        form = 'form.card:has-text("Inputs")'
+        least = page.locator(".field:has(#f-contribution-growth) .value-bar button")
+        assert least.all_inner_texts() == ["min"]
+        page.fill("#f-contribution-growth", "")
+        page.click(f"{form} button.primary")
+        wait(page, f'{form} .err:has-text("Between −20% and 50%.")', problems)
+        least.click()
+        assert page.input_value("#f-contribution-growth") == "-20"
+        page.click(f"{form} button.primary")
+        wait(page, '.toast:has-text("Recomputed")', problems)
+        got = h.c.get(f"/ui/api/projections/{p['id']}").json()["inputs"]["contribution"]
+        assert got["growth"] == -20
+        assert [x for x in problems if not x.startswith("422 for")] == [], "the blank, refused"
+        page.close()
+    finally:
+        made(remove(h.c, "Prjct", h.c.get(f"/ui/api/projections/{p['id']}").json(), confirm=True))
+
+
 def test_one_input_changed_keeps_the_others_figures_with_a_point(browser, household):
     """R1.9: a projection's input with a decimal point (its fees, 0.1) arrives exact; changing
     another keeps it as it was, never sent as nothing and refused."""

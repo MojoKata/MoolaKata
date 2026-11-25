@@ -290,7 +290,7 @@ def test_the_goal_tab_finds_the_projection_for_its_beneficiary(server, jane):
         inputs = (
             {"beneficiary": who, "monthly": 0, "fees": 0.1}
             if who
-            else {"contribution": {"amount": 0}, "horizonAge": 95, "fees": 0.1}
+            else {"contribution": {"amount": 0, "growth": 0}, "horizonAge": 95, "fees": 0.1}
         )
         made(make(jane, "Prjct", name=name, goal=goal, builtOn=typed, inputs=inputs))
     v = jane.get(f"/ui/api/accounts/{acct['id']}/goal").json()

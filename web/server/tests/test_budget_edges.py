@@ -81,7 +81,7 @@ def test_a_retirement_projection_puts_in_a_twelfth_of_its_yearly_contribution(se
     r = make(c, "Prjct", name="Retire at 62", goal="retirement",
              builtOn={"kind": "typed", "amount": "1000"},
              inputs={"people": [{"birthYear": 1980}],
-                     "contribution": {"amount": 7800}, "horizonAge": 95,
+                     "contribution": {"amount": 7800, "growth": 0}, "horizonAge": 95,
                      "fees": 0.1})  # fmt: skip
     pid = _ok(r).json()["id"]
     _ok(c.post(f"/ui/api/projections/{pid}/activate"))

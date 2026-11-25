@@ -219,7 +219,7 @@ def _mix(mix) -> bool:
 # The figures each goal's model reads with nothing standing in for them: a blank, missing or
 # null, is refused at its field, never read as 0 or a default (R3.11).
 READS = {
-    "retirement": ("contribution.amount", "horizonAge", "fees"),
+    "retirement": ("contribution.amount", "contribution.growth", "horizonAge", "fees"),
     "savings": ("monthly", "fees"),
     "education": ("monthly", "fees"),
 }
@@ -305,12 +305,12 @@ def _check_inputs(inputs: dict, goal=None) -> list[FieldError]:
     reads = READS.get(goal, ())
     for path, lo, hi, words in (
         ("contribution.amount", 0, 10_000_000, "Zero or more."),
+        ("contribution.growth", -20, 50, "Between −20% and 50%."),
         ("monthly", 0, 1_000_000, "Zero or more."),
         ("horizonAge", 60, 120, "Between 60 and 120."),
         ("fees", 0, 5, "Between 0% and 5%."),
     ):
         _num(inputs, path, lo, hi, e, words, asked=path in reads)
-    _num(inputs, "contribution.growth", -20, 50, e, "Between −20% and 50%.")
     _num(inputs, "target", 0, MOST, e, "Zero or more.")
     _num(inputs, "startAge", 3, 40, e, "Between 3 and 40.")
     _num(inputs, "schoolYears", 1, 12, e, "Between 1 and 12.")

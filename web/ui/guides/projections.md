@@ -87,7 +87,8 @@ refused.
 
 ## Grows yearly by (%) {#contribution-growth}
 
-How much the contribution rises each year, with your pay.
+How much the contribution rises each year, with your pay, from −20% to 50%: **min** fills in
+−20%. Left blank, it is refused.
 
 ## Withdrawal
 

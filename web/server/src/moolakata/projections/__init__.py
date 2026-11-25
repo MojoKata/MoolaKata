@@ -304,12 +304,13 @@ def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
     retire_index = target_index = None
     start_part = contribute_part = 1.0
     people = []
-    # A contribution, a monthly saving, the fees and the age it runs to are each given: a blank
-    # is refused at its field, never read as 0 or a default (R3.11).
-    growth = float(inputs.get("contribution", {}).get("growth", 0) or 0) / 100
+    # A contribution and its growth, a monthly saving, the fees and the age it runs to are
+    # each given: a blank is refused at its field, never read as 0 or a default (R3.11).
+    growth = 0.0
     if p.goal == "retirement":
         people = people_of(s, owner, inputs)
         contribution = float(inputs["contribution"]["amount"])
+        growth = float(inputs["contribution"]["growth"]) / 100
         horizon = int(inputs["horizonAge"])
         youngest = max(x["birthYear"] for x in people)
         years = min(MAX_YEARS, max(2, youngest + horizon - year + 1))

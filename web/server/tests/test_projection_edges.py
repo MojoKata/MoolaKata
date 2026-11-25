@@ -131,7 +131,7 @@ def test_what_it_is_built_on_names_ids(jane, built):
 def test_the_inputs_the_form_sends_are_taken(jane):
     r = _retire(jane, withdrawal={"method": "fixed", "amount": 60000},
                 overrides={"inflation": 3, "classes": {"bonds": {"return": 3.5}}},
-                bitcoinModel="", contribution={"amount": 0, "growth": None})  # fmt: skip
+                bitcoinModel="", contribution={"amount": 0, "growth": -20})  # fmt: skip
     assert r.status_code == 200, r.text
     assert r.json()["result"]["assumptions"]["inflation"] == 3
     r = _retire(jane, {**TYPED, "allocation": {"usStocks": 100, "cash": 0}},
@@ -819,13 +819,15 @@ BLANK = object()  # the key left out
 @pytest.mark.parametrize("blank", [BLANK, None, ""], ids=["missing", "null", "empty"])
 @pytest.mark.parametrize(
     ("goal", "path"),
-    [("retirement", "contribution.amount"), ("retirement", "horizonAge"),
-     ("retirement", "fees"), ("savings", "monthly"), ("savings", "fees"),
+    [("retirement", "contribution.amount"), ("retirement", "contribution.growth"),
+     ("retirement", "horizonAge"), ("retirement", "fees"), ("savings", "monthly"),
+     ("savings", "fees"),
      ("education", "monthly"), ("education", "fees")],
 )  # fmt: skip
 def test_a_blank_the_model_would_read_as_0_or_its_default_is_refused(jane, goal, path, blank):
-    """R3.11: a contribution, a monthly saving, the fees and the age a retirement runs to are
-    each refused blank at their field, never read as 0 or the default; made or changed."""
+    """R3.11: a contribution and its growth, a monthly saving, the fees and the age a
+    retirement runs to are each refused blank at their field, never read as 0 or the default;
+    made or changed."""
     import copy
 
     inputs = copy.deepcopy(GIVEN[goal])

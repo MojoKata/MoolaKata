@@ -441,8 +441,8 @@ function Inputs({ x, reload }) {
                 </${Field}>
                 <${Field} label="Grows yearly by (%)" id="contribution-growth"
                   error=${errAt(e, 'inputs.contribution.growth')}>
-                  <${TypedInput} kind="quantity" value=${f.contribution?.growth ?? ''}
-                    onInput=${set('contribution.growth')} />
+                  <${TypedInput} kind="quantity" min=${-20} atMost=${50}
+                    value=${f.contribution?.growth ?? ''} onInput=${set('contribution.growth')} />
                   </${Field}>
                   </div>
                   <${Field} label="Withdrawal" id="withdrawal" error=${errAt(
