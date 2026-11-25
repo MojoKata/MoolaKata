@@ -1777,7 +1777,15 @@ SCREENS.projections = (id) => {
       ${x.leftOut ? `<p class="small dim" data-help="left-out">Left out: ${x.leftOut.map(([n, v]) => `${esc(n)} ${money(v, { cents: false })}`).join('; ')}</p>` : ''}</div>
     <div class="grid">
       <div class="card kpi"><div class="label">Chance the Money Lasts to 95</div><div class="value ${success > 90 ? 'up' : ''}">${success}%</div><div class="delta dim">median at retirement ${money(p50[Math.max(0, retire)], { cents: false })}</div></div>
-      <div class="card"><h3>Inputs</h3>
+      ${x.sharedBy ? `<div class="card"><h3>Inputs</h3>
+        ${field('Built on', readVal('Not shared with you', { select: true }))}
+        ${field('Retirement age', readVal(String(x.age)), 'John, born 1977')}
+        ${field('Runs to age', readVal('95'))}
+        <div class="row">${field('Contribution per year', readVal('$' + grouped(contrib)))}${field('Grows yearly by (%)', readVal('3'))}</div>
+        ${field('Withdrawal', readVal('The 4% rule', { select: true }))}
+        ${field('Social Security a month', readVal('$2,400.00'), 'From age 67')}
+        <div class="row">${field('Fees a year (%)', readVal('0.1'))}${field('Bitcoin model', readVal('From my assumptions', { select: true }))}</div>
+        ${act('Run', 'Shared with you to read', 'btn primary')}</div></div></div>` : `<div class="card"><h3>Inputs</h3>
         ${field('Built on', sel(['Portfolio: Retirement ($478,741)', 'Portfolio: All my accounts', 'Choose accounts…', 'Typed amount…'], 'Portfolio: Retirement ($478,741)'))}
         ${field('Who', sel(['John & Jane (couple)', 'Jane Doe', 'John Doe'], 'John & Jane (couple)'))}
         <div class="row">${field('Retirement age', inp(String(x.age), '', 'spin', '30-90'), 'Jane, born 1979')}${field('Partner retirement age', inp(String(x.age), '', 'spin', '30-90'), 'John, born 1977')}</div>
@@ -1787,7 +1795,7 @@ SCREENS.projections = (id) => {
         ${field('Other income', inp('Social Security: Jane from 67, $2,900/mo · John from 67, $2,400/mo'))}
         ${field('Fees a year (%)', withWords(inp('0.1', '', 'quantity'), [['min', '0', 'Min: 0%'], ['default', '0.1', 'Use the default: 0.1%']]))}
         <div class="row">${field('Expected return', inp('', 'from Profile (6.2% blended)'))}${field('Volatility', inp('', 'from Profile (14%)'))}</div>
-        <button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div></div>`;
+        <button class="btn primary" data-act="toast" data-v="Recomputed: 1,000 runs, seed 41">Run</button></div></div></div>`}`;
 };
 
 SCREENS.taxes = (param) => {

@@ -1,7 +1,6 @@
 """Projections (requirements S6.1–S6.9): what a projection is built on and worth today, its
-asset mix, the plan the model runs, the goal's answer, and tracking an active one against its
-baseline. Retirement and savings-target goals are built now; education comes with 529s
-(S1.8, milestone 3).
+asset mix, the plan the model runs, the answer of each of its goals (retirement, education
+for a person, a savings target), and tracking an active one against its baseline.
 """
 
 import datetime as dt
