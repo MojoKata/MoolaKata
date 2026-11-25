@@ -323,6 +323,48 @@ def test_tax_tables_ship_and_can_be_corrected(server, frozen, admin_client):
     assert not next(x for x in t["rows"] if x["key"] == "iraLimit")["corrected"]
 
 
+def _figure(c, **fields):
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fields}
+    return c.post("/ui/api/save", json={"ops": [op]})
+
+
+def _refused(r, status, field, code, words):
+    assert r.status_code == status, r.text
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        (field, code, words)
+    ]
+
+
+def test_a_tax_figure_correction_is_one_per_figure_and_year(server, frozen, admin_client):
+    """S16.11: a correction is of a year this release ships, one per figure and year, kept
+    with them, and changed in its place."""
+    _refused(_figure(admin_client, year=1999, key="iraLimit", value=1), 422, "year",
+             "year-unknown", "That year's tables don't ship with this release.")  # fmt: skip
+    t = saved(_figure(admin_client, year=2026, key="iraLimit", value=8000))
+    _refused(_figure(admin_client, year=2026, key="iraLimit", value=8100), 409, "key",
+             "figure-corrected", "It is corrected: change its correction.")  # fmt: skip
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    correction = {"id": ira["figureId"], "version": ira["version"]}
+    _refused(change(admin_client, "TaxFg", correction, year=2026, key="iraCatchUp", value=1),
+             422, "key", "figure-fixed",
+             "A correction stays with its figure and year.")  # fmt: skip
+    t = saved(change(admin_client, "TaxFg", correction, year=2026, key="iraLimit", value=8200))
+    assert next(x for x in t["rows"] if x["key"] == "iraLimit")["value"] == 8200
+    r = change(admin_client, "TaxFg", {"id": new_id("TaxFg"), "version": 1}, value=1)
+    assert r.status_code == 404
+
+
+def test_only_an_admin_corrects_a_tax_figure(server, frozen, admin_client):
+    make_user(server, "jane")
+    jane = sign_in(server, "jane")
+    r = _figure(jane, year=2026, key="iraLimit", value=8000)
+    _refused(r, 403, None, "admins-only", "Only admins can do this.")
+    t = saved(_figure(admin_client, year=2026, key="iraLimit", value=8000))
+    ira = next(x for x in t["rows"] if x["key"] == "iraLimit")
+    r = change(jane, "TaxFg", {"id": ira["figureId"], "version": ira["version"]}, value=1)
+    _refused(r, 403, None, "admins-only", "Only admins can do this.")
+
+
 def test_a_bitcoin_model_with_cases_gives_three_paths(server, jane):
     from test_account_world import _closes_installed
     from test_projection_edges import _bitcoin

@@ -837,3 +837,75 @@ def test_only_the_figures_its_goal_reads_are_asked_for(jane):
     """A savings target has no contribution, age or people to give: only what its model reads
     is asked for."""
     made(make(jane, "Prjct", name="Car", goal="savings", builtOn=TYPED, inputs=GIVEN["savings"]))
+
+
+BAD = "input-invalid"
+
+
+@pytest.mark.parametrize(
+    ("inputs", "field", "code", "words"),
+    [
+        ({"overrides": {"classes": 5}}, "overrides.classes", BAD, "A group of figures."),
+        ({"costBasis": "free"}, "costBasis", BAD, "Public, private or typed."),
+        ({"income": "Pension"}, "income", BAD, "At most 10 sources of income."),
+        ({"income": [PENSION] * 11}, "income", BAD, "At most 10 sources of income."),
+        ({"withdrawal": {"method": "lump"}}, "withdrawal.method", BAD, "Choose a rule."),
+        ({"people": [{"name": "A"}] * 3}, "people", BAD, "One person, or a couple."),
+        ({"date": "2026-10-13"}, "date", "date-past", "A date in the future."),
+        ({"date": "3000-01-01"}, "date", "date-invalid", "A date within 100 years."),
+    ],
+)  # fmt: skip
+def test_each_refusal_says_why_at_its_field(jane, inputs, field, code, words):
+    """R3.11: each input refused at its field, with its code and words."""
+    r = _retire(jane, **inputs)
+    assert r.status_code == 422, r.text
+    got = [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+    assert got == [(f"inputs.{field}", code, words)]
+
+
+def test_a_projection_not_there_is_not_found_and_only_its_owner_turns_it_off(server, jane):
+    """S6.7: one not shared, or not there, is not found; making it a scenario again is its
+    owner's, and drops its baseline."""
+    from edits import share
+
+    r = jane.get(f"/ui/api/projections/{new_id('Prjct')}")
+    assert (r.status_code, r.json()["code"]) == (404, "not-found")
+    p = made(_retire(jane))
+    assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "write"}).status_code == 200
+    r = sign_in(server, "john").post(f"/ui/api/projections/{p['id']}/deactivate")
+    assert (r.status_code, r.json()["code"]) == (403, "owner-only")
+    assert jane.post(f"/ui/api/projections/{p['id']}/deactivate").status_code == 204
+    got = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert (got["active"], got["baselineAt"], got["tracking"]) == (False, None, None)
+
+
+def test_a_save_that_changes_nothing_records_nothing(server, jane):
+    """An update of no field leaves no activity entry of a change."""
+    p = made(_retire(jane))
+    saved(change(jane, "Prjct", p, name=p["name"]))
+    entries = jane.get("/ui/api/activity").json()["items"]
+    assert [e["kind"] for e in entries if e["kind"].startswith("projection.")] == [
+        "projection.created"
+    ]
+
+
+def test_the_plans_card_shows_active_plans_and_those_shared_and_asked_for(server, jane):
+    """S6.8.1, S6.8.3: a scenario isn't a plan; one shared with a user shows on their
+    Dashboard only once they ask for it."""
+    from edits import share
+
+    made(_retire(jane))
+    active = made(_retire(jane, people=[{"name": "Jim", "birthYear": 1980, "retireAge": 65}]))
+    assert jane.post(f"/ui/api/projections/{active['id']}/activate").status_code == 200
+    plans = jane.get("/ui/api/dashboard/plans").json()["items"]
+    assert [p["id"] for p in plans] == [active["id"]]
+    john = make_user(server, "john")
+    assert share(jane, "projection", active["id"], users={john.id: "read"}).status_code == 200
+    johns = sign_in(server, "john")
+    assert johns.get("/ui/api/dashboard/plans").json()["items"] == []
+    me = johns.get("/ui/api/profile").json()
+    assert change(johns, "User", me, shownProjectionIds=[active["id"]]).status_code == 200
+    (theirs,) = johns.get("/ui/api/dashboard/plans").json()["items"]
+    assert theirs["sharedBy"] == jane.get("/ui/api/profile").json()["displayName"]
