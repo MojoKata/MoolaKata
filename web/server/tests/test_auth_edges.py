@@ -5,7 +5,7 @@ requests take."""
 import datetime as dt
 
 from conftest import make_user, new_client, sign_in
-from edits import change, make, saved
+from edits import change, make, remove, saved
 from sqlalchemy import select
 from test_users import kinds, mails, set_public_url
 
@@ -180,6 +180,16 @@ def test_a_blank_login_matches_nobody(client, server):
     problem(r, 401, "bad-credentials", "The username or password is not right.")
 
 
+def test_an_admin_resets_their_own_two_step_and_stays_signed_in(server, admin_client):
+    from test_twostep import turn_on
+
+    turn_on(admin_client)
+    me = admin_client.get("/ui/api/session").json()["user"]["id"]
+    r = admin_client.post(f"/ui/api/users/{me}/two-step/reset")
+    assert r.status_code == 200 and r.json()["twoStep"] is False
+    assert admin_client.get("/ui/api/session").status_code == 200
+
+
 # ---------- users and groups, an admin's (S10.1, S10.2) ----------
 
 
@@ -214,6 +224,16 @@ def test_a_joined_users_email_is_theirs_to_change(admin_client, server):
         "email-change-by-user",
         "Once a user has joined, they change their own email address.",
     )
+
+
+def test_a_user_and_a_group_stay_made_inactive_not_deleted(admin_client, server):
+    u = make_user(server, "wes")
+    r = remove(admin_client, "User", _row(admin_client, u.id))
+    refused(r, 422, None, "user-delete", "A user stays; make them inactive.")
+    g = make(admin_client, "Group", name="Lodgers", memberIds=[], active=False).json()
+    assert g["active"] is False, "made inactive at once"
+    r = remove(admin_client, "Group", g)
+    refused(r, 422, None, "group-delete", "A group stays; make it inactive.")
 
 
 def test_an_admin_sets_a_users_groups_from_their_row(admin_client, server):
@@ -288,3 +308,11 @@ def test_reactivation_tells_the_user_by_email(admin_client, server):
     sent = len(mails(server))
     saved(change(admin_client, "User", _row(admin_client, ivy.id), active=True))
     assert len(mails(server)) == sent and kinds(server)[-1] == "user.reactivated"
+
+
+def test_a_user_or_group_that_isnt_here_is_not_found(admin_client):
+    nobody = "User_00000000000000000000000000"
+    problem(admin_client.post(f"/ui/api/users/{nobody}/invitation"), 404, "not-found", "Not found")
+    r = change(admin_client, "Group", {"id": "Group_00000000000000000000000000", "version": 1},
+               name="Gone")  # fmt: skip
+    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
