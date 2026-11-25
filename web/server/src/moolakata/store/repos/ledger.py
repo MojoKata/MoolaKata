@@ -120,7 +120,17 @@ def _load(s: Session, account: Account, raw: bool, _depth: int) -> Ledger:
         .where(Transaction.accountId == aid, Transaction.deleted == false())
         .order_by(Transaction.date, Transaction.createdAt)
     ).all()
-    lot_rows = s.scalars(live(Lot, t.Lot).where(Lot.accountId == aid)).all()
+    if account.deletedAt is None:
+        lot_rows = s.scalars(live(Lot, t.Lot).where(Lot.accountId == aid)).all()
+    else:
+        # A deleted account's ledger as it stood when it was deleted (how long its receipts
+        # are kept, schema.md §6.2): the lots deleted with it, of the transactions it kept.
+        kept = {x.id for x in txns}
+        lot_rows = [
+            x
+            for x in s.scalars(select(Lot).where(Lot.accountId == aid, Lot.deleted == false()))
+            if x.transactionId in kept
+        ]
     # A pick is its sale's: the lot it names may be one carried in from another account
     # (S2.3, S1.7.1).
     sale_ids = [x.id for x in txns if x.kind in lots.DISPOSALS]

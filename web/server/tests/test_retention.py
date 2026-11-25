@@ -102,6 +102,59 @@ def test_a_lots_receipt_is_kept_while_the_lot_is_open(server, frozen):
     assert kept(c, rid) == ("expired", "Expired Feb 2032, prunable")
 
 
+def test_a_deleted_accounts_records_end_with_its_deletion(server, frozen):
+    """schema.md §6.2, S14.10.2: a record deleted with its account ends at the earlier of its
+    own end and the deletion: an open lot, a later transaction or expense all end on Mar 1,
+    2033, never at once from the buy's date."""
+    from decimal import Decimal
+
+    from moolakata.ids import new_id
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.entities.education import QualifiedExpense
+    from moolakata.store.entities.receipts import ReceiptLink
+
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
+    acct = new_account(c, type="brokerage")
+    with server.db.tx(unscoped="test") as s:
+        any_cat = s.scalars(select(Category)).first()
+        any_cat.keepReceiptsYears = 2
+        cid = any_cat.id
+    r = make(c, "Txn", accountId=acct["id"], date="2020-01-02", kind="buy", symbol="VTI",
+             quantity="10", price="100", amount="-1000.00", categoryId=cid)  # fmt: skip
+    assert r.status_code == 200, r.text
+    buy = r.json()
+    later = add(c, acct["id"], "-50.00", "2033-05-01", payee="Fee", categoryId=cid)
+    lot_r = receipt_on(c, buy["id"], png((1, 1, 1)))
+    later_r = receipt_on(c, later["id"], png((2, 2, 2)))
+    expense_r = upload(c, png((4, 4, 4))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        expense = QualifiedExpense(id=new_id("QExpn"), accountId=acct["id"],
+                                   date=dt.date(2033, 6, 1), year=2033, kind="tuition",
+                                   amount=Decimal("50"), transactionId=later["id"])  # fmt: skip
+        s.add(expense)
+        s.flush()
+        link = ReceiptLink(
+            id=new_id("RcLnk"),
+            receiptId=expense_r,
+            kind="expense",
+            itemId=expense.id,
+            createdAt=clock.now(),
+            linkedById=jane.id,
+        )
+        s.add(link)
+    before = {rid: kept(c, rid)[1] for rid in (lot_r, later_r, expense_r)}
+    assert before == {
+        lot_r: "Kept while the lot is open",
+        later_r: "Kept until May 2035",
+        expense_r: "Kept until Jun 2035",
+    }
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, acct["id"]).mark_deleted(jane.id)
+    for rid in (lot_r, later_r, expense_r):
+        assert kept(c, rid) == ("until", "Kept until Mar 2035"), before[rid]
+
+
 def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     server, frozen, admin_client
 ):

@@ -25,10 +25,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import sqlalchemy as sa
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import clock, settings
+from ..store import views
 from ..store.entities.accounts import Account, Category, Lot, Split, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import Gift, QualifiedExpense
@@ -115,10 +117,19 @@ class Context:
         return self._lot_ends[account_id]
 
 
-def _deleted(row, end: dt.date | None) -> dt.date | None:
-    if row.deletedAt is None:
+def _deleted(s, row, end: dt.date | None) -> dt.date | None:
+    """A record's end: the earlier of its declared end and when it was deleted, itself or
+    with what it belongs to, as its Effective view says (an account's transactions and items
+    with the account; schema.md §6.2)."""
+    table = sa.inspect(type(row)).local_table
+    if views.parents(table):
+        view = views.view_table(table)
+        at = s.scalar(select(view.c.effectiveDeletedAt).where(view.c.id == row.id))
+    else:
+        at = row.deletedAt
+    if at is None:
         return end
-    gone = row.deletedAt.date()
+    gone = at.date()
     return gone if end is None else min(end, gone)
 
 
@@ -130,7 +141,7 @@ def _transaction(ctx: Context, t: Transaction | None) -> tuple[dt.date | None, i
     for lot in ctx.s.scalars(select(Lot).where(Lot.transactionId == t.id)):
         lot_end = ctx.lot_ends(t.accountId).get(lot.id, t.date)
         end = None if lot_end is None or end is None else max(end, lot_end)
-    end = _deleted(t, end)
+    end = _deleted(ctx.s, t, end)
     if t.transferId is not None or t.kind.startswith("transfer"):
         return end, None, ""
     splits = list(
@@ -155,7 +166,7 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
         if a is None:
             return dt.date.min, ctx.statements, "Statements"
         end = r.date if r.date is not None else a.closedOn
-        return _deleted(a, end), ctx.statements, "Statements"
+        return _deleted(s, a, end), ctx.statements, "Statements"
     row = {
         "item": Item,
         "expense": QualifiedExpense,
@@ -177,7 +188,7 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
             end = None
     else:
         end = x.date
-    return _deleted(x, end), years, name
+    return _deleted(s, x, end), years, name
 
 
 def retention(ctx: Context, r: Receipt) -> Retention:
