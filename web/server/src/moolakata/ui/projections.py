@@ -64,7 +64,16 @@ class NewProjection(Model):
 
 
 class Activated(Model):
-    replaced: str | None
+    replaced: list[str]
+
+
+class Replaced(Model):
+    """An active projection that making another active turns off, and the accounts the two
+    share (a savings target's; S6.7.1)."""
+
+    id: str
+    name: str
+    accounts: list[str]
 
 
 def _shown(s, user_id: str, projection_id: str) -> bool:
@@ -366,23 +375,27 @@ def get_projection(projection_id: str, request: Request, c: Caller = Depends(cal
         return detail(s, c.id, p, held)
 
 
+@router.get("/projections/{projection_id}/replaces", response_model=list[Replaced])
+def replaces(projection_id: str, request: Request, c: Caller = Depends(caller)):
+    """What making it active turns off, for the dialog to ask about first (S6.7.1)."""
+    with server(request).db.read(user=c.id) as s:
+        p, _ = _get(s, c.id, projection_id, "configurable")
+        return [
+            Replaced(id=o.id, name=o.name, accounts=shared)
+            for o, shared in projections.replaces(s, c.id, p)
+        ]
+
+
 @router.post("/projections/{projection_id}/activate", response_model=Activated)
 def activate(projection_id: str, request: Request, c: Caller = Depends(caller)):
-    """At most one active per subject: the one it replaces goes back to being a scenario.
+    """At most one active per subject (S6.7.1): those it replaces go back to being scenarios.
     Its median path and 10th–90th band as of today become its baseline (S6.7.2)."""
     with server(request).db.tx(user=c.id) as s:
         p, _ = _get(s, c.id, projection_id, "configurable")
-        mine = projections.subject(p)
-        replaced = None
-        for other, held in projections.visible(s, c.id):
-            if (
-                other.id != p.id
-                and other.active
-                and held.mine
-                and projections.subject(other) == mine
-            ):
-                other.active, other.baseline, other.baselineAt = False, None, None
-                replaced = other.name
+        replaced = []
+        for other, _shared in projections.replaces(s, c.id, p):
+            other.active, other.baseline, other.baselineAt = False, None, None
+            replaced.append(other.name)
         p.active = True
         p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
         p.baselineAt = clock.now()

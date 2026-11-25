@@ -83,6 +83,24 @@ class BuiltOn:
         return min(1.0, float(self.bitcoin) / crypto) if crypto else 0.0
 
 
+def _accounts(s: Session, user_id: str, spec: dict) -> tuple[list[Account], str]:
+    """The accounts a projection built on accounts or a portfolio is built on, those the user
+    sees, and its label."""
+    if spec.get("kind") == "portfolio":
+        from ..ui.portfolios import seen_accounts
+
+        p, _ = access.portfolio(s, user_id, spec["id"])
+        return seen_accounts(s, user_id, p), f"Portfolio: {p.name}"
+    visible = {a.id: a for a, _ in access.accounts(s, user_id)}
+    accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
+    label = (
+        (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
+        if accounts
+        else "no accounts"
+    )
+    return accounts, label
+
+
 def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
     """Its accounts' current values and their mix by asset class; or a typed amount with the
     mix the projection gives it."""
@@ -100,20 +118,7 @@ def built_on(s: Session, user_id: str, spec: dict) -> BuiltOn:
             f"a typed {amount:,.0f}",
             (amount * crypto).quantize(Decimal("0.01")),
         )
-    if kind == "portfolio":
-        from ..ui.portfolios import seen_accounts
-
-        p, _ = access.portfolio(s, user_id, spec["id"])
-        accounts = seen_accounts(s, user_id, p)
-        label = f"Portfolio: {p.name}"
-    else:
-        visible = {a.id: a for a, _ in access.accounts(s, user_id)}
-        accounts = [visible[i] for i in spec.get("ids", []) if i in visible]
-        label = (
-            (accounts[0].name if len(accounts) == 1 else f"{len(accounts)} accounts")
-            if accounts
-            else "no accounts"
-        )
+    accounts, label = _accounts(s, user_id, spec)
     by_class: dict[str, Decimal] = {}
     btc = Decimal(0)
     left: dict[tuple[str, str], Decimal] = {}
@@ -531,8 +536,8 @@ def headline(p: Projection, answer: dict) -> str:
 
 
 def subject(p: Projection) -> str:
-    """At most one active projection per subject: the people of a retirement, a savings
-    target's own name."""
+    """A retirement's people, an education goal's beneficiary: at most one active projection
+    each (S6.7.1). A savings target is the accounts it is built on, which `replaces` reads."""
     inputs = json.loads(p.inputs or "{}")
     if p.goal == "retirement":
         people = sorted(
@@ -540,10 +545,34 @@ def subject(p: Projection) -> str:
             for x in (inputs.get("people") or [{"name": p.ownerId}])
         )
         return f"{p.ownerId}:retirement:{'|'.join(people)}"
-    if p.goal == "education":
-        who = inputs.get("beneficiary") or {}
-        return f"{p.ownerId}:education:{who.get('kind')}:{who.get('id')}"
-    return f"{p.ownerId}:{p.goal}:{p.id}"
+    who = inputs.get("beneficiary") or {}
+    return f"{p.ownerId}:education:{who.get('kind')}:{who.get('id')}"
+
+
+def _backing(s: Session, user_id: str, p: Projection) -> dict[str, str]:
+    """A savings target's accounts, by id with their names; a typed amount's none."""
+    spec = json.loads(p.builtOn or "{}")
+    if spec.get("kind") not in ("accounts", "portfolio"):
+        return {}
+    return {a.id: a.name for a in _accounts(s, user_id, spec)[0]}
+
+
+def replaces(s: Session, user_id: str, p: Projection) -> list[tuple[Projection, list[str]]]:
+    """The user's own active projections that making `p` active turns off (S6.7.1), each with
+    the names of the accounts it shares with `p`: for a savings target, any it shares an
+    account with, since tracking counts an account's whole balance toward each (S6.7.3)."""
+    found = []
+    mine = _backing(s, user_id, p) if p.goal == "savings" else {}
+    for other, held in visible(s, user_id):
+        if other.id == p.id or not other.active or not held.mine or other.goal != p.goal:
+            continue
+        if p.goal == "savings":
+            shared = [n for i, n in _backing(s, user_id, other).items() if i in mine]
+            if shared:
+                found.append((other, sorted(shared)))
+        elif subject(other) == subject(p):
+            found.append((other, []))
+    return found
 
 
 def make_baseline(result: dict) -> dict:

@@ -348,3 +348,70 @@ def test_a_typed_mix_is_the_projections_own_and_shown_to_a_viewer(server, jane):
     theirs = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}").json()
     assert theirs["result"]["weights"] == {"usStocks": Decimal("0.6"), "bonds": Decimal("0.4")}
     assert theirs["builtOn"] == TYPED
+
+
+def _saving(c, name, built):
+    return made(make(c, "Prjct", name=name, goal="savings", builtOn=built,
+                     inputs={"target": 50000, "date": "2030-01-01"}))  # fmt: skip
+
+
+def _active(c) -> set[str]:
+    return {p["name"] for p in c.get("/ui/api/projections").json()["items"] if p["active"]}
+
+
+def _replaces(c, p) -> list[dict]:
+    r = c.get(f"/ui/api/projections/{p['id']}/replaces")
+    assert r.status_code == 200, r.text
+    return r.json()["items"]
+
+
+def test_an_account_backs_at_most_one_active_savings_target(jane):
+    """S6.7.1: two active savings targets over one account would both count its whole balance;
+    making one active turns off those it shares an account with, a portfolio's included, and
+    asks first, naming them and the accounts they share."""
+    from test_accounts import add, new_account
+
+    joint = new_account(jane, name="Joint Savings", type="savings")
+    other = new_account(jane, name="Brokerage", type="savings")
+    for a in (joint, other):
+        add(jane, a["id"], "9000.00", "2026-10-01")
+    car = _saving(jane, "Car", {"kind": "accounts", "ids": [joint["id"]]})
+    trip = _saving(jane, "Trip", {"kind": "accounts", "ids": [other["id"]]})
+    port = made(make(jane, "Portf", name="Both", accountIds=[joint["id"], other["id"]]))
+    house = _saving(jane, "House", {"kind": "portfolio", "id": port["id"]})
+    typed = _saving(jane, "What if", {"kind": "typed", "amount": 1000})
+    for p in (car, trip, typed):
+        assert jane.post(f"/ui/api/projections/{p['id']}/activate").json() == {"replaced": []}
+    assert _active(jane) == {"Car", "Trip", "What if"}, "disjoint and typed never conflict"
+    assert _replaces(jane, house) == [
+        {"id": car["id"], "name": "Car", "accounts": ["Joint Savings"]},
+        {"id": trip["id"], "name": "Trip", "accounts": ["Brokerage"]},
+    ]
+    assert jane.post(f"/ui/api/projections/{house['id']}/activate").json() == {
+        "replaced": ["Car", "Trip"]
+    }
+    assert _active(jane) == {"House", "What if"}
+    # One account in common is enough.
+    again = _saving(jane, "Car again", {"kind": "accounts", "ids": [joint["id"]]})
+    assert [x["name"] for x in _replaces(jane, again)] == ["House"]
+    assert _replaces(jane, typed) == []
+
+
+def test_one_active_retirement_per_people_asked_the_same_way(jane):
+    """S6.7.1: a retirement's subject is its people, whatever it is built on."""
+    a = made(_retire(jane))
+    b = made(_retire(jane, people=[{"name": "Jane", "birthYear": 1979, "retireAge": 65}]))
+    other = made(_retire(jane, people=[{"name": "Jim", "birthYear": 1980, "retireAge": 65}]))
+    for p in (a, other):
+        assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    assert _replaces(jane, b) == [{"id": a["id"], "name": "Retire", "accounts": []}]
+
+
+def test_only_its_owner_asks_what_making_it_active_replaces(server, jane):
+    from edits import share
+
+    p = _saving(jane, "What if", {"kind": "typed", "amount": 1000})
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "read"}).status_code == 200
+    r = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}/replaces")
+    assert r.status_code == 403

@@ -105,8 +105,13 @@
    $500 more a month. Projections that are not active are the scenarios.
 7. **Active projections** are the plans being followed.
    1. **At most one per subject**: one retirement projection per person or couple, one
-      education projection per beneficiary, one per savings target. Making one active asks
-      before turning off the one it replaces.
+      education projection per beneficiary, and one savings target per account: tracking
+      counts the whole balance of what a projection is built on (S6.7.3), so two active
+      savings targets sharing an account, directly or through a portfolio, would count the
+      same money toward both. One built on a typed amount shares no account. Making one
+      active asks before turning off those it replaces, naming each and, for a savings
+      target, the accounts they share (*Car is active on Joint Savings. Make House active
+      instead?*).
    2. **The baseline**: making a projection active stores its median path and its 10th–90th
       percentile band as of that day.
    3. **Tracking**: the actual balance of what it is built on, plotted against the baseline

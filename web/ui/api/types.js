@@ -148,7 +148,7 @@
 
 /**
  * @typedef {Object} Activated
- * @property {(string | null)} replaced
+ * @property {Array<string>} replaced
  */
 
 /**
@@ -2855,6 +2855,14 @@
  */
 
 /**
+ * @typedef {Object} Page_Replaced_
+ * @property {Array<Replaced>} items
+ * @property {number} total
+ * @property {number} offset
+ * @property {number} limit
+ */
+
+/**
  * @typedef {Object} Page_ReturnRow_
  * @property {Array<ReturnRow>} items
  * @property {number} total
@@ -3735,6 +3743,15 @@
  * @property {(string | null)} [label]
  * @property {(string | null)} [fromDate]
  * @property {(string | null)} [toDate]
+ */
+
+/**
+ * An active projection that making another active turns off, and the accounts the two
+ * share (a savings target's; S6.7.1).
+ * @typedef {Object} Replaced
+ * @property {string} id
+ * @property {string} name
+ * @property {Array<string>} accounts
  */
 
 /**

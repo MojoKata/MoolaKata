@@ -1000,15 +1000,11 @@
         "additionalProperties": false,
         "properties": {
           "replaced": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaced"
+            "items": {
+              "type": "string"
+            },
+            "title": "Replaced",
+            "type": "array"
           }
         },
         "required": [
@@ -16757,6 +16753,37 @@
         "title": "Page[RelationshipOut]",
         "type": "object"
       },
+      "Page_Replaced_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Replaced"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[Replaced]",
+        "type": "object"
+      },
       "Page_ReturnRow_": {
         "properties": {
           "items": {
@@ -22466,6 +22493,34 @@
           "who": "code"
         },
         "x-entity": "Rltn"
+      },
+      "Replaced": {
+        "additionalProperties": false,
+        "description": "An active projection that making another active turns off, and the accounts the two\nshare (a savings target's; S6.7.1).",
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "accounts"
+        ],
+        "title": "Replaced",
+        "type": "object"
       },
       "ReserveHeld": {
         "additionalProperties": false,
@@ -36772,7 +36827,7 @@
     },
     "/ui/api/projections/{projection_id}/activate": {
       "post": {
-        "description": "At most one active per subject: the one it replaces goes back to being a scenario.\nIts median path and 10th–90th band as of today become its baseline (S6.7.2).",
+        "description": "At most one active per subject (S6.7.1): those it replaces go back to being scenarios.\nIts median path and 10th–90th band as of today become its baseline (S6.7.2).",
         "operationId": "activate_ui_api_projections__projection_id__activate_post",
         "parameters": [
           {
@@ -36835,6 +36890,68 @@
           }
         },
         "summary": "Deactivate",
+        "tags": [
+          "projections"
+        ]
+      }
+    },
+    "/ui/api/projections/{projection_id}/replaces": {
+      "get": {
+        "description": "What making it active turns off, for the dialog to ask about first (S6.7.1).",
+        "operationId": "replaces_ui_api_projections__projection_id__replaces_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projection_id",
+            "required": true,
+            "schema": {
+              "title": "Projection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Replaced_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Replaces",
         "tags": [
           "projections"
         ]

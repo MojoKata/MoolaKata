@@ -10,8 +10,9 @@ savings target by a date.
 
 ## Active
 
-The plans you follow; make a scenario active to follow it. At most one per subject: one retirement plan for the same people, one per
-savings target. Making one active stores its median path and its 10th–90th percentile band as of
+The plans you follow; make a scenario active to follow it. At most one per subject: one retirement
+plan for the same people, one education plan per beneficiary, and one savings target per account,
+since each counts the whole balance of the accounts it is built on. Making one active stores its median path and its 10th–90th percentile band as of
 that day: its **baseline**.
 
 ## Scenarios

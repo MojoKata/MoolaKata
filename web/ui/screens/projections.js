@@ -624,25 +624,44 @@ function Rebaseline({ close, name }) {
   `;
 }
 
-/** @param {{ close: (v?: any) => void, p: any }} props */
+const AND = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+
+/**
+ * Asks before turning off what it replaces (S6.7.1): the active plan for the same people or
+ * beneficiary, or a savings target sharing an account with it, as the server reads them.
+ * @param {{ close: (v?: any) => void, p: any }} props
+ */
 function MakeActive({ close, p }) {
   useDialogGuide('dialog-make-active');
-  const list = useList('/projections');
+  const asks = useList(`/projections/${p.id}/replaces`);
   const go = useSubmit(async () => {
     await api.post(`/projections/${p.id}/activate`);
     close(true);
   });
-  const others = (/** @type {any[]} */ (list.data) || []).filter((r) =>
-    r.active && r.goal === p.goal && r.id !== p.id && r.access.mine
-  );
+  const others = /** @type {any[] | null} */ (asks.data);
+  const why = (/** @type {any} */ o) =>
+    o.accounts.length
+      ? `is active on ${AND.format(o.accounts)}`
+      : `is the active plan for the same ${p.goal === 'education' ? 'beneficiary' : 'people'}`;
   return html`
     <${Dialog} title=${`Make “${p.name}” Active?`} close=${close}
       onSubmit=${() => go.run().catch(() => {})}
-      footer=${html`<button class="btn primary" disabled=${go.busy}>Make Active</button>`}>
-      <p style=${{ marginTop: 0 }}>${others.length && p.goal === 'retirement'
-        ? html`<b>${others[0].name}</b> stops being the active plan for the same people, if
-          they are the same. Its tracking ends, and it stays as a scenario.`
-        : 'It becomes an active plan.'}</p>
+      footer=${html`<button class="btn primary" disabled=${
+        go.busy || !others
+      }>Make Active</button>`}>
+      ${asks.error
+        ? html`<${Failed} error=${asks.error} />`
+        : !others
+        ? html`<${Loading} lines=${1} />`
+        : others.length
+        ? html`${
+          others.map((o) => html`<p style=${{ marginTop: 0 }}><b>${o.name}</b> ${why(o)}.</p>`)
+        }<p>Make ${p.name} active instead? ${
+          others.length === 1
+            ? 'Its tracking ends, and it stays as a scenario.'
+            : 'Their tracking ends, and they stay as scenarios.'
+        }</p>`
+        : html`<p style=${{ marginTop: 0 }}>It becomes an active plan.</p>`}
       <${FormError} error=${go.error} />
       </${Dialog}>
   `;

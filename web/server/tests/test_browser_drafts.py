@@ -1230,6 +1230,32 @@ def test_an_active_projections_new_inputs_ask_about_its_baseline(browser, househ
     page.close()
 
 
+def test_making_a_savings_target_active_asks_about_one_on_the_same_account(browser, household):
+    """S6.7.1: an account backs at most one active savings target; the dialog names the one
+    it turns off and the account they share."""
+    h = household
+    on = {"kind": "accounts", "ids": [h.extra["savings"]["id"]]}
+    goal = {"target": 50000, "date": "2030-01-01"}
+    car = made(make(h.c, "Prjct", name="Drafts car", goal="savings", builtOn=on, inputs=goal))
+    house = made(make(h.c, "Prjct", name="Drafts house", goal="savings", builtOn=on, inputs=goal))
+    try:
+        made(h.c.post(f"/ui/api/projections/{car['id']}/activate"))
+        page, problems = signed_in(browser, h, f"/ui/projections/{house['id']}", "#f-fees")
+        page.click('.toolbar button:has-text("Make Active")')
+        name = account(h, "savings")[0]["name"]  # renamed by another test, maybe
+        wait(page, f'.dialog:has-text("Drafts car is active on {name}.")', problems)
+        assert "Make Drafts house active instead?" in page.locator(".dialog").inner_text()
+        page.click('.dialog footer button:has-text("Make Active")')
+        wait(page, '.toast:has-text("Drafts house is the active plan")', problems)
+        assert not h.c.get(f"/ui/api/projections/{car['id']}").json()["active"]
+        assert problems == []
+        page.close()
+    finally:
+        for p in (car, house):
+            made(remove(h.c, "Prjct", h.c.get(f"/ui/api/projections/{p['id']}").json(),
+                        confirm=True))  # fmt: skip
+
+
 def test_a_settings_section_saves_its_keys_and_a_password_with_them(browser, household):
     h = household
     page, problems = signed_in(

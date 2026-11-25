@@ -150,9 +150,9 @@ def test_built_on_accounts_starts_from_their_value(jane):
 def test_one_active_plan_per_subject_and_its_baseline(jane):
     a = retirement(jane)
     b = retirement(jane, contribution={"amount": 40000, "growth": 3})
-    assert jane.post(f"/ui/api/projections/{a['id']}/activate").json() == {"replaced": None}
+    assert jane.post(f"/ui/api/projections/{a['id']}/activate").json() == {"replaced": []}
     assert jane.post(f"/ui/api/projections/{b['id']}/activate").json() == {
-        "replaced": "Retire at 62"
+        "replaced": ["Retire at 62"]
     }
     rows = {p["id"]: p for p in jane.get("/ui/api/projections").json()["items"]}
     assert rows[b["id"]]["active"] and not rows[a["id"]]["active"]
