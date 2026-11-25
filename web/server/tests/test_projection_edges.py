@@ -666,6 +666,31 @@ def test_a_blank_the_model_would_read_as_0_or_its_default_is_refused(jane, goal,
     refused(change(jane, "Prjct", p, inputs=inputs), f"inputs.{path}")
 
 
+def test_after_school_ends_whats_left_stays_and_grows():
+    """S6.2.2: an education plan pays each year of school's cost, rising by its inflation,
+    until school ends; what is left over stays, and grows on."""
+    from moolakata.projections import engine
+
+    plan = engine.Plan(start=1000.0, weights={"cash": 1.0}, returns={"cash": 0.1},
+                       vols={"cash": 0.0}, inflation=0.0, fees=0.0, first_year=2026, years=4,
+                       withdraw_from=1,
+                       withdrawal={"method": "costs", "amount": 100.0, "growth": 0.0,
+                                   "years": 2})  # fmt: skip
+    r = engine.run(plan)
+    assert r.percentiles[50] == pytest.approx([1000.0, 1000.0, 1000.0, 1100.0])
+    assert r.lasted == 1.0
+
+
+def test_a_model_with_no_cases_has_no_case_paths():
+    """S6.3.1.4: only a model with bear, base and bull cases draws them."""
+    from moolakata.projections import engine
+
+    plan = engine.Plan(start=100.0, weights={"crypto": 1.0}, returns={"crypto": 0.0},
+                       vols={"crypto": 0.0}, inflation=0.0, fees=0.0, first_year=2026,
+                       years=2)  # fmt: skip
+    assert engine.scenario_paths(plan, "powerLaw", {}, 100_000.0) == {}
+
+
 def test_only_the_figures_its_goal_reads_are_asked_for(jane):
     """A savings target has no contribution, age or people to give: only what its model reads
     is asked for."""
