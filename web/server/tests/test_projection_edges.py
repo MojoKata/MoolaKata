@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make
+from edits import make, new_id
 from test_projections import T0
 
 from moolakata import clock
@@ -226,3 +226,42 @@ def test_a_cases_path_grows_from_its_first_year():
     f = {"btcArk2030": [200_000.0, 400_000.0, 800_000.0]}
     paths = engine.scenario_paths(plan, "ark", f, 100_000.0)
     assert paths["base"] == pytest.approx([100.0, 100.0 * 4**0.25, 200.0, 100.0 * 4**0.75])
+
+
+@pytest.mark.parametrize("value", [[4], [4, 31], [13, 1], [0, 15], [4.5, 15], [2, 29],
+                                   [4, 15, 1], [float("nan"), 15]])  # fmt: skip
+def test_a_federal_due_date_is_a_month_and_a_day(value):
+    """S16.11, S8.15.3: a corrected federal due date is a real month and day of any year."""
+    from moolakata.projections import taxtables
+
+    with pytest.raises(taxtables.Invalid, match="a month and a day"):
+        taxtables.check("federalDue", value)
+    assert taxtables.check("federalDue", [4, 30]) == [4, 30]
+    assert taxtables.check("federalDue", [4.0, 30]) == [4, 30]
+
+
+@pytest.mark.parametrize("key", ["iraLimit", "collectablesRate", "rmdAge", "btcArk2030"])
+def test_no_figure_is_nan_or_infinite(key):
+    """R3.11: a correction is a number, never NaN or an infinity, whatever its kind."""
+    from moolakata.projections import taxtables
+
+    for bad in (float("nan"), float("inf")):
+        value = [bad, 1.0, 2.0] if key == "btcArk2030" else bad
+        with pytest.raises(taxtables.Invalid):
+            taxtables.check(key, value)
+
+
+def test_a_bad_due_date_is_refused_and_the_books_still_open(server, admin_client):
+    """A due date no calendar has is refused at its field, so the year's books still find
+    their due date."""
+    from moolakata.taxes import books
+
+    fig = {"year": 2026, "key": "federalDue", "value": [4, 31]}
+    op = {"op": "create", "entity": "TaxFg", "id": new_id("TaxFg"), "fields": fig}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 422, r.text
+    e = r.json()["errors"][0]
+    assert (e["field"], e["code"], e["message"]) == ("value", "figure-invalid",
+                                                     "Must be a month and a day.")  # fmt: skip
+    with server.db.read(unscoped="test") as s:
+        assert books.federal_due(s, 2026).month == 4

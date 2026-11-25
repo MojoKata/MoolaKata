@@ -7,7 +7,9 @@ Each figure has a kind, which says how it is checked and shown: money (dollars),
 number, or a list of numbers (the bitcoin models' parameters and targets).
 """
 
+import datetime as dt
 import json
+import math
 from dataclasses import dataclass
 
 from sqlalchemy import false, select
@@ -247,21 +249,39 @@ class Invalid(ValueError):
     pass
 
 
+def _finite(v) -> bool:
+    """A number: never a yes or no, NaN or an infinity (R3.11)."""
+    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _month_day(value) -> list[int]:
+    """The federal due date (S8.15.3): two whole numbers that are a month and a day of any
+    year, as the books build a date of them."""
+    try:
+        if not isinstance(value, list) or len(value) != 2 or not all(_finite(v) for v in value):
+            raise ValueError
+        month, day = value
+        if month != int(month) or day != int(day):
+            raise ValueError
+        dt.date(2001, int(month), int(day))
+    except ValueError:
+        raise Invalid("a month and a day") from None
+    return [int(month), int(day)]
+
+
 def check(key: str, value) -> object:
     f = BY_KEY.get(key)
     if f is None:
         raise Invalid("there is no such figure")
     if f.kind == "numbers":
-        if (
-            not isinstance(value, list)
-            or not value
-            or not all(isinstance(v, int | float) and not isinstance(v, bool) for v in value)
-        ):
+        if key == "federalDue":
+            return _month_day(value)
+        if not isinstance(value, list) or not value or not all(_finite(v) for v in value):
             raise Invalid("numbers separated by commas")
         if len(value) != len(_BTC.get(key, value)):
             raise Invalid(f"{len(_BTC[key])} numbers")
         return value
-    if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+    if not _finite(value) or value < 0:
         raise Invalid("a number, zero or more")
     if f.kind == "percent" and value > 100:
         raise Invalid("a percentage up to 100")
