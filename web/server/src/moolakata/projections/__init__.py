@@ -425,12 +425,16 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         "bitcoinModel": prep.model,
         # Bitcoin's part of the crypto is of their mix too: sent only with it (S6.1).
         "bitcoinShare": prep.base.bitcoin_share if prep.base.whole else None,
-        "noBitcoinPrice": prep.no_btc_price,
+        # That a model would follow its bitcoin is of their mix too (S6.3.1.5).
+        "noBitcoinPrice": prep.no_btc_price and prep.base.whole,
         "runs": plan.runs,
         "seed": plan.seed,
         "scenarios": {},
     }
-    if prep.model in ("saylor", "ark") and prep.follows_model and prep.btc_now is not None:
+    # The cases follow the bitcoin in their mix: one not shared it sees the fan of the same
+    # runs in their place (S6.3.1.4).
+    cases = prep.model in ("saylor", "ark") and prep.follows_model and prep.base.whole
+    if cases and prep.btc_now is not None:
         out["scenarios"] = engine.scenario_paths(
             plan, prep.model, taxtables.figures(s, plan.first_year), prep.btc_now
         )

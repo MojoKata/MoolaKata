@@ -181,6 +181,38 @@ def test_a_bitcoin_model_is_named_only_with_its_share(browser, household, share,
     page.close()
 
 
+@pytest.mark.parametrize("whole", [True, False])
+def test_one_not_shared_its_mix_sees_the_fan_and_no_model(browser, household, whole):
+    """S6.3.1.4, S6.1: the bear, base and bull cases and the bitcoin model follow the bitcoin
+    in its mix: one not shared it (sent no mix) sees the fan and no bitcoin model line, the
+    no-price one included; one shared it, the cases."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        r = body["result"]
+        cases = {
+            k: r["percentiles"][n] for k, n in (("bear", "10"), ("base", "50"), ("bull", "90"))
+        }
+        r.update(bitcoinModel="ark", bitcoinShare=None, noBitcoinPrice=True, scenarios=cases)
+        if not whole:
+            r["weights"] = None
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    card = page.locator('.card:has(h3:has-text("Projected Value"))')
+    head = card.locator("h3").inner_text()
+    assert ("Bear, Base and Bull" in head) == whole and ("Monte Carlo" in head) != whole
+    assert page.locator("text=Bitcoin: no model, no price yet").count() == (1 if whole else 0)
+    assert problems == []
+    page.close()
+
+
 def test_compare_models_shows_a_dash_after_a_targets_year(browser, household):
     """S6.3.1.6: a target's figures after its year are none, shown as —."""
     h = household

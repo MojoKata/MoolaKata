@@ -131,6 +131,9 @@ function Detail({ id, reloadList }) {
       : a.kind === 'education'
       ? [[a.firstYear, 'school starts']]
       : []);
+  // The cases and the bitcoin model follow the bitcoin in its mix: one not shared every
+  // account it is built on sees neither, the fan in their place (S6.3.1.4).
+  const cases = r.weights && Object.keys(r.scenarios || {}).length ? r.scenarios : null;
   // No mix for one not shared every account it is built on: it is what they hold (S6.1).
   const classes = r.weights
     ? Object.entries(r.weights).map(([k, w]) =>
@@ -190,13 +193,13 @@ function Detail({ id, reloadList }) {
       : null}
     <div class="grid g-main mt">
       <div class="card">
-        <h3>Projected Value · ${r.scenarios && Object.keys(r.scenarios).length
+        <h3>Projected Value · ${cases
           ? 'Bear, Base and Bull'
           : `Monte Carlo, ${r.runs.toLocaleString()} runs`}<span class="spacer"></span>
         <${Chips} label="Dollars" value=${real} onChange=${setReal}
           options=${[['nominal', 'Nominal'], ['real', "Today's dollars"]]} /></h3>
         <${FanChart} label=${`${x.name}: projected value by year`} years=${r.years} p=${p}
-          paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
+          paths=${real === 'nominal' ? cases : null} marks=${marks} />
         <div class="small dim" data-help="projected-value">
           <div>Starts from: ${dollars(r.start)} (${classes})</div>
           <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.keys(
@@ -207,7 +210,9 @@ function Detail({ id, reloadList }) {
             }%`
           ).join(', ')}</div>
           <div>Inflation: ${r.assumptions.inflation}% · Fees: ${x.inputs.fees}% a year</div>
-          ${r.noBitcoinPrice || (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0)
+          ${r.weights &&
+              (r.noBitcoinPrice ||
+                (r.bitcoinModel !== 'assumption' && num(r.bitcoinShare ?? 0) > 0))
             ? html`<div>Bitcoin: ${
               r.noBitcoinPrice ? 'no model, no price yet' : `the ${r.bitcoinModel} model`
             }</div>`

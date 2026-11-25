@@ -622,6 +622,48 @@ def test_a_viewer_not_shared_its_accounts_isnt_told_its_bitcoin_share(server, ja
     assert whole["bitcoinShare"] == 1
 
 
+@pytest.mark.parametrize("priced", [True, False])
+def test_a_viewer_not_shared_its_accounts_sees_the_fan_not_the_cases(
+    server, jane, closes, monkeypatch, priced
+):
+    """S6.3.1.4, S6.1: a model's bear, base and bull cases follow the bitcoin in its mix: a
+    viewer not shared every account it is built on is sent the fan of the same runs in their
+    place, and no word of the model's price (S6.3.1.5); shared them all, what its owner is."""
+    from edits import share
+    from test_accounts import add, new_account
+
+    from moolakata import projections
+
+    _bitcoin(server)
+    if not priced:
+        # Its coins valued, but no bitcoin price for a model to start from.
+        monkeypatch.setattr(projections, "btc_price", lambda s: None)
+    joint = new_account(jane, name="Joint savings", type="savings")
+    add(jane, joint["id"], "1000.00", "2026-10-01")
+    wallet = new_account(jane, name="Cold storage", type="crypto-wallet")
+    _coins(server, wallet["id"], "0.5")
+    built = {"kind": "accounts", "ids": [joint["id"], wallet["id"]]}
+    p = made(make(jane, "Prjct", name="Stack", goal="savings", builtOn=built,
+                  inputs={"target": 90000, "date": "2030-01-01", **SPENT,
+                          "bitcoinModel": "ark"}))  # fmt: skip
+    mine = p["result"]
+    cases = ["base", "bear", "bull"] if priced else []
+    assert (sorted(mine["scenarios"]), mine["noBitcoinPrice"]) == (cases, not priced)
+    john = make_user(server, "john")
+    for kind, item in (("projection", p["id"]), ("account", joint["id"])):
+        assert share(jane, kind, item, users={john.id: "read"}).status_code == 200
+    johns = sign_in(server, "john")
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()["result"]
+    assert (theirs["scenarios"], theirs["noBitcoinPrice"]) == ({}, False)
+    assert theirs["percentiles"] == mine["percentiles"], "the fan of the same runs"
+    assert share(jane, "account", wallet["id"], users={john.id: "read"}).status_code == 200
+    whole = johns.get(f"/ui/api/projections/{p['id']}").json()["result"]
+    assert (whole["scenarios"], whole["noBitcoinPrice"]) == (
+        mine["scenarios"],
+        mine["noBitcoinPrice"],
+    )
+
+
 def test_a_writer_not_shared_its_accounts_keeps_the_owners_unseen_ones(server, jane):
     """S6.1: a writer shared the projection but not every account it is built on changes what
     it is built on among the accounts they see; those they don't see stay, and are still not

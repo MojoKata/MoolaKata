@@ -67,7 +67,10 @@
       3. **Their figures ship with the app**, dated and with their source, in Settings ›
          Tax Tables, and are updated with it (a new ARK target, a refit of the power law).
       4. A projection that uses a model with bear, base and bull cases shows those three
-         paths in place of a fan, since they are not percentiles.
+         paths in place of a fan, since they are not percentiles. They follow the bitcoin in
+         its mix, so one shared it but not every account it is built on (S6.1) sees the fan of
+         the same runs in their place, and no bitcoin model named under its chart, nor that
+         there is no price for one.
       5. **No bitcoin price, no model.** A model starts from today's price, and nothing stands
          in for one the server doesn't have (price sources are off until set up, R3.5):
          *Compare models* shows *No bitcoin price yet*, with where an admin sets up a price
