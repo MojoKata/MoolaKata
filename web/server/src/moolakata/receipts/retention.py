@@ -11,9 +11,11 @@ A record's end and period, by what the file is attached to:
 - an account (a statement): ends with the statement's period (its date), or without one with
   the account's last transaction once closed; its period is Settings › Storage's *Keep
   statements for*;
-- a physical-asset item ends at its sale; a qualified expense or a donation on its date; a gift
-  given or received at the later of its occasion's year end and its purchase, else stays open;
-  each takes its transaction's period, and has none without one.
+- a physical-asset item ends at its sale, and has no period: it has no category, so its files
+  are kept for ever (S14.10.2, G#675);
+- a qualified expense or a donation ends on its date; a gift given or received at the later of
+  its occasion's year end and its purchase, else stays open; each takes its transaction's
+  period, and has none without one.
 
 A deleted record ended no later than its deletion. A file expires at the latest end plus the
 longest period; with Keep on, attached to nothing, or with any record without a period, it is
@@ -43,7 +45,6 @@ SOON_DAYS = 90
 OPEN_WHAT = {
     "transaction": "the lot",
     "account": "the account",
-    "item": "the item",
     "gift": "the gift",
 }
 
@@ -176,11 +177,12 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
     x = s.get(row, link.itemId)
     if x is None:
         return dt.date.min, None, ""
-    txn = s.get(Transaction, x.transactionId) if getattr(x, "transactionId", None) else None
-    _, years, name = _transaction(ctx, txn) if txn is not None else (None, None, "")
     if link.kind == "item":
-        end = x.soldOn
-    elif link.kind == "gift":
+        # No category, so no period: kept for ever, sold or not (S14.10.2, G#675).
+        return _deleted(s, x, x.soldOn), None, ""
+    txn = s.get(Transaction, x.transactionId) if x.transactionId else None
+    _, years, name = _transaction(ctx, txn) if txn is not None else (None, None, "")
+    if link.kind == "gift":
         if x.status in ("given", "received"):
             day = dt.date(x.occasionYear, 12, 31) if x.occasionYear else x.updatedAt.date()
             end = max(day, txn.date) if txn is not None else day

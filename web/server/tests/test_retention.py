@@ -155,6 +155,28 @@ def test_a_deleted_accounts_records_end_with_its_deletion(server, frozen):
         assert kept(c, rid) == ("until", "Kept until Mar 2035"), before[rid]
 
 
+def test_an_items_receipt_is_kept_for_ever_sold_or_not(server, frozen):
+    """S14.10.2: a physical-asset item has no category, so no period: a receipt kept only
+    with one is kept for ever, before its sale and after it, even with every category kept
+    for a time (G#675)."""
+    from test_assets import item
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        for x in s.scalars(select(Category)):
+            x.keepReceiptsYears = 1
+    coll = new_account(c, name="Collectables", type="collectables")
+    watch = item(c, coll["id"], name="Watch", acquiredOn="2020-01-10")
+    rid = upload(c, png((5, 6, 7))).json()["id"]
+    path = f"/ui/api/items/{watch['id']}"
+    saved(edit(c, "Item", path, receiptIds={"add": [rid], "remove": []}))
+    d = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (d["keptState"], d["kept"], d["keptWhy"]) == ("forever", "Kept for ever", None)
+    saved(edit(c, "Item", path, soldOn="2021-02-03", proceeds="1500", saleFees="0"))
+    assert kept(c, rid) == ("forever", "Kept for ever"), "sold long ago, still kept"
+
+
 def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     server, frozen, admin_client
 ):

@@ -117,8 +117,10 @@
        3. **A file** (a receipt or a statement) has a **Keep** toggle that keeps it for ever.
     2. **When a file expires**: at the latest end of the records it is attached to, plus the
        longest of their periods. It never expires when Keep is on, when any of those records
-       has no period (a transfer, an uncategorised transaction, a category kept for ever), or
-       when it is attached to nothing. Expiry is worked out, never stored, so a changed
+       has no period (a transfer, an uncategorised transaction, a category kept for ever, a
+       physical-asset item, which has no category:
+       [G#675](https://github.com/MojoKata/MoolaKata/issues/675)), or when it is attached to
+       nothing. Expiry is worked out, never stored, so a changed
        period moves every date at once. A deleted receipt keeps no file (S9.7): one that no live
        receipt names has no expiry, and is pruned as a deleted receipt's (S14.10.4).
     3. **Shown on each file**: *Kept until Mar 2031*, in bold within 90 days of it;
