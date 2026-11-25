@@ -5,7 +5,6 @@ Every function works inside the caller's unit of work and records what Activity 
 """
 
 import datetime as dt
-import json
 import re
 from dataclasses import dataclass
 
@@ -153,8 +152,6 @@ def make_first_admin(
         )
     elif people.CONTROL.search(name):
         errors.insert(0, FieldError("displayName", "name-invalid", people.ONE_LINE))
-    if sex is None:
-        errors.append(FieldError("sex", "sex-invalid", "Female or male."))
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
     at = now()
@@ -348,8 +345,6 @@ def _take(s: Db, token: str, purpose: str) -> OneTimeToken:
     """A token is used once: found, checked and removed."""
     row = token_by_hash(s, digest(token or ""))
     if row is None or row.purpose != purpose or row.expiresAt <= now():
-        if row is not None and row.expiresAt <= now():
-            s.delete(row)
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
     return row
 
@@ -641,9 +636,8 @@ def _last_admin_guard(s: Db, user_id: str) -> None:
 
 
 def set_active(s: Db, svc: Services, by: User, user: User, active: bool) -> list[str]:
-    """Switch a user off or on. Off ends their sessions at once; returns the ended ones."""
-    if user.active == active:
-        return []
+    """Switch a user off or on (the route asks only when it differs, S10.1.7). Off ends their
+    sessions at once; returns the ended ones."""
     ended: list[str] = []
     if not active:
         _last_admin_guard(s, user.id)
@@ -816,16 +810,13 @@ def _group_name_taken(s: Db, name: str, group_id: str | None) -> list[FieldError
 def update_group(
     s: Db, by: User, g: Group, name: str | None, active: bool | None, member_ids: list[str] | None
 ) -> None:
+    # The Admins group's name and flag never reach here: the route refuses them (S10.1.8).
     fields = []
     if name is not None and name.strip() != g.name:
-        if g.builtIn:
-            raise refuse("name", "built-in", "The Admins group keeps its name.", 409)
         refuse_all(_name_problems(name, "name") + _group_name_taken(s, name.strip(), g.id))
         g.name = name.strip()
         fields.append("name")
     if active is not None and active != g.active:
-        if g.builtIn:
-            raise refuse("active", "built-in", "The Admins group is always active.", 409)
         g.active = active
         fields.append("active")
     if fields:
@@ -895,7 +886,3 @@ def set_user_groups(s: Db, by: User, user: User, group_ids_wanted: list[str]) ->
         g = groups[gid]
         others = [m for m in members(s, gid) if m != user.id]
         set_members(s, by, g, others + ([user.id] if gid in group_ids_wanted else []))
-
-
-def detail(entry_detail: str) -> dict:
-    return json.loads(entry_detail or "{}")
