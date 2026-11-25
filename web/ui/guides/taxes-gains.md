@@ -19,9 +19,11 @@ All sales, or only the short- or long-term ones.
 ## Form 8949
 
 Each sale: its box (A–C short term, D–F long term, by whether the broker reports the basis to the
-IRS, and C or F with no 1099-B, as for crypto and items), what was sold, when it was bought and
-sold, the proceeds, the basis, the adjustment code (W a wash sale, L a loss on personal-use
-property, C a collectable) and amount, and the gain or loss.
+IRS, and C or F with no 1099-B, as for items; from 2025, digital assets such as crypto have boxes of
+their own, G–I short term and J–L long term, a self-custody wallet's sales in I or L, and years
+before put them in A–F), what was sold, when it was bought and sold, the proceeds, the basis, the
+adjustment code (W a wash sale, L a loss on personal-use property, C a collectable) and amount, and
+the gain or loss.
 
 ## Schedule D
 

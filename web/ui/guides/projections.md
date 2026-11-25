@@ -1,7 +1,7 @@
 # Projections
 
-How your money might grow toward a goal, and whether it will pay for it: **retirement**, or a
-**savings target** by a date. A model, not a forecast. (Education goals come with 529 accounts.)
+How your money might grow toward a goal, and whether it will pay for it: **retirement**,
+**education**, or a **savings target** by a date. A model, not a forecast.
 
 ![Projections](shots/projections.png)
 
