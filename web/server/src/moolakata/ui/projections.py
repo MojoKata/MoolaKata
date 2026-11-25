@@ -3,6 +3,7 @@ the Dashboard's Plans card (S6.8) and Settings › Tax Tables (S16.11)."""
 
 import datetime as dt
 import json
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -29,6 +30,7 @@ from .deps import Caller, admin, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["projections"])
 GOALS = ("retirement", "savings", "education")
+MOST = 1e10  # the largest amount a projection is built on or aims at
 
 
 class ProjectionRow(Model):
@@ -130,10 +132,7 @@ def _check(s, user_id: str, name, goal, built, inputs, kept=None) -> list[FieldE
         if kind not in ("accounts", "portfolio", "typed"):
             errors.append(FieldError("builtOn", "built-on-invalid", "Choose what it is built on."))
         elif kind == "typed":
-            try:
-                if float(built.get("amount", -1)) < 0:
-                    raise ValueError
-            except TypeError, ValueError:
+            if not _amount(built.get("amount")):
                 errors.append(FieldError("builtOn.amount", "amount-invalid", "An amount."))
         elif kind == "portfolio":
             try:
@@ -171,13 +170,27 @@ def _check_beneficiary(s, user_id: str, who) -> list[FieldError]:
     return bad
 
 
+def _number(v, lo: float, hi: float) -> bool:
+    """A number within its bounds: never a string, a yes or no, NaN or an infinity (R3.11)."""
+    return not isinstance(v, bool) and isinstance(v, int | float) and lo <= v <= hi
+
+
+def _amount(v) -> bool:
+    """A typed amount: a number, or one spelled as a decimal string as money is (R1.9), of 0
+    or more within its bound."""
+    if isinstance(v, str):
+        try:
+            v = float(Decimal(v))
+        except InvalidOperation:
+            return False
+    return _number(v, 0, MOST)
+
+
 def _num(inputs: dict, path: str, lo: float, hi: float, errors: list, message: str) -> None:
     v: Any = inputs
     for part in path.split("."):
         v = v.get(part) if isinstance(v, dict) else None
-    if v is None:
-        return
-    if isinstance(v, bool) or not isinstance(v, int | float) or not lo <= v <= hi:
+    if v is not None and not _number(v, lo, hi):
         errors.append(FieldError(f"inputs.{path}", "input-invalid", message))
 
 
@@ -186,7 +199,7 @@ def _check_inputs(inputs: dict) -> list[FieldError]:
     _num(inputs, "contribution.amount", 0, 10_000_000, e, "Zero or more.")
     _num(inputs, "contribution.growth", -20, 50, e, "Between −20% and 50%.")
     _num(inputs, "monthly", 0, 1_000_000, e, "Zero or more.")
-    _num(inputs, "target", 0, 1e10, e, "Zero or more.")
+    _num(inputs, "target", 0, MOST, e, "Zero or more.")
     _num(inputs, "horizonAge", 60, 120, e, "Between 60 and 120.")
     _num(inputs, "fees", 0, 5, e, "Between 0% and 5%.")
     _num(inputs, "runs", 100, 5000, e, "Between 100 and 5,000.")
