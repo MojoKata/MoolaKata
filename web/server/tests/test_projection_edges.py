@@ -648,10 +648,22 @@ def test_a_writer_not_shared_its_accounts_keeps_the_owners_unseen_ones(server, j
     # Changing only its inputs leaves what it is built on as it is.
     after = saved(change(johns, "Prjct", after, inputs={**after["inputs"], "monthly": 100}))
     assert len(jane.get(f"/ui/api/projections/{p['id']}").json()["builtOn"]["ids"]) == 3
-    # Down to none they see, the owner's unseen one stays.
-    saved(change(johns, "Prjct", after, builtOn={"kind": "accounts", "ids": [house["id"]]}))
+    # Down to one they see, the owner's unseen one stays.
+    one = {"kind": "accounts", "ids": [house["id"]]}
+    after = saved(change(johns, "Prjct", after, builtOn=one))
     mine = jane.get(f"/ui/api/projections/{p['id']}").json()
     assert sorted(mine["builtOn"]["ids"]) == sorted([house["id"], own["id"]])
+    # None of theirs is a blank, refused (R3.11), never read as the owner's alone.
+    r = change(johns, "Prjct", after, builtOn={"kind": "accounts", "ids": []})
+    refused(r, "builtOn", "accounts-unknown")
+    # Shared none of them now, they still change its inputs, and it stays built on them.
+    assert share(jane, "account", house["id"], users={john.id: "none"}).status_code == 200
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()
+    assert theirs["builtOn"]["ids"] == []
+    saved(change(johns, "Prjct", theirs, inputs={**theirs["inputs"], "monthly": 200}))
+    mine = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert sorted(mine["builtOn"]["ids"]) == sorted([house["id"], own["id"]])
+    assert mine["inputs"]["monthly"] == 200
 
 
 def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):

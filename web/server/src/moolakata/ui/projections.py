@@ -493,10 +493,15 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
     kept = json.loads(p.inputs or "{}").get("beneficiary")
     built, unseen = body.builtOn, _unseen(s, c.id, p, body.builtOn)
     if unseen:
-        # What they chose is checked; those they aren't shared are added back as they were.
+        # What they chose is checked, a blank refused; those they aren't shared are added back
+        # as they were. What they see of it unchanged, it stays as it is, checked when saved.
+        old = json.loads(p.builtOn)
         chosen = [i for i in built["ids"] if i not in unseen]
-        built = {**built, "ids": chosen} if chosen else None
-        body.builtOn = {**body.builtOn, "ids": [*chosen, *unseen]}
+        if set(chosen) == {i for i in old["ids"] if i not in unseen}:
+            built, body.builtOn = None, old
+        else:
+            built = {**built, "ids": chosen}
+            body.builtOn = {**body.builtOn, "ids": [*chosen, *unseen]}
     refuse_all(_check(s, p.ownerId, body.name, p.goal, built, body.inputs, kept))
     current = _projection_current(ctx, p)
     fields = [f for f in ("name", "builtOn", "inputs") if getattr(body, f) != current[f]]
