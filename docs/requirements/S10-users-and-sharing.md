@@ -195,7 +195,7 @@
     1. **A person** has a name, a **sex** (*male* or *female*, required), a **birthday** (the
        year optional, for their age) and, once they have died, the date (`diedOn`). **Every
        user is a person**: a user's display name and birthday are their person's, edited in
-       Profile. A remote user's person is filled from its server (S10.3.3.1) and is used only
+       Profile (the name by an admin in Edit user too). A remote user's person is filled from its server (S10.3.3.1) and is used only
        for gifts. A new local user whose name is already that of a person here who isn't a user
        becomes that person. A remote user gets a person of its own, joined to an existing
        person only when a local user who can change that person confirms it, which never
@@ -210,7 +210,9 @@
     3. **One person, once.** Adding a person whose name matches one already here, ignoring
        case, shows that person instead. A private one shows **Ask to share**, which asks its
        creator and the admins (an alert, S12.11). **A different person** adds the new one
-       only once both have birth years and they differ, so the two can be told apart.
+       only once both have birth years and they differ, so the two can be told apart. A user
+       renamed, in Profile or Edit user, to the name of someone else here is refused at the
+       name.
     4. **A relationship** joins two people from a date (optional) to a date (empty while it
        holds): *spouse*, *couple*, *child*, *friend*, *colleague* or *family*, the last with an
        optional label (*godmother*). *Child* runs from the parent to the child; the rest run

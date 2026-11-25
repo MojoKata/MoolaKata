@@ -683,6 +683,19 @@ def ask_reactivation(s: Db, login: str, password: str) -> bool:
     return True
 
 
+def rename(s: Db, user: User, name: str) -> None:
+    """A user's display name, which is their person's name, so the household's people, gifts
+    and family tree follow it (S10.10.1); the name of someone else here is refused, one person
+    once (S10.10.3)."""
+    from .. import people
+
+    me = people.of_user(s, user.id)
+    other = people.clash(s, name, me.birthYear, exclude=me.id)
+    if other is not None:
+        raise refuse("displayName", "person-exists", f"{other.name} is already here.", 409)
+    people.change(s, me, {"name": name})
+
+
 def update_user(
     s: Db, svc: Services, by: User, user: User, display_name: str | None, email: str | None
 ) -> list[str]:
@@ -693,7 +706,7 @@ def update_user(
     fields = []
     if display_name is not None and display_name.strip() != user.displayName:
         refuse_all(_name_problems(display_name))
-        user.displayName = display_name.strip()
+        rename(s, user, display_name.strip())
         fields.append("displayName")
     if email is not None and email.strip().lower() != (user.email or ""):
         if user.passwordHash is not None:

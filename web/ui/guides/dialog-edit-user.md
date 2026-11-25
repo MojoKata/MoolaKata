@@ -2,7 +2,8 @@
 
 ## Name {#display-name}
 
-As others see it.
+As others see it, and the name of their person: People, gift plans and the family tree follow
+it. The name of someone else already here is refused: one person, once.
 
 ## Email address {#email}
 

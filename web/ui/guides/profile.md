@@ -11,7 +11,8 @@ An image, made small in your browser before it's saved.
 
 ## Display name
 
-Your name as others see it.
+Your name as others see it, and your person's in People, gift plans and the family tree. The
+name of someone else already here is refused: one person, once.
 
 ## Time zone
 

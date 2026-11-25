@@ -251,3 +251,54 @@ def test_the_first_sign_in_after_accepting_an_invitation(admin_client, server):
     far = _from(admin_client, "203.0.113.9")
     r = far.post("/ui/api/session", json={"login": "hal", "password": PW})
     assert r.status_code == 200 and _subjects(server)[sent:] == [NOTICE]
+
+
+# ---------- an admin's rename in Users (S10.10.1, S10.10.3) ----------
+
+
+def _listed(admin_client, user_id: str) -> dict:
+    return next(u for u in admin_client.get("/ui/api/users").json()["items"] if u["id"] == user_id)
+
+
+def test_an_admins_rename_is_the_users_person_renamed(admin_client, server):
+    from edits import change, saved
+
+    eve = make_user(server, "eve")
+    saved(change(admin_client, "User", _listed(admin_client, eve.id), displayName=" Eve Wong "))
+    person = admin_client.get(f"/ui/api/persons/{eve.personId}").json()
+    assert person["name"] == "Eve Wong"
+    assert _listed(admin_client, eve.id)["displayName"] == "Eve Wong"
+
+
+def test_an_admins_rename_to_someone_already_here_is_refused(admin_client, server):
+    from edits import change
+
+    from moolakata import people
+
+    eve = make_user(server, "eve")
+    with server.db.tx(unscoped="test") as s:
+        people.make(s, "Zoe Park", "female")
+    r = change(admin_client, "User", _listed(admin_client, eve.id), displayName="zoe park")
+    assert r.status_code == 409, r.text
+    (e,) = r.json()["errors"]
+    assert (e["field"], e["code"]) == ("displayName", "person-exists")
+    assert admin_client.get(f"/ui/api/persons/{eve.personId}").json()["name"] == "Eve"
+    # Her own name in another case is still hers.
+    r = change(admin_client, "User", _listed(admin_client, eve.id), displayName="EVE")
+    assert r.status_code == 200, r.text
+
+
+def test_a_rename_in_profile_to_someone_already_here_is_refused(server):
+    from edits import change, saved
+
+    from moolakata import people
+
+    make_user(server, "ivy")
+    with server.db.tx(unscoped="test") as s:
+        people.make(s, "Zoe Park", "female")
+    c = sign_in(server, "ivy")
+    p = c.get("/ui/api/profile").json()
+    r = change(c, "User", p, displayName="Zoe Park")
+    assert r.status_code == 409, r.text
+    assert r.json()["errors"][0]["field"] == "displayName"
+    assert saved(change(c, "User", p, displayName="Ivy Lee"))["displayName"] == "Ivy Lee"
