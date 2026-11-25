@@ -181,9 +181,11 @@ function Detail({ id, reloadList }) {
       : x.active
       ? html`
         <div class="mt">
-          <${StatePill}
-            why="Built on a typed amount: there is no balance to track it against."
-          >untracked</${StatePill}></div>
+          <${StatePill} why=${`${
+            x.builtOn?.kind === 'typed'
+              ? 'Built on a typed amount'
+              : 'None of the accounts it is built on is left'
+          }: there is no balance to track it against.`}>untracked</${StatePill}></div>
       `
       : null}
     <div class="grid g-main mt">

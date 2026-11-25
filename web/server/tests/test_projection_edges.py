@@ -476,7 +476,8 @@ def test_tracking_follows_only_what_a_projection_grows(server, jane):
 
 def test_tracking_with_the_account_gone_has_nothing_to_draw(server, jane):
     """S6.7.3: the one account it is built on removed, it starts from nothing and tracking has
-    no balance to draw."""
+    no balance to draw: it is untracked, as one built on a typed amount is, never on track with
+    nothing to compare, on its screen and the Dashboard's Plans card."""
     from edits import remove
     from test_accounts import add, new_account
 
@@ -491,7 +492,10 @@ def test_tracking_with_the_account_gone_has_nothing_to_draw(server, jane):
     assert r.status_code == 200, r.text
     got = jane.get(f"/ui/api/projections/{p['id']}").json()
     assert (got["builtOnLabel"], got["result"]["start"]) == ("no accounts", 0)
-    assert (got["tracking"]["points"], got["tracking"]["band"]) == ([], [])
+    assert (got["tracking"]["status"], got["tracking"]["points"]) == ("untracked", [])
+    assert got["status"] == "untracked"
+    (plan,) = jane.get("/ui/api/dashboard/plans").json()["items"]
+    assert (plan["status"], plan["actual"], plan["baseline"]) == ("untracked", [], [])
 
 
 def test_one_active_education_plan_per_beneficiary(jane):

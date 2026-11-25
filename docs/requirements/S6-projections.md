@@ -129,7 +129,8 @@
       below it. The band grows from the actual balance on the baseline's day (prices that
       arrive later that day don't count against it), and is never narrower than 2% of its
       median either way, so day-to-day noise isn't called a plan going wrong. A projection built on a
-      typed amount has nothing to track. Beside it, the type's answer run again from today's balance.
+      typed amount, or on accounts none of which is left, has nothing to track: it is
+      **untracked**. Beside it, the type's answer run again from today's balance.
    4. **Changing an active projection's inputs** asks whether to **re-baseline**. Without
       it, tracking keeps comparing against the plan as it was made active.
    5. **Falling behind** raises an alert (S12.11), checked monthly, and resolves when the

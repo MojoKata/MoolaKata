@@ -25,8 +25,8 @@ $500 more a month. **New Projection** starts one.
 For an active projection, the actual balance of what it is built on against its baseline: **on
 track** inside the baseline's 10th–90th percentile band, **ahead** above it, **behind** below it.
 Falling behind raises an alert, checked at each month's end. Tracking starts from the baseline, and
-the chart fills in as days pass. One built on a typed amount is **untracked**: there is no balance
-to track it against. In a projection shared with you, you see the status, and the balance of only
+the chart fills in as days pass. One built on a typed amount, or on accounts none of which is left,
+is **untracked**: there is no balance to track it against. In a projection shared with you, you see the status, and the balance of only
 the accounts that are shared with you too; when some aren't, it is marked **partly
 shared**, and there is no band to show it against.
 

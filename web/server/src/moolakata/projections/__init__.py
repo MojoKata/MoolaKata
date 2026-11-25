@@ -650,9 +650,14 @@ def _tracking(s: Session, p: Projection, viewer: str, upto: dt.date | None) -> d
     start = p.baselineAt.date()
     today = upto or clock.today()
     points: list[tuple[dt.date, Decimal]] = []
+    untracked = {"status": "untracked", "points": [], "baseline": base, "since": start.isoformat()}
     if spec.get("kind", "typed") == "typed":
-        return {"status": "untracked", "points": [], "baseline": base, "since": start.isoformat()}
+        return untracked
     on = built_on(s, p.ownerId, spec)
+    if not on.accounts:
+        # None of its accounts left, there is no balance to compare: untracked, as a typed
+        # amount is, never on track with nothing to show it (S6.7.3).
+        return untracked
     seen = (
         None
         if viewer == p.ownerId

@@ -199,3 +199,30 @@ def test_compare_models_shows_a_dash_after_a_targets_year(browser, household):
         "$200K", "$400K", "$900K"]  # fmt: skip
     assert problems == []
     page.close()
+
+
+@pytest.mark.parametrize(
+    ("kind", "why"),
+    [("typed", "Built on a typed amount"), ("accounts", "None of the accounts it is built on")],
+)
+def test_an_untracked_projection_says_why(browser, household, kind, why):
+    """S6.7.3: an active projection with no balance to track, built on a typed amount or on
+    accounts none of which is left, is untracked, its pill saying which."""
+    h = household
+    pid = h.extra["retire"]["id"]
+
+    def answer(route):
+        got = route.fetch()
+        body = got.json()
+        body.update(active=True, status="untracked", builtOn={"kind": kind, "ids": []})
+        body["tracking"] = {"status": "untracked", "points": [], "since": "2026-01-01"}
+        route.fulfill(response=got, json=body)
+
+    page, problems = signed_in(browser, h, "/ui/", "main")
+    page.route(f"**/ui/api/projections/{pid}", answer)
+    page.goto(h.base + f"/ui/projections/{pid}")
+    wait(page, "text=Seed:", problems)
+    pill = page.locator('.pill[data-tip]:text-is("untracked")')
+    assert pill.get_attribute("data-tip").startswith(why)
+    assert problems == []
+    page.close()
