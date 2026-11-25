@@ -140,6 +140,46 @@ def test_the_shipped_models_are_the_pinned_ones():
     assert set(ocr.check_models()) == {"det", "cls", "rec"}
 
 
+def test_a_model_missing_or_not_the_pinned_one_is_refused(monkeypatch, tmp_path):
+    """S9.8.2.3: the models are checked against their SHA-256 before they are loaded."""
+    monkeypatch.setattr(ocr, "models_dir", lambda: tmp_path)
+    with pytest.raises(ocr.ReadError, match=r"^the OCR model PP-OCRv6_det_small\.onnx is missing$"):
+        ocr.check_models()
+    for name, _ in ocr.MODELS.values():
+        (tmp_path / name).write_bytes(b"not a model")
+    with pytest.raises(
+        ocr.ReadError,
+        match=r"^the OCR model PP-OCRv6_det_small\.onnx is not the one MoolaKata was built with$",
+    ):
+        ocr.check_models()
+
+
+def test_what_the_reader_cant_open_is_refused_in_words_safe_to_show():
+    """S9.8.4.3: a broken PDF or image, or one past the pixel cap, is a reason, never a trace."""
+    from test_reader_worker import huge_png
+
+    for data, media, why in (
+        (b"%PDF-1.4 broken", "application/pdf", "the PDF can't be opened"),
+        (
+            b"\x89PNG\r\n\x1a\nbroken",
+            "image/png",
+            "the image can't be opened (UnidentifiedImageError)",
+        ),
+    ):
+        with pytest.raises(ocr.ReadError) as e:
+            ocr.read(data, media)
+        assert str(e.value) == why
+    with pytest.warns(Image.DecompressionBombWarning), pytest.raises(ocr.ReadError) as e:
+        ocr.read(huge_png(10_000, 5_000), "image/png")
+    assert str(e.value) == "the image is larger than 40 million pixels"
+
+
+def test_a_blank_image_reads_no_lines():
+    """An image with nothing written on it: the engine finds no box, and no line is read."""
+    r = ocr.read(_png(Image.new("RGB", (120, 160), (255, 255, 255))), "image/png")
+    assert (r.lines, r.method) == ([], "ocr")
+
+
 def test_the_engine_switches_onnxruntime_telemetry_off(monkeypatch):
     """The wheel carries a client that uploads to Microsoft; the reader turns it off before its
     first session, since nothing leaves the server but the calls of R3.1."""
@@ -320,6 +360,10 @@ def test_the_total_is_checked_against_the_scan_of_its_page(ocr_calls):
     assert ocr.read(pdf(misread), "application/pdf").check is None
     assert ocr.read(pdf(LETTER, SCAN), "application/pdf", check=True).check is None
     assert len(ocr_calls) == 1, "the scanned page, once"
+    # A text layer with no total at all: nothing to check, nothing read by OCR.
+    ocr_calls.clear()
+    assert ocr.read(pdf(LETTER), "application/pdf", check=True).check is None
+    assert ocr_calls == []
 
 
 class _Process:
