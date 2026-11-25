@@ -58,20 +58,28 @@ def _waiting_for(s: Db, column, value: str) -> bool:
     )
 
 
+def must_be_open(s: Db, dev: bool) -> list[str]:
+    """Sign-up's domains, or 403 when it is closed."""
+    on, domains = open_to(s, dev)
+    if not on:
+        raise Problem(403, "signup-off", "Sign-up is not open on this server.")
+    return domains
+
+
 def request(
     s: Db,
     svc: Services,
     display_name: str,
     username: str,
     email: str,
-    password: str,
+    password: passwords.Chosen,
     sex: str | None = None,
 ) -> None:
+    """`password`: judged and hashed before this write (`users.new_password`), so no write
+    waits on a hash (S13.7.3) and a known address takes as long as a new one (S10.1.4.1)."""
     from .. import people
 
-    on, domains = open_to(s, svc.config.dev)
-    if not on:
-        raise Problem(403, "signup-off", "Sign-up is not open on this server.")
+    domains = must_be_open(s, svc.config.dev)
     username = (username or "").strip().lower()
     email = (email or "").strip().lower()
     # Its shape only: whether it is taken waits for the confirmed address (S10.1.4.1).
@@ -86,14 +94,11 @@ def request(
                 "Sign-up is open to addresses at " + ", ".join(domains) + ".",
             )
         )
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        errors.append(FieldError("password", *why))
+    if password.problem:
+        errors.append(FieldError("password", *password.problem))
     if sex not in people.SEXES:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
     refuse_all(errors)
-    # Hashed before the address is looked up, so a known address takes as long (S10.1.4.1).
-    password_hash = passwords.hash_password(password)
     if by_login(s, email) is not None or _waiting_for(s, SignupRequest.email, email):
         # The same answer as a new address; nothing is sent.
         return
@@ -103,7 +108,7 @@ def request(
         displayName=display_name.strip(),
         username=username,
         email=email,
-        passwordHash=password_hash,
+        passwordHash=password.hash,
         sex=sex,
         confirmTokenHash=token_hash,
         confirmBy=clock.now() + dt.timedelta(hours=CONFIRM_HOURS),

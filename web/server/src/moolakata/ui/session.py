@@ -431,9 +431,10 @@ def setup(body: Setup, request: Request, c: Caller = Depends(caller_in_setup)):
     if not c.user.needsSetup:
         raise Problem(409, "setup-done", "This account is already set up.")
     srv = server(request)
+    chosen = accounts.new_password(srv.db, body.password, setup=True)
     with srv.db.tx(user=c.id) as s:
         user = s.get(User, c.id)
-        accounts.finish_setup(s, user, body.password, body.email, body.displayName, body.sex)
+        accounts.finish_setup(s, user, chosen, body.email, body.displayName, body.sex)
         sessions.end_all(s, user.id)
         admin = accounts.is_admin(s, user.id)
         token = sessions.create(s, user.id, admin, False)
@@ -486,8 +487,9 @@ def password_reset(body: Login, request: Request):
 def password_reset_confirm(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="a password reset") as s:
-        user = accounts.reset_password(s, srv.services, body.token, body.password)
+        user = accounts.reset_password(s, srv.services, body.token, chosen)
     srv.events.end_user(user.id, "signed-out")
     return Response(status_code=204)
 
@@ -505,6 +507,9 @@ def signup_request(body: SignupForm, request: Request):
     """The answer is the same whether or not the email already has an account (S10.1.4)."""
     srv = server(request)
     _throttle(request)
+    with srv.db.read(unscoped="whether sign-up is open") as s:
+        signup.must_be_open(s, srv.config.dev)  # before any hash of its password
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="a sign-up asked") as s:
         signup.request(
             s,
@@ -512,7 +517,7 @@ def signup_request(body: SignupForm, request: Request):
             body.displayName,
             body.username,
             body.email,
-            body.password,
+            chosen,
             body.sex,
         )
     return Response(status_code=204)
@@ -550,8 +555,9 @@ def invitation_lookup(body: Token, request: Request):
 def invitation_accept(body: TokenPassword, request: Request):
     srv = server(request)
     _throttle(request)
+    chosen = accounts.new_password(srv.db, body.password)
     with srv.db.tx(unscoped="an invitation accepted") as s:
-        user = accounts.accept_invitation(s, body.token, body.password)
+        user = accounts.accept_invitation(s, body.token, chosen)
         admin = accounts.is_admin(s, user.id)
         address = _address(request)
         token = sessions.create(s, user.id, admin, False, address=address)
@@ -578,9 +584,15 @@ def reactivation_request(body: SignIn, request: Request):
     srv = server(request)
     _throttle(request)
     login = body.login.strip().lower()
-    with guarded(request, login) as address, srv.db.tx(unscoped="a reactivation asked") as s:
-        if not accounts.ask_reactivation(s, login, body.password):
-            count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
+    with guarded(request, login) as address:
+        with srv.db.read(unscoped="a reactivation asked") as s:
+            found = accounts.by_login(s, login)
+            stored = found.passwordHash if found else None
+        # Checked outside the write, which only records what it found (S13.7.3).
+        checked = stored if passwords.verify(stored, body.password) else None
+        with srv.db.tx(unscoped="a reactivation asked") as s:
+            if not accounts.ask_reactivation(s, login, checked):
+                count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
     return Response(status_code=204)
 
 

@@ -6,6 +6,7 @@ import gzip
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
@@ -79,6 +80,22 @@ def verify(stored: str | None, password: str) -> bool:
             return _hasher.verify(stored or _DUMMY[0], password) and stored is not None
         except VerifyMismatchError, VerificationError, InvalidHashError:
             return False
+
+
+@dataclass(frozen=True)
+class Chosen:
+    """A new password, judged by the rule and, when it passes, hashed before the write that
+    keeps it, so a hash never holds up the server's one writer (S13.7.3): why it is refused,
+    or its hash."""
+
+    problem: tuple[str, str] | None
+    hash: str | None = field(default=None, repr=False)
+
+
+def choose(password: str, min_length: int) -> Chosen:
+    """A new password judged and, if it passes, hashed; one refused is not hashed."""
+    why = problem(password, min_length)
+    return Chosen(why, None if why else hash_password(password))
 
 
 def needs_rehash(stored: str) -> bool:

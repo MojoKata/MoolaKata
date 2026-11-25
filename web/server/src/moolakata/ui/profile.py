@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import false, select
 
 from .. import access, activity, clock, people, settings, timezones
-from ..auth import sessions, twostep
+from ..auth import passwords, sessions, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
 from ..people import tree
@@ -312,10 +312,15 @@ def change_password(body: PasswordChange, request: Request, c: Caller = Depends(
     counts toward the sign-in's lockout (S13.7.5.1)."""
     srv = server(request)
     with guarded(request, c.user.username) as address:
+        with srv.db.read(user=c.id) as s:
+            stored = s.get(User, c.id).passwordHash
+        # Checked and hashed outside the write, which only keeps the result (S13.7.3).
+        checked = stored if passwords.verify(stored, body.currentPassword) else None
+        new = accounts.new_password(srv.db, body.newPassword) if checked else None
         try:
             with srv.db.tx(user=c.id) as s:
                 u = s.get(User, c.id)
-                accounts.change_password(s, srv.services, u, body.currentPassword, body.newPassword)
+                accounts.change_password(s, srv.services, u, checked, new)
                 token = sessions.create(s, u.id, c.admin, False)
         except Problem as e:
             if e.code == "password-wrong":

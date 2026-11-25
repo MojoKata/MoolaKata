@@ -24,6 +24,9 @@ DEFAULT_ADMIN = "admin"
 # The password a server made before the welcome (S10.1.2) published for its first admin, which
 # reached only the setup step; refused as anyone's new password.
 DEFAULT_PASSWORD = "moolakata-setup"  # noqa: S105
+IS_DEFAULT = FieldError(
+    "password", "password-is-default", "Choose a password other than the published one."
+)
 INVITATION_DAYS = 7
 RESET_HOURS = 1
 EMAIL_CHANGE_HOURS = 24
@@ -132,9 +135,12 @@ def has_users(s: Db) -> bool:
     return s.scalar(select(func.count()).select_from(User)) > 0
 
 
-def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: str) -> User:
-    """The welcome's last step: `admin`, with the name, sex, email address and password given,
-    made only while the server has no users, and an admin at once (S10.1.2)."""
+def make_first_admin(
+    s: Db, display_name: str, sex: str, email: str, password: passwords.Chosen
+) -> User:
+    """The welcome's last step: `admin`, with the name, sex, email address and password given
+    (judged and hashed before this write: `new_password`), made only while the server has no
+    users, and an admin at once (S10.1.2)."""
     from .. import people
 
     if has_users(s):
@@ -158,7 +164,7 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
         username=DEFAULT_ADMIN,
         displayName=name,
         email=email.strip().lower(),
-        passwordHash=passwords.hash_password(password),
+        passwordHash=password.hash,
         passwordChangedAt=at,
         needsSetup=False,
         alertEmails="each",
@@ -179,30 +185,33 @@ def make_first_admin(s: Db, display_name: str, sex: str, email: str, password: s
 
 
 def _setup_problems(
-    s: Db, password: str, email: str, user_id: str | None, sex: str | None
+    s: Db, password: passwords.Chosen, email: str, user_id: str | None, sex: str | None
 ) -> list[FieldError]:
     from .. import people
 
     errors = []
     if sex is not None and sex not in people.SEXES:
         errors.append(FieldError("sex", "sex-invalid", "Female or male."))
-    min_len = settings.get(s, "passwordMinLength")
-    why = passwords.problem(password, min_len)
-    if why:
-        errors.append(FieldError("password", *why))
-    if password == DEFAULT_PASSWORD:
-        errors.append(
-            FieldError(
-                "password", "password-is-default", "Choose a password other than the published one."
-            )
-        )
+    if password.problem:
+        errors.append(FieldError("password", *password.problem))
     return errors + _email_problems(s, email, user_id)
+
+
+def new_password(db, password: str, setup: bool = False) -> passwords.Chosen:
+    """A new password judged by Settings' rule and hashed before the write that keeps it, so
+    no write waits on a hash (S13.7.3); `setup`: an admin's own at the welcome or the setup
+    step, where the published password is refused too (S10.1.2)."""
+    with db.read(unscoped="the password rule") as s:
+        min_len = settings.get(s, "passwordMinLength")
+    if setup and password == DEFAULT_PASSWORD:
+        return passwords.Chosen((IS_DEFAULT.code, IS_DEFAULT.message))
+    return passwords.choose(password, min_len)
 
 
 def finish_setup(
     s: Db,
     user: User,
-    password: str,
+    password: passwords.Chosen,
     email: str,
     display_name: str | None,
     sex: str | None = None,
@@ -216,7 +225,7 @@ def finish_setup(
         errors += _name_problems(display_name)
     if errors:
         raise Problem(422, errors[0].code, errors[0].message, errors)
-    user.passwordHash = passwords.hash_password(password)
+    user.passwordHash = password.hash
     user.passwordChangedAt = now()
     _set_email(s, user, email.strip().lower())
     me = people.of_user(s, user.id)
@@ -444,16 +453,16 @@ def _resent(s: Db, by: User, user: User) -> None:
     )
 
 
-def accept_invitation(s: Db, token: str, password: str) -> User:
+def accept_invitation(s: Db, token: str, password: passwords.Chosen) -> User:
+    """`password`: judged and hashed before this write (`new_password`)."""
     row = _take(s, token, "invitation")
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("password", *why)
+    if password.problem:
+        raise refuse("password", *password.problem)
     s.delete(row)
-    user.passwordHash = passwords.hash_password(password)
+    user.passwordHash = password.hash
     user.passwordChangedAt = now()
     activity.record(
         s,
@@ -499,30 +508,34 @@ def request_reset(s: Db, svc: Services, login: str) -> None:
     )
 
 
-def reset_password(s: Db, svc: Services, token: str, password: str) -> User:
+def reset_password(s: Db, svc: Services, token: str, password: passwords.Chosen) -> User:
+    """`password`: judged and hashed before this write (`new_password`)."""
     row = _take(s, token, "reset")
     user = s.get(User, row.userId)
     if user is None or user.deleted or not user.active:
         raise Problem(404, "link-not-valid", "This link has expired or was already used.")
-    why = passwords.problem(password, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("password", *why)
+    if password.problem:
+        raise refuse("password", *password.problem)
     s.delete(row)
-    _set_password(s, svc, user, password, "user.password-reset")
+    _set_password(s, svc, user, password.hash, "user.password-reset")
     return user
 
 
-def change_password(s: Db, svc: Services, user: User, current: str, new: str) -> None:
-    if not passwords.verify(user.passwordHash, current):
+def change_password(
+    s: Db, svc: Services, user: User, checked: str | None, new: passwords.Chosen | None
+) -> None:
+    """`checked`: the stored hash the current password was found right against, before this
+    write, or None if it was wrong; one changed since leaves it wrong. `new`: judged and
+    hashed before it too (`new_password`), so no write waits on a hash (S13.7.3)."""
+    if checked is None or new is None or checked != user.passwordHash:
         raise refuse("currentPassword", "password-wrong", "That is not your current password.")
-    why = passwords.problem(new, settings.get(s, "passwordMinLength"))
-    if why:
-        raise refuse("newPassword", *why)
-    _set_password(s, svc, user, new, "user.password-changed")
+    if new.problem:
+        raise refuse("newPassword", *new.problem)
+    _set_password(s, svc, user, new.hash, "user.password-changed")
 
 
-def _set_password(s: Db, svc: Services, user: User, password: str, kind: str) -> None:
-    user.passwordHash = passwords.hash_password(password)
+def _set_password(s: Db, svc: Services, user: User, password_hash: str, kind: str) -> None:
+    user.passwordHash = password_hash
     user.passwordChangedAt = now()
     sessions.end_all(s, user.id)
     from .. import tokens
@@ -672,12 +685,14 @@ def set_active(s: Db, svc: Services, by: User, user: User, active: bool) -> list
     return ended
 
 
-def ask_reactivation(s: Db, login: str, password: str) -> bool:
+def ask_reactivation(s: Db, login: str, checked: str | None) -> bool:
     """From the *account is disabled* screen, once a week (S10.1.7). Whether the password was
-    right; the request is recorded only for a disabled account not asked for in the past week,
-    and the asker is told the same either way."""
+    right: `checked` is the stored hash it was found right against, before this write, or
+    None (S13.7.3); one changed since leaves it wrong. The request is recorded only for a
+    disabled account not asked for in the past week, and the asker is told the same either
+    way."""
     user = by_login(s, login)
-    if not passwords.verify(user.passwordHash if user else None, password):
+    if user is None or checked is None or checked != user.passwordHash:
         return False
     if user.active or (
         user.reactivationAskedAt

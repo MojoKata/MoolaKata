@@ -253,9 +253,10 @@ def server(store, keyed_config, monkeypatch):
     # needs no pin (S11.1.3): an invitation or a pairing code is made as it is behind a proxy.
     monkeypatch.setattr(certs, "_probe", lambda guard, address: None)
     srv = Server(config=keyed_config, store=store, ready=True)
+    chosen = accounts.new_password(srv.db, ADMIN_PW, setup=True)
     with srv.db.tx(unscoped="test") as s:
         # The first admin, as the welcome makes it (S10.1.2).
-        accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", ADMIN_PW)
+        accounts.make_first_admin(s, "Ada Admin", "male", "admin@home.lan", chosen)
         ensure_categories(s)
     return srv
 

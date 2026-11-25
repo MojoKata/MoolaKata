@@ -78,7 +78,8 @@ def seed_users(s) -> dict[str, User]:
     # The first admin, as the welcome makes it (S10.1.2), with the seed users' password.
     admin = s.scalars(select(User).where(User.username == "admin")).one_or_none()
     if admin is None:
-        admin = accounts.make_first_admin(s, "Admin", "male", "admin@doe.home", PASSWORD)
+        chosen = passwords.Chosen(None, passwords.hash_password(PASSWORD))
+        admin = accounts.make_first_admin(s, "Admin", "male", "admin@doe.home", chosen)
     people = {"admin": admin}
     for username, name, sex, born in (
         ("jane", "Jane Doe", "female", dt.date(1979, 4, 12)),

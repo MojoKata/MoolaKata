@@ -8,7 +8,7 @@ import threading
 from contextlib import ExitStack
 
 import pytest
-from conftest import LOOPBACK, ORIGIN, make_user, sign_in
+from conftest import LOOPBACK, ORIGIN, make_user, new_client, sign_in
 from fastapi.testclient import TestClient
 
 from moolakata.auth import passwords
@@ -21,26 +21,29 @@ PW = "a long user passphrase"
 # ---------- the password is checked outside the write lock (S13.7.3) ----------
 
 
-def _writes_meanwhile(server, monkeypatch) -> list[bool]:
-    """passwords.verify, wrapped: while it runs another thread writes, and whether that write
-    got through at once is kept."""
-    real = passwords.verify
+def _writes_meanwhile(server, monkeypatch, *names: str) -> list[bool]:
+    """passwords.verify (or the functions named), wrapped: while each runs another thread
+    writes, and whether that write got through at once is kept, call by call."""
     got: list[bool] = []
 
-    def verify(stored, password):
-        def write():
-            with server.db.tx(unscoped="test: a write beside a sign-in"):
-                pass
+    def wrapped(real):
+        def run(*args):
+            def write():
+                with server.db.tx(unscoped="test: a write beside a password"):
+                    pass
 
-        t = threading.Thread(target=write)
-        t.start()
-        t.join(timeout=2)
-        got.append(not t.is_alive())
-        out = real(stored, password)
-        t.join()
-        return out
+            t = threading.Thread(target=write)
+            t.start()
+            t.join(timeout=2)
+            got.append(not t.is_alive())
+            out = real(*args)
+            t.join()
+            return out
 
-    monkeypatch.setattr(passwords, "verify", verify)
+        return run
+
+    for name in names or ("verify",):
+        monkeypatch.setattr(passwords, name, wrapped(getattr(passwords, name)))
     return got
 
 
@@ -88,6 +91,152 @@ def test_a_password_changed_while_it_was_checked_is_not_signed_in_with(client, s
     monkeypatch.setattr(passwords, "verify", verify)
     r = client.post("/ui/api/session", json={"login": "dot", "password": PW})
     assert r.status_code == 401 and r.json()["code"] == "bad-credentials"
+
+
+# ---------- a new password is hashed outside the write lock (S13.7.3) ----------
+
+NEW_PW = "another long passphrase"
+
+
+def _issued(server, user, purpose: str) -> str:
+    """A one-time link's token, as its email would carry it."""
+    import datetime as dt
+
+    from moolakata.auth import users as accounts
+    from moolakata.store.entities.users import User
+
+    with server.db.tx(unscoped="test") as s:
+        u = s.get(User, user.id)
+        if purpose == "invitation":
+            u.passwordHash = None
+        return accounts._issue(s, u, purpose, dt.timedelta(hours=1))
+
+
+def test_the_first_admin_is_hashed_with_the_writer_free(store, keyed_config, monkeypatch):
+    from moolakata.app import Server
+
+    srv = Server(config=keyed_config, store=store, ready=True)
+    got = _writes_meanwhile(srv, monkeypatch, "hash_password")
+    first = {"displayName": "Pat Tester", "sex": "female", "email": "pat@home.lan"}
+    with new_client(srv) as c:
+        r = c.post("/ui/api/welcome/admin", json={**first, "password": "short"})
+        assert r.status_code == 422 and r.json()["code"] == "password-too-short"
+        assert got == [], "a refused password is not hashed"
+        r = c.post("/ui/api/welcome/admin", json={**first, "password": NEW_PW})
+    assert r.status_code == 200, r.text
+    assert got == [True]
+
+
+def test_an_admins_setup_is_hashed_with_the_writer_free(client, server, monkeypatch):
+    from moolakata.auth import users as accounts
+    from moolakata.store.entities.users import User
+
+    u = make_user(server, "legacy", password=accounts.DEFAULT_PASSWORD)
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, u.id).needsSetup = True
+    r = client.post("/ui/api/session", json={"login": "legacy", "password": "moolakata-setup"})
+    assert r.status_code == 200
+    got = _writes_meanwhile(server, monkeypatch, "hash_password")
+    r = client.post(
+        "/ui/api/session/setup", json={"password": "moolakata-setup", "email": "l@home.lan"}
+    )
+    assert r.status_code == 422 and r.json()["code"] == "password-is-default" and got == []
+    r = client.post("/ui/api/session/setup", json={"password": NEW_PW, "email": "l@home.lan"})
+    assert r.status_code == 200, r.text
+    assert got == [True]
+
+
+def test_an_invitation_accepted_is_hashed_with_the_writer_free(client, server, monkeypatch):
+    token = _issued(server, make_user(server, "ivy"), "invitation")
+    got = _writes_meanwhile(server, monkeypatch, "hash_password")
+    r = client.post("/ui/api/invitations/accept", json={"token": token, "password": NEW_PW})
+    assert r.status_code == 200, r.text
+    assert got == [True]
+
+
+def test_a_new_password_past_the_bound_is_answered_too_many(client, server, monkeypatch):
+    """The two at once of S13.7.3 hold for a new password's hash too, and nothing is kept."""
+    monkeypatch.setattr(passwords, "WAIT", 0.01)
+    token = _issued(server, make_user(server, "una"), "invitation")
+    with passwords.slot(), passwords.slot():
+        r = client.post("/ui/api/invitations/accept", json={"token": token, "password": NEW_PW})
+    assert r.status_code == 429 and r.headers["retry-after"] == "1"
+    r = client.post("/ui/api/invitations/accept", json={"token": token, "password": NEW_PW})
+    assert r.status_code == 200, "the link is still good"
+
+
+def test_a_reset_is_hashed_with_the_writer_free(client, server, monkeypatch):
+    token = _issued(server, make_user(server, "rex"), "reset")
+    got = _writes_meanwhile(server, monkeypatch, "hash_password")
+    r = client.post("/ui/api/password-reset/confirm", json={"token": token, "password": NEW_PW})
+    assert r.status_code == 204, r.text
+    assert got == [True]
+    assert sign_in(server, "rex", NEW_PW)
+
+
+def test_a_change_of_password_is_checked_and_hashed_with_the_writer_free(server, monkeypatch):
+    make_user(server, "cho")
+    c = sign_in(server, "cho")
+    got = _writes_meanwhile(server, monkeypatch, "verify", "hash_password")
+    r = c.post("/ui/api/profile/password", json={"currentPassword": "no", "newPassword": NEW_PW})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "currentPassword"
+    assert got == [True], "checked, and the new one not hashed"
+    r = c.post("/ui/api/profile/password", json={"currentPassword": PW, "newPassword": NEW_PW})
+    assert r.status_code == 204, r.text
+    assert got == [True, True, True]
+    assert sign_in(server, "cho", NEW_PW)
+
+
+def test_a_password_changed_meanwhile_is_not_the_current_one(server, monkeypatch):
+    """The current password was checked against the hash read before; one changed meanwhile
+    (a reset in another tab) leaves the change refused at its field."""
+    from moolakata.store.entities.users import User
+
+    u = make_user(server, "dee")
+    c = sign_in(server, "dee")
+    real = passwords.verify
+
+    def verify(stored, password):
+        with server.db.tx(unscoped="test") as s:
+            s.get(User, u.id).passwordHash = passwords.hash_password("a third long passphrase")
+        return real(stored, password)
+
+    monkeypatch.setattr(passwords, "verify", verify)
+    r = c.post("/ui/api/profile/password", json={"currentPassword": PW, "newPassword": NEW_PW})
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "password-wrong"
+
+
+def test_a_sign_up_is_hashed_with_the_writer_free(client, server, monkeypatch):
+    from moolakata import settings
+    from moolakata.auth import signup
+
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "publicUrl", "https://money.home.lan", None)
+    got = _writes_meanwhile(server, monkeypatch, "hash_password")
+    form = {"displayName": "Erin Shaw", "username": "erin", "email": "erin@shaw.family"}
+    r = client.post("/ui/api/signup", json={**form, "password": NEW_PW, "sex": "female"})
+    assert r.status_code == 403 and r.json()["code"] == "signup-off"
+    assert got == [], "a closed sign-up hashes nothing"
+    monkeypatch.setattr(signup, "open_to", lambda s, dev: (True, []))
+    r = client.post("/ui/api/signup", json={**form, "password": "password1234", "sex": "female"})
+    assert r.status_code == 422 and r.json()["code"] == "password-too-common" and got == []
+    r = client.post("/ui/api/signup", json={**form, "password": NEW_PW, "sex": "female"})
+    assert r.status_code == 204, r.text
+    assert got == [True]
+
+
+def test_a_reactivation_request_is_checked_with_the_writer_free(client, server, monkeypatch):
+    from moolakata.store.entities.users import User
+
+    u = make_user(server, "kit")
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, u.id).active = False
+    got = _writes_meanwhile(server, monkeypatch)
+    body = {"login": "kit", "password": PW}
+    assert client.post("/ui/api/reactivation-requests", json=body).status_code == 204
+    with server.db.read(unscoped="test") as s:
+        assert s.get(User, u.id).reactivationAskedAt is not None
+    assert got == [True]
 
 
 # ---------- a bounded number of hashes at once (S13.7.3, S13.7.5.1) ----------

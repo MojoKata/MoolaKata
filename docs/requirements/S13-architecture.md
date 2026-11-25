@@ -139,10 +139,11 @@
       the password again if it was last given more than 10 minutes ago.
    3. **Passwords**: argon2id (64 MiB, 3 passes, parallelism 1), the minimum length of
       S16.5, at most 1,024 characters, and no other rules. Checked against a shipped list of
-      the 100,000 most common passwords, which are refused. A sign-in's or re-authentication's
-      password is checked outside any write to the database, and at most two passwords are
-      hashed or checked at once: one past them waits up to three seconds, then is answered 429
-      with a `Retry-After`.
+      the 100,000 most common passwords, which are refused. A password is checked, and a new
+      one hashed, outside any write to the database (sign-in, re-authentication, the first
+      admin's setup, an invitation accepted, a change, a reset, sign-up and a reactivation
+      request), and at most two passwords are hashed or checked at once: one past them waits
+      up to three seconds, then is answered 429 with a `Retry-After`.
    4. **Cross-site requests**: `SameSite=Strict` plus an `Origin` check on every request
       that changes something; a missing or foreign `Origin` is refused with 403. No CORS: the
       API answers only its own origin.
