@@ -1258,9 +1258,9 @@ def test_a_projections_blank_figures_are_refused_and_their_words_fill_them_in(br
     page.close()
 
 
-def test_a_blank_contribution_growth_is_refused_and_min_fills_it_in(browser, household):
+def test_a_blank_contribution_growth_is_refused_and_min_or_default_fills_it_in(browser, household):
     """R3.11: the contribution's growth left blank is refused at its field, never read as no
-    growth; **min** under it fills in its least, −20%."""
+    growth; **min** under it fills in its least, −20%, and **default** its default, 0%."""
     h = household
     inputs = {**h.extra["retire"]["inputs"], "fees": 0.1}
     typed = {"kind": "typed", "amount": 100000, "allocation": {"usStocks": 100}}
@@ -1269,17 +1269,20 @@ def test_a_blank_contribution_growth_is_refused_and_min_fills_it_in(browser, hou
     try:
         page, problems = signed_in(browser, h, f"/ui/projections/{p['id']}", "#f-fees")
         form = 'form.card:has-text("Inputs")'
-        least = page.locator(".field:has(#f-contribution-growth) .value-bar button")
-        assert least.all_inner_texts() == ["min"]
+        words = page.locator(".field:has(#f-contribution-growth) .value-bar button")
+        assert words.all_inner_texts() == ["min", "default"]
+        least, usual = words.nth(0), page.get_by_role("button", name="Use the default: 0%")
         page.fill("#f-contribution-growth", "")
         page.click(f"{form} button.primary")
         wait(page, f'{form} .err:has-text("Between −20% and 50%.")', problems)
         least.click()
-        assert page.input_value("#f-contribution-growth") == "-20"
+        assert page.input_value("#f-contribution-growth") == "-20" and least.is_disabled()
+        usual.click()
+        assert page.input_value("#f-contribution-growth") == "0" and usual.is_disabled()
         page.click(f"{form} button.primary")
         wait(page, '.toast:has-text("Recomputed")', problems)
         got = h.c.get(f"/ui/api/projections/{p['id']}").json()["inputs"]["contribution"]
-        assert got["growth"] == -20
+        assert got["growth"] == 0
         assert [x for x in problems if not x.startswith("422 for")] == [], "the blank, refused"
         page.close()
     finally:
