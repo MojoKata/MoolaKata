@@ -6,7 +6,8 @@ import math
 import threading
 import time
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 from .errors import Problem
 
@@ -124,6 +125,7 @@ class SignInGuard:
         self._failures: dict[str, deque] = defaultdict(deque)  # by address
         self._by_user: dict[str, deque] = defaultdict(deque)
         self._locked_until: dict[str, float] = {}  # by address
+        self._trying: dict[str, int] = {}  # attempts being checked, by address
         # Wrong codes and when the first came, by pending sign-in, which lasts five minutes.
         self._codes: dict[str, tuple[int, float]] = {}
         self._checking: set[str] = set()  # the pending sign-ins whose code is being checked
@@ -156,7 +158,38 @@ class SignInGuard:
                 "usernames": len(self._by_user),
                 "locks": len(self._locked_until),
                 "codes": len(self._codes),
+                "trying": len(self._trying),
             }
+
+    @contextmanager
+    def attempt(self, address: str, threshold: int = 10) -> Iterator[None]:
+        """A password about to be checked, from an address: refused while the address is
+        locked, and while its failures and the attempts already being checked reach the
+        threshold, so attempts sent at once can't all be checked before the first fails
+        (S13.7.5.1)."""
+        key = address_key(address)
+        with self._lock:
+            now = self._clock()
+            left = self._locked_until.get(key, 0) - now
+            q = self._failures.get(key)
+            if q:
+                self._trim(q, now)
+            if left > 0:
+                refused: Problem | None = too_many(left, "failed sign-ins from this address")
+            elif (len(q) if q else 0) + self._trying.get(key, 0) >= threshold:
+                refused = too_many(1, "sign-ins at once from this address")
+            else:
+                refused = None
+                self._trying[key] = self._trying.get(key, 0) + 1
+        if refused:
+            raise refused
+        try:
+            yield
+        finally:
+            with self._lock:
+                n = self._trying.pop(key) - 1
+                if n:
+                    self._trying[key] = n
 
     def locked(self, address: str) -> float:
         """Seconds the address stays locked, or 0."""

@@ -147,6 +147,22 @@ def test_ten_wrong_phrases_lock_the_unlock_out(locked):
     assert r.status_code == 429 and 14 * 60 < int(r.headers["retry-after"]) <= 15 * 60 + 1
 
 
+def test_phrases_being_judged_count_toward_the_lockout(locked, master_key):
+    """S13.7.5.1: ten phrases still being judged leave no room for an eleventh, even the right
+    one, until they are done."""
+    from contextlib import ExitStack
+
+    srv, c = locked
+    right = " ".join(phrase.to_words(master_key))
+    with ExitStack() as held:
+        for _ in range(10):
+            held.enter_context(srv.sign_in.attempt(LOOPBACK[0]))
+        r = c.post("/ui/api/unlock", json={"phrase": right}, headers={"Origin": ORIGIN})
+        assert r.status_code == 429 and srv.store is None
+    r = c.post("/ui/api/unlock", json={"phrase": right}, headers={"Origin": ORIGIN})
+    assert r.status_code == 200 and srv.store is not None
+
+
 def test_break_glass_and_backups_go_over_the_host_socket_only(locked, master_key):
     """Host commands reach the running server over its Unix socket (S13.6); the listener has
     no route for them, whatever address a request claims to come from. A locked server issues

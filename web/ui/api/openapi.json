@@ -37344,6 +37344,7 @@
         ]
       },
       "post": {
+        "description": "The password is checked outside any write, so a sign-in never holds up the server's\none writer while it is hashed (S13.7.3), and each attempt is counted toward the lockout\nbefore its check (S13.7.5.1).",
         "operationId": "sign_in_ui_api_session_post",
         "requestBody": {
           "content": {

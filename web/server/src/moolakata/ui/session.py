@@ -5,6 +5,8 @@ import asyncio
 import datetime as dt
 import json
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -173,6 +175,9 @@ def get_session(request: Request, c: Caller = Depends(caller_in_setup)):
     responses={202: {"model": TwoStepNeeded}, 401: {}, 403: {}, 429: {}},
 )
 def sign_in(body: SignIn, request: Request):
+    """The password is checked outside any write, so a sign-in never holds up the server's
+    one writer while it is hashed (S13.7.3), and each attempt is counted toward the lockout
+    before its check (S13.7.5.1)."""
     srv = server(request)
     guard = srv.sign_in
     login = body.login.strip().lower()
@@ -180,28 +185,41 @@ def sign_in(body: SignIn, request: Request):
     locked = guard.locked(address)
     if locked:
         raise too_many(locked, "failed sign-ins from this address")
-    delay = guard.delay(login, address)
-    if delay:
-        time.sleep(delay)
+    with srv.db.read(unscoped="sign-in") as s:
+        found = accounts.by_login(s, login)
+        stored = found.passwordHash if found else None
+        threshold = settings.get(s, "lockoutFailures")
     two_step = None
-    with srv.db.tx(unscoped="sign-in") as s:
-        user = accounts.by_login(s, login)
-        ok = passwords.verify(user.passwordHash if user else None, body.password)
-        if not ok:
-            count_failure(s, guard, login, address, user)
-            failed = True
-        else:
-            failed = False
-            if not user.active:
-                raise Problem(403, "account-disabled", "This account is disabled.")
-            if passwords.needs_rehash(user.passwordHash):
-                user.passwordHash = passwords.hash_password(body.password)
-            if twostep.is_on(user):
-                # No session until the code: failed codes count toward the same lockout.
-                two_step = twostep.start_sign_in(s, user)
+    with guard.attempt(address, threshold):
+        delay = guard.delay(login, address)
+        if delay:
+            time.sleep(delay)
+        ok = passwords.verify(stored, body.password)
+        fresh = (
+            passwords.hash_password(body.password)
+            if ok and passwords.needs_rehash(stored)
+            else None
+        )
+        with srv.db.tx(unscoped="sign-in") as s:
+            user = s.get(User, found.id) if found else None
+            # Read again: a password changed or a user deleted meanwhile decides it.
+            if ok and (user is None or user.deleted or user.passwordHash != stored):
+                ok = False
+            if not ok:
+                count_failure(s, guard, login, address, user)
+                failed = True
             else:
-                guard.succeeded(login)
-                admin, token = _signed_in(s, user, address=address, svc=srv.services)
+                failed = False
+                if not user.active:
+                    raise Problem(403, "account-disabled", "This account is disabled.")
+                if fresh:
+                    user.passwordHash = fresh
+                if twostep.is_on(user):
+                    # No session until the code: failed codes count toward the same lockout.
+                    two_step = twostep.start_sign_in(s, user)
+                else:
+                    guard.succeeded(login)
+                    admin, token = _signed_in(s, user, address=address, svc=srv.services)
     if failed:
         # Committed above: failures and lockouts stay in Activity.
         raise Problem(401, "bad-credentials", "The username or password is not right.")
@@ -281,20 +299,25 @@ def sign_in_code(body: TwoStepCode, request: Request):
     return info(request, user, admin)
 
 
-def guarded(request: Request, login: str) -> str:
+@contextmanager
+def guarded(request: Request, login: str) -> Iterator[str]:
     """A password asked for outside the sign-in itself (re-authentication, the current
-    password, a reactivation request) behind the sign-in's guard: refused while its address is
-    locked, slowed for a username that keeps failing. The address it counts against
-    (S13.7.5.1)."""
-    guard = server(request).sign_in
+    password, a reactivation request, the phrase) behind the sign-in's guard: refused while its
+    address is locked or its attempts at once reach the lockout's figure, slowed for a username
+    that keeps failing. Gives the address it counts against (S13.7.5.1)."""
+    srv = server(request)
+    guard = srv.sign_in
     address = _address(request)
     locked = guard.locked(address)
     if locked:
         raise too_many(locked, "failed sign-ins from this address")
-    delay = guard.delay(login, address)
-    if delay:
-        time.sleep(delay)
-    return address
+    with srv.db.read(unscoped="the lockout's figure") as s:
+        threshold = settings.get(s, "lockoutFailures")
+    with guard.attempt(address, threshold):
+        delay = guard.delay(login, address)
+        if delay:
+            time.sleep(delay)
+        yield address
 
 
 def count_failure(s, guard, login: str, address: str, user: User | None) -> None:
@@ -414,15 +437,19 @@ def reauth(body: Password, request: Request, c: Caller = Depends(caller_in_setup
     """The password again, counted toward the sign-in's lockout (S13.7.2, S13.7.5.1)."""
     srv = server(request)
     _throttle(request)
-    address = guarded(request, c.user.username)
-    with srv.db.tx(user=c.id) as s:
-        user = s.get(User, c.id)
-        right = passwords.verify(user.passwordHash, body.password)
-        if right:
-            row = sessions.find(s, request.cookies.get(sessions.COOKIE)).session
-            row.authAt = sessions.now()
-        else:
-            count_failure(s, srv.sign_in, user.username, address, user)
+    with guarded(request, c.user.username) as address:
+        with srv.db.read(user=c.id) as s:
+            stored = s.get(User, c.id).passwordHash
+        # Checked outside the write, which only records what it found (S13.7.3).
+        right = passwords.verify(stored, body.password)
+        with srv.db.tx(user=c.id) as s:
+            user = s.get(User, c.id)
+            if right and user.passwordHash == stored:
+                row = sessions.find(s, request.cookies.get(sessions.COOKIE)).session
+                row.authAt = sessions.now()
+            else:
+                right = False
+                count_failure(s, srv.sign_in, user.username, address, user)
     if not right:
         raise Problem(401, "password-wrong", "That is not your password.")
     return Response(status_code=204)
@@ -537,8 +564,7 @@ def reactivation_request(body: SignIn, request: Request):
     srv = server(request)
     _throttle(request)
     login = body.login.strip().lower()
-    address = guarded(request, login)
-    with srv.db.tx(unscoped="a reactivation asked") as s:
+    with guarded(request, login) as address, srv.db.tx(unscoped="a reactivation asked") as s:
         if not accounts.ask_reactivation(s, login, body.password):
             count_failure(s, srv.sign_in, login, address, accounts.by_login(s, login))
     return Response(status_code=204)

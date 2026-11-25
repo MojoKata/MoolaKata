@@ -3,11 +3,16 @@ length Settings set, and no other rule than refusing the 100,000 most common pas
 UK NCSC's list, shipped with the app)."""
 
 import gzip
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+
+from ..ratelimit import too_many
 
 COMMON_FILE = Path(__file__).with_name("common-passwords.txt.gz")
 PARAMS = {"time_cost": 3, "memory_cost": 64 * 1024, "parallelism": 1, "type": Type.ID}
@@ -18,6 +23,24 @@ def use_fast_hashing_for_tests() -> None:
     """Tests sign in hundreds of times; they trade the cost for speed. Never at run time."""
     global _hasher
     _hasher = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1, type=Type.ID)
+
+
+# At most two hashes at once, 64 MiB each, so a burst of sign-ins can't take the server's
+# memory; one past them waits a little, then is answered too many (S13.7.3).
+AT_ONCE = 2
+WAIT = 3.0
+_slots = threading.BoundedSemaphore(AT_ONCE)
+
+
+@contextmanager
+def slot() -> Iterator[None]:
+    """One of the hashes that may run at once, or 429 once none comes free in WAIT seconds."""
+    if not _slots.acquire(timeout=WAIT):
+        raise too_many(1, "passwords checked at once")
+    try:
+        yield
+    finally:
+        _slots.release()
 
 
 @cache
@@ -39,7 +62,8 @@ def problem(password: str, min_length: int) -> tuple[str, str] | None:
 
 
 def hash_password(password: str) -> str:
-    return _hasher.hash(password)
+    with slot():
+        return _hasher.hash(password)
 
 
 _DUMMY: list[str] = []
@@ -49,11 +73,12 @@ def verify(stored: str | None, password: str) -> bool:
     """Check a password; with no stored hash, spend the same time and fail, so a missing
     user can't be told from a wrong password by timing."""
     if not _DUMMY:
-        _DUMMY.append(_hasher.hash("moolakata timing dummy"))
-    try:
-        return _hasher.verify(stored or _DUMMY[0], password) and stored is not None
-    except VerifyMismatchError, VerificationError, InvalidHashError:
-        return False
+        _DUMMY.append(hash_password("moolakata timing dummy"))
+    with slot():
+        try:
+            return _hasher.verify(stored or _DUMMY[0], password) and stored is not None
+        except VerifyMismatchError, VerificationError, InvalidHashError:
+            return False
 
 
 def needs_rehash(stored: str) -> bool:

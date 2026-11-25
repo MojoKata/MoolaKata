@@ -308,17 +308,17 @@ def change_password(body: PasswordChange, request: Request, c: Caller = Depends(
     """Ends every session; this browser gets a fresh one (S13.7.1). A wrong current password
     counts toward the sign-in's lockout (S13.7.5.1)."""
     srv = server(request)
-    address = guarded(request, c.user.username)
-    try:
-        with srv.db.tx(user=c.id) as s:
-            u = s.get(User, c.id)
-            accounts.change_password(s, srv.services, u, body.currentPassword, body.newPassword)
-            token = sessions.create(s, u.id, c.admin, False)
-    except Problem as e:
-        if e.code == "password-wrong":
+    with guarded(request, c.user.username) as address:
+        try:
             with srv.db.tx(user=c.id) as s:
-                count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
-        raise
+                u = s.get(User, c.id)
+                accounts.change_password(s, srv.services, u, body.currentPassword, body.newPassword)
+                token = sessions.create(s, u.id, c.admin, False)
+        except Problem as e:
+            if e.code == "password-wrong":
+                with srv.db.tx(user=c.id) as s:
+                    count_failure(s, srv.sign_in, c.user.username, address, s.get(User, c.id))
+            raise
     srv.events.end_user(c.id, "signed-out")
     set_cookie(request, token)
     return Response(status_code=204)
