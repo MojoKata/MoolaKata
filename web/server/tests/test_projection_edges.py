@@ -392,6 +392,7 @@ def test_a_correction_is_of_its_figures_kind(key, value, words):
         taxtables.check(key, value)
     assert str(e.value) == words
     assert taxtables.check("collectablesRate", 100) == 100
+    assert taxtables.check("btcArk2030", [1, 2.5, 3]) == [1, 2.5, 3]
 
 
 def test_a_correction_of_a_figure_no_longer_shipped_is_passed_over(server):
