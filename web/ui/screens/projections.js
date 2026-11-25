@@ -25,7 +25,7 @@ import {
 import { toast } from '../kit/toast.js';
 import { ShareDialog } from '../components/share.js';
 import { FanChart, TimeChart } from '../charts/chart.js';
-import { num } from '../kit/dec.js';
+import { copied, num } from '../kit/dec.js';
 import { Record as Rec, whyNot } from '../app/draft.js';
 import { DraftForm, saveNow, saveOne, useDraft } from '../components/draft-form.js';
 import { FIELDS } from '../api/fields.js';
@@ -388,7 +388,7 @@ function Inputs({ x, reload }) {
     return false;
   };
   const set = (/** @type {string} */ path, num = true) => (/** @type {string} */ v) => {
-    const next = structuredClone(f);
+    const next = copied(f);
     const keys = path.split('.');
     let o = next;
     for (const k of keys.slice(0, -1)) o = o[k] ??= {};
@@ -419,7 +419,7 @@ function Inputs({ x, reload }) {
                   <${SpinInput} min=${30} max=${90} value=${p.retireAge} onInput=${(
                     /** @type {string} */ v,
                   ) => {
-                    const next = structuredClone(f);
+                    const next = copied(f);
                     next.people[i].retireAge = Number(v);
                     setF(next);
                   }} />
@@ -482,7 +482,7 @@ function Inputs({ x, reload }) {
                   <${TypedInput} kind="money" value=${inc.monthly} onInput=${(
                     /** @type {string} */ v,
                   ) => {
-                    const next = structuredClone(f);
+                    const next = copied(f);
                     next.income[i].monthly = Number(v);
                     setF(next);
                   }} />

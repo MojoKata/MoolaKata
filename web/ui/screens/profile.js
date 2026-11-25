@@ -16,7 +16,7 @@ import { applyTheme, theme } from '../store/prefs.js';
 import { loadSession, session } from '../store/session.js';
 import { AccessTokens } from '../components/tokens.js';
 import { Connections } from '../components/connections.js';
-import { num } from '../kit/dec.js';
+import { copied, num } from '../kit/dec.js';
 import { Record as Rec } from '../app/draft.js';
 import { DraftForm, RecField, saveNow, useDraft } from '../components/draft-form.js';
 import { asFields, DAY } from './gifts.js';
@@ -636,7 +636,7 @@ function Assumptions() {
   (
     /** @type {string} */ x,
   ) => {
-    const next = structuredClone(f);
+    const next = copied(f);
     next.classes[k][field] = x === '' ? null : Number(x);
     setF(next);
   };

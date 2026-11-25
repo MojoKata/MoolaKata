@@ -1258,6 +1258,47 @@ def test_a_projections_blank_figures_are_refused_and_their_words_fill_them_in(br
     page.close()
 
 
+def test_one_input_changed_keeps_the_others_figures_with_a_point(browser, household):
+    """R1.9: a projection's input with a decimal point (its fees, 0.1) arrives exact; changing
+    another keeps it as it was, never sent as nothing and refused."""
+    h = household
+    on = {"kind": "accounts", "ids": [h.extra["savings"]["id"]]}
+    goal = {"target": 50000, "date": "2030-01-01", "monthly": 0, "fees": 0.1}
+    p = made(make(h.c, "Prjct", name="Drafts kept", goal="savings", builtOn=on, inputs=goal))
+    try:
+        page, problems = signed_in(browser, h, f"/ui/projections/{p['id']}", "#f-monthly")
+        page.fill("#f-monthly", "250")
+        page.click('form.card:has-text("Inputs") button.primary')
+        wait(page, '.toast:has-text("Recomputed")', problems)
+        inputs = h.c.get(f"/ui/api/projections/{p['id']}").json()["inputs"]
+        assert (inputs["monthly"], inputs["fees"]) == (250, 0.1)
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "Prjct", h.c.get(f"/ui/api/projections/{p['id']}").json(), confirm=True))
+
+
+def test_one_assumption_changed_keeps_the_others(browser, household):
+    """R1.9, S6.3: the assumptions arrive exact; changing one keeps every other as it was."""
+    h = household
+    shipped = h.c.get("/ui/api/assumptions").json()["figures"]
+    page, problems = signed_in(browser, h, "/ui/profile", 'form.card:has-text("Expected return")')
+    try:
+        page.fill('[aria-label="Bonds expected return"]', "4.5")
+        page.click('form.card:has-text("Expected return") button.primary')
+        wait(page, '.toast:has-text("Saved · projections recompute")', problems)
+        got = h.c.get("/ui/api/assumptions").json()
+        assert got["figures"]["classes"]["bonds"]["return"] == 4.5
+        got["figures"]["classes"]["bonds"]["return"] = shipped["classes"]["bonds"]["return"]
+        assert got["figures"] == shipped
+        assert problems == []
+        page.close()
+    finally:
+        mine = h.c.get("/ui/api/assumptions").json()
+        if mine["id"]:
+            made(remove(h.c, "Asmpt", mine))
+
+
 def test_making_a_savings_target_active_asks_about_one_on_the_same_account(browser, household):
     """S6.7.1: an account backs at most one active savings target; the dialog names the one
     it turns off and the account they share."""
