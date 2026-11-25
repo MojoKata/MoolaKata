@@ -108,6 +108,13 @@ class SignupForm(Model):
     sex: str | None = None
 
 
+class SignupConfirmation(Model):
+    """A sign-up's link, with another username when the one asked for was taken."""
+
+    token: str
+    username: str | None = None
+
+
 class SignupConfirmed(Model):
     displayName: str
     household: str
@@ -511,12 +518,13 @@ def signup_request(body: SignupForm, request: Request):
     return Response(status_code=204)
 
 
-@router.post("/signup/confirm", response_model=SignupConfirmed)
-def signup_confirm(body: Token, request: Request):
+@router.post("/signup/confirm", response_model=SignupConfirmed, responses={404: {}, 422: {}})
+def signup_confirm(body: SignupConfirmation, request: Request):
+    """A taken username is refused here, at its field, and the link stays good (S10.1.4.1)."""
     srv = server(request)
     _throttle(request)
     with srv.db.tx(unscoped="a sign-up confirmed") as s:
-        req = signup.confirm(s, body.token)
+        req = signup.confirm(s, body.token, body.username)
         out = SignupConfirmed(
             displayName=req.displayName, household=settings.get(s, "householdName")
         )

@@ -254,7 +254,7 @@ def _email_problems(s: Db, email: str | None, user_id: str | None) -> list[Field
     return []
 
 
-def _username_problems(s: Db, username: str) -> list[FieldError]:
+def _username_shape(username: str) -> list[FieldError]:
     if not USERNAME.match(username):
         return [
             FieldError(
@@ -264,6 +264,12 @@ def _username_problems(s: Db, username: str) -> list[FieldError]:
                 "starting with a letter or digit.",
             )
         ]
+    return []
+
+
+def _username_problems(s: Db, username: str) -> list[FieldError]:
+    if bad := _username_shape(username):
+        return bad
     if by_login(s, username) is not None:
         return [FieldError("username", "username-taken", "This username is taken.")]
     return []

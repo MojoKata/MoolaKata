@@ -26,8 +26,11 @@
       request.
       1. **Asking**: from **Sign up** on the sign-in screen, with a username and a password
          chosen then, so approval leaves nothing more to do. The answer is the same, and takes
-         as long, whether or not the address already has an account; only a new address gets a
-         link, which works once, for 24 hours.
+         as long, whether or not the address already has an account or the username is taken;
+         only a new address gets a link, which works once, for 24 hours. The username is checked
+         once the link confirms the address: when a user or a request already waiting has it,
+         the page the link opens says it is taken and asks for another, and the request reaches
+         the admins only with a free one. Approval checks it again.
       2. **Deciding**: confirmed requests show under **Requests** in Users and Groups, with a
          count on its badge. **Approve** makes the user, in a group if one is chosen;
          **Reject** turns it down. An email tells the person either way, and Activity records

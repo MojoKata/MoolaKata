@@ -492,13 +492,19 @@ def test_sign_up_through_the_app(page):
     guest.fill("#f-display-name", "Erin Shaw")
     guest.select_option("#f-sex", "female")
     guest.fill("#f-email", "erin@shaw.family")
-    guest.fill("#f-username", "erin")
+    guest.fill("#f-username", "jane")  # taken: it is asked for again once the email is confirmed
     guest.fill("#f-password", "a long passphrase for erin")
     guest.get_by_role("button", name="Ask for an Account").click()
     guest.wait_for_selector("text=a link to confirm it is on its way")
     url = last_mail_link()
     assert "/ui/signup/confirm#" in url
     guest.goto(page.base + url[url.index("/ui/") :])
+    guest.wait_for_selector("text=Choose Another Username")
+    guest.fill("#f-username", "john")
+    guest.get_by_role("button", name="Send the Request").click()
+    guest.wait_for_selector("text=That username is taken: choose another")
+    guest.fill("#f-username", "erin")
+    guest.get_by_role("button", name="Send the Request").click()
     guest.wait_for_selector("text=Waiting for approval")
 
     visit(admin, "/ui/users")

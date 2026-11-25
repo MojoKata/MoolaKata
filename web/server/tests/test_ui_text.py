@@ -281,6 +281,7 @@ SUBTITLES = {
     ("screens/confirm-email.js", "Your new address is in use"),  # the answer to a link opened
     ("screens/confirm-email.js", "Ask for a new one in Profile"),  # an expired link's remedy
     ("screens/signup-confirm.js", "Ask for an account again"),  # an expired link's remedy
+    ("screens/signup-confirm.js", "Your email is confirmed; the username"),  # the request's state
     ("screens/welcome.js", "Ask an admin to send a new one"),  # an expired invitation's remedy
     ("screens/new-server.js", "They're shown here once"),  # the consequence of going on
     ("screens/signin.js", "An admin switched it off"),  # the account's state

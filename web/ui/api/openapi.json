@@ -24199,6 +24199,32 @@
         "title": "SignIn",
         "type": "object"
       },
+      "SignupConfirmation": {
+        "additionalProperties": false,
+        "description": "A sign-up's link, with another username when the one asked for was taken.",
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SignupConfirmation",
+        "type": "object"
+      },
       "SignupConfirmed": {
         "additionalProperties": false,
         "properties": {
@@ -39206,12 +39232,13 @@
     },
     "/ui/api/signup/confirm": {
       "post": {
+        "description": "A taken username is refused here, at its field, and the link stays good (S10.1.4.1).",
         "operationId": "signup_confirm_ui_api_signup_confirm_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Token"
+                "$ref": "#/components/schemas/SignupConfirmation"
               }
             }
           },
@@ -39227,6 +39254,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
           },
           "422": {
             "$ref": "#/components/responses/Problem"

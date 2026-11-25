@@ -4085,6 +4085,13 @@
  */
 
 /**
+ * A sign-up's link, with another username when the one asked for was taken.
+ * @typedef {Object} SignupConfirmation
+ * @property {string} token
+ * @property {(string | null)} [username]
+ */
+
+/**
  * @typedef {Object} SignupConfirmed
  * @property {string} displayName
  * @property {string} household
