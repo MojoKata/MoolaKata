@@ -14,6 +14,7 @@ the `cryptography` library alone.
 """
 
 import os
+import stat
 import struct
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -98,8 +99,11 @@ def open_stream(
 
 
 def write(path: Path, chunks: Iterable[bytes], recipient: X25519PublicKey, name: str) -> None:
-    """Written under a temporary name, synced and renamed (S11.9.6.6), never changed after."""
+    """Written under a temporary name, synced and renamed (S11.9.6.6), never changed after;
+    0600 in a 0700 folder (S14.2), one found looser (made by an image or a restore) set back."""
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if stat.S_IMODE(path.parent.stat().st_mode) != 0o700:
+        os.chmod(path.parent, 0o700)
     tmp = path.with_suffix(".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
