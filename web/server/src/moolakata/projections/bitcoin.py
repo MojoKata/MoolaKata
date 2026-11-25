@@ -47,8 +47,11 @@ def stock_to_flow(year: int, f: dict) -> float:
     return math.exp(a) * (supply / flow) ** b / supply
 
 
-def toward(now: float, now_year: int, target: float, target_year: int, year: int) -> float:
-    """A straight line on a log scale from today's price to a target, and on at that rate."""
+def toward(now: float, now_year: int, target: float, target_year: int, year: int) -> float | None:
+    """A straight line on a log scale from today's price to a target; None after the target's
+    year, of which the target says nothing (S6.3.1.6)."""
+    if year > target_year:
+        return None
     span = max(1, target_year - now_year)
     rate = (target / now) ** (1 / span)
     return now * rate ** (year - now_year)
@@ -63,8 +66,9 @@ def scenarios(model: str, f: dict) -> tuple[int, list[float]] | None:
     return None
 
 
-def median_path(model: str, f: dict, now: float, years: list[int]) -> list[float] | None:
-    """The model's price for each year, starting from today's; None for "your assumption"."""
+def median_path(model: str, f: dict, now: float, years: list[int]) -> list[float | None] | None:
+    """The model's price for each year, starting from today's; None for "your assumption". A
+    target's model has no price after its target year (S6.3.1.6)."""
     if model == "powerLaw":
         curve = [power_law(y, f) for y in years]
     elif model == "logRegression":
@@ -83,8 +87,13 @@ def median_path(model: str, f: dict, now: float, years: list[int]) -> list[float
     return out
 
 
+def _rounded(p: float | None) -> int | None:
+    return None if p is None else round(p)
+
+
 def compare(f: dict, now: float, today: dt.date) -> list[dict]:
-    """Every model's figures for 2030, 2035 and 2045, and its median path, for Compare."""
+    """Every model's figures for 2030, 2035 and 2045, and its median path, for Compare: a
+    target's path stops at its year, and its figures after it are None (S6.3.1.6)."""
     years = list(range(today.year, 2046))
     rows = []
     for key, path in (
@@ -97,8 +106,8 @@ def compare(f: dict, now: float, today: dt.date) -> list[dict]:
         rows.append(
             {
                 "model": key,
-                "path": [(y, round(p)) for y, p in zip(years, path, strict=True)],
-                "at": {y: round(path[years.index(y)]) for y in (2030, 2035, 2045)},
+                "path": [(y, round(p)) for y, p in zip(years, path, strict=True) if p is not None],
+                "at": {y: _rounded(path[years.index(y)]) for y in (2030, 2035, 2045)},
                 "record": RECORDS[key],
             }
         )

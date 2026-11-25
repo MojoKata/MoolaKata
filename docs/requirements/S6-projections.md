@@ -73,6 +73,10 @@
          *Compare models* shows *No bitcoin price yet*, with where an admin sets up a price
          source, and a projection's bitcoin grows by the crypto assumption, with *No bitcoin
          price yet: the model isn't used* under its chart.
+      6. **A target stops at its year.** A model of targets (ARK's for 2030, Saylor's for 2045)
+         says nothing of the years after them: *Compare models* draws its path to its target's
+         year and shows *—* for its figures after it, and a projection following it grows its
+         bitcoin by the crypto assumption from the year after.
 4. **Models:**
    1. **deterministic**: future value at a constant rate, in nominal and today's dollars;
    2. **Monte Carlo**: *N* runs (1000 by default) drawing yearly returns from the asset

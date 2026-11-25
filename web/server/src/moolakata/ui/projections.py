@@ -667,7 +667,7 @@ save.register(
 class ModelRow(Model):
     model: str
     path: list[tuple[int, int]]
-    at: dict[int, int]
+    at: dict[int, int | None]  # none after a target's year (S6.3.1.6)
     record: str
 
 

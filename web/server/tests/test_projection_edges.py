@@ -292,6 +292,49 @@ def test_the_4_percent_rule_is_4_percent_at_retirement_then_rising_with_inflatio
     assert path[1] == pytest.approx(96000) and path[2] == pytest.approx(second)
 
 
+def test_a_targets_path_stops_at_its_year(server, jane, closes):
+    """S6.3.1.6: a target says nothing of the years after it: Compare models draws ARK's path
+    to 2030 and Saylor's to 2045, and their figures after them are none."""
+    _bitcoin(server)
+    rows = {r["model"]: r for r in jane.get("/ui/api/bitcoin-models").json()["rows"]}
+    for model, last in (("ark", 2030), ("saylor", 2045), ("powerLaw", 2045)):
+        years = [y for y, _ in rows[model]["path"]]
+        assert years == list(range(2026, last + 1)), model
+    assert rows["ark"]["at"]["2030"] == rows["ark"]["path"][-1][1]
+    assert (rows["ark"]["at"]["2035"], rows["ark"]["at"]["2045"]) == (None, None)
+    assert None not in rows["saylor"]["at"].values()
+
+
+def test_after_a_targets_year_the_bitcoin_grows_by_the_crypto_assumption(server, jane, closes):
+    """S6.3.1.6: a projection following ARK grows its bitcoin toward the 2030 target, then by
+    the crypto assumption's return (8%), its bear, base and bull paths alike."""
+    _bitcoin(server)
+    r = make(jane, "Prjct", name="Stack", goal="savings", builtOn=CRYPTO,
+             inputs={"target": 1, "date": "2033-12-31", "fees": 0, "monthly": 0,
+                     "bitcoinModel": "ark"})  # fmt: skip
+    res = made(r)["result"]
+    years = res["years"]
+    for path in (res["expected"], *res["scenarios"].values()):
+        growth = {y: float(path[t]) / float(path[t - 1]) for t, y in enumerate(years) if t}
+        assert growth[2030] > 1.4, "toward the target, the bear case's too"
+        assert growth[2031] == pytest.approx(1.08, rel=1e-6)
+        assert growth[2032] == pytest.approx(1.08, rel=1e-6)
+
+
+@pytest.mark.parametrize("share", [1.0, 0.5])
+def test_the_fan_follows_the_model_then_the_assumption(share):
+    """S6.3.1.6: each run grows the bitcoin by the model while it has a price, and by the
+    crypto assumption after; other coins by the assumption throughout."""
+    from moolakata.projections import engine
+
+    plan = engine.Plan(start=100.0, weights={"crypto": 1.0}, returns={"crypto": 0.1},
+                       vols={"crypto": 0.0}, inflation=0.0, fees=0.0, first_year=2026,
+                       years=3, crypto_path=[1.0, 2.0, None], bitcoin_share=share)  # fmt: skip
+    path = engine.run(plan).percentiles[50]
+    first = 100.0 * (share * 2.0 + (1 - share) * 1.1)
+    assert path == pytest.approx([100.0, first, first * 1.1])
+
+
 def test_a_cases_path_grows_from_its_first_year():
     """The bear, base and bull paths take the same year's growth as the fan: the first year's
     growth brings today's balance to next year's."""

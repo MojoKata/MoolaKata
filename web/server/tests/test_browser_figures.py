@@ -179,3 +179,23 @@ def test_a_bitcoin_model_is_named_only_with_its_share(browser, household, share,
     assert page.locator("text=Bitcoin: the powerLaw model").count() == (1 if line else 0)
     assert problems == []
     page.close()
+
+
+def test_compare_models_shows_a_dash_after_a_targets_year(browser, household):
+    """S6.3.1.6: a target's figures after its year are none, shown as —."""
+    h = household
+    ark = {"model": "ark", "path": [[2026, 100000], [2030, 1200000]],
+           "at": {"2030": 1200000, "2035": None, "2045": None}, "record": "ARK"}  # fmt: skip
+    power = {**ark, "model": "powerLaw", "path": [[2026, 100000], [2045, 900000]],
+             "at": {"2030": 200000, "2035": 400000, "2045": 900000}}  # fmt: skip
+    body = {"price": 100000, "rows": [power, ark], "history": [], "figuresYear": 2026}
+    page, problems = signed_in(browser, h, "/ui/profile", 'button:has-text("Compare models")')
+    page.route("**/ui/api/bitcoin-models", lambda route: route.fulfill(json=body))
+    page.click('button:has-text("Compare models")')
+    wait(page, '.dialog tr:has-text("ARK base")', problems)
+    cells = page.locator('.dialog tr:has-text("ARK base") td.num').all_inner_texts()
+    assert cells == ["$1.2M", "—", "—"]
+    assert page.locator('.dialog tr:has-text("Power law") td.num').all_inner_texts() == [
+        "$200K", "$400K", "$900K"]  # fmt: skip
+    assert problems == []
+    page.close()

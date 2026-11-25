@@ -748,7 +748,11 @@ function BitcoinModels({ close }) {
               </thead>
               <tbody>${v.rows.map((/** @type {any} */ r) =>
                 html`<tr><td>${MODEL_NAMES[r.model]}</td>${
-                  [2030, 2035, 2045].map((y) => html`<td class="num">${fmt(r.at[y])}</td>`)
+                  [2030, 2035, 2045].map((y) =>
+                    html`<td class="num">${
+                      r.at[y] == null ? html`<span class="dim">—</span>` : fmt(r.at[y])
+                    }</td>`
+                  )
                 }<td class="small dim">${r.record}</td></tr>`
               )}</tbody>
             </table>

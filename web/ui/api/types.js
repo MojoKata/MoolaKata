@@ -2228,7 +2228,7 @@
  * @typedef {Object} ModelRow
  * @property {string} model
  * @property {Array<Array<unknown>>} path
- * @property {Object<string, number>} at
+ * @property {Object<string, (number | null)>} at
  * @property {string} record
  */
 

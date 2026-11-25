@@ -13449,7 +13449,14 @@
         "properties": {
           "at": {
             "additionalProperties": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "title": "At",
             "type": "object"

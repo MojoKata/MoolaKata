@@ -152,7 +152,8 @@ Fund and advisory fees, taken from the balance each year, from 0% to 5%: **defau
 ## Bitcoin model
 
 For the bitcoin in what it is built on: your crypto assumption, or a model others publish. A model
-with bear, base and bull cases shows those three paths instead of a fan. A model starts from today's
+with bear, base and bull cases shows those three paths instead of a fan; its targets are for a year
+(2030 or 2045), and after it bitcoin grows by the crypto assumption. A model starts from today's
 bitcoin price: with none on the server yet, the model isn't used, and bitcoin grows by the crypto
 assumption.
 
