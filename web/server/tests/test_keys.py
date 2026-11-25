@@ -491,3 +491,17 @@ def test_a_keyring_written_for_the_servers_account_is_given_to_it(keyed_config, 
     master.write_keyring(keyed_config.keyring_path, ring, owner=cli.SERVER_UID)
     assert given == [(keyed_config.keyring_path.name + ".new", 10001, 10001)]
     assert master.read_keyring(keyed_config.keyring_path) == ring
+
+
+def test_a_phrase_is_of_128_bits_from_the_shipped_list_only(monkeypatch):
+    with pytest.raises(ValueError, match="a recovery phrase holds exactly 128 bits"):
+        phrase.to_words(bytes(15))
+    monkeypatch.setattr(phrase, "WORDS_SHA256", "0" * 64)
+    phrase.wordlist.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="the shipped BIP39 word list has been changed"):
+            phrase.wordlist()
+    finally:
+        monkeypatch.undo()
+        phrase.wordlist.cache_clear()
+    assert len(phrase.wordlist()) == 2048
