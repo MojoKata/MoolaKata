@@ -170,3 +170,288 @@ def test_db_shell_under_run_asks_before_it_shows_anything(keyed_config, monkeypa
     monkeypatch.setattr("builtins.input", lambda _: "n")
     monkeypatch.setattr(db_cli, "read_phrase", lambda: pytest.fail("asked for the phrase"))
     assert db_cli._shell(argparse.Namespace(config=None)) == 1
+
+
+# ---------- the `keys` commands, run in-process on a data folder (S15.4, S15.6, S15.7) ----------
+
+
+def _args(config, tmp_path, **flags):
+    """The command line's arguments, with --config naming a file for this data folder."""
+    import argparse
+
+    path = tmp_path / "moolakata.toml"
+    path.write_text(
+        f'[server]\nname = "test"\n[paths]\ndata = "{config.data_dir}"\n'
+        f'backups = "{config.backup_dir}"\nsocket = "{config.socket_path}"\n'
+    )
+    return argparse.Namespace(config=str(path), **flags)
+
+
+def _queued(config) -> list[tuple[str, dict]]:
+    taken = maintenance.take_host_events(config)
+    maintenance.host_events_taken(config)
+    return [(e["kind"], e["detail"]) for e in taken]
+
+
+def _a_copy(config):
+    """A backup on the host as the copies' list finds it: its keyring is all a choice needs."""
+    import shutil
+
+    copy = config.backup_dir / "moolakata-20261001-000000"
+    copy.mkdir(parents=True)
+    shutil.copy(config.keyring_path, copy / "keyring")
+    return copy
+
+
+def _typed(monkeypatch, words: str) -> None:
+    """What is typed at the hidden prompt."""
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: words)
+
+
+def test_keys_fingerprint_prints_it_and_queues_it(keyed_config, master_key, tmp_path, capsys):
+    assert cli._fingerprint_cmd(_args(keyed_config, tmp_path)) == 0
+    fp = master.fingerprint(master_key)
+    assert capsys.readouterr().out == fp + "\n"
+    assert _queued(keyed_config) == [("key.fingerprint-shown", {"fingerprint": fp})]
+
+
+def test_keys_verify_says_whether_the_phrase_matches(
+    keyed_config, master_key, tmp_path, monkeypatch, capsys
+):
+    args, fp = _args(keyed_config, tmp_path), master.fingerprint(master_key)
+    _typed(monkeypatch, " ".join(phrase.to_words(master_key)))
+    assert cli._verify_cmd(args) == 0
+    assert capsys.readouterr().out == f"match: the phrase is the key {fp}\n"
+    other = os.urandom(16)
+    _typed(monkeypatch, " ".join(phrase.to_words(other)))
+    assert cli._verify_cmd(args) == 1
+    assert capsys.readouterr().out == (
+        f"no match: these words are {master.fingerprint(other)}, not this server's key {fp}\n"
+    )
+    _typed(monkeypatch, "not a phrase")
+    assert cli._verify_cmd(args) == 1
+    assert capsys.readouterr().out.startswith("not a valid phrase: ")
+    assert _queued(keyed_config) == [
+        ("key.verified", {"fingerprint": fp}),
+        ("key.verify-failed", {"fingerprint": fp}),
+    ], "a phrase that isn't one names no key"
+    said = []
+    assert cli.verify(  # with nothing to record it to
+        keyed_config, ask=lambda _: " ".join(phrase.to_words(master_key)), say=said.append
+    )
+    assert said == [f"match: the phrase is the key {fp}"]
+
+
+def test_keys_unlock_and_break_glass_need_a_running_server(
+    keyed_config, master_key, tmp_path, monkeypatch, capsys
+):
+    args = _args(keyed_config, tmp_path)
+    _typed(monkeypatch, " ".join(phrase.to_words(master_key)))
+    assert cli._unlock_cmd(args) == 1
+    no_socket = f"refused: no server is running here (no socket at {keyed_config.socket_path})"
+    assert capsys.readouterr().out == no_socket + "\n"
+    assert _queued(keyed_config) == [("key.unlock-refused", {})]
+    assert cli._break_glass_cmd(args) == 1
+    assert capsys.readouterr().out == no_socket + "\n"
+    assert _queued(keyed_config) == [], "the server records a break-glass code itself"
+
+
+class _Answer:
+    def __init__(self, status: int, body):
+        self.status_code, self._body = status, body
+        self.text = body if isinstance(body, str) else ""
+
+    def json(self):
+        if isinstance(self._body, str):
+            raise ValueError("not JSON")
+        return self._body
+
+
+def _host(monkeypatch, *answers):
+    """The running server's socket, answering in turn; what was asked is kept."""
+    from contextlib import contextmanager
+
+    from moolakata import host
+
+    asked, left = [], list(answers)
+
+    class Client:
+        def post(self, path, json=None):
+            asked.append(("POST", path, json))
+            return left.pop(0)
+
+        def get(self, path):
+            asked.append(("GET", path, None))
+            return left.pop(0)
+
+    @contextmanager
+    def client(config, timeout=30):
+        yield Client()
+
+    monkeypatch.setattr(host, "client", client)
+    return asked
+
+
+def test_keys_unlock_and_break_glass_say_why_the_server_refused(keyed_config, monkeypatch):
+    words = " ".join(phrase.to_words(os.urandom(16)))
+    said = []
+    _host(monkeypatch, _Answer(403, {"detail": "Those words are not this server's key."}))
+    assert cli.unlock(keyed_config, ask=lambda _: words, say=said.append) == 1
+    _host(monkeypatch, _Answer(503, "Service Unavailable"))
+    assert cli.break_glass(keyed_config, say=said.append) == 1
+    assert said == [
+        "refused: Those words are not this server's key.",
+        "refused: Service Unavailable",
+    ]
+
+
+def test_keys_unlock_hands_over_the_phrase_and_queues_nothing_itself(
+    keyed_config, master_key, tmp_path, monkeypatch, capsys
+):
+    """The server records an unlock however it came (S15.4.7): the command adds nothing."""
+    _typed(monkeypatch, " ".join(phrase.to_words(master_key)))
+    _host(monkeypatch, _Answer(200, {"locked": False, "fingerprint": "mk-here"}))
+    assert cli._unlock_cmd(_args(keyed_config, tmp_path)) == 0
+    assert capsys.readouterr().out == "unlocked: mk-here\n"
+    assert _queued(keyed_config) == []
+
+
+def test_keys_unlock_follows_a_reencryption_to_its_end(keyed_config, master_key, monkeypatch):
+    """S15.7.2: a re-encryption runs before the server serves; the command shows each stage
+    and each hundredth of its progress once, and ends with how it ended."""
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    words = " ".join(phrase.to_words(master_key))
+
+    def going(stage, done=0, total=0):
+        return _Answer(200, {"reencrypting": {"stage": stage, "done": done, "total": total}})
+
+    asked = _host(
+        monkeypatch,
+        going("database"),
+        going("database"),  # no news: nothing said
+        going("receipts", 120, 400),
+        going("receipts", 150, 400),  # the same hundredth
+        _Answer(200, {"locked": False, "fingerprint": "mk-new"}),
+    )
+    said = []
+    assert cli.unlock(keyed_config, ask=lambda _: words, say=said.append) == 0
+    assert said == [
+        "the phrase opened the keyring: re-encrypting under a new data key first",
+        "  database",
+        "  receipts 120 of 400",
+        "unlocked: mk-new",
+    ]
+    assert asked[0] == ("POST", "/host/unlock", {"phrase": words})
+    assert {a[:2] for a in asked[1:]} == {("GET", "/host/unlock")}
+    said.clear()
+    _host(monkeypatch, going("database"), _Answer(200, {"locked": True, "error": "disk full"}))
+    assert cli.unlock(keyed_config, ask=lambda _: words, say=said.append) == 1
+    assert said[-1] == "refused: disk full"
+    _host(monkeypatch, going("database"), _Answer(200, {"locked": True}))
+    assert cli.unlock(keyed_config, ask=lambda _: words, say=said.append) == 1
+    assert said[-1] == "refused: the re-encryption did not finish"
+
+
+def test_keys_reencrypt_with_the_server_stopped(
+    store, keyed_config, master_key, tmp_path, monkeypatch, capsys
+):
+    """`moolakata keys reencrypt` (S15.7.2): the phrase typed, each copy left, deleted or
+    re-encrypted as the flag says, a receipt file under neither key set aside, and what it
+    did queued for Activity."""
+    copy = _a_copy(keyed_config)
+    store.db.dispose()
+    keyed_config.receipts_dir.mkdir(parents=True, exist_ok=True)
+    (keyed_config.receipts_dir / "Rcpt_x.mkr").write_bytes(b"MKR1 not a receipt's file")
+    before = keyed_config.keyring_path.read_text()
+    _typed(monkeypatch, " ".join(phrase.to_words(master_key)))
+    flags = {"reencrypt_all": False, "delete_old": False, "leave_all": True}
+    assert cli._reencrypt_cmd(_args(keyed_config, tmp_path, **flags)) == 0
+    lines = capsys.readouterr().out.splitlines()
+    heading = "1 copies on this host (the host's own snapshots and backups are not here):"
+    assert lines[:5] == [
+        "",
+        heading,
+        "Re-encrypted under a new data key.",
+        "  receipt file set aside, opening under neither key: Rcpt_x.mkr",
+        f"  {copy.name}: left",
+    ]
+    # The backup the run makes first is re-encrypted with the rest (S15.7.2).
+    (made,) = [p.name for p in maintenance.backups(keyed_config) if p != copy]
+    assert lines[5:] == [f"  {made}: re-encrypted"]
+    assert keyed_config.keyring_path.read_text() != before and copy.exists()
+    ((kind, detail),) = _queued(keyed_config)
+    assert kind == "keys.reencrypted"
+    assert detail == {
+        "why": "host",
+        "receiptsSetAside": 1,
+        "secretsSetAside": 0,
+        "copies": {copy.name: "left", made: "re-encrypted"},
+    }
+
+
+def test_keys_reencrypt_asks_for_the_right_phrase_and_each_copys_choice(
+    keyed_config, master_key, monkeypatch
+):
+    from moolakata.store import reencrypt
+
+    copy = _a_copy(keyed_config)
+    run = []
+    monkeypatch.setattr(
+        reencrypt, "at_once", lambda *a: run.append(a[2:]) or {"copies": {copy.name: "deleted"}}
+    )
+    with pytest.raises(RefuseStart, match="not a valid phrase: "):
+        cli.reencrypt_offline(keyed_config, ask_hidden=lambda _: "three words only")
+    other = " ".join(phrase.to_words(os.urandom(16)))
+    with pytest.raises(RefuseStart, match="wrapped by"):
+        cli.reencrypt_offline(keyed_config, ask_hidden=lambda _: other)
+    said, prompts = [], []
+    done = cli.reencrypt_offline(
+        keyed_config,
+        ask=lambda p: prompts.append(p) or "d",
+        say=said.append,
+        ask_hidden=lambda _: " ".join(phrase.to_words(master_key)),
+    )
+    assert prompts == ["    [R]e-encrypt, [d]elete or [l]eave (R): "]
+    assert said[0] == "\n1 copies on this host (the host's own snapshots and backups are not here):"
+    assert said[1].startswith(f"  {copy.name} (backup, ")
+    assert said[1].endswith(": can be re-encrypted")
+    assert run == [({copy.name: "delete"}, "host")]
+    assert said[2:] == ["Re-encrypted under a new data key.", f"  {copy.name}: deleted"]
+    assert done == {"copies": {copy.name: "deleted"}}
+    # One already scheduled runs with the choices made then, asking none.
+    reencrypt.schedule(keyed_config, {copy.name: "leave"}, None, "settings")
+    prompts.clear()
+    cli.reencrypt_offline(
+        keyed_config,
+        ask=prompts.append,
+        say=lambda _: None,
+        ask_hidden=lambda _: " ".join(phrase.to_words(master_key)),
+    )
+    assert prompts == [] and run[-1] == ({}, "host")
+
+
+def test_each_copy_is_described_by_how_it_opens():
+    """The copies' list (S15.7.1): none asks nothing; `--…-all` answers for each unasked; an
+    unknown answer re-encrypts, the default."""
+    said = []
+    assert cli.ask_copies([], ask=None, say=said.append) == {}
+    assert said == []
+    found = [
+        {"name": n, "kind": "backup", "made": "2026-10-01T00:00:00", "bytes": 3 << 20, "opens": o}
+        for n, o in (("a", "phrase"), ("b", "previous"), ("c", "unknown"))
+    ]
+    found[1]["masterKey"] = "mk-old"
+    every = cli.ask_copies(found, ask=None, say=said.append, all_="leave")
+    assert every == dict.fromkeys("abc", "leave")
+    assert len(said) == 1, "the heading alone"
+    said.clear()
+    asked = cli.ask_copies(found, ask=lambda _: "x", say=said.append)
+    assert asked == dict.fromkeys("abc", "reencrypt")
+    assert said[1:] == [
+        "  a (backup, 2026-10-01, 3 MB): under an earlier data key, this phrase: can be "
+        "re-encrypted",
+        "  b (backup, 2026-10-01, 3 MB): under an earlier phrase (mk-old): left or deleted",
+        "  c (backup, 2026-10-01, 3 MB): its keyring cannot be read",
+    ]
