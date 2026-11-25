@@ -89,6 +89,9 @@ def check(figures: dict) -> list[tuple[str, str]]:
             problems.append((f"classes.{k}.return", "Between −50% and 100%."))
         if not _figure(v, 0, 200):
             problems.append((f"classes.{k}.volatility", "Between 0% and 200%."))
+    # A class MoolaKata has none of is refused, as a projection's overrides refuse one (S6.3).
+    for k in figures.get("classes", {}).keys() - set(CLASS_KEYS):
+        problems.append((f"classes.{k}", "An asset class's figures."))
     for k in ("inflation", "educationInflation"):
         v = figures.get(k)
         if not _figure(v, 0, 20):
