@@ -9,10 +9,11 @@ once, with what is known about them in the database.
   their EXIF orientation applied, pypdfium2 for a PDF's first page. Images over 40 million
   pixels are refused before they are decoded.
 - Who can see a receipt follows what it is attached to (S9.6): its owner always, and whoever
-  can read an account one of its transactions is in. An unattached receipt is its owner's
-  alone (the inbox).
+  can see any one of the things it is kept with, as each kind's own sharing says. An
+  unattached receipt is its owner's alone (the inbox).
 - A receipt is deleted only by its owner, and only while nothing links to it. Its file stays
-  while any receipt row names it, deleted or not (schema.md §4).
+  while any live receipt names it: a deleted one doesn't keep it from file pruning (S9.7,
+  S14.10.5).
 """
 
 import datetime as dt

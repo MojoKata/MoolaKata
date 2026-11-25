@@ -118,7 +118,7 @@ ReceiptLink = record(
 unique_live(ReceiptLink, "receiptId", "kind", "itemId")
 
 # The full-text index of what was read (SQLite FTS5), kept by the reader, searched by the
-# Receipts screen. A virtual table, made by revision 0007 rather than declared here.
+# Receipts screen. A virtual table, made by revision 0001 rather than declared here.
 SEARCH = "ReceiptSearch"
 
 

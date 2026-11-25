@@ -20,10 +20,11 @@ class AmountError(ValueError):
 
 
 def parse(value: object, places: int | None = None) -> Decimal:
-    """A decimal from its JSON form, a string. Floats and other types are refused; so are
-    NaN, infinities and more places than allowed."""
+    """A decimal from its JSON form: an exact number literal, which `exactjson.loads` reads as
+    a Decimal, or its text. Floats and other types are refused; so are NaN, infinities and
+    more places than allowed."""
     if isinstance(value, bool) or not isinstance(value, str | int | Decimal):
-        raise AmountError('amounts are decimal strings, such as "1234.50"')
+        raise AmountError("amounts are exact numbers, such as 1234.50")
     try:
         d = value if isinstance(value, Decimal) else Decimal(str(value).strip())
     except decimal.InvalidOperation:

@@ -1,6 +1,6 @@
 """File retention and pruning (requirements S14.10): when each file expires, from when its
-records ended and their periods; what Settings › Storage shows; and pruning after a verified
-backup, which keeps every record."""
+records ended and their periods; what Settings › Storage shows; and pruning, with no backup
+first, which keeps every record."""
 
 import datetime as dt
 
