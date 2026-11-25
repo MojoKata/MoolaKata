@@ -79,7 +79,7 @@
       classes' mean and volatility (log-normal), showing the 10th/50th/90th percentile
       **fan** and the type's answer (S6.2). Drawing whole past years instead, from a shipped
       table of yearly returns per asset class over a span of years the user chooses, comes
-      later ([F#BOOTSTRAP](https://github.com/MojoKata/MoolaKata/issues/BOOTSTRAP)).
+      later ([F#673](https://github.com/MojoKata/MoolaKata/issues/673)).
       1. **Each year**, the balance grows by its mix of asset classes' returns, each drawn
          log-normal on its own (correlation between classes is not modelled), less fees;
          contributions are added, rising by their growth, until retirement or the target
@@ -99,11 +99,11 @@
       4. **The savings answer** names the monthly saving that reaches the target with a 90%
          chance, to the dollar a year, a date part-way through a year counting only that
          part of a year's saving.
-   3. **Glide path**, later ([F#GLIDE](https://github.com/MojoKata/MoolaKata/issues/GLIDE)):
+   3. **Glide path**, later ([F#671](https://github.com/MojoKata/MoolaKata/issues/671)):
       the mix changing over a projection's run as the user describes it (the allocation at
       chosen dates or ages, or a shift from one mix to another over a span), with no
       schedule built in. A projection's mix is the same for its whole run.
-5. **Tax-aware buckets**, later ([F#BUCKETS](https://github.com/MojoKata/MoolaKata/issues/BUCKETS)):
+5. **Tax-aware buckets**, later ([F#672](https://github.com/MojoKata/MoolaKata/issues/672)):
    taxable, tax-deferred and tax-free balances projected apart, with RMDs from the required
    age by the shipped tax rules and the user's own tax rate on withdrawals. A projection's
    balances and withdrawals are before tax.
