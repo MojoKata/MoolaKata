@@ -19,13 +19,15 @@ The largest receipt that can be uploaded, 25 MB by default.
 MoolaKata reads each receipt's date, total and merchant on this server, with RapidOCR, and suggests
 the transaction it belongs to. Nothing leaves the server, and no outside service or download is
 involved. A PDF with text in it is read directly; a photo or scan is read by OCR. Turn it off on a
-host too small to run it: receipts still upload and can be filled in by hand.
+host too small to run it: receipts still upload and can be filled in by hand. Turned back on, it
+reads the receipts uploaded while it was off, but those deleted or whose file was pruned.
 
 ## Jobs at a time {#receipt-read-jobs}
 
 How many receipts are read at once, each in its own process limited to 2 threads, a lower priority,
 1.5 GB of memory and 60 seconds a receipt. A batch of uploads works through the queue. 1 suits
-most hosts; more read a batch faster.
+most hosts; more read a batch faster. A change applies once saved: a lower number lets the extra
+jobs finish the receipt in hand first.
 
 ## Reading
 

@@ -14,6 +14,7 @@ request, by a separate worker process, so a hostile or broken file can't take th
 
 import contextlib
 import datetime as dt
+import itertools
 import json
 import logging
 import os
@@ -221,23 +222,37 @@ class Worker:
         self._buf = b""
 
 
+# Taken from the reading queue before any receipt: the server stopping, then a thread let go
+# when Jobs at a time is lowered. Receipts follow in the order they were queued.
+_STOP, _RETIRE, _RECEIPT = 0, 1, 2
+
+
 class Reader:
-    """The queue and its threads, one per job allowed at a time."""
+    """The queue and its threads, one per job allowed at a time: as many as Settings ›
+    Receipts' Jobs at a time says, from the save that changes it (S9.8.7, R3.7)."""
 
     def __init__(self, server, workers: int | None = None) -> None:
         self.server = server
-        self.jobs: queue.Queue[str | None] = queue.Queue()
+        self.jobs: queue.PriorityQueue[tuple[int, int, str | None]] = queue.PriorityQueue()
+        self._order = itertools.count()
+        self._lock = threading.Lock()
         self.threads: list[threading.Thread] = []
         self.workers: list[Worker] = []
         self.count = workers
+        self.size = 0  # the threads asked for: those running, less those told to go
         self.stopping = threading.Event()
         self.last_run: dt.datetime | None = None
+
+    def _jobs_at_a_time(self) -> int:
+        if self.count:
+            return self.count
+        with self.server.db.read(unscoped="receipts.reading: jobs at a time") as s:
+            return settings.get(s, "receiptReadJobs")
 
     def start(self) -> None:
         if self.threads:
             return
         with self.server.db.read(unscoped="receipts.reading: start") as s:
-            n = self.count or settings.get(s, "receiptReadJobs")
             pending = [
                 rid
                 for (rid,) in s.execute(
@@ -249,32 +264,48 @@ class Reader:
                     .order_by(Receipt.createdAt)
                 )
             ]
-        for i in range(n):
-            w = Worker(self.server.config.data_dir)
-            t = threading.Thread(target=self._loop, args=(w,), daemon=True, name=f"mk-read-{i}")
-            self.workers.append(w)
-            self.threads.append(t)
-            t.start()
+        self.resize()
         for rid in pending:
-            self.jobs.put(rid)
+            self.queue(rid)
+
+    def resize(self) -> None:
+        """As many threads as Jobs at a time says: more started, or as many told to go once
+        the receipt in hand is read; the queue is kept (S9.8.7)."""
+        if self.stopping.is_set():
+            return
+        n = self._jobs_at_a_time()
+        with self._lock:
+            for _ in range(self.size, n):
+                w = Worker(self.server.config.data_dir)
+                t = threading.Thread(target=self._loop, args=(w,), daemon=True, name="mk-read")
+                self.workers.append(w)
+                self.threads.append(t)
+                t.start()
+            for _ in range(n, self.size):
+                self.jobs.put((_RETIRE, next(self._order), None))
+            self.size = n
 
     def stop(self) -> None:
         self.stopping.set()
-        for _ in self.threads:
-            self.jobs.put(None)
-        for w in self.workers:
-            w.stop()
+        with self._lock:
+            for _ in self.threads:
+                self.jobs.put((_STOP, next(self._order), None))
+            for w in self.workers:
+                w.stop()
 
     def queue(self, receipt_id: str) -> None:
-        self.jobs.put(receipt_id)
-
-    def waiting(self) -> int:
-        return self.jobs.qsize()
+        self.jobs.put((_RECEIPT, next(self._order), receipt_id))
 
     def _loop(self, worker: Worker) -> None:
         while not self.stopping.is_set():
-            rid = self.jobs.get()
-            if rid is None:
+            kind, _, rid = self.jobs.get()
+            if kind == _STOP:
+                return
+            if kind == _RETIRE:
+                with self._lock:
+                    worker.stop()
+                    self.threads.remove(threading.current_thread())
+                    self.workers.remove(worker)
                 return
             try:
                 self.read_one(rid, worker)
@@ -389,6 +420,25 @@ def search(s, query: str) -> set[str]:
             {"q": match},
         )
     }
+
+
+def turned_on(s) -> list[str]:
+    """Read receipts turned on: what came in while it was off is queued, every receipt not
+    deleted whose file is kept (S9.8.4.1, S9.8.7). `s` reads as the server; the ids, in the
+    order they came, for the reader once the change is saved."""
+    ids = []
+    for r in s.scalars(
+        sa.select(Receipt)
+        .where(
+            Receipt.readStatus == "off",
+            Receipt.deletedAt.is_(None),
+            Receipt.filePrunedAt.is_(None),
+        )
+        .order_by(Receipt.createdAt)
+    ):
+        read_again(s, r)
+        ids.append(r.id)
+    return ids
 
 
 def read_again(s, r: Receipt) -> None:

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, save_settings
+from edits import change, remove, save_settings
 from PIL import Image
 from test_receipts import upload
 
@@ -379,6 +379,81 @@ def test_reading_off_leaves_receipts_unread(server, admin_client):
     assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "off"
     q = admin_client.get("/ui/api/settings/receipts").json()
     assert q["waiting"] == 0
+
+
+class _Queue:
+    """The running reader as a save reaches it: what it was asked, in order."""
+
+    def __init__(self):
+        self.asked = []
+
+    def resize(self):
+        self.asked.append("resize")
+
+    def queue(self, rid):
+        self.asked.append(rid)
+
+
+def test_turning_reading_on_reads_what_came_in_while_it_was_off(server, admin_client):
+    """S9.8.4.1, S9.8.7: every receipt uploaded while reading was off is queued once it is on
+    again, in the order they came; one deleted or whose file was pruned stays as it is."""
+    from moolakata import clock
+    from moolakata.store.entities.receipts import Receipt
+
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    first = upload(jane, _png(draw(["TOTAL 1.00"]))).json()["id"]
+    second = upload(john, _png(draw(["TOTAL 2.00"]))).json()["id"]
+    pruned = upload(jane, _png(draw(["TOTAL 3.00"]))).json()["id"]
+    deleted = upload(jane, _png(draw(["TOTAL 4.00"]))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, pruned).filePrunedAt = clock.now()
+        s.get(Receipt, deleted).mark_deleted(None)
+    server.reader = _Queue()
+    try:
+        assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+        assert server.reader.asked == ["resize", first, second]
+    finally:
+        server.reader = None
+    with server.db.read(unscoped="test") as s:
+        got = {rid: s.get(Receipt, rid).readStatus for rid in (first, second, pruned, deleted)}
+    assert got == {first: "waiting", second: "waiting", pruned: "off", deleted: "off"}
+    # Turned on by going back to its default, likewise.
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    third = upload(jane, _png(draw(["TOTAL 5.00"]))).json()["id"]
+    ref = admin_client.get("/ui/api/settings").json()["records"]["readReceipts"]
+    server.reader = _Queue()
+    try:
+        assert remove(admin_client, "Setng", ref).status_code == 200
+        assert server.reader.asked == ["resize", third]
+    finally:
+        server.reader = None
+
+
+def test_jobs_at_a_time_applies_from_the_save(server, admin_client, no_process):
+    """S9.8.7, R3.7: a new number of jobs starts more threads, or lets the extra ones go once
+    the receipt in hand is read; the queue is kept."""
+    from moolakata.dev.waits import eventually
+
+    reader = Reader(server)
+    server.reader = reader
+    try:
+        reader.start()
+        assert len(reader.threads) == 1
+        assert save_settings(admin_client, {"receiptReadJobs": 3}).status_code == 200
+        assert len(reader.threads) == 3 and len(reader.workers) == 3
+        assert save_settings(admin_client, {"receiptReadJobs": 2}).status_code == 200
+        eventually(lambda: len(reader.threads) == 2, what="one thread let go")
+        assert len(reader.workers) == 2 and reader.size == 2
+        assert all(t.is_alive() for t in reader.threads)
+    finally:
+        reader.stop()
+        server.reader = None
+    for t in list(reader.threads):
+        t.join(30)
+    assert not any(t.is_alive() for t in reader.threads), "every thread stops with the reader"
 
 
 def _variants(img: Image.Image):

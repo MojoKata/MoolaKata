@@ -205,7 +205,36 @@ def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
                 recent_auth(c)
             row.value, row.updatedById = json.dumps(value, sort_keys=True), c.id
             notes["changed"].append(body.key)
+            if body.key in READING:
+                ctx.verify("reading", lambda: _reading_after(ctx))
     ctx.verify("settings", lambda: _settings_after(ctx))
+
+
+# What the receipt reader does follows these from the save that changes them (R3.7, S9.8.7).
+READING = ("readReceipts", "receiptReadJobs")
+
+
+def _reading_after(ctx) -> None:
+    """Read receipts on: what came in while it was off is queued; Jobs at a time: the reader
+    runs that many from now on (S9.8.4.1, S9.8.7)."""
+    from ..receipts import reading
+    from ..store import scoping
+
+    s = ctx.s
+    srv = server(ctx.request)
+    s.flush()
+    ids = []
+    if settings.get(s, "readReceipts"):
+        with scoping.as_server(s, "receipts uploaded while reading was off, queued") as own:
+            ids = reading.turned_on(own)
+
+    def apply() -> None:
+        if srv.reader is not None:
+            srv.reader.resize()
+            for rid in ids:
+                srv.reader.queue(rid)
+
+    ctx.after("reading", apply)
 
 
 def _settings_after(ctx) -> None:
@@ -246,6 +275,8 @@ def _setting_delete(ctx, row: Setting) -> None:
     """Back to its default."""
     _setting_admin(ctx)
     row.mark_deleted(ctx.caller.id)
+    if row.key in READING:
+        ctx.verify("reading", lambda: _reading_after(ctx))
 
 
 def _setting_read(ctx, record_id: str) -> SettingOut:

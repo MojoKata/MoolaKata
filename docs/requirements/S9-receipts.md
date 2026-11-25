@@ -152,7 +152,10 @@
       OCR-suggested fields are replaced.
    7. **Settings › Receipts**: **Read receipts** on or off (on by default; off for a host too
       small to run it), the number of jobs at a time, and the queue's state (waiting,
-      failed, last run).
+      failed, last run). Both apply from the save that changes them: turned on, reading
+      queues every receipt uploaded while it was off, but those deleted or whose file was
+      pruned; a new number of jobs starts more, or lets the extra ones go once the receipt in
+      hand is read.
    8. **Not in this version**: line items, handwriting, multi-receipt photos, currencies
       other than USD, and non-Latin scripts. A receipt that the parser can't
       make sense of still has its searchable text.
