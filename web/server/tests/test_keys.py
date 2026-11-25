@@ -455,3 +455,39 @@ def test_each_copy_is_described_by_how_it_opens():
         "  b (backup, 2026-10-01, 3 MB): under an earlier phrase (mk-old): left or deleted",
         "  c (backup, 2026-10-01, 3 MB): its keyring cannot be read",
     ]
+
+
+# ---------- the keyring, the phrase and the welcome's offers at their edges (S15.4) ----------
+
+
+def test_a_keyring_that_isnt_one_refuses_the_start(keyed_config):
+    path = keyed_config.keyring_path
+    for text, why in (
+        ('{"format": "something else"}', "not a MoolaKata keyring"),
+        ("{not json", "Expecting property name"),
+        ('{"format": "' + master.KEYRING_FORMAT + '"}', "'masterKeyId'"),
+    ):
+        path.write_text(text)
+        with pytest.raises(RefuseStart, match=f"the keyring {path} cannot be read: ") as e:
+            master.read_keyring(path)
+        assert why in str(e.value), text
+
+
+def test_a_keyring_changed_on_disk_does_not_unwrap(keyed_config, master_key):
+    """The right phrase over a wrapped key that was changed: refused, never a wrong key."""
+    import dataclasses
+
+    ring = master.read_keyring(keyed_config.keyring_path)
+    flipped = bytes([ring.wrapped[0] ^ 1]) + ring.wrapped[1:]
+    with pytest.raises(ValueError, match="the master key does not unwrap the data key"):
+        master.unwrap(master_key, dataclasses.replace(ring, wrapped=flipped))
+
+
+def test_a_keyring_written_for_the_servers_account_is_given_to_it(keyed_config, monkeypatch):
+    """Written by a one-off container as root, it is handed to the server's account."""
+    given = []
+    monkeypatch.setattr(master.os, "chown", lambda p, u, g: given.append((p.name, u, g)))
+    ring = master.read_keyring(keyed_config.keyring_path)
+    master.write_keyring(keyed_config.keyring_path, ring, owner=cli.SERVER_UID)
+    assert given == [(keyed_config.keyring_path.name + ".new", 10001, 10001)]
+    assert master.read_keyring(keyed_config.keyring_path) == ring
