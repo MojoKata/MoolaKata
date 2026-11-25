@@ -131,9 +131,12 @@ function Detail({ id, reloadList }) {
       : a.kind === 'education'
       ? [[a.firstYear, 'school starts']]
       : []);
-  const classes = Object.entries(r.weights).map(([k, w]) =>
-    `${r.assumptions.classes[k] ? labelOf(k) : k} ${Math.round(num(w) * 100)}%`
-  ).join(', ');
+  // No mix for one not shared every account it is built on: it is what they hold (S6.1).
+  const classes = r.weights
+    ? Object.entries(r.weights).map(([k, w]) =>
+      `${r.assumptions.classes[k] ? labelOf(k) : k} ${Math.round(num(w) * 100)}%`
+    ).join(', ')
+    : 'its mix: not shared with you';
   return html`
     <div class="toolbar mt">
       <b style=${{ fontSize: '16px' }}>${x.name}</b> <span class="small dim">${GOAL[x.goal]?.[0] ||
@@ -194,9 +197,9 @@ function Detail({ id, reloadList }) {
           paths=${real === 'nominal' ? r.scenarios : null} marks=${marks} />
         <div class="small dim" data-help="projected-value">
           <div>Starts from: ${dollars(r.start)} (${classes})</div>
-          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.entries(
-            r.weights,
-          ).map(([k]) =>
+          <div>Returns (${mine ? 'your' : `${x.ownerName}'s`} assumptions): ${Object.keys(
+            r.weights || r.assumptions.classes,
+          ).map((k) =>
             `${labelOf(k)} ${r.assumptions.classes[k].return}% ± ${
               r.assumptions.classes[k].volatility
             }%`

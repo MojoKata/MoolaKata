@@ -72,6 +72,8 @@ class BuiltOn:
     # The parts a projection doesn't grow (S6.4.2.2): loans, items other than metals, options;
     # (account id, name, value), named under its chart.
     leftOut: list[tuple[str, str, Decimal]] = field(default_factory=list)
+    # Whether the reader is shared every account it is built on, and so sees their mix (S6.1).
+    whole: bool = True
 
     @property
     def bitcoin_share(self) -> float:
@@ -230,13 +232,29 @@ def base_of(s: Session, p: Projection, viewer: str) -> BuiltOn:
     with scoping.as_server(s, why, expire=False) as srv:  # pragma: no mutate
         base = built_on(srv, p.ownerId, spec)
     kind = spec.get("kind")
+    seen = _seen(s, viewer)
+    # The mix is what the accounts hold: seen only by one shared them all (S5.1.1).
+    base.whole = all(a.id in seen for a in base.accounts)
     if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
         base.label = "a portfolio not shared with you"
-    elif kind == "accounts" and len(base.accounts) == 1:
-        seen = {a.id for a, _ in access.accounts(s, viewer)}
-        if base.accounts[0].id not in seen:
-            base.label = "an account not shared with you"
+    elif kind == "accounts" and len(base.accounts) == 1 and not base.whole:
+        base.label = "an account not shared with you"
     return base
+
+
+def seen_spec(s: Session, p: Projection, viewer: str) -> dict:
+    """What it is built on, as the reader may see it (S6.1): the ids of only the accounts, or
+    the portfolio, shared with them."""
+    spec = json.loads(p.builtOn)
+    if viewer == p.ownerId:
+        return spec
+    kind = spec.get("kind")
+    if kind == "accounts":
+        seen = _seen(s, viewer)
+        return {**spec, "ids": [i for i in spec.get("ids", []) if i in seen]}
+    if kind == "portfolio" and access.perms(s, Portfolio, spec["id"], viewer) is None:
+        return {k: v for k, v in spec.items() if k != "id"}
+    return spec
 
 
 def prepare(s: Session, p: Projection, viewer: str) -> Prepared:
@@ -361,7 +379,8 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         "expected": result.expected,
         "start": prep.base.value,  # exact, as the tracking figures are (S6.9)
         "builtOnLabel": prep.base.label,
-        "weights": prep.base.weights,
+        # Its start is a result; the mix is the accounts', for one shared them all (S6.1).
+        "weights": prep.base.weights if prep.base.whole else None,
         # Named for the viewer only where they can see the account (S6.1).
         "leftOut": [
             {"name": name, "value": value}

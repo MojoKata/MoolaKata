@@ -83,7 +83,7 @@ def row(s, c_id: str, p: Projection, held: Perms, result: dict | None = None) ->
         active=p.active,
         access=Access.of(held),
         ownerName=owner.displayName if owner else "",
-        builtOn=json.loads(p.builtOn),
+        builtOn=projections.seen_spec(s, p, c_id),
         builtOnLabel=result["builtOnLabel"],
         headline=projections.headline(p, result["answer"]),
         status=track["status"] if track else None,
@@ -521,7 +521,7 @@ def plans(request: Request, c: Caller = Depends(caller)):
                     actual=track.get("points", []),
                     baseline=[(d, mid) for d, _, mid, _ in track.get("band", [])],
                     sharedBy=None if held.mine else owner.displayName,
-                    builtOn=json.loads(p.builtOn),
+                    builtOn=projections.seen_spec(s, p, c.id),
                 )
             )
     return out

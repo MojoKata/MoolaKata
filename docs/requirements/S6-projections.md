@@ -5,7 +5,9 @@
    shared like an account (S10.3): a viewer sees its results, worked out over its owner's
    accounts, and the values and tracking of only the accounts shared with them. What it is
    built on, when it isn't shared with them, is named *a portfolio not shared with you* or
-   *an account not shared with you*.
+   *an account not shared with you*. The value it starts from is one of its results; the mix
+   of asset classes it starts from is what the accounts hold, shown only to one shared every
+   account it is built on (S5.1.1): to another, *its mix: not shared with you*.
    1. **Built on** chosen accounts, a portfolio, or a typed amount for a what-if. Built on
       accounts or a portfolio, it starts from their **current values** each time it opens,
       with their *as of*, and from their allocation by asset class.

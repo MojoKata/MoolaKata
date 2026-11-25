@@ -44,7 +44,9 @@ A model, not a forecast. Under the chart, what it is worked out from: the value 
 its mix of asset classes; each class's return and volatility, from its owner's assumptions in
 Profile, drawn log-normal, each class on its own; inflation; and the fees taken from the balance
 each year. Where a bitcoin model is chosen, bitcoin follows it, a model others publish; other coins
-keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures.
+keep the crypto assumption. Its runs are seeded, so the same inputs give the same figures. Shared
+a projection but not every account it is built on, you see the value it starts from, but not their
+mix: *its mix: not shared with you*.
 
 ## Left Out {#left-out}
 

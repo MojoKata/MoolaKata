@@ -287,3 +287,64 @@ def test_an_education_goal_is_for_a_person_never_a_user(server, jane):
     assert p["result"]["answer"]["name"] == users["jane"].displayName
     r = change(jane, "Prjct", p, inputs={"beneficiary": {"kind": "user", "id": users["jane"].id}})
     refused(r, "inputs.beneficiary", "beneficiary-invalid")
+
+
+def test_a_viewer_not_shared_its_accounts_sees_its_start_but_not_their_mix(server, jane):
+    """S6.1, S5.1.1: shared a projection but not every account it is built on, a viewer sees
+    its start, a result, but not the mix the accounts hold, nor the ids of those they aren't
+    shared; shared them all, they see the mix as its owner does."""
+    from edits import share
+    from test_accounts import add, new_account
+
+    joint = new_account(jane, name="Joint savings", type="savings")
+    own = new_account(jane, name="Jane's savings", type="savings")
+    add(jane, joint["id"], "1000.00", "2026-10-01")
+    add(jane, own["id"], "9000.00", "2026-10-01")
+    built = {"kind": "accounts", "ids": [joint["id"], own["id"]]}
+    p = made(make(jane, "Prjct", name="House", goal="savings", builtOn=built,
+                  inputs={"target": 50000, "date": "2030-01-01", "monthly": 500}))  # fmt: skip
+    assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    john = make_user(server, "john")
+    for kind, item in (("projection", p["id"]), ("account", joint["id"])):
+        assert share(jane, kind, item, users={john.id: "read"}).status_code == 200
+    johns = sign_in(server, "john")
+    me = johns.get("/ui/api/profile").json()
+    assert change(johns, "User", me, shownProjectionIds=[p["id"]]).status_code == 200
+    theirs = johns.get(f"/ui/api/projections/{p['id']}").json()
+    (row,) = johns.get("/ui/api/projections").json()["items"]
+    (plan,) = johns.get("/ui/api/dashboard/plans").json()["items"]
+    assert theirs["result"]["start"] == Decimal("10000.00") and theirs["result"]["weights"] is None
+    for seen in (theirs, row, plan):
+        assert seen["builtOn"] == {"kind": "accounts", "ids": [joint["id"]]}
+    mine = jane.get(f"/ui/api/projections/{p['id']}").json()
+    assert mine["result"]["weights"] == {"cash": 1} and mine["builtOn"] == built
+    assert share(jane, "account", own["id"], users={john.id: "read"}).status_code == 200
+    whole = johns.get(f"/ui/api/projections/{p['id']}").json()
+    assert whole["result"]["weights"] == {"cash": 1} and whole["builtOn"] == built
+
+
+def test_a_portfolio_not_shared_is_not_named_by_its_id(server, jane):
+    from edits import share
+    from test_accounts import add, new_account
+
+    own = new_account(jane, name="Jane's savings", type="savings")
+    add(jane, own["id"], "9000.00", "2026-10-01")
+    port = made(make(jane, "Portf", name="Nest egg", accountIds=[own["id"]]))
+    p = made(make(jane, "Prjct", name="House", goal="savings",
+                  builtOn={"kind": "portfolio", "id": port["id"]},
+                  inputs={"target": 50000, "date": "2030-01-01"}))  # fmt: skip
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "read"}).status_code == 200
+    theirs = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}").json()
+    assert theirs["builtOn"] == {"kind": "portfolio"} and theirs["result"]["weights"] is None
+
+
+def test_a_typed_mix_is_the_projections_own_and_shown_to_a_viewer(server, jane):
+    from edits import share
+
+    p = made(_retire(jane))
+    john = make_user(server, "john")
+    assert share(jane, "projection", p["id"], users={john.id: "read"}).status_code == 200
+    theirs = sign_in(server, "john").get(f"/ui/api/projections/{p['id']}").json()
+    assert theirs["result"]["weights"] == {"usStocks": Decimal("0.6"), "bonds": Decimal("0.4")}
+    assert theirs["builtOn"] == TYPED
