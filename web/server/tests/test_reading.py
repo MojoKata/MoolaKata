@@ -54,6 +54,43 @@ def test_date_formats(line, day):
     assert fields([line]).date.value == day
 
 
+@pytest.mark.parametrize(
+    ("lines", "total", "confidence"),
+    [
+        (["TOTAL", "THANK YOU", "LATTE 5.75"], "5.75", 55),  # a label with no amount near it
+        (["TOTAL", "THANK YOU"], None, None),
+        (["TOTAL:", "$19.92"], "19.92", 92),  # its amount on the next line
+    ],
+)
+def test_a_total_label_with_no_amount_falls_back_to_the_largest(lines, total, confidence):
+    got = fields(lines).total
+    assert (got and (str(got.value), got.confidence)) == (total and (total, confidence))
+
+
+def test_a_tax_line_with_no_amount_is_passed_over():
+    assert fields(["SALES TAX EXEMPT", "TAX 1.52", "TOTAL 19.92"]).tax.value == Decimal("1.52")
+    assert fields(["TAX EXEMPT"]).tax is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "12 FOO 2026",  # no month by that name
+        "02/30/2026",  # no such day
+        "13/09/2026",  # no such month
+        "01/05/2022",  # over three years before today
+    ],
+)
+def test_a_date_that_cant_be_is_passed_over(line):
+    assert fields([line]).date is None
+    assert fields([line, "10/09/2026"]).date.value == dt.date(2026, 10, 9), "the next one"
+
+
+def test_an_address_line_is_never_the_merchant():
+    assert fields(["Market Street Suite", "CORNER STORE #12"]).merchant.value == "Corner Store"
+    assert fields(["www dot example", "1440 N STATE ST"]).merchant is None
+
+
 def test_dates_in_the_future_or_before_the_account_are_passed_over():
     found = parser.parse(["12/31/2026", "10/01/2026"], TODAY)
     assert found.date.value == dt.date(2026, 10, 1)
