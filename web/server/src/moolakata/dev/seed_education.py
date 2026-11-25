@@ -8,7 +8,7 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids, projections
+from .. import clock, exactjson, ids, projections
 from ..prices.stub import walk
 from ..store.entities.accounts import Account
 from ..store.entities.education import Contribution, EducationPlan, Person
@@ -93,6 +93,6 @@ def seed_education(s, people: dict) -> None:
     s.add(p)
     s.flush()
     p.active = True
-    p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
+    p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
     p.baselineAt = clock.now()
     acct.updatedAt = clock.now()

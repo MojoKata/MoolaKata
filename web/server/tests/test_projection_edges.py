@@ -1,6 +1,8 @@
 """Projections at their edges (requirements S6): each input refused at its field (R3.11,
 S13.8.3), never an error out of the model."""
 
+from decimal import Decimal
+
 import pytest
 from conftest import make_user, sign_in
 from edits import make
@@ -129,3 +131,62 @@ def test_the_inputs_the_form_sends_are_taken(jane):
     r = _retire(jane, {**TYPED, "allocation": {"usStocks": 100, "cash": 0}},
                 withdrawal={"method": "percent"}, bitcoinModel="stockToFlow")  # fmt: skip
     assert r.status_code == 200, r.text
+
+
+def made(r) -> dict:
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _in_cents(xs) -> bool:
+    return all(Decimal(str(x)) == Decimal(str(x)).quantize(Decimal("0.01")) for x in xs)
+
+
+def _bitcoin(server):
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Instrument
+
+    with server.db.tx(unscoped="test") as s:
+        s.add(Instrument(id=ids.new_id("Instr"), symbol="BTC", name="Bitcoin",
+                         instrumentClass="crypto"))  # fmt: skip
+
+
+def test_its_figures_go_out_in_cents(server, jane):
+    """S6.9: the fan's percentiles, its path at expected returns, each scenario's path and
+    every money answer are rounded to cents and sent as exact numbers; chances aren't money."""
+    _bitcoin(server)
+    crypto = {**TYPED, "amount": 123456.78, "allocation": {"usStocks": 80, "crypto": 20}}
+    res = made(_retire(jane, crypto, bitcoinModel="ark"))["result"]
+    paths = [*res["percentiles"].values(), *res["real"].values(), res["expected"],
+             *res["scenarios"].values()]  # fmt: skip
+    assert len(res["scenarios"]) == 3 and all(_in_cents(p) for p in paths)
+    assert _in_cents([res["answer"]["atRetirement"]])
+    assert res["percentiles"]["50"][0] == Decimal("123456.78")
+    saving = make(jane, "Prjct", name="Car", goal="savings", builtOn=TYPED,
+                  inputs={"target": 600000.5, "date": "2029-06-30", "monthly": 333.33})  # fmt: skip
+    a = made(saving)["result"]["answer"]
+    assert _in_cents([a["target"], a["monthly"], a["neededMonthly"]])
+    assert not _in_cents([a["chance"]])
+
+
+def test_an_education_answer_goes_out_in_cents(jane):
+    who = {"kind": "person", "id": jane.get("/ui/api/profile").json()["personId"]}
+    r = make(jane, "Prjct", name="College", goal="education", builtOn=TYPED,
+             inputs={"beneficiary": who, "firstYear": 2031, "costBasis": "typed",
+                     "cost": 23456.789, "monthly": 100.5})  # fmt: skip
+    a = made(r)["result"]["answer"]
+    money = [a["costToday"], *a["costs"], a["atStart"], a["needed"], a["monthly"]]
+    assert _in_cents(money) and a["costs"][0] != a["costToday"]
+    assert a["neededMonthly"] is None or _in_cents([a["neededMonthly"]])
+
+
+def test_a_baseline_is_kept_in_cents(server, jane):
+    import json
+
+    from moolakata.store.entities.projections import Projection
+
+    p = made(_retire(jane))
+    assert jane.post(f"/ui/api/projections/{p['id']}/activate").status_code == 200
+    with server.db.read(unscoped="test") as s:
+        base = json.loads(s.get(Projection, p["id"]).baseline)
+    assert all(_in_cents(base[k]) for k in ("p10", "p50", "p90"))

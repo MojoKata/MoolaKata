@@ -10,7 +10,7 @@ import json
 import math
 import re
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import Context, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -380,13 +380,16 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         out["scenarios"] = engine.scenario_paths(
             plan, prep.model, taxtables.figures(s, plan.first_year), _btc_price(s) or 100_000.0
         )
+    for k in ("percentiles", "real", "scenarios"):
+        out[k] = {name: _cents(path) for name, path in out[k].items()}
+    out["expected"] = _cents(out["expected"])
     if p.goal == "retirement":
         horizon = int(inputs.get("horizonAge") or 95)
         out["answer"] = {
             "kind": "retirement",
             "chance": result.lasted,
             "horizonAge": horizon,
-            "atRetirement": result.percentiles[50][min(prep.retire_index, plan.years - 1)],
+            "atRetirement": _cents(result.percentiles[50][min(prep.retire_index, plan.years - 1)]),
             "retireYear": plan.first_year + prep.retire_index,
             "people": prep.people,
         }
@@ -401,12 +404,26 @@ def compute(s: Session, p: Projection, viewer: str) -> dict:
         out["answer"] = {
             "kind": "savings",
             "chance": chance,
-            "target": target,
+            "target": _cents(target),
             "date": inputs.get("date"),
-            "monthly": float(inputs.get("monthly", 0) or 0),
-            "neededMonthly": needed,
+            "monthly": _cents(float(inputs.get("monthly", 0) or 0)),
+            "neededMonthly": _cents(needed),
         }
     return out
+
+
+# Room for every whole dollar a float holds: a path may run past Decimal's usual 28 places.
+_WIDE = Context(prec=400)
+
+
+def _cents(x):
+    """The model's dollars, which it works out in floats, rounded to cents as exact numbers
+    (S6.9): a figure, a path of them, or None."""
+    if x is None:
+        return None
+    if isinstance(x, list):
+        return [_cents(v) for v in x]
+    return Decimal(repr(float(x))).quantize(CENTS, context=_WIDE)
 
 
 def education_school(s: Session, inputs: dict, year: int) -> dict:
@@ -475,15 +492,15 @@ def _education_answer(s: Session, p: Projection, prep: Prepared, result, inputs:
         "name": school["name"],
         "firstYear": school["firstYear"],
         "years": school["years"],
-        "costToday": school["cost"],
+        "costToday": _cents(school["cost"]),
         "costBasis": school["basis"],
-        "costs": costs,
-        "atStart": at_start,
-        "needed": needed,
+        "costs": _cents(costs),
+        "atStart": _cents(at_start),
+        "needed": _cents(needed),
         "funded": funded,
         "chance": result.lasted,
-        "monthly": float(inputs.get("monthly", 0) or 0),
-        "neededMonthly": monthly,
+        "monthly": _cents(float(inputs.get("monthly", 0) or 0)),
+        "neededMonthly": _cents(monthly),
     }
 
 
@@ -515,6 +532,7 @@ def subject(p: Projection) -> str:
 
 
 def make_baseline(result: dict) -> dict:
+    """Its median and band as of today, kept in cents as they went out (S6.7.2)."""
     return {
         "years": result["years"],
         "p10": result["percentiles"]["10"],

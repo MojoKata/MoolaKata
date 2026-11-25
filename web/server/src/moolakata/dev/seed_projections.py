@@ -5,7 +5,7 @@ import json
 
 from sqlalchemy import select
 
-from .. import clock, ids, projections, sharing
+from .. import clock, exactjson, ids, projections, sharing
 from .. import people as household
 from ..store.entities.accounts import Account
 from ..store.entities.projections import Projection
@@ -47,7 +47,9 @@ def seed_projections(s, people: dict) -> None:
         s.flush()
         if active:
             p.active = True
-            p.baseline = json.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
+            p.baseline = exactjson.dumps(
+                projections.make_baseline(projections.compute(s, p, jane.id))
+            )
             p.baselineAt = clock.now()
         return p
 
