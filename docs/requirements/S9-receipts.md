@@ -12,8 +12,8 @@
    found by the hash in the database, never by the file's name: the same file uploaded again by
    the same person gives back the receipt they have, and someone else's upload of it is their
    own receipt over the one stored file. Files use the streaming format of S11.9.6 under the
-   receipts key (S15.3.2), with the file's id as what the associated data names; a
-   re-encryption (S15.7.2) writes each one again under the new key.
+   receipts key (S15.3.2), with its own label and the file's id and the chunk's number as its
+   associated data (S11.9.6.2, S11.9.6.3); a re-encryption (S15.7.2) writes each one again under the new key.
 3. **Links**: a receipt can be attached to any number of transactions, tax items (a donation,
    a medical expense) or tax documents (a 1099), physical-asset items (a purchase receipt,
    an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
