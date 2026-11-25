@@ -30,8 +30,10 @@
       `deletedById` (its `deleted` is generated from `deletedAt`), and each table's view works out whether a record is
       deleted through the records it belongs to. [`schema.md`](schema.md) (S1) sets the
       fields, the views and the few exceptions.
-2. **Receipts** are files beside it (S9.2), owned by the server's account, mode 0600 in a
-   0700 directory.
+2. **Receipts** are files beside it (S9.2), and so are the linked copies (`links/`, S11.9.1)
+   and what a link sends and receives on its way: each owned by the server's account, mode
+   0600 in a 0700 directory, set when written, and a directory found looser (made by an image
+   or a restore) set back at the next write into it.
 3. **Decimals**: money is stored as **integer cents**, and quantities and prices as **decimal text** validated to a fixed scale (18
    places, enough for wei), through a small SQLAlchemy column type. JSON carries both as exact
    numbers (S13.8.2). Python uses `decimal.Decimal` with a context of 34 digits and rounds

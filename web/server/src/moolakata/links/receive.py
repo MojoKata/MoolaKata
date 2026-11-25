@@ -246,7 +246,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
 
     from . import client, manage, sealed
     from .client import NOT_SHOWN, shown
-    from .copy import folder
+    from .copy import private
 
     with srv.db.read(unscoped="links.receive: fetch files") as s:
         link = s.get(Link, link_id)
@@ -254,8 +254,7 @@ def fetch_files(srv, link_id: str, file_ids: list[str]) -> tuple[dict[str, str],
         address, peer, pins = link.address, unb64(link.peerKey), manage.pins(link)
     if not file_ids or not has_key:
         return {}, {}
-    d = folder(srv.config.data_dir, link_id) / "receipts"
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(srv.config.data_dir, link_id, "receipts")
     names: dict[str, str] = {}
     failed: dict[str, str] = {}
     for fid in file_ids:
@@ -363,10 +362,9 @@ def keep_delivered(srv, link_id: str, chunks) -> str:
     import secrets
 
     from . import sealed
-    from .copy import folder
+    from .copy import private
 
-    d = folder(srv.config.data_dir, link_id) / "receipts"
-    d.mkdir(parents=True, exist_ok=True)
+    d = private(srv.config.data_dir, link_id, "receipts")
     name = secrets.token_hex(12) + ".mkr"
     sealed.write(d / name, chunks)
     return name
