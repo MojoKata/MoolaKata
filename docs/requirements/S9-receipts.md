@@ -96,8 +96,8 @@
       its hash; the reader also checks each model file against its SHA-256 before loading it.
       RapidOCR is configured with their local paths so it never tries to download a model at
       run time; the worker has no network to try with anyway (S9.8.4). Smaller, script-specific
-      recognition models (English, Cyrillic, …) can replace them later the same way, pinned in
-      the code.
+      recognition models (English, Cyrillic, …) can replace them the same way, pinned in the
+      code.
    4. **It runs as a background job**, never in a request:
       1. an upload queues the receipt and answers at once; the receipt shows *Reading…* until
          the job finishes, and the live-updates stream (S12.6) refreshes it;

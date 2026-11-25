@@ -70,8 +70,10 @@
 4. **Models:**
    1. **deterministic**: future value at a constant rate, in nominal and today's dollars;
    2. **Monte Carlo**: *N* runs (1000 by default) drawing yearly returns from the asset
-      classes' mean and volatility (log-normal; a historical bootstrap later), showing the
-      10th/50th/90th percentile **fan** and the type's answer (S6.2).
+      classes' mean and volatility (log-normal), showing the 10th/50th/90th percentile
+      **fan** and the type's answer (S6.2). Drawing whole past years instead, from a shipped
+      table of yearly returns per asset class over a span of years the user chooses, comes
+      later ([F#BOOTSTRAP](https://github.com/MojoKata/MoolaKata/issues/BOOTSTRAP)).
       1. **Each year**, the balance grows by its mix of asset classes' returns, each drawn
          log-normal on its own (correlation between classes is not modelled), less fees;
          contributions are added, rising by their growth, until retirement or the target
@@ -91,10 +93,14 @@
       4. **The savings answer** names the monthly saving that reaches the target with a 90%
          chance, to the dollar a year, a date part-way through a year counting only that
          part of a year's saving.
-   3. **Glide path** *(later)*: the allocation shifting toward bonds as the goal nears, as
-      age-based 529 portfolios and target-date funds do.
-5. **Tax-aware buckets** (later): taxable, deferred and free balances projected apart, with
-   RMDs from the required age and an assumed tax rate on withdrawals.
+   3. **Glide path**, later ([F#GLIDE](https://github.com/MojoKata/MoolaKata/issues/GLIDE)):
+      the mix changing over a projection's run as the user describes it (the allocation at
+      chosen dates or ages, or a shift from one mix to another over a span), with no
+      schedule built in. A projection's mix is the same for its whole run.
+5. **Tax-aware buckets**, later ([F#BUCKETS](https://github.com/MojoKata/MoolaKata/issues/BUCKETS)):
+   taxable, tax-deferred and tax-free balances projected apart, with RMDs from the required
+   age by the shipped tax rules and the user's own tax rate on withdrawals. A projection's
+   balances and withdrawals are before tax.
 6. **Scenarios compare** side by side, for example retiring at 60 against 65, or contributing
    $500 more a month. Projections that are not active are the scenarios.
 7. **Active projections** are the plans being followed.
