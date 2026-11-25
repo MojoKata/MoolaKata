@@ -344,6 +344,7 @@ def _signed_in(
 ) -> tuple[bool, str]:
     admin = accounts.is_admin(s, user.id)
     token = sessions.create(s, user.id, admin, user.needsSetup, address=address)
+    before = user.lastSignInAt is not None
     user.lastSignInAt = sessions.now()
     activity.record(
         s,
@@ -354,13 +355,14 @@ def _signed_in(
         owner=user.id,
         for_admins=kind != "signin",
     )
-    _note_address(s, user, address, svc)
+    _note_address(s, user, address, svc, before)
     return admin, token
 
 
-def _note_address(s, user: User, address: str | None, svc) -> None:
+def _note_address(s, user: User, address: str | None, svc, before: bool) -> None:
     """A sign-in from an address not seen in 30 days is emailed to the user (S10.1.9), once
-    they have signed in from somewhere before; the addresses seen are kept on the user."""
+    they have signed in from somewhere before, however long ago (`before`: their last sign-in
+    is kept, the addresses only 30 days); the addresses seen are kept on the user."""
     import ipaddress
 
     try:
@@ -377,7 +379,7 @@ def _note_address(s, user: User, address: str | None, svc) -> None:
         for k, v in seen.items()
         if t - dt.datetime.fromisoformat(v) < dt.timedelta(days=ADDRESS_DAYS)
     }
-    new = bool(seen) and address not in seen
+    new = before and address not in seen
     seen[address] = t.isoformat()
     user.recentAddresses = json.dumps(seen)
     if new:
@@ -543,8 +545,11 @@ def invitation_accept(body: TokenPassword, request: Request):
     with srv.db.tx(unscoped="an invitation accepted") as s:
         user = accounts.accept_invitation(s, body.token, body.password)
         admin = accounts.is_admin(s, user.id)
-        token = sessions.create(s, user.id, admin, False)
+        address = _address(request)
+        token = sessions.create(s, user.id, admin, False, address=address)
         user.lastSignInAt = sessions.now()
+        # The first sign-in: its address is known from now on, and nothing to report.
+        _note_address(s, user, address, None, before=False)
     set_cookie(request, token)
     return info(request, user, admin)
 

@@ -1,11 +1,15 @@
 """Sign-in, sessions and users at their edges (S10.1, S13.7): the password checked outside the
 write lock and a bounded number at once, attempts in flight counted toward the lockout."""
 
+import email
+import email.policy
+import re
 import threading
 from contextlib import ExitStack
 
 import pytest
-from conftest import LOOPBACK, make_user, sign_in
+from conftest import LOOPBACK, ORIGIN, make_user, sign_in
+from fastapi.testclient import TestClient
 
 from moolakata.auth import passwords
 from moolakata.errors import Problem
@@ -175,3 +179,75 @@ def test_a_reauthentication_as_the_first_request_after_being_made_admin(server):
     with server.db.read(unscoped="test") as s:
         row = s.scalars(select(Session).where(Session.userId == u.id)).one()
     assert row.admin and row.authAt > long_ago
+
+
+# ---------- a sign-in from a new address (S10.1.9) ----------
+
+
+def _mails(server) -> list[email.message.EmailMessage]:
+    folder = server.config.mail_dir
+    if not folder.exists():
+        return []
+    return [
+        email.message_from_bytes(p.read_bytes(), policy=email.policy.default)
+        for p in sorted(folder.iterdir())
+    ]
+
+
+def _subjects(server) -> list[str]:
+    return [m["Subject"] for m in _mails(server)]
+
+
+def _from(client, address: str) -> TestClient:
+    return TestClient(
+        client.app, base_url=ORIGIN, headers={"Origin": ORIGIN}, client=(address, 50000)
+    )
+
+
+NOTICE = "A sign-in to MoolaKata from a new address"
+
+
+def test_a_new_address_after_a_quiet_month_is_emailed(client, server):
+    """Once signed in from somewhere, ever: the addresses seen lapse after 30 days, the
+    notice doesn't."""
+    import datetime as dt
+    import json
+
+    from moolakata.auth import users as accounts
+    from moolakata.store.entities.users import User
+
+    u = make_user(server, "gil")
+    sign_in(server, "gil")
+    month = accounts.now() - dt.timedelta(days=31)
+    with server.db.tx(unscoped="test") as s:
+        row = s.get(User, u.id)
+        seen = json.loads(row.recentAddresses)
+        row.recentAddresses = json.dumps(dict.fromkeys(seen, month.isoformat()))
+        row.lastSignInAt = month
+    r = _from(client, "203.0.113.9").post("/ui/api/session", json={"login": "gil", "password": PW})
+    assert r.status_code == 200, r.text
+    assert _subjects(server) == [NOTICE]
+
+
+def test_the_first_sign_in_after_accepting_an_invitation(admin_client, server):
+    """The address an invitation was accepted from is known; another is new."""
+    from edits import make
+
+    from moolakata import settings
+
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "publicUrl", "https://money.home.lan", None)
+    r = make(
+        admin_client, "User", displayName="Hal", username="hal", email="hal@home.lan", sex="male"
+    )
+    assert r.status_code == 200, r.text
+    token = re.search(r"#(\S+)", _mails(server)[-1].get_content()).group(1)
+    here = _from(admin_client, "198.51.100.7")
+    r = here.post("/ui/api/invitations/accept", json={"token": token, "password": PW})
+    assert r.status_code == 200, r.text
+    sent = len(_mails(server))
+    r = here.post("/ui/api/session", json={"login": "hal", "password": PW})
+    assert r.status_code == 200 and len(_mails(server)) == sent  # the same address
+    far = _from(admin_client, "203.0.113.9")
+    r = far.post("/ui/api/session", json={"login": "hal", "password": PW})
+    assert r.status_code == 200 and _subjects(server)[sent:] == [NOTICE]

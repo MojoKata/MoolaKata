@@ -73,9 +73,10 @@
    9. **Emails** (plain text): invitation, sign-up confirmation and decision, reset,
       email-change confirmation (to the new address) and notice (to the old one, once the
       change took effect, so a change the person didn't make is noticed), a sign-in from an
-      address the user hasn't signed in from in 30 days (once they have signed in from
-      somewhere; the addresses seen are kept on the user for those 30 days, and each session
-      records its own), password changed, two-step turned on or off, a sign-in with a recovery
+      address the user hasn't signed in from in 30 days (once they have signed in before,
+      however long ago, accepting an invitation counting as their first; the addresses seen
+      are kept on the user for those 30 days, and each session records its own), password
+      changed, two-step turned on or off, a sign-in with a recovery
       code, an access token made (S10.9.1), reactivated, and alerts (S12.11). In dev mode they
       are written to a folder (S17.7).
 2. **Admins are trusted operators.** An admin manages users, groups and Settings, and the app
