@@ -47,8 +47,8 @@ printed.
 ## Payee {#receipt-payee}
 
 Who was paid, as the receipt says, renamed by your payee rules or, when none renames it, as a payee
-of your own accounts' transactions that has its words: _Blue Bottle Coffee #042_ is read as _BLUE
-BOTTLE COFFEE SF_ when that is how your transactions name it.
+of your own accounts' transactions that has its words: _Blue Bottle Coffee #042_ is read as _Blue
+Bottle Coffee Hayes Valley_ when that is how your transactions name it.
 
 ## Notes {#receipt-notes}
 
