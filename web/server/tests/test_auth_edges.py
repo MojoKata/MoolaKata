@@ -176,10 +176,11 @@ def test_the_first_admins_name_is_one_line(store, keyed_config):
 
 
 def test_a_blank_login_matches_nobody(client, server):
+    """A password reset asked for by a blank finds nobody; a sign-in refuses it (R3.11)."""
     with server.db.read(unscoped="test") as s:
         assert accounts.by_login(s, "   ") is None
     r = client.post("/ui/api/session", json={"login": "  ", "password": PW})
-    problem(r, 401, "bad-credentials", "The username or password is not right.")
+    refused(r, 422, "login", "login-missing", "Enter your username.")
 
 
 def test_too_many_password_asks_from_an_address_are_slowed_to_a_stop(client, server):

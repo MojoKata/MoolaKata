@@ -188,6 +188,9 @@ def sign_in(body: SignIn, request: Request):
     srv = server(request)
     guard = srv.sign_in
     login = body.login.strip().lower()
+    if not login:
+        # R3.11: a blank names nobody, so it is refused at its field, never counted or hashed.
+        raise refuse("login", "login-missing", "Enter your username.")
     address = _address(request)
     locked = guard.locked(address)
     if locked:

@@ -303,6 +303,24 @@ def test_an_eleventh_sign_in_at_once_is_refused_before_its_hash(client, server, 
     assert r.status_code == 429 and checked == []
 
 
+@pytest.mark.parametrize("login", ["", "   "])
+def test_a_blank_login_is_refused_at_its_field_before_anything_counts(
+    client, server, monkeypatch, login
+):
+    """R3.11: a blank is refused, never tried as a login, so it is neither counted toward the
+    address's lockout nor costs a hash (S13.7.5.1)."""
+    hashed = []
+    monkeypatch.setattr(passwords, "verify", lambda *a: hashed.append(a) or False)
+    monkeypatch.setattr(passwords, "hash_password", lambda *a: hashed.append(a) or "")
+    before = server.sign_in.held()
+    r = client.post("/ui/api/session", json={"login": login, "password": PW})
+    assert r.status_code == 422 and r.json()["code"] == "login-missing"
+    assert r.json()["errors"] == [
+        {"field": "login", "code": "login-missing", "message": "Enter your username."}
+    ]
+    assert server.sign_in.held() == before and hashed == []
+
+
 # ---------- re-authentication after a change of privilege (S13.7.1, S13.7.2) ----------
 
 
