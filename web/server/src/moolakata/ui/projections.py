@@ -168,21 +168,17 @@ def _check(s, user_id: str, name, goal, built, inputs, kept=None) -> list[FieldE
 
 
 def _check_beneficiary(s, user_id: str, who) -> list[FieldError]:
-    """An education goal is for a person the user can see, or a user (S10.10)."""
+    """An education goal is for a person the user can see (S6.2.2, S10.10): a person, never
+    a user, whose own person may be private or a linked server's."""
+    from .. import people
     from ..store.entities.education import Person
-    from ..store.entities.users import User
 
     bad = [FieldError("inputs.beneficiary", "beneficiary-invalid", "Choose who it is for.")]
-    if not isinstance(who, dict):
+    if not isinstance(who, dict) or who.get("kind") != "person":
         return bad
-    if who.get("kind") == "person":
-        from .. import people
-
-        p = s.get(Person, who.get("id") or "")
-        return [] if p is not None and people.readable(s, user_id, p.id) else bad
-    if who.get("kind") == "user":
-        return [] if s.get(User, who.get("id") or "") is not None else bad
-    return bad
+    ident = who.get("id")
+    p = s.get(Person, ident) if isinstance(ident, str) else None
+    return [] if p is not None and people.readable(s, user_id, p.id) else bad
 
 
 def _number(v, lo: float, hi: float) -> bool:

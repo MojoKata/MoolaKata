@@ -116,14 +116,14 @@ def test_a_changed_projection_is_checked_as_a_new_one_is(jane):
 def test_an_education_projection_keeps_its_beneficiary_made_or_changed(jane):
     """S6.6, S10.10: an education goal is for someone: made or changed without them, it is
     refused at the beneficiary."""
-    me = jane.get("/ui/api/profile").json()["id"]
+    me = jane.get("/ui/api/profile").json()["personId"]
     body = {"name": "College", "goal": "education",
             "builtOn": {"kind": "typed", "amount": 1000, "allocation": {"bonds": 100}},
             "inputs": {"startAge": 18, "schoolYears": 4, "cost": 20000}}  # fmt: skip
     r = make(jane, "Prjct", **body)
     assert r.status_code == 422
     assert [e["field"] for e in r.json()["errors"]] == ["inputs.beneficiary"]
-    who = {"beneficiary": {"kind": "user", "id": me}}
+    who = {"beneficiary": {"kind": "person", "id": me}}
     r = make(jane, "Prjct", **{**body, "inputs": {**body["inputs"], **who}})
     assert r.status_code == 200, r.text
     r = change(jane, "Prjct", r.json(), inputs=body["inputs"])

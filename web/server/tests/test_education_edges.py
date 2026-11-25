@@ -273,10 +273,10 @@ def test_a_writer_changes_a_529_keeping_whom_it_names_though_they_cant_see_them(
             "contributor-invalid", "The owner or a person.")  # fmt: skip
 
 
-def test_the_goal_tab_finds_a_projection_for_the_beneficiary_as_a_user(server, jane):
-    """S1.8.5: an education projection made for a user is for their person, so the 529 for
-    that person shows it; one for someone else, or with another goal, isn't its goal."""
-    john, john_id = _john(server)
+def test_the_goal_tab_finds_the_projection_for_its_beneficiary(server, jane):
+    """S1.8.5: an education projection for a user's person is the goal of the 529 for that
+    person; one for someone else, or with another goal, isn't its goal."""
+    john, _ = _john(server)
     john_person = john.get("/ui/api/profile").json()["personId"]
     acct = new_account(jane, name="John's 529", type="529", institution="my529")
     saved(plan529(jane, acct["id"], beneficiaryId=john_person))
@@ -285,7 +285,7 @@ def test_the_goal_tab_finds_a_projection_for_the_beneficiary_as_a_user(server, j
     for name, goal, who in (
         ("Retire", "retirement", None),
         ("Lisa's school", "education", {"kind": "person", "id": lisa["id"]}),
-        ("John's school", "education", {"kind": "user", "id": john_id}),
+        ("John's school", "education", {"kind": "person", "id": john_person}),
     ):
         inputs = {"beneficiary": who} if who else {}
         made(make(jane, "Prjct", name=name, goal=goal, builtOn=typed, inputs=inputs))

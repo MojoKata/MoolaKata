@@ -433,9 +433,6 @@ def education_school(s: Session, inputs: dict, year: int) -> dict:
 
     who = inputs.get("beneficiary") or {}
     name, birth = "the beneficiary", None
-    if who.get("kind") == "user":
-        u = s.get(User, who.get("id") or "")
-        who = {"kind": "person", "id": u.personId if u else ""}
     if who.get("kind") == "person":
         # The person it names, seen by the reader or not: their name shown, their birth year
         # used for when school starts (R3.14).

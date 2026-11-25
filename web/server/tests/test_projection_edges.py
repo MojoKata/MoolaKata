@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import make, new_id
+from edits import change, make, new_id
 from test_projections import T0
 
 from moolakata import clock
@@ -265,3 +265,25 @@ def test_a_bad_due_date_is_refused_and_the_books_still_open(server, admin_client
                                                      "Must be a month and a day.")  # fmt: skip
     with server.db.read(unscoped="test") as s:
         assert books.federal_due(s, 2026).month == 4
+
+
+def test_an_education_goal_is_for_a_person_never_a_user(server, jane):
+    """S6.2.2, S1.8.1, S10.10: a beneficiary is a person the user can see; a user's id, their
+    own or anyone's (a private person's, a linked server's), is refused at its field."""
+    from conftest import make_user
+
+    make_user(server, "john")
+    with server.db.read(unscoped="test") as s:
+        from moolakata.store.entities.users import User
+
+        users = {u.username: u for u in s.query(User)}
+    college = {"name": "College", "goal": "education", "builtOn": TYPED}
+    for user in ("jane", "john"):
+        who = {"kind": "user", "id": users[user].id}
+        r = make(jane, "Prjct", **college, inputs={"beneficiary": who})
+        refused(r, "inputs.beneficiary", "beneficiary-invalid")
+    me = {"kind": "person", "id": users["jane"].personId}
+    p = made(make(jane, "Prjct", **college, inputs={"beneficiary": me}))
+    assert p["result"]["answer"]["name"] == users["jane"].displayName
+    r = change(jane, "Prjct", p, inputs={"beneficiary": {"kind": "user", "id": users["jane"].id}})
+    refused(r, "inputs.beneficiary", "beneficiary-invalid")
