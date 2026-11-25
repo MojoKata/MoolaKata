@@ -585,8 +585,11 @@ def reactivation_request(body: SignIn, request: Request):
     """The same answer whatever the account's state, and a wrong password counted as a
     sign-in's (S10.1.7)."""
     srv = server(request)
-    _throttle(request)
     login = body.login.strip().lower()
+    if not login:
+        # R3.11: a blank names nobody, refused at its field as at sign-in, never counted.
+        raise refuse("login", "login-missing", "Enter your username.")
+    _throttle(request)
     with guarded(request, login) as address:
         with srv.db.read(unscoped="a reactivation asked") as s:
             found = accounts.by_login(s, login)
