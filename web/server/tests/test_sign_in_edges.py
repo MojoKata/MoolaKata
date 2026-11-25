@@ -148,3 +148,30 @@ def test_an_eleventh_sign_in_at_once_is_refused_before_its_hash(client, server, 
             held.enter_context(server.sign_in.attempt(LOOPBACK[0], 10))
         r = client.post("/ui/api/session", json={"login": "fay", "password": PW})
     assert r.status_code == 429 and checked == []
+
+
+# ---------- re-authentication after a change of privilege (S13.7.1, S13.7.2) ----------
+
+
+def test_a_reauthentication_as_the_first_request_after_being_made_admin(server):
+    """The request's token is rotated for the change; the password marks the new one."""
+    import datetime as dt
+
+    from sqlalchemy import select
+
+    from moolakata.auth import users as accounts
+    from moolakata.store.entities.users import Session, UserGroup
+
+    u = make_user(server, "gus")
+    c = sign_in(server, "gus")
+    before = c.cookies.get("mk_session")
+    long_ago = accounts.now() - dt.timedelta(hours=1)
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Session).where(Session.userId == u.id)).one().authAt = long_ago
+        s.add(UserGroup(userId=u.id, groupId=accounts.admins_group(s).id, createdAt=accounts.now()))
+    r = c.post("/ui/api/session/reauth", json={"password": PW})
+    assert r.status_code == 204, r.text
+    assert c.cookies.get("mk_session") != before
+    with server.db.read(unscoped="test") as s:
+        row = s.scalars(select(Session).where(Session.userId == u.id)).one()
+    assert row.admin and row.authAt > long_ago

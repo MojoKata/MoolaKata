@@ -445,8 +445,9 @@ def reauth(body: Password, request: Request, c: Caller = Depends(caller_in_setup
         with srv.db.tx(user=c.id) as s:
             user = s.get(User, c.id)
             if right and user.passwordHash == stored:
-                row = sessions.find(s, request.cookies.get(sessions.COOKIE)).session
-                row.authAt = sessions.now()
+                # The caller's own row: a change of privilege may have just given it a
+                # new token, the cookie sent naming none (S13.7.1).
+                sessions.by_hash(s, c.session.tokenHash).authAt = sessions.now()
             else:
                 right = False
                 count_failure(s, srv.sign_in, user.username, address, user)
