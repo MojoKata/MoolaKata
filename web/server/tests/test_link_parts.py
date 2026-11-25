@@ -545,6 +545,21 @@ def test_a_user_named_twice_in_a_directory_is_kept_once(server):
     assert kept == [("u1", "Bart")]
 
 
+def test_a_remote_users_fields_follow_the_protocols_bounds_not_a_local_users(server):
+    """S10.3.3.1, link protocol §4.2: a username S10.1.1 would refuse here is kept, cut to
+    64; a display name cut to 120."""
+    from moolakata.links import manage
+    from moolakata.store.entities.links import Link
+
+    link_id = _a_link(server)
+    users = [{"id": "u1", "username": "Bart Simpson-" + "x" * 60, "displayName": "B" * 130}]
+    with server.db.tx(unscoped="test") as s:
+        manage.apply_directory(s, s.get(Link, link_id), {"users": users})
+    with server.db.read(unscoped="test") as s:
+        (u,) = s.scalars(select(User).where(User.linkId == link_id))
+    assert (u.username, u.displayName) == (("Bart Simpson-" + "x" * 60)[:64], "B" * 120)
+
+
 # ---------- Settings › Linked Servers (S11.7)
 
 

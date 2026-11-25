@@ -125,7 +125,9 @@
       1. **A remote user is a `User` record** with its `linkId` set, so it appears wherever
          a share is chosen, beside local users, under its server's name. It has no password,
          two-step or sessions (a `CHECK` enforces it), and its fields come only from its
-         server (S11.3).
+         server (S11.3), within the bounds of `docs/link-protocol.md` §4.2 rather than
+         S10.1.1's: a display name of up to 120 characters and a username of up to 64 in any
+         form, a longer one cut there, never refused.
       2. **Only local users** appear where a user signs in, owns or changes something here:
          sign-in, Users and Groups, group membership (a group can hold write shares, and a
          remote user only ever reads), the Admins group, tax-book filers (S8.14.1), a
