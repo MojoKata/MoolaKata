@@ -1,6 +1,8 @@
 """Receipts' edges (requirements S9): what the module and the routes refuse, at their field or
 status, code and words, and the corners the main tests pass by."""
 
+from types import SimpleNamespace
+
 import pytest
 from conftest import make_user, sign_in
 from edits import attach, change, edit, remove, saved, share
@@ -160,3 +162,162 @@ def test_a_link_to_what_the_reader_cant_see_is_not_found_to_them(server, jane):
 def test_how_alike_two_payees_are_counts_the_shorters_words(a, b, alike):
     """S9.8.2.6: words of three letters or more; a name with none is like nothing."""
     assert receipts._alike(a, b) == alike
+
+
+# ---------- the routes (ui/receipts.py) ----------
+
+
+def test_a_receipt_names_what_it_is_kept_with_leaving_out_what_was_deleted(server, jane):
+    """S9.3: each link is named in the receipt's dialog, a donation by its organisation, its
+    description or *a cause*; a link to a record deleted, or kept in an account deleted, or a
+    tax document of a deleted book, is left out."""
+    import datetime as dt
+    from decimal import Decimal
+
+    from test_assets import item
+
+    from moolakata.ids import new_id
+    from moolakata.store.entities.accounts import Account, Transaction
+    from moolakata.store.entities.assets import Item
+    from moolakata.store.entities.education import Gift
+    from moolakata.store.entities.giving import Donation, Organisation
+    from moolakata.store.entities.taxes import TaxBook, TaxDocument
+    from moolakata.store.entities.users import User
+
+    acct = new_account(jane)
+    t = add(jane, acct["id"], "-42.18", "2026-10-02", payee="Corner Store")
+    coll = new_account(jane, name="Collectables", type="collectables")
+    watch = item(jane, coll["id"], name="Watch")
+    ring = item(jane, coll["id"], name="Ring")
+    statement = new_account(jane, name="Old checking")
+    rid = upload(jane, png((3, 1, 4))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        me = s.query(User).filter_by(username="jane").one().id
+        red = Organisation(id=new_id("Orgzn"), ownerId=me, name="Red Cross")
+        gift = Gift(id=new_id("Gift"), ownerId=me, description="Scarf")
+        day, cash = dt.date(2026, 3, 1), Decimal("25")
+        gifts = [
+            Donation(id=new_id("Dnatn"), ownerId=me, date=day, kind="cash", amount=cash, **kw)
+            for kw in ({"organisationId": red.id}, {"description": "Food bank"}, {})
+        ]
+        book = TaxBook(id=new_id("TaxBk"), ownerId=me, year=2026)
+        doc = TaxDocument(id=new_id("TxDoc"), bookId=book.id, direction="received",
+                          form="W-2", receiptId=rid)  # fmt: skip
+        s.add_all([red, gift, book])
+        s.flush()
+        s.add_all([*gifts, doc])
+        kinds = [("transaction", t["id"]), ("item", watch["id"]), ("item", ring["id"]),
+                 ("account", statement["id"]), ("gift", gift.id)]  # fmt: skip
+        kinds += [("donation", d.id) for d in gifts]
+        for kind, item_id in kinds:
+            s.add(ReceiptLink(id=new_id("RcLnk"), receiptId=rid, kind=kind, itemId=item_id))
+    labels = [x["label"] for x in jane.get(f"/ui/api/receipts/{rid}").json()["links"]]
+    assert sorted(labels) == sorted([
+        "Corner Store",
+        "Watch in Collectables",
+        "Ring in Collectables",
+        "The statement of Old checking",
+        "The gift Scarf",
+        "The donation to Red Cross",
+        "The donation to Food bank",
+        "The donation to a cause",
+        "W-2 in the 2026 tax book",
+    ])  # fmt: skip
+    with server.db.tx(unscoped="test") as s:
+        for row in (s.get(Transaction, t["id"]), s.get(Item, watch["id"]), s.get(Gift, gift.id),
+                    s.get(Account, statement["id"]), s.get(TaxBook, book.id),
+                    *(s.get(Donation, d.id) for d in gifts)):  # fmt: skip
+            row.mark_deleted(None)
+    labels = [x["label"] for x in jane.get(f"/ui/api/receipts/{rid}").json()["links"]]
+    assert labels == ["Ring in Collectables"]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, coll["id"]).mark_deleted(None)
+    assert jane.get(f"/ui/api/receipts/{rid}").json()["links"] == []
+
+
+def test_an_upload_and_a_read_again_are_queued_for_the_reader(server, jane, monkeypatch):
+    """S9.8.6: an upload waiting to be read, and Read Again, go to the reading queue."""
+    queued = []
+    monkeypatch.setattr(server, "reader", SimpleNamespace(queue=queued.append))
+    rid = upload(jane, png((2, 7, 1))).json()["id"]
+    assert jane.post(f"/ui/api/receipts/{rid}/read").status_code == 200
+    assert queued == [rid, rid]
+
+
+def test_the_routes_refuse_at_their_field_or_status(server, jane, admin_client):
+    """R3.11, S9.1, S9.8.6: an empty file, a receipt made but by upload, a payee or notes too
+    long, Read Again with reading off, a link not there, a missing thumbnail, a transaction
+    not there."""
+    from edits import new_id, save_settings
+
+    r = jane.post("/ui/api/receipts", files={"file": ("r.png", b"", "image/png")})
+    refused(r, "file", "file-empty", "The file is empty.", 422)
+    made = {"op": "create", "entity": "Rcpt", "id": new_id("Rcpt"), "fields": {}}
+    refused(jane.post("/ui/api/save", json={"ops": [made]}), None, "receipt-uploaded",
+            "A receipt is made by uploading its file.", 422)  # fmt: skip
+    rid = upload(jane, png((8, 1, 8))).json()["id"]
+    got = jane.get(f"/ui/api/receipts/{rid}").json()
+    refused(change(jane, "Rcpt", got, payee="p" * 201), "payee", "payee-too-long",
+            "At most 200 characters.", 422)  # fmt: skip
+    refused(change(jane, "Rcpt", got, notes="n" * 2001), "notes", "notes-too-long",
+            "At most 2,000 characters.", 422)  # fmt: skip
+    assert change(jane, "Rcpt", got, payee="p" * 200, notes="n" * 2000).status_code == 200
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    r = jane.post(f"/ui/api/receipts/{rid}/read")
+    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+        409, "reading-off", "Reading receipts is off in Settings › Receipts."
+    )  # fmt: skip
+    gone = {"id": "RcLnk_00000000000000000000000000", "version": 1}
+    refused(remove(jane, "RcLnk", gone), None, "not-found", "Not found", 404)
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, rid).thumbnail = None
+    r = jane.get(f"/ui/api/receipts/{rid}/thumbnail")
+    assert (r.status_code, r.json()["code"]) == (404, "no-thumbnail")
+    r = jane.get("/ui/api/transactions/Txn_00000000000000000000000000/receipts")
+    assert (r.status_code, r.json()["code"]) == (404, "not-found")
+
+
+def test_a_heic_photo_is_served_as_jpeg_drawn_in_the_worker(server, jane, monkeypatch):
+    """S9.1, S9.8.4.2: decoded in the reader's worker, never in the server; one it can't
+    decode is refused with the reason."""
+    from moolakata import parsing
+
+    heic = b"\x00\x00\x00\x18ftypheic\x00\x00" + b"h" * 100
+    r = jane.post("/ui/api/receipts", files={"file": ("p.heic", heic, "image/heic")})
+    rid = r.json()["id"]
+    monkeypatch.setattr(parsing, "as_jpeg", lambda data, user: b"\xff\xd8jpeg")
+    got = jane.get(f"/ui/api/receipts/{rid}/file")
+    assert (got.status_code, got.headers["content-type"], got.content) == (
+        200, "image/jpeg", b"\xff\xd8jpeg"
+    )  # fmt: skip
+
+    def broken(data, user):
+        raise parsing.ReadError("not a photo")
+
+    monkeypatch.setattr(parsing, "as_jpeg", broken)
+    got = jane.get(f"/ui/api/receipts/{rid}/file")
+    assert (got.status_code, got.json()["code"], got.json()["detail"]) == (
+        415, "receipt-unshowable", "The photo can't be shown: not a photo"
+    )  # fmt: skip
+
+
+def test_a_file_lost_on_disk_is_refused_naming_no_path(server, jane):
+    """S13.7.8: the reason, which may name a path on the host, goes to the log only."""
+    rid = upload(jane, png((6, 2, 6))).json()["id"]
+    with server.db.read(unscoped="test") as s:
+        path = receipts.file_path(server.config.receipts_dir, s.get(Receipt, rid).fileId)
+    path.unlink()
+    r = jane.get(f"/ui/api/receipts/{rid}/file")
+    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+        500, "receipt-unreadable", "The receipt's file can't be read."
+    )  # fmt: skip
+    assert str(server.config.receipts_dir) not in r.text
+
+
+def test_a_transactions_receipts_are_listed_for_who_reads_it(server, jane):
+    acct = new_account(jane)
+    t = add(jane, acct["id"], "-42.18", "2026-10-02")
+    rid = upload(jane, png((5, 3, 5))).json()["id"]
+    saved(attach(jane, rid, t["id"]))
+    got = jane.get(f"/ui/api/transactions/{t['id']}/receipts").json()["items"]
+    assert [x["id"] for x in got] == [rid]
