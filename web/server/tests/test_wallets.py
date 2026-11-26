@@ -398,6 +398,8 @@ class Wire:
     def sendall(self, data: bytes):
         import json
 
+        if self.closed:
+            raise OSError(9, "Bad file descriptor")
         req = json.loads(data)
         self.asked.append(req["method"])
         for line in (self.before or (lambda r: []))(req):

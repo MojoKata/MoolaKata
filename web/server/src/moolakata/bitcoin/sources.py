@@ -290,15 +290,20 @@ class Electrum:
         return result
 
     def close(self):
+        """Closed after each read: a sync reads again from the same source as the gap
+        extends (S1.6.2), on a connection of its own."""
         if self.sock is not None:
             self.sock.close()
+        self.sock, self.buf = None, b""
 
     @_reads("The Electrum server")
     def test(self) -> str:
         self.testing = True
-        ver = self.call("server.version", "MoolaKata", "1.4")
-        tip = self.call("blockchain.headers.subscribe", want=dict)
-        self.close()
+        try:
+            ver = self.call("server.version", "MoolaKata", "1.4")
+            tip = self.call("blockchain.headers.subscribe", want=dict)
+        finally:
+            self.close()
         out = f"{ver[0] if isinstance(ver, list) else ver} answered: block {tip['height']:,}"
         if self.cfg.tls and self.seen:
             trusted = self.seen == (self.cfg.certSha256 or "").lower()
@@ -316,6 +321,12 @@ class Electrum:
 
     @_reads("The Electrum server")
     def history(self, addresses: list[str]) -> list[Tx]:
+        try:
+            return self._history(addresses)
+        finally:
+            self.close()
+
+    def _history(self, addresses: list[str]) -> list[Tx]:
         scripts = {bk.script_of(a): a for a in addresses}
         txs: dict[str, int] = {}
         for script in scripts:
@@ -352,7 +363,6 @@ class Electrum:
             if t.net < 0:
                 t.fee = spent_in - sum(v for _, v in outs)
             out.append(t)
-        self.close()
         return out
 
 

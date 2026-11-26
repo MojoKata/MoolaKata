@@ -117,3 +117,31 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
     held = c.get(f"/ui/api/accounts/{wid}/holdings").json()["holdings"]
     assert [h["symbol"] for h in held] == ["BTC"]
     assert Decimal(str(held[0]["quantity"])) == Decimal("0.39999")
+
+
+@pytest.mark.parametrize("kind", ["electrum", "core"])
+def test_a_wallet_syncs_from_the_fake_node_through_the_server(server, mocks, kind):
+    """S1.6.2.3: a wallet read from an Electrum server or Bitcoin Core through the server, its
+    used addresses extending the gap, so the node is read again from the same source."""
+    from conftest import make_user, sign_in
+
+    from moolakata import settings
+    from moolakata.bitcoin import sync
+    from moolakata.dev.seed_wallets import TEST_ZPUB
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        for k, v in (
+            ("bitcoinSource", kind),
+            ("bitcoinNodeHost", "127.0.0.1"),
+            ("bitcoinNodePort", mocks.ports()[kind]),
+            ("bitcoinNodeTls", kind == "electrum"),
+            ("bitcoinNodeCert", mocks.electrum.cert_sha256),
+        ):
+            settings.put(s, k, v, None)
+    server.guard.allow(["127.0.0.1"], {"bitcoin": ["127.0.0.1"]})
+    wid = make(c, "Acct", name="Cold storage", type="crypto-wallet").json()["id"]
+    assert wallet(c, wid, TEST_ZPUB).status_code == 200
+    assert sync.sync_account(server, wid) == 3
+    assert c.get(f"/ui/api/accounts/{wid}/wallet").json()["used"] == 3
