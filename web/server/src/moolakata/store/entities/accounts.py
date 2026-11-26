@@ -39,6 +39,7 @@ class Account(Record):
     syncAccount: str | None = None
     withdrawalsAMonth: int | None = None
     hsaCoverage: str | None = None  # an HSA's: self or family (S8.6)
+    coreWallet: str | None = None  # a wallet account's Bitcoin Core wallet (S1.6.2.3)
 
 
 @dataclass(kw_only=True, eq=False)

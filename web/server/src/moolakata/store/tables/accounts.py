@@ -155,6 +155,10 @@ Account = record(
     Column("withdrawalsAMonth", Integer),
     # An HSA's coverage, self-only or family, which its yearly limit is (S8.6); none: unset.
     Column("hsaCoverage", Text),
+    # A wallet account's watch-only wallet on Bitcoin Core (S1.6.2.3): `moolakata-` and a
+    # random name, never the id, which tells when it was made (schema.md §2). Made with its
+    # keys, and kept with the account, so the node's wallet is read again under it.
+    Column("coreWallet", Text),
     _in("type", ACCOUNT_TYPES, "type"),
     _in("lotMethod", LOT_METHODS, "lot_method"),
     CheckConstraint("mask IS NULL OR (length(mask) = 4 AND mask GLOB '[0-9]*')", name="mask"),

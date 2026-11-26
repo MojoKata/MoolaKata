@@ -70,8 +70,9 @@ answers keep the API's camelCase fields.
   the table it goes in, a time within a day of the server's clock, and not already taken
   (requirements S13.8.11.2); `createdAt` is the server's time. Every other ID is made by the server.
 - **IDs reveal when a row was created.** File names and anything else visible on disk,
-  such as receipt files and a linked copy's files (requirements S11.9), use separate random
-  names and never an ID.
+  such as receipt files, a linked copy's files (requirements S11.9) and a wallet account's
+  Bitcoin Core wallet (`Account.coreWallet`, S1.6.2.3), use separate random names and never
+  an ID.
 
 ```
 UUIDv7 (hex):   0199d4b2-6f3a-7c21-9b4e-5a1d3c8e7f02

@@ -77,11 +77,13 @@ def hosts(s) -> tuple[list[str], list[str]]:
 def _scan(src, account_id: str, s) -> tuple[list[sources.Tx], set[str]]:
     rows = wallet.addresses_of(s, account_id)
     if isinstance(src, sources.Core):
+        name = s.get(Account, account_id).coreWallet
+        if name is None:
+            return [], set()  # never given keys: nothing for the node to watch
         wanted = []
         for k in wallet.keys_of(s, account_id):
             top = max((r.idx for r in rows if r.keyId == k.id and r.idx is not None), default=None)
             wanted += sources.descriptors(k, top)
-        name = f"moolakata-{account_id}"
         src.wallet(name, wanted)
         txs, used = src.history_of(name)
         return txs, used | {a for t in txs for a in t.addresses}

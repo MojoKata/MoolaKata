@@ -484,6 +484,60 @@ def test_an_answer_a_read_cant_use_is_the_wallets_reported_failure(server, jane,
         sync.sync_all(server)
 
 
+class Node(sources.Core):
+    """Bitcoin Core as its wallets keep it: each named wallet's descriptors, made once."""
+
+    def __init__(self, wallets: dict[str, list]):
+        self.wallets = wallets
+
+    def wallet(self, name, wanted):
+        self.wallets.setdefault(name, []).extend(d for d, _ in wanted)
+
+    def history_of(self, name):
+        return [], set()
+
+
+def test_each_wallets_core_wallet_has_a_random_name_kept_with_it(
+    server, jane, keyed_config, master_key, monkeypatch
+):
+    """S1.6.2.3: a wallet account's Bitcoin Core wallet is `moolakata-` and a random name,
+    never its id (schema.md §2), kept with the account: read again under it after a
+    restart."""
+    import re
+
+    from moolakata.app import Server
+    from moolakata.store.maintenance import open_store
+
+    one = new_account(jane, name="One", type="crypto-wallet")
+    two = new_account(jane, name="Two", type="crypto-wallet")
+    saved(wallet(jane, one["id"], ZPUB))
+    saved(wallet(jane, two["id"], FIRST))
+    node: dict[str, list] = {}
+    monkeypatch.setattr(sync, "source", lambda srv, s: Node(node))
+    sync.sync_account(server, one["id"])
+    sync.sync_account(server, two["id"])
+    names = list(node)
+    assert len(names) == 2 and all(re.fullmatch(r"moolakata-[0-9a-f]{16}", n) for n in names)
+    for a in (one, two):
+        assert a["id"].split("_")[1] not in " ".join(names)
+    # Its keys changed, and the server started again: the same wallet, read under its name.
+    saved(wallet(jane, one["id"], f"{ZPUB}\n{XPUB}"))
+    server.db.dispose()
+    again = Server(config=keyed_config, store=open_store(keyed_config, master_key), ready=True)
+    sync.sync_account(again, one["id"])
+    sync.sync_account(again, two["id"])
+    assert list(node) == names
+    assert len(node[names[0]]) == 2 + 2 + 2, "the zpub's two chains twice, then the xpub's"
+    again.db.dispose()
+
+
+def test_a_wallet_with_no_keys_ever_has_no_core_wallet(server, jane, monkeypatch):
+    w = new_account(jane, name="Empty", type="crypto-wallet")
+    node: dict[str, list] = {}
+    monkeypatch.setattr(sync, "source", lambda srv, s: Node(node))
+    assert sync.sync_account(server, w["id"]) == 0 and node == {}
+
+
 def test_core_gets_the_keys_as_watch_only_descriptors():
     from moolakata.store.entities.accounts import WalletKey
 

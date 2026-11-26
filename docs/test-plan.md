@@ -41,8 +41,9 @@ descriptor) and a few of whose transactions are known. Mainnet.
    recorded.
 4. Receive a small amount to a fresh address past the gap. Passing: within an hour (or at
    once with Check now) the transaction appears and more addresses are derived.
-5. For Core (T3): the node shows a wallet `moolakata-<account id>` with the descriptors
-   imported, watch-only, rescanned from the start.
+5. For Core (T3): the node shows a wallet `moolakata-` and a random name (never the account's
+   id) with the descriptors imported, watch-only, rescanned from the start. Restart MoolaKata
+   and Check now. Passing: the same wallet is read again, and no other is made.
 6. Stop the node for longer than Settings › Alerts allows. Passing: one alert for admins and
    one for the wallet's owner, naming no address or amount; both resolve when it is back.
 7. For an Electrum server (T1, T2): replace its certificate. Passing: reads stop, admins are

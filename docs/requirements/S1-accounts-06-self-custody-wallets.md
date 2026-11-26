@@ -41,10 +41,14 @@
          Electrum server: each address's history by its script hash over TCP (TLS by default),
          and the raw transactions, read by MoolaKata; its certificate is trusted on first use
          (below). Bitcoin
-         Core over JSON-RPC: a watch-only descriptor wallet for each wallet account
-         (`moolakata-<account id>`), its keys imported as descriptors over the addresses
-         derived, rescanned from the start the first time, then its transactions listed. Only
-         public keys and addresses are ever sent.
+         Core over JSON-RPC: a watch-only descriptor wallet for each wallet account, named
+         `moolakata-` and a random name given with its first keys and kept with the account,
+         never the account's id (schema.md §2); its keys imported as descriptors over the
+         addresses derived, rescanned from the start the first time, then its transactions
+         listed. The wallet is the node's own, watching the account's descriptors on the
+         chain; MoolaKata keeps the account, its descriptors, its transactions and the
+         wallet's name, and reads the same wallet again under that name. Only public keys and
+         addresses are ever sent.
       4. **An Electrum server's certificate** is trusted on first use: **Test** in Settings ›
          Bitcoin shows its SHA-256 fingerprint, an admin confirms it, and it is kept. A server
          that later presents another certificate is refused, and admins alerted (*the node's
