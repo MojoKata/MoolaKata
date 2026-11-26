@@ -113,7 +113,7 @@ The prefixes of the tables that exist.
 | CorpA  | CorporateAction  | A split, symbol change, spin-off or merger of a holding, the transactions it makes named by it.       |
 | Dnatn  | Donation         | One charitable gift to an organisation, into a donor-advised fund, or a grant from one.               |
 | EdPln  | EducationPlan    | A 529 account's plan: its state, name, beneficiary and opening date.                                  |
-| Email  | QueuedEmail      | An email waiting to go out through SMTP, until it is sent or its link expires.                        |
+| Email  | QueuedEmail      | An email waiting to go out through SMTP, until it is sent, its link expires, or, with no link, a day. |
 | EstPy  | EstimatedPayment | A filing's estimated tax payment for a quarter, matched to its transaction.                           |
 | Filng  | Filing           | One return in a tax book (federal, state or local), with its progress and result.                     |
 | GfPln  | GiftPlan         | One user's gift plan for a person: holidays, anniversaries, budget, lead time, notes.                 |
@@ -237,8 +237,8 @@ Records are never removed from the database: they are marked deleted. The except
    3. **linked copies**: another household's data, removed with the share or link it came
       by, at **Reset copy**, an inbox change once it is applied (requirements S11.9), and a
       receipt waiting to reach the copy once it has (`LinkFile`, S11.4);
-   4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent
-      or when their link expires), the background tasks' last runs, the data version (§8), and
+   4. **work queues and counters**: receipt-reading jobs, emails waiting to go out (when sent,
+      when their link expires, or a day after an email with no link was queued), the background tasks' last runs, the data version (§8), and
       the live stream's state. Attempt counters, of sign-ins and access keys among them, are no
       table's: they are held in memory (requirements S13.7.5.5);
    5. **caches**, rebuilt from the records: thumbnails, computed series kept for speed, and

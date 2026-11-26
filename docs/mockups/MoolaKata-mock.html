@@ -3466,7 +3466,7 @@ const GUIDES = {
     <h2 id="h-after-restore">After a restore</h2><p>The first unlock after a restore opens every receipt file and secret with the restored keys and lists what doesn’t open: receipts to put back from the host’s own backup of the same moment, and secrets to enter again.</p>
     <h2 id="h-remind-admins-to-rotate-after">Remind admins to rotate after</h2><p>How old the master key may get before admins are alerted to rotate it: 12 months by default, or never. A rotation brings a new data key as well.</p>
     <h2>On the Host</h2><p>Each command runs inside the server’s container with <code>docker compose exec moolakata moolakata …</code>, beside the running server, or as a one-off container when it is stopped. Each asks for the phrase it needs, with echo off; none shows a phrase or keeps one: keys are made and rotated here.</p>
-    <h2>Email (SMTP)</h2><p>Emails go out through this server, and wait, encrypted, until sent or until their link expires. Until a host is set, they’re written to the mail folder in the data directory.</p>
+    <h2>Email (SMTP)</h2><p>Emails go out through this server, and wait, encrypted, until sent, until their link expires, or for a day when they have none. Until a host is set, they’re written to the mail folder in the data directory.</p>
     <h2 id="h-host">Host</h2><p>Your mail server’s address. Changing it asks for your password again and clears the stored SMTP password, so it is never sent to the new host.</p>
     <h2 id="h-port">Port</h2><p>Usually 587 for STARTTLS or 465 for TLS.</p>
     <h2 id="h-security">Security</h2><p>STARTTLS or TLS. None sends in the clear: only for a relay on your own network that needs no sign-in, so a username or password with it is refused.</p>

@@ -6,7 +6,7 @@ the clear, and listed here for an admin to pass its link on.
 
 Emails go out in the background, so nothing waits on the mail server. They wait in the database,
 which is encrypted. One that can't be sent stays queued and is tried again every five minutes,
-until its link expires; one the server refuses outright is set aside, keeping only who it was for,
+until its link expires, or for a day when it has no link; one the server refuses outright is set aside, keeping only who it was for,
 its subject and the error. This section shows the queue and the last error.
 
 ![Settings: Email](shots/settings-email.png)

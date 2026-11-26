@@ -3,10 +3,10 @@ each one is written to the mail folder as an .eml file; dev mode also prints its
 
 With SMTP set up (S16.2), an email is queued in the database, which is encrypted, and the mail
 task sends it at once, in the background, so a request never waits on the mail server. What
-can't be sent stays queued and is tried again every five minutes, until its link expires; one
-the server refuses outright keeps only its recipient, subject and the error. Settings › Email
-shows the queue and the last error. The SMTP host is one the egress guard allows, by name
-(S13.5).
+can't be sent stays queued and is tried again every five minutes, until its link expires (a
+day for one with no link); one the server refuses outright keeps only its recipient, subject
+and the error. Settings › Email shows the queue and the last error. The SMTP host is one the
+egress guard allows, by name (S13.5).
 
 Links are built from Settings › General's public URL, never from the request (S16.1). A
 token rides in the link's fragment (#…), which browsers send to no server and no Referer.

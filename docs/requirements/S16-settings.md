@@ -23,7 +23,7 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    reset, a week for an invitation, and a day for the rest, an email with no link among them
    (S10.1, S15.1.7). With a host, they go out in the background, queued in the
    database: an email that can't be sent stays queued and is tried again every five minutes,
-   until its link expires; one the server refuses outright is set aside, keeping only its
+   until its link expires, or a day after it was queued for an email with no link; one the server refuses outright is set aside, keeping only its
    recipient, subject and the error; and the section shows the queue and the last error.
 3. **Sign-in and sessions**: idle and absolute session lifetimes (8 hours by default, 1 to
    168, and 30 days, 1 to 365), and the lockout of an address after failed sign-ins (10
