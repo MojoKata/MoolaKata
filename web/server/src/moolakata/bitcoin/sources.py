@@ -14,6 +14,7 @@ addresses, each with its net effect on them."""
 
 import base64
 import datetime as dt
+import functools
 import hashlib
 import io
 import json
@@ -78,6 +79,29 @@ class Config:
         return ([self.host], [self.host]) if self.host else ([], [])
 
 
+def _reads(what: str):
+    """An answer the read can't make sense of fails it as the source's own failure, which the
+    wallet reports (S1.6.2.5), never as the server's: by the error's kind, as its text may name
+    an address."""
+
+    def wrap(fn):
+        @functools.wraps(fn)
+        def read(self, *args, **kw):
+            try:
+                return fn(self, *args, **kw)
+            except SourceError:
+                raise
+            except (ArithmeticError, AttributeError, LookupError, TypeError, ValueError) as e:
+                name = what.format(self=self)
+                raise SourceError(
+                    f"{name}'s answer couldn't be read ({type(e).__name__})."
+                ) from None
+
+        return read
+
+    return wrap
+
+
 # ---------- Esplora
 
 
@@ -100,9 +124,11 @@ class Esplora:
             return json.loads(r.text, parse_float=Decimal)
         return r.text
 
+    @_reads("{self.base}")
     def test(self) -> str:
         return f"Esplora answered: block {int(self._get('/blocks/tip/height')):,}"
 
+    @_reads("{self.base}")
     def history(self, addresses: list[str]) -> list[Tx]:
         mine = set(addresses)
         seen: dict[str, Tx] = {}
@@ -219,13 +245,8 @@ class Electrum:
         except (OSError, net.EgressRefused) as e:
             raise SourceError(f"{self.cfg.host}:{self.cfg.port} didn't answer: {e}") from None
 
-    def call(self, method: str, *params):
-        if self.sock is None:
-            self._connect()
-        self.n += 1
-        msg = json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
+    def _line(self) -> bytes:
         try:
-            self.sock.sendall(msg.encode() + b"\n")
             while b"\n" not in self.buf:
                 chunk = self.sock.recv(65536)
                 if not chunk:
@@ -236,19 +257,47 @@ class Electrum:
         except OSError as e:
             raise SourceError(f"The Electrum server stopped answering: {e}") from None
         line, self.buf = self.buf.split(b"\n", 1)
-        out = json.loads(line, parse_float=Decimal)
+        return line
+
+    def call(self, method: str, *params, want: type | None = None):
+        """One request's answer, matched to it by its id: a notice the server pushes, such as
+        a new block once the tip is subscribed, is no answer (S1.6.2.3)."""
+        if self.sock is None:
+            self._connect()
+        self.n += 1
+        msg = json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
+        try:
+            self.sock.sendall(msg.encode() + b"\n")
+        except OSError as e:
+            raise SourceError(f"The Electrum server stopped answering: {e}") from None
+        while True:
+            try:
+                out = json.loads(self._line(), parse_float=Decimal)
+            except ValueError:
+                out = None
+            if not isinstance(out, dict):
+                raise SourceError(f"The Electrum server's answer to {method} couldn't be read.")
+            if out.get("id") is None and "method" in out:
+                continue
+            if out.get("id") != self.n:
+                raise SourceError(f"The Electrum server answered another request than {method}.")
+            break
         if out.get("error"):
             raise SourceError(f"The Electrum server refused {method}: {out['error']}")
-        return out.get("result")
+        result = out.get("result")
+        if want is not None and not isinstance(result, want):
+            raise SourceError(f"The Electrum server's answer to {method} isn't what was asked.")
+        return result
 
     def close(self):
         if self.sock is not None:
             self.sock.close()
 
+    @_reads("The Electrum server")
     def test(self) -> str:
         self.testing = True
         ver = self.call("server.version", "MoolaKata", "1.4")
-        tip = self.call("blockchain.headers.subscribe")
+        tip = self.call("blockchain.headers.subscribe", want=dict)
         self.close()
         out = f"{ver[0] if isinstance(ver, list) else ver} answered: block {tip['height']:,}"
         if self.cfg.tls and self.seen:
@@ -260,22 +309,25 @@ class Electrum:
 
     def _tx(self, txid: str) -> bytes:
         if txid not in self.raw:
-            self.raw[txid] = bytes.fromhex(self.call("blockchain.transaction.get", txid, False))
+            self.raw[txid] = bytes.fromhex(
+                self.call("blockchain.transaction.get", txid, False, want=str)
+            )
         return self.raw[txid]
 
+    @_reads("The Electrum server")
     def history(self, addresses: list[str]) -> list[Tx]:
         scripts = {bk.script_of(a): a for a in addresses}
         txs: dict[str, int] = {}
         for script in scripts:
             sh = hashlib.sha256(script).digest()[::-1].hex()
-            for h in self.call("blockchain.scripthash.get_history", sh):
+            for h in self.call("blockchain.scripthash.get_history", sh, want=list):
                 txs[h["tx_hash"]] = h["height"]
         times: dict[int, dt.datetime] = {}
-        tip = self.call("blockchain.headers.subscribe")["height"] if txs else 0
+        tip = self.call("blockchain.headers.subscribe", want=dict)["height"] if txs else 0
         out = []
         for txid, height in txs.items():
             if height > 0 and height not in times:
-                header = bytes.fromhex(self.call("blockchain.block.header", height))
+                header = bytes.fromhex(self.call("blockchain.block.header", height, want=str))
                 times[height] = dt.datetime.fromtimestamp(
                     int.from_bytes(header[68:72], "little"), dt.UTC
                 )
@@ -336,12 +388,14 @@ class Core:
             raise SourceError(f"Bitcoin Core refused {method}: {out['error'].get('message')}")
         return out["result"]
 
+    @_reads("Bitcoin Core")
     def test(self) -> str:
         info = self.call("getblockchaininfo")
         if info.get("chain") != "main":
             raise SourceError(f"Bitcoin Core follows {info.get('chain')}, not mainnet.")
         return f"Bitcoin Core answered: block {info['blocks']:,}"
 
+    @_reads("Bitcoin Core")
     def wallet(self, name: str, wanted: list[tuple[str, int | None]]) -> None:
         """The watch-only descriptor wallet for one wallet account, made or loaded, with its
         descriptors imported over the range derived (a rescan from the start the first
@@ -368,6 +422,7 @@ class Core:
         if new:
             self.call("importdescriptors", new, wallet=name)
 
+    @_reads("Bitcoin Core")
     def history_of(self, name: str) -> tuple[list[Tx], set[str]]:
         """The wallet's transactions, and every address of its that has received."""
         txs: dict[str, Tx] = {}

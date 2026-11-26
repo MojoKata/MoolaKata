@@ -334,7 +334,11 @@ def _raw(ins, outs, segwit=False) -> bytes:
     return b + b"\x00" * 4
 
 
-def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
+def _electrum_answers():
+    """An Electrum server's answers for a wallet with 0.5 BTC in at receive 0, then 0.2 sent
+    from it, the change at change 0."""
+    import hashlib
+
     first, change = keys.script_of(FIRST), keys.script_of(CHANGE)
     other = keys.script_of("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy")
     fund = _raw([("11" * 32, 0)], [(first, 50_000_000)], segwit=True)
@@ -347,29 +351,137 @@ def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
         ],
         change: [{"tx_hash": "cd" * 32, "height": 900_100}],
     }
-    import hashlib
-
     by_hash = {hashlib.sha256(s).digest()[::-1].hex(): v for s, v in hist.items()}
+    raws = {"ab" * 32: fund, "cd" * 32: spend, "11" * 32: _raw([("22" * 32, 0)], [(other, 1)])}
 
-    def call(self, method, *params):
+    def answer(method, *params):
+        if method == "server.version":
+            return ["Fulcrum 1.11", "1.4"]
         if method == "blockchain.scripthash.get_history":
             return by_hash.get(params[0], [])
         if method == "blockchain.block.header":
             return header.hex()
         if method == "blockchain.headers.subscribe":
-            return {"height": 900_105}
+            return {"height": 900_105, "hex": header.hex()}
         if method == "blockchain.transaction.get":
-            return {
-                "ab" * 32: fund,
-                "cd" * 32: spend,
-                "11" * 32: _raw([("22" * 32, 0)], [(other, 1)]),
-            }[params[0]].hex()
+            return raws[params[0]].hex()
         raise AssertionError(method)
 
-    monkeypatch.setattr(sources.Electrum, "call", call)
+    return answer
+
+
+ELECTRUM_GOT = {"ab" * 32: (50_000_000, 0, 106), "cd" * 32: (-20_001_000, 1_000, 6)}
+
+
+def _got(txs):
+    return {t.txid: (t.net, t.fee, t.confirmations) for t in txs}
+
+
+def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
+    answer = _electrum_answers()
+    monkeypatch.setattr(sources.Electrum, "call", lambda self, m, *p, **kw: answer(m, *p))
     e = sources.Electrum(sources.Config(kind="electrum", host="node.lan"), guard=None)
-    got = {t.txid: (t.net, t.fee, t.confirmations) for t in e.history([FIRST, SECOND, CHANGE])}
-    assert got == {"ab" * 32: (50_000_000, 0, 106), "cd" * 32: (-20_001_000, 1_000, 6)}
+    assert _got(e.history([FIRST, SECOND, CHANGE])) == ELECTRUM_GOT
+
+
+class Wire:
+    """An Electrum server's end of the connection: each request answered by `answer`, by its
+    id, as one line; `before(request)` gives lines sent ahead of the answer, such as a header
+    notice, and `reply(request, out)` the answer's own line."""
+
+    def __init__(self, answer, before=None, reply=None, chunk=65536):
+        self.answer, self.before, self.reply, self.chunk = answer, before, reply, chunk
+        self.out = b""
+        self.asked: list[str] = []
+        self.closed = False
+
+    def sendall(self, data: bytes):
+        import json
+
+        req = json.loads(data)
+        self.asked.append(req["method"])
+        for line in (self.before or (lambda r: []))(req):
+            self.out += json.dumps(line).encode() + b"\n"
+        res = {
+            "jsonrpc": "2.0",
+            "id": req["id"],
+            "result": self.answer(req["method"], *req["params"]),
+        }
+        if self.reply:
+            res = self.reply(req, res)
+        self.out += (res if isinstance(res, bytes) else json.dumps(res).encode()) + b"\n"
+
+    def recv(self, n: int) -> bytes:
+        got, self.out = self.out[: self.chunk], self.out[self.chunk :]
+        return got
+
+    def close(self):
+        self.closed = True
+
+
+def _electrum(wire) -> sources.Electrum:
+    e = sources.Electrum(sources.Config(kind="electrum", host="node.lan", tls=False), guard=None)
+    e.sock = wire
+    return e
+
+
+NOTICE = {"jsonrpc": "2.0", "method": "blockchain.headers.subscribe", "params": [{"height": 1}]}
+
+
+def test_a_header_notice_mid_read_is_never_taken_for_an_answer():
+    """S1.6.2.3: a new block found while a wallet is read is noticed, not read as an answer."""
+    pushed = []
+
+    def before(req):
+        # The tip subscribed, a block is found before the next transaction's answer.
+        if req["method"] == "blockchain.transaction.get" and not pushed:
+            pushed.append(req["id"])
+            return [NOTICE, NOTICE]
+        return []
+
+    wire = Wire(_electrum_answers(), before, chunk=40)
+    assert _got(_electrum(wire).history([FIRST, SECOND, CHANGE])) == ELECTRUM_GOT
+    assert pushed and wire.closed
+
+
+@pytest.mark.parametrize(
+    "reply, words",
+    [
+        (lambda req, res: res | {"id": req["id"] + 7}, "answered another request"),
+        (lambda req, res: res | {"id": None}, "answered another request"),
+        (lambda req, res: [res], "couldn't be read"),
+        (lambda req, res: b"{not json", "couldn't be read"),
+        (lambda req, res: res | {"result": None}, "isn't what was asked"),
+        (lambda req, res: res | {"result": {"height": 1}}, "isn't what was asked"),
+    ],
+)
+def test_an_electrum_answer_not_to_the_request_is_refused(reply, words):
+    def only_the_transactions(req, res):
+        return reply(req, res) if req["method"] == "blockchain.transaction.get" else res
+
+    e = _electrum(Wire(_electrum_answers(), reply=only_the_transactions))
+    with pytest.raises(sources.SourceError, match=words) as got:
+        e.history([FIRST, SECOND, CHANGE])
+    assert FIRST not in str(got.value)
+
+
+def test_an_answer_a_read_cant_use_is_the_wallets_reported_failure(server, jane, monkeypatch):
+    """S1.6.2.5: a source's answer that can't be read fails that wallet's read as its own
+    failure: Check now says so, and the hourly read reports it, never a server error."""
+    answer = _electrum_answers()
+
+    def short(method, *params):
+        out = answer(method, *params)
+        return "02000000" if method == "blockchain.transaction.get" else out
+
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
+    monkeypatch.setattr(sync, "source", lambda srv, s: _electrum(Wire(short)))
+    r = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    assert r.status_code == 502 and r.json()["code"] == "source-failed", r.text
+    assert "couldn't be read" in r.json()["detail"] and FIRST not in r.text
+    with pytest.raises(sources.SourceError, match="couldn't be read"):
+        sync.sync_all(server)
 
 
 def test_core_gets_the_keys_as_watch_only_descriptors():
