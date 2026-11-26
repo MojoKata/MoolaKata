@@ -44,7 +44,9 @@ or a payment can be changed to one.
 Each transaction once it has 6 confirmations, about an hour. Bitcoin received is a transfer in,
 its basis to be entered unless it is matched to a transfer out of another of your accounts; bitcoin
 sent is a transfer out, and its network fee a sale of the fee's sats at that day's price, beside a
-fee of the same amount. A transaction the explorer or node no longer has is never deleted: once
+fee of the same amount. Each is dated by the day it was confirmed in the time zone of the wallet's
+owner (their Profile); a change of zone dates them again, except one that would move into or out
+of a year whose return is filed. A transaction the explorer or node no longer has is never deleted: once
 two reads in a row miss it, it is marked _no longer on the chain_. Keep it, and it stays kept; or
 delete it.
 

@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import clock
+from .. import clock, timezones
 from ..auth import signup, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
@@ -266,6 +266,21 @@ def _user_current(ctx, u: User) -> dict:
             "active": u.active, "groupIds": accounts.group_ids(ctx.s, u.id)}  # fmt: skip
 
 
+def _has_wallet(s, user_id: str) -> bool:
+    from ..store.entities.accounts import Account
+
+    return (
+        s.scalars(
+            select(Account.id).where(
+                Account.ownerId == user_id,
+                Account.type == "crypto-wallet",
+                Account.deleted == false(),
+            )
+        ).first()
+        is not None
+    )
+
+
 def _user_update(ctx, u: User, body: UserRecord) -> None:
     from . import profile
 
@@ -275,7 +290,12 @@ def _user_update(ctx, u: User, body: UserRecord) -> None:
         raise refuse("username", "username-fixed", "A user keeps their username.")
     if u.id == ctx.caller.id and not sent & {"email", "active", "groupIds"}:
         # Their own Profile: their name among it.
+        was = timezones.zone_for(u.timeZone)
         profile.change(ctx.s, u, body, sent & set(profile.PROFILE_FIELDS))
+        if timezones.zone_for(u.timeZone) != was and _has_wallet(ctx.s, u.id):
+            # Their bitcoin is dated in their zone: read again, and dated again (S1.6.2.6).
+            srv = server(ctx.request)
+            ctx.after("bitcoin.zone", lambda: srv.tasks.run_now("bitcoin"))
         return
     if sent & (set(profile.PROFILE_FIELDS) - {"displayName"}):
         field = sorted(sent & set(profile.PROFILE_FIELDS))[0]
