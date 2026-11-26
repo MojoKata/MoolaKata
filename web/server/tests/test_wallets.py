@@ -668,7 +668,7 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, jane, mo
                     amount=0,
                     instrumentId=btc.id,
                     quantity=D("0.1"),
-                    fitId=f"btc:{kind}",
+                    fitId="btc:" + "c" * 64,  # both sides of one transaction on the chain
                 )
             )
         from moolakata.bitcoin import transfers

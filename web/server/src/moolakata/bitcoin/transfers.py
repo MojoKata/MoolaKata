@@ -27,6 +27,21 @@ def _taken(s: Session, owner_id: str) -> set[str]:
     return out
 
 
+def _chain(t: Transaction) -> str | None:
+    """The transaction on the chain a wallet's row records, or None for a line with none."""
+    return t.fitId.removeprefix("btc:") if t.fitId and t.fitId.startswith("btc:") else None
+
+
+def _alike(o: Transaction, i: Transaction) -> bool:
+    """Two wallets' sides are one transaction on the chain: the same id, whatever their dates,
+    and two ids never; a side with none (an exchange's or a brokerage's line) pairs within
+    days (S1.7.1)."""
+    a, b = _chain(o), _chain(i)
+    if a and b:
+        return a == b
+    return abs((i.date - o.date).days) <= DAYS
+
+
 def propose(s: Session, owner_id: str) -> int:
     """Shares, funds or coins that left one of the owner's accounts and arrived in another,
     the same quantity within days, proposed as a pair (S1.7.1): confirmed, they carry
@@ -61,13 +76,13 @@ def propose(s: Session, owner_id: str) -> int:
     outs = [t for t in rows if t.kind == "transfer-out" and t.id not in taken]
     ins = [t for t in rows if t.kind == "transfer-in" and t.id not in taken]
     for o in sorted(outs, key=lambda t: t.date):
-        for i in sorted(ins, key=lambda t: abs((t.date - o.date).days)):
+        for i in sorted(ins, key=lambda t: (_chain(t) != _chain(o), abs((t.date - o.date).days))):
             if (
                 i.id in taken
                 or i.accountId == o.accountId
                 or i.instrumentId != o.instrumentId
                 or abs(i.quantity or 0) != abs(o.quantity or 0)
-                or abs((i.date - o.date).days) > DAYS
+                or not _alike(o, i)
                 or (o.id, i.id) in rejected
             ):
                 continue
