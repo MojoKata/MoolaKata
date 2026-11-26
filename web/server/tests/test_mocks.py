@@ -68,6 +68,13 @@ def test_the_fake_electrum_server_speaks_the_protocol_with_tls_trusted_on_first_
     c = mocks.chain
     got = _by_kind(c, e.history([c.first, c.change, c.far]))
     assert got == EXPECTED, got
+    tested = sources.Electrum(trusted, guard()).test()
+    assert tested.endswith(f"certificate SHA-256 {mocks.electrum.cert_sha256}"), tested
+    # Another certificate than the one confirmed: refused until an admin confirms it.
+    other = sources.Config(**{**trusted.__dict__, "certSha256": "00" * 32})
+    with pytest.raises(sources.CertificateChanged, match="isn't the one trusted") as refused:
+        sources.Electrum(other, guard()).history([c.first])
+    assert refused.value.sha256 == mocks.electrum.cert_sha256
 
 
 def test_the_fake_core_makes_a_watch_only_wallet_and_lists_its_transactions(mocks):
