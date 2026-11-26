@@ -751,13 +751,12 @@ def test_profile_changes_are_checked_and_versioned(server):
     c = sign_in(server, "joy")
     p = c.get("/ui/api/profile").json()
     assert p["timeZone"] == "auto" and p["zone"]
-    r = change(c, "User", p, timeZone="America/Denver", theme="light", birthYear=1979)
-    assert saved(r)["zone"] == "America/Denver" and saved(r)["version"] == p["version"] + 1
+    r = change(c, "User", p, theme="light", birthYear=1979)
+    assert saved(r)["theme"] == "light" and saved(r)["version"] == p["version"] + 1
     r = change(c, "User", p, theme="dark")
     assert r.status_code == 412
     v = r.json()["current"][0]["current"]["version"]
     for bad in (
-        {"timeZone": "Mars/Base"},
         {"avatar": "javascript:alert(1)"},
         {"theme": "neon"},
         {"birthYear": 1200},

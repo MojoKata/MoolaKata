@@ -19783,6 +19783,9 @@
               "sign-in-needs-tls",
               "signup-needs-email",
               "signup-off",
+              "since-future",
+              "since-invalid",
+              "since-required",
               "smtp-failed",
               "smtp-not-set",
               "sold-before-bought",
@@ -19819,6 +19822,7 @@
               "term-invalid",
               "testnet",
               "theme-invalid",
+              "time-zone-kept",
               "token-fixed",
               "token-refused",
               "too-large",
@@ -20324,6 +20328,9 @@
                   "sign-in-needs-tls",
                   "signup-needs-email",
                   "signup-off",
+                  "since-future",
+                  "since-invalid",
+                  "since-required",
                   "smtp-failed",
                   "smtp-not-set",
                   "sold-before-bought",
@@ -20360,6 +20367,7 @@
                   "term-invalid",
                   "testnet",
                   "theme-invalid",
+                  "time-zone-kept",
                   "token-fixed",
                   "token-refused",
                   "too-large",
@@ -26314,6 +26322,38 @@
         "title": "TestEmail",
         "type": "object"
       },
+      "TimeZoneRecord": {
+        "additionalProperties": false,
+        "description": "A time zone in effect from a date, as Profile's save makes it (S14.9.2): today's date\nfor a move, an earlier one for a correction. Made, never changed: another replaces it.",
+        "properties": {
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Since"
+          },
+          "timeZone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone"
+        ],
+        "title": "TimeZoneRecord",
+        "type": "object",
+        "x-creates": {
+          "who": "own"
+        },
+        "x-entity": "UsrTz"
+      },
       "ToMoveOut": {
         "additionalProperties": false,
         "properties": {
@@ -28169,11 +28209,6 @@
           "theme": {
             "default": "system",
             "title": "Theme",
-            "type": "string"
-          },
-          "timeZone": {
-            "default": "auto",
-            "title": "Timezone",
             "type": "string"
           },
           "username": {

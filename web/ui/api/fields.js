@@ -532,6 +532,10 @@ export const FIELDS = {
     allow: {"type": "choice", "choices": ["read", "write"]},
     includeReceipts: {"type": "bool"},
   },
+  TimeZoneRecord: {
+    timeZone: {"type": "text"},
+    since: {"type": "date", "nullable": true},
+  },
   TokenItem: {
     kind: {"type": "text"},
     id: {"type": "text"},
@@ -591,7 +595,6 @@ export const FIELDS = {
     active: {"type": "bool"},
     groupIds: {"type": "list", "items": {"type": "ref", "prefix": "Group"}, "set": true},
     avatar: {"type": "text", "nullable": true},
-    timeZone: {"type": "text"},
     theme: {"type": "text"},
     birthMonth: {"type": "int", "nullable": true},
     birthDay: {"type": "int", "nullable": true},
@@ -677,5 +680,6 @@ export const CREATES = {
   Txn: {"via": "accountId", "needs": "writable"},
   TyPrc: {"who": "own"},
   User: {"who": "code"},
+  UsrTz: {"who": "own"},
   Valtn: {"via": "itemId", "needs": "writable"},
 };

@@ -8,11 +8,10 @@ deleted. Nothing is sent to the explorer or node but the addresses or the public
 import datetime as dt
 import logging
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import false, select
 
-from .. import clock, ids, settings, timezones
+from .. import clock, ids, settings, user_zones
 from ..store.entities.accounts import (
     Account,
     Instrument,
@@ -22,7 +21,6 @@ from ..store.entities.accounts import (
     WalletKey,
 )
 from ..store.entities.prices import Price
-from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..store.repos import secrets as secret_repo
 from . import sources, wallet
@@ -207,59 +205,10 @@ def revalue_fees(s, account_id: str) -> int:
     return done
 
 
-def zone_of(s, a: Account) -> ZoneInfo:
-    """A transaction is a moment on the chain, dated in the zone of its account's owner (S1.6.2.6,
-    S14.9.2): the taxpayer whose lots, holding periods and fee sales it makes, not the server."""
-    return ZoneInfo(timezones.zone_for(s.get(User, a.ownerId).timeZone))
-
-
-def redate(s, a: Account, txs: list[sources.Tx], zone: ZoneInfo) -> int:
-    """Each recorded transaction of the read dated again in its owner's zone as it is now, with its
-    fee's sale and cash, so a change of zone re-dates it (S1.6.2.6). A date its moment has in no
-    zone (more than a day from its day in UTC) was typed by hand, and stays; so does one the new
-    date would move into or out of a closed tax year (S2.8.1). Returns those dated again."""
-    moments = {f"btc:{t.txid}": t.confirmedAt for t in txs if t.confirmedAt is not None}
-    rows = s.scalars(
-        select(Transaction).where(
-            Transaction.accountId == a.id,
-            Transaction.fitId.in_(moments),
-            Transaction.deleted == false(),
-        )
-    ).all()
-    closed: set[int] | None = None
-    done = 0
-    for r in rows:
-        at = moments[r.fitId]
-        day = at.astimezone(zone).date()
-        if r.date == day or abs((r.date - at.astimezone(dt.UTC).date()).days) > 1:
-            continue
-        if r.date.year != day.year:
-            if closed is None:
-                from ..taxes import closed as closed_years
-
-                closed = closed_years.years_of(s, a.id)
-            if {r.date.year, day.year} & closed:
-                continue
-        r.date = day
-        txid = r.fitId.removeprefix("btc:")
-        for f in s.scalars(
-            select(Transaction).where(
-                Transaction.accountId == a.id,
-                Transaction.fitId.in_((f"btcfee:{txid}", f"btcfeecash:{txid}")),
-                Transaction.deleted == false(),
-            )
-        ):
-            # The fee's sale is at its new day's price: valued again below, as one waiting.
-            f.date, f.amount = day, Decimal(0)
-            if f.kind == "sell":
-                f.price = None
-        done += 1
-    return done
-
-
 def record(s, account_id: str, txs: list[sources.Tx]) -> int:
-    """Each transaction of the read deep enough recorded once, by its txid (S1.6.2.6); those
-    recorded before dated again in their owner's zone, and fees valued that waited."""
+    """Each transaction of the read deep enough recorded once, by its txid (S1.6.2.6), dated by
+    its moment in the time zone in effect for its owner then (S1.6.2.6.1); a moment kept for
+    those recorded without one, and fees valued that waited."""
     a = s.get(Account, account_id)
     have = set(
         s.scalars(
@@ -268,7 +217,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             )
         )
     )
-    zone = zone_of(s, a)
+    zones = user_zones.Bitcoin(s, a.ownerId)
     btc = repo.instrument(s, "BTC", "Bitcoin", "crypto")
     made = 0
     for t in sorted(txs, key=lambda x: x.confirmedAt or dt.datetime.max.replace(tzinfo=dt.UTC)):
@@ -286,7 +235,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
         row = Transaction(
             id=ids.new_id("Txn"),
             accountId=a.id,
-            date=t.confirmedAt.astimezone(zone).date(),
+            date=zones.day(t.confirmedAt),
             kind="transfer-out" if sent else "transfer-in",
             amount=Decimal(0),
             payee=("Sent bitcoin" if sats else "Network fee") if sent else "Received bitcoin",
@@ -295,6 +244,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             quantity=Decimal(sats) / SAT,
             lotMethod=a.lotMethod if sent else None,
             fitId=f"btc:{t.txid}",
+            confirmedAt=t.confirmedAt,
         )
         s.add(row)
         s.flush()
@@ -302,10 +252,24 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             _fee(s, a, btc, row, fee, t.txid)
         made += 1
     s.flush()
-    redate(s, a, txs, zone)
-    s.flush()
+    _keep_moments(s, account_id, txs)
     revalue_fees(s, account_id)
     return made
+
+
+def _keep_moments(s, account_id: str, txs: list[sources.Tx]) -> None:
+    """A transaction recorded without its moment is given it by the next read that has it: its
+    date stays, as a correction of a time zone dates again only what has one (S1.6.2.6.1)."""
+    moments = {f"btc:{t.txid}": t.confirmedAt for t in txs if t.confirmedAt is not None}
+    for r in s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == account_id,
+            Transaction.fitId.in_(moments),
+            Transaction.confirmedAt.is_(None),
+        )
+    ):
+        r.confirmedAt = moments[r.fitId]
+    s.flush()
 
 
 def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:

@@ -53,15 +53,6 @@ def closing_books(s: Session) -> list[TaxBook]:
     )
 
 
-def years_of(s: Session, account_id: str) -> set[int]:
-    """The tax years closed for the account: those of the closing books that count it (S2.8.1)."""
-    return {
-        b.year
-        for b in closing_books(s)
-        if any(a.id == account_id for a in books.counted(s, b).accounts)
-    }
-
-
 def book_gains(s: Session, book: TaxBook) -> dict[str, Decimal]:
     """The book's realized gains by account: its Form 8949 rows' (S8.1), as the server reads
     them."""
