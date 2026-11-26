@@ -869,6 +869,10 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
     srv = server(request)
     address = request.client.host if request.client else "-"
     guard = srv.sign_in
+    # The server is unlocked, so the lockout is the one Settings › Sign-in and sessions sets;
+    # only the unlock, with the database unread, uses the defaults (S16.3).
+    with srv.db.read(user=c.id) as s:
+        lockout = settings.get(s, "lockoutFailures"), settings.get(s, "lockoutMinutes")
     wait = guard.locked(address)
     if wait:
         raise Problem(
@@ -877,20 +881,20 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
             "Too many wrong phrases: try again later.",
             headers={"Retry-After": str(int(wait) + 1)},
         )
-    with guard.attempt(address):
+    with guard.attempt(address, lockout[0]):
         delay = guard.delay(LOGIN, address)
         if delay:
             await asyncio.sleep(delay)
         try:
             key = phrase.from_words(body.phrase)
         except phrase.PhraseError as e:
-            guard.failed(LOGIN, address)
+            guard.failed(LOGIN, address, *lockout)
             raise Problem(422, "phrase-invalid", f"Not a recovery phrase: {e}") from None
         ring = master.read_keyring(srv.config.keyring_path)
         try:
             master.unwrap(key, ring)
         except ValueError:  # a valid phrase, but not the key that wrapped this keyring
-            guard.failed(LOGIN, address)
+            guard.failed(LOGIN, address, *lockout)
             with srv.db.tx(user=c.id) as s:
                 activity.record(
                     s,

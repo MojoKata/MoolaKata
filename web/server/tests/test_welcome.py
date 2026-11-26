@@ -195,6 +195,26 @@ def test_verify_key_checks_a_copy_of_the_phrase_and_changes_nothing(
         assert r.status_code == 403
 
 
+def test_verify_key_counts_wrong_phrases_by_settings_lockout(admin_client, server, master_key):
+    """S15.6.5, S16.3: with the server unlocked, a wrong phrase at Verify key counts toward the
+    lockout Settings › Sign-in and sessions sets (3 failures here, not the default 10), as
+    Remove copy's does."""
+    import os
+
+    from edits import save_settings
+
+    r = save_settings(admin_client, {"lockoutFailures": 3, "lockoutMinutes": 1440})
+    assert r.status_code == 200, r.text
+    other = " ".join(phrase.to_words(os.urandom(16)))
+    codes = [
+        admin_client.post("/ui/api/settings/keys/verify", json={"phrase": other}).json()["code"]
+        for _ in range(4)
+    ]
+    assert codes == ["phrase-wrong", "phrase-wrong", "phrase-wrong", "locked-out"]
+    r = admin_client.post("/ui/api/settings/keys/verify", json={"phrase": "not a phrase"})
+    assert r.status_code == 429 and int(r.headers["Retry-After"]) > 23 * 3600, "a day's lock"
+
+
 def test_the_health_check_counts_any_answer_as_alive(config, monkeypatch, capsys, tmp_path):
     """The image's check passes while the server answers at all, locked or uninitialised
     included (S13.6); nothing answering, or something else answering, fails it."""
