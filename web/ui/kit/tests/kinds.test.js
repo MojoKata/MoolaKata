@@ -130,10 +130,10 @@ Deno.test('a duration is bounded by durations, by its length however it is typed
     null,
     null,
   ]);
-  equal(check(span, b, '59m'), 'At least 1h.');
-  equal(check(span, b, '1w 1m'), 'At most 1w.');
+  equal(check(span, b, '59m'), '1h or more.');
+  equal(check(span, b, '1w 1m'), '1w or less.');
   equal(check(span, b, '8x'), "“x” isn't a unit: use w, d, h or m.", 'its form first');
-  equal(check(span, { atMost: '2d' }, '49h'), 'At most 2d.');
+  equal(check(span, { atMost: '2d' }, '49h'), '2d or less.');
   equal(check(span, b, ''), null, 'a blank is refused at Save, never marked');
 });
 

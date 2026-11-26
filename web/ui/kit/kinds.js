@@ -188,11 +188,11 @@ export function check(k, b, text, format = String, now = undefined) {
     return null;
   }
   if (k.minutes) {
-    // A duration's bounds are durations, named as they are typed: "At most 1w." (S12.13).
+    // A duration's bounds are durations, named as they are typed: "1w or less." (S12.13).
     const v = Number(k.minutes(t));
-    if (b.min != null && v < Number(k.minutes(String(b.min)))) return `At least ${b.min}.`;
+    if (b.min != null && v < Number(k.minutes(String(b.min)))) return `${b.min} or more.`;
     const most = b.max ?? b.atMost;
-    if (most != null && v > Number(k.minutes(String(most)))) return `At most ${most}.`;
+    if (most != null && v > Number(k.minutes(String(most)))) return `${most} or less.`;
     return null;
   }
   if (t.startsWith('-') && !b.negative) return `${format(0)} or more.`;

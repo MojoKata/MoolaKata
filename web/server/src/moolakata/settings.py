@@ -32,8 +32,11 @@ def _int(lo: int, hi: int) -> Callable[[Any], int]:
     def check(v: Any) -> int:
         if isinstance(v, bool) or not isinstance(v, int):
             raise Invalid("a whole number")
-        if not lo <= v <= hi:
-            raise Invalid(f"between {lo} and {hi}")
+        # Out of range is worded as the field marks it while typed (*3 or more.*).
+        if v < lo:
+            raise Invalid(f"between {lo} and {hi}", f"{lo} or more.")
+        if v > hi:
+            raise Invalid(f"between {lo} and {hi}", f"{hi} or less.")
         return v
 
     return check
@@ -41,17 +44,17 @@ def _int(lo: int, hi: int) -> Callable[[Any], int]:
 
 def _minutes(lo: int, hi: int) -> Callable[[Any], int]:
     """A length of time (S12.13), held in whole minutes: typed and shown as a duration, so its
-    range's ends are named as durations (*At most 1w.*)."""
+    range's ends are named as durations (*1w or less.*)."""
 
     def check(v: Any) -> int:
         if isinstance(v, bool) or not isinstance(v, int):
             raise Invalid("a duration in whole minutes")
         if v < lo:
             least = duration.format(dt.timedelta(minutes=lo))
-            raise Invalid(f"at least {least}", f"At least {least}.")
+            raise Invalid(f"at least {least}", f"{least} or more.")
         if v > hi:
             most = duration.format(dt.timedelta(minutes=hi))
-            raise Invalid(f"at most {most}", f"At most {most}.")
+            raise Invalid(f"at most {most}", f"{most} or less.")
         return v
 
     return check

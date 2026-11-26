@@ -9,4 +9,5 @@
     (`52w`). It is read by one helper on each side (`web/ui/kit/duration.js`,
     `moolakata/duration.py`), which refuses anything else and says why (*A duration is at most
     52w.*), and shown back the same way, so `2w 3d 4h` reads as typed. A field with a range of
-    its own names its ends as durations (*At most 1w.*).
+    its own names its ends as durations (*1w or less.*), as a number field names its own
+    (*100 or less.*).

@@ -1604,7 +1604,7 @@ def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, househol
     until(page, lambda: page.input_value("#f-link-release") == "1h 30m", what="shown back")
     page.fill("#f-link-release", "2m")
     page.press("#f-link-release", "Enter")
-    wait(page, '#f-link-release[data-tip="At least 5m."]', problems)
+    wait(page, '#f-link-release[data-tip="5m or more."]', problems)
     assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 90
     r = save_settings(h.c, {"linkReleaseMinutes": 60})
     assert r.status_code == 200, r.text
@@ -1634,7 +1634,7 @@ def test_the_timings_are_durations_in_their_ranges(browser, household):
     wait(page, '#f-idle-timeout-err:has-text("Give the units largest first")', problems)
     page.fill("#f-idle-timeout", "2w")
     page.click(f"{form} button.primary")
-    wait(page, '#f-idle-timeout-err:has-text("At most 1w.")', problems)
+    wait(page, '#f-idle-timeout-err:has-text("1w or less.")', problems)
     assert [p.split(" http")[0] for p in problems] == ["422 for"], "the server's refusal"
     problems.clear()
     # The server's refusal is the value's: a new value clears it, as at any other field.
