@@ -16,7 +16,18 @@ name of someone else already here is refused: one person, once.
 
 ## Time zone
 
-Times show in it. **Auto** follows the server's.
+Times show in it. **Auto** follows the server's. A bitcoin transaction is a moment on the chain: it
+is dated in the time zone you were in when it was confirmed.
+
+## Since when? {#since-when}
+
+Asked when you change your time zone: the date the new one is in effect from. **Today**, the usual,
+is a move: what came before keeps the time zone it had, and nothing is dated again. An earlier date
+is a correction, when you were already there then: bitcoin transactions confirmed from that date on
+are dated again in the new time zone, their network fee's sale valued at the new day's price, and a
+date you typed yourself stays. When that moves the gains of a year whose return is filed, Save asks
+first, and the tax book lists the change. A blank date, one before 1900, or one still to come where
+the new time zone is, is refused.
 
 ## Theme
 
