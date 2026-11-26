@@ -192,11 +192,15 @@ def revalue_fees(s, account_id: str) -> int:
             continue
         value = (t.quantity * price).quantize(Decimal("0.01"))
         t.amount, t.price = value, price
+        # Its own wallet's cash: two of the owner's wallets may spend in one transaction. Every
+        # fee's sale is made beside its cash (`_fee`), and records are never removed.
         cash = s.scalars(
-            select(Transaction).where(Transaction.fitId == "btcfeecash:" + t.fitId[7:])
-        ).first()
-        if cash is not None:
-            cash.amount = -value
+            select(Transaction).where(
+                Transaction.accountId == account_id,
+                Transaction.fitId == "btcfeecash:" + t.fitId[7:],
+            )
+        ).one()
+        cash.amount = -value
         done += 1
     return done
 

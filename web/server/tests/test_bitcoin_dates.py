@@ -139,11 +139,13 @@ def test_a_zone_change_never_moves_a_transaction_out_of_a_closed_year(server, ja
 def test_a_zone_change_never_moves_a_transaction_into_a_closed_year(server, jane):
     w = _wallet(jane)
     got = sources.Tx("b" * 64, AT, 5_000, 0)
-    _read(server, w, got)  # Auto: Chicago, Jan 1 2027
+    sent = sources.Tx("c" * 64, AT + dt.timedelta(minutes=5), -6_000, 500)
+    _read(server, w, got, sent)  # Auto: Chicago, Jan 1 2027
     _close_2026(jane)
     _zone(server, jane, "America/Los_Angeles")
-    _read(server, w, got)
-    assert _dates(server, w) == {"transfer-in": JAN1}
+    _read(server, w, got, sent)
+    assert _dates(server, w) == {"transfer-in": JAN1, "transfer-out": JAN1, "sell": JAN1,
+                                 "fee": JAN1}  # fmt: skip
 
 
 def test_changing_ones_zone_reads_the_wallets_again(server, jane, monkeypatch):
