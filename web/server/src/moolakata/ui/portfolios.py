@@ -130,20 +130,19 @@ def shape(s, user: User, p: Portfolio | None, held: Perms) -> PortfolioRow:
 
 def _check(s, user_id: str, body) -> list[FieldError]:
     errors = []
-    if body.name is not None and (not body.name.strip() or len(body.name) > 80):
+    if not body.name.strip() or len(body.name) > 80:
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
-    if body.benchmark is not None and body.benchmark not in BENCHMARKS:
+    if body.benchmark not in BENCHMARKS:
         errors.append(FieldError("benchmark", "benchmark-invalid", "VT, SPY or a 60/40 mix."))
-    if body.accountIds is not None:
-        mine = {a.id for a, _ in access.accounts(s, user_id)}
-        if any(a not in mine for a in body.accountIds):
-            errors.append(
-                FieldError(
-                    "accountIds",
-                    "account-unknown",
-                    "Choose accounts you own or that are shared with you.",
-                )
+    mine = {a.id for a, _ in access.accounts(s, user_id)}
+    if any(a not in mine for a in body.accountIds):
+        errors.append(
+            FieldError(
+                "accountIds",
+                "account-unknown",
+                "Choose accounts you own or that are shared with you.",
             )
+        )
     return errors
 
 
