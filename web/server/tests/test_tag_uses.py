@@ -161,3 +161,9 @@ def test_a_tag_name_is_its_owners_once_and_only_its_owner_changes_it(server):
             ("not-found", "Not found")
         ]
     assert set(_mine(jane)) == {"coffee", "work"}
+    # Renamed, it is kept as typed in lower case, and the change recorded.
+    r = change(jane, "Tag", have["coffee"], name="Espresso")
+    assert r.status_code == 200, r.text
+    assert set(_mine(jane)) == {"espresso", "work"}
+    kinds = [x["kind"] for x in jane.get("/ui/api/activity").json()["items"]]
+    assert kinds.count("tag.renamed") == 1
