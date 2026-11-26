@@ -199,6 +199,21 @@ def test_giving_on_pace_or_without_a_plan_needs_nothing(server, jane):
     assert attention(jane, "giving-behind") == []
 
 
+# ---- A lot without a cost basis ----
+
+
+def test_a_lot_moved_in_without_its_basis_needs_its_accounts_writer(jane):
+    from test_accounts import FIX, upload
+
+    a = new_account(jane, name="Schwab", type="brokerage", institution="Charles Schwab")
+    data = (FIX / "imports" / "schwab-transfer-in.ofx").read_bytes()
+    assert upload(jane, a["id"], "transfer.ofx", data)["state"] == "done"
+    (got,) = attention(jane, "basis-missing")
+    assert (got["text"], got["count"], got["link"]) == (
+        "1 lot without a cost basis", 1, "/ui/accounts"
+    )  # fmt: skip
+
+
 # ---- Stale valuations (S4.3, S1.10.2) ----
 
 
