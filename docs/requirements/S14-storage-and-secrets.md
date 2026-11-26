@@ -88,13 +88,25 @@
       opening, a price's `as_of`), and shown in the viewer's time zone.
    2. **Each user's time zone** is set in Profile: **Auto**, the server's time zone (from the
       host, which gives the container its `/etc/localtime` and `TZ`, S17.8; shown in Settings ›
-      General), or a zone they choose by name (`America/Denver`).
+      General), or a time zone they choose by name (`America/Denver`). A change asks **Since
+      when?**, the date the new time zone is in effect from, today by default:
+      1. **Today is a move**: the time zone in effect before it stays so for everything that
+         came before. **An earlier date is a correction**: the new time zone was already in
+         effect then.
+      2. A user's time zones are kept with the date each is in effect from: each from 00:00
+         of its date, in that time zone, until the next one starts; before every one, the
+         earliest. A change replaces the ones from its date on. *Auto* is the server's time
+         zone whenever it is used. A user who never changed it has theirs at every moment.
+      3. A blank date, one before 1900, or one whose 00:00 in the new time zone hasn't come, is
+         refused at its field (R3.11).
+      4. A user's time zones are theirs alone to see and change.
    3. **Calendar dates have no time zone**: a transaction's date, a statement's period, the
       day of a balance or positions a file reports, a birthday and a due date are dates as
       the institution or the user wrote them, never shifted. A bitcoin transaction is a moment
-      on the chain, not a date written: it is dated in its owner's zone (S1.6.2.6.1).
+      on the chain, not a date written: it is dated in the time zone in effect for its owner at
+      that moment (S1.6.2.6.1).
    4. **A trading day** is the US market's, in New York time: a daily close is dated by its
-      market day, whatever the viewer's zone (S4.4).
+      market day, whatever the viewer's time zone (S4.4).
    5. **"Today" for a user** follows their time zone: the year a tax year screen opens on,
       when an occasion's lead time starts, and the hour their daily summary email goes out
       (S12.11.5).

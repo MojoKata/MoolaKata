@@ -74,12 +74,16 @@
          coins held start a price refresh, so the wallet is valued at once.
          1. **Its date**: a transaction is a moment, its confirmation, and its date in the
             ledger (its lots, holding periods, fee's sale, transfer pairing and budgets) is that
-            moment's day in the time zone of the account's owner (S14.9.2), whoever views it.
-            When the owner's zone changes, the wallet is read again and each transaction dated
-            again, its fee's sale valued at its new day's price; one the new date would move
-            into or out of a closed tax year (S2.8.1) keeps its date. A date the owner typed
-            that its moment has in no zone stays as typed. Where its time is shown, it is in
-            the viewer's zone (S14.9.1).
+            moment's day in the time zone in effect for the account's owner at that moment
+            (S14.9.2), whoever views it; the moment is kept with it. A move (a new time zone
+            from today) never dates the past again. A correction (from an earlier date) dates
+            again, in the Profile's save, each transaction confirmed from that date on, its
+            fee's sale and cash valued at its new day's price; one whose date isn't its moment's
+            day in the time zone in effect before was typed by the owner, and stays. A
+            correction that moves the gains of a year whose return is filed asks first, and,
+            confirmed, is listed on its tax book (S2.8.2). A transaction recorded before its
+            moment was kept is given it by the next read, its date unchanged. Where its time is
+            shown, it is in the viewer's time zone (S14.9.1).
       7. **A reorganised chain**: a recorded transaction that the explorer or node no longer
          has is never deleted silently. Once two reads in a row miss it, it is marked *no
          longer on the chain* and the owner alerted, to keep or delete it; a transaction kept
