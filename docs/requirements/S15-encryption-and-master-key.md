@@ -253,7 +253,7 @@ replica holds only the right-hand side, and a backup can be made of the whole ho
    5. **Check the backup.** **Verify key** in Settings › Key Storage, or `moolakata keys
       verify` on the host, asks for the whole phrase and says whether it unwraps the keyring,
       without changing anything; a wrong phrase counts toward the lockout, as at the unlock
-      (S15.4.2). Settings › Key Storage records each confirmation: which fingerprint, and
+      (S15.4.2), by the figures Settings › Sign-in and sessions sets (S16.3). Settings › Key Storage records each confirmation: which fingerprint, and
       when. Check the copies once a year: that the sheet
       is readable, and that the password manager entry still verifies. Settings reminds admins
       when a year has passed. Every unlock is a check as well: a copy that unlocks the server

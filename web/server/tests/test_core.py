@@ -301,6 +301,29 @@ def test_stream_ends_when_the_session_does():
     assert out[-1] == 'event: session\ndata: {"state": "signed-out"}\n\n'
 
 
+def test_a_stream_ends_on_its_sessions_end_and_one_begun_while_stopping_says_hello_only():
+    """S12.6: a session's end, published to its streams, is passed on and ends the stream;
+    one opened as the server stops says hello and ends at once."""
+
+    async def ok():
+        return None
+
+    async def scenario():
+        broker = Broker()
+        broker.bind(asyncio.get_running_loop())
+        sub = broker.subscribe("User_a", "h1")
+        broker.end_session("h1", "signed-out")
+        ended = [c.decode() async for c in stream(broker, sub, {}, ok, seconds=5)]
+        broker.stopping = True
+        late = broker.subscribe("User_a", "h2")
+        stopped = [c.decode() async for c in stream(broker, late, {}, ok, seconds=5)]
+        return ended, stopped
+
+    ended, stopped = asyncio.run(scenario())
+    assert ended[-1] == 'event: session\ndata: {"state": "signed-out"}\n\n' and len(ended) == 3
+    assert [c.split("\n")[0] for c in stopped] == ["retry: 3000", "event: hello"]
+
+
 def test_jobs_are_their_users_own():
     seen = []
     jobs = Jobs(announce=seen.append)

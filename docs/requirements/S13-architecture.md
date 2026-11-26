@@ -150,9 +150,12 @@
    5. **Rate limits**, per client address and per user, answered with 429 and a
       `Retry-After`:
       1. sign-in, two-step codes, re-authentication, the current-password check, a reactivation
-         request and the unlock (S15.4.3): 10 failures in 15 minutes lock **the address they
-         came from** for 15 minutes, whoever they named, and so do 10 password-reset requests;
-         an attempt still being checked counts toward the 10, so attempts sent at once are
+         request, a phrase checked in Settings (**Verify key** and the others, S15.6.5) and
+         the unlock (S15.4.3): the failures S16.3 sets (10 by default) within 15 minutes lock
+         **the address they came from** for the length S16.3 sets (15 minutes by default),
+         whoever they named, and so do as many password-reset requests; the unlock, with the
+         database not yet read, uses the defaults;
+         an attempt still being checked counts toward them, so attempts sent at once are
          refused unchecked once they and the failures reach it; an IPv6 address counts by its
          /64; a username that keeps failing, from anywhere, is only slowed (half a second per
          failure past the third, up to five), never locked, so nobody can lock an admin out

@@ -216,6 +216,95 @@ def test_pruning_needs_the_password_again_and_the_count_and_keeps_the_record(
     assert c.get(f"/ui/api/receipts/{again['id']}/file").status_code == 200
 
 
+def _two_expired(server, c):
+    """Two expired Groceries receipts, each its own file: their ids and paths."""
+    from moolakata.receipts import file_path
+
+    cid, _ = cat(server, "Groceries", 1)
+    acct = new_account(c)
+    ids = []
+    for n in (1, 2):
+        t = add(c, acct["id"], f"-{n}.00", "2026-10-02", payee="Kroger", categoryId=cid)
+        ids.append(receipt_on(c, t["id"], png((n, 60, 70))))
+    with server.db.read(unscoped="test") as s:
+        paths = [file_path(server.config.receipts_dir, s.get(Receipt, r).fileId) for r in ids]
+    return ids, paths
+
+
+def test_a_prune_that_fails_before_its_commit_leaves_every_file(
+    server, frozen, admin_client, monkeypatch
+):
+    """S14.10.5: the files go only once the prune's rows are committed, so a prune whose
+    Activity entry fails leaves every receipt not pruned with its file."""
+    from moolakata import activity
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ids, paths = _two_expired(server, c)
+    _reauth(server)
+    real = activity.record
+
+    def failing(s, kind, *a, **k):
+        if kind == "files.pruned":
+            raise RuntimeError("the database is busy")
+        return real(s, kind, *a, **k)
+
+    monkeypatch.setattr(activity, "record", failing)
+    body = {"categories": ["Groceries"], "deleted": False, "count": 2}
+    with pytest.raises(RuntimeError):
+        admin_client.post("/ui/api/settings/storage/prune", json=body)
+    assert all(p.exists() for p in paths)
+    with server.db.read(unscoped="test") as s:
+        assert [s.get(Receipt, r).filePrunedAt for r in ids] == [None, None]
+    for rid in ids:
+        assert c.get(f"/ui/api/receipts/{rid}/file").status_code == 200
+
+
+def test_a_prune_removes_only_the_rows_it_counted(server, frozen, admin_client, monkeypatch):
+    """S14.10.5: the count typed is checked against the rows the prune marks, found once: one
+    more expiring between a first look and the write (a period shortened, midnight) is never
+    pruned unasked."""
+    from moolakata.receipts import retention
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    ids, paths = _two_expired(server, c)
+    _reauth(server)
+    real, calls = retention.prunable, []
+
+    def growing(s, *a, **k):
+        calls.append(1)
+        rows = real(s, *a, **k)
+        return rows[:1] if len(calls) == 1 else rows
+
+    monkeypatch.setattr(retention, "prunable", growing)
+    body = {"categories": ["Groceries"], "deleted": False, "count": 1}
+    r = admin_client.post("/ui/api/settings/storage/prune", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["files"] == 1 and [p.exists() for p in paths] == [False, True]
+    with server.db.read(unscoped="test") as s:
+        assert s.get(Receipt, ids[1]).filePrunedAt is None
+
+
+def test_a_file_needed_again_after_the_prune_commits_is_kept(server, frozen):
+    """S14.10.5: a file marked for removal is checked again once the prune is committed: one a
+    live receipt names by then (an upload of the same bytes reusing it) stays."""
+    from moolakata.receipts import file_path, retention
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    first = upload(c, png((7, 7, 7))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        a = s.get(Receipt, first)
+        files = retention.mark_pruned(s, [a], a.ownerId)
+        path = file_path(server.config.receipts_dir, a.fileId)
+    assert files == {a.fileId}
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, first).filePrunedAt = None  # named again before the removal
+    assert retention.remove_pruned(server, files) == 0 and path.exists()
+    assert c.get(f"/ui/api/receipts/{first}/file").status_code == 200
+
+
 def test_a_statement_expires_after_its_period_and_the_storage_setting(server, frozen, admin_client):
     from moolakata import receipts
     from moolakata.store.entities.receipts import Receipt
@@ -254,7 +343,8 @@ def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
         b.mark_deleted(None)
         path = retention.file_path(server.config.receipts_dir, a.fileId)
         assert path.exists()
-        assert retention.prune_files(server, s, [a], a.ownerId) > 0
+        files = retention.mark_pruned(s, [a], a.ownerId)
+    assert retention.remove_pruned(server, files) > 0
     assert not path.exists()
 
 
@@ -356,7 +446,8 @@ def test_after_a_prune_the_same_file_uploaded_again_is_stored_once(server, froze
     first = upload(jane, data).json()["id"]
     with server.db.tx(unscoped="test") as s:
         a = s.get(Receipt, first)
-        assert retention.prune_files(server, s, [a], a.ownerId) > 0
+        files = retention.mark_pruned(s, [a], a.ownerId)
+    assert retention.remove_pruned(server, files) > 0
     again = upload(jane, data).json()["id"]
     theirs = upload(john, data).json()["id"]
     with server.db.read(unscoped="test") as s:
@@ -578,7 +669,7 @@ def test_a_prune_leaves_a_file_a_live_receipt_still_needs(server, frozen):
     with server.db.tx(unscoped="test") as s:
         a = s.get(Receipt, rid)
         path = file_path(server.config.receipts_dir, a.fileId)
-        assert retention.prune_files(server, s, [a], a.ownerId) == 0
+        assert retention.mark_pruned(s, [a], a.ownerId) == set()
         assert s.get(Receipt, his).filePrunedAt is None
     assert path.exists()
     assert john.get(f"/ui/api/receipts/{his}/file").status_code == 200

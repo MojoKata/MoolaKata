@@ -6,7 +6,7 @@ the clear, and listed here for an admin to pass its link on.
 
 Emails go out in the background, so nothing waits on the mail server. They wait in the database,
 which is encrypted. One that can't be sent stays queued and is tried again every five minutes,
-until its link expires; one the server refuses outright is set aside, keeping only who it was for,
+until its link expires, or for a day when it has no link; one the server refuses outright is set aside, keeping only who it was for,
 its subject and the error. This section shows the queue and the last error.
 
 ![Settings: Email](shots/settings-email.png)
@@ -24,12 +24,14 @@ the stored SMTP password, so it is never sent to the new host: type it again for
 ## Security {#smtp-security}
 
 **STARTTLS** (on port 587) and **TLS** (on 465) encrypt the connection and check the server's
-certificate. **None** sends in the clear: only for a relay on your own network.
+certificate. **None** sends in the clear: only for a relay on your own network that needs no
+sign-in. Your password is never sent unencrypted, so a username or password with **None** is
+refused at Save.
 
 ## Username {#smtp-username}
 
-The account to sign in to the mail server with, often an email address. Leave it empty for a relay
-that needs none.
+The account to sign in to the mail server with, often an email address. Signing in needs STARTTLS
+or TLS. Leave it empty for a relay that needs none.
 
 ## Password {#smtp-password}
 

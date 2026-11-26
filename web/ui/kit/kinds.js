@@ -19,8 +19,10 @@ import { readDate, readTime, timeText } from './dates.js';
  * value (a blank isn't checked here: a refused blank is refused at Save). A number that groups
  * as it is typed (S12.18.8) says how it is typed (`entry`), its places (null: as typed) and the
  * unit before it (`prefix`); a date is read as people write it (S12.18.10).
+ * A duration's `minutes` reads its length, so its bounds, durations too, bound it.
  * @typedef {{ chars: RegExp | null, takes: string[], inputmode?: string, numeric?: boolean,
  *   entry?: 'natural' | 'register', places?: number | null, prefix?: string, date?: boolean,
+ *   minutes?: (text: string) => number | null,
  *   read: (text: string, today?: string) => string | null }} Kind
  */
 
@@ -75,6 +77,10 @@ export const KINDS = {
     read: (t) => {
       const d = parseDuration(t);
       return 'error' in d ? d.error : null;
+    },
+    minutes: (t) => {
+      const d = parseDuration(t);
+      return 'minutes' in d ? d.minutes : null;
     },
   },
   date: {
@@ -179,6 +185,14 @@ export function check(k, b, text, format = String, now = undefined) {
     const iso = /** @type {string} */ (readDate(t, now ?? today(DEFAULT_TIMEZONE)));
     if (b.min != null && iso < String(b.min)) return `On or after ${date(String(b.min))}.`;
     if (b.max != null && iso > String(b.max)) return `On or before ${date(String(b.max))}.`;
+    return null;
+  }
+  if (k.minutes) {
+    // A duration's bounds are durations, named as they are typed: "1w or less." (S12.13).
+    const v = Number(k.minutes(t));
+    if (b.min != null && v < Number(k.minutes(String(b.min)))) return `${b.min} or more.`;
+    const most = b.max ?? b.atMost;
+    if (most != null && v > Number(k.minutes(String(most)))) return `${most} or less.`;
     return null;
   }
   if (t.startsWith('-') && !b.negative) return `${format(0)} or more.`;

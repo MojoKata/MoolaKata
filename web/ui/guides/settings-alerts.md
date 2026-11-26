@@ -4,11 +4,13 @@ How alerts behave for everyone. Each user chooses in Profile whether alerts reac
 
 ![Settings: Alerts](shots/settings-alerts.png)
 
-## Alert when a source has failed for {#alert-source-hours}
+## Alert when a source has failed for {#alert-source}
 
 How long a price source, or email, may keep failing before admins are alerted. A source that fails
 now and then and recovers raises nothing; one that keeps failing raises one alert, which resolves by
-itself when it works again. 48 hours by default.
+itself when it works again. A duration such as `12h`, `2d` or `1w 3d`, largest unit first: `1h`
+to `2w`, `2d` by default. **min**, **default** and **max** under the field fill those in; a
+blank, or one outside the range, is refused at Save.
 
 ## Daily summary at {#alert-summary-time}
 

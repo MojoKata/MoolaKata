@@ -33,7 +33,7 @@ from sqlalchemy import text
 
 from .. import clock, settings
 from ..store.entities.accounts import Account
-from ..store.entities.receipts import Receipt
+from ..store.entities.receipts import Receipt, ReceiptLink
 from . import parser
 
 log = logging.getLogger("moolakata.receipts")
@@ -336,7 +336,7 @@ class Reader:
 
     def read_one(self, rid: str, worker: Worker) -> None:
         from .. import parsing
-        from . import whole
+        from . import ocr, whole
 
         srv = self.server
         with srv.db.tx(unscoped="receipts.reading: read one") as s:
@@ -352,6 +352,7 @@ class Reader:
             r.readStatus = "reading"
             media = r.mediaType
             owner = r.ownerId
+            statement = is_statement(s, r)
             drawn = r.thumbnail is not None
             file = SimpleNamespace(fileId=r.fileId, sha256=r.sha256)
         srv.events.publish("receipt", {"id": rid}, users=[owner])
@@ -359,7 +360,12 @@ class Reader:
         try:
             data = whole(srv, file)
             # The owner's file: read in a worker no other user's file has been in (S9.8.4.2).
-            outcome = worker.read(data, media, user=owner, check=True)
+            # A statement takes a statement's pages and time, as its import does (S1.3.3.2).
+            if statement:
+                outcome = worker.read(data, media, STATEMENT_TIME_LIMIT, ocr.STATEMENT_PAGES,
+                                      user=owner)  # fmt: skip
+            else:
+                outcome = worker.read(data, media, user=owner, check=True)
             if not drawn:  # one the upload couldn't draw is tried again
                 thumb = parsing.thumbnail(data, media, user=owner)
         except Exception as e:
@@ -369,7 +375,9 @@ class Reader:
             r = s.get(Receipt, rid)  # a receipt row is never removed
             if thumb is not None and r.thumbnail is None:
                 r.thumbnail = thumb
-            if outcome[0] == "ok":
+            if outcome[0] == "ok" and statement:
+                save_text(s, r, outcome[1], outcome[2], outcome[3])
+            elif outcome[0] == "ok":
                 _, lines, method, engine, found = outcome
                 save_reading(s, r, lines, method, engine, found)
             else:
@@ -455,6 +463,39 @@ def save_reading(
     else:
         r.scanTotal = r.totalChecked = None
     index(s, r)
+
+
+def is_statement(s, r: Receipt) -> bool:
+    """A statement kept on its account (S1.3.3): read as one, its fields its period's."""
+    return (
+        s.scalar(
+            sa.select(ReceiptLink.id).where(
+                ReceiptLink.receiptId == r.id,
+                ReceiptLink.kind == "account",
+                ReceiptLink.deleted == sa.false(),
+            )
+        )
+        is not None
+    )
+
+
+def save_text(s, r: Receipt, lines: list[str], method: str, engine: str | None) -> None:
+    """A statement's text, kept and found (S9.8.3); no field is filled from it, as its date
+    and name are its period's and its largest figure is no amount (S1.3.3.6, S9.8.6)."""
+    r.text = "\n".join(lines)
+    r.readMethod, r.readEngine = method, engine
+    r.readStatus, r.readError, r.readAt = "read", None, clock.now()
+    index(s, r)
+
+
+def kept_unread(s, r: Receipt, lines: list[str] | None, method: str | None) -> None:
+    """A statement kept on its account without the reader (S1.3.3.6): what its text layer
+    gave, read and found; else not read and not queued, so it never waits *Reading…* for
+    the next start. Read again, it is read as a statement."""
+    if lines:
+        save_text(s, r, lines, method or "text", None)
+    else:
+        r.readStatus, r.readError = "off", None
 
 
 def index(s, r: Receipt) -> None:

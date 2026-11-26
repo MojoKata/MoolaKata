@@ -360,6 +360,64 @@ def test_one_change_per_record_and_known_kinds_only(admin_client):
     assert r.json()["errors"][0]["code"] == "entity-unknown"
 
 
+def test_a_kind_registers_only_under_a_prefix_of_five():
+    """schema.md §2: a kind's prefix is an id's, five letters and digits."""
+    import dataclasses
+
+    with pytest.raises(ValueError, match="bad prefix 'org'"):
+        save.register(dataclasses.replace(ORG, prefix="org"))
+    assert "org" not in save.KINDS
+
+
+def test_a_record_only_the_server_makes_is_refused(admin_client, monkeypatch):
+    """schema.md §7: a table whose rows only MoolaKata makes (a price close) is refused at a
+    save, even an admin's."""
+    import dataclasses
+
+    from moolakata.store.entities.prices import Price
+
+    kind = dataclasses.replace(ORG, prefix="Price", entity=Price)
+    monkeypatch.setitem(save.KINDS, "Price", kind)
+    r = post(admin_client, [create("Price", new("Price"), name="A close")])
+    assert r.status_code == 403
+    assert r.json()["errors"][0]["code"] == "server-only"
+    assert r.json()["errors"][0]["message"] == "Only MoolaKata itself makes these."
+
+
+def test_a_change_names_its_record_by_its_id_and_version(admin_client):
+    """S13.8.11: an update or a delete names a record of its kind, and the version it was read
+    at."""
+    org = new("Orgzn")
+    assert post(admin_client, [create("Orgzn", org, name="Mine")]).is_success
+    upd = {"op": "update", "entity": "Orgzn", "fields": {"name": "B"}}
+    r = post(admin_client, [{**upd, "id": new("Dnatn"), "version": 1}])
+    assert r.status_code == 422
+    (e,) = r.json()["errors"]
+    assert (e["field"], e["code"], e["message"]) == ("id", "id-invalid", "Not an id of Orgzn.")
+    r = post(admin_client, [{**upd, "id": org}])
+    assert r.status_code == 428 and r.json()["errors"][0]["code"] == "version-required"
+
+
+def test_a_save_holds_at_most_a_thousand_changes(admin_client):
+    ops = [create("Orgzn", new("Orgzn"), name=f"O{i}") for i in range(save.MAX_OPS + 1)]
+    r = post(admin_client, ops)
+    assert r.status_code == 413 and r.json()["code"] == "too-many-ops"
+    assert r.json()["detail"] == "A save holds at most 1000 changes."
+
+
+def test_a_filed_years_check_that_fails_otherwise_fails_the_save(admin_client, monkeypatch):
+    """S2.8: only the filed year's own question is asked; anything else its check raises
+    answers the save as it is."""
+    from moolakata.taxes import closed
+
+    def broken(s):
+        raise Problem(409, "something-else", "Not a filed year's question.")
+
+    monkeypatch.setattr(closed, "check", broken)
+    r = post(admin_client, [create("Orgzn", new("Orgzn"), name="Mine")])
+    assert r.status_code == 409 and r.json()["code"] == "something-else"
+
+
 def test_the_time_of_an_id():
     when = dt.datetime(2026, 10, 28, 14, 5, tzinfo=dt.UTC)
     assert ids.time_of(made_at("Orgzn", when)) == when

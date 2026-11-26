@@ -316,6 +316,20 @@ class Part:
     accountType: str = ""
 
 
+def old_statement(s: Session, ledger, today: dt.date) -> dt.date | None:
+    """The day of the oldest statement a holding of the account is still valued from once
+    that value is stale (S4.3), or None when no holding's is."""
+    held = ledger.replay().positions()
+    if not held:
+        return None
+    old = [
+        p.asOf
+        for p in prices(s, list(held), today, owner=ledger.account.ownerId).values()
+        if p.source == "statement" and p.stale
+    ]
+    return min(old) if old else None
+
+
 def parts(s: Session, ledger, investing: bool, day: dt.date | None = None) -> list[Part]:
     """What an account holds on a day, part by part: the one breakdown every figure built on
     accounts adds up (its value, a portfolio's Holdings, a projection's start). A loan is minus

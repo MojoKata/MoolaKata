@@ -1518,8 +1518,8 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
 def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_with(
     browser, household
 ):
-    # S5.1.2, S10.5: a portfolio shared with Household; the button shares its account with
-    # Household, not with each of its members.
+    # S5.1.2, S10.5: a portfolio shared with Household; the dialog names Household, and the
+    # button shares its account with it, not with each of its members.
     h = household
     acct = made(make(h.c, "Acct", name="Group Only", type="brokerage"))
     p = made(make(h.c, "Portf", name="For the Group", accountIds=[acct["id"]]))
@@ -1531,7 +1531,9 @@ def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_
     wait(page, ".dialog", problems, state="detached")
     page.click('button:has-text("Share")')
     wait(page, 'button:has-text("Share These Accounts Too")', problems)
-    assert "John Doe can't see Group Only" in page.locator(".dialog .notice").inner_text()
+    # The notice names the group, as the button shares, not its members of the moment.
+    notice = page.locator(".dialog .notice").inner_text()
+    assert "Household can't see Group Only" in notice and "John Doe" not in notice
     page.click('button:has-text("Share These Accounts Too")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
@@ -1585,16 +1587,79 @@ def test_a_tax_books_account_left_out_and_counted_again(browser, household):
 
 
 def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, household):
-    # The theme toggle (one field of the user's own record) and a link setting chosen from a
-    # list (a setting's record), each a draft saved at once.
+    # The theme toggle (one field of the user's own record) and a link setting typed (a
+    # setting's record), each a draft saved at once: the release is a duration in S16.9's
+    # range (S12.13), saved when Enter is pressed and shown back as one; one out of it is
+    # marked, never saved.
     h = household
     page, problems = signed_in(browser, h, "/ui/settings/links", "#f-link-release")
     before = h.c.get("/ui/api/profile").json()["theme"]
     page.click('button[aria-label^="Theme: "]')
     until(page, lambda: h.c.get("/ui/api/profile").json()["theme"] != before, what="theme saved")
-    page.select_option("#f-link-release", "240")
+    assert page.input_value("#f-link-release") == "1h"
+    page.fill("#f-link-release", "90m")
+    page.press("#f-link-release", "Enter")
     wait(page, '.toast:has-text("Saved")', problems)
-    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 240
+    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 90
+    until(page, lambda: page.input_value("#f-link-release") == "1h 30m", what="shown back")
+    page.fill("#f-link-release", "2m")
+    page.press("#f-link-release", "Enter")
+    wait(page, '#f-link-release[data-tip="5m or more."]', problems)
+    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 90
+    r = save_settings(h.c, {"linkReleaseMinutes": 60})
+    assert r.status_code == 200, r.text
+    assert problems == []
+    page.close()
+
+
+def test_the_timings_are_durations_in_their_ranges(browser, household):
+    # S16.3, S16.16, S12.13: each timing is typed as a duration, kept in minutes and shown back
+    # as a duration; one outside its range, or not a duration, is refused at its field.
+    h = household
+    form = 'form.card:has-text("Idle timeout")'
+    page, problems = signed_in(browser, h, "/ui/settings/sessions", form)
+    fields = ("#f-idle-timeout", "#f-longest-session", "#f-lockout")
+    assert [page.input_value(f) for f in fields] == ["8h", "4w 2d", "15m"]
+    page.fill("#f-idle-timeout", "12h")
+    page.fill("#f-longest-session", "2w")
+    page.fill("#f-lockout", "1h 30m")
+    page.click(f"{form} button.primary")
+    wait(page, '.toast:has-text("Saved")', problems)
+    values = h.c.get("/ui/api/settings").json()["values"]
+    kept = [values[k] for k in ("sessionIdleMinutes", "sessionAbsoluteMinutes", "lockoutMinutes")]
+    assert kept == [720, 20160, 90]
+    # Text that doesn't read as a duration never reaches the server.
+    page.fill("#f-idle-timeout", "3d 2w")
+    page.click(f"{form} button.primary")
+    wait(page, '#f-idle-timeout-err:has-text("Give the units largest first")', problems)
+    page.fill("#f-idle-timeout", "2w")
+    page.click(f"{form} button.primary")
+    wait(page, '#f-idle-timeout-err:has-text("1w or less.")', problems)
+    assert [p.split(" http")[0] for p in problems] == ["422 for"], "the server's refusal"
+    problems.clear()
+    # The server's refusal is the value's: a new value clears it, as at any other field.
+    page.click('.field:has(#f-idle-timeout) button[aria-label="Use the default: 8h"]')
+    until(page, lambda: page.locator("#f-idle-timeout-err").count() == 0, what="cleared")
+    page.click(f"{form} button.primary")
+    until(
+        page,
+        lambda: h.c.get("/ui/api/settings").json()["values"]["sessionIdleMinutes"] == 480,
+        what="the default saved",
+    )
+    alerts = 'form.card:has-text("Daily summary at")'
+    page.goto(page.url.replace("/ui/settings/sessions", "/ui/settings/alerts"))
+    wait(page, alerts, problems)
+    assert page.input_value("#f-alert-source") == "2d"
+    page.fill("#f-alert-source", "36h")
+    page.click(f"{alerts} button.primary")
+    wait(page, '.toast:has-text("Saved")', problems)
+    assert h.c.get("/ui/api/settings").json()["values"]["alertSourceMinutes"] == 36 * 60
+    page.reload()
+    wait(page, alerts, problems)
+    assert page.input_value("#f-alert-source") == "1d 12h"
+    defaults = {"sessionAbsoluteMinutes": 43200, "lockoutMinutes": 15, "alertSourceMinutes": 2880}
+    r = save_settings(h.c, defaults)
+    assert r.status_code == 200, r.text
     assert problems == []
     page.close()
 

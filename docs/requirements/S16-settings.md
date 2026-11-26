@@ -10,7 +10,10 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    it, never from the request), and the server's time zone, read from the host (S14.9).
 2. **Email (SMTP)**: host, port, security (STARTTLS, TLS or none), username, password (a
    secret, set with the password again), from address, and **Send a test email**, which sends
-   to the admin at once and says what failed. Changing the host asks for the password again and
+   to the admin at once and says what failed. A sign-in needs STARTTLS or TLS: with security
+   none, a username or a stored password is refused at Save (*Sign-in needs STARTTLS or TLS*),
+   and MoolaKata signs in only over an encrypted connection, so none is for a relay that needs
+   no sign-in. Changing the host asks for the password again and
    clears the stored SMTP password, which is entered again for the new host (S13.7.2). Until a
    host is set, emails are written to the mail folder in the data directory, in the clear, and
    the section lists them (who for, subject, when) with **Open**, which shows one, links and
@@ -20,12 +23,13 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    reset, a week for an invitation, and a day for the rest, an email with no link among them
    (S10.1, S15.1.7). With a host, they go out in the background, queued in the
    database: an email that can't be sent stays queued and is tried again every five minutes,
-   until its link expires; one the server refuses outright is set aside, keeping only its
+   until its link expires, or a day after it was queued for an email with no link; one the server refuses outright is set aside, keeping only its
    recipient, subject and the error; and the section shows the queue and the last error.
-3. **Sign-in and sessions**: idle and absolute session lifetimes (8 hours by default, 1 to
-   168, and 30 days, 1 to 365), and the lockout of an address after failed sign-ins (10
-   failures, 3 to 100, for 15 minutes, 1 to 1,440, S13.7.5.1). These figures are in the
-   database, so while the server is locked the unlock (S15.4.3) uses the defaults.
+3. **Sign-in and sessions**: idle and absolute session lifetimes (`8h` by default, `1h` to
+   `1w`, and `30d`, `1d` to `52w`), and the lockout of an address after failed sign-ins (10
+   failures, 3 to 100, for `15m`, `1m` to `1d`, S13.7.5.1); the lifetimes and the lockout's
+   length are durations (S12.13). These figures are in the database, so while the server is
+   locked the unlock (S15.4.3) uses the defaults.
 4. **Sign-up**: on or off (it needs SMTP), optionally limited to email domains.
 5. **Passwords**: the minimum length (12 by default, 8 to 128).
 6. **Prices** (S4.2.3): the enabled sources with their classes, keys, order, last run and
@@ -46,8 +50,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
 9. **Linked servers** (S11.7): this server's **link address** (its public URL when not set,
    S11.2), the links, and each linked copy's state: changes waiting, its access key (*Create
    the access key*, made when and by whom), locked or unlocked (by whom, and when it will
-   lock), *Lock now* and *Reset copy*, and **Release linked keys after** (one hour unused by
-   default, 5 minutes to 24 hours).
+   lock), *Lock now* and *Reset copy*, and **Release linked keys after** (a duration unused,
+   `1h` by default, `5m` to `1d`).
 10. **Receipts**: the size limit (25 MB by default, 1 to 100); **Read receipts** on or off,
     jobs at a time (1 by default, at most 4), the reading queue, and **Re-read all receipts**
     (S9.8.7). On a host without Landlock, the section says that reading runs without its file
@@ -93,11 +97,11 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     page waits on the locked screen. Its one setting is the rotation reminder's period,
     **Remind admins to rotate after** (12 months by default, or **Never**, S15.8.4).
 14. **Network**: the address ranges allowed to reach each path, one list per line, empty for
-    any: **the app** (`/ui`, and `/mcp` with it: an agent sits where a person's browser does,
-    and its token is already the user's); **linked servers** (`/link`); and **the connector**
-    (`/connector`, S18), by default the private ranges and the overlays' (`127.0.0.0/8`,
-    `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` for Tailscale, `::1`,
-    `fc00::/7`), so a connector on a laptop away from home (S18.1) needs an admin to widen it.
+    any: **Allowed to use the app** (`/ui`, and `/mcp` with it: an agent sits where a person's
+    browser does, and its token is already the user's); **Allowed to link**, for linked servers
+    (`/link`); and **Allowed to connect**, for the connector (`/connector`, S18), by default
+    the private ranges and the overlays' (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+    `192.168.0.0/16`, `100.64.0.0/10` for Tailscale, `::1`, `fc00::/7`), so a connector on a laptop away from home (S18.1) needs an admin to widen it.
     The address checked is the client's as the trusted proxy forwards it (S13.3). `/healthz`
     and `/demo` answer any address. An address outside a path's ranges is answered 404, as for
     what doesn't exist. The ranges are in the database, so while the server is locked they
@@ -109,9 +113,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     `MOOLAKATA_CONFIG`, S17.8).
 15. *Not a section*: the listener's mode and certificate (S13.3) are set in the configuration,
     and Settings › Network shows how the listener runs.
-16. **Alerts** (S12.11): how long a source may fail before it raises an alert (48 hours by
-    default, 1 to 336), and the time of the daily summary email (07:00 by default, in each
-    user's time zone).
+16. **Alerts** (S12.11): how long a source may fail before it raises an alert (a duration,
+    `2d` by default, `1h` to `2w`), and the time of the daily summary email (07:00 by
+    default, in each user's time zone).
 17. **Storage** (S14.10): the size of the database and of the receipts directory, files
     expired against the rest and the deleted receipts' files, the files no record names with **Remove** (S14.6), what
     expires each coming year by category, **Keep statements for** (years, empty for ever),

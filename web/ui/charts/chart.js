@@ -229,6 +229,59 @@ function Chart({ label, option, head, rows, legend, deps }) {
   </div>`;
 }
 
+/** Each asset class as an allocation names it (S5.2.4), in its order, with its colour. */
+export const ASSET_CLASSES = /** @type {[string, string, string][]} */ ([
+  ['usStocks', 'US stocks', '--c1'],
+  ['intlStocks', 'International stocks', '--c5'],
+  ['bonds', 'Bonds', '--c3'],
+  ['cash', 'Cash', '--c2'],
+  ['crypto', 'Crypto', '--c4'],
+  ['realEstate', 'Real estate', '--c8'],
+  ['metals', 'Metals', '--c6'],
+  ['other', 'Other', '--c7'],
+]);
+
+/**
+ * What is held by asset class (S5.2.4): a donut of each class's share, its legend naming each
+ * with its share, and a table of each class's value and share.
+ * @param {{ label: string, slices: { assetClass: string, value: string, weight: string }[] }} p
+ */
+export function AllocationChart({ label, slices }) {
+  const meta = new Map(ASSET_CLASSES.map(([k, name, color]) => [k, { name, color }]));
+  const other = { name: 'Other', color: '--c7' };
+  const rows = slices.map((s) => ({ ...(meta.get(s.assetClass) || other), ...s }));
+  return html`
+    <${Chart} label=${label}
+      legend=${rows.map((r) => [`${r.name} ${r.weight}%`, r.color])}
+      head=${['Asset class', 'Value', 'Share']}
+      rows=${rows.map((r) => [r.name, money(r.value), `${r.weight}%`])}
+      deps=${[JSON.stringify(slices)]}
+      option=${(/** @type {(n: string) => string} */ t) => ({
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: t('--bg-4'),
+          borderColor: t('--border-strong'),
+          textStyle: { color: t('--fg') },
+          formatter: (/** @type {any} */ x) =>
+            `${x.name}: ${money(x.data.amount)} · ${x.data.weight}%`,
+        },
+        series: [{
+          type: 'pie',
+          radius: ['55%', '80%'],
+          avoidLabelOverlap: true,
+          label: { show: false },
+          data: rows.map((r) => ({
+            name: r.name,
+            value: num(r.value),
+            amount: r.value,
+            weight: r.weight,
+            itemStyle: { color: t(r.color) },
+          })),
+        }],
+      })} />
+  `;
+}
+
 /**
  * Bars per period, one series beside another: planned against actual spending (S7.4).
  * @param {{ label: string, periods: string[], series: { name: string, color: string,

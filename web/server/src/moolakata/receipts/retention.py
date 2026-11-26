@@ -22,7 +22,9 @@ longest period; with Keep on, attached to nothing, or with any record without a 
 kept for ever; while any record hasn't ended, it is kept while it is open.
 """
 
+import contextlib
 import datetime as dt
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,6 +42,8 @@ from ..store.entities.giving import Donation
 from ..store.entities.receipts import Receipt, ReceiptLink
 from ..store.repos import ledger as repo
 from . import file_path
+
+log = logging.getLogger("moolakata.receipts")
 
 SOON_DAYS = 90
 OPEN_WHAT = {
@@ -350,26 +354,18 @@ def prunable(
     return out + (deleted_only(s) if deleted else [])
 
 
-def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
-    """Mark the receipts pruned and remove each file no receipt still needs, but one an upload
-    is reusing this moment (filestore.py); the bytes freed."""
-    receipts_dir = srv.config.receipts_dir
-    store = srv.files.of(receipts_dir)
+def mark_pruned(s: Session, rows: list[Receipt], by: str) -> set[str]:
+    """Mark the receipts pruned, with every receipt naming a file no live receipt still needs;
+    the files to remove once this is committed (`remove_pruned`), so a rollback never leaves
+    a row *not pruned* over a file that is gone (S14.10.5)."""
     now = clock.now()
     for r in rows:
         r.filePrunedAt, r.filePrunedById, r.thumbnail = now, by, None
     s.flush()
-    freed = 0
-    for file_id in {r.fileId for r in rows}:
+    out = set()
+    for file_id in {r.fileId for r in rows if r.fileId}:
         # Needed only by a live receipt: a deleted one doesn't count (S14.10.5).
-        still = s.scalar(
-            select(Receipt.id).where(
-                Receipt.fileId == file_id,
-                Receipt.filePrunedAt.is_(None),
-                Receipt.deleted == false(),
-            )
-        )
-        if still is not None:
+        if _needed(s, file_id):
             continue
         # Every receipt naming the file goes with it, deleted ones included, so none is left
         # counted as a deleted receipt's file that is gone (S14.10.4).
@@ -377,5 +373,46 @@ def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
             select(Receipt).where(Receipt.fileId == file_id, Receipt.filePrunedAt.is_(None))
         ):
             other.filePrunedAt, other.filePrunedById, other.thumbnail = now, by, None
-        freed += store.remove(file_path(receipts_dir, file_id).name)
+        out.add(file_id)
+    return out
+
+
+def _needed(s: Session, file_id: str) -> bool:
+    return (
+        s.scalar(
+            select(Receipt.id).where(
+                Receipt.fileId == file_id,
+                Receipt.filePrunedAt.is_(None),
+                Receipt.deleted == false(),
+            )
+        )
+        is not None
+    )
+
+
+def file_sizes(srv, file_ids: set[str]) -> int:
+    """The bytes the files take, those still there."""
+    total = 0
+    for file_id in file_ids:
+        with contextlib.suppress(FileNotFoundError):
+            total += file_path(srv.config.receipts_dir, file_id).stat().st_size
+    return total
+
+
+def remove_pruned(srv, file_ids: set[str]) -> int:
+    """Once the prune is committed, remove each file no live receipt names, checked again (an
+    upload of the same bytes may have reused it since), and none an upload is reusing this
+    moment (filestore.py); the bytes freed. A removal that fails leaves a file no record
+    names, for Settings › Storage's orphans (S16.17)."""
+    receipts_dir = srv.config.receipts_dir
+    store = srv.files.of(receipts_dir)
+    freed = 0
+    for file_id in sorted(file_ids):
+        with srv.db.read(unscoped="storage: whether a pruned file is still needed") as s:
+            if _needed(s, file_id):
+                continue
+        try:
+            freed += store.remove(file_path(receipts_dir, file_id).name)
+        except OSError:
+            log.warning("a pruned receipt file could not be removed; it is left as an orphan")
     return freed

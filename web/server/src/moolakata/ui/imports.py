@@ -971,13 +971,9 @@ def _keep_file(
 
     stored = receipts.record(s, srv, c.id, ready)
     r = stored.receipt
-    if held.lines:
-        r.readStatus, r.readMethod, r.readAt = "read", held.method, clock.now()
-        r.text = "\n".join(held.lines)
     r.date = end
     r.payee = statements.name(institution, start, end)
-    if held.lines:
-        reading.index(s, r)
+    reading.kept_unread(s, r, held.lines, held.method)
     for a in account_ids:
         receipts.attach_account(s, c.id, r, a)
     return r

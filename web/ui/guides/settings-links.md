@@ -72,9 +72,10 @@ access key, and everything is pulled again from the other server, where nothing 
 
 ## Release linked keys after {#link-release}
 
-How long an unlocked copy's key stays in memory with nobody viewing it: 15 minutes, 1 hour (the
-default) or 4 hours. Background work, such as a pull, doesn't count as viewing. A restart locks
-every copy.
+How long an unlocked copy's key stays in memory with nobody viewing it: a duration such as `30m`,
+`1h` or `4h`, largest unit first, `5m` to `1d`, `1h` by default (**min**, **default** and
+**max** under the field fill those in). It is saved when you leave the field or press Enter.
+Background work, such as a pull, doesn't count as viewing. A restart locks every copy.
 
 ## Shared from here {#outgoing}
 

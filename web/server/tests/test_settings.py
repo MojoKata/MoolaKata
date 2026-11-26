@@ -20,10 +20,6 @@ AT_MOST = PREFIX + "A" * (settings.AVATAR_MAX - len(PREFIX))  # an image avatar 
         ("smtpPort", 25.0, "a whole number"),
         ("smtpPort", "25", "a whole number"),
         ("smtpPort", None, "a whole number"),
-        ("smtpPort", 0, "between 1 and 65535"),
-        ("smtpPort", 65536, "between 1 and 65535"),
-        ("backupCopies", 2, "between 3 and 365"),
-        ("keepStatementsYears", 0, "between 1 and 100"),
         ("keepStatementsYears", "ten", "a whole number"),
         ("signupEnabled", 1, "on or off"),
         ("signupEnabled", None, "on or off"),
@@ -119,6 +115,25 @@ def test_a_value_out_of_its_setting_is_refused_at_its_key(key, value, words):
     assert (error.field, error.code, error.message) == (key, "invalid-setting", f"Must be {words}.")
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "lo", "hi", "words"),
+    [
+        ("smtpPort", 0, 1, 65535, "1 or more."),
+        ("smtpPort", 65536, 1, 65535, "65535 or less."),
+        ("backupCopies", 2, 3, 365, "3 or more."),
+        ("lockoutFailures", 101, 3, 100, "100 or less."),
+        ("keepStatementsYears", 0, 1, 100, "1 or more."),
+    ],
+)
+def test_a_number_out_of_its_range_is_worded_as_its_field_marks_it(key, value, lo, hi, words):
+    with pytest.raises(Problem) as e:
+        settings.coerce(key, value)
+    p = e.value
+    assert p.detail == f"{key}: between {lo} and {hi}"
+    [error] = p.errors
+    assert (error.field, error.code, error.message) == (key, "invalid-setting", words)
+
+
 def test_a_key_that_is_no_setting_is_refused_at_itself():
     with pytest.raises(Problem) as e:
         settings.coerce("smtpPassword2", "x")
@@ -178,3 +193,41 @@ def test_a_key_that_is_no_setting_is_refused_at_itself():
 )
 def test_a_value_in_its_setting_is_kept_as_settings_shows_it(key, value, kept):
     assert settings.coerce(key, value) == kept
+
+
+# The timings (S16.3, S16.9, S16.16): each held in whole minutes, typed and shown as a
+# duration (S12.13), its range's ends named as durations.
+TIMINGS = [
+    ("sessionIdleMinutes", 480, 60, 10080, "1h", "1w"),
+    ("sessionAbsoluteMinutes", 43200, 1440, 524160, "1d", "52w"),
+    ("lockoutMinutes", 15, 1, 1440, "1m", "1d"),
+    ("linkReleaseMinutes", 60, 5, 1440, "5m", "1d"),
+    ("alertSourceMinutes", 2880, 60, 20160, "1h", "2w"),
+]
+NOT_A_DURATION = "a duration in whole minutes"
+
+
+@pytest.mark.parametrize(("key", "default", "lo", "hi", "least", "most"), TIMINGS)
+def test_a_timing_is_minutes_in_its_range(key, default, lo, hi, least, most):
+    assert settings.DEFINITIONS[key].default == default
+    assert settings.coerce(key, lo) == lo
+    assert settings.coerce(key, hi) == hi
+    for value, detail, words in [
+        (lo - 1, f"at least {least}", f"{least} or more."),
+        (hi + 1, f"at most {most}", f"{most} or less."),
+        ("8h", NOT_A_DURATION, f"Must be {NOT_A_DURATION}."),
+        (90.0, NOT_A_DURATION, f"Must be {NOT_A_DURATION}."),
+        (True, NOT_A_DURATION, f"Must be {NOT_A_DURATION}."),
+        (None, NOT_A_DURATION, f"Must be {NOT_A_DURATION}."),
+    ]:
+        with pytest.raises(Problem) as e:
+            settings.coerce(key, value)
+        p = e.value
+        assert (p.status, p.code, p.detail) == (422, "invalid-setting", f"{key}: {detail}")
+        [error] = p.errors
+        assert (error.field, error.code, error.message) == (key, "invalid-setting", words)
+
+
+def test_the_timings_in_hours_and_days_are_gone():
+    for old in ("sessionIdleHours", "sessionAbsoluteDays", "alertSourceHours"):
+        assert old not in settings.DEFINITIONS

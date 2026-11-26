@@ -700,3 +700,58 @@ def test_the_mail_task_stops_when_told_and_minds_an_email_gone_meanwhile(config,
     assert mailer.send_waiting(smtp, _Guard(), stop) == 0 and delivered == []
     assert mailer.send_waiting(smtp, _Guard(), threading.Event()) == 1
     assert len(delivered) == 1
+
+
+def test_security_none_refuses_a_sign_in_at_save(admin_client, server):
+    """S16.2: a password never goes to the mail server unencrypted, so None is for a relay that
+    needs no sign-in: a username or a stored password with it is refused at the key saved."""
+    set_up_smtp(admin_client)
+    r = save_settings(admin_client, {"smtpSecurity": "none", "smtpPort": 25})
+    assert r.status_code == 422, r.text
+    (e,) = r.json()["errors"]
+    assert (e["field"], e["code"]) == ("smtpSecurity", "sign-in-needs-tls")
+    assert e["message"] == "Sign-in needs STARTTLS or TLS."
+    # The username taken away, the stored password still refuses it.
+    r = save_settings(admin_client, {"smtpSecurity": "none", "smtpUsername": None})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "smtpSecurity"
+    # Both taken away: a relay on the household's own network.
+    r = save_settings(
+        admin_client, {"smtpSecurity": "none", "smtpUsername": None, "smtpPassword": None}
+    )
+    assert r.status_code == 200, r.text
+    # Then a username, or a password, is refused at its own field.
+    r = save_settings(admin_client, {"smtpUsername": "money@home.lan"})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "smtpUsername"
+    r = save_settings(admin_client, {"smtpPassword": "app password"})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "smtpPassword"
+    # TLS again takes both.
+    r = save_settings(
+        admin_client,
+        {"smtpSecurity": "tls", "smtpUsername": "money@home.lan", "smtpPassword": "pw"},
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_the_mailer_never_signs_in_over_a_plain_link(monkeypatch):
+    """S16.2: with security None the mailer signs in to nothing, though settings saved some
+    other way carry a username: the email fails before anything goes on the wire."""
+    from email.message import EmailMessage
+
+    from moolakata import mail
+
+    opened = []
+
+    class Plain(FakeSmtp):
+        def __init__(self, host, port, timeout=None, context=None):
+            opened.append((host, port))
+
+    FakeSmtp.sent, FakeSmtp.logins = [], []
+    monkeypatch.setattr(smtplib, "SMTP", Plain)
+    msg = EmailMessage()
+    msg["To"], msg["From"] = "dave@x.lan", "placeholder"
+    smtp = mail.Smtp("smtp.home.lan", 25, "none", "money@home.lan", "pw", "m@h.lan")
+    with pytest.raises(mail.PlainSignIn) as e:
+        mail.deliver(smtp, msg, _Guard())
+    words = "sign-in needs STARTTLS or TLS: set Security, or clear the username"
+    assert mail.describe(e.value) == words
+    assert opened == [] and FakeSmtp.logins == [] and FakeSmtp.sent == []

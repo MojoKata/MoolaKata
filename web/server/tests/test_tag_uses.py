@@ -4,7 +4,7 @@ count."""
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, share, tag
+from edits import change, make, new_id, remove, share, tag
 from test_accounts import add, new_account
 
 
@@ -125,3 +125,45 @@ def test_a_tag_taken_off_and_put_back_on_is_the_same_link_again(server):
         assert tags.ids_of(s, "rule", owner, rule["id"]) == [coffee]
         links = s.query(RuleTag).filter_by(ruleId=rule["id"]).all()
         assert len(links) == 1 and not links[0].deleted
+
+
+# ---- A tag's name, its owner's once (S2.6) ----
+
+
+def _mine(c) -> dict[str, dict]:
+    return {t["name"]: t for t in c.get("/ui/api/tags").json()["items"]}
+
+
+def _refused(r) -> list[tuple[str | None, str, str]]:
+    assert r.status_code == 409, r.text
+    return [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]]
+
+
+def test_a_tag_name_is_its_owners_once_and_only_its_owner_changes_it(server):
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    tag(jane, "work")
+    tag(jane, "coffee")
+    op = {"op": "create", "entity": "Tag", "id": new_id("Tag"), "fields": {"name": " Work "}}
+    taken = [("name", "tag-taken", "You have a tag work.")]
+    assert _refused(jane.post("/ui/api/save", json={"ops": [op]})) == taken
+    have = _mine(jane)
+    assert _refused(change(jane, "Tag", have["coffee"], name="WORK")) == taken
+    # The same name, as typed: nothing changes, and nothing is recorded.
+    r = change(jane, "Tag", have["work"], name="Work")
+    assert r.status_code == 200, r.text
+    assert _mine(jane)["work"]["version"] == have["work"]["version"]
+    # Another's tag is not found, to change or to delete.
+    for r in (change(john, "Tag", have["work"], name="mine"), remove(john, "Tag", have["work"])):
+        assert r.status_code == 404, r.text
+        assert [(e["code"], e["message"]) for e in r.json()["errors"]] == [
+            ("not-found", "Not found")
+        ]
+    assert set(_mine(jane)) == {"coffee", "work"}
+    # Renamed, it is kept as typed in lower case, and the change recorded.
+    r = change(jane, "Tag", have["coffee"], name="Espresso")
+    assert r.status_code == 200, r.text
+    assert set(_mine(jane)) == {"espresso", "work"}
+    kinds = [x["kind"] for x in jane.get("/ui/api/activity").json()["items"]]
+    assert kinds.count("tag.renamed") == 1

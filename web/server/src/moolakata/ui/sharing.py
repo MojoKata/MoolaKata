@@ -142,7 +142,10 @@ def view(s, owner: User, kind: str, item_id: str) -> ShareView:
     if kind == "portfolio":
         people = [u for u in access.holders_of(s, access.entity_of(kind), item_id) if u != owner.id]
         hidden = sharing.hidden_accounts(s, obj, people)
-        share_too = _share_too(hidden, list(by_group), list(direct), members)
+        # Only an active group gives its members anything (S10.5): an inactive one's share
+        # can't carry the accounts.
+        active = [g.id for g in groups if g.id in by_group]
+        share_too = _share_too(hidden, active, list(direct), members)
         accounts = [
             AccountName(id=a.id, name=a.name, yours=a.ownerId == owner.id)
             for a in sharing.portfolio_accounts(s, item_id)

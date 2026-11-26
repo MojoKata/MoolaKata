@@ -167,9 +167,9 @@ class Server:
 
     def session_max_age(self) -> int:
         if self.store is None:
-            return 30 * 86400
+            return settings.DEFINITIONS["sessionAbsoluteMinutes"].default * 60
         with self.db.read(unscoped="app: session max age") as s:
-            return settings.get(s, "sessionAbsoluteDays") * 86400
+            return int(settings.span(s, "sessionAbsoluteMinutes").total_seconds())
 
     @property
     def db(self):

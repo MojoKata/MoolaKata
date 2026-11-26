@@ -57,7 +57,7 @@ def listed(c) -> dict:
 
 def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client, frozen):
     with server.db.tx(unscoped="test") as s:
-        settings.put(s, "sessionIdleHours", 168, None)
+        settings.put(s, "sessionIdleMinutes", 10080, None)
     jane = make_user(server, "jane")
     failing_source(server, ok_hours_ago=10)
     assert alerts.evaluate(server) == []
@@ -83,7 +83,7 @@ def test_a_failing_source_alerts_admins_after_the_threshold(server, admin_client
 
 def test_the_threshold_is_a_setting(server, admin_client, frozen):
     with server.db.tx(unscoped="test") as s:
-        settings.put(s, "alertSourceHours", 6, None)
+        settings.put(s, "alertSourceMinutes", 360, None)
     failing_source(server, ok_hours_ago=7)
     assert len(alerts.evaluate(server)) == 1
 

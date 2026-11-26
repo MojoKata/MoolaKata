@@ -13,22 +13,48 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
-from . import ids
+from . import duration, ids
 from .errors import FieldError, Problem
 from .store import scoping
 from .store.entities.core import Setting
 
 
 class Invalid(ValueError):
-    pass
+    """A value a check refuses: what it must be (the problem's detail), and the words at its
+    field, `Must be …` unless they are given."""
+
+    def __init__(self, must: str, words: str | None = None):
+        super().__init__(must)
+        self.words = words or f"Must be {must}."
 
 
 def _int(lo: int, hi: int) -> Callable[[Any], int]:
     def check(v: Any) -> int:
         if isinstance(v, bool) or not isinstance(v, int):
             raise Invalid("a whole number")
-        if not lo <= v <= hi:
-            raise Invalid(f"between {lo} and {hi}")
+        # Out of range is worded as the field marks it while typed (*3 or more.*).
+        if v < lo:
+            raise Invalid(f"between {lo} and {hi}", f"{lo} or more.")
+        if v > hi:
+            raise Invalid(f"between {lo} and {hi}", f"{hi} or less.")
+        return v
+
+    return check
+
+
+def _minutes(lo: int, hi: int) -> Callable[[Any], int]:
+    """A length of time (S12.13), held in whole minutes: typed and shown as a duration, so its
+    range's ends are named as durations (*1w or less.*)."""
+
+    def check(v: Any) -> int:
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise Invalid("a duration in whole minutes")
+        if v < lo:
+            least = duration.format(dt.timedelta(minutes=lo))
+            raise Invalid(f"at least {least}", f"{least} or more.")
+        if v > hi:
+            most = duration.format(dt.timedelta(minutes=hi))
+            raise Invalid(f"at most {most}", f"{most} or less.")
         return v
 
     return check
@@ -206,6 +232,7 @@ def _d(
     DEFINITIONS[key] = Definition(key, section, default, check, internal)
 
 
+HOUR, DAY, WEEK = 60, 24 * 60, 7 * 24 * 60  # in minutes, as the timings are kept
 FILE_MAX_MB = 100  # the largest statement or receipt Settings allow (S16.8, S16.10)
 
 # General (S16.1)
@@ -226,10 +253,12 @@ _d("smtpSecurity", "email", "starttls", _choice("starttls", "tls", "none"))
 _d("smtpUsername", "email", None, _optional_text(200))
 _d("smtpFrom", "email", None, _address)
 # Sign-in and sessions (S16.3, S13.7.1)
-_d("sessionIdleHours", "sessions", 8, _int(1, 24 * 7))
-_d("sessionAbsoluteDays", "sessions", 30, _int(1, 365))
+# The timings, here and below, are in minutes, typed as durations (S12.13); the longest
+# session is the longest a duration is, 52 weeks.
+_d("sessionIdleMinutes", "sessions", 8 * HOUR, _minutes(HOUR, WEEK))
+_d("sessionAbsoluteMinutes", "sessions", 30 * DAY, _minutes(DAY, 52 * WEEK))
 _d("lockoutFailures", "sessions", 10, _int(3, 100))
-_d("lockoutMinutes", "sessions", 15, _int(1, 24 * 60))
+_d("lockoutMinutes", "sessions", 15, _minutes(1, DAY))
 # Sign-up (S16.4)
 _d("signupEnabled", "signup", False, _bool)
 _d("signupDomains", "signup", [], _domains)
@@ -253,7 +282,7 @@ _d("bitcoinNodeCertOffered", "bitcoin", None, _optional_text(64), internal=True)
 # Linked servers (S16.9, S11): the address peers reach this server's /link at (the public URL
 # when not set), and how long an unlocked linked copy may go unused (S11.9.4)
 _d("linkAddress", "links", None, _link_url)
-_d("linkReleaseMinutes", "links", 60, _int(5, 24 * 60))
+_d("linkReleaseMinutes", "links", HOUR, _minutes(5, DAY))
 # The connector (S16.18, S18.4.1): the address the connector reaches this server at, which a
 # pairing code carries (the public URL when not set); never the link address, which may lead to
 # a proxy that passes only /link.
@@ -289,7 +318,7 @@ _d("backupTime", "backups", "02:30", _time)
 # Days of backups kept: at least 3, so one bad copy is never the only one
 _d("backupCopies", "backups", 14, _int(3, 365))
 # Alerts (S16.16, S12.11): how long a source may fail first, and the daily summary's time
-_d("alertSourceHours", "alerts", 48, _int(1, 24 * 14))
+_d("alertSourceMinutes", "alerts", 2 * DAY, _minutes(HOUR, 2 * WEEK))
 _d("alertSummaryTime", "alerts", "07:00", _time)
 # Key storage (S15.8.2): remind admins of the key's age; 0 is off
 _d("keyReminderMonths", "keys", 12, _int(0, 120))
@@ -311,7 +340,7 @@ def coerce(key: str, value: Any) -> Any:
             422,
             "invalid-setting",
             f"{key}: {e}",
-            [FieldError(key, "invalid-setting", f"Must be {e}.")],
+            [FieldError(key, "invalid-setting", e.words)],
         ) from None
 
 
@@ -370,6 +399,11 @@ def put(s: Session, key: str, value: Any, by: str | None) -> Any:
         row.value = text
         row.updatedById = by
     return value
+
+
+def span(s: Session, key: str) -> dt.timedelta:
+    """A timing's length: the setting holds it in minutes."""
+    return dt.timedelta(minutes=get(s, key))
 
 
 def time_of(s: Session, key: str) -> dt.time:

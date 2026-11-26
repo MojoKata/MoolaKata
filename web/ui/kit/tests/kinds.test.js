@@ -120,6 +120,23 @@ Deno.test('bounds are exact, and say themselves as the field shows them', () => 
   );
 });
 
+Deno.test('a duration is bounded by durations, by its length however it is typed', () => {
+  const span = KINDS.duration;
+  const b = { min: '1h', max: '1w' };
+  equal(['1h', '60m', '1w', '6d 24h', '7d'].map((t) => check(span, b, t)), [
+    null,
+    null,
+    null,
+    null,
+    null,
+  ]);
+  equal(check(span, b, '59m'), '1h or more.');
+  equal(check(span, b, '1w 1m'), '1w or less.');
+  equal(check(span, b, '8x'), "“x” isn't a unit: use w, d, h or m.", 'its form first');
+  equal(check(span, { atMost: '2d' }, '49h'), '2d or less.');
+  equal(check(span, b, ''), null, 'a blank is refused at Save, never marked');
+});
+
 Deno.test('a web address is http or https with a host, up to 2,000 characters', () => {
   const ok = 'https://example.com/item';
   equal([ok, 'http://shop.lan', 'HTTPS://X.COM'].map(webAddress), [null, null, null]);

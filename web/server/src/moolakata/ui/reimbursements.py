@@ -8,10 +8,16 @@ from sqlalchemy import false, select
 
 from .. import access, activity, budgets, clock, reimbursements
 from ..errors import Problem, refuse
+from ..store import scoping
 from ..store.entities.accounts import Account, Reimbursement, Split, Transaction
+from ..store.entities.budgets import Budget
 from . import save
 from .conventions import ExactRoute, Model, Money
 from .deps import Caller, caller, server
+
+# How an account not shared with the viewer is named to them (S7.1.1).
+NOT_SHARED = "an account not shared"
+ZERO = reimbursements.ZERO
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["reimbursements"])
 
@@ -25,9 +31,11 @@ class Offer(Model):
 
 
 class AwaitingRow(Model):
-    spendingId: str
+    # No ids, date, payee, category, owed-by or age: an account not shared with the viewer,
+    # its rows added into one (S7.1.1).
+    spendingId: str | None
     splitId: str | None
-    date: dt.date
+    date: dt.date | None
     payee: str | None
     accountName: str
     category: str | None
@@ -35,7 +43,7 @@ class AwaitingRow(Model):
     reimbursable: Money
     paidBack: Money
     awaited: Money
-    ageDays: int
+    ageDays: int | None
     offers: list[Offer]
 
 
@@ -73,18 +81,35 @@ def _writable(s, user_id: str) -> list[Account]:
 @router.get("/budgets/{budget_id}/reimbursements", response_model=list[AwaitingRow])
 def awaiting(budget_id: str, request: Request, c: Caller = Depends(caller)):
     """What the budget's accounts await, oldest first, each with the deposits that may pay it
-    back among the caller's own accounts and those they can change."""
+    back among the caller's own accounts and those they can change. Once access to the budget
+    is checked, read as the server reads it: every account `members` gives the caller, the
+    owner's own among them; one not shared with the caller is never named, nor its rows' ids,
+    dates or payees given, its rows added into one (S7.1.1)."""
     today = clock.today()
     with server(request).db.read(user=c.id) as s:
         b, _ = access.budget(s, c.id, budget_id)
-        accts = budgets.account_ids(s, b, c.id, today)
-        names = {a.id: a.name for a in s.scalars(select(Account).where(Account.id.in_(accts)))}
+        with scoping.as_server(s, "what a budget's accounts await, for one who reads it",
+                               False) as srv:  # fmt: skip
+            accts = budgets.account_ids(srv, srv.get(Budget, b.id), c.id, today)
+            items = [x for x in reimbursements.marked(srv, accts) if x.awaited > 0]
+        names = {a.id: a.name for a, _ in access.accounts(s, c.id, Account.id.in_(accts))}
         tr = budgets.tree(s)
-        mine = _writable(s, c.id)
-        mine_names = {a.id: a.name for a in mine}
-        out = []
-        for item in reimbursements.marked(s, accts):
-            if item.awaited <= 0:
+        mine_names = {a.id: a.name for a in _writable(s, c.id)}
+        out: list[AwaitingRow] = []
+        withheld: dict[str, AwaitingRow] = {}
+        for item in items:
+            if item.accountId not in names:
+                got = withheld.get(item.accountId)
+                if got is None:
+                    got = withheld[item.accountId] = AwaitingRow(
+                        spendingId=None, splitId=None, date=None, payee=None,
+                        accountName=NOT_SHARED, category=None, owedBy=None,
+                        reimbursable=ZERO, paidBack=ZERO, awaited=ZERO, ageDays=None, offers=[],
+                    )  # fmt: skip
+                    out.append(got)
+                got.reimbursable += item.reimbursable
+                got.paidBack += item.paidBack
+                got.awaited += item.awaited
                 continue
             out.append(
                 AwaitingRow(
@@ -92,7 +117,7 @@ def awaiting(budget_id: str, request: Request, c: Caller = Depends(caller)):
                     splitId=item.splitId,
                     date=item.date,
                     payee=item.payee,
-                    accountName=names.get(item.accountId, "an account not shared"),
+                    accountName=names[item.accountId],
                     category=tr.label(item.categoryId) if item.categoryId in tr.by_id else None,
                     owedBy=item.owedBy,
                     reimbursable=item.reimbursable,
@@ -117,9 +142,11 @@ def awaiting(budget_id: str, request: Request, c: Caller = Depends(caller)):
 def _pair(s, c: Caller, body: PairIn, pair_id: str) -> Reimbursement:
     """A deposit paired with reimbursable spending: that much of it pays the spending back and
     isn't income (S2.9.2)."""
+    # Spending or a deposit gone, or one the caller can't read, the save's create rule refuses
+    # (schema.md §7.9); an id not of a transaction's form is left to these checks.
     spent = s.get(Transaction, body.spendingId)
-    if spent is None or spent.deleted:
-        raise Problem(404, "not-found", "No such transaction.")
+    if spent is None:
+        raise refuse("spendingId", "not-found", "No such transaction.", 404)
     a, _ = access.account(s, c.id, spent.accountId, "write")
     mark = spent.reimbursable
     if body.splitId:
@@ -143,8 +170,8 @@ def _pair(s, c: Caller, body: PairIn, pair_id: str) -> Reimbursement:
         reimbursements.ZERO,
     )
     back = s.get(Transaction, body.paybackId)
-    if back is None or back.deleted:
-        raise refuse("paybackId", "not-found", "No such deposit.")
+    if back is None:
+        raise refuse("paybackId", "not-found", "No such deposit.", 404)
     access.account(s, c.id, back.accountId, "write")
     if back.amount <= 0 or back.transferId or back.instrumentId:
         raise refuse("paybackId", "not-a-deposit", "Choose money that came in.")

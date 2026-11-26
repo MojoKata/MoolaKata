@@ -1,10 +1,11 @@
 """Reimbursable spending (requirements S2.9, S7.3.4)."""
 
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, saved
+from edits import change, make, remove, saved, share
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
@@ -116,6 +117,112 @@ def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
     assert [x["id"] for x in t["splits"]] == [x["id"] for x in bill["splits"]]
     saved(change(c, "Txn", t, memo="water and power"))
     assert awaiting(c, b) == [], "an edit of the transaction leaves its parts alone"
+
+
+def test_a_receiver_awaits_what_an_account_they_cant_see_awaits_unnamed(server, frozen):
+    """S7.1.1, S2.9: John reads Jane's budget and her Checking, not her Ally: what Ally awaits
+    counts for him all the same, as one row of *an account not shared* with no payee, date,
+    age or id, and nothing to pair."""
+    c, acct, cat, _ = setup_budget(server)
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    b = make(c, "Bdgt", name="Both", accountIds=[acct["id"], ally["id"]]).json()
+    add(c, acct["id"], "-412.60", "2026-10-02", payee="Delta Air Lines",
+        categoryId=cat["Travel"], reimbursable="412.60", owedBy="Acme Corp")  # fmt: skip
+    hidden = [
+        add(
+            c,
+            ally["id"],
+            "-100.00",
+            "2026-10-03",
+            payee="Dentist",
+            reimbursable="100.00",
+            owedBy="Insurer",
+        ),
+        add(c, ally["id"], "-50.00", "2026-10-04", payee="Pharmacy", reimbursable="50.00"),
+    ]
+    share(c, "budget", b["id"], users={john_id: "read"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+    mine = awaiting(c, b)
+    r = john.get(f"/ui/api/budgets/{b['id']}/reimbursements")
+    assert r.status_code == 200, r.text
+    theirs = r.json()["items"]
+    assert sum(Decimal(x["awaited"]) for x in mine) == sum(Decimal(x["awaited"]) for x in theirs)
+    seen, (other,) = theirs[:1], theirs[1:]
+    assert seen[0]["payee"] == "Delta Air Lines" and seen[0]["accountName"] == acct["name"]
+    assert other == {
+        "spendingId": None, "splitId": None, "date": None, "payee": None,
+        "accountName": "an account not shared", "category": None, "owedBy": None,
+        "reimbursable": "150.00", "paidBack": "0.00", "awaited": "150.00", "ageDays": None,
+        "offers": [],
+    }  # fmt: skip
+    for secret in (
+        ally["id"],
+        "Ally",
+        "Dentist",
+        "Pharmacy",
+        "Insurer",
+        *(t["id"] for t in hidden),
+    ):
+        assert secret not in r.text, secret
+
+
+def test_a_pairing_names_live_spending_its_own_part_and_a_live_deposit(server, frozen):
+    """S2.9.2: spending or a deposit gone is not found, a part of other spending is refused at
+    its field; a pairing is never changed, only unpaired, and one unpaired is gone."""
+    c, acct, _, _ = setup_budget(server)
+    lunch = add(c, acct["id"], "-20.00", "2026-10-03", reimbursable="20.00")
+    bill = make(c, "Txn", accountId=acct["id"], date="2026-10-04", amount="-30.00",
+                splits=[{"amount": "-10.00", "reimbursable": "10.00"},
+                        {"amount": "-20.00"}]).json()  # fmt: skip
+    deposit = add(c, acct["id"], "15.00", "2026-10-05")
+    gone = add(c, acct["id"], "-5.00", "2026-10-03", reimbursable="5.00")
+    assert remove(c, "Txn", gone).status_code == 200
+    r = make(c, "Rmbrs", spendingId=gone["id"], paybackId=deposit["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (404, "spendingId", "not-found")
+    assert e["message"] == "No such transaction."
+    r = make(c, "Rmbrs", spendingId=lunch["id"], splitId=bill["splits"][0]["id"],
+             paybackId=deposit["id"], amount="1.00")  # fmt: skip
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (422, "splitId", "not-found")
+    assert e["message"] == "No such part of the transaction."
+    spent = add(c, acct["id"], "8.00", "2026-10-06")
+    assert remove(c, "Txn", spent).status_code == 200
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=spent["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (404, "paybackId", "not-found")
+    assert e["message"] == "No such deposit."
+    # Another's, which the caller can't read, is answered as one gone, never said to exist.
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    his = new_account(john)
+    his_lunch = add(john, his["id"], "-9.00", "2026-10-03", reimbursable="9.00")
+    his_pay = add(john, his["id"], "9.00", "2026-10-05")
+    r = make(c, "Rmbrs", spendingId=his_lunch["id"], paybackId=deposit["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["message"]) == (404, "spendingId", "No such transaction.")
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=his_pay["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["message"]) == (404, "paybackId", "No such deposit.")
+    # An id of no transaction at all is the record's own check's to refuse, at its field.
+    for key, other, words in (
+        ("spendingId", {"paybackId": deposit["id"]}, "No such transaction."),
+        ("paybackId", {"spendingId": lunch["id"]}, "No such deposit."),
+    ):
+        r = make(c, "Rmbrs", **{key: "nope"}, **other, amount="1.00")
+        e = r.json()["errors"][0]
+        assert (r.status_code, e["field"], e["message"]) == (404, key, words), r.text
+    pair = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=deposit["id"], amount="5.00").json()
+    r = change(c, "Rmbrs", pair, amount="6.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["code"]) == (422, "pairing-fixed")
+    assert e["message"] == "A pairing isn't changed: unpair it, and pair again."
+    assert remove(c, "Rmbrs", pair).status_code == 200
+    r = remove(c, "Rmbrs", {**pair, "version": pair["version"] + 1})
+    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
 
 
 def test_marks_and_pairings_are_checked(server, frozen):

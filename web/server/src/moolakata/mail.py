@@ -3,10 +3,10 @@ each one is written to the mail folder as an .eml file; dev mode also prints its
 
 With SMTP set up (S16.2), an email is queued in the database, which is encrypted, and the mail
 task sends it at once, in the background, so a request never waits on the mail server. What
-can't be sent stays queued and is tried again every five minutes, until its link expires; one
-the server refuses outright keeps only its recipient, subject and the error. Settings › Email
-shows the queue and the last error. The SMTP host is one the egress guard allows, by name
-(S13.5).
+can't be sent stays queued and is tried again every five minutes, until its link expires (a
+day for one with no link); one the server refuses outright keeps only its recipient, subject
+and the error. Settings › Email shows the queue and the last error. The SMTP host is one the
+egress guard allows, by name (S13.5).
 
 Links are built from Settings › General's public URL, never from the request (S16.1). A
 token rides in the link's fragment (#…), which browsers send to no server and no Referer.
@@ -120,8 +120,16 @@ def _vetted(cls, address: str):
     return Vetted
 
 
+class PlainSignIn(Exception):
+    """A sign-in asked for over a link with no encryption, which is never made (S16.2)."""
+
+
 def deliver(smtp: Smtp, msg: EmailMessage, guard) -> None:
     """Hand one message to the SMTP server, through the egress guard."""
+    if smtp.security == "none" and smtp.username:
+        # A password goes only over STARTTLS or TLS; None is for a relay with no sign-in
+        # (S16.2). Settings refuse the pair at Save; this holds whatever saved them.
+        raise PlainSignIn()
     address = guard.check(smtp.host, smtp.port, "smtp")
     context = ssl.create_default_context()
     if smtp.security == "tls":
@@ -147,6 +155,8 @@ def describe(e: Exception) -> str:
     """What went wrong, in words an admin can act on, never a password."""
     if isinstance(e, smtplib.SMTPAuthenticationError):
         return "the SMTP server refused the username or password"
+    if isinstance(e, PlainSignIn):
+        return "sign-in needs STARTTLS or TLS: set Security, or clear the username"
     if isinstance(e, smtplib.SMTPNotSupportedError):
         return "the SMTP server does not offer STARTTLS: try TLS or None"
     if isinstance(e, smtplib.SMTPRecipientsRefused):

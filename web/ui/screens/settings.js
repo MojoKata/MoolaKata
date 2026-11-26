@@ -24,6 +24,7 @@ import {
   TypedInput,
 } from '../kit/fields.js';
 import { toast } from '../kit/toast.js';
+import { formatDuration, parseDuration } from '../kit/duration.js';
 import { awaitRestart, loadSession } from '../store/session.js';
 import { disconnect } from '../app/stream.js';
 import { LinksSection } from '../components/links.js';
@@ -98,14 +99,48 @@ export default function Settings({ section }) {
   `;
 }
 
+/**
+ * The timings (S16.3, S16.16): each held in minutes, typed as a duration (S12.13), with its
+ * least, its default and its most, as the server's settings set them.
+ */
+const TIMINGS = /** @type {{ [key: string]: [string, string, string] }} */ ({
+  sessionIdleMinutes: ['1h', '8h', '1w'],
+  sessionAbsoluteMinutes: ['1d', formatDuration(30 * 1440), '52w'],
+  lockoutMinutes: ['1m', '15m', '1d'],
+  alertSourceMinutes: ['1h', '2d', '2w'],
+});
+
+/**
+ * A timing typed as a duration and held in minutes (S12.13), shown as typed while it is edited
+ * and else as a duration, with min, default and max to fill it in (R3.11); text that doesn't
+ * read as one is refused at Save, at its field (S12.15).
+ * @param {{ rec: any, k: string, [attr: string]: any }} p  the rest is the field's, as `<Field>`
+ * gives its control
+ */
+function Timing({ rec, k, ...rest }) {
+  const [min, def, max] = TIMINGS[k];
+  return html`
+    <${TypedInput} kind="duration" value=${rec.typed(k) ?? formatDuration(rec.get(k))} min=${min}
+      max=${max} reset=${{ value: def, label: def }} placeholder=${`ex: ${def}`} onInput=${(
+        /** @type {string} */ x,
+      ) => rec.input(k, x, readMinutes)} ...${rest} />
+  `;
+}
+
+/** A duration typed, as the minutes a timing holds. @param {string} text */
+const readMinutes = (text) => {
+  const d = parseDuration(text);
+  return 'minutes' in d ? { value: d.minutes } : d;
+};
+
 /** Each plain section's keys. */
 const KEYS = /** @type {{ [section: string]: string[] }} */ ({
   general: ['serverName', 'householdName', 'householdAvatar', 'publicUrl'],
-  sessions: ['sessionIdleHours', 'sessionAbsoluteDays', 'lockoutFailures', 'lockoutMinutes'],
+  sessions: ['sessionIdleMinutes', 'sessionAbsoluteMinutes', 'lockoutFailures', 'lockoutMinutes'],
   signup: ['signupEnabled', 'signupDomains'],
   network: ['networkAppRanges', 'networkLinkRanges', 'networkConnectorRanges'],
   receipts: ['receiptMaxMb', 'readReceipts', 'receiptReadJobs'],
-  alerts: ['alertSourceHours', 'alertSummaryTime'],
+  alerts: ['alertSourceMinutes', 'alertSummaryTime'],
   passwords: ['passwordMinLength'],
   imports: ['importMaxMb', 'readStatements'],
 });
@@ -189,19 +224,18 @@ function Plain({ section }) {
   }
   if (section === 'sessions') {
     return form(
-      ['sessionIdleHours', 'sessionAbsoluteDays', 'lockoutFailures', 'lockoutMinutes'],
+      ['sessionIdleMinutes', 'sessionAbsoluteMinutes', 'lockoutFailures', 'lockoutMinutes'],
       html`
         <h3>Sign-In and Sessions</h3>
         <div class="row">
-          <${Field} label="Idle timeout (hours)" error=${errAt(e, 'sessionIdleHours')}>
-            <${SpinInput} min=${1} max=${168} step=${4} value=${f.sessionIdleHours}
-              onInput=${set('sessionIdleHours', true)} />
+          <${Field} label="Idle timeout" error=${errAt(e, 'sessionIdleMinutes')}>
+            <${Timing} rec=${rec} k="sessionIdleMinutes" />
             </${Field}>
-            <${Field} label="Longest session (days)" error=${errAt(e, 'sessionAbsoluteDays')}>
-              <${TypedInput} kind="count" value=${f.sessionAbsoluteDays} onInput=${set(
-                'sessionAbsoluteDays',
-                true,
-              )} />
+            <${Field} label="Longest session" error=${errAt(
+              e,
+              'sessionAbsoluteMinutes',
+            )}>
+              <${Timing} rec=${rec} k="sessionAbsoluteMinutes" />
               </${Field}>
               </div>
               <div class="row">
@@ -215,9 +249,8 @@ function Plain({ section }) {
                       true,
                     )} />
                   </${Field}>
-                  <${Field} label="Lockout (minutes)" error=${errAt(e, 'lockoutMinutes')}>
-                    <${TypedInput} kind="count" value=${f.lockoutMinutes}
-                      onInput=${set('lockoutMinutes', true)} />
+                  <${Field} label="Lockout" error=${errAt(e, 'lockoutMinutes')}>
+                    <${Timing} rec=${rec} k="lockoutMinutes" />
                     </${Field}>
                     </div>
       `,
@@ -311,17 +344,12 @@ function Plain({ section }) {
   }
   if (section === 'alerts') {
     return form(
-      ['alertSourceHours', 'alertSummaryTime'],
+      ['alertSourceMinutes', 'alertSummaryTime'],
       html`
         <h3>Alerts</h3>
-        <${Field} label="Alert when a source has failed for" id="alert-source-hours"
-          error=${errAt(e, 'alertSourceHours')}>
-          <${Select} value=${String(f.alertSourceHours)}
-            onChange=${(/** @type {string} */ x) => setF({ ...f, alertSourceHours: Number(x) })}
-            options=${[['24', '24 hours'], ['48', '48 hours'], ['72', '72 hours'], [
-              '168',
-              '1 week',
-            ]]} />
+        <${Field} label="Alert when a source has failed for" id="alert-source"
+          error=${errAt(e, 'alertSourceMinutes')}>
+          <${Timing} rec=${rec} k="alertSourceMinutes" />
           </${Field}>
           <${Field} label="Daily summary at" id="alert-summary-time" error=${errAt(
             e,

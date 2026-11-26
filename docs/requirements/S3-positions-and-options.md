@@ -100,7 +100,7 @@
       short put its strike less its premium, a short call the account's shares cover as a
       covered call (shares no strategy holds, given to the calls in turn; the shares its
       underlying became by a symbol change or a merger cover a call adjusted to deliver them,
-      S3.10), an uncovered one *unlimited*. Allocation charts keep market value.
+      S3.10), an uncovered one *unlimited*. The allocation (S5.2.4) keeps market value.
 6. **Expiry** is applied automatically the day after an option expires out of the money by the
    underlying's closing price. An in-the-money expiry asks the user what happened: expired,
    assigned or exercised, on which day, and how many contracts, from 1 to those held (an

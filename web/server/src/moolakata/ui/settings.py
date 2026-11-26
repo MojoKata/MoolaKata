@@ -261,6 +261,7 @@ def _settings_after(ctx) -> None:
         if moved and secret_repo.info(s, *where) is not None:
             secret_repo.remove(s, *where)
             cleared.append(secret)
+    _sign_in_needs_tls(s, notes)
     changed = notes["changed"]
     if changed:
         activity.record(s, "settings.changed", actor=c.id, for_admins=True,
@@ -269,6 +270,25 @@ def _settings_after(ctx) -> None:
         from .prices import apply_egress
 
         ctx.after("egress", lambda: apply_egress(srv))
+
+
+def _sign_in_needs_tls(s, notes: dict) -> None:
+    """Security None with a username or a stored password: refused, at the key this save
+    changed, since a password never goes to the mail server unencrypted (S16.2)."""
+    from ..mail import SMTP_SECRET
+    from ..store.repos import secrets as secret_repo
+
+    if settings.get(s, "smtpSecurity") != "none":
+        return
+    if not settings.get(s, "smtpUsername") and secret_repo.info(s, *SMTP_SECRET) is None:
+        return
+    keys = ("smtpSecurity", "smtpUsername", "smtpPassword")
+    key = next((k for k in keys if k in notes["ids"]), None)
+    if key is None:
+        return
+    message = "Sign-in needs STARTTLS or TLS."
+    error = FieldError(key, "sign-in-needs-tls", message, notes["ids"][key])
+    raise Problem(422, "sign-in-needs-tls", message, [error])
 
 
 def _setting_delete(ctx, row: Setting) -> None:
@@ -849,6 +869,10 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
     srv = server(request)
     address = request.client.host if request.client else "-"
     guard = srv.sign_in
+    # The server is unlocked, so the lockout is the one Settings › Sign-in and sessions sets;
+    # only the unlock, with the database unread, uses the defaults (S16.3).
+    with srv.db.read(user=c.id) as s:
+        lockout = settings.get(s, "lockoutFailures"), settings.get(s, "lockoutMinutes")
     wait = guard.locked(address)
     if wait:
         raise Problem(
@@ -857,20 +881,20 @@ async def verify_key(body: PhraseIn, request: Request, c: Caller = Depends(admin
             "Too many wrong phrases: try again later.",
             headers={"Retry-After": str(int(wait) + 1)},
         )
-    with guard.attempt(address):
+    with guard.attempt(address, lockout[0]):
         delay = guard.delay(LOGIN, address)
         if delay:
             await asyncio.sleep(delay)
         try:
             key = phrase.from_words(body.phrase)
         except phrase.PhraseError as e:
-            guard.failed(LOGIN, address)
+            guard.failed(LOGIN, address, *lockout)
             raise Problem(422, "phrase-invalid", f"Not a recovery phrase: {e}") from None
         ring = master.read_keyring(srv.config.keyring_path)
         try:
             master.unwrap(key, ring)
         except ValueError:  # a valid phrase, but not the key that wrapped this keyring
-            guard.failed(LOGIN, address)
+            guard.failed(LOGIN, address, *lockout)
             with srv.db.tx(user=c.id) as s:
                 activity.record(
                     s,
@@ -1427,16 +1451,16 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.read(unscoped="storage: the household's prunable files, for an admin") as s:
-        rows = retention.prunable(s, body.categories, body.deleted)
-    if not rows:
-        raise refuse("categories", "nothing-to-prune", "No files to prune in what is ticked.")
-    if body.count != len(rows):
-        raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
-    # Whether a file is still named is every receipt's to say, whoever's it is.
+    # Whether a file is still named is every receipt's to say, whoever's it is. The rows are
+    # found once, in the write that marks them, so the count typed is the count pruned; the
+    # files go only once that is committed (S14.10.5).
     with srv.db.tx(unscoped="storage: files pruned by an admin") as s:
         rows = retention.prunable(s, body.categories, body.deleted)
-        freed = retention.prune_files(srv, s, rows, c.id)
+        if not rows:
+            raise refuse("categories", "nothing-to-prune", "No files to prune in what is ticked.")
+        if body.count != len(rows):
+            raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
+        files = retention.mark_pruned(s, rows, c.id)
         activity.record(
             s,
             "files.pruned",
@@ -1444,11 +1468,12 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
             for_admins=True,
             detail={
                 "files": len(rows),
-                "bytes": freed,
+                "bytes": retention.file_sizes(srv, files),
                 "categories": body.categories,
                 "deleted": body.deleted,
             },
         )
+    freed = retention.remove_pruned(srv, files)
     return PruneOut(files=len(rows), bytes=freed)
 
 

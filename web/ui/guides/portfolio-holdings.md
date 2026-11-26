@@ -5,6 +5,14 @@ its own. The total is the portfolio's value.
 
 ![A portfolio's Holdings](shots/portfolio-holdings.png)
 
+## Allocation
+
+What the portfolio holds, by asset class: cash, bonds, US stocks, international stocks, real
+estate, crypto and metals, each holding in the class a projection grows it by; a home or land is
+real estate, a metal item metals, and any other item, such as a car or a collectable, or an
+option is *other*. What you owe, on a loan or a card, takes no share.
+**Show as table** lists each class's value and share.
+
 ## Weight
 
 Each holding's share of what the portfolio holds: cash, holdings and items. What a loan owes takes

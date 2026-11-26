@@ -135,6 +135,17 @@ class Series:
         return out
 
 
+class WithTransfers:
+    """A transaction as the recurring finder sees it with a transfer counted (S7.6.1): a
+    regular top-up is money in, a card payment money out."""
+
+    def __init__(self, t):
+        self.payee, self.amount, self.accountId, self.date = t.payee, t.amount, t.accountId, t.date
+        self.transferId = None
+        self.instrumentId = t.instrumentId
+        self.categoryId = t.categoryId
+
+
 def payee_key(payee: str) -> str:
     """Payees that differ only in reference numbers are one: `NETFLIX.COM 8843` is Netflix."""
     text = re.sub(r"[#*]?\d[\d\-/]*", " ", payee.lower())

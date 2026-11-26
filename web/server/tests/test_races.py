@@ -253,7 +253,7 @@ def test_a_prune_while_an_upload_reuses_the_file(server, monkeypatch):
         name = f"{s.get(Receipt, first.json()['id']).fileId}.mkr"
 
     def prune():
-        # What prune_files does with the file once no live receipt needs it (S14.10.5).
+        # What remove_pruned does with the file once no live receipt needs it (S14.10.5).
         freed.append(server.files.of(server.config.receipts_dir).remove(name))
 
     ran = at(monkeypatch, "receipt.reused", prune)

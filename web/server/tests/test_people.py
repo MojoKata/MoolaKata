@@ -114,6 +114,25 @@ def test_one_person_once_and_asking_to_share_a_private_one(server, two):
         assert all(a.resolvedAt for a in s.query(Alert).filter_by(kind="share-asked"))
 
 
+def test_whoever_opens_a_private_persons_share_dialog_saves_it(server, two, admin_client):
+    """S10.10.2: a private person is shared by whoever may change them, their creator, an
+    admin, their own user, and the dialog and its Save read that one permission: an admin who
+    opens Jane's private Ruth's dialog saves it, and a user's own person is theirs to share.
+    One who may not change her doesn't open it."""
+    jane, john = two
+    ruth = add(jane, "Ruth Doe", private=True, birthYear=1950)
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    assert admin_client.get(f"/ui/api/shares/person/{ruth['id']}").status_code == 200
+    r = share(admin_client, "person", ruth["id"], users={john_id: "read"})
+    assert r.status_code == 200, r.text
+    assert "Ruth Doe" in {x["name"] for x in john.get("/ui/api/persons").json()["items"]}
+    own = me(john)
+    jane_id = jane.get("/ui/api/session").json()["user"]["id"]
+    assert john.get(f"/ui/api/shares/person/{own}").status_code == 200
+    assert share(john, "person", own, users={jane_id: "write"}).status_code == 200
+    assert john.get(f"/ui/api/shares/person/{ruth['id']}").status_code in (403, 404)
+
+
 def test_only_the_person_their_creator_or_an_admin_changes_them(server, two):
     jane, john = two
     lisa = add(jane, "Lisa Doe", birthYear=2018)

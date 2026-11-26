@@ -240,3 +240,65 @@ def test_every_problem_code_and_every_422_is_in_the_openapi_document():
         for op in ops.values():
             if isinstance(op, dict) and "422" in op.get("responses", {}):
                 assert op["responses"]["422"] == {"$ref": "#/components/responses/Problem"}
+
+
+def test_a_change_without_its_version_or_with_one_not_a_number_is_refused(server):
+    """S13.8.6: If-Match missing is 428, not a whole number 400, before anything is read."""
+    from conftest import make_user, sign_in
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    path = "/ui/api/transactions/Txn_00000000000000000000000000/keep"
+    for headers, status in (({}, 428), ({"If-Match": '"two"'}, 400)):
+        r = c.post(path, headers=headers)
+        assert r.status_code == status, r.text
+        assert (r.json()["code"], r.json()["detail"]) == (
+            "version-required", "Send the record's version in If-Match."
+        )  # fmt: skip
+
+
+@pytest.mark.parametrize(("kind", "words"), [("Quantity", "quantities"), ("Rate", "rates")])
+def test_a_quantity_or_a_rate_is_never_taken_through_a_float(kind, words):
+    """R1.9: an exact number is never a float: one made in the server refuses it."""
+    from decimal import Decimal
+
+    from pydantic import TypeAdapter, ValidationError
+
+    from moolakata.ui import conventions
+
+    t = TypeAdapter(getattr(conventions, kind))
+    with pytest.raises(ValidationError, match=f"{words} are exact"):
+        t.validate_python(2.5)
+    assert t.validate_python(Decimal("2.5")) == Decimal("2.5")
+
+
+def test_a_requests_exact_body_is_read_once():
+    import asyncio
+
+    from moolakata.ui.conventions import ExactRequest, Sent
+
+    sent = [{"type": "http.request", "body": b'{"amount": 1234.50}', "more_body": False}]
+
+    async def receive():
+        return sent.pop(0)
+
+    async def scenario():
+        r = ExactRequest({"type": "http", "method": "POST", "headers": []}, receive)
+        return await r.json(), await r.json()
+
+    first, again = asyncio.run(scenario())
+    assert first is again and isinstance(first["amount"], Sent)
+    assert str(first["amount"]) == "1234.50"
+
+
+def test_an_idempotency_key_is_forgotten_after_a_day():
+    """S13.8.8: a repeat within 24 hours gets the first answer; after, none."""
+    from moolakata.ui.conventions import Idempotency
+
+    now = [0.0]
+    seen = Idempotency(clock=lambda: now[0])
+    seen.remember("User_a", "k1", 201, {"id": "x"}, {})
+    now[0] = Idempotency.TTL
+    assert seen.lookup("User_a", "k1") == (201, {"id": "x"}, {})
+    now[0] = Idempotency.TTL + 1
+    assert seen.lookup("User_a", "k1") is None
