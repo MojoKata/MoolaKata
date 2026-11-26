@@ -191,6 +191,111 @@ def test_share_these_accounts_too_passes_over_an_inactive_group(server, admin_cl
                               "accountIds": [brokerage["id"]]}]  # fmt: skip
 
 
+def _linked_user(server, name, state="active"):
+    """A user of a linked server, on a link in this state."""
+    from moolakata import ids, people
+    from moolakata.store.entities.links import Link
+    from moolakata.store.entities.users import User
+
+    with server.db.tx(unscoped="test") as s:
+        link = Link(id=ids.new_id("Link"), state=state, role="inviter")
+        s.add(link)
+        s.flush()
+        u = User(id=ids.new_id("User"), personId=people.make(s, name, "female").id,
+                 username=name.lower(), displayName=name, linkId=link.id,
+                 remoteId=name.lower(), alertEmails="none")  # fmt: skip
+        s.add(u)
+        return u.id, link.id
+
+
+def _refused(r, status, field, code, message=None):
+    assert r.status_code == status, r.text
+    e = r.json()["errors"][0]
+    assert (e["field"], e["code"]) == (field, code), e
+    if message:
+        assert e["message"] == message
+
+
+def test_a_grant_names_one_active_user_or_group_once(server, admin_client):
+    """S10.4, R3.14: a grant is for a user or a group, one that is there and active, and only
+    once; it keeps its item and grantee, changing only what it allows."""
+    from edits import create
+
+    from moolakata.ids import new_id as ids_new
+
+    u, c = setup(server)
+    a = new_account(c["jane"])
+    grant = {"targetId": a["id"], "allow": "read"}
+    _refused(create(c["jane"], "AcShr", **grant), 422, "userId", "grantee-missing",
+             "A user or a group.")  # fmt: skip
+    for who in (u["jane"].id, ids_new("User")):  # oneself, or no one
+        _refused(create(c["jane"], "AcShr", **grant, userId=who), 422, "userId", "user-unknown",
+                 "Choose a user.")  # fmt: skip
+    g = make(admin_client, "Group", name="Household", memberIds=[u["john"].id]).json()
+    both = {**grant, "userId": u["john"].id, "groupId": g["id"]}
+    _refused(create(c["jane"], "AcShr", **both), 422, "userId", "grantee-missing")
+    from moolakata import ids
+
+    _refused(create(c["jane"], "AcShr", **grant, groupId=ids.new_id("Group")), 422, "groupId",
+             "group-unknown", "Choose a group.")  # fmt: skip
+    idle = make(admin_client, "Group", name="Idle", memberIds=[u["bart"].id]).json()
+    saved(change(admin_client, "Group", idle, active=False))
+    _refused(create(c["jane"], "AcShr", **grant, groupId=idle["id"]), 422, "groupId",
+             "group-inactive", "Idle is not active and can't be added.")  # fmt: skip
+    first = saved(create(c["jane"], "AcShr", **grant, groupId=g["id"]))
+    _refused(create(c["jane"], "AcShr", **grant, groupId=g["id"]), 409, "groupId", "shared",
+             "It is shared with them: change what it allows.")  # fmt: skip
+    _refused(change(c["jane"], "AcShr", first, groupId=None, userId=u["bart"].id), 422,
+             "userId", "share-fixed", "A grant stays with its item and its grantee.")  # fmt: skip
+    saved(remove(c["jane"], "AcShr", first))
+    r = change(c["jane"], "AcShr", {**first, "version": first["version"] + 1}, allow="write")
+    assert r.status_code == 404
+
+
+def test_a_grant_to_a_linked_server_is_read_only_and_needs_its_link_live(server):
+    """S11.2, S10.3.3: a linked server's user is given Read only, and only while their link
+    is active or paused; a link with no one active left isn't listed in the dialog."""
+    from edits import create
+
+    _, c = setup(server)
+    a = new_account(c["jane"])
+    ann, _ = _linked_user(server, "Ann")
+    ended, _ = _linked_user(server, "Eda", state="ended")
+    gone, gone_link = _linked_user(server, "Gus")
+    with server.db.tx(unscoped="test") as s:
+        from moolakata.store.entities.users import User
+
+        s.get(User, gone).active = False
+    grant = {"targetId": a["id"]}
+    _refused(create(c["jane"], "AcShr", **grant, userId=ann, allow="write"), 422, "allow",
+             "read-only", "Ann is on a linked server: shares there are read only.")  # fmt: skip
+    _refused(create(c["jane"], "AcShr", **grant, userId=ended, allow="read"), 422, "userId",
+             "link-not-active", "That server's link isn't active.")  # fmt: skip
+    v = c["jane"].get(f"/ui/api/shares/account/{a['id']}").json()
+    assert gone_link not in [x["linkId"] for x in v["links"]]
+    assert [x["users"][0]["displayName"] for x in v["links"]] == ["Ann"]
+
+
+def test_count_in_my_totals_is_set_once_per_account_and_stays_with_it(server):
+    """S10.7: a receiver's Count in my totals is one record per account, changed in place,
+    never moved to another account; another's isn't theirs to change."""
+    from edits import create
+
+    u, c = setup(server)
+    hers = new_account(c["jane"])
+    other = new_account(c["jane"], name="Other")
+    share(c["jane"], "account", hers["id"], users={u["john"].id: "read", u["bart"].id: "read"})
+    share(c["jane"], "account", other["id"], users={u["john"].id: "read"})
+    mine = saved(create(c["john"], "CntAc", accountId=hers["id"], counted=True))
+    _refused(create(c["john"], "CntAc", accountId=hers["id"], counted=False), 409, "accountId",
+             "counted-set", "It is set: change it.")  # fmt: skip
+    _refused(change(c["john"], "CntAc", mine, accountId=other["id"]), 422, "accountId",
+             "counted-fixed", "It stays with its account.")  # fmt: skip
+    mine = saved(change(c["john"], "CntAc", mine, counted=False))
+    assert mine["counted"] is False
+    assert change(c["bart"], "CntAc", mine, counted=True).status_code == 404
+
+
 def test_activity_goes_to_the_people_concerned_without_amounts(server, admin_client):
     u, c = setup(server)
     a = new_account(c["jane"], name="Joint checking")
