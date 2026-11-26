@@ -30,10 +30,10 @@
       included; a loan takes none;
    4. **Allocation**: what is held by asset class, at market value, as a donut with each
       class's share: cash, bonds, US stocks, international stocks, real estate, crypto and
-      metals, each holding in the class a projection grows it by (S6.4.2.2); an item of real
-      estate is real estate, and any other item (a car, a collectable) or an option is
-      *other*. What is owed (a loan, a card's balance, a short option) holds nothing and
-      takes no share. It shows on the Holdings tab, and on the Dashboard
+      metals, each holding in the class a projection grows it by (S6.4.2.2); a home or land
+      is real estate, a metal item metals, and any other item (a car, a collectable) or an
+      option is *other*. What is owed (a loan, a card's balance, a short option) holds
+      nothing and takes no share. It shows on the Holdings tab, and on the Dashboard
       over the user's net-worth accounts, where **Details** opens *All my accounts*.
 
    A portfolio of chosen holdings, allocation against a target with its drift and rebalancing,

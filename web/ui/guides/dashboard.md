@@ -29,9 +29,9 @@ Without one, the count of what needs attention shows here instead.
 
 What your accounts that count in net worth hold, by asset class: cash, bonds, US stocks,
 international stocks, real estate, crypto and metals, each holding in the class a projection
-grows it by; a home or land is real estate, and any other item, such as a car, or an option is
-*other*. What you owe, on a loan or a card, takes
-no share. **Details** opens *All my accounts*.
+grows it by; a home or land is real estate, a metal item metals, and any other item, such as a
+car or a collectable, or an option is *other*. What you owe, on a loan or a card, takes no share.
+**Details** opens *All my accounts*.
 **Show as table** lists each class's value and share.
 
 ## Range
@@ -65,8 +65,8 @@ failing for longer than Settings › Alerts allows. Each line links to where it'
 
 ## Upcoming
 
-Recurring transactions expected in the coming month, soonest first: each with its next date, how
-often it comes, and its usual amount. They're found in your cash and card accounts' history, as a
+Up to five recurring transactions due in the next 30 days, soonest first: each with its next
+date, how often it comes, and its usual amount. They're found in your cash and card accounts' history, as a
 budget's Recurring tab finds them; one that has stopped coming is left out.
 
 > Prices are daily closes, never live. The dot by **Prices** at the top turns amber when a held
