@@ -356,6 +356,22 @@ function markOn(state, type) {
 }
 
 /**
+ * The selection as the browser draws it, taken now: before a key or a paste acts on it, and
+ * after a key has moved it. The browser reports a moved selection a moment later, after the
+ * keys already waiting (typed ahead on a busy machine), so Shift+Home then Ctrl/Cmd+K would
+ * link nothing (S12.18.15), and the editor's own check after it is focused would put its old
+ * selection back over the new one. ProseMirror reads it so when the browser reports it; it has
+ * no public call for it.
+ * @param {EditorView} view @param {Event} e
+ */
+function readSelection(view, e) {
+  if (!view.composing && !(/** @type {KeyboardEvent} */ (e).isComposing)) {
+    /** @type {any} */ (view).domObserver.onSelectionChange();
+  }
+  return false;
+}
+
+/**
  * The note editor: the toolbar, the text, the count near the limit, and the link popovers.
  * @param {{ value: any, onChange: (doc: any) => void, id?: string, placeholder?: string,
  *   disabled?: boolean, own?: Own[], pages?: Pages, open?: (page: string) => void,
@@ -542,6 +558,9 @@ export function NoteEditor(
       handleDOMEvents: {
         focus: () => (setFocus((f) => f + 1), false),
         blur: () => (setFocus((f) => f + 1), false),
+        keydown: readSelection,
+        keyup: readSelection,
+        paste: readSelection,
       },
     });
     viewRef.current = view;
