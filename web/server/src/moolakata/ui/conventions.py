@@ -320,14 +320,6 @@ class Deleted[P](BaseModel):
     parent: P | None = None
 
 
-def gone(record: Any, id_: str | None = None) -> Gone:
-    return Gone(
-        id=id_ or record.id,
-        deletedAt=getattr(record, "deletedAt", None),
-        version=getattr(record, "version", None),
-    )
-
-
 class Idempotency:
     """A POST that creates may carry Idempotency-Key: a repeat within 24 hours gets the first
     answer (S13.8.8). Keys are per user."""
