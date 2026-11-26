@@ -245,12 +245,12 @@ def test_staleness():
     """S4.5, S4.7, each on its bound: an option's close after one trading day, a stock's after
     two, a coin's after two days, a typed price after 90 days."""
     friday = dt.date(2026, 10, 9)
-    assert not pricing.is_stale("option", friday, dt.date(2026, 10, 12))
-    assert pricing.is_stale("option", friday, dt.date(2026, 10, 13))
-    assert not pricing.is_stale("etf", friday, dt.date(2026, 10, 13))
-    assert pricing.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
-    assert not pricing.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
-    assert pricing.is_stale("crypto", friday, dt.date(2026, 10, 12))
+    assert not valuation.is_stale("option", friday, dt.date(2026, 10, 12))
+    assert valuation.is_stale("option", friday, dt.date(2026, 10, 13))
+    assert not valuation.is_stale("etf", friday, dt.date(2026, 10, 13))
+    assert valuation.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
+    assert not valuation.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
+    assert valuation.is_stale("crypto", friday, dt.date(2026, 10, 12))
     assert not pricing.typed_stale(friday, friday + dt.timedelta(days=90))
     assert pricing.typed_stale(friday, friday + dt.timedelta(days=91))
 

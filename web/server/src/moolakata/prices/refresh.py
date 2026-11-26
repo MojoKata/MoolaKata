@@ -28,32 +28,11 @@ from .base import SOURCES, Ref, SourceError, TickerSource
 log = logging.getLogger("moolakata.prices")
 BENCHMARKS = ("SPY", "VT", "BND")
 BACKFILL_DAYS = 5 * 366
-STALE_DAYS = {"crypto": 2}
-
-
-def trading_days_between(a: dt.date, b: dt.date) -> int:
-    """Weekdays after a up to b: close enough to the US market's trading days to mark a
-    price stale (S4.7)."""
-    n, day = 0, a
-    while day < b:
-        day += dt.timedelta(days=1)
-        if day.weekday() < 5:
-            n += 1
-    return n
 
 
 def typed_stale(as_of: dt.date, today: dt.date) -> bool:
     """A typed price is stale after 90 days (S4.7)."""
     return (today - as_of).days > valuation.TYPED_STALE_DAYS
-
-
-def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
-    """A fetched close's staleness by its class (S4.7). Only a fetching source stores closes; a
-    typed price is a TypedPrice, stale by `typed_stale`."""
-    if cls in STALE_DAYS:
-        return (today - as_of).days > STALE_DAYS[cls]
-    # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
-    return trading_days_between(as_of, today) > (1 if cls == "option" else 2)
 
 
 def stored_closes(
@@ -79,7 +58,7 @@ def stored_closes(
             p.close,
             p.date,
             "close",
-            is_stale(cls, p.date, min(day, today)),
+            valuation.is_stale(cls, p.date, min(day, today)),
         )
         for p, cls in rows
     }

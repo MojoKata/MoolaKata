@@ -66,7 +66,8 @@
    Charts read stored prices only, never a price source during a request.
 7. **Every price carries its source and `as_of`.** The UI shows *delayed* or *as of 4:00 PM*
    on every value derived from it. A price older than a threshold (2 trading days for a
-   stock) is marked stale.
+   stock) is marked stale, and so is one taken from a trade (S4.10), dated by its trade, by
+   the same threshold.
 8. **US dollars only**: every account, holding, price and total is in USD. Prices are fetched
    in USD, including crypto and metals spot. An instrument that trades only in another
    currency is priced by hand.
