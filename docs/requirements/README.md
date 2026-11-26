@@ -204,7 +204,7 @@ The rulings the rest of the requirements apply.
    bank transaction has a payee and a budget **category**.
 7. **Position:** an instrument held in an account, followed from **open** to **closed**, with
    its realized and unrealized gain or loss. Options are positions (S3).
-8. **Portfolio:** a named set of accounts, or of a part of them (S5), owned by one user and
+8. **Portfolio:** a named set of accounts (S5), owned by one user and
    charted as one. *All my accounts* is everyone's implicit first portfolio.
 9. **Share:** a grant of one item, of the eight kinds of S10.3, to a user, a group or named
    users of a linked server, at a **level**: `read` or `write` (S10). A share to a linked
