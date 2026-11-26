@@ -25,12 +25,6 @@ def blocks(page, demo: str) -> list[str]:
     return [b["type"] for b in doc["content"]] if doc else []
 
 
-def settle(page):
-    """The editor takes the browser's selection now, as it does when the browser reports a
-    change (an event that comes a moment later, later still on a busy machine)."""
-    page.evaluate("document.dispatchEvent(new Event('selectionchange'))")
-
-
 def select_end(page, demo: str, words: str):
     """The last words of the first paragraph selected, as the editor has them. The editor may put
     back its own selection over one the browser reports (just after typing, on a busy machine),
@@ -56,7 +50,6 @@ def paste(page, demo: str, data: dict[str, str]):
     the browser has it."""
     editor(page, demo).evaluate(
         """(el, data) => {
-          document.dispatchEvent(new Event('selectionchange'));
           const dt = new DataTransfer();
           for (const [k, v] of Object.entries(data)) dt.setData(k, v);
           el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true,
@@ -234,6 +227,39 @@ def test_an_address_pasted_over_words_links_them_and_alone_comes_in_as_a_link(pa
     ]
 
 
+def test_a_selection_made_by_keys_is_the_one_the_next_key_or_paste_acts_on(page, kit):
+    """Keys typed ahead (a busy machine) come before the browser reports the selection the last
+    one made; here it never reports it, so the editor's own reading is all there is. It is held
+    back once the page has caught up with the typing, the editor's own check after it is focused
+    among it, as it has long before a person selects anything."""
+    open_page(page, kit, "notes")
+    ed = editor(page, "note-empty")
+    ed.click()
+    page.keyboard.type("the guide")
+    page.evaluate(
+        """() => new Promise((done) => requestIdleCallback(() => {
+          document.addEventListener('selectionchange',
+            (e) => e.isTrusted && e.stopImmediatePropagation(), true);
+          done();
+        }))"""
+    )
+    page.keyboard.press("Shift+Home")
+    paste(page, "note-empty", {"text/plain": "https://example.com/guide"})
+    page.keyboard.press("End")
+    page.keyboard.type(" now")
+    page.keyboard.press("Control+Shift+ArrowLeft")
+    page.keyboard.press("Control+b")
+    assert kept(page, "note-empty")["content"][0]["content"] == [
+        {
+            "type": "text",
+            "text": "the guide",
+            "marks": [{"type": "link", "attrs": {"href": "https://example.com/guide"}}],
+        },
+        {"type": "text", "text": " "},
+        {"type": "text", "text": "now", "marks": [{"type": "bold"}]},
+    ]
+
+
 def test_pasted_markup_keeps_only_what_a_note_holds(page, kit):
     open_page(page, kit, "notes")
     ed = editor(page, "note-empty")
@@ -331,7 +357,6 @@ def test_past_its_limit_the_count_shows_and_the_note_is_marked_when_left(page, k
     )
     # Any change clears the mark.
     editor(page, "note-long").click()
-    settle(page)
     page.keyboard.press("Backspace")
     expect(page.locator(f"{d} .note.bad")).to_have_count(0)
 
@@ -434,7 +459,6 @@ def test_a_link_at_the_caret_is_followed_changed_and_made_from_the_toolbar(page,
     tab.value.close()
     # With nothing selected, Link puts the address in as its own words; Escape leaves it be.
     ed.click()
-    settle(page)
     page.keyboard.press("Control+End")
     page.keyboard.press("Enter")
     page.locator(f"{d} button[aria-label='Link']").click()
