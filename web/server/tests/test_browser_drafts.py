@@ -1637,7 +1637,9 @@ def test_the_timings_are_durations_in_their_ranges(browser, household):
     wait(page, '#f-idle-timeout-err:has-text("At most 1w.")', problems)
     assert [p.split(" http")[0] for p in problems] == ["422 for"], "the server's refusal"
     problems.clear()
+    # The server's refusal is the value's: a new value clears it, as at any other field.
     page.click('.field:has(#f-idle-timeout) button[aria-label="Use the default: 8h"]')
+    until(page, lambda: page.locator("#f-idle-timeout-err").count() == 0, what="cleared")
     page.click(f"{form} button.primary")
     until(
         page,

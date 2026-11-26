@@ -11,6 +11,15 @@ export class SettingRec extends Record {
   static prefix = 'Setng';
   /** @override */
   static fields = FIELDS.SettingRecord;
+
+  /**
+   * A refusal that names the setting's key, as the server's do, is its value's: a new value
+   * clears it, as at any other record's field (S12.15).
+   * @override @param {string | null} name @param {string} message
+   */
+  refuse(name, message) {
+    super.refuse(name !== null && name === this.get('key') ? 'value' : name, message);
+  }
 }
 
 /**
