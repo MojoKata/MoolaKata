@@ -314,14 +314,10 @@ function Plain({ section }) {
       ['alertSourceHours', 'alertSummaryTime'],
       html`
         <h3>Alerts</h3>
-        <${Field} label="Alert when a source has failed for" id="alert-source-hours"
+        <${Field} label="Alert when a source has failed for (hours)" id="alert-source-hours"
           error=${errAt(e, 'alertSourceHours')}>
-          <${Select} value=${String(f.alertSourceHours)}
-            onChange=${(/** @type {string} */ x) => setF({ ...f, alertSourceHours: Number(x) })}
-            options=${[['24', '24 hours'], ['48', '48 hours'], ['72', '72 hours'], [
-              '168',
-              '1 week',
-            ]]} />
+          <${SpinInput} min=${1} max=${336} step=${24} value=${f.alertSourceHours}
+            onInput=${set('alertSourceHours', true)} />
           </${Field}>
           <${Field} label="Daily summary at" id="alert-summary-time" error=${errAt(
             e,
