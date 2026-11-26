@@ -399,7 +399,15 @@ Reimbursement = record(
     CheckConstraint("amount > 0", name="amount"),
     Index("ix_Reimbursement_spendingId", "spendingId"),
     Index("ix_Reimbursement_paybackId", "paybackId"),
-    seen=Seen.rule(creates=AllOf((Via("spendingId"), Via("paybackId")))),
+    # A side gone, or one the caller can't read, is named at its field (S2.9.2).
+    seen=Seen.rule(
+        creates=AllOf(
+            (
+                Via("spendingId", missing=("not-found", "No such transaction.")),
+                Via("paybackId", missing=("not-found", "No such deposit.")),
+            )
+        )
+    ),
 )
 
 # A user's own tag (S2.6): its name, lower case, once a user; transactions, receipts and the

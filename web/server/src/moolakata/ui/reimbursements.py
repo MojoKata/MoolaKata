@@ -142,9 +142,11 @@ def awaiting(budget_id: str, request: Request, c: Caller = Depends(caller)):
 def _pair(s, c: Caller, body: PairIn, pair_id: str) -> Reimbursement:
     """A deposit paired with reimbursable spending: that much of it pays the spending back and
     isn't income (S2.9.2)."""
+    # Spending or a deposit gone, or one the caller can't read, the save's create rule refuses
+    # (schema.md §7.9); an id not of a transaction's form is left to these checks.
     spent = s.get(Transaction, body.spendingId)
-    if spent is None or spent.deleted:
-        raise Problem(404, "not-found", "No such transaction.")
+    if spent is None:
+        raise refuse("spendingId", "not-found", "No such transaction.", 404)
     a, _ = access.account(s, c.id, spent.accountId, "write")
     mark = spent.reimbursable
     if body.splitId:
@@ -168,8 +170,8 @@ def _pair(s, c: Caller, body: PairIn, pair_id: str) -> Reimbursement:
         reimbursements.ZERO,
     )
     back = s.get(Transaction, body.paybackId)
-    if back is None or back.deleted:
-        raise refuse("paybackId", "not-found", "No such deposit.")
+    if back is None:
+        raise refuse("paybackId", "not-found", "No such deposit.", 404)
     access.account(s, c.id, back.accountId, "write")
     if back.amount <= 0 or back.transferId or back.instrumentId:
         raise refuse("paybackId", "not-a-deposit", "Choose money that came in.")

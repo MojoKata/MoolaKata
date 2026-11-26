@@ -181,7 +181,9 @@ def test_a_pairing_names_live_spending_its_own_part_and_a_live_deposit(server, f
     gone = add(c, acct["id"], "-5.00", "2026-10-03", reimbursable="5.00")
     assert remove(c, "Txn", gone).status_code == 200
     r = make(c, "Rmbrs", spendingId=gone["id"], paybackId=deposit["id"], amount="1.00")
-    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (404, "spendingId", "not-found")
+    assert e["message"] == "No such transaction."
     r = make(c, "Rmbrs", spendingId=lunch["id"], splitId=bill["splits"][0]["id"],
              paybackId=deposit["id"], amount="1.00")  # fmt: skip
     e = r.json()["errors"][0]
@@ -190,7 +192,29 @@ def test_a_pairing_names_live_spending_its_own_part_and_a_live_deposit(server, f
     spent = add(c, acct["id"], "8.00", "2026-10-06")
     assert remove(c, "Txn", spent).status_code == 200
     r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=spent["id"], amount="1.00")
-    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (404, "paybackId", "not-found")
+    assert e["message"] == "No such deposit."
+    # Another's, which the caller can't read, is answered as one gone, never said to exist.
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    his = new_account(john)
+    his_lunch = add(john, his["id"], "-9.00", "2026-10-03", reimbursable="9.00")
+    his_pay = add(john, his["id"], "9.00", "2026-10-05")
+    r = make(c, "Rmbrs", spendingId=his_lunch["id"], paybackId=deposit["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["message"]) == (404, "spendingId", "No such transaction.")
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=his_pay["id"], amount="1.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["message"]) == (404, "paybackId", "No such deposit.")
+    # An id of no transaction at all is the record's own check's to refuse, at its field.
+    for key, other, words in (
+        ("spendingId", {"paybackId": deposit["id"]}, "No such transaction."),
+        ("paybackId", {"spendingId": lunch["id"]}, "No such deposit."),
+    ):
+        r = make(c, "Rmbrs", **{key: "nope"}, **other, amount="1.00")
+        e = r.json()["errors"][0]
+        assert (r.status_code, e["field"], e["message"]) == (404, key, words), r.text
     pair = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=deposit["id"], amount="5.00").json()
     r = change(c, "Rmbrs", pair, amount="6.00")
     e = r.json()["errors"][0]
