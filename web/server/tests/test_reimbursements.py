@@ -169,6 +169,38 @@ def test_a_receiver_awaits_what_an_account_they_cant_see_awaits_unnamed(server, 
         assert secret not in r.text, secret
 
 
+def test_a_pairing_names_live_spending_its_own_part_and_a_live_deposit(server, frozen):
+    """S2.9.2: spending or a deposit gone is not found, a part of other spending is refused at
+    its field; a pairing is never changed, only unpaired, and one unpaired is gone."""
+    c, acct, _, _ = setup_budget(server)
+    lunch = add(c, acct["id"], "-20.00", "2026-10-03", reimbursable="20.00")
+    bill = make(c, "Txn", accountId=acct["id"], date="2026-10-04", amount="-30.00",
+                splits=[{"amount": "-10.00", "reimbursable": "10.00"},
+                        {"amount": "-20.00"}]).json()  # fmt: skip
+    deposit = add(c, acct["id"], "15.00", "2026-10-05")
+    gone = add(c, acct["id"], "-5.00", "2026-10-03", reimbursable="5.00")
+    assert remove(c, "Txn", gone).status_code == 200
+    r = make(c, "Rmbrs", spendingId=gone["id"], paybackId=deposit["id"], amount="1.00")
+    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+    r = make(c, "Rmbrs", spendingId=lunch["id"], splitId=bill["splits"][0]["id"],
+             paybackId=deposit["id"], amount="1.00")  # fmt: skip
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["field"], e["code"]) == (422, "splitId", "not-found")
+    assert e["message"] == "No such part of the transaction."
+    spent = add(c, acct["id"], "8.00", "2026-10-06")
+    assert remove(c, "Txn", spent).status_code == 200
+    r = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=spent["id"], amount="1.00")
+    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+    pair = make(c, "Rmbrs", spendingId=lunch["id"], paybackId=deposit["id"], amount="5.00").json()
+    r = change(c, "Rmbrs", pair, amount="6.00")
+    e = r.json()["errors"][0]
+    assert (r.status_code, e["code"]) == (422, "pairing-fixed")
+    assert e["message"] == "A pairing isn't changed: unpair it, and pair again."
+    assert remove(c, "Rmbrs", pair).status_code == 200
+    r = remove(c, "Rmbrs", {**pair, "version": pair["version"] + 1})
+    assert r.status_code == 404 and r.json()["errors"][0]["code"] == "not-found"
+
+
 def test_marks_and_pairings_are_checked(server, frozen):
     c, acct, _, _ = setup_budget(server)
     bad = make(
