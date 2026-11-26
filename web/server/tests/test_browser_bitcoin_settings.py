@@ -89,8 +89,8 @@ OWN_NODES = [
      {"bitcoinSource": "esplora", "bitcoinEsploraUrl": "http://192.168.1.20:3000/api"}),
     ("electrum", "#f-node-host", "192.168.1.20",
      {"bitcoinSource": "electrum", "bitcoinNodeHost": "192.168.1.20"}),
-    ("core", "#f-node-host", "192.168.1.21",
-     {"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.21"}),
+    ("bitcoinNode", "#f-node-host", "192.168.1.21",
+     {"bitcoinSource": "bitcoinNode", "bitcoinNodeHost": "192.168.1.21"}),
 ]  # fmt: skip
 
 

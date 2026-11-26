@@ -334,7 +334,11 @@ def _raw(ins, outs, segwit=False) -> bytes:
     return b + b"\x00" * 4
 
 
-def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
+def _electrum_answers():
+    """An Electrum server's answers for a wallet with 0.5 BTC in at receive 0, then 0.2 sent
+    from it, the change at change 0."""
+    import hashlib
+
     first, change = keys.script_of(FIRST), keys.script_of(CHANGE)
     other = keys.script_of("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy")
     fund = _raw([("11" * 32, 0)], [(first, 50_000_000)], segwit=True)
@@ -347,32 +351,224 @@ def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
         ],
         change: [{"tx_hash": "cd" * 32, "height": 900_100}],
     }
-    import hashlib
-
     by_hash = {hashlib.sha256(s).digest()[::-1].hex(): v for s, v in hist.items()}
+    raws = {"ab" * 32: fund, "cd" * 32: spend, "11" * 32: _raw([("22" * 32, 0)], [(other, 1)])}
 
-    def call(self, method, *params):
+    def answer(method, *params):
+        if method == "server.version":
+            return ["Fulcrum 1.11", "1.4"]
         if method == "blockchain.scripthash.get_history":
             return by_hash.get(params[0], [])
         if method == "blockchain.block.header":
             return header.hex()
         if method == "blockchain.headers.subscribe":
-            return {"height": 900_105}
+            return {"height": 900_105, "hex": header.hex()}
         if method == "blockchain.transaction.get":
-            return {
-                "ab" * 32: fund,
-                "cd" * 32: spend,
-                "11" * 32: _raw([("22" * 32, 0)], [(other, 1)]),
-            }[params[0]].hex()
+            return raws[params[0]].hex()
         raise AssertionError(method)
 
-    monkeypatch.setattr(sources.Electrum, "call", call)
+    return answer
+
+
+ELECTRUM_GOT = {"ab" * 32: (50_000_000, 0, 106), "cd" * 32: (-20_001_000, 1_000, 6)}
+
+
+def _got(txs):
+    return {t.txid: (t.net, t.fee, t.confirmations) for t in txs}
+
+
+def test_an_electrum_servers_history_is_read_from_raw_transactions(monkeypatch):
+    answer = _electrum_answers()
+    monkeypatch.setattr(sources.Electrum, "call", lambda self, m, *p, **kw: answer(m, *p))
     e = sources.Electrum(sources.Config(kind="electrum", host="node.lan"), guard=None)
-    got = {t.txid: (t.net, t.fee, t.confirmations) for t in e.history([FIRST, SECOND, CHANGE])}
-    assert got == {"ab" * 32: (50_000_000, 0, 106), "cd" * 32: (-20_001_000, 1_000, 6)}
+    assert _got(e.history([FIRST, SECOND, CHANGE])) == ELECTRUM_GOT
 
 
-def test_core_gets_the_keys_as_watch_only_descriptors():
+class Wire:
+    """An Electrum server's end of the connection: each request answered by `answer`, by its
+    id, as one line; `before(request)` gives lines sent ahead of the answer, such as a header
+    notice, and `reply(request, out)` the answer's own line."""
+
+    def __init__(self, answer, before=None, reply=None, chunk=65536):
+        self.answer, self.before, self.reply, self.chunk = answer, before, reply, chunk
+        self.out = b""
+        self.asked: list[str] = []
+        self.closed = False
+
+    def sendall(self, data: bytes):
+        import json
+
+        if self.closed:
+            raise OSError(9, "Bad file descriptor")
+        req = json.loads(data)
+        self.asked.append(req["method"])
+        for line in (self.before or (lambda r: []))(req):
+            self.out += json.dumps(line).encode() + b"\n"
+        res = {
+            "jsonrpc": "2.0",
+            "id": req["id"],
+            "result": self.answer(req["method"], *req["params"]),
+        }
+        if self.reply:
+            res = self.reply(req, res)
+        self.out += (res if isinstance(res, bytes) else json.dumps(res).encode()) + b"\n"
+
+    def recv(self, n: int) -> bytes:
+        got, self.out = self.out[: self.chunk], self.out[self.chunk :]
+        return got
+
+    def close(self):
+        self.closed = True
+
+
+def _electrum(wire) -> sources.Electrum:
+    e = sources.Electrum(sources.Config(kind="electrum", host="node.lan", tls=False), guard=None)
+    e.sock = wire
+    return e
+
+
+NOTICE = {"jsonrpc": "2.0", "method": "blockchain.headers.subscribe", "params": [{"height": 1}]}
+
+
+def test_a_header_notice_mid_read_is_never_taken_for_an_answer():
+    """S1.6.2.3: a new block found while a wallet is read is noticed, not read as an answer."""
+    pushed = []
+
+    def before(req):
+        # The tip subscribed, a block is found before the next transaction's answer.
+        if req["method"] == "blockchain.transaction.get" and not pushed:
+            pushed.append(req["id"])
+            return [NOTICE, NOTICE]
+        return []
+
+    wire = Wire(_electrum_answers(), before, chunk=40)
+    assert _got(_electrum(wire).history([FIRST, SECOND, CHANGE])) == ELECTRUM_GOT
+    assert pushed and wire.closed
+
+
+@pytest.mark.parametrize(
+    "reply, words",
+    [
+        (lambda req, res: res | {"id": req["id"] + 7}, "answered another request"),
+        (lambda req, res: res | {"id": None}, "answered another request"),
+        (lambda req, res: [res], "couldn't be read"),
+        (lambda req, res: b"{not json", "couldn't be read"),
+        (lambda req, res: res | {"result": None}, "isn't what was asked"),
+        (lambda req, res: res | {"result": {"height": 1}}, "isn't what was asked"),
+    ],
+)
+def test_an_electrum_answer_not_to_the_request_is_refused(reply, words):
+    def only_the_transactions(req, res):
+        return reply(req, res) if req["method"] == "blockchain.transaction.get" else res
+
+    e = _electrum(Wire(_electrum_answers(), reply=only_the_transactions))
+    with pytest.raises(sources.SourceError, match=words) as got:
+        e.history([FIRST, SECOND, CHANGE])
+    assert FIRST not in str(got.value)
+
+
+def test_an_answer_a_read_cant_use_is_the_wallets_reported_failure(server, jane, monkeypatch):
+    """S1.6.2.5: a source's answer that can't be read fails that wallet's read as its own
+    failure: Check now says so, and the hourly read reports it, never a server error."""
+    answer = _electrum_answers()
+
+    def short(method, *params):
+        out = answer(method, *params)
+        return "02000000" if method == "blockchain.transaction.get" else out
+
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], ZPUB))
+    monkeypatch.setattr(sync, "source", lambda srv, s: _electrum(Wire(short)))
+    r = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync")
+    assert r.status_code == 502 and r.json()["code"] == "source-failed", r.text
+    assert "couldn't be read" in r.json()["detail"] and FIRST not in r.text
+    with pytest.raises(sources.SourceError, match="couldn't be read"):
+        sync.sync_all(server)
+
+
+class Node(sources.BitcoinNode):
+    """A Bitcoin node as its wallets keep it: each named wallet's descriptors, made once."""
+
+    def __init__(self, wallets: dict[str, list]):
+        self.wallets = wallets
+
+    def wallet(self, name, wanted):
+        self.wallets.setdefault(name, []).extend(d for d, _ in wanted)
+
+    def history_of(self, name):
+        return [], set()
+
+
+def test_each_wallets_bitcoin_node_wallet_has_a_random_name_kept_with_it(
+    server, jane, keyed_config, master_key, monkeypatch
+):
+    """S1.6.2.3: a wallet account's Bitcoin node wallet is `moolakata-` and a random name,
+    never its id (schema.md §2), kept with the account: read again under it after a
+    restart."""
+    import re
+
+    from moolakata.app import Server
+    from moolakata.store.maintenance import open_store
+
+    one = new_account(jane, name="One", type="crypto-wallet")
+    two = new_account(jane, name="Two", type="crypto-wallet")
+    saved(wallet(jane, one["id"], ZPUB))
+    saved(wallet(jane, two["id"], FIRST))
+    node: dict[str, list] = {}
+    monkeypatch.setattr(sync, "source", lambda srv, s: Node(node))
+    sync.sync_account(server, one["id"])
+    sync.sync_account(server, two["id"])
+    names = list(node)
+    assert len(names) == 2 and all(re.fullmatch(r"moolakata-[0-9a-f]{16}", n) for n in names)
+    for a in (one, two):
+        assert a["id"].split("_")[1] not in " ".join(names)
+    # Its keys changed, and the server started again: the same wallet, read under its name.
+    saved(wallet(jane, one["id"], f"{ZPUB}\n{XPUB}"))
+    server.db.dispose()
+    again = Server(config=keyed_config, store=open_store(keyed_config, master_key), ready=True)
+    sync.sync_account(again, one["id"])
+    sync.sync_account(again, two["id"])
+    assert list(node) == names
+    assert len(node[names[0]]) == 2 + 2 + 2, "the zpub's two chains twice, then the xpub's"
+    again.db.dispose()
+
+
+def test_no_two_accounts_share_a_bitcoin_node_wallet(server, jane):
+    """S1.6.2.3: a second account given a wallet's name is refused by the database, a deleted
+    account's too, so no account is ever read under another's wallet; any number have none."""
+    from sqlalchemy.exc import IntegrityError
+
+    from moolakata.store.entities.accounts import Account
+
+    one = new_account(jane, name="One", type="crypto-wallet")
+    two = new_account(jane, name="Two", type="crypto-wallet")
+    new_account(jane, name="Three", type="crypto-wallet")  # none, as Two: no clash
+    saved(wallet(jane, one["id"], FIRST))
+    with server.db.read(unscoped="test") as s:
+        name = s.get(Account, one["id"]).bitcoinNodeWallet
+    assert name
+    with (
+        pytest.raises(IntegrityError, match="UNIQUE"),
+        server.db.tx(unscoped="test: the same name again") as s,
+    ):
+        s.get(Account, two["id"]).bitcoinNodeWallet = name
+    with server.db.tx(unscoped="test: the first deleted") as s:
+        s.get(Account, one["id"]).mark_deleted(None)
+    with (
+        pytest.raises(IntegrityError, match="UNIQUE"),
+        server.db.tx(unscoped="test: its name again") as s,
+    ):
+        s.get(Account, two["id"]).bitcoinNodeWallet = name
+
+
+def test_a_wallet_with_no_keys_ever_has_no_bitcoin_node_wallet(server, jane, monkeypatch):
+    w = new_account(jane, name="Empty", type="crypto-wallet")
+    node: dict[str, list] = {}
+    monkeypatch.setattr(sync, "source", lambda srv, s: Node(node))
+    assert sync.sync_account(server, w["id"]) == 0 and node == {}
+
+
+def test_a_bitcoin_node_gets_the_keys_as_watch_only_descriptors():
     from moolakata.store.entities.accounts import WalletKey
 
     k = WalletKey(id="WKey_x", accountId="a", kind="xpub", value=ZPUB, script="p2wpkh")
@@ -396,7 +592,12 @@ def test_a_named_node_is_reachable_and_a_public_explorer_is_not_named():
 def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server, admin_client):
     c = admin_client
     r = save_settings(
-        c, {"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332}
+        c,
+        {
+            "bitcoinSource": "bitcoinNode",
+            "bitcoinNodeHost": "192.168.1.20",
+            "bitcoinNodePort": 8332,
+        },
     )
     assert r.status_code == 200, r.text
     r = save_settings(c, {"bitcoinPassword": "rpc-pass-1"})
@@ -406,7 +607,7 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
     with server.db.read(unscoped="test") as s:
         cfg = sync.config(s, server.keys.secrets)
     assert (cfg.kind, cfg.host, cfg.port, cfg.password) == (
-        "core",
+        "bitcoinNode",
         "192.168.1.20",
         8332,
         "rpc-pass-1",
@@ -467,7 +668,7 @@ def test_a_transfer_between_the_owners_wallets_carries_its_lots(server, jane, mo
                     amount=0,
                     instrumentId=btc.id,
                     quantity=D("0.1"),
-                    fitId=f"btc:{kind}",
+                    fitId="btc:" + "c" * 64,  # both sides of one transaction on the chain
                 )
             )
         from moolakata.bitcoin import transfers
@@ -539,6 +740,48 @@ def test_an_address_two_keys_derive_is_watched_once(server, jane):
     view = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
     watched = [a["address"] for a in view["addresses"]]
     assert watched.count(first) == 1
+
+
+def test_an_address_typed_as_well_then_taken_out_is_the_keys_again(server, jane):
+    """S1.6.1: the key's own address, once the typed one holding it goes, is derived again."""
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], f"{FIRST}\n{ZPUB}"))
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 40
+    saved(wallet(jane, w["id"], ZPUB))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    assert v["watched"] == 40
+    assert (FIRST, 0, 0) in {(a["address"], a["chain"], a["index"]) for a in v["addresses"]}
+
+
+def test_a_used_address_another_key_holds_counts_for_the_keys_gap(server, jane, monkeypatch):
+    """S1.6.1: the gap runs from the key's last used address, whichever key's row holds it."""
+
+    class Used:
+        def history(self, addresses):
+            return [sources.Tx("a" * 64, T1, 50_000, 0, {FIRST})] if FIRST in addresses else []
+
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], f"{FIRST}\n{ZPUB}"))
+    monkeypatch.setattr(sync, "source", lambda srv, s: Used())
+    v = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync").json()["wallet"]
+    assert v["used"] == 1
+    assert v["watched"] == 41, "receive 0 used: receive 1 to 20 past it, change 0 to 19"
+
+
+def test_a_descriptor_watches_the_chains_it_names(server, jane):
+    """S1.6.1.4: a descriptor's addresses are derived on its own chains only, and one the
+    wallet's extended key derives too is watched once."""
+    raw = keys.b58check_decode(ZPUB)
+    xpub = keys.b58check_encode(bytes.fromhex("0488b21e") + raw[4:])
+    receive = f"wpkh([73c5da0a/84'/0'/0']{xpub}/0/*)"
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], receive))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    assert v["keys"][0]["kind"] == "descriptor" and v["watched"] == 20
+    assert {a["chain"] for a in v["addresses"]} == {0}
+    assert v["addresses"][0]["address"] == FIRST
+    saved(wallet(jane, w["id"], f"{ZPUB}\n{receive}"))
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 40
 
 
 def test_one_wallet_failing_leaves_the_others_read(server, jane, monkeypatch):
@@ -640,8 +883,11 @@ def test_a_wallets_keys_are_bounded(jane):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-long"
     from moolakata.ui import wallets
 
-    z = keys.extended(ZPUB)
-    lines = "\n".join(z.address(0, i) for i in range(wallets.MAX_ENTRIES + 1))
+    # Distinct, valid addresses, made by encoding rather than derived: deriving a thousand from
+    # a key takes seconds, and the cap counts entries whatever made them.
+    many = [keys.segwit_encode(0, i.to_bytes(20, "big")) for i in range(wallets.MAX_ENTRIES + 1)]
+    assert len(set(many)) == len(many) and all(keys.address_script(a) for a in many)
+    lines = "\n".join(many)
     r = wallet(jane, w["id"], lines)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text
 

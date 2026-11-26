@@ -8,11 +8,10 @@ deleted. Nothing is sent to the explorer or node but the addresses or the public
 import datetime as dt
 import logging
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import false, select
 
-from .. import clock, ids, settings, timezones
+from .. import clock, ids, settings, user_zones
 from ..store.entities.accounts import (
     Account,
     Instrument,
@@ -76,12 +75,14 @@ def hosts(s) -> tuple[list[str], list[str]]:
 
 def _scan(src, account_id: str, s) -> tuple[list[sources.Tx], set[str]]:
     rows = wallet.addresses_of(s, account_id)
-    if isinstance(src, sources.Core):
+    if isinstance(src, sources.BitcoinNode):
+        name = s.get(Account, account_id).bitcoinNodeWallet
+        if name is None:
+            return [], set()  # never given keys: nothing for the node to watch
         wanted = []
         for k in wallet.keys_of(s, account_id):
             top = max((r.idx for r in rows if r.keyId == k.id and r.idx is not None), default=None)
             wanted += sources.descriptors(k, top)
-        name = f"moolakata-{account_id}"
         src.wallet(name, wanted)
         txs, used = src.history_of(name)
         return txs, used | {a for t in txs for a in t.addresses}
@@ -191,16 +192,23 @@ def revalue_fees(s, account_id: str) -> int:
             continue
         value = (t.quantity * price).quantize(Decimal("0.01"))
         t.amount, t.price = value, price
+        # Its own wallet's cash: two of the owner's wallets may spend in one transaction. Every
+        # fee's sale is made beside its cash (`_fee`), and records are never removed.
         cash = s.scalars(
-            select(Transaction).where(Transaction.fitId == "btcfeecash:" + t.fitId[7:])
-        ).first()
-        if cash is not None:
-            cash.amount = -value
+            select(Transaction).where(
+                Transaction.accountId == account_id,
+                Transaction.fitId == "btcfeecash:" + t.fitId[7:],
+            )
+        ).one()
+        cash.amount = -value
         done += 1
     return done
 
 
 def record(s, account_id: str, txs: list[sources.Tx]) -> int:
+    """Each transaction of the read deep enough recorded once, by its txid (S1.6.2.6), dated by
+    its moment in the time zone in effect for its owner then (S1.6.2.6.1); a moment kept for
+    those recorded without one, and fees valued that waited."""
     a = s.get(Account, account_id)
     have = set(
         s.scalars(
@@ -209,7 +217,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             )
         )
     )
-    zone = ZoneInfo(timezones.host_zone())
+    zones = user_zones.Bitcoin(s, a.ownerId)
     btc = repo.instrument(s, "BTC", "Bitcoin", "crypto")
     made = 0
     for t in sorted(txs, key=lambda x: x.confirmedAt or dt.datetime.max.replace(tzinfo=dt.UTC)):
@@ -227,7 +235,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
         row = Transaction(
             id=ids.new_id("Txn"),
             accountId=a.id,
-            date=t.confirmedAt.astimezone(zone).date(),
+            date=zones.day(t.confirmedAt),
             kind="transfer-out" if sent else "transfer-in",
             amount=Decimal(0),
             payee=("Sent bitcoin" if sats else "Network fee") if sent else "Received bitcoin",
@@ -236,6 +244,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             quantity=Decimal(sats) / SAT,
             lotMethod=a.lotMethod if sent else None,
             fitId=f"btc:{t.txid}",
+            confirmedAt=t.confirmedAt,
         )
         s.add(row)
         s.flush()
@@ -243,8 +252,24 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             _fee(s, a, btc, row, fee, t.txid)
         made += 1
     s.flush()
+    _keep_moments(s, account_id, txs)
     revalue_fees(s, account_id)
     return made
+
+
+def _keep_moments(s, account_id: str, txs: list[sources.Tx]) -> None:
+    """A transaction recorded without its moment is given it by the next read that has it: its
+    date stays, as a correction of a time zone dates again only what has one (S1.6.2.6.1)."""
+    moments = {f"btc:{t.txid}": t.confirmedAt for t in txs if t.confirmedAt is not None}
+    for r in s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == account_id,
+            Transaction.fitId.in_(moments),
+            Transaction.confirmedAt.is_(None),
+        )
+    ):
+        r.confirmedAt = moments[r.fitId]
+    s.flush()
 
 
 def link_keys(s, account_id: str, txs: list[sources.Tx]) -> None:

@@ -76,3 +76,61 @@ def test_what_is_refused():
         with pytest.raises(bk.Refused) as e:
             dsc.parse(text)
         assert e.value.code == code, text
+
+
+def as_version(z: str, version: str) -> str:
+    return bk.b58check_encode(bytes.fromhex(version) + bk.b58check_decode(z)[4:])
+
+
+def _refusals():
+    x = as_xpub(ZPUB)
+    tpub = as_version(ZPUB, "043587cf")
+    multi = "A multisig descriptor MoolaKata can't read."
+    return (
+        ("wpkh(é)#aaaaaaaa", "descriptor-invalid", "A character a descriptor can't hold."),
+        (f"wpkh({x}/0/*", "descriptor-invalid", "Not a descriptor MoolaKata reads."),
+        ("wpkh(0OIl/0/*)", "descriptor-invalid", "A descriptor key MoolaKata can't read."),
+        (f"wpkh({tpub}/0/*)", "testnet", "A testnet key: MoolaKata follows mainnet bitcoin only."),
+        (f"wpkh({ZPUB}/0/*)", "descriptor-invalid", "Each descriptor key is an xpub."),
+        (f"tr({x}/0/*,{{pk({x}/1/*)}})", "descriptor-unsupported",
+         "A taproot descriptor with scripts isn't read yet: its key path only."),
+        (f"wsh(pk({x}/0/*))", "descriptor-unsupported",
+         "Of wsh() descriptors, only sortedmulti and multi are read."),
+        (f"wsh(multi(3,{x}/0/*,{TR_XPUB}/0/*))", "descriptor-invalid", multi),
+        (f"wsh(multi(1,{x}/0/*,{TR_XPUB}/1/*))", "descriptor-invalid", multi),
+        (f"wsh(multi(0,{x}/0/*))", "descriptor-invalid", multi),
+        (f"combo({x}/0/*)", "descriptor-unsupported", "combo() descriptors aren't read."),
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize(("text", "code", "words"), _refusals())
+def test_each_refusal_says_what_is_wrong(text, code, words):
+    with pytest.raises(bk.Refused) as e:
+        dsc.parse(text)
+    assert (e.value.code, str(e.value)) == (code, words)
+
+
+def test_a_nested_segwit_descriptor_writes_out_as_read():
+    x = as_xpub(ZPUB)
+    d = dsc.parse(f"sh(wpkh([73c5da0a/49'/0'/0']{x}/0/*))")
+    assert d.body() == f"sh(wpkh([73c5da0a/49'/0'/0']{x}/0/*))"
+    assert dsc.parse(d.text()) == d
+
+
+def test_an_unsorted_multisig_keeps_its_keys_order():
+    x = as_xpub(ZPUB)
+    for first, second in ((TR_XPUB, x), (x, TR_XPUB)):
+        d = dsc.parse(f"wsh(multi(1,{first}/0/*,{second}/0/*))")
+        pubs = [k.key.child(0).child(0).key for k in d.keys]
+        script = b"\x51" + b"".join(b"\x21" + p for p in pubs) + b"\x52\xae"
+        assert d.address(0, 0) == bk.segwit_encode(0, hashlib.sha256(script).digest())
+
+
+def test_a_key_whose_tweak_is_out_of_range_makes_no_taproot_address(monkeypatch):
+    """BIP 341: a tweak at or past the curve's order makes no key (a chance of about 2^-128,
+    so the order is lowered to reach it)."""
+    d = dsc.parse(f"tr({TR_XPUB}/0/*)")
+    monkeypatch.setattr(bk, "N", 1)
+    with pytest.raises(bk.Refused) as e:
+        dsc.taproot(d.keys[0].key.key)
+    assert e.value.code == "descriptor-invalid"

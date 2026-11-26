@@ -427,7 +427,7 @@ def written_email(name: str, request: Request, c: Caller = Depends(admin)):
 
 
 class BitcoinView(Model):
-    password: SecretSet | None  # Bitcoin Core's RPC password
+    password: SecretSet | None  # the Bitcoin node's RPC password
     wallets: int
     lastRun: dt.datetime | None
     lastError: str | None

@@ -32,19 +32,24 @@
          No wallet is read until an admin saves Settings › Bitcoin (R3.5), and until then a
          wallet says it waits for that;
       2. **the household's own node**: its own mempool or Esplora instance, an **Electrum
-         server** (Fulcrum, electrs), or **Bitcoin Core** over RPC with a watch-only
-         descriptor wallet. An own node keeps the household's addresses private, and is
-         recommended. Its address is named by the admin, so the egress guard (S13.5) lets
-         MoolaKata reach it on the LAN; its credentials are a secret (S14.4).
+         server** (Fulcrum, electrs), or a **Bitcoin node** over RPC with a watch-only
+         descriptor wallet: Bitcoin Core, or a fork that keeps its RPC, such as Bitcoin Knots.
+         An own node keeps the household's addresses private, and is recommended. Its address
+         is named by the admin, so the egress guard (S13.5) lets MoolaKata reach it on the LAN;
+         its credentials are a secret (S14.4).
       3. **How each is read.** Esplora: each address's transactions over HTTPS, with every
          input's previous output, so each transaction's effect on the wallet is known. An
          Electrum server: each address's history by its script hash over TCP (TLS by default),
          and the raw transactions, read by MoolaKata; its certificate is trusted on first use
-         (below). Bitcoin
-         Core over JSON-RPC: a watch-only descriptor wallet for each wallet account
-         (`moolakata-<account id>`), its keys imported as descriptors over the addresses
-         derived, rescanned from the start the first time, then its transactions listed. Only
-         public keys and addresses are ever sent.
+         (below). A Bitcoin node over JSON-RPC: a watch-only descriptor wallet, its *Bitcoin
+         node wallet*, for each wallet account, named
+         `moolakata-` and a random name given with its first keys and kept with the account,
+         never the account's id (schema.md §2); its keys imported as descriptors over the
+         addresses derived, rescanned from the start the first time, then its transactions
+         listed. The wallet is the node's own, watching the account's descriptors on the
+         chain; MoolaKata keeps the account, its descriptors, its transactions and the
+         wallet's name, and reads the same wallet again under that name. Only public keys and
+         addresses are ever sent.
       4. **An Electrum server's certificate** is trusted on first use: **Test** in Settings ›
          Bitcoin shows its SHA-256 fingerprint, an admin confirms it, and it is kept. A server
          that later presents another certificate is refused, and admins alerted (*the node's
@@ -67,6 +72,18 @@
          next check. A transfer out that was a sale or a payment is changed to one by its
          owner. The first
          coins held start a price refresh, so the wallet is valued at once.
+         1. **Its date**: a transaction is a moment, its confirmation, and its date in the
+            ledger (its lots, holding periods, fee's sale, transfer pairing and budgets) is that
+            moment's day in the time zone in effect for the account's owner at that moment
+            (S14.9.2), whoever views it; the moment is kept with it. A move (a new time zone
+            from today) never dates the past again. A correction (from an earlier date) dates
+            again, in the Profile's save, each transaction confirmed from that date on, its
+            fee's sale and cash valued at its new day's price; one whose date isn't its moment's
+            day in the time zone in effect before was typed by the owner, and stays. A
+            correction that moves the gains of a year whose return is filed asks first, and,
+            confirmed, is listed on its tax book (S2.8.2). A transaction recorded before its
+            moment was kept is given it by the next read, its date unchanged. Where its time is
+            shown, it is in the viewer's time zone (S14.9.1).
       7. **A reorganised chain**: a recorded transaction that the explorer or node no longer
          has is never deleted silently. Once two reads in a row miss it, it is marked *no
          longer on the chain* and the owner alerted, to keep or delete it; a transaction kept

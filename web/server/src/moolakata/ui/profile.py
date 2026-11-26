@@ -14,7 +14,8 @@ from ..auth import passwords, sessions, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
 from ..people import tree
-from ..store.entities.users import OneTimeToken, User
+from ..store.entities.users import OneTimeToken, User, UserTimeZone
+from . import save
 from .conventions import ExactRoute, Model
 from .deps import Caller, caller, recent_auth, server, set_cookie
 from .session import count_failure, guarded
@@ -198,7 +199,6 @@ PROFILE_FIELDS = (
     "shownProjectionIds",
     "displayName",
     "avatar",
-    "timeZone",
     "theme",
     "sex",
     "birthMonth",
@@ -225,9 +225,9 @@ def shown(s, user_id: str) -> list[str]:
 def current(s, u: User) -> dict:
     """The profile's fields as a draft holds them."""
     me = people.of_user(s, u.id)
-    return {"displayName": u.displayName, "avatar": u.avatar, "timeZone": u.timeZone,
-            "theme": u.theme, "sex": me.sex, "birthMonth": me.birthMonth,
-            "birthDay": me.birthDay, "birthYear": me.birthYear, "alertEmails": u.alertEmails,
+    return {"displayName": u.displayName, "avatar": u.avatar, "theme": u.theme, "sex": me.sex,
+            "birthMonth": me.birthMonth, "birthDay": me.birthDay, "birthYear": me.birthYear,
+            "alertEmails": u.alertEmails,
             "bitcoinUnit": u.bitcoinUnit, "shownProjectionIds": shown(s, u.id),
             "activeBudgetId": u.activeBudgetId}  # fmt: skip
 
@@ -254,12 +254,6 @@ def change(s, u: User, body, sent: set[str]) -> None:
             raise refuse("avatar", "avatar-invalid", "Use a PNG, JPEG or WebP image under 192 KB.")
         u.avatar = body.avatar
         fields.append("avatar")
-    if "timeZone" in sent:
-        tz = body.timeZone or "auto"
-        if tz != "auto" and not timezones.valid(tz):
-            raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
-        u.timeZone = tz
-        fields.append("timeZone")
     if "theme" in sent:
         if body.theme not in ("dark", "light", "system"):
             raise refuse("theme", "theme-invalid", "Dark, light or the system's.")
@@ -386,3 +380,69 @@ def two_step_off(request: Request, c: Caller = Depends(caller)):
 @router.get("/timezones", response_model=Zones)
 def zones(request: Request, c: Caller = Depends(caller)):
     return Zones(server=timezones.host_zone(), zones=timezones.names())
+
+
+# ---------- a time zone from a date (S14.9.2) ----------
+
+
+class TimeZoneRecord(Model):
+    """A time zone in effect from a date, as Profile's save makes it (S14.9.2): today's date
+    for a move, an earlier one for a correction. Made, never changed: another replaces it."""
+
+    timeZone: str
+    since: dt.date | None = None
+
+
+class TimeZoneEntry(Model):
+    id: str
+    timeZone: str
+    since: dt.date
+    version: int
+
+
+def _zone_create(ctx, record_id: str, body: TimeZoneRecord) -> None:
+    from .. import user_zones
+
+    s = ctx.s
+    u = s.get(User, ctx.caller.id)
+    name = body.timeZone or "auto"
+    if name != "auto" and not timezones.valid(name):
+        raise refuse("timeZone", "zone-invalid", "Choose a time zone from the list.")
+    if body.since is None:
+        raise refuse("since", "since-required", "The date it is in effect from.")
+    if body.since < user_zones.ALL_ALONG:
+        raise refuse("since", "since-invalid", "A date from 1900 on.")
+    if user_zones.start(name, body.since) > clock.now():
+        raise refuse("since", "since-future", "Today or an earlier date.")
+    user_zones.change(s, u, record_id, name, body.since)
+
+
+def _zone_editable(ctx, record_id: str) -> UserTimeZone:
+    row = ctx.s.get(UserTimeZone, record_id)
+    if row is None or row.deleted or row.userId != ctx.caller.id:
+        raise Problem(404, "not-found", "Not found")
+    return row
+
+
+def _zone_kept(ctx, row, body=None) -> None:
+    raise refuse(None, "time-zone-kept", "Choose another time zone, from a date, to replace it.")
+
+
+def _zone_read(ctx, record_id: str) -> TimeZoneEntry:
+    row = ctx.s.get(UserTimeZone, record_id)
+    return TimeZoneEntry(id=row.id, timeZone=row.timeZone, since=row.since, version=row.version)
+
+
+save.register(
+    save.Kind(
+        prefix="UsrTz",
+        entity=UserTimeZone,
+        fields=TimeZoneRecord,
+        create=_zone_create,
+        editable=_zone_editable,
+        current=lambda ctx, row: {"timeZone": row.timeZone, "since": row.since},
+        update=_zone_kept,
+        delete=_zone_kept,
+        read=_zone_read,
+    )
+)

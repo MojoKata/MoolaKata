@@ -216,7 +216,6 @@ class UserRecord(Model):
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
     avatar: str | None = None
-    timeZone: str = "auto"
     theme: str = "system"
     birthMonth: int | None = None
     birthDay: int | None = None

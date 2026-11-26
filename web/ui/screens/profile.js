@@ -3,7 +3,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { date } from '../kit/format.js';
+import { date, today } from '../kit/format.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { useTitle } from '../components/frame.js';
 import { Avatar, Failed, Loading } from '../kit/bits.js';
@@ -40,6 +40,27 @@ class ProfileRec extends Rec {
   static fields = FIELDS.UserRecord;
 }
 
+/**
+ * A time zone from a date (S14.9.2): made when the time zone is changed, with Since when?, today
+ * in the new time zone for a move, an earlier date for a correction.
+ */
+class ZoneRec extends Rec {
+  /** @override */
+  static prefix = 'UsrTz';
+  /** @override */
+  static fields = FIELDS.TimeZoneRecord;
+  /** The server's time zone, which Auto is. */
+  server = 'UTC';
+
+  /** @override @param {string} name @param {any} value */
+  onSet(name, value) {
+    // A move is the usual change: today, where the new time zone is.
+    if (name === 'timeZone') {
+      this.set('since', today(value === 'auto' ? this.server : value), 'timeZone');
+    }
+  }
+}
+
 /** A birthday typed as one field, kept as its person's month, day and year. */
 const readBirthday = (/** @type {string} */ t) => {
   const r = DAY.read(t);
@@ -52,13 +73,18 @@ export default function Profile() {
   const res = useApi('/profile');
   const zones = useApi('/timezones');
   const p = /** @type {any} */ (res.data);
+  // The time zone is kept apart from the user's version: a change of it reads the draft again.
   const fd = useDraft((draft) => {
-    if (p) draft.load(ProfileRec, p);
-  }, [p?.id, p?.version]);
+    if (!p) return;
+    draft.load(ProfileRec, p);
+    draft.add(ZoneRec, { timeZone: p.timeZone, since: today(p.zone) }, { optional: true });
+  }, [p?.id, p?.version, p?.timeZone]);
   const rec = /** @type {ProfileRec | undefined} */ (fd.draft?.records[0]);
+  const zrec = /** @type {ZoneRec | undefined} */ (fd.draft?.records[1]);
   if (res.error) return html`<${Failed} error=${res.error} />`;
-  if (!p || !rec) return html`<${Loading} lines=${8} />`;
+  if (!p || !rec || !zrec) return html`<${Loading} lines=${8} />`;
   const z = /** @type {any} */ (zones.data);
+  zrec.server = z?.server || p.zone;
   const pickAvatar = (/** @type {any} */ ev) => {
     const file = ev.currentTarget.files?.[0];
     if (!file) return;
@@ -107,11 +133,14 @@ export default function Profile() {
               : null}</div>
           ${rec.error('avatar') ? html`<div class="err">${rec.error('avatar')}</div>` : null}
           <${RecField} rec=${rec} name="displayName" label="Display name" />
-          <${RecField} rec=${rec} name="timeZone" label="Time zone"
+          <${RecField} rec=${zrec} name="timeZone" label="Time zone"
             options=${[[
               'auto',
               `Auto: the server's (${z?.server || '…'})`,
             ], ...(z?.zones || []).map((/** @type {string} */ x) => [x, x])]} />
+          ${zrec.isChanged('timeZone')
+            ? html`<${RecField} rec=${zrec} name="since" label="Since when?" id="since-when" />`
+            : null}
           <${RecField} rec=${rec} name="theme" label="Theme" options=${[['dark', 'Dark'], [
             'light',
             'Light',

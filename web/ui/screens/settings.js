@@ -886,8 +886,8 @@ const NODES = /** @type {[string, string][]} */ ([
   ['mempool', 'Public: mempool.space (Esplora)'],
   ['blockstream', 'Public: Blockstream (Esplora)'],
   ['esplora', 'Own node: mempool or Esplora'],
-  ['electrum', 'Own node: Electrum server (Fulcrum, electrs)'],
-  ['core', 'Own node: Bitcoin Core (RPC, watch-only descriptors)'],
+  ['electrum', 'Own node: Electrum server'],
+  ['bitcoinNode', 'Own node: Bitcoin node (RPC)'],
   // Dev mode's made-up history, saved like any source (S17.7).
   ...(dev
     ? /** @type {[string, string][]} */ ([['stub', 'Dev mode: the stub (with --stubs)']])
@@ -980,15 +980,15 @@ function BitcoinSection() {
     setF({
       ...f,
       node,
-      port: node === 'core' ? 8332 : node === 'electrum' ? 50002 : f.port,
-      tls: node === 'core' ? false : node === 'electrum' ? true : f.tls,
+      port: node === 'bitcoinNode' ? 8332 : node === 'electrum' ? 50002 : f.port,
+      tls: node === 'bitcoinNode' ? false : node === 'electrum' ? true : f.tls,
     });
   const e = {
     errors: rec.errors.map((
       x,
     ) => (x.field === 'bitcoinPassword' ? { ...x, field: 'password' } : x)),
   };
-  const own = ['electrum', 'core'].includes(f.node);
+  const own = ['electrum', 'bitcoinNode'].includes(f.node);
   return html`
     <${DraftForm} f=${fd} class="card content-narrow" where="Settings › Bitcoin"
       what="These settings" before=${() => {
@@ -1032,7 +1032,7 @@ function BitcoinSection() {
                 <${SwitchRow} label="TLS" on=${f.tls} onChange=${set('tls')} />
         `
         : null}
-      ${f.node === 'core'
+      ${f.node === 'bitcoinNode'
         ? html`
           <div class="row">
             <${Field} label="RPC user" id="rpc-user" error=${errAt(e, 'bitcoinRpcUser')}>

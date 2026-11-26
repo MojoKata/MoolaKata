@@ -356,7 +356,7 @@ def test_every_dialog_reached_through_another_has_its_guide(fresh):
     close_dialog(page)
     # Settings › Bitcoin with each kind of node's fields.
     visit(page, "/ui/settings/bitcoin")
-    for node in ("esplora", "electrum", "core"):
+    for node in ("esplora", "electrum", "bitcoinNode"):
         page.select_option(".content #f-explorer-or-node", node)
         check_guide(page, ".content", f"Settings › Bitcoin ({node})")
     # A wallet's form, which clears a seed phrase at once.

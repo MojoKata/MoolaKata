@@ -1421,6 +1421,66 @@ def test_0070_gives_a_receipt_the_scans_total_and_whether_it_was_checked(tmp_pat
     engine.dispose()
 
 
+def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
+    """S1.6.2.3: a wallet account whose keys were saved is given its Bitcoin node wallet's
+    name, `moolakata-` and a random one, never its id; any other account none; no two share
+    one. A transaction's moment and a user's time zones start empty."""
+    import re
+
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    uid, pid = ids.new_id("User"), ids.new_id("Persn")
+    keyed, other, bare, bank = (ids.new_id("Acct") for _ in range(4))
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0070")
+        conn.commit()
+        q = conn.exec_driver_sql
+        q('INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+          "VALUES (?, 'Jane', 'female', ?, ?)", (pid, made, made))  # fmt: skip
+        q('INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+          "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)", (uid, pid, made, made))  # fmt: skip
+        for a, kind in ((keyed, "crypto-wallet"), (other, "crypto-wallet"),
+                        (bare, "crypto-wallet"), (bank, "checking")):  # fmt: skip
+            q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+              "VALUES (?, ?, 'A', ?, ?, ?)", (a, uid, kind, made, made))  # fmt: skip
+        for a in (keyed, other, bank):
+            q('INSERT INTO "WalletKey" (id, "accountId", kind, value, script, "createdAt", '
+              "\"updatedAt\") VALUES (?, ?, 'address', ?, 'p2wpkh', ?, ?)",
+              (ids.new_id("WKey"), a, f"bc1q{a[-8:]}", made, made))  # fmt: skip
+        txn = ids.new_id("Txn")
+        q('INSERT INTO "Transaction" (id, "accountId", date, kind, amount, "fitId", '
+          "\"createdAt\", \"updatedAt\") VALUES (?, ?, '2026-08-31', 'transfer-in', 0, ?, ?, ?)",
+          (txn, keyed, "btc:" + "a" * 64, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        got = dict(conn.exec_driver_sql('SELECT id, "bitcoinNodeWallet" FROM "Account"').all())
+        named = [got[keyed], got[other]]
+        assert all(re.fullmatch(r"moolakata-[0-9a-f]{16}", n) for n in named)
+        assert named[0] != named[1] and (got[bare], got[bank]) == (None, None)
+        # No two accounts share one; any number have none.
+        with pytest.raises(Exception, match="UNIQUE"):
+            conn.exec_driver_sql(
+                'UPDATE "Account" SET "bitcoinNodeWallet" = ? WHERE id = ?', (named[0], other)
+            )
+        # S1.6.2.6.1: a transaction recorded before has no moment until its next read; S14.9.2:
+        # no user has a time zone history until they change their time zone.
+        q = conn.exec_driver_sql
+        assert q('SELECT date, "confirmedAt" FROM "Transaction"').one() == ("2026-08-31", None)
+        assert q('SELECT count(*) FROM "UserTimeZone"').scalar_one() == 0
+        tz = (ids.new_id("UsrTz"), uid, made, made)
+        sql = ('INSERT INTO "UserTimeZone" (id, "userId", "timeZone", since, "createdAt", '
+               "\"updatedAt\") VALUES (?, ?, 'America/Denver', '2026-09-01', ?, ?)")  # fmt: skip
+        q(sql, tz)
+        with pytest.raises(Exception, match="UNIQUE"):
+            q(sql, (ids.new_id("UsrTz"), *tz[1:]))
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

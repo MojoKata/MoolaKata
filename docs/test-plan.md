@@ -10,7 +10,7 @@ which were not.
 |---|---|---|
 | T1 | Wallets against Fulcrum | an Electrum server (Fulcrum) on the LAN |
 | T2 | Wallets against electrs | electrs |
-| T3 | Wallets against Bitcoin Core | Bitcoin Core 27 or later with RPC on |
+| T3 | Wallets against a Bitcoin node | Bitcoin Core 27 or later (or a fork that keeps its RPC, such as Bitcoin Knots) with RPC on |
 | T4 | Wallets against a self-hosted mempool | a mempool or Esplora instance |
 | T5 | A link over an overlay network | two servers on Tailscale, WireGuard or ZeroTier |
 | T6 | A link over a forwarded port | two networks, one with a forwarded port or a reverse proxy passing `/link/` |
@@ -30,7 +30,7 @@ with the dev seed's figures where a figure is named.
 **Needs:** the node, reachable from the server's host, and a bitcoin wallet whose xpub (or
 descriptor) and a few of whose transactions are known. Mainnet.
 
-1. Settings › Bitcoin: choose the node's kind, enter its host, port and (for Core) its RPC user
+1. Settings › Bitcoin: choose the node's kind, enter its host, port and (for a Bitcoin node) its RPC user
    and password; **Test**. Passing: *answered: block N* with the current height; for an
    Electrum server with TLS, its certificate's SHA-256, which you confirm and Test again.
 2. Make a `crypto-wallet` account with the xpub. Passing: Settings lists the derived addresses
@@ -41,8 +41,9 @@ descriptor) and a few of whose transactions are known. Mainnet.
    recorded.
 4. Receive a small amount to a fresh address past the gap. Passing: within an hour (or at
    once with Check now) the transaction appears and more addresses are derived.
-5. For Core (T3): the node shows a wallet `moolakata-<account id>` with the descriptors
-   imported, watch-only, rescanned from the start.
+5. For a Bitcoin node (T3): the node shows a wallet `moolakata-` and a random name (never the account's
+   id) with the descriptors imported, watch-only, rescanned from the start. Restart MoolaKata
+   and Check now. Passing: the same wallet is read again, and no other is made.
 6. Stop the node for longer than Settings › Alerts allows. Passing: one alert for admins and
    one for the wallet's owner, naming no address or amount; both resolve when it is back.
 7. For an Electrum server (T1, T2): replace its certificate. Passing: reads stop, admins are

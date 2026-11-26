@@ -5,15 +5,16 @@ household's own node, set by an admin in Settings › Bitcoin.
    Esplora instance) over HTTPS: each address's transactions, with every input's prevout.
 2. **An Electrum server** (Fulcrum, electrs) over TCP, TLS by default: each address's history
    by its script hash, and the raw transactions, read here.
-3. **Bitcoin Core** over JSON-RPC, with a watch-only descriptor wallet MoolaKata makes for each
-   wallet account: its keys imported as descriptors over the derived range, then its
-   transactions listed.
+3. **A Bitcoin node** (Bitcoin Core, or a fork that keeps its RPC such as Bitcoin Knots) over
+   JSON-RPC, with a watch-only descriptor wallet MoolaKata makes for each wallet account: its
+   keys imported as descriptors over the derived range, then its transactions listed.
 
 Each answers the same question: the confirmed and unconfirmed transactions touching a set of
 addresses, each with its net effect on them."""
 
 import base64
 import datetime as dt
+import functools
 import hashlib
 import io
 import json
@@ -29,7 +30,7 @@ from . import keys as bk
 SAT = 100_000_000
 DEFAULT_ESPLORA = "https://mempool.space/api"
 PUBLIC_EXPLORERS = ("mempool.space", "blockstream.info")
-KINDS = ("esplora", "electrum", "core")
+KINDS = ("esplora", "electrum", "bitcoinNode")
 
 
 class SourceError(TaskError):
@@ -78,6 +79,29 @@ class Config:
         return ([self.host], [self.host]) if self.host else ([], [])
 
 
+def _reads(what: str):
+    """An answer the read can't make sense of fails it as the source's own failure, which the
+    wallet reports (S1.6.2.5), never as the server's: by the error's kind, as its text may name
+    an address."""
+
+    def wrap(fn):
+        @functools.wraps(fn)
+        def read(self, *args, **kw):
+            try:
+                return fn(self, *args, **kw)
+            except SourceError:
+                raise
+            except (ArithmeticError, AttributeError, LookupError, TypeError, ValueError) as e:
+                name = what.format(self=self)
+                raise SourceError(
+                    f"{name}'s answer couldn't be read ({type(e).__name__})."
+                ) from None
+
+        return read
+
+    return wrap
+
+
 # ---------- Esplora
 
 
@@ -100,9 +124,11 @@ class Esplora:
             return json.loads(r.text, parse_float=Decimal)
         return r.text
 
+    @_reads("{self.base}")
     def test(self) -> str:
         return f"Esplora answered: block {int(self._get('/blocks/tip/height')):,}"
 
+    @_reads("{self.base}")
     def history(self, addresses: list[str]) -> list[Tx]:
         mine = set(addresses)
         seen: dict[str, Tx] = {}
@@ -219,13 +245,8 @@ class Electrum:
         except (OSError, net.EgressRefused) as e:
             raise SourceError(f"{self.cfg.host}:{self.cfg.port} didn't answer: {e}") from None
 
-    def call(self, method: str, *params):
-        if self.sock is None:
-            self._connect()
-        self.n += 1
-        msg = json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
+    def _line(self) -> bytes:
         try:
-            self.sock.sendall(msg.encode() + b"\n")
             while b"\n" not in self.buf:
                 chunk = self.sock.recv(65536)
                 if not chunk:
@@ -236,20 +257,53 @@ class Electrum:
         except OSError as e:
             raise SourceError(f"The Electrum server stopped answering: {e}") from None
         line, self.buf = self.buf.split(b"\n", 1)
-        out = json.loads(line, parse_float=Decimal)
+        return line
+
+    def call(self, method: str, *params, want: type | None = None):
+        """One request's answer, matched to it by its id: a notice the server pushes, such as
+        a new block once the tip is subscribed, is no answer (S1.6.2.3)."""
+        if self.sock is None:
+            self._connect()
+        self.n += 1
+        msg = json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
+        try:
+            self.sock.sendall(msg.encode() + b"\n")
+        except OSError as e:
+            raise SourceError(f"The Electrum server stopped answering: {e}") from None
+        while True:
+            try:
+                out = json.loads(self._line(), parse_float=Decimal)
+            except ValueError:
+                out = None
+            if not isinstance(out, dict):
+                raise SourceError(f"The Electrum server's answer to {method} couldn't be read.")
+            if out.get("id") is None and "method" in out:
+                continue
+            if out.get("id") != self.n:
+                raise SourceError(f"The Electrum server answered another request than {method}.")
+            break
         if out.get("error"):
             raise SourceError(f"The Electrum server refused {method}: {out['error']}")
-        return out.get("result")
+        result = out.get("result")
+        if want is not None and not isinstance(result, want):
+            raise SourceError(f"The Electrum server's answer to {method} isn't what was asked.")
+        return result
 
     def close(self):
+        """Closed after each read: a sync reads again from the same source as the gap
+        extends (S1.6.2), on a connection of its own."""
         if self.sock is not None:
             self.sock.close()
+        self.sock, self.buf = None, b""
 
+    @_reads("The Electrum server")
     def test(self) -> str:
         self.testing = True
-        ver = self.call("server.version", "MoolaKata", "1.4")
-        tip = self.call("blockchain.headers.subscribe")
-        self.close()
+        try:
+            ver = self.call("server.version", "MoolaKata", "1.4")
+            tip = self.call("blockchain.headers.subscribe", want=dict)
+        finally:
+            self.close()
         out = f"{ver[0] if isinstance(ver, list) else ver} answered: block {tip['height']:,}"
         if self.cfg.tls and self.seen:
             trusted = self.seen == (self.cfg.certSha256 or "").lower()
@@ -260,22 +314,31 @@ class Electrum:
 
     def _tx(self, txid: str) -> bytes:
         if txid not in self.raw:
-            self.raw[txid] = bytes.fromhex(self.call("blockchain.transaction.get", txid, False))
+            self.raw[txid] = bytes.fromhex(
+                self.call("blockchain.transaction.get", txid, False, want=str)
+            )
         return self.raw[txid]
 
+    @_reads("The Electrum server")
     def history(self, addresses: list[str]) -> list[Tx]:
+        try:
+            return self._history(addresses)
+        finally:
+            self.close()
+
+    def _history(self, addresses: list[str]) -> list[Tx]:
         scripts = {bk.script_of(a): a for a in addresses}
         txs: dict[str, int] = {}
         for script in scripts:
             sh = hashlib.sha256(script).digest()[::-1].hex()
-            for h in self.call("blockchain.scripthash.get_history", sh):
+            for h in self.call("blockchain.scripthash.get_history", sh, want=list):
                 txs[h["tx_hash"]] = h["height"]
         times: dict[int, dt.datetime] = {}
-        tip = self.call("blockchain.headers.subscribe")["height"] if txs else 0
+        tip = self.call("blockchain.headers.subscribe", want=dict)["height"] if txs else 0
         out = []
         for txid, height in txs.items():
             if height > 0 and height not in times:
-                header = bytes.fromhex(self.call("blockchain.block.header", height))
+                header = bytes.fromhex(self.call("blockchain.block.header", height, want=str))
                 times[height] = dt.datetime.fromtimestamp(
                     int.from_bytes(header[68:72], "little"), dt.UTC
                 )
@@ -300,17 +363,16 @@ class Electrum:
             if t.net < 0:
                 t.fee = spent_in - sum(v for _, v in outs)
             out.append(t)
-        self.close()
         return out
 
 
-# ---------- Bitcoin Core
+# ---------- A Bitcoin node
 
 
-class Core:
+class BitcoinNode:
     def __init__(self, cfg: Config, guard: net.Guard):
         if not cfg.host:
-            raise SourceError("Name Bitcoin Core's host first.")
+            raise SourceError("Name the Bitcoin node's host first.")
         scheme = "https" if cfg.tls else "http"
         self.url = f"{scheme}://{cfg.host}:{cfg.port}"
         auth = base64.b64encode(f"{cfg.rpcUser or ''}:{cfg.password or ''}".encode()).decode()
@@ -323,25 +385,27 @@ class Core:
             r = self.client.post(url, json=body)
         except net.httpx.HTTPError as e:
             raise SourceError(
-                f"Bitcoin Core at {self.url} didn't answer ({type(e).__name__})."
+                f"The Bitcoin node at {self.url} didn't answer ({type(e).__name__})."
             ) from None
         if r.status_code == 401:
-            raise SourceError("Bitcoin Core refused the RPC user or password.")
+            raise SourceError("The Bitcoin node refused the RPC user or password.")
         try:
             # Amounts in BTC, read as decimals: a float would lose a satoshi (S14.3).
             out = json.loads(r.text, parse_float=Decimal)
         except ValueError:
-            raise SourceError(f"Bitcoin Core answered {r.status_code}.") from None
+            raise SourceError(f"The Bitcoin node answered {r.status_code}.") from None
         if out.get("error"):
-            raise SourceError(f"Bitcoin Core refused {method}: {out['error'].get('message')}")
+            raise SourceError(f"The Bitcoin node refused {method}: {out['error'].get('message')}")
         return out["result"]
 
+    @_reads("The Bitcoin node")
     def test(self) -> str:
         info = self.call("getblockchaininfo")
         if info.get("chain") != "main":
-            raise SourceError(f"Bitcoin Core follows {info.get('chain')}, not mainnet.")
-        return f"Bitcoin Core answered: block {info['blocks']:,}"
+            raise SourceError(f"The Bitcoin node follows {info.get('chain')}, not mainnet.")
+        return f"The Bitcoin node answered: block {info['blocks']:,}"
 
+    @_reads("The Bitcoin node")
     def wallet(self, name: str, wanted: list[tuple[str, int | None]]) -> None:
         """The watch-only descriptor wallet for one wallet account, made or loaded, with its
         descriptors imported over the range derived (a rescan from the start the first
@@ -368,6 +432,7 @@ class Core:
         if new:
             self.call("importdescriptors", new, wallet=name)
 
+    @_reads("The Bitcoin node")
     def history_of(self, name: str) -> tuple[list[Tx], set[str]]:
         """The wallet's transactions, and every address of its that has received."""
         txs: dict[str, Tx] = {}
@@ -405,12 +470,12 @@ class Core:
 
 
 def descriptors(key, top: int | None) -> list[tuple[str, int | None]]:
-    """A WalletKey as Core descriptors: an address as itself, a key as its receive and change
+    """A WalletKey as the node's descriptors: an address as itself, a key as its receive and change
     chains, ranged to the highest index derived."""
     if key.kind == "address":
         return [(f"addr({key.value})", None)]
     if key.kind == "descriptor":
-        # Each chain apart, as every Core version reads them (S1.6.1.4).
+        # Each chain apart, as every version of the node reads them (S1.6.1.4).
         from . import descriptor
 
         d = descriptor.parse(key.value)
@@ -424,6 +489,6 @@ def descriptors(key, top: int | None) -> list[tuple[str, int | None]]:
 def make(cfg: Config, guard: net.Guard):
     if cfg.kind == "electrum":
         return Electrum(cfg, guard)
-    if cfg.kind == "core":
-        return Core(cfg, guard)
+    if cfg.kind == "bitcoinNode":
+        return BitcoinNode(cfg, guard)
     return Esplora(cfg, guard)

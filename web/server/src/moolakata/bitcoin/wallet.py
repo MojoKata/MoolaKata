@@ -2,11 +2,13 @@
 are stored, and each key's addresses derived on the receive and change chains until `gapLimit`
 in a row are unused."""
 
-from sqlalchemy import delete, false, func, select
+import secrets
+
+from sqlalchemy import delete, false, func, select, true
 from sqlalchemy.orm import Session
 
 from .. import clock, ids
-from ..store.entities.accounts import WalletAddress, WalletKey
+from ..store.entities.accounts import Account, WalletAddress, WalletKey
 from . import keys as bk
 
 
@@ -32,8 +34,13 @@ def addresses_of(s: Session, account_id: str) -> list[WalletAddress]:
 
 def replace(s: Session, account_id: str, entries: list[bk.Entry], gap: int, user_id: str) -> None:
     """The wallet's keys made these: new ones added, missing ones deleted with their addresses,
-    and every key's gap limit set."""
+    and every key's gap limit set. A wallet first given keys is given its Bitcoin node
+    wallet's name too, in the owner's save, as the account is locked by its version."""
     now = clock.now()
+    a = s.get(Account, account_id)
+    if a.bitcoinNodeWallet is None:
+        # Random, never the account's id, which tells when it was made (schema.md §2).
+        a.bitcoinNodeWallet = f"moolakata-{secrets.token_hex(8)}"
     current = {k.value: k for k in keys_of(s, account_id)}
     wanted = {e.value for e in entries}
     for value, k in current.items():
@@ -98,33 +105,45 @@ def extend(s: Session, k: WalletKey) -> int:
         def address(chain: int, i: int) -> str:
             return bk.address_of(xk.child(chain).child(i).key, xk.script)
 
+    # Every index from 0 is the key's own, though another key or a typed address holds its row:
+    # one held is passed over, never lost, and comes back to the key once that row goes; and
+    # the gap runs from the last address used, whichever row holds it (S1.6.1).
+    used = set(
+        s.scalars(
+            select(WalletAddress.address).where(
+                WalletAddress.accountId == k.accountId, WalletAddress.used == true()
+            )
+        )
+    )
     added = 0
     for chain in chains:
-        rows = list(
-            s.scalars(
+        mine = {
+            r.idx: r.address
+            for r in s.scalars(
                 select(WalletAddress).where(
                     WalletAddress.keyId == k.id, WalletAddress.chain == chain
                 )
             )
-        )
-        last_used = max((r.idx for r in rows if r.used), default=-1)
-        top = max((r.idx for r in rows), default=-1)
-        for i in range(top + 1, last_used + k.gapLimit + 1):
-            at = address(chain, i)
-            if at in taken:
-                continue
-            taken.add(at)
-            s.add(
-                WalletAddress(
-                    id=ids.new_id("WAddr"),
-                    accountId=k.accountId,
-                    keyId=k.id,
-                    address=at,
-                    chain=chain,
-                    idx=i,
-                    createdAt=now,
+        }
+        last_used, i = -1, 0
+        while i <= last_used + k.gapLimit:
+            at = mine.get(i) or address(chain, i)
+            if at in used:
+                last_used = i
+            if at not in taken:
+                taken.add(at)
+                s.add(
+                    WalletAddress(
+                        id=ids.new_id("WAddr"),
+                        accountId=k.accountId,
+                        keyId=k.id,
+                        address=at,
+                        chain=chain,
+                        idx=i,
+                        createdAt=now,
+                    )
                 )
-            )
-            added += 1
+                added += 1
+            i += 1
     s.flush()
     return added

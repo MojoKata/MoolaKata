@@ -155,6 +155,10 @@ Account = record(
     Column("withdrawalsAMonth", Integer),
     # An HSA's coverage, self-only or family, which its yearly limit is (S8.6); none: unset.
     Column("hsaCoverage", Text),
+    # A wallet account's watch-only wallet on its Bitcoin node (S1.6.2.3): `moolakata-` and a
+    # random name, never the id, which tells when it was made (schema.md §2). Made with its
+    # keys, and kept with the account, so the node's wallet is read again under it.
+    Column("bitcoinNodeWallet", Text),
     _in("type", ACCOUNT_TYPES, "type"),
     _in("lotMethod", LOT_METHODS, "lot_method"),
     CheckConstraint("mask IS NULL OR (length(mask) = 4 AND mask GLOB '[0-9]*')", name="mask"),
@@ -186,6 +190,14 @@ Account = record(
             "hsaCoverage",
         ),
     ),
+)
+# One node wallet per account, deleted ones' too: the node keeps a deleted account's wallet, so
+# no other account is ever read under its name (S1.6.2.3).
+Index(
+    "ux_Account_bitcoinNodeWallet",
+    Account.c.bitcoinNodeWallet,
+    unique=True,
+    sqlite_where=text('"bitcoinNodeWallet" IS NOT NULL'),
 )
 
 Instrument = record(
@@ -339,6 +351,10 @@ Transaction = record(
     Column("offChainAt", UtcTimestamp),
     Column("offChainMissedAt", UtcTimestamp),
     Column("offChainKeptAt", UtcTimestamp),
+    # A bitcoin transaction's moment, its confirming block's time (S1.6.2.6.1), on its transfer
+    # row: its date is that moment's day in the time zone in effect for its owner then, and a
+    # correction of that time zone dates it again from it.
+    Column("confirmedAt", UtcTimestamp),
     # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
     Column("reimbursable", Cents),
     Column("owedBy", Text),

@@ -30,7 +30,7 @@ web/dev.sh <command>
                and a preview of the coverage site, in web/.dev/coverage/
   check        run every check: what CI runs (web/check)
   mail         list the emails dev mode has written
-  mocks        fake bitcoin backends (Esplora, Electrum, Core) on local ports
+  mocks        fake bitcoin backends (Esplora, Electrum, Bitcoin node) on local ports
   audit [--accept]
                the egress audit after a dependency change: the scan, the
                no-network run; --accept records it (docs/dependencies.md)

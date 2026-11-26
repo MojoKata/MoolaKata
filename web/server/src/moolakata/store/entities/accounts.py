@@ -39,6 +39,7 @@ class Account(Record):
     syncAccount: str | None = None
     withdrawalsAMonth: int | None = None
     hsaCoverage: str | None = None  # an HSA's: self or family (S8.6)
+    bitcoinNodeWallet: str | None = None  # a wallet account's Bitcoin node wallet (S1.6.2.3)
 
 
 @dataclass(kw_only=True, eq=False)
@@ -129,6 +130,7 @@ class Transaction(Record):
     offChainAt: dt.datetime | None = None
     offChainMissedAt: dt.datetime | None = None
     offChainKeptAt: dt.datetime | None = None
+    confirmedAt: dt.datetime | None = None  # a bitcoin transfer's moment (S1.6.2.6.1)
     reimbursable: Decimal | None = None
     owedBy: str | None = None
     deductible: bool | None = None  # a traditional IRA contribution's (S8.6); null: undecided

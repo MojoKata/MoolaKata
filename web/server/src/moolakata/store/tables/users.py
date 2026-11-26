@@ -12,7 +12,7 @@ from sqlalchemy import (
     text,
 )
 
-from ..types import UtcTimestamp
+from ..types import Day, UtcTimestamp
 from ._base import Seen, exception, pairs, record, unique_live
 
 User = record(
@@ -194,6 +194,19 @@ SignupRequest = record(
 
 # A user's read-only token for the MCP endpoint (S10.9.1): shown once, kept as a hash of its
 # secret part. Revoking it deletes it (soft, so Activity still names it).
+# A user's time zones over time (S14.9.2): each in effect from 00:00 of its date, in itself,
+# until the next; before the first, the first. `User.timeZone` is the one in effect now. A
+# bitcoin transaction is dated in the one in effect at its moment (S1.6.2.6.1).
+UserTimeZone = record(
+    "UserTimeZone",
+    "UsrTz",
+    Column("userId", Text, ForeignKey("User.id"), nullable=False),
+    Column("timeZone", Text, nullable=False),  # a zone's name, or "auto": the server's
+    Column("since", Day, nullable=False),
+    seen=Seen.per_user("userId"),
+)
+unique_live(UserTimeZone, "userId", "since")
+
 AccessToken = record(
     "AccessToken",
     "Token",

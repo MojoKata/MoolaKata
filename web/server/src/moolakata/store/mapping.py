@@ -28,6 +28,7 @@ from .entities.users import (
     SignupRequest,
     User,
     UserGroup,
+    UserTimeZone,
 )
 from .tables import (
     accounts,
@@ -93,6 +94,7 @@ def map_all() -> None:
         return
     _done = True
     _versioned(User, users.User)
+    _versioned(UserTimeZone, users.UserTimeZone)
     _versioned(Group, users.Group)
     _versioned(AccessToken, users.AccessToken)
     _map(UserGroup, users.UserGroups)

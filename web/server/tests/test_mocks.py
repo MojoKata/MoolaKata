@@ -1,5 +1,5 @@
 """The bitcoin backend mocks (docs/test-plan.md): each real source class in
-bitcoin/sources.py against the fake Esplora, Electrum server and Bitcoin Core over real
+bitcoin/sources.py against the fake Esplora, Electrum server and Bitcoin node over real
 sockets, reading the same chain, and a wallet synced from each through the server."""
 
 import pytest
@@ -68,22 +68,29 @@ def test_the_fake_electrum_server_speaks_the_protocol_with_tls_trusted_on_first_
     c = mocks.chain
     got = _by_kind(c, e.history([c.first, c.change, c.far]))
     assert got == EXPECTED, got
+    tested = sources.Electrum(trusted, guard()).test()
+    assert tested.endswith(f"certificate SHA-256 {mocks.electrum.cert_sha256}"), tested
+    # Another certificate than the one confirmed: refused until an admin confirms it.
+    other = sources.Config(**{**trusted.__dict__, "certSha256": "00" * 32})
+    with pytest.raises(sources.CertificateChanged, match="isn't the one trusted") as refused:
+        sources.Electrum(other, guard()).history([c.first])
+    assert refused.value.sha256 == mocks.electrum.cert_sha256
 
 
-def test_the_fake_core_makes_a_watch_only_wallet_and_lists_its_transactions(mocks):
+def test_the_fake_bitcoin_node_makes_a_watch_only_wallet_and_lists_its_transactions(mocks):
     cfg = sources.Config(
-        kind="core",
+        kind="bitcoinNode",
         host="127.0.0.1",
-        port=mocks.ports()["core"],
+        port=mocks.ports()["bitcoinNode"],
         tls=False,
         rpcUser="mk",
         password="pw",
     )
-    core = sources.Core(cfg, guard())
-    assert core.test() == f"Bitcoin Core answered: block {TIP:,}"
-    core.wallet("moolakata-test", [("wpkh(xpub/0/*)", 25), ("wpkh(xpub/1/*)", 25)])
-    core.wallet("moolakata-test", [("wpkh(xpub/0/*)", 25)])  # already there: nothing imported twice
-    txs, used = core.history_of("moolakata-test")
+    node = sources.BitcoinNode(cfg, guard())
+    assert node.test() == f"The Bitcoin node answered: block {TIP:,}"
+    node.wallet("moolakata-test", [("wpkh(xpub/0/*)", 25), ("wpkh(xpub/1/*)", 25)])
+    node.wallet("moolakata-test", [("wpkh(xpub/0/*)", 25)])  # already there: nothing imported twice
+    txs, used = node.history_of("moolakata-test")
     c = mocks.chain
     assert used == {c.first, c.change, c.far}
     got = _by_kind(c, txs)
@@ -117,3 +124,31 @@ def test_a_wallet_syncs_from_the_fake_esplora_through_the_server(server, mocks):
     held = c.get(f"/ui/api/accounts/{wid}/holdings").json()["holdings"]
     assert [h["symbol"] for h in held] == ["BTC"]
     assert Decimal(str(held[0]["quantity"])) == Decimal("0.39999")
+
+
+@pytest.mark.parametrize("kind", ["electrum", "bitcoinNode"])
+def test_a_wallet_syncs_from_the_fake_node_through_the_server(server, mocks, kind):
+    """S1.6.2.3: a wallet read from an Electrum server or a Bitcoin node through the server, its
+    used addresses extending the gap, so the node is read again from the same source."""
+    from conftest import make_user, sign_in
+
+    from moolakata import settings
+    from moolakata.bitcoin import sync
+    from moolakata.dev.seed_wallets import TEST_ZPUB
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        for k, v in (
+            ("bitcoinSource", kind),
+            ("bitcoinNodeHost", "127.0.0.1"),
+            ("bitcoinNodePort", mocks.ports()[kind]),
+            ("bitcoinNodeTls", kind == "electrum"),
+            ("bitcoinNodeCert", mocks.electrum.cert_sha256),
+        ):
+            settings.put(s, k, v, None)
+    server.guard.allow(["127.0.0.1"], {"bitcoin": ["127.0.0.1"]})
+    wid = make(c, "Acct", name="Cold storage", type="crypto-wallet").json()["id"]
+    assert wallet(c, wid, TEST_ZPUB).status_code == 200
+    assert sync.sync_account(server, wid) == 3
+    assert c.get(f"/ui/api/accounts/{wid}/wallet").json()["used"] == 3

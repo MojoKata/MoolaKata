@@ -70,8 +70,9 @@ answers keep the API's camelCase fields.
   the table it goes in, a time within a day of the server's clock, and not already taken
   (requirements S13.8.11.2); `createdAt` is the server's time. Every other ID is made by the server.
 - **IDs reveal when a row was created.** File names and anything else visible on disk,
-  such as receipt files and a linked copy's files (requirements S11.9), use separate random
-  names and never an ID.
+  such as receipt files, a linked copy's files (requirements S11.9) and a wallet account's
+  Bitcoin node wallet (`Account.bitcoinNodeWallet`, S1.6.2.3), use separate random names and never
+  an ID.
 
 ```
 UUIDv7 (hex):   0199d4b2-6f3a-7c21-9b4e-5a1d3c8e7f02
@@ -180,6 +181,7 @@ The prefixes of the tables that exist.
 | Txn    | Transaction      | One dated movement in an account.                                                                     |
 | TyPrc  | TypedPrice       | A price a user typed for an instrument on a day: it values their own accounts only.                   |
 | User   | User             | A person who signs in here, or a user of a linked server (with `linkId`).                             |
+| UsrTz  | UserTimeZone     | A time zone in effect for a user from a date: their bitcoin is dated in the one in effect then.       |
 | Valtn  | ItemValuation    | A dated value of an item, with its source.                                                            |
 | WAddr  | WalletAddress    | An address a bitcoin wallet watches, typed or derived from its key; worked out again.                 |
 | WKey   | WalletKey        | An extended public key or an address a bitcoin wallet account holds, as entered.                      |
@@ -292,7 +294,7 @@ as they change.
    | never | `Instrument`, `Price` (requirements S4.6), `TypedPrice`, `TaxFigure`, `Setting` while set; `TaxBook` and with it `Filing`, `EstimatedPayment`, `TaxDocument`, `TaxBookDependent`, `TaxBookFiler`, `TaxBookAccount`, `TaxDependentAccounts`; `User` (users are made inactive, not deleted, S10.2) |
    | its date | `Transaction`, `Anchor`, `Holding` (as of), `HoldingCheck` (as of), `Reconciliation` (the statement's), `Donation`, `QualifiedExpense`; `Receipt` (its own date, or when it was uploaded) |
    | an event | `Account`: deleted, or closed (`closedOn`) with nothing in it still open; `Lot`: the sale of its last share; `Import`: its latest transaction's end; `BudgetLine`: the month before a later line for its category starts; `Gift`, given or received: the later of its occasion and its purchase; `Occasion` with a year: its date; `GivingPlan`: the end of its year; `Item`: its sale; `AccessToken`: expiry or revoking; `SignupRequest`: decided, or expired unconfirmed; `Link`: unlinked; `Connector`: unpaired or replaced; `Connection`: removed; `Relationship`: its `to` date; `Strategy`: its last option leg closed |
-   | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, the share tables (`AccountShare`, …), `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
+   | when deleted | `TransferMatch`, `Budget`, `Portfolio`, `Projection`, `AssumptionSet`, `UserTimeZone`, `Person`, `GiftPlan`, a `Gift` still an idea or planned, `Organisation`, `PayoffPlan`, `Group`, the share tables (`AccountShare`, …), `PriceSource`, `ImportMapping`, `StatementLayout`, `Rule`; a remote `User` with its link |
    | its parent's | `BudgetMove`, `BudgetReview`, `BudgetReviewViewer`, `BudgetLeaveOuts`, `Reimbursement`, `Split`, `LotPick`, `StrategyLeg`, `TransactionTags`, `RuleTags`, `ReceiptTags`, `WalletKey`, `TransactionWalletKeys`, `OptionContract`, `BudgetAccount`, `PortfolioAccounts`, `CountedAccount`, `ShownProjections`, `GiftPersons`, `ReceiptLink`, `EducationPlan`, `Contribution`, `Loan`, `ItemValuation`, `Improvement`, `UserGroups`, `LinkColour`; a yearly `Occasion` |
    | `Activity` | when it was written |
 
@@ -347,7 +349,7 @@ ever read for them.
    | child (its key) | the records of one record: `Transaction` (`accountId`), `Split` (`transactionId`), `BudgetLine` (`budgetId`), `Filing` (`bookId`), `Occasion` (`giftPlanId`), … | generated: seen as the record its `NOT NULL` key names is; `writable` and `deletable` are that record's `writable`, `configurable` its `configurable`, never `shareable` |
    | share (its share kind) | each shareable kind's share table, `<Table>Share` (`AccountShare`, …), made from its root's declaration | generated: whoever holds `shareable` on its item reads and changes it; its grantee reads it, directly or through a group |
    | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `TaxBookFiler`, `Activity`, `User`, `Group`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
-   | per-user (its user column) | `AccessToken`, `AlertState`, `BudgetReviewViewer`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `StatementLayout`, `AssumptionSet`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
+   | per-user (its user column) | `AccessToken`, `AlertState`, `BudgetReviewViewer`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `StatementLayout`, `AssumptionSet`, `UserTimeZone`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
    | admin | `Setting`, `PriceSource`, `Connector`, `Link`, `LinkFile`, `LinkSent`, `QueuedEmail`, `SignupRequest` | generated: every admin holds everything; no one else reads it |
    | relation | the many-to-many tables (§1.2) | none: a query asks for one side's records and joins that side's view, and the other side's when it returns both |
    | household | `Category`, `Instrument`, `OptionContract`, `Price`, `TaxFigure` | none: every signed-in user reads it |

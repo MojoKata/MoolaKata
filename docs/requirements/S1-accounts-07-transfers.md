@@ -14,7 +14,12 @@
       wallet and an exchange, two wallets): a transfer out and a transfer in of the same
       instrument and quantity (bitcoin's less the network fee), within days, are
       **proposed** as a pair, on each account's Overview, and the owner confirms or rejects
-      it; a rejected pair isn't proposed again. Once confirmed, they arrive with the **lots
+      it; a rejected pair isn't proposed again. Between two of the owner's wallets both sides
+      are one transaction on the chain: they pair by its transaction id, whatever their dates,
+      and two different transaction ids never pair; the days apply where a side has no
+      transaction on the chain (an exchange's or a brokerage's line). A change of date, such
+      as a time zone correction re-dating a wallet's transactions (S14.9.3), never changes a
+      pair confirmed or proposed. Once confirmed, they arrive with the **lots
       they left with**, worked out from the account they left whenever its lots change:
       their basis, the day each was acquired, a wash sale's holding period, the fee aside
       (S8.19), so nothing is missing a basis and nothing is taxed. A transfer in left
