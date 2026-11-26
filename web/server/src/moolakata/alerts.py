@@ -69,7 +69,7 @@ def price_sources(s: Session, server) -> Iterable[Cause]:
     """A price source failing for longer than Settings › Alerts allows (admins)."""
     from .prices.refresh import SOURCES, enabled
 
-    limit = dt.timedelta(hours=settings.get(s, "alertSourceHours"))
+    limit = settings.span(s, "alertSourceMinutes")
     now = clock.now()
     for src in enabled(s, server.config.dev):
         if not src.lastError:
@@ -165,7 +165,7 @@ def bitcoin_source(s: Session, server) -> Iterable[Cause]:
             fix="Bitcoin Settings" if who is None else "Your Accounts",
             icon="sync",
             since=since,
-            delay=dt.timedelta(hours=settings.get(s, "alertSourceHours")),
+            delay=settings.span(s, "alertSourceMinutes"),
         )
 
 
@@ -177,7 +177,7 @@ def linked_servers(s: Session, server) -> Iterable[Cause]:
     refused data, either way (S11.7.2)."""
     from .store.entities.links import Link, LinkedItem
 
-    limit = dt.timedelta(hours=settings.get(s, "alertSourceHours"))
+    limit = settings.span(s, "alertSourceMinutes")
     now = clock.now()
     for link in s.scalars(
         select(Link).where(Link.deleted == false(), Link.state.in_(("active", "pending", "paused")))
@@ -416,7 +416,7 @@ def email(s: Session, server) -> Iterable[Cause]:
         fix="Email Settings",
         icon="sync",
         since=oldest,
-        delay=dt.timedelta(hours=settings.get(s, "alertSourceHours")),
+        delay=settings.span(s, "alertSourceMinutes"),
     )
 
 

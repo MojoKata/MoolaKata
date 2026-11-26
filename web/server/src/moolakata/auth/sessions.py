@@ -30,14 +30,14 @@ def create(
 ) -> str:
     token, token_hash = new_token()
     t = now()
-    days = settings.get(s, "sessionAbsoluteDays")
+    longest = settings.span(s, "sessionAbsoluteMinutes")
     s.add(
         Session(
             tokenHash=token_hash,
             userId=user_id,
             createdAt=t,
             lastSeenAt=t,
-            expiresAt=t + dt.timedelta(days=days),
+            expiresAt=t + longest,
             address=address,
             authAt=auth_at or t,
             admin=admin,
@@ -66,7 +66,7 @@ def find(s: Db, token: str | None) -> Found | None:
     if row is None:
         return None
     t = now()
-    idle = dt.timedelta(hours=settings.get(s, "sessionIdleHours"))
+    idle = settings.span(s, "sessionIdleMinutes")
     if t >= row.expiresAt or t - row.lastSeenAt >= idle:
         return Found(row, "expired")
     return Found(row, None)
@@ -92,7 +92,7 @@ def end_all(s: Db, user_id: str) -> list[str]:
 def prune(s: Db) -> int:
     """Expired sessions are removed outright (schema.md §4.4.1)."""
     t = now()
-    idle = dt.timedelta(hours=settings.get(s, "sessionIdleHours"))
+    idle = settings.span(s, "sessionIdleMinutes")
     result = s.execute(
         delete(Session).where((Session.expiresAt <= t) | (Session.lastSeenAt <= t - idle))
     )

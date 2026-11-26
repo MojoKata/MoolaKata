@@ -28,6 +28,19 @@ function byKey(recs) {
     get: (/** @type {string} */ k) => one(k).get('value'),
     set: (/** @type {string} */ k, /** @type {any} */ v) => one(k).set('value', v),
     revert: (/** @type {string} */ k) => one(k).revert('value'),
+    /** What was typed for the key's value, while it is edited. */
+    typed: (/** @type {string} */ k) => one(k).typed('value'),
+    /**
+     * The key's value from typed text, which `read` reads or says why not; text that doesn't
+     * read stays as typed, and Save refuses it at the field (S12.15).
+     * @param {string} k @param {string} text
+     * @param {(t: string) => { value: any } | { error: string }} read
+     */
+    input: (k, text, read) =>
+      one(k).inputAs('value', text, (/** @type {string} */ t) => {
+        const r = read(t);
+        return 'error' in r ? r : { value: { value: r.value } };
+      }),
     /** Refuse the key's value, as a check before saving does. */
     refuse: (/** @type {string} */ k, /** @type {string} */ message) =>
       one(k).refuse('value', message),

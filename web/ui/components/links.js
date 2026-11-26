@@ -7,12 +7,12 @@ import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
 import { ago } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
-import { parseDuration } from '../kit/duration.js';
+import { formatDuration, parseDuration } from '../kit/duration.js';
 import { withReauth } from './reauth.js';
 import { confirmAction } from '../kit/confirm.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, SpinInput, TypedInput } from '../kit/fields.js';
+import { errAt, Field, FormError, Input, TypedInput } from '../kit/fields.js';
 import { Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
@@ -119,8 +119,8 @@ export function LinksSection() {
   });
   // What is typed in Release linked keys after, until it is saved (S16.9).
   const [releaseShown, setRelease] = useState(/** @type {string | null} */ (null));
-  const release = useSubmit(async (/** @type {string} */ v) => {
-    await saveSetting(s.data, 'linkReleaseMinutes', Number(v));
+  const release = useSubmit(async (/** @type {number} */ minutes) => {
+    await saveSetting(s.data, 'linkReleaseMinutes', minutes);
     toast('Saved');
     s.reload();
   });
@@ -477,14 +477,15 @@ function copies(live, values, reload, act, release, typed, fmt) {
           </div>
         `
         : html`<${Empty}>No linked copies yet</${Empty}>`}
-      <${Field} label="Release linked keys after (minutes unused)" id="link-release">
-        <${SpinInput} min=${5} max=${1440} step=${15} value=${releaseShown ??
-          String(values.linkReleaseMinutes)} onInput=${setRelease} onCommit=${(
-          /** @type {string} */ v,
-          /** @type {boolean} */ ok,
-        ) =>
-          ok && v !== String(values.linkReleaseMinutes) &&
-          release.run(v).then(() => setRelease(null)).catch(() => {})} />
+      <${Field} label="Release linked keys after" id="link-release">
+        <${TypedInput} kind="duration" min="5m" max="1d" reset=${{ value: '1h', label: '1h' }}
+          placeholder="ex: 1h" value=${releaseShown ?? formatDuration(values.linkReleaseMinutes)}
+          onInput=${setRelease} onCommit=${(/** @type {string} */ v, /** @type {boolean} */ ok) => {
+            const d = parseDuration(v);
+            if (ok && 'minutes' in d && d.minutes !== values.linkReleaseMinutes) {
+              release.run(d.minutes).then(() => setRelease(null)).catch(() => {});
+            }
+          }} />
       </${Field}>
       <${FormError} error=${act.error || release.error} />
     </div>

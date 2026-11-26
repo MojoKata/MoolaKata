@@ -189,6 +189,33 @@ def test_sessions_expire_when_idle_and_absolutely(server):
     assert c.get("/ui/api/session").status_code == 401
 
 
+def test_the_session_lifetimes_are_read_in_minutes(server):
+    # S16.3: both lifetimes are kept in minutes, typed as durations (S12.13).
+    from moolakata.auth import sessions
+
+    with server.db.tx(unscoped="test") as s:
+        settings.put(s, "sessionIdleMinutes", 90, None)
+        settings.put(s, "sessionAbsoluteMinutes", 1500, None)
+    assert server.session_max_age() == 1500 * 60
+    make_user(server, "dan")
+    c = sign_in(server, "dan")
+    with server.db.tx(unscoped="test") as s:
+        row = s.scalars(select(Session)).one()
+        assert row.expiresAt - row.createdAt == dt.timedelta(minutes=1500)
+        row.lastSeenAt = accounts.now() - dt.timedelta(minutes=89)
+    assert c.get("/ui/api/session").status_code == 200
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Session)).one().lastSeenAt = accounts.now() - dt.timedelta(minutes=91)
+    r = c.get("/ui/api/session")
+    assert r.status_code == 401 and r.json()["code"] == "session-expired"
+    # The hourly prune reads the idle lifetime the same way.
+    sign_in(server, "dan")
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Session)).one().lastSeenAt = accounts.now() - dt.timedelta(minutes=91)
+    with server.db.tx(unscoped="test") as s:
+        assert sessions.prune(s) == 1
+
+
 def test_a_change_of_privilege_gives_a_new_token(server, admin_client):
     john = make_user(server, "john")
     c = sign_in(server, "john")

@@ -407,7 +407,7 @@ def _sources(s, c: Caller, dev: bool) -> list[Attention]:
                 )
             )
     if c.admin:
-        limit = dt.timedelta(hours=settings.get(s, "alertSourceHours"))
+        limit = settings.span(s, "alertSourceMinutes")
         now = clock.now()
         for src in enabled(s, dev):
             if src.lastError and now - (src.lastOkAt or src.createdAt) > limit:

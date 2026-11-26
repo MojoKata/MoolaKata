@@ -25,10 +25,11 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    database: an email that can't be sent stays queued and is tried again every five minutes,
    until its link expires, or a day after it was queued for an email with no link; one the server refuses outright is set aside, keeping only its
    recipient, subject and the error; and the section shows the queue and the last error.
-3. **Sign-in and sessions**: idle and absolute session lifetimes (8 hours by default, 1 to
-   168, and 30 days, 1 to 365), and the lockout of an address after failed sign-ins (10
-   failures, 3 to 100, for 15 minutes, 1 to 1,440, S13.7.5.1). These figures are in the
-   database, so while the server is locked the unlock (S15.4.3) uses the defaults.
+3. **Sign-in and sessions**: idle and absolute session lifetimes (`8h` by default, `1h` to
+   `1w`, and `30d`, `1d` to `52w`), and the lockout of an address after failed sign-ins (10
+   failures, 3 to 100, for `15m`, `1m` to `1d`, S13.7.5.1); the lifetimes and the lockout's
+   length are durations (S12.13). These figures are in the database, so while the server is
+   locked the unlock (S15.4.3) uses the defaults.
 4. **Sign-up**: on or off (it needs SMTP), optionally limited to email domains.
 5. **Passwords**: the minimum length (12 by default, 8 to 128).
 6. **Prices** (S4.2.3): the enabled sources with their classes, keys, order, last run and
@@ -49,8 +50,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
 9. **Linked servers** (S11.7): this server's **link address** (its public URL when not set,
    S11.2), the links, and each linked copy's state: changes waiting, its access key (*Create
    the access key*, made when and by whom), locked or unlocked (by whom, and when it will
-   lock), *Lock now* and *Reset copy*, and **Release linked keys after** (one hour unused by
-   default, 5 minutes to 24 hours).
+   lock), *Lock now* and *Reset copy*, and **Release linked keys after** (a duration unused,
+   `1h` by default, `5m` to `1d`).
 10. **Receipts**: the size limit (25 MB by default, 1 to 100); **Read receipts** on or off,
     jobs at a time (1 by default, at most 4), the reading queue, and **Re-read all receipts**
     (S9.8.7). On a host without Landlock, the section says that reading runs without its file
@@ -112,9 +113,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     `MOOLAKATA_CONFIG`, S17.8).
 15. *Not a section*: the listener's mode and certificate (S13.3) are set in the configuration,
     and Settings › Network shows how the listener runs.
-16. **Alerts** (S12.11): how long a source may fail before it raises an alert (48 hours by
-    default, 1 to 336), and the time of the daily summary email (07:00 by default, in each
-    user's time zone).
+16. **Alerts** (S12.11): how long a source may fail before it raises an alert (a duration,
+    `2d` by default, `1h` to `2w`), and the time of the daily summary email (07:00 by
+    default, in each user's time zone).
 17. **Storage** (S14.10): the size of the database and of the receipts directory, files
     expired against the rest and the deleted receipts' files, the files no record names with **Remove** (S14.6), what
     expires each coming year by category, **Keep statements for** (years, empty for ever),
