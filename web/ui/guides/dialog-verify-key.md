@@ -7,4 +7,4 @@ alert waits for one.
 ## Recovery phrase
 
 The 12 words from the copy, in order. Four letters of each are enough. A wrong phrase counts
-toward the lockout, as at the locked screen.
+toward the lockout Settings › Sign-In and Sessions sets, as a wrong password does.
