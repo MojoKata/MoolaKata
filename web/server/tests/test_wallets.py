@@ -883,8 +883,11 @@ def test_a_wallets_keys_are_bounded(jane):
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-long"
     from moolakata.ui import wallets
 
-    z = keys.extended(ZPUB)
-    lines = "\n".join(z.address(0, i) for i in range(wallets.MAX_ENTRIES + 1))
+    # Distinct, valid addresses, made by encoding rather than derived: deriving a thousand from
+    # a key takes seconds, and the cap counts entries whatever made them.
+    many = [keys.segwit_encode(0, i.to_bytes(20, "big")) for i in range(wallets.MAX_ENTRIES + 1)]
+    assert len(set(many)) == len(many) and all(keys.address_script(a) for a in many)
+    lines = "\n".join(many)
     r = wallet(jane, w["id"], lines)
     assert r.status_code == 422 and r.json()["errors"][0]["code"] == "too-many", r.text
 
