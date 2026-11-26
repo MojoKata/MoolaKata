@@ -55,6 +55,32 @@ def test_benchmark_gets_the_same_money():
     assert mixed[1][1] == D("1.05")
 
 
+def test_the_60_40_benchmark_is_vt_and_bnd_rebalanced_daily(server):
+    """S5.2.1: the 60/40 mix is 60% VT and 40% BND, rebalanced each day: VT up 10% and back,
+    BND flat, ends a little above 1, where holding the two unrebalanced would end at 1."""
+    from sqlalchemy import select
+    from test_account_world import _closes_installed
+
+    from moolakata import figures, ids
+    from moolakata.store.entities.accounts import Instrument
+    from moolakata.store.entities.prices import Price
+
+    days = [d(2026, 3, 2), d(2026, 3, 3), d(2026, 3, 4)]
+    with server.db.tx(unscoped="test") as s:
+        figures.ensure_benchmarks(s)
+        s.flush()
+        sym = {i.symbol: i.id for i in s.scalars(select(Instrument))}
+        for symbol, closes in (("VT", ("100", "110", "100")), ("BND", ("50", "50", "50"))):
+            for day, close in zip(days, closes, strict=True):
+                s.add(Price(id=ids.new_id("Price"), instrumentId=sym[symbol], date=day,
+                            close=D(close), source="test"))  # fmt: skip
+    with _closes_installed(), server.db.read(unscoped="test") as s:
+        got = dict(figures.benchmark_index(s, "60-40", days[0], days[-1]))
+    assert got[days[1]] == D("1.06")
+    assert got[days[2]] == D("1.06") * (D("0.6") * D(100) / D(110) + D("0.4"))
+    assert got[days[2]] > 1
+
+
 def test_flows_count_money_in_and_out_not_income():
     class T:
         def __init__(self, kind, amount, inst=None):
