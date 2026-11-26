@@ -177,6 +177,20 @@ def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_
     assert v["hidden"] == {} and v["shareToo"] == []
 
 
+def test_share_these_accounts_too_passes_over_an_inactive_group(server, admin_client):
+    """S5.1.2, S10.5: an inactive group gives its members nothing, so what John can't see goes
+    to his own share, not to the inactive group that also holds the portfolio."""
+    u, c = setup(server)
+    g = make(admin_client, "Group", name="Household", memberIds=[u["john"].id]).json()
+    brokerage = new_account(c["jane"], name="Brokerage", type="brokerage")
+    p = make(c["jane"], "Portf", name="Family", accountIds=[brokerage["id"]]).json()
+    share(c["jane"], "portfolio", p["id"], users={u["john"].id: "read"}, groups={g["id"]: "read"})
+    saved(change(admin_client, "Group", g, active=False))
+    v = c["jane"].get(f"/ui/api/shares/portfolio/{p['id']}").json()
+    assert v["shareToo"] == [{"groupId": None, "userId": u["john"].id,
+                              "accountIds": [brokerage["id"]]}]  # fmt: skip
+
+
 def test_activity_goes_to_the_people_concerned_without_amounts(server, admin_client):
     u, c = setup(server)
     a = new_account(c["jane"], name="Joint checking")

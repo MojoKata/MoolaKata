@@ -186,15 +186,19 @@ export function ShareDialog({ close, kind, id, name }) {
       if (next[l.linkId] !== receipts[l.linkId]) setReceipts(l)(next[l.linkId]);
     }
   };
-  const hidden = view?.hidden || {};
   // A linked server's people are named too (S13.7.2).
   const everyone = [
     ...view?.users || [],
     ...(view?.links || []).flatMap((/** @type {any} */ l) => l.users),
   ];
-  const hiddenNames = Object.entries(hidden).map(([uid, accts]) => ({
-    who: everyone.find((/** @type {any} */ u) => u.id === uid)?.displayName,
-    accounts: /** @type {string[]} */ (accts).map((a) =>
+  // Named by the group or person the portfolio is shared with, as the button shares: a group,
+  // not its members of the moment (S5.1.2, S10.5).
+  const hiddenNames = (view?.shareToo || []).map((/** @type {any} */ to) => ({
+    who: to.groupId
+      ? view.groups.find((/** @type {any} */ g) => g.id === to.groupId)?.name
+      : everyone.find((/** @type {any} */ u) => u.id === to.userId)?.displayName,
+    group: !!to.groupId,
+    accounts: /** @type {string[]} */ (to.accountIds).map((a) =>
       view.accounts.find((/** @type {any} */ x) => x.id === a)?.name
     ),
   }));
@@ -212,7 +216,9 @@ export function ShareDialog({ close, kind, id, name }) {
                         ${hiddenNames.map((h) =>
                           html`<div><b>${h.who}</b> can't see ${
                             h.accounts.join(', ')
-                          }: left out of the portfolio's figures they see.</div>`
+                          }: left out of the portfolio's figures ${
+                            h.group ? 'its members see' : 'they see'
+                          }.</div>`
                         )}
                         <div class="toolbar mt" style=${{ marginBottom: 0 }}>${pending.length
                           ? html`

@@ -6,7 +6,8 @@
       hidden, and left out of every figure, chart and holding the viewer sees, so the
       portfolio's value is the value of what they can see. This holds across a link too.
    2. **Sharing a portfolio** whose accounts are not all shared with the people chosen: the
-      Share dialog names the accounts each of them can't see and offers **Share these
+      Share dialog names the accounts each of them can't see, by the group or person the
+      portfolio is shared with (a group by its name, not its members), and offers **Share these
       accounts too** (at read, and only for accounts the owner may share), each with the
       group or person the portfolio is shared with, so a group's members hold the accounts
       while they are in it (S10.5); a person gets a share of their own only for what no group

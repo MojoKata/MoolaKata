@@ -1518,8 +1518,8 @@ def test_a_share_given_and_taken_away_saves_its_grants(browser, household):
 def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_with(
     browser, household
 ):
-    # S5.1.2, S10.5: a portfolio shared with Household; the button shares its account with
-    # Household, not with each of its members.
+    # S5.1.2, S10.5: a portfolio shared with Household; the dialog names Household, and the
+    # button shares its account with it, not with each of its members.
     h = household
     acct = made(make(h.c, "Acct", name="Group Only", type="brokerage"))
     p = made(make(h.c, "Portf", name="For the Group", accountIds=[acct["id"]]))
@@ -1531,7 +1531,9 @@ def test_share_these_accounts_too_shares_with_the_group_the_portfolio_is_shared_
     wait(page, ".dialog", problems, state="detached")
     page.click('button:has-text("Share")')
     wait(page, 'button:has-text("Share These Accounts Too")', problems)
-    assert "John Doe can't see Group Only" in page.locator(".dialog .notice").inner_text()
+    # The notice names the group, as the button shares, not its members of the moment.
+    notice = page.locator(".dialog .notice").inner_text()
+    assert "Household can't see Group Only" in notice and "John Doe" not in notice
     page.click('button:has-text("Share These Accounts Too")')
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")
