@@ -96,8 +96,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     any: **Allowed to use the app** (`/ui`, and `/mcp` with it: an agent sits where a person's
     browser does, and its token is already the user's); **Allowed to link**, for linked servers
     (`/link`); and **Allowed to connect**, for the connector (`/connector`, S18), by default
-    the private ranges and the overlays' (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` for Tailscale, `::1`,
-    `fc00::/7`), so a connector on a laptop away from home (S18.1) needs an admin to widen it.
+    the private ranges and the overlays' (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+    `192.168.0.0/16`, `100.64.0.0/10` for Tailscale, `::1`, `fc00::/7`), so a connector on a laptop away from home (S18.1) needs an admin to widen it.
     The address checked is the client's as the trusted proxy forwards it (S13.3). `/healthz`
     and `/demo` answer any address. An address outside a path's ranges is answered 404, as for
     what doesn't exist. The ranges are in the database, so while the server is locked they
