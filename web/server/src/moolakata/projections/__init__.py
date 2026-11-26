@@ -172,6 +172,41 @@ def grows_as(s: Session, part) -> str | None:
     return None
 
 
+# The order an allocation lists its classes in (S5.2.4).
+ALLOCATION = (
+    "usStocks", "intlStocks", "bonds", "cash", "crypto", "realEstate", "metals", "other",
+)  # fmt: skip
+
+
+def allocation_class(s: Session, part) -> str | None:
+    """The asset class a part of what is held shows under in an allocation (S5.2.4): the one
+    a projection grows it by (`grows_as`); an item of real estate, real estate; any other item
+    or an option, other. A loan holds nothing, and has none."""
+    if part.kind == "loan":
+        return None
+    cls = grows_as(s, part)
+    if cls is not None:
+        return cls
+    return "realEstate" if part.accountType == "real-estate" else "other"
+
+
+def allocation(s: Session, parts) -> list[tuple[str, Decimal, Decimal]]:
+    """What the parts hold by asset class (S5.2.4): each class with its value and its share in
+    percent, to a tenth, in `ALLOCATION`'s order. What is owed (a loan, a card's balance, a
+    short option) holds nothing, and a part with no price counts nothing."""
+    held: dict[str, Decimal] = {}
+    for part in parts:
+        cls = allocation_class(s, part)
+        if cls is not None and part.value is not None and part.value > 0:
+            held[cls] = held.get(cls, Decimal(0)) + part.value
+    total = sum(held.values(), Decimal(0))
+    return [
+        (k, held[k], (held[k] / total * 100).quantize(Decimal("0.1")))
+        for k in ALLOCATION
+        if k in held
+    ]
+
+
 def _grown_series(s: Session, a: Account, first: dt.date, last: dt.date, step: int):
     """An account's value over time, of the parts a projection grows (`grows_as`), so tracking
     follows what the start counted: no loan, no option, an item only if it is a metal."""

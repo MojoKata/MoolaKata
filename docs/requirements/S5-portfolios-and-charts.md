@@ -16,7 +16,7 @@
       in its own window (S12.10).
 2. **Charts each portfolio has:**
    1. **Value over time** (line or area; 1M, 3M, YTD, 1Y, 5Y, All, and a range brush), with
-      contributions shown apart from growth, against a **benchmark** (SPY, VT, a 60/40 mix).
+      contributions shown apart from growth, against a **benchmark** (SPY, VT, or a 60/40 mix of VT and BND rebalanced daily).
       A contribution is money that came in or left from outside, valued as the chart values
       it that day: cash, shares moved in or out, an item added or sold (at what its sale
       brought), a loan's opening balance and its draws; a move between two of the portfolio's
@@ -27,10 +27,17 @@
    3. **Holdings**: what the portfolio holds, by account and by instrument, with each loan
       (what is still owed) and each item (what it is worth, S1.10) on a row of its own; its
       total is the portfolio's value. A weight is a share of what is held, cash and items
-      included; a loan takes none.
+      included; a loan takes none;
+   4. **Allocation**: what is held by asset class, at market value, as a donut with each
+      class's share: cash, bonds, US stocks, international stocks, real estate, crypto and
+      metals, each holding in the class a projection grows it by (S6.4.2.2); an item of real
+      estate is real estate, and any other item (a car, a collectable) or an option is
+      *other*. What is owed (a loan, a card's balance, a short option) holds nothing and
+      takes no share. It shows on the Holdings tab, and on the Dashboard
+      over the user's net-worth accounts, where **Details** opens *All my accounts*.
 
    A portfolio of chosen holdings, allocation against a target with its drift and rebalancing,
-   income by month, and a holding's price chart with its trades come later ([F#561](https://github.com/MojoKata/MoolaKata/issues/561)).
+   allocation by account type, sector, region or holding, income by month, and a holding's price chart with its trades come later ([F#561](https://github.com/MojoKata/MoolaKata/issues/561)).
 3. **Net worth** on the Dashboard: assets minus liabilities over time, with the composition
    stacked by account group.
 4. **Charts are drawn in the browser** from series the server computes (`GET

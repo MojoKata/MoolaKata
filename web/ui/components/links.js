@@ -12,7 +12,7 @@ import { withReauth } from './reauth.js';
 import { confirmAction } from '../kit/confirm.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
-import { errAt, Field, FormError, Input, Select, TypedInput } from '../kit/fields.js';
+import { errAt, Field, FormError, Input, SpinInput, TypedInput } from '../kit/fields.js';
 import { Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
@@ -117,6 +117,8 @@ export function LinksSection() {
     res.reload();
     return out;
   });
+  // What is typed in Release linked keys after, until it is saved (S16.9).
+  const [releaseShown, setRelease] = useState(/** @type {string | null} */ (null));
   const release = useSubmit(async (/** @type {string} */ v) => {
     await saveSetting(s.data, 'linkReleaseMinutes', Number(v));
     toast('Saved');
@@ -281,7 +283,7 @@ export function LinksSection() {
         : null}
       <${FormError} error=${act.error} />
     </div>
-    ${copies(live, values, res.reload, copyAct, release, fmt)}
+    ${copies(live, values, res.reload, copyAct, release, [releaseShown, setRelease], fmt)}
     ${live.filter((/** @type {any} */ l) => l.outgoing.length).map((/** @type {any} */ l) =>
       html`<div class="card mt"><h3 data-help="outgoing">Shared from Here with ${l.peerName}</h3>
         ${
@@ -402,9 +404,11 @@ const size = (n) =>
  * The Linked copies card (S11.7, S11.9): each copy's access key, size and lock, Create the
  * access key, Lock now and Reset copy, and how long an unused copy stays unlocked.
  * @param {any[]} live @param {any} values @param {() => void} reload @param {any} act
- * @param {any} release @param {import('../kit/formats.js').Fmt} fmt
+ * @param {any} release @param {[string | null, (v: string | null) => void]} typed what is
+ * typed in the release's field until it is saved @param {import('../kit/formats.js').Fmt} fmt
  */
-function copies(live, values, reload, act, release, fmt) {
+function copies(live, values, reload, act, release, typed, fmt) {
+  const [releaseShown, setRelease] = typed;
   const rows = live.filter((l) => l.linkedCopy);
   return html`
     <div class="card mt">
@@ -473,14 +477,14 @@ function copies(live, values, reload, act, release, fmt) {
           </div>
         `
         : html`<${Empty}>No linked copies yet</${Empty}>`}
-      <${Field} label="Release linked keys after" id="link-release">
-        <${Select} value=${String(values.linkReleaseMinutes)} onChange=${(
+      <${Field} label="Release linked keys after (minutes unused)" id="link-release">
+        <${SpinInput} min=${5} max=${1440} step=${15} value=${releaseShown ??
+          String(values.linkReleaseMinutes)} onInput=${setRelease} onCommit=${(
           /** @type {string} */ v,
-        ) => release.run(v).catch(() => {})} options=${[
-          ['15', '15 minutes unused'],
-          ['60', '1 hour unused'],
-          ['240', '4 hours unused'],
-        ]} />
+          /** @type {boolean} */ ok,
+        ) =>
+          ok && v !== String(values.linkReleaseMinutes) &&
+          release.run(v).then(() => setRelease(null)).catch(() => {})} />
       </${Field}>
       <${FormError} error=${act.error || release.error} />
     </div>

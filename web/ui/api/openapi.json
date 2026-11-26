@@ -1363,6 +1363,39 @@
         "title": "AlertRow",
         "type": "object"
       },
+      "AllocationSlice": {
+        "additionalProperties": false,
+        "description": "One asset class of the allocation (S5.2.4): its value and its share in percent.",
+        "properties": {
+          "assetClass": {
+            "title": "Assetclass",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "assetClass",
+          "value",
+          "weight"
+        ],
+        "title": "AllocationSlice",
+        "type": "object"
+      },
       "Allowed": {
         "additionalProperties": false,
         "description": "What the reader may do with a category now (S7.2.3).",
@@ -5358,6 +5391,13 @@
       "Dashboard": {
         "additionalProperties": false,
         "properties": {
+          "allocation": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationSlice"
+            },
+            "title": "Allocation",
+            "type": "array"
+          },
           "attention": {
             "items": {
               "$ref": "#/components/schemas/Attention"
@@ -5439,6 +5479,13 @@
             "format": "money",
             "title": "Networth",
             "type": "number"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/Upcoming"
+            },
+            "title": "Upcoming",
+            "type": "array"
           }
         },
         "required": [
@@ -5450,7 +5497,9 @@
           "cashAccounts",
           "lastUpdated",
           "groups",
+          "allocation",
           "attention",
+          "upcoming",
           "budget"
         ],
         "title": "Dashboard",
@@ -18754,6 +18803,13 @@
       "PortfolioHoldings": {
         "additionalProperties": false,
         "properties": {
+          "allocation": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationSlice"
+            },
+            "title": "Allocation",
+            "type": "array"
+          },
           "capitalAtRisk": {
             "anyOf": [
               {
@@ -18826,7 +18882,8 @@
           "cash",
           "total",
           "optionsValue",
-          "capitalAtRisk"
+          "capitalAtRisk",
+          "allocation"
         ],
         "title": "PortfolioHoldings",
         "type": "object"
@@ -27697,6 +27754,41 @@
           "spent"
         ],
         "title": "Unplanned",
+        "type": "object"
+      },
+      "Upcoming": {
+        "additionalProperties": false,
+        "description": "A recurring transaction's next date (S7.5), on the Dashboard's Upcoming card.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "every": {
+            "title": "Every",
+            "type": "string"
+          },
+          "payee": {
+            "title": "Payee",
+            "type": "string"
+          }
+        },
+        "required": [
+          "payee",
+          "date",
+          "every",
+          "amount"
+        ],
+        "title": "Upcoming",
         "type": "object"
       },
       "UpcomingOut": {

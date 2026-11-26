@@ -14,7 +14,7 @@ import { Tile } from '../components/groups.js';
 import { Icon } from '../kit/icon.js';
 import { openDialog } from '../kit/dialog.js';
 import { ShareDialog } from '../components/share.js';
-import { RANGES, TimeChart } from '../charts/chart.js';
+import { AllocationChart, RANGES, TimeChart } from '../charts/chart.js';
 import { BENCHMARKS, PortfolioDialog } from './portfolio-dialog.js';
 import { whyNot, whyRead } from '../app/draft.js';
 import { Action } from '../kit/state.js';
@@ -171,7 +171,16 @@ function Holdings({ p }) {
     return html`<${Empty}>Nothing held in these accounts yet</${Empty}>`;
   }
   return html`
-    <div class="card" style=${{ padding: '4px 8px' }}>
+    ${h.allocation.length
+      ? html`
+        <div class="card" data-help="allocation">
+          <h3>Allocation</h3>
+          <${AllocationChart} label=${`${p.name}: what it holds, by asset class`}
+            slices=${h.allocation} />
+        </div>
+      `
+      : null}
+    <div class="card mt" style=${{ padding: '4px 8px' }}>
       <div class="table-wrap">
         <table class="t">
           <caption class="sr-only">Holdings</caption>

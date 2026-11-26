@@ -11,7 +11,7 @@ chevrons, and ↑ ↓, step by 4 hours, to a multiple of 4; Page Up and Page Dow
 
 ## Longest session {#longest-session}
 
-Days a session lasts, used or not. 30 by default.
+Days a session lasts, used or not: 1 to 365, 30 by default.
 
 ## Failed sign-ins before a lockout
 
@@ -23,4 +23,4 @@ settings can't be read until it is unlocked.
 
 ## Lockout {#lockout}
 
-Minutes a locked address waits. 15 by default.
+Minutes a locked address waits: 1 to 1,440 (a day), 15 by default.

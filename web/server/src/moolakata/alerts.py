@@ -562,15 +562,8 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
     ):
         if not atypes.investing(a.type):
             continue
-        held = repo.load(s, a).replay().positions()
-        if not held:
-            continue
-        old = [
-            p.asOf
-            for p in valuation.prices(s, list(held), today, owner=a.ownerId).values()
-            if p.source == "statement" and p.stale
-        ]
-        if not old:
+        old = valuation.old_statement(s, repo.load(s, a), today)
+        if old is None:
             continue
         imports = s.scalars(
             select(Import).where(Import.accountId == a.id, Import.deleted == false())
@@ -581,7 +574,7 @@ def statement_values(s: Session, server) -> Iterable[Cause]:
             key=f"statement-value:{a.id}",
             kind="statement-value-old",
             title=f"{a.name}: a holding is still valued from an old statement",
-            about=f"the statement of {min(old):%b %-d, %Y} · import a newer one that values "
+            about=f"the statement of {old:%b %-d, %Y} · import a newer one that values "
             "it, or type a price",
             user_id=a.ownerId,
             link=f"/ui/accounts/{a.id}/holdings",
@@ -623,7 +616,7 @@ def cash_short(s: Session, server) -> Iterable[Cause]:
                 )
             ).all()
             # Transfers count here: a regular top-up is money in, a card payment money out.
-            series = recurring.detect([_Plain(t) for t in txns], today)
+            series = recurring.detect([recurring.WithTransfers(t) for t in txns], today)
             found = _dips(series, ledger.load(s, a).balance(today), today)
             if found is None:
                 continue
@@ -658,16 +651,6 @@ def _dips(series, balance, today: dt.date) -> tuple[dt.date, dt.date, bool] | No
         if balance < 0:
             return day, horizon, bool(ins)
     return None
-
-
-class _Plain:
-    """A transaction as the recurring finder sees it, a transfer included."""
-
-    def __init__(self, t):
-        self.payee, self.amount, self.accountId, self.date = t.payee, t.amount, t.accountId, t.date
-        self.transferId = None
-        self.instrumentId = t.instrumentId
-        self.categoryId = t.categoryId
 
 
 def _ordinal(n: int) -> str:

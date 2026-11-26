@@ -145,7 +145,8 @@ The rulings the rest of the requirements apply.
     database. It opens with the copy's own **access key**, 12 generated words that the
     receiving household keeps in its password manager, never with the master key. The key
     protects the copy at rest; who sees what is decided by the owner's shares. The copy
-    keeps syncing while it is locked, and its key is released after an hour unused (S11.9).
+    keeps syncing while it is locked, and its key is released after an hour unused by
+    default (S11.9, S16.9).
     It is drawn by a worker running the source's own release, so the two servers needn't run
     the same one (S11.10).
 19. **Beyond investments**: MoolaKata also covers **529 plans** (S1.8),
@@ -177,8 +178,9 @@ The rulings the rest of the requirements apply.
     a view per table works out whether it is deleted through what it belongs to. The few
     exceptions are listed in [`schema.md`](schema.md) (S14.1.5).
 25. **Alerts** tell people when something needs them, above all admins when a source has
-    failed for more than 48 hours. They show as a live count on the **Alerts** screen, and
-    each user chooses to be emailed each one, a daily summary, or nothing (S12.11).
+    failed for longer than the alert threshold, 48 hours by default (S16.16). They show as a
+    live count on the **Alerts** screen, and each user chooses to be emailed each one, a daily
+    summary, or nothing (S12.11).
 26. **Account data comes from files the user brings.** Bank, card, brokerage and exchange
     accounts are kept current from files: OFX/QFX and CSV downloads, PDF statements, and
     photos of statements read on the server. There is no bank-aggregation service (S1.3,
@@ -204,7 +206,7 @@ The rulings the rest of the requirements apply.
    bank transaction has a payee and a budget **category**.
 7. **Position:** an instrument held in an account, followed from **open** to **closed**, with
    its realized and unrealized gain or loss. Options are positions (S3).
-8. **Portfolio:** a named set of accounts, or of a part of them (S5), owned by one user and
+8. **Portfolio:** a named set of accounts (S5), owned by one user and
    charted as one. *All my accounts* is everyone's implicit first portfolio.
 9. **Share:** a grant of one item, of the eight kinds of S10.3, to a user, a group or named
    users of a linked server, at a **level**: `read` or `write` (S10). A share to a linked
@@ -213,7 +215,7 @@ The rulings the rest of the requirements apply.
     What a link brings in is kept in that link's **linked copy**, encrypted under its own
     **access key**: 12 generated words that the receiving household keeps. The copy is
     **locked** until someone it shares with enters the words, and locks again after an hour
-    unused. It is shown in its own **linked household** window (S11.9, S12.10).
+    unused by default. It is shown in its own **linked household** window (S11.9, S12.10).
 11. **Price source:** an integration (a `TickerSource`) that supplies daily prices for one
     or more instrument classes (S4).
 12. **Projection:** how money will grow toward a goal (retirement, education or a savings

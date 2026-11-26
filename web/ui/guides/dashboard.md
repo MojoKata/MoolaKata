@@ -25,6 +25,15 @@ In an envelope budget, spending charged to a card beyond what its envelope held 
 is named: *on cards, not backed*.
 Without one, the count of what needs attention shows here instead.
 
+## Allocation
+
+What your accounts that count in net worth hold, by asset class: cash, bonds, US stocks,
+international stocks, real estate, crypto and metals, each holding in the class a projection
+grows it by; a home or land is real estate, and any other item, such as a car, or an option is
+*other*. What you owe, on a loan or a card, takes
+no share. **Details** opens *All my accounts*.
+**Show as table** lists each class's value and share.
+
 ## Range
 
 How far back the chart goes: a month, three months, this year, a year, five years, or everything.
@@ -48,8 +57,17 @@ the baseline.
 ## Needs Attention
 
 Transactions to categorise, lots without a cost basis, accounts whose reported balance doesn't match
-or whose next statement is overdue, a return past its due date, a year whose realized gains changed
-after its federal return was filed, and stale prices. Each line links to where it's fixed.
+or whose next statement is overdue, an occasion coming up with nothing bought yet, a return past its
+due date, a year whose realized gains changed after its federal return was filed, giving behind the
+even pace to its target, a holding still valued from an old statement, items valued over a year ago,
+a connection that needs a sign-in or is failing, and stale prices. Admins also see a price source
+failing for longer than Settings › Alerts allows. Each line links to where it's fixed.
+
+## Upcoming
+
+Recurring transactions expected in the coming month, soonest first: each with its next date, how
+often it comes, and its usual amount. They're found in your cash and card accounts' history, as a
+budget's Recurring tab finds them; one that has stopped coming is left out.
 
 > Prices are daily closes, never live. The dot by **Prices** at the top turns amber when a held
 > instrument's price is stale.

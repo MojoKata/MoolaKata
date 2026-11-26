@@ -1587,16 +1587,39 @@ def test_a_tax_books_account_left_out_and_counted_again(browser, household):
 
 
 def test_a_choice_that_takes_effect_when_made_saves_its_record(browser, household):
-    # The theme toggle (one field of the user's own record) and a link setting chosen from a
-    # list (a setting's record), each a draft saved at once.
+    # The theme toggle (one field of the user's own record) and a link setting typed (a
+    # setting's record), each a draft saved at once: the release takes any number of minutes
+    # in S16.9's range, saved when Enter is pressed; one out of it is marked, never saved.
     h = household
     page, problems = signed_in(browser, h, "/ui/settings/links", "#f-link-release")
     before = h.c.get("/ui/api/profile").json()["theme"]
     page.click('button[aria-label^="Theme: "]')
     until(page, lambda: h.c.get("/ui/api/profile").json()["theme"] != before, what="theme saved")
-    page.select_option("#f-link-release", "240")
+    page.fill("#f-link-release", "90")
+    page.press("#f-link-release", "Enter")
     wait(page, '.toast:has-text("Saved")', problems)
-    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 240
+    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 90
+    page.fill("#f-link-release", "2")
+    page.press("#f-link-release", "Enter")
+    wait(page, '#f-link-release[aria-invalid="true"]', problems)
+    assert h.c.get("/ui/api/settings").json()["values"]["linkReleaseMinutes"] == 90
+    r = save_settings(h.c, {"linkReleaseMinutes": 60})
+    assert r.status_code == 200, r.text
+    assert problems == []
+    page.close()
+
+
+def test_the_alert_threshold_takes_any_hours_in_its_range(browser, household):
+    # S16.16: 1 to 336 hours, typed, not one of a few choices.
+    h = household
+    form = 'form.card:has-text("Daily summary at")'
+    page, problems = signed_in(browser, h, "/ui/settings/alerts", form)
+    page.fill("#f-alert-source-hours", "12")
+    page.click(f"{form} button.primary")
+    wait(page, '.toast:has-text("Saved")', problems)
+    assert h.c.get("/ui/api/settings").json()["values"]["alertSourceHours"] == 12
+    r = save_settings(h.c, {"alertSourceHours": 48})
+    assert r.status_code == 200, r.text
     assert problems == []
     page.close()
 

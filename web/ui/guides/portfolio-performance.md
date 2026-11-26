@@ -35,7 +35,7 @@ How far back the chart goes.
 ## Benchmark
 
 The same money put into the benchmark on the same days: VT (world stocks), SPY (US large companies)
-or a 60/40 mix of VT and BND.
+or a 60/40 mix of VT and BND, rebalanced daily.
 
 ## Returns by Period
 

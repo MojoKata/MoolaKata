@@ -2,7 +2,7 @@
 
 2. **Navigation** (in this order):
    1. **Dashboard**: net worth and its change (day, month, year), the net-worth chart,
-      allocation, accounts by group with balances, the active budget's month (S7.12), upcoming recurring
+      allocation by asset class (S5.2.4), accounts by group with balances, the active budget's month (S7.12), upcoming recurring
       transactions, occasions inside their reminder time (S7.7.3), giving against its
       target, the **Plans** card of active projections (S6.8), and stale prices, stale
       valuations, or sources and imports that need attention;

@@ -130,20 +130,19 @@ def shape(s, user: User, p: Portfolio | None, held: Perms) -> PortfolioRow:
 
 def _check(s, user_id: str, body) -> list[FieldError]:
     errors = []
-    if body.name is not None and (not body.name.strip() or len(body.name) > 80):
+    if not body.name.strip() or len(body.name) > 80:
         errors.append(FieldError("name", "name-invalid", "Enter a name of up to 80 characters."))
-    if body.benchmark is not None and body.benchmark not in BENCHMARKS:
+    if body.benchmark not in BENCHMARKS:
         errors.append(FieldError("benchmark", "benchmark-invalid", "VT, SPY or a 60/40 mix."))
-    if body.accountIds is not None:
-        mine = {a.id for a, _ in access.accounts(s, user_id)}
-        if any(a not in mine for a in body.accountIds):
-            errors.append(
-                FieldError(
-                    "accountIds",
-                    "account-unknown",
-                    "Choose accounts you own or that are shared with you.",
-                )
+    mine = {a.id for a, _ in access.accounts(s, user_id)}
+    if any(a not in mine for a in body.accountIds):
+        errors.append(
+            FieldError(
+                "accountIds",
+                "account-unknown",
+                "Choose accounts you own or that are shared with you.",
             )
+        )
     return errors
 
 
@@ -319,6 +318,14 @@ class OtherHolding(Model):
     weight: Ratio | None
 
 
+class AllocationSlice(Model):
+    """One asset class of the allocation (S5.2.4): its value and its share in percent."""
+
+    assetClass: str
+    value: Money
+    weight: Ratio
+
+
 class PortfolioHoldings(Model):
     holdings: list[HoldingTotal]
     others: list[OtherHolding]  # loans and items, each its own row
@@ -327,6 +334,7 @@ class PortfolioHoldings(Model):
     optionsValue: Money | None  # its options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
     capitalAtRiskUnlimited: bool = False  # an open strategy's risk is unlimited
+    allocation: list[AllocationSlice]  # by asset class (S5.2.4)
 
 
 def _target(s, c: Caller, portfolio_id: str) -> tuple[Portfolio | None, list[Account], str]:
@@ -427,10 +435,12 @@ def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(c
 @router.get("/portfolios/{portfolio_id}/holdings", response_model=PortfolioHoldings)
 def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     """What the portfolio's visible accounts hold, added up by instrument."""
+    from .. import projections
     from ..store.entities.accounts import Instrument
 
     with server(request).db.read(user=c.id) as s:
         _, accounts, _ = _target(s, c, portfolio_id)
+        every: list[valuation.Part] = []
         by: dict[str, dict] = {}
         others: list[tuple[valuation.Part, Account]] = []
         cash = Decimal(0)
@@ -446,6 +456,7 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
                 opts, any_open = opts + v, any_open or held
                 risk = None if risk is None or r is None else risk + r
             for part in valuation.parts(s, led, investing):
+                every.append(part)
                 if part.kind == "cash":
                     cash += part.value
                     continue
@@ -529,4 +540,8 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
             optionsValue=opts if any_open else None,
             capitalAtRisk=risk if any_open else None,
             capitalAtRiskUnlimited=any_open and risk is None,
+            allocation=[
+                AllocationSlice(assetClass=k, value=v, weight=w)
+                for k, v, w in projections.allocation(s, every)
+            ],
         )

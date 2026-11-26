@@ -8,7 +8,8 @@ How alerts behave for everyone. Each user chooses in Profile whether alerts reac
 
 How long a price source, or email, may keep failing before admins are alerted. A source that fails
 now and then and recovers raises nothing; one that keeps failing raises one alert, which resolves by
-itself when it works again. 48 hours by default.
+itself when it works again. 1 to 336 hours (two weeks), 48 by default. The chevrons, and ↑ ↓,
+step by a day; Page Up and Page Down by ten days.
 
 ## Daily summary at {#alert-summary-time}
 
