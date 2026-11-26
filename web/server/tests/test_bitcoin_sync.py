@@ -14,7 +14,7 @@ from test_accounts import new_account
 
 from moolakata import settings
 from moolakata.bitcoin import sources, sync
-from moolakata.store.entities.accounts import Transaction
+from moolakata.store.entities.accounts import Account, Transaction
 from moolakata.store.entities.prices import Price
 from moolakata.store.repos import ledger as repo
 
@@ -85,7 +85,8 @@ def test_bitcoin_core_is_given_each_keys_descriptors_and_its_history_read(
     monkeypatch.setattr(sync, "source", lambda srv, s: core)
     assert sync.sync_account(server, w) == 1
     (name, wanted), *_ = core.imported
-    assert name == f"moolakata-{w}"
+    with server.db.tx(unscoped="test") as s:
+        assert name == s.get(Account, w).coreWallet, "the wallet's name kept with the account"
     assert (f"addr({LONE})", None) in wanted
     ranged = [d for d, top in wanted if top is not None]
     assert len(ranged) == 2 and all(top == 19 for d, top in wanted if top is not None), (

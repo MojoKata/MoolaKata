@@ -14,7 +14,7 @@ from conftest import make_user, sign_in
 from edits import change, make, saved
 from sqlalchemy import select
 
-from moolakata import clock
+from moolakata import clock, timezones
 from moolakata.bitcoin import sources, sync
 from moolakata.store.entities.accounts import Transaction
 from moolakata.store.entities.prices import Price
@@ -28,10 +28,13 @@ SENT = sources.Tx("a" * 64, AT, -(10_000_000 + 12_000), 12_000)
 
 @pytest.fixture(autouse=True)
 def chicago(monkeypatch):
+    # The host's zone is read once and kept: forget it, so this TZ is the one read.
     monkeypatch.setenv("TZ", "America/Chicago")
+    timezones.host_zone.cache_clear()
     clock.fix(dt.datetime(2027, 3, 1, 15, 0, tzinfo=dt.UTC))
     yield
     clock.fix(None)
+    timezones.host_zone.cache_clear()
 
 
 @pytest.fixture
