@@ -12,8 +12,9 @@ come later.
 
 **Public: mempool.space** or **Blockstream**: nothing to set up, but the explorer sees which
 addresses are asked about. **Own node**, which keeps them private: a **mempool or Esplora**
-instance, an **Electrum server** (Fulcrum or electrs), or **Bitcoin Core**, where MoolaKata keeps a
-watch-only descriptor wallet for each wallet account. Only public keys and addresses are ever sent.
+instance, an **Electrum server** (Fulcrum or electrs), or a **Bitcoin node** over RPC, where MoolaKata
+keeps a watch-only descriptor wallet for each wallet account: Bitcoin Core, or a fork that keeps
+its RPC, such as Bitcoin Knots. Only public keys and addresses are ever sent.
 
 ## Esplora address {#esplora-url}
 
@@ -28,12 +29,12 @@ password, so it is never sent to the new host.
 
 ## Node port {#node-port}
 
-50002 for an Electrum server with TLS (50001 without); 8332 for Bitcoin Core.
+50002 for an Electrum server with TLS (50001 without); 8332 for a Bitcoin node.
 
 ## TLS
 
-*For an Electrum server:* usually on, on port 50002; off on port 50001. *For Bitcoin Core:* on when
-Core is behind a TLS proxy.
+*For an Electrum server:* usually on, on port 50002; off on port 50001. *For a Bitcoin node:* on when
+the node is behind a TLS proxy.
 
 An Electrum server's TLS, usually on. Its certificate is usually one it made itself, so it is
 trusted on first use: **Test** shows its SHA-256 fingerprint, and once you confirm it, any other

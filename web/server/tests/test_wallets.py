@@ -486,8 +486,8 @@ def test_an_answer_a_read_cant_use_is_the_wallets_reported_failure(server, jane,
         sync.sync_all(server)
 
 
-class Node(sources.Core):
-    """Bitcoin Core as its wallets keep it: each named wallet's descriptors, made once."""
+class Node(sources.BitcoinNode):
+    """A Bitcoin node as its wallets keep it: each named wallet's descriptors, made once."""
 
     def __init__(self, wallets: dict[str, list]):
         self.wallets = wallets
@@ -499,10 +499,10 @@ class Node(sources.Core):
         return [], set()
 
 
-def test_each_wallets_core_wallet_has_a_random_name_kept_with_it(
+def test_each_wallets_bitcoin_node_wallet_has_a_random_name_kept_with_it(
     server, jane, keyed_config, master_key, monkeypatch
 ):
-    """S1.6.2.3: a wallet account's Bitcoin Core wallet is `moolakata-` and a random name,
+    """S1.6.2.3: a wallet account's Bitcoin node wallet is `moolakata-` and a random name,
     never its id (schema.md §2), kept with the account: read again under it after a
     restart."""
     import re
@@ -533,14 +533,14 @@ def test_each_wallets_core_wallet_has_a_random_name_kept_with_it(
     again.db.dispose()
 
 
-def test_a_wallet_with_no_keys_ever_has_no_core_wallet(server, jane, monkeypatch):
+def test_a_wallet_with_no_keys_ever_has_no_bitcoin_node_wallet(server, jane, monkeypatch):
     w = new_account(jane, name="Empty", type="crypto-wallet")
     node: dict[str, list] = {}
     monkeypatch.setattr(sync, "source", lambda srv, s: Node(node))
     assert sync.sync_account(server, w["id"]) == 0 and node == {}
 
 
-def test_core_gets_the_keys_as_watch_only_descriptors():
+def test_a_bitcoin_node_gets_the_keys_as_watch_only_descriptors():
     from moolakata.store.entities.accounts import WalletKey
 
     k = WalletKey(id="WKey_x", accountId="a", kind="xpub", value=ZPUB, script="p2wpkh")
@@ -564,7 +564,12 @@ def test_a_named_node_is_reachable_and_a_public_explorer_is_not_named():
 def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server, admin_client):
     c = admin_client
     r = save_settings(
-        c, {"bitcoinSource": "core", "bitcoinNodeHost": "192.168.1.20", "bitcoinNodePort": 8332}
+        c,
+        {
+            "bitcoinSource": "bitcoinNode",
+            "bitcoinNodeHost": "192.168.1.20",
+            "bitcoinNodePort": 8332,
+        },
     )
     assert r.status_code == 200, r.text
     r = save_settings(c, {"bitcoinPassword": "rpc-pass-1"})
@@ -574,7 +579,7 @@ def test_settings_bitcoin_keeps_the_password_secret_and_tests_the_source(server,
     with server.db.read(unscoped="test") as s:
         cfg = sync.config(s, server.keys.secrets)
     assert (cfg.kind, cfg.host, cfg.port, cfg.password) == (
-        "core",
+        "bitcoinNode",
         "192.168.1.20",
         8332,
         "rpc-pass-1",

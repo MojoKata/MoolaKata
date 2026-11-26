@@ -1,14 +1,14 @@
 """Mocks of the bitcoin backends (docs/test-plan.md): a fake Esplora, Electrum server and
-Bitcoin Core speaking the subset MoolaKata uses (bitcoin/sources.py), over real sockets, so
-the code that talks to a node can be tried without one, and the manual test plan's T1–T4 have
-a rehearsal. One small chain stands behind all three: the dev seed's wallet (the public BIP84
-test key) funded at its first address, part of it spent with change, and a later receive past
-the first gap.
+Bitcoin node (Bitcoin Core's RPC) speaking the subset MoolaKata uses (bitcoin/sources.py),
+over real sockets, so the code that talks to a node can be tried without one, and the manual
+test plan's T1–T4 have a rehearsal. One small chain stands behind all three: the dev seed's
+wallet (the public BIP84 test key) funded at its first address, part of it spent with change,
+and a later receive past the first gap.
 
-    python -m moolakata.dev.mocks [--esplora PORT] [--electrum PORT] [--core PORT] [--tls]
+    python -m moolakata.dev.mocks [--esplora PORT] [--electrum PORT] [--bitcoin-node PORT] [--tls]
 
 Point Settings › Bitcoin at them: Esplora at `http://<host>:PORT/api`, an Electrum server at
-`<host>:PORT` (its certificate's fingerprint is printed), Bitcoin Core at `<host>:PORT`
+`<host>:PORT` (its certificate's fingerprint is printed), a Bitcoin node at `<host>:PORT`
 with any RPC user and password.
 """
 
@@ -107,7 +107,7 @@ class Chain:
     def header(self, height: int) -> bytes:
         return bytes(68) + self.time.get(height, 1_700_000_000).to_bytes(4, "little") + bytes(8)
 
-    def core_entries(self) -> list[dict]:
+    def node_entries(self) -> list[dict]:
         out = []
         for a, txids in self.by_address.items():
             for txid in txids:
@@ -273,10 +273,10 @@ def self_signed() -> tuple[str, str]:
     return str(d / "cert.pem"), str(d / "key.pem")
 
 
-# ---------- Bitcoin Core (HTTP JSON-RPC)
+# ---------- A Bitcoin node (HTTP JSON-RPC)
 
 
-class CoreHandler(BaseHTTPRequestHandler):
+class BitcoinNodeHandler(BaseHTTPRequestHandler):
     chain: Chain
     wallets: dict[str, list[dict]]
 
@@ -313,7 +313,7 @@ class CoreHandler(BaseHTTPRequestHandler):
             self.wallets.setdefault(wallet, []).extend(params[0])
             result = [{"success": True} for _ in params[0]]
         elif method == "listtransactions":
-            entries = c.core_entries()
+            entries = c.node_entries()
             skip = int(params[2]) if len(params) > 2 else 0
             result = entries[skip : skip + int(params[1] if len(params) > 1 else 10)]
         elif method == "listreceivedbyaddress":
@@ -331,20 +331,20 @@ class CoreHandler(BaseHTTPRequestHandler):
 class Mocks:
     """The three servers on the ports asked for (0 for any free one), in threads."""
 
-    def __init__(self, esplora: int | None, electrum: int | None, core: int | None, tls=False):
+    def __init__(self, esplora: int | None, electrum: int | None, node: int | None, tls=False):
         self.chain = Chain()
-        self.esplora = self.electrum = self.core = None
+        self.esplora = self.electrum = self.node = None
         if esplora is not None:
             h = type("E", (EsploraHandler,), {"chain": self.chain})
             self.esplora = ThreadingHTTPServer(("127.0.0.1", esplora), h)
         if electrum is not None:
             self.electrum = ElectrumServer(("127.0.0.1", electrum), self.chain, tls)
-        if core is not None:
-            h = type("C", (CoreHandler,), {"chain": self.chain, "wallets": {}})
-            self.core = ThreadingHTTPServer(("127.0.0.1", core), h)
+        if node is not None:
+            h = type("N", (BitcoinNodeHandler,), {"chain": self.chain, "wallets": {}})
+            self.node = ThreadingHTTPServer(("127.0.0.1", node), h)
         self.threads = [
             threading.Thread(target=s.serve_forever, daemon=True)
-            for s in (self.esplora, self.electrum, self.core)
+            for s in (self.esplora, self.electrum, self.node)
             if s is not None
         ]
 
@@ -354,7 +354,7 @@ class Mocks:
         return self
 
     def stop(self) -> None:
-        for s in (self.esplora, self.electrum, self.core):
+        for s in (self.esplora, self.electrum, self.node):
             if s is not None:
                 s.shutdown()
                 s.server_close()
@@ -365,7 +365,7 @@ class Mocks:
             for name, s in (
                 ("esplora", self.esplora),
                 ("electrum", self.electrum),
-                ("core", self.core),
+                ("bitcoinNode", self.node),
             )
             if s is not None
         }
@@ -375,16 +375,16 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--esplora", type=int, default=3006)
     p.add_argument("--electrum", type=int, default=50002)
-    p.add_argument("--core", type=int, default=8332)
+    p.add_argument("--bitcoin-node", type=int, default=8332)
     p.add_argument("--tls", action="store_true", help="the Electrum server with TLS")
     args = p.parse_args(argv)
-    m = Mocks(args.esplora, args.electrum, args.core, args.tls).start()
+    m = Mocks(args.esplora, args.electrum, args.bitcoin_node, args.tls).start()
     ports = m.ports()
     print(f"Esplora:      http://127.0.0.1:{ports['esplora']}/api")
     print(f"Electrum:     127.0.0.1:{ports['electrum']}" + (" (TLS)" if args.tls else " (no TLS)"))
     if m.electrum.cert_sha256:
         print(f"  certificate SHA-256 {m.electrum.cert_sha256}")
-    print(f"Bitcoin Core: 127.0.0.1:{ports['core']} (any RPC user and password)")
+    print(f"Bitcoin node: 127.0.0.1:{ports['bitcoinNode']} (any RPC user and password)")
     print(f"The wallet: {TEST_ZPUB}")
     try:
         threading.Event().wait()

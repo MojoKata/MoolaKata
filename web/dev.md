@@ -150,7 +150,7 @@ open pages with `ignore_https_errors=True`.
 
 ## Bitcoin backends without a node
 
-`web/dev.sh mocks` runs a fake Esplora, a fake Electrum server and a fake Bitcoin Core on
+`web/dev.sh mocks` runs a fake Esplora, a fake Electrum server and a fake Bitcoin node on
 local ports (3006, 50002 and 8332 by default; `--tls` gives the Electrum server a certificate,
 whose fingerprint it prints), all answering for one small chain on the dev seed's wallet. In
 Settings › Bitcoin, name one of them (a loopback node is named by an admin, so the egress

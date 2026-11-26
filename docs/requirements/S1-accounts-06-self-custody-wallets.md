@@ -32,16 +32,17 @@
          No wallet is read until an admin saves Settings › Bitcoin (R3.5), and until then a
          wallet says it waits for that;
       2. **the household's own node**: its own mempool or Esplora instance, an **Electrum
-         server** (Fulcrum, electrs), or **Bitcoin Core** over RPC with a watch-only
-         descriptor wallet. An own node keeps the household's addresses private, and is
-         recommended. Its address is named by the admin, so the egress guard (S13.5) lets
-         MoolaKata reach it on the LAN; its credentials are a secret (S14.4).
+         server** (Fulcrum, electrs), or a **Bitcoin node** over RPC with a watch-only
+         descriptor wallet: Bitcoin Core, or a fork that keeps its RPC, such as Bitcoin Knots.
+         An own node keeps the household's addresses private, and is recommended. Its address
+         is named by the admin, so the egress guard (S13.5) lets MoolaKata reach it on the LAN;
+         its credentials are a secret (S14.4).
       3. **How each is read.** Esplora: each address's transactions over HTTPS, with every
          input's previous output, so each transaction's effect on the wallet is known. An
          Electrum server: each address's history by its script hash over TCP (TLS by default),
          and the raw transactions, read by MoolaKata; its certificate is trusted on first use
-         (below). Bitcoin
-         Core over JSON-RPC: a watch-only descriptor wallet for each wallet account, named
+         (below). A Bitcoin node over JSON-RPC: a watch-only descriptor wallet, its *Bitcoin
+         node wallet*, for each wallet account, named
          `moolakata-` and a random name given with its first keys and kept with the account,
          never the account's id (schema.md §2); its keys imported as descriptors over the
          addresses derived, rescanned from the start the first time, then its transactions

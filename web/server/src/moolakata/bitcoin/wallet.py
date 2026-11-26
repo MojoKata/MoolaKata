@@ -34,13 +34,13 @@ def addresses_of(s: Session, account_id: str) -> list[WalletAddress]:
 
 def replace(s: Session, account_id: str, entries: list[bk.Entry], gap: int, user_id: str) -> None:
     """The wallet's keys made these: new ones added, missing ones deleted with their addresses,
-    and every key's gap limit set. A wallet first given keys is given its Bitcoin Core
+    and every key's gap limit set. A wallet first given keys is given its Bitcoin node
     wallet's name too, in the owner's save, as the account is locked by its version."""
     now = clock.now()
     a = s.get(Account, account_id)
-    if a.coreWallet is None:
+    if a.bitcoinNodeWallet is None:
         # Random, never the account's id, which tells when it was made (schema.md §2).
-        a.coreWallet = f"moolakata-{secrets.token_hex(8)}"
+        a.bitcoinNodeWallet = f"moolakata-{secrets.token_hex(8)}"
     current = {k.value: k for k in keys_of(s, account_id)}
     wanted = {e.value for e in entries}
     for value, k in current.items():

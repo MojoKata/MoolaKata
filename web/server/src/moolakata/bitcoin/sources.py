@@ -5,9 +5,9 @@ household's own node, set by an admin in Settings › Bitcoin.
    Esplora instance) over HTTPS: each address's transactions, with every input's prevout.
 2. **An Electrum server** (Fulcrum, electrs) over TCP, TLS by default: each address's history
    by its script hash, and the raw transactions, read here.
-3. **Bitcoin Core** over JSON-RPC, with a watch-only descriptor wallet MoolaKata makes for each
-   wallet account: its keys imported as descriptors over the derived range, then its
-   transactions listed.
+3. **A Bitcoin node** (Bitcoin Core, or a fork that keeps its RPC such as Bitcoin Knots) over
+   JSON-RPC, with a watch-only descriptor wallet MoolaKata makes for each wallet account: its
+   keys imported as descriptors over the derived range, then its transactions listed.
 
 Each answers the same question: the confirmed and unconfirmed transactions touching a set of
 addresses, each with its net effect on them."""
@@ -30,7 +30,7 @@ from . import keys as bk
 SAT = 100_000_000
 DEFAULT_ESPLORA = "https://mempool.space/api"
 PUBLIC_EXPLORERS = ("mempool.space", "blockstream.info")
-KINDS = ("esplora", "electrum", "core")
+KINDS = ("esplora", "electrum", "bitcoinNode")
 
 
 class SourceError(TaskError):
@@ -366,13 +366,13 @@ class Electrum:
         return out
 
 
-# ---------- Bitcoin Core
+# ---------- A Bitcoin node
 
 
-class Core:
+class BitcoinNode:
     def __init__(self, cfg: Config, guard: net.Guard):
         if not cfg.host:
-            raise SourceError("Name Bitcoin Core's host first.")
+            raise SourceError("Name the Bitcoin node's host first.")
         scheme = "https" if cfg.tls else "http"
         self.url = f"{scheme}://{cfg.host}:{cfg.port}"
         auth = base64.b64encode(f"{cfg.rpcUser or ''}:{cfg.password or ''}".encode()).decode()
@@ -385,27 +385,27 @@ class Core:
             r = self.client.post(url, json=body)
         except net.httpx.HTTPError as e:
             raise SourceError(
-                f"Bitcoin Core at {self.url} didn't answer ({type(e).__name__})."
+                f"The Bitcoin node at {self.url} didn't answer ({type(e).__name__})."
             ) from None
         if r.status_code == 401:
-            raise SourceError("Bitcoin Core refused the RPC user or password.")
+            raise SourceError("The Bitcoin node refused the RPC user or password.")
         try:
             # Amounts in BTC, read as decimals: a float would lose a satoshi (S14.3).
             out = json.loads(r.text, parse_float=Decimal)
         except ValueError:
-            raise SourceError(f"Bitcoin Core answered {r.status_code}.") from None
+            raise SourceError(f"The Bitcoin node answered {r.status_code}.") from None
         if out.get("error"):
-            raise SourceError(f"Bitcoin Core refused {method}: {out['error'].get('message')}")
+            raise SourceError(f"The Bitcoin node refused {method}: {out['error'].get('message')}")
         return out["result"]
 
-    @_reads("Bitcoin Core")
+    @_reads("The Bitcoin node")
     def test(self) -> str:
         info = self.call("getblockchaininfo")
         if info.get("chain") != "main":
-            raise SourceError(f"Bitcoin Core follows {info.get('chain')}, not mainnet.")
-        return f"Bitcoin Core answered: block {info['blocks']:,}"
+            raise SourceError(f"The Bitcoin node follows {info.get('chain')}, not mainnet.")
+        return f"The Bitcoin node answered: block {info['blocks']:,}"
 
-    @_reads("Bitcoin Core")
+    @_reads("The Bitcoin node")
     def wallet(self, name: str, wanted: list[tuple[str, int | None]]) -> None:
         """The watch-only descriptor wallet for one wallet account, made or loaded, with its
         descriptors imported over the range derived (a rescan from the start the first
@@ -432,7 +432,7 @@ class Core:
         if new:
             self.call("importdescriptors", new, wallet=name)
 
-    @_reads("Bitcoin Core")
+    @_reads("The Bitcoin node")
     def history_of(self, name: str) -> tuple[list[Tx], set[str]]:
         """The wallet's transactions, and every address of its that has received."""
         txs: dict[str, Tx] = {}
@@ -470,12 +470,12 @@ class Core:
 
 
 def descriptors(key, top: int | None) -> list[tuple[str, int | None]]:
-    """A WalletKey as Core descriptors: an address as itself, a key as its receive and change
+    """A WalletKey as the node's descriptors: an address as itself, a key as its receive and change
     chains, ranged to the highest index derived."""
     if key.kind == "address":
         return [(f"addr({key.value})", None)]
     if key.kind == "descriptor":
-        # Each chain apart, as every Core version reads them (S1.6.1.4).
+        # Each chain apart, as every version of the node reads them (S1.6.1.4).
         from . import descriptor
 
         d = descriptor.parse(key.value)
@@ -489,6 +489,6 @@ def descriptors(key, top: int | None) -> list[tuple[str, int | None]]:
 def make(cfg: Config, guard: net.Guard):
     if cfg.kind == "electrum":
         return Electrum(cfg, guard)
-    if cfg.kind == "core":
-        return Core(cfg, guard)
+    if cfg.kind == "bitcoinNode":
+        return BitcoinNode(cfg, guard)
     return Esplora(cfg, guard)

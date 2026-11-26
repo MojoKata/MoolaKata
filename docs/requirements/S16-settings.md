@@ -37,8 +37,9 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
 7. **Bitcoin** (S1.6): the explorer or node for self-custody wallets: a public Esplora
    (mempool.space suggested, or Blockstream) or the household's own node (its own mempool or
    Esplora by its address, which a Save left without it refuses rather than read as the
-   public one's; an Electrum server by host, port and TLS; Bitcoin Core by host,
-   port, RPC user and password), with when the wallets were last read and a **Test** button. No
+   public one's; an **Electrum server** by host, port and TLS; a **Bitcoin node (RPC)**,
+   Bitcoin Core or a fork that keeps its RPC such as Bitcoin Knots, by host, port, RPC user
+   and password), with when the wallets were last read and a **Test** button. No
    wallet is read until an admin saves this section (R3.5), the suggested choice untouched
    included; until then it says *Not saved yet* in place of when the wallets were last read.
    Changing the node's host clears its stored password, which is entered again for the new

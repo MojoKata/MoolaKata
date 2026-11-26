@@ -77,8 +77,8 @@ def hosts(s) -> tuple[list[str], list[str]]:
 
 def _scan(src, account_id: str, s) -> tuple[list[sources.Tx], set[str]]:
     rows = wallet.addresses_of(s, account_id)
-    if isinstance(src, sources.Core):
-        name = s.get(Account, account_id).coreWallet
+    if isinstance(src, sources.BitcoinNode):
+        name = s.get(Account, account_id).bitcoinNodeWallet
         if name is None:
             return [], set()  # never given keys: nothing for the node to watch
         wanted = []

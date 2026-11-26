@@ -50,11 +50,11 @@ def _esplora(answer) -> sources.Esplora:
     return e
 
 
-def _core(answer) -> sources.Core:
-    cfg = sources.Config(kind="core", host="node.lan", port=8332, tls=False)
-    core = sources.Core(cfg, net.Guard())
-    core.client = Http(answer)
-    return core
+def _node(answer) -> sources.BitcoinNode:
+    cfg = sources.Config(kind="bitcoinNode", host="node.lan", port=8332, tls=False)
+    node = sources.BitcoinNode(cfg, net.Guard())
+    node.client = Http(answer)
+    return node
 
 
 def _rpc(result) -> httpx.Response:
@@ -69,13 +69,15 @@ def test_each_kind_is_its_own_source_and_a_node_needs_its_host():
     assert isinstance(sources.make(sources.Config(), g), sources.Esplora)
     node = dict(host="node.lan")
     assert isinstance(sources.make(sources.Config(kind="electrum", **node), g), sources.Electrum)
-    assert isinstance(sources.make(sources.Config(kind="core", **node), g), sources.Core)
+    assert isinstance(
+        sources.make(sources.Config(kind="bitcoinNode", **node), g), sources.BitcoinNode
+    )
     with pytest.raises(sources.SourceError, match="Name the Electrum server's host first"):
         sources.make(sources.Config(kind="electrum"), g)
-    with pytest.raises(sources.SourceError, match="Name Bitcoin Core's host first"):
-        sources.make(sources.Config(kind="core"), g)
+    with pytest.raises(sources.SourceError, match="Name the Bitcoin node's host first"):
+        sources.make(sources.Config(kind="bitcoinNode"), g)
     assert sources.Config(esploraUrl="/api").hosts() == ([], [])
-    assert sources.Config(kind="core").hosts() == ([], [])
+    assert sources.Config(kind="bitcoinNode").hosts() == ([], [])
 
 
 # ---------- Esplora
@@ -264,31 +266,31 @@ def test_an_electrum_servers_refusal_names_what_it_refused():
         _electrum(Wire(_electrum_answers(), reply=refuse)).history([FIRST])
 
 
-# ---------- Bitcoin Core
+# ---------- A Bitcoin node
 
 
 @pytest.mark.parametrize(
     "answer, words",
     [
-        (httpx.ConnectError("refused"), "Bitcoin Core at http://node.lan:8332 didn't answer"),
-        (httpx.Response(401), "Bitcoin Core refused the RPC user or password."),
-        (httpx.Response(502, text="<html>Bad gateway</html>"), "Bitcoin Core answered 502."),
+        (httpx.ConnectError("refused"), "The Bitcoin node at http://node.lan:8332 didn't answer"),
+        (httpx.Response(401), "The Bitcoin node refused the RPC user or password."),
+        (httpx.Response(502, text="<html>Bad gateway</html>"), "The Bitcoin node answered 502."),
         (
             httpx.Response(500, json={"result": None, "error": {"message": "Method not found"}}),
-            "Bitcoin Core refused getblockchaininfo: Method not found",
+            "The Bitcoin node refused getblockchaininfo: Method not found",
         ),
-        (_rpc({"chain": "test", "blocks": 1}), "Bitcoin Core follows test, not mainnet."),
-        (_rpc(["main"]), "Bitcoin Core's answer couldn't be read (AttributeError)."),
-        (_rpc({"chain": "main"}), "Bitcoin Core's answer couldn't be read (KeyError)."),
+        (_rpc({"chain": "test", "blocks": 1}), "The Bitcoin node follows test, not mainnet."),
+        (_rpc(["main"]), "The Bitcoin node's answer couldn't be read (AttributeError)."),
+        (_rpc({"chain": "main"}), "The Bitcoin node's answer couldn't be read (KeyError)."),
     ],
 )
 def test_a_nodes_failure_says_what_to_fix(answer, words):
     with pytest.raises(sources.SourceError) as got:
-        _core(lambda method, params: answer).test()
+        _node(lambda method, params: answer).test()
     assert str(got.value).startswith(words)
 
 
-def test_core_watches_a_typed_address_whole_and_imports_it_once():
+def test_a_node_watches_a_typed_address_whole_and_imports_it_once():
     have: list[dict] = []
 
     def answer(method, params):
@@ -303,17 +305,17 @@ def test_core_watches_a_typed_address_whole_and_imports_it_once():
             return _rpc([{"success": True}])
         raise AssertionError(method)
 
-    core = _core(answer)
-    core.wallet("moolakata-0a1b", [(f"addr({FIRST})", None)])
+    node = _node(answer)
+    node.wallet("moolakata-0a1b", [(f"addr({FIRST})", None)])
     assert have == [{"desc": f"addr({FIRST})#chk", "timestamp": 0, "watchonly": True}]
-    core.wallet("moolakata-0a1b", [(f"addr({FIRST})", None)])
-    assert len(have) == 1 and core.client.asked[-1][1] == "getdescriptorinfo"
-    assert core.client.asked[0][0] == "http://node.lan:8332/"
-    assert core.client.asked[1][0] == "http://node.lan:8332/wallet/moolakata-0a1b"
+    node.wallet("moolakata-0a1b", [(f"addr({FIRST})", None)])
+    assert len(have) == 1 and node.client.asked[-1][1] == "getdescriptorinfo"
+    assert node.client.asked[0][0] == "http://node.lan:8332/"
+    assert node.client.asked[1][0] == "http://node.lan:8332/wallet/moolakata-0a1b"
 
 
-def test_core_lists_a_wallets_transactions_500_at_a_time():
-    # Amounts in BTC as Core sends them, read as decimals.
+def test_a_node_lists_a_wallets_transactions_500_at_a_time():
+    # Amounts in BTC as the node sends them, read as decimals.
     received = [
         {"txid": f"{i:064x}", "category": "receive", "amount": 0.00001,
          "address": FIRST, "confirmations": 7, "blocktime": 1_780_000_000}
@@ -330,7 +332,7 @@ def test_core_lists_a_wallets_transactions_500_at_a_time():
             return _rpc(received if params[2] == 0 else later)
         return _rpc([{"address": FIRST}])
 
-    txs, used = _core(answer).history_of("moolakata-0a1b")
+    txs, used = _node(answer).history_of("moolakata-0a1b")
     by = {t.txid: t for t in txs}
     assert len(by) == 502 and used == {FIRST}
     assert by[f"{0:064x}"].net == 1_000 and by[f"{0:064x}"].confirmations == 7
@@ -339,7 +341,7 @@ def test_core_lists_a_wallets_transactions_500_at_a_time():
     assert by["cd" * 32].net == 0 and not by["cd" * 32].addresses, "only receive and send count"
 
 
-def test_a_descriptor_key_is_given_to_core_a_chain_at_a_time():
+def test_a_descriptor_key_is_given_to_the_node_a_chain_at_a_time():
     raw = keys.b58check_decode(ZPUB)
     xpub = keys.b58check_encode(bytes.fromhex("0488b21e") + raw[4:])
     k = WalletKey(

@@ -1,4 +1,4 @@
-"""Keeping wallets current (requirements S1.6.2): which source a read asks, Bitcoin Core's
+"""Keeping wallets current (requirements S1.6.2): which source a read asks, a Bitcoin node's
 watch-only wallet, the rounds a read extends the gap by, and how the hourly read stops or fails."""
 
 import datetime as dt
@@ -63,8 +63,8 @@ def test_no_wallet_is_read_now_until_settings_bitcoin_is_saved(server, jane):
         sync.sync_account(server, w)
 
 
-class Core(sources.Core):
-    """Bitcoin Core's watch-only wallet, as its RPC answers: what was imported, and its
+class Node(sources.BitcoinNode):
+    """A Bitcoin node's watch-only wallet, as its RPC answers: what was imported, and its
     history, with an address that received but no transaction this read lists."""
 
     def __init__(self):
@@ -77,23 +77,25 @@ class Core(sources.Core):
         return [sources.Tx("a" * 64, T1, 50_000, 0, {FIRST})], {LONE}
 
 
-def test_bitcoin_core_is_given_each_keys_descriptors_and_its_history_read(
+def test_a_bitcoin_node_is_given_each_keys_descriptors_and_its_history_read(
     server, jane, monkeypatch
 ):
     w = _wallet(jane, f"{ZPUB}\n{LONE}")
-    core = Core()
-    monkeypatch.setattr(sync, "source", lambda srv, s: core)
+    node = Node()
+    monkeypatch.setattr(sync, "source", lambda srv, s: node)
     assert sync.sync_account(server, w) == 1
-    (name, wanted), *_ = core.imported
+    (name, wanted), *_ = node.imported
     with server.db.tx(unscoped="test") as s:
-        assert name == s.get(Account, w).coreWallet, "the wallet's name kept with the account"
+        assert name == s.get(Account, w).bitcoinNodeWallet, (
+            "the wallet's name kept with the account"
+        )
     assert (f"addr({LONE})", None) in wanted
     ranged = [d for d, top in wanted if top is not None]
     assert len(ranged) == 2 and all(top == 19 for d, top in wanted if top is not None), (
         "a key's two chains, ranged to the highest index derived"
     )
     v = jane.get(f"/ui/api/accounts/{w}/wallet").json()
-    assert v["used"] == 2, "the one the transaction touched and the one Core says received"
+    assert v["used"] == 2, "the one the transaction touched and the one the node says received"
 
 
 class Growing:

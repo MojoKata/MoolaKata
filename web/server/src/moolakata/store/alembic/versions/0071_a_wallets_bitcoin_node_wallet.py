@@ -1,4 +1,4 @@
-"""A wallet account's Bitcoin Core wallet (requirements S1.6.2.3): `Account.coreWallet`,
+"""A wallet account's Bitcoin node wallet (requirements S1.6.2.3): `Account.bitcoinNodeWallet`,
 `moolakata-` and a random name kept with the account, never its id (schema.md §2). Each wallet
 account whose keys were saved is given one; one never given keys gets its own when they are.
 
@@ -15,7 +15,7 @@ depends_on = None
 
 TABLE = "Account"
 HSA = '\t"hsaCoverage" TEXT, \n'
-CORE = '\t"coreWallet" TEXT, \n'
+NODE = '\t"bitcoinNodeWallet" TEXT, \n'
 
 
 def upgrade() -> None:
@@ -34,7 +34,7 @@ def upgrade() -> None:
         (TABLE,),
     ).fetchall()
     head = f'CREATE TABLE "{TABLE}" ('
-    new = sql.replace(HSA, HSA + CORE)
+    new = sql.replace(HSA, HSA + NODE)
     conn.exec_driver_sql(f'CREATE TABLE "_new_{TABLE}" (' + new[len(head) :])
     listed = ", ".join(f'"{c}"' for c in stored)
     # The names come from sqlite_master, not from input.
@@ -46,7 +46,7 @@ def upgrade() -> None:
     for (index_sql,) in indexes:
         conn.exec_driver_sql(index_sql)
     conn.exec_driver_sql(
-        'UPDATE "Account" SET "coreWallet" = \'moolakata-\' || lower(hex(randomblob(8))) '
+        'UPDATE "Account" SET "bitcoinNodeWallet" = \'moolakata-\' || lower(hex(randomblob(8))) '
         'WHERE type = \'crypto-wallet\' AND id IN (SELECT "accountId" FROM "WalletKey")'
     )
 

@@ -71,7 +71,7 @@ answers keep the API's camelCase fields.
   (requirements S13.8.11.2); `createdAt` is the server's time. Every other ID is made by the server.
 - **IDs reveal when a row was created.** File names and anything else visible on disk,
   such as receipt files, a linked copy's files (requirements S11.9) and a wallet account's
-  Bitcoin Core wallet (`Account.coreWallet`, S1.6.2.3), use separate random names and never
+  Bitcoin node wallet (`Account.bitcoinNodeWallet`, S1.6.2.3), use separate random names and never
   an ID.
 
 ```

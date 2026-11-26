@@ -255,8 +255,9 @@ factor.
 
 ## RPC: Remote Procedure Call
 
-A way for one program to ask another, over the network, to run a command for it. Bitcoin Core
-takes requests this way, with a user and password of its own.
+A way for one program to ask another, over the network, to run a command for it. A Bitcoin node
+takes requests this way, with a user and password of its own: Bitcoin Core, or a fork that keeps
+its RPC, such as Bitcoin Knots.
 
 [Bitcoin Core: JSON-RPC interface](https://github.com/bitcoin/bitcoin/blob/master/doc/JSON-RPC-interface.md)
 
