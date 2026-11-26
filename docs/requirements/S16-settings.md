@@ -10,7 +10,10 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
    it, never from the request), and the server's time zone, read from the host (S14.9).
 2. **Email (SMTP)**: host, port, security (STARTTLS, TLS or none), username, password (a
    secret, set with the password again), from address, and **Send a test email**, which sends
-   to the admin at once and says what failed. Changing the host asks for the password again and
+   to the admin at once and says what failed. A sign-in needs STARTTLS or TLS: with security
+   none, a username or a stored password is refused at Save (*Sign-in needs STARTTLS or TLS*),
+   and MoolaKata signs in only over an encrypted connection, so none is for a relay that needs
+   no sign-in. Changing the host asks for the password again and
    clears the stored SMTP password, which is entered again for the new host (S13.7.2). Until a
    host is set, emails are written to the mail folder in the data directory, in the clear, and
    the section lists them (who for, subject, when) with **Open**, which shows one, links and

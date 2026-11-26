@@ -261,6 +261,7 @@ def _settings_after(ctx) -> None:
         if moved and secret_repo.info(s, *where) is not None:
             secret_repo.remove(s, *where)
             cleared.append(secret)
+    _sign_in_needs_tls(s, notes)
     changed = notes["changed"]
     if changed:
         activity.record(s, "settings.changed", actor=c.id, for_admins=True,
@@ -269,6 +270,25 @@ def _settings_after(ctx) -> None:
         from .prices import apply_egress
 
         ctx.after("egress", lambda: apply_egress(srv))
+
+
+def _sign_in_needs_tls(s, notes: dict) -> None:
+    """Security None with a username or a stored password: refused, at the key this save
+    changed, since a password never goes to the mail server unencrypted (S16.2)."""
+    from ..mail import SMTP_SECRET
+    from ..store.repos import secrets as secret_repo
+
+    if settings.get(s, "smtpSecurity") != "none":
+        return
+    if not settings.get(s, "smtpUsername") and secret_repo.info(s, *SMTP_SECRET) is None:
+        return
+    keys = ("smtpSecurity", "smtpUsername", "smtpPassword")
+    key = next((k for k in keys if k in notes["ids"]), None)
+    if key is None:
+        return
+    message = "Sign-in needs STARTTLS or TLS."
+    error = FieldError(key, "sign-in-needs-tls", message, notes["ids"][key])
+    raise Problem(422, "sign-in-needs-tls", message, [error])
 
 
 def _setting_delete(ctx, row: Setting) -> None:

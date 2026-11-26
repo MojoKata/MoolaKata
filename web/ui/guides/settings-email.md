@@ -24,12 +24,14 @@ the stored SMTP password, so it is never sent to the new host: type it again for
 ## Security {#smtp-security}
 
 **STARTTLS** (on port 587) and **TLS** (on 465) encrypt the connection and check the server's
-certificate. **None** sends in the clear: only for a relay on your own network.
+certificate. **None** sends in the clear: only for a relay on your own network that needs no
+sign-in. Your password is never sent unencrypted, so a username or password with **None** is
+refused at Save.
 
 ## Username {#smtp-username}
 
-The account to sign in to the mail server with, often an email address. Leave it empty for a relay
-that needs none.
+The account to sign in to the mail server with, often an email address. Signing in needs STARTTLS
+or TLS. Leave it empty for a relay that needs none.
 
 ## Password {#smtp-password}
 

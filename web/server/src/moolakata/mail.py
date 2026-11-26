@@ -120,8 +120,16 @@ def _vetted(cls, address: str):
     return Vetted
 
 
+class PlainSignIn(Exception):
+    """A sign-in asked for over a link with no encryption, which is never made (S16.2)."""
+
+
 def deliver(smtp: Smtp, msg: EmailMessage, guard) -> None:
     """Hand one message to the SMTP server, through the egress guard."""
+    if smtp.security == "none" and smtp.username:
+        # A password goes only over STARTTLS or TLS; None is for a relay with no sign-in
+        # (S16.2). Settings refuse the pair at Save; this holds whatever saved them.
+        raise PlainSignIn()
     address = guard.check(smtp.host, smtp.port, "smtp")
     context = ssl.create_default_context()
     if smtp.security == "tls":
@@ -147,6 +155,8 @@ def describe(e: Exception) -> str:
     """What went wrong, in words an admin can act on, never a password."""
     if isinstance(e, smtplib.SMTPAuthenticationError):
         return "the SMTP server refused the username or password"
+    if isinstance(e, PlainSignIn):
+        return "sign-in needs STARTTLS or TLS: set Security, or clear the username"
     if isinstance(e, smtplib.SMTPNotSupportedError):
         return "the SMTP server does not offer STARTTLS: try TLS or None"
     if isinstance(e, smtplib.SMTPRecipientsRefused):
