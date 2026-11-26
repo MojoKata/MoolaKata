@@ -864,6 +864,15 @@ const CHARTS = {};
 let chartSeq = 0;
 function lineChart({ labels, series, h = 240, yfmt = short, area = true, id, bands }) {
   const W = 760, H = h, L = 58, R = 12, T = 12, B = 26;
+  // Series with `stack` become bands, each on the ones before it on its side of zero (S5.3).
+  const up = labels.map(() => 0), down = labels.map(() => 0);
+  const stacked = series.filter((s) => s.stack).map((s) => {
+    const side = s.values.every((v) => v <= 0) ? down : up;
+    const lo = [...side];
+    s.values.forEach((v, i) => (side[i] += v));
+    return { lo, hi: [...side], color: s.color, opacity: 0.55 };
+  });
+  if (stacked.length) bands = [...(bands || []), ...stacked];
   const all = series.flatMap((s) => s.values).concat(bands ? bands.flatMap((b) => [...b.lo, ...b.hi]) : []).filter((v) => v != null);
   let min = Math.min(...all), max = Math.max(...all);
   const pad = (max - min) * 0.08 || 1, floor = min >= 0;
@@ -882,6 +891,7 @@ function lineChart({ labels, series, h = 240, yfmt = short, area = true, id, ban
     paths += `<polygon points="${top} ${bot}" fill="${b.color}" opacity="${b.opacity}"/>`;
   }
   series.forEach((s, si) => {
+    if (s.stack) return;
     const pts = s.values.map((v, i) => (v == null ? null : `${x(i)},${y(v)}`)).filter(Boolean).join(' ');
     if (area && si === 0) { const gid = 'g' + (++chartSeq); paths += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${s.color}" stop-opacity=".28"/><stop offset="1" stop-color="${s.color}" stop-opacity="0"/></linearGradient></defs><polygon points="${x(0)},${y(Math.max(min, 0))} ${pts} ${x(n - 1)},${y(Math.max(min, 0))}" fill="url(#${gid})"/>`; }
     paths += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2}" ${s.dash ? 'stroke-dasharray="5 4"' : ''} stroke-linejoin="round"/>`;
@@ -1229,7 +1239,7 @@ SCREENS.dashboard = (param) => {
   </div>
   <div class="grid g-main mt">
     <div class="card"><h3>Net Worth<span class="spacer"></span>${rangeChips()}</h3>
-      ${lineChart({ labels: rangeSlice(MONTHS), series: [{ name: 'Net worth', color: 'var(--accent)', values: rangeSlice(NETWORTH) }] })}
+      ${netWorthChart()}
     </div>
     <div class="card" data-help="allocation"><h3>Allocation<span class="spacer"></span><a data-go="portfolios/all">Details</a></h3>
       <div class="split">${donut(alloc, 140)}${legend(alloc, true)}</div>
@@ -1259,6 +1269,20 @@ SCREENS.dashboard = (param) => {
     </div>
   </div>`;
 };
+
+// Net worth over time with its composition stacked by account group (S5.3): each group's share of
+// the sample's history, what is owed below zero.
+const NETWORTH_GROUPS = [
+  ['banking', 0.06], ['investing', 0.3], ['retirement', 0.36], ['education', 0.03], ['crypto', 0.05],
+  ['other', 0.42], ['liability', -0.22],
+];
+function netWorthChart() {
+  const nw = rangeSlice(NETWORTH);
+  const hue = { liability: '--hue-liability', other: '--hue-other' };
+  const series = NETWORTH_GROUPS.map(([g, share]) => ({ name: GROUP_META[g].label, color: `var(${hue[g] || '--hue-' + g})`, stack: true, values: nw.map((v) => v * share) }));
+  return `${lineChart({ labels: rangeSlice(MONTHS), area: false, series: [...series, { name: 'Net worth', color: 'var(--fg)', width: 1.5, values: nw }] })}
+    <div class="legend" style="flex-wrap:wrap;gap:6px 12px">${series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}<span><i style="background:var(--fg)"></i>Net worth</span></div>`;
+}
 
 SCREENS.accounts = () => {
   const f = state.filters.acct || 'All';
@@ -2972,7 +2996,7 @@ const GUIDES = {
     <h2 ${hid('The vault’s words, now')}>The vault’s words, now</h2><p>The words the vault opens with today.</p>
     <h2 ${hid('Type RESET')}>Type RESET</h2><p>In capitals, to confirm.</p>`,
   dashboard: `<h1>Dashboard</h1><p>Where you land after signing in: what you’re worth, how it’s moving, and what needs your attention.</p><div class="shot">screenshot · dashboard</div>
-    <h2 id="h-net-worth">Net Worth</h2><p>Assets minus liabilities, across your accounts and the shared accounts you’ve set to <b>Count in my totals</b>. The chart’s range buttons choose the period; hover for a month’s figure.</p>
+    <h2 id="h-net-worth">Net Worth</h2><p>Assets minus liabilities, across your accounts and the shared accounts you’ve set to <b>Count in my totals</b>. The chart stacks each account group’s value, what you owe below zero, with net worth the line on them. Its range buttons choose the period; hover for a month’s figures.</p>
     <h2 id="h-allocation">Allocation</h2><p>What your accounts that count in net worth hold, by asset class: cash, bonds, US stocks, international stocks, real estate, crypto and metals, each holding in the class a projection grows it by; a home or land is real estate, and any other item, such as a car, or an option is <i>other</i>. What you owe, on a loan or a card, takes no share. <b>Details</b> opens your <i>All my accounts</i> portfolio.</p>
     <h2 id="h-budget">Budget</h2><p>The budget you follow, this month: what was spent against what was planned. Open it for the rest. In an envelope budget, spending charged to a card beyond what its envelope held counts as spent and is named: <i>on cards, not backed</i>.</p>
     <h2 id="h-needs-attention">Needs Attention</h2><p>Options expiring within a week, uncategorised transactions, receipts in the inbox, lots without a cost basis, a year whose realized gains changed after its federal return was filed, an occasion coming up with nothing bought yet, giving behind the even pace to its target, a holding still valued from an old statement, items valued over a year ago, and a connection that needs a sign-in or is failing. Admins also see a price source failing for longer than Settings › Alerts allows.</p>
