@@ -563,3 +563,17 @@ def test_profile_keeps_what_it_takes(server):
     assert {k: out[k] for k in fields} == fields
     out = saved(change(c, "User", out, avatar=None))
     assert out["avatar"] is None
+
+
+def test_a_session_that_outlives_its_users_access_is_refused_and_ended(server):
+    """Making a user inactive ends their sessions in the same change; should one outlive it
+    all the same, its next request is refused (401, account-disabled) and every session of
+    theirs ended, so the one after is not signed in."""
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
+    other = sign_in(server, "jane")
+    with server.db.tx(unscoped="test") as s:
+        s.get(User, jane.id).active = False
+    problem(c.get("/ui/api/profile"), 401, "account-disabled", "This account is disabled.")
+    for x in (c, other):
+        problem(x.get("/ui/api/profile"), 401, "not-signed-in", "Sign in to continue.")
