@@ -1424,7 +1424,7 @@ def test_0070_gives_a_receipt_the_scans_total_and_whether_it_was_checked(tmp_pat
 def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
     """S1.6.2.3: a wallet account whose keys were saved is given its Bitcoin node wallet's
     name, `moolakata-` and a random one, never its id; any other account none; no two share
-    one."""
+    one. A transaction's moment and a user's time zones start empty."""
     import re
 
     from alembic import command
@@ -1449,6 +1449,10 @@ def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
             q('INSERT INTO "WalletKey" (id, "accountId", kind, value, script, "createdAt", '
               "\"updatedAt\") VALUES (?, ?, 'address', ?, 'p2wpkh', ?, ?)",
               (ids.new_id("WKey"), a, f"bc1q{a[-8:]}", made, made))  # fmt: skip
+        txn = ids.new_id("Txn")
+        q('INSERT INTO "Transaction" (id, "accountId", date, kind, amount, "fitId", '
+          "\"createdAt\", \"updatedAt\") VALUES (?, ?, '2026-08-31', 'transfer-in', 0, ?, ?, ?)",
+          (txn, keyed, "btc:" + "a" * 64, made, made))  # fmt: skip
         conn.commit()
 
     assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
@@ -1463,6 +1467,17 @@ def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
             conn.exec_driver_sql(
                 'UPDATE "Account" SET "bitcoinNodeWallet" = ? WHERE id = ?', (named[0], other)
             )
+        # S1.6.2.6.1: a transaction recorded before has no moment until its next read; S14.9.2:
+        # no user has a time zone history until they change their time zone.
+        q = conn.exec_driver_sql
+        assert q('SELECT date, "confirmedAt" FROM "Transaction"').one() == ("2026-08-31", None)
+        assert q('SELECT count(*) FROM "UserTimeZone"').scalar_one() == 0
+        tz = (ids.new_id("UsrTz"), uid, made, made)
+        sql = ('INSERT INTO "UserTimeZone" (id, "userId", "timeZone", since, "createdAt", '
+               "\"updatedAt\") VALUES (?, ?, 'America/Denver', '2026-09-01', ?, ?)")  # fmt: skip
+        q(sql, tz)
+        with pytest.raises(Exception, match="UNIQUE"):
+            q(sql, (ids.new_id("UsrTz"), *tz[1:]))
     engine.dispose()
 
 

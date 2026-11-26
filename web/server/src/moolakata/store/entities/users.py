@@ -33,6 +33,16 @@ class User(Record):
 
 
 @dataclass(kw_only=True, eq=False)
+class UserTimeZone(Record):
+    """A time zone in effect for a user from 00:00 of `since` (S14.9.2)."""
+
+    id: str
+    userId: str
+    timeZone: str
+    since: dt.date
+
+
+@dataclass(kw_only=True, eq=False)
 class Group(Record):
     id: str
     name: str

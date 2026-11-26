@@ -351,6 +351,10 @@ Transaction = record(
     Column("offChainAt", UtcTimestamp),
     Column("offChainMissedAt", UtcTimestamp),
     Column("offChainKeptAt", UtcTimestamp),
+    # A bitcoin transaction's moment, its confirming block's time (S1.6.2.6.1), on its transfer
+    # row: its date is that moment's day in the time zone in effect for its owner then, and a
+    # correction of that time zone dates it again from it.
+    Column("confirmedAt", UtcTimestamp),
     # Spending to be paid back (S2.9): how much, and by whom; the paybacks are Reimbursements.
     Column("reimbursable", Cents),
     Column("owedBy", Text),
