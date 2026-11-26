@@ -191,6 +191,14 @@ Account = record(
         ),
     ),
 )
+# One node wallet per account, deleted ones' too: the node keeps a deleted account's wallet, so
+# no other account is ever read under its name (S1.6.2.3).
+Index(
+    "ux_Account_bitcoinNodeWallet",
+    Account.c.bitcoinNodeWallet,
+    unique=True,
+    sqlite_where=text('"bitcoinNodeWallet" IS NOT NULL'),
+)
 
 Instrument = record(
     "Instrument",

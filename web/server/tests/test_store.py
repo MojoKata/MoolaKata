@@ -1423,7 +1423,8 @@ def test_0070_gives_a_receipt_the_scans_total_and_whether_it_was_checked(tmp_pat
 
 def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
     """S1.6.2.3: a wallet account whose keys were saved is given its Bitcoin node wallet's
-    name, `moolakata-` and a random one, never its id; any other account none."""
+    name, `moolakata-` and a random one, never its id; any other account none; no two share
+    one."""
     import re
 
     from alembic import command
@@ -1454,9 +1455,14 @@ def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
 
     with engine.connect() as conn:
         got = dict(conn.exec_driver_sql('SELECT id, "bitcoinNodeWallet" FROM "Account"').all())
-    named = [got[keyed], got[other]]
-    assert all(re.fullmatch(r"moolakata-[0-9a-f]{16}", n) for n in named)
-    assert named[0] != named[1] and (got[bare], got[bank]) == (None, None)
+        named = [got[keyed], got[other]]
+        assert all(re.fullmatch(r"moolakata-[0-9a-f]{16}", n) for n in named)
+        assert named[0] != named[1] and (got[bare], got[bank]) == (None, None)
+        # No two accounts share one; any number have none.
+        with pytest.raises(Exception, match="UNIQUE"):
+            conn.exec_driver_sql(
+                'UPDATE "Account" SET "bitcoinNodeWallet" = ? WHERE id = ?', (named[0], other)
+            )
     engine.dispose()
 
 

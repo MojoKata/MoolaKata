@@ -533,6 +533,34 @@ def test_each_wallets_bitcoin_node_wallet_has_a_random_name_kept_with_it(
     again.db.dispose()
 
 
+def test_no_two_accounts_share_a_bitcoin_node_wallet(server, jane):
+    """S1.6.2.3: a second account given a wallet's name is refused by the database, a deleted
+    account's too, so no account is ever read under another's wallet; any number have none."""
+    from sqlalchemy.exc import IntegrityError
+
+    from moolakata.store.entities.accounts import Account
+
+    one = new_account(jane, name="One", type="crypto-wallet")
+    two = new_account(jane, name="Two", type="crypto-wallet")
+    new_account(jane, name="Three", type="crypto-wallet")  # none, as Two: no clash
+    saved(wallet(jane, one["id"], FIRST))
+    with server.db.read(unscoped="test") as s:
+        name = s.get(Account, one["id"]).bitcoinNodeWallet
+    assert name
+    with (
+        pytest.raises(IntegrityError, match="UNIQUE"),
+        server.db.tx(unscoped="test: the same name again") as s,
+    ):
+        s.get(Account, two["id"]).bitcoinNodeWallet = name
+    with server.db.tx(unscoped="test: the first deleted") as s:
+        s.get(Account, one["id"]).mark_deleted(None)
+    with (
+        pytest.raises(IntegrityError, match="UNIQUE"),
+        server.db.tx(unscoped="test: its name again") as s,
+    ):
+        s.get(Account, two["id"]).bitcoinNodeWallet = name
+
+
 def test_a_wallet_with_no_keys_ever_has_no_bitcoin_node_wallet(server, jane, monkeypatch):
     w = new_account(jane, name="Empty", type="crypto-wallet")
     node: dict[str, list] = {}

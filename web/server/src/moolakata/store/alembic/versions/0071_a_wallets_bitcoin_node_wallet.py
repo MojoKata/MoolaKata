@@ -1,6 +1,7 @@
 """A wallet account's Bitcoin node wallet (requirements S1.6.2.3): `Account.bitcoinNodeWallet`,
 `moolakata-` and a random name kept with the account, never its id (schema.md §2). Each wallet
-account whose keys were saved is given one; one never given keys gets its own when they are.
+account whose keys were saved is given one; one never given keys gets its own when they are. No
+two accounts share one (a unique index over the accounts that have one).
 
 Revision: 0071
 Follows: 0070
@@ -16,6 +17,11 @@ depends_on = None
 TABLE = "Account"
 HSA = '\t"hsaCoverage" TEXT, \n'
 NODE = '\t"bitcoinNodeWallet" TEXT, \n'
+# One account to a node wallet: no other is ever read under its name.
+INDEX = (
+    'CREATE UNIQUE INDEX "ux_Account_bitcoinNodeWallet" ON "Account" ("bitcoinNodeWallet") '
+    'WHERE "bitcoinNodeWallet" IS NOT NULL'
+)
 
 
 def upgrade() -> None:
@@ -49,6 +55,7 @@ def upgrade() -> None:
         'UPDATE "Account" SET "bitcoinNodeWallet" = \'moolakata-\' || lower(hex(randomblob(8))) '
         'WHERE type = \'crypto-wallet\' AND id IN (SELECT "accountId" FROM "WalletKey")'
     )
+    conn.exec_driver_sql(INDEX)
 
 
 def downgrade() -> None:
