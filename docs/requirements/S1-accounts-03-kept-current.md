@@ -58,9 +58,10 @@
          out. A card statement's figures are what is owed, and are turned to the account's
          side once; `CR` and `DR` already name the account's side (a payment is a credit),
          and are not turned.
-      2. **Reading** uses the receipt reader's worker (S9.8.4): a text layer when the PDF has
-         one, else OCR of every page, one at a time, up to 30 pages within five minutes (a
-         receipt's three pages and one minute are too few for a statement). Settings ›
+      2. **Reading** uses the receipt reader's worker (S9.8.4), page by page as a receipt is
+         read (S9.8.2.1): a page's text layer when it has one, else OCR of the page, one at a
+         time, up to 30 scanned pages within five minutes (a receipt's three pages and one
+         minute are too few for a statement). Settings ›
          Imports can turn statement reading off.
       3. **Checking**: the period, both balances and each line can be corrected, and a line
          left out. A line already in the account (the same date and amount, each transaction

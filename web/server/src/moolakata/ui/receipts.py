@@ -98,6 +98,11 @@ class ReceiptDetail(ReceiptRow):
     matches: list[Suggestion]
     text: str | None
     suggested: dict[str, Suggested]
+    # The scan's reading of a total its text layer gives otherwise, and whether a person has
+    # confirmed the amount: none with nothing to check, false while no transaction is offered
+    # for it (S9.8.2.1.1). The text layer's reading is `suggested`'s total.
+    scanTotal: Money | None
+    totalChecked: bool | None
     readMethod: str | None
     readEngine: str | None
     readAt: dt.datetime | None
@@ -119,6 +124,8 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
     from ..store.entities.giving import Donation, Organisation
     from ..store.entities.taxes import TaxBook
 
+    # A user's session reads no link to a deleted record, nor a tax document of a deleted
+    # book (ReceiptLinkAccess, TaxDocumentAccess).
     out = []
     for ln in receipts.links(s, r.id):
         if ln.kind in ("item", "expense"):
@@ -161,8 +168,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             continue
         if ln.kind in ("gift", "donation"):
             thing = s.get(Gift if ln.kind == "gift" else Donation, ln.itemId)
-            if thing is None or thing.deleted:
-                continue
             if ln.kind == "gift":
                 label = f"The gift {thing.description}"
                 when, amount = None, thing.cost
@@ -186,8 +191,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             )
             continue
         t = s.get(Transaction, ln.itemId)
-        if t is None or t.deleted:
-            continue
         a = s.get(Account, t.accountId)
         out.append(
             LinkOut(
@@ -205,8 +208,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
         )
     for doc in receipts.on_tax_documents(s, r.id):
         book = s.get(TaxBook, doc.bookId)
-        if book is None or book.deleted:
-            continue
         out.append(
             LinkOut(
                 id=None,
@@ -282,6 +283,8 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
             k: Suggested(value=v["value"], confidence=v["confidence"])
             for k, v in json.loads(r.suggested or "{}").items()
         },
+        scanTotal=r.scanTotal,
+        totalChecked=r.totalChecked,
         readMethod=r.readMethod,
         readEngine=r.readEngine,
         readAt=r.readAt,
@@ -375,6 +378,10 @@ def read_again(receipt_id: str, request: Request, c: Caller = Depends(caller)):
     srv = server(request)
     with srv.db.tx(user=c.id) as s:
         r, held = receipts.get(s, c.id, receipt_id, "write")
+        if r.filePrunedAt is not None:  # nothing left to read (S14.10.5)
+            raise Problem(
+                409, "file-pruned", f"Its file was pruned on {r.filePrunedAt:%b %-d, %Y}."
+            )
         if not settings.get(s, "readReceipts"):
             raise Problem(409, "reading-off", "Reading receipts is off in Settings › Receipts.")
         reading.read_again(s, r)
@@ -398,6 +405,9 @@ class ReceiptRecord(Model):
         default_factory=list, json_schema_extra={"uniqueItems": True}
     )
     keep: bool = False
+    # Its amount confirmed where its text and its scan disagree (S9.8.2.1.1): false to true
+    # only, the amount then the person's, as one typed is.
+    totalChecked: bool | None = None
 
 
 RECEIPT_FIELDS = ("date", "amount", "payee", "notes")
@@ -412,6 +422,7 @@ def _receipt_current(ctx, r: Receipt) -> dict:
         **{f: getattr(r, f) for f in RECEIPT_FIELDS},
         "tagIds": tags.ids_of(ctx.s, "receipt", ctx.caller.id, r.id),
         "keep": bool(r.keep),
+        "totalChecked": r.totalChecked,
     }
 
 
@@ -422,6 +433,14 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
         raise refuse("payee", "payee-too-long", "At most 200 characters.")
     if body.notes is not None and len(body.notes) > 2000:
         raise refuse("notes", "notes-too-long", "At most 2,000 characters.")
+    if body.totalChecked != r.totalChecked and not (
+        r.totalChecked is False and body.totalChecked is True
+    ):
+        raise refuse(
+            "totalChecked",
+            "total-check-fixed",
+            "Only a total waiting to be checked is confirmed.",
+        )
     filled = set(json.loads(r.filled or "[]"))
     for f in RECEIPT_FIELDS:
         value = getattr(body, f)
@@ -433,6 +452,13 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
             # A value a person gives is theirs: reading again won't replace it.
             filled.discard(f)
             setattr(r, f, value)
+    if r.totalChecked is False and (body.totalChecked or "amount" not in filled):
+        # Picked or typed, the amount is the person's (S9.8.2.1.1); cleared, nothing is.
+        if r.amount is None and body.totalChecked:
+            raise refuse("amount", "total-check-blank", "Pick or type the total to confirm it.")
+        if r.amount is not None:
+            filled.discard("amount")
+            r.totalChecked = True
     r.filled = exactjson.dumps(sorted(filled))
     tags.owned(ctx.s, ctx.caller.id, body.tagIds)
     tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)

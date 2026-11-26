@@ -47,3 +47,19 @@ def test_an_issue_is_cited_by_a_link_to_that_issue(line, found):
 )
 def test_a_retired_gap_or_later_id_is_found(line, cited):
     assert [m.group(0) for m in doccheck.RETIRED.finditer(line)] == cited
+
+
+@pytest.mark.parametrize(
+    ("line", "found"),
+    [
+        ("8. **Not in this version**: line items, handwriting.", ["this version"]),
+        ("comes in a later version, or a future version", ["a later version", "a future version"]),
+        ("not in this release", ["this release"]),
+        ("It is no longer kept.", ["no longer"]),
+        ("**Lock now** locks it; `2026-10-09` is a date.", []),
+        ("after the first release ([F#565]), and the next release's pull request", []),
+        ("8. **Not read**: line items ([#628]).", []),
+    ],
+)
+def test_a_version_or_status_is_found_in_labels_and_prose(line, found):
+    assert doccheck.statement_words(line) == found

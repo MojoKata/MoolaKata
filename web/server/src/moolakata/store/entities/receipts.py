@@ -28,6 +28,8 @@ class Receipt(Record):
     text: str | None = None
     suggested: str = "{}"
     filled: str = "[]"
+    scanTotal: Decimal | None = None
+    totalChecked: bool | None = None
     keep: bool = False
     filePrunedAt: dt.datetime | None = None
     filePrunedById: str | None = None

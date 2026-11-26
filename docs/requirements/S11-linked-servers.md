@@ -325,16 +325,20 @@ preparer.
          ago · 12 changes waiting · locked*, or *synced 2 days ago · waiting for an unlock*
          at the cap.
    6. **Encrypted files** (receipts and inbox changes) use one streaming format, so a 25 MB
-      receipt is never held whole in memory.
+      receipt is never held whole in memory. A household's own receipts use it too (S9.2),
+      under the receipts key (S15.3.2.2) in place of the copy's key.
       1. **Header**: magic and version (`MKR1`), a one-time X25519 public key, a random 32-byte
          salt, a 7-byte nonce prefix, and the chunk size (64 KiB).
       2. **Key**: HKDF-SHA256 over the X25519 exchange between the one-time key and the copy's
-         key, with the salt, under the label `moolakata link receipt` or `moolakata link
-         change`. Every file therefore has its own key.
+         key, with the salt, under a label for what the file is: `moolakata link receipt`,
+         `moolakata link change`, or `moolakata link inbox entry` for what a locked copy's
+         inbox keeps beside a change (S11.9.1); a household's own receipt, under the receipts
+         key, takes `moolakata receipt`. Every file therefore has its own key.
       3. **Chunks**: each 64 KiB chunk is sealed with AES-256-GCM. Its nonce is the prefix, a
          4-byte chunk counter and a last-chunk flag, so a chunk cannot be reordered, dropped or
          cut off unnoticed. The associated data names the link, the receipt or change, and the
-         chunk's number, so a file renamed or copied onto another receipt fails to open.
+         chunk's number; a household's own receipt's names its file's id and the chunk's
+         number. So a file renamed or copied onto another receipt fails to open.
       4. `shared.db` records each receipt's file name, length and plaintext SHA-256, which came
          signed from the source. The hash is checked as the file is shown, before its last part
          is sent, so an older copy swapped in is caught.

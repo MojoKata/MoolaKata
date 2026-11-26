@@ -61,6 +61,9 @@ CHANGELOG = re.compile(
     r"(?:\d{1,2}, )?(?:19|20)\d\d)\b",
     re.IGNORECASE,
 )
+# What a version holds is a status, in a label as much as in prose (**Not in this version**):
+# a limit is later work or out of scope, each an issue (README rule 3).
+VERSIONED = re.compile(r"\b(?:(?:this|a later|a future|the next) version|this release)\b", re.I)
 
 
 def numbered_items(path: Path, top: str) -> set[str]:
@@ -118,6 +121,14 @@ def issue_link_problems(line: str) -> list[str]:
         elif target != f"{ISSUES}{m.group(2)}":
             found.append(f"{cited} links to {target}, not issue {m.group(2)}")
     return found
+
+
+def statement_words(line: str) -> list[str]:
+    """Words and dates a statement doesn't carry (item 4), for a reader to judge."""
+    # Labels, examples and code (*Lock now*, `2026-10-09`) are not the text's own words.
+    prose = re.sub(r"`[^`]*`|\*\*[^*]*\*\*|\*[^*]*\*", " ", line)
+    found = [m.group(0) for m in CHANGELOG.finditer(prose)]
+    return found + [m.group(0) for m in VERSIONED.finditer(line)]
 
 
 def git(*args: str) -> str:
@@ -213,10 +224,8 @@ def main(argv: list[str]) -> int:
     # 4. Words and dates a statement doesn't carry.
     for path in [*sorted(REQ.glob("*.md")), SCHEMA]:
         for n, line in enumerate(path.read_text().splitlines(), 1):
-            # Labels, examples and code (*Lock now*, `2026-10-09`) are not the text's own words.
-            prose = re.sub(r"`[^`]*`|\*\*[^*]*\*\*|\*[^*]*\*", " ", line)
-            for m in CHANGELOG.finditer(prose):
-                warnings.append(f'{rel(path)}:{n}: "{m.group(0)}": {line.strip()[:90]}')
+            for word in statement_words(line):
+                warnings.append(f'{rel(path)}:{n}: "{word}": {line.strip()[:90]}')
 
     # 5. The schema's prefixes.
     seen: dict[str, str] = {}

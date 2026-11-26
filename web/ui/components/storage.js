@@ -121,12 +121,12 @@ export function StorageSection() {
           s.reload();
           res.reload();
         }}>
-        <h3>Storage<span class="spacer"></span>${v.expired.files
+        <h3>Storage<span class="spacer"></span>${v.expired.files + v.deleted.files
           ? html`<button type="button" class="btn" onClick=${prune}>Prune ${
             count(
-              v.expired.files,
+              v.expired.files + v.deleted.files,
             )
-          } Files (${size(v.expired.bytes)})</button>`
+          } Files (${size(v.expired.bytes + v.deleted.bytes)})</button>`
           : null}</h3>
         <div class="list-item"><span class="grow">Database</span><b>${size(
           v.databaseBytes,
@@ -161,6 +161,12 @@ export function StorageSection() {
                 value: v.forever.bytes,
                 color: 'var(--c1)',
                 note: `${count(v.forever.files)} · ${size(v.forever.bytes)}`,
+              },
+              {
+                name: 'Deleted receipts, can be pruned',
+                value: v.deleted.bytes,
+                color: 'var(--c5)',
+                note: `${count(v.deleted.files)} · ${size(v.deleted.bytes)}`,
               },
             ]} />${v.orphans.files
               ? html`
@@ -266,21 +272,27 @@ function CategoryDialog({ close, c, cats }) {
   `;
 }
 
-/** Prune the expired files (S14.10.5). @param {{ close: (v?: any) => void, v: any }} p */
+/**
+ * Prune the expired files, by category, and those only deleted receipts name (S14.10.5).
+ * @param {{ close: (v?: any) => void, v: any }} p
+ */
 function PruneDialog({ close, v }) {
   useDialogGuide('dialog-prune');
   const [ticked, setTicked] = useState(v.expiredBy.map((/** @type {any} */ x) => x.category));
+  const [deleted, setDeleted] = useState(v.deleted.files > 0);
   const [typed, setTyped] = useState('');
   const [needPassword, setNeed] = useState(false);
   const [password, setPassword] = useState('');
   const chosen = v.expiredBy.filter((/** @type {any} */ x) => ticked.includes(x.category));
-  const files = chosen.reduce((/** @type {number} */ a, /** @type {any} */ x) => a + x.files, 0);
-  const bytes = chosen.reduce((/** @type {number} */ a, /** @type {any} */ x) => a + x.bytes, 0);
+  const parts = deleted ? [...chosen, v.deleted] : chosen;
+  const files = parts.reduce((/** @type {number} */ a, /** @type {any} */ x) => a + x.files, 0);
+  const bytes = parts.reduce((/** @type {number} */ a, /** @type {any} */ x) => a + x.bytes, 0);
   const run = useSubmit(async () => {
     if (needPassword) await api.post('/session/reauth', { password });
     try {
       const out = await api.post('/settings/storage/prune', {
         categories: ticked,
+        deleted,
         count: Number(typed.replace(/[,\s]/g, '')),
       });
       toast(`${count(out.files)} files pruned, ${size(out.bytes)} freed`);
@@ -303,7 +315,13 @@ function PruneDialog({ close, v }) {
         html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
           checked=${ticked.includes(x.category)} onChange=${() => toggle(x.category)} /> <span
           class="grow">${x.category}</span>${count(x.files)} files · ${size(x.bytes)}</label>`
-      )}
+      )}${v.deleted.files
+        ? html`<label class="list-item" style=${{ cursor: 'pointer' }}><input type="checkbox"
+          checked=${deleted} onChange=${() => setDeleted(!deleted)} /> <span
+          class="grow">Deleted receipts</span>${count(v.deleted.files)} files · ${
+          size(v.deleted.bytes)
+        }</label>`
+        : null}
       <div class="list-item"><span class="grow row-name">Space freed</span><b>${size(
         bytes,
       )}</b></div>

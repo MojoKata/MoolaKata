@@ -93,7 +93,8 @@ replica holds only the right-hand side, and a backup can be made of the whole ho
       label:
       1. the **database key**, which SQLCipher uses as its raw key;
       2. the **receipts key**, an X25519 key pair: receipt files use the streaming format of
-         S11.9.6 with this key in place of a linked copy's key;
+         S11.9.6 with this key in place of a linked copy's key, under the label `moolakata
+         receipt` and with the file's id in the associated data (S11.9.6.2, S11.9.6.3);
       3. the **secrets key**, which wraps the secrets' own data keys.
    3. **Secret data keys**: each secret gets its own random 256-bit data key when it is
       saved. The server encrypts the value with **AES-256-GCM** under it, using a random

@@ -9,10 +9,11 @@ once, with what is known about them in the database.
   their EXIF orientation applied, pypdfium2 for a PDF's first page. Images over 40 million
   pixels are refused before they are decoded.
 - Who can see a receipt follows what it is attached to (S9.6): its owner always, and whoever
-  can read an account one of its transactions is in. An unattached receipt is its owner's
-  alone (the inbox).
+  can see any one of the things it is kept with, as each kind's own sharing says. An
+  unattached receipt is its owner's alone (the inbox).
 - A receipt is deleted only by its owner, and only while nothing links to it. Its file stays
-  while any receipt row names it, deleted or not (schema.md §4).
+  while any live receipt names it: a deleted one doesn't keep it from file pruning (S9.7,
+  S14.10.5).
 """
 
 import datetime as dt
@@ -191,7 +192,13 @@ def prepared(server, owner_id: str, name: str, data: bytes) -> Iterator[Prepared
                     Receipt.filePrunedAt.is_(None),
                 )
             ).first()
-            any_file = s.scalars(select(Receipt.fileId).where(Receipt.sha256 == digest)).first()
+            # A row whose file is kept, deleted or not (S9.2); a pruned one's file is gone, so
+            # taking it would write the bytes again beside another's copy.
+            any_file = s.scalars(
+                select(Receipt.fileId).where(
+                    Receipt.sha256 == digest, Receipt.filePrunedAt.is_(None)
+                )
+            ).first()
         if mine is not None:
             yield Prepared(name, media, len(data), digest, existing=mine)
             return
@@ -376,13 +383,9 @@ TARGETS = {
 
 
 def _account_of(s: Session, ln: ReceiptLink) -> Account | None:
-    """The live account a link's transaction, item or expense is in, or its account."""
-    if ln.kind == "account":
-        a = s.get(Account, ln.itemId)
-    else:
-        entity = {"transaction": Transaction, "item": Item, "expense": QualifiedExpense}[ln.kind]
-        x = s.get(entity, ln.itemId)
-        a = s.get(Account, x.accountId) if x is not None and not x.deleted else None
+    """The live account a link's transaction is in."""
+    x = s.get(Transaction, ln.itemId)
+    a = s.get(Account, x.accountId) if x is not None and not x.deleted else None
     return a if a is not None and not a.deleted else None
 
 
@@ -404,7 +407,8 @@ def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | 
 
 
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
-    """A draft's link (S13.8.11): onto what the user can change, once (S9.3)."""
+    """A draft's link (S13.8.11): onto what the user can change, once (S9.3). The save's
+    creation rule has refused a target missing or read only (`may_create`)."""
     ln = ReceiptLink(
         id=link_id,
         receiptId=r.id,
@@ -413,11 +417,6 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
         createdAt=clock.now(),
         linkedById=user_id,
     )
-    p = target(s, user_id, kind, item_id)
-    if p is None:
-        raise refuse("itemId", "not-found", "That is not there.", 404)
-    if not p.writable:
-        raise refuse("itemId", "read-only", "That is shared with you to read.", 403)
     have = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if have is not None and not have.deleted:
         raise refuse("itemId", "already-attached", "The receipt is attached to that already.", 409)
@@ -427,17 +426,9 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
 
 
 def unlink(s: Session, user_id: str, ln: ReceiptLink) -> None:
-    """A link taken away by whoever can change what it names, or, once that is gone, by the
-    receipt's owner."""
-    p = target(s, user_id, ln.kind, ln.itemId)
-    owner = s.scalars(
-        scoping.unscoped(
-            select(Receipt.ownerId).where(Receipt.id == ln.receiptId), "a receipt's owner"
-        )
-    ).first()
-    if p is None and owner != user_id:
-        raise Problem(404, "not-found", "Not found")
-    if p is not None and not p.writable:
+    """A link taken away by whoever can change what it names: one the user loads names
+    something they read (ReceiptLinkAccess)."""
+    if not target(s, user_id, ln.kind, ln.itemId).writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     ln.mark_deleted(user_id, clock.now())
 
@@ -462,27 +453,23 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
     """A photo or document of a physical-asset item (S1.10.1), or a qualified expense's
     receipt (S1.8.3): kept with it, in the item's account."""
     access.account(s, user_id, item.accountId, "write")
-    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
-    if row is None:
-        s.add(
-            ReceiptLink(
-                receiptId=r.id,
-                kind=kind,
-                itemId=item.id,
-                createdAt=clock.now(),
-                linkedById=user_id,
-            )
+    # Called for a receipt not kept with it (its draft's set less every live link): a user's
+    # session reads no deleted link, so one put back is a new link.
+    s.add(
+        ReceiptLink(
+            receiptId=r.id,
+            kind=kind,
+            itemId=item.id,
+            createdAt=clock.now(),
+            linkedById=user_id,
         )
-    elif row.deleted:
-        row.restore()
+    )
     s.flush()
 
 
 def detach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") -> None:
     access.account(s, user_id, item.accountId, "write")
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
-    if row is None or row.deleted:
-        raise Problem(404, "not-found", "The receipt is not kept with that.")
     row.mark_deleted(user_id, clock.now())
 
 
@@ -503,13 +490,9 @@ def of_item(s: Session, item_id: str, kind: str = "item") -> list[Receipt]:
 
 
 def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -> None:
-    """A receipt's link to a gift or a donation, by someone who can change that (S9.6)."""
+    """A receipt's link to a gift or a donation, by someone who can change that (S9.6): the
+    save has checked they may."""
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
-    if row is None or row.deleted or kind not in ("gift", "donation"):
-        raise Problem(404, "not-found", "The receipt is not kept with that.")
-    held = target(s, user_id, kind, item_id)
-    if held is None or not held.writable:
-        raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     row.mark_deleted(user_id, clock.now())
 
 
@@ -518,19 +501,17 @@ def keep_set(s: Session, user_id: str, kind: str, item_id: str, was, now) -> Non
     attached, those taken away detached."""
     for receipt_id in sorted(set(now) - set(was)):
         r = to_attach(s, user_id, receipt_id, "receiptIds")
-        row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
-        if row is None:
-            s.add(
-                ReceiptLink(
-                    receiptId=r.id,
-                    kind=kind,
-                    itemId=item_id,
-                    createdAt=clock.now(),
-                    linkedById=user_id,
-                )
+        # Not kept with it (`was` is every live link); a user's session reads no deleted
+        # link, so one put back is a new link.
+        s.add(
+            ReceiptLink(
+                receiptId=r.id,
+                kind=kind,
+                itemId=item_id,
+                createdAt=clock.now(),
+                linkedById=user_id,
             )
-        elif row.deleted:
-            row.restore()
+        )
     for receipt_id in sorted(set(was) - set(now)):
         r, _ = get(s, user_id, receipt_id)
         detach_kept(s, user_id, r, kind, item_id)
@@ -578,8 +559,9 @@ class Match:
 def matches(s: Session, user_id: str, r: Receipt, limit: int = 3) -> list[Match]:
     """Transactions in accounts the user can write to with the receipt's amount, within 5 days
     of its date; one up to 25% larger matches too, for a tip added after it was printed.
-    Ranked by days apart, then by how alike the payees are."""
-    if r.amount is None:
+    Ranked by days apart, then by how alike the payees are. None while its text and its scan
+    disagree on the total, until someone confirms it (S9.8.2.1.1)."""
+    if r.amount is None or r.totalChecked is False:
         return []
     amount = abs(r.amount)
     day = r.date or r.createdAt.date()

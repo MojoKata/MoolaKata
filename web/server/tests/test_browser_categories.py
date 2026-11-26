@@ -3,7 +3,8 @@ Chromium: Budgets › Categories lists the tree and adds one; a category's dialo
 shows what is locked, with why; New category… at the end of a transaction's list makes one in
 the same save, and in a row's list in a dialog of its own; and an admin's merge maps each of the
 category's own categories, starting from the names they share. Settings › Storage's dialog for
-a category warns while its receipts are kept under 7 years."""
+a category warns while its receipts are kept under 7 years, and its Prune offers the expired
+files by category and the deleted receipts' files apart."""
 
 import pytest
 from browser import Household, made, months_back, signed_in, wait
@@ -207,5 +208,50 @@ def test_receipts_kept_under_seven_years_warn_only_while_under(browser, househol
     page.keyboard.press("Escape")  # blank again, it is unchanged: it closes without asking
     wait(page, ".dialog", problems, state="detached")
     assert cats(h)["Entertainment"]["keepReceiptsYears"] == before
+    assert problems == []
+    page.close()
+
+
+def test_storage_counts_deleted_receipts_files_and_prune_offers_them_on_their_own(
+    browser, household
+):
+    """S14.10.4, S14.10.5: the deleted receipts' files are a part of the pie of their own and
+    a row of Prune's preview; unticked, Prune leaves them, and says so to the server."""
+    import json
+
+    h = household
+    sent = []
+
+    def storage(route):
+        out = route.fetch()
+        body = {
+            **out.json(),
+            "expired": {"files": 2, "bytes": 2048},
+            "expiredBy": [{"category": "Groceries", "files": 2, "bytes": 2048}],
+            "deleted": {"files": 3, "bytes": 3072},
+        }
+        route.fulfill(response=out, body=json.dumps(body))
+
+    def prune(route):
+        sent.append(json.loads(route.request.post_data))
+        route.fulfill(status=200, content_type="application/json", body='{"files":2,"bytes":2048}')
+
+    button = 'button:has-text("Prune 5 Files (5 KB)")'
+    page, problems = signed_in(browser, h, "/ui/settings/storage", "h3")
+    page.route("**/ui/api/settings/storage", storage)
+    page.route("**/ui/api/settings/storage/prune", prune)
+    page.reload()
+    wait(page, button, problems)
+    assert "Deleted receipts, can be pruned · 3 · 3 KB" in page.inner_text("main")
+    page.click(button)
+    row = '.dialog label:has-text("Deleted receipts")'
+    wait(page, row, problems)
+    wait(page, '.dialog label:has-text("Type 5 to confirm")', problems)
+    page.click(f"{row} input")
+    wait(page, '.dialog label:has-text("Type 2 to confirm")', problems)
+    page.fill(".dialog #f-prune-count", "2")
+    page.click(".dialog footer button.danger")
+    wait(page, ".dialog", problems, state="detached")
+    assert sent == [{"categories": ["Groceries"], "deleted": False, "count": 2}]
     assert problems == []
     page.close()

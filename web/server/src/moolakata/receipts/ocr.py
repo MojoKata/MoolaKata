@@ -1,9 +1,11 @@
 """Reading a receipt (requirements S9.8.2): what runs in the worker process.
 
-1. A PDF with a text layer (at least 20 characters on a page) is read with pypdfium2: no OCR.
-2. Images and scanned PDFs are prepared: Pillow applies the EXIF orientation, reads HEIC,
-   turns them grey and scales the long side to 2,000 pixels; pypdfium2 renders at most the
-   first 3 pages at 300 DPI.
+1. A PDF is read page by page: a page with a text layer (at least 20 characters) with
+   pypdfium2, no OCR; any other page by OCR. A receipt's total read from a text layer is
+   checked against the OCR of its page.
+2. Images and scanned pages are prepared: Pillow applies the EXIF orientation, reads HEIC,
+   turns them grey and scales the long side to 2,000 pixels; pypdfium2 renders at most 3
+   scanned pages at 300 DPI.
 3. RapidOCR on ONNX Runtime (CPU, 2 threads) runs the PP-OCR models: text detection,
    orientation, recognition. The models are the ones in the pinned rapidocr wheel, loaded by
    their paths and checked against their SHA-256 first, so nothing is ever downloaded.
@@ -48,8 +50,10 @@ class ReadError(Exception):
 @dataclass
 class Read:
     lines: list[str]
-    method: str  # "text" or "ocr"
+    method: str  # "text", "ocr", or "both" for a PDF with pages of each
     engine: str
+    # The total against the scan of its page (S9.8.2.1.1): {"text", "scan", "agrees"}
+    check: dict | None = None
 
 
 def models_dir() -> Path:
@@ -174,24 +178,84 @@ def _rendered(page):
     return page.render(scale=max(scale, 0.01)).to_pil()
 
 
-def read(data: bytes, media_type: str, pages: int = MAX_PAGES) -> Read:
+def _page_text(page) -> list[str] | None:
+    """A page's text layer as lines, or None when it gives fewer than 20 characters."""
+    text = page.get_textpage().get_text_range()
+    if len(text.strip()) < TEXT_LAYER_CHARS:
+        return None
+    return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+
+def _checked(pdf, text_pages: list[tuple[int, list[str]]], lines: list[str]) -> dict | None:
+    """The total against the scan (S9.8.2.1.1): the page whose text layer gives the total,
+    read by OCR too; whether that finds the same amount there, and the total it reads."""
+    from . import parser
+
+    total = parser.find_total([parser.join_split_amounts(x) for x in lines])
+    if total is None:
+        return None
+    page = next(
+        (i for i, got in text_pages if (t := parser.find_total(got)) and t.value == total.value),
+        None,
+    )
+    if page is None:
+        page = next(
+            (i for i, got in text_pages if any(total.value in parser.amounts(x) for x in got)),
+            None,
+        )
+    if page is None:
+        return None
+    scanned = [parser.join_split_amounts(x) for x in _ocr([_rendered(pdf[page])])]
+    found = {a for x in scanned for a in parser.amounts(x)}
+    scan = parser.find_total(scanned)
+    return {
+        "text": str(total.value),
+        "scan": str(scan.value) if scan else None,
+        "agrees": total.value in found,
+    }
+
+
+def _read_pdf(data: bytes, pages: int, check: bool) -> Read:
+    """Page by page (S9.8.2.1): a page's text layer when it has one, else OCR of the page, at
+    most `pages` of them; the method says which, or both."""
+    import pypdfium2 as pdfium
+
+    try:
+        pdf = pdfium.PdfDocument(data)
+    except Exception:
+        raise ReadError("the PDF can't be opened") from None
+    lines: list[str] = []
+    text_pages: list[tuple[int, list[str]]] = []
+    ocred = 0
+    try:
+        for i in range(len(pdf)):
+            got = _page_text(pdf[i])
+            if got is not None:
+                text_pages.append((i, got))
+                lines += got
+            elif ocred < pages:
+                # Rendered one at a time, so a long statement holds one page in memory, each
+                # within the images' pixel cap (S9.8.4.3).
+                ocred += 1
+                lines += _ocr([_rendered(pdf[i])])
+        found = _checked(pdf, text_pages, lines) if check and text_pages else None
+    finally:
+        pdf.close()
+    if text_pages and ocred:
+        return Read(lines, "both", f"pypdfium2 text layer, {engine_name()}", found)
+    if text_pages:
+        return Read(lines, "text", "pypdfium2 text layer", found)
+    return Read(lines, "ocr", engine_name())
+
+
+def read(data: bytes, media_type: str, pages: int = MAX_PAGES, check: bool = False) -> Read:
+    """A receipt or statement read. With `check` (a receipt's), a total read from a text
+    layer is checked against the scan of its page."""
     from PIL import Image
 
     Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     if media_type == "application/pdf":
-        import pypdfium2 as pdfium
-
-        lines = text_layer(data)
-        if lines is not None:
-            return Read(lines, "text", "pypdfium2 text layer")
-        pdf = pdfium.PdfDocument(data)
-        try:
-            # Rendered one at a time, so a long statement holds one page in memory, each
-            # within the images' pixel cap (S9.8.4.3).
-            lines = _ocr(_rendered(pdf[i]) for i in range(min(len(pdf), pages)))
-        finally:
-            pdf.close()
-        return Read(lines, "ocr", engine_name())
+        return _read_pdf(data, pages, check)
     try:
         import pi_heif
 

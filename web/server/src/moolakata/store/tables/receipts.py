@@ -44,6 +44,11 @@ Receipt = record(
     Column("text", Text),
     Column("suggested", Text, nullable=False, server_default=text("'{}'")),
     Column("filled", Text, nullable=False, server_default=text("'[]'")),
+    # Its total checked against the scan of its page (S9.8.2.1.1): the scan's reading when it
+    # disagrees with the text layer's (none when the scan reads no total), and whether a person
+    # has confirmed the amount: none with nothing to check, false while waiting for them.
+    Column("scanTotal", Cents),
+    Column("totalChecked", Boolean),
     # Kept for ever, whatever its retention (S14.10.1.3).
     Column("keep", Boolean, nullable=False, server_default=text("0")),
     # Its file removed by file pruning (S14.10.5); the row and its links stay.
@@ -52,6 +57,7 @@ Receipt = record(
     CheckConstraint(
         "\"readStatus\" IN ('off', 'waiting', 'reading', 'read', 'failed')", name="read_status"
     ),
+    CheckConstraint('"scanTotal" IS NULL OR "totalChecked" IS NOT NULL', name="scan_total"),
     CheckConstraint(
         "\"mediaType\" IN ('application/pdf', 'image/jpeg', 'image/png', 'image/webp', "
         "'image/heic')",
@@ -118,7 +124,7 @@ ReceiptLink = record(
 unique_live(ReceiptLink, "receiptId", "kind", "itemId")
 
 # The full-text index of what was read (SQLite FTS5), kept by the reader, searched by the
-# Receipts screen. A virtual table, made by revision 0007 rather than declared here.
+# Receipts screen. A virtual table, made by revision 0001 rather than declared here.
 SEARCH = "ReceiptSearch"
 
 

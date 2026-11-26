@@ -117,25 +117,34 @@
        3. **A file** (a receipt or a statement) has a **Keep** toggle that keeps it for ever.
     2. **When a file expires**: at the latest end of the records it is attached to, plus the
        longest of their periods. It never expires when Keep is on, when any of those records
-       has no period (a transfer, an uncategorised transaction, a category kept for ever), or
-       when it is attached to nothing. Expiry is worked out, never stored, so a changed
-       period moves every date at once.
+       has no period (a transfer, an uncategorised transaction, a category kept for ever, a
+       physical-asset item, which has no category:
+       [G#675](https://github.com/MojoKata/MoolaKata/issues/675)), or when it is attached to
+       nothing. Expiry is worked out, never stored, so a changed
+       period moves every date at once. A deleted receipt keeps no file (S9.7): one that no live
+       receipt names has no expiry, and is pruned as a deleted receipt's (S14.10.4).
     3. **Shown on each file**: *Kept until Mar 2031*, in bold within 90 days of it;
        *Kept while the lot is open* while a record it is attached to hasn't ended; or
        *Kept for ever*. An expired file shows *Expired Mar 2031, prunable*.
     4. **Files are never pruned on their own.** An admin prunes them in **Settings ›
        Storage**: the size of the database and of the receipts directory, a **pie** of
-       expired, expiring later and kept for ever, and a **bar for each coming year** of what
-       expires in it, by category. Sizes are the files' sizes on disk; the section shows
+       expired, expiring later, kept for ever and **deleted receipts** (the files only deleted
+       receipts name, which keep no file: S9.7), and a **bar for each coming year** of what
+       expires in it, by category. The pie's parts and the files no record names add up to
+       the receipts directory's size. Sizes are the files' sizes on disk; the section shows
        sizes and counts only, never what the files hold.
-    5. **Prune 1,284 files (2.1 GB)** names what has expired. It previews them by category, any
-       of which can be unticked, asks the admin to type the count to confirm (*Type 1,284 to
-       confirm*, the field empty until they do), and their
-       password again if given over 10 minutes ago (S13.7.2), removes the files, and records
+    5. **Prune 1,284 files (2.1 GB)** names what has expired and the deleted receipts' files.
+       It previews them by category, the deleted receipts as one of their own, any of which
+       can be unticked (a deleted receipt's file kept so, until deleted receipts can be
+       restored: [G#575](https://github.com/MojoKata/MoolaKata/issues/575)), asks the admin to
+       type the count to confirm (*Type 1,284 to confirm*, the field empty until they do), and
+       their password again if given over 10 minutes ago (S13.7.2), removes the files, and records
        the file pruning in Activity with its counts. No backup is made first: a backup holds no
        files (S14.6). A file several receipts share is removed once no live receipt needs it (a
        deleted one doesn't count), nor one an upload of the same bytes is reusing as the prune
-       runs, and the same file uploaded again after it is a new receipt with its file. Removing
+       runs. Every receipt naming a file the prune removes, deleted ones included, is marked
+       pruned with it, so none is left counted among the deleted receipts' files. The same file
+       uploaded again after it is a new receipt with its file. Removing
        the files no record names (S16.17) goes by the linked copies' rule (S11.9.6.6): never a
        file an upload is still writing, and only one half an hour old. Each record keeps its row, amounts and links, and shows *File pruned Jan
        3, 2034* once its file is gone. A pruned file survives only in the host's own backups of

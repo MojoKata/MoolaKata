@@ -1,7 +1,7 @@
 """File retention and pruning (requirements S14.10): when each file of a receipt or statement
 expires, worked out from when the records it is attached to ended (docs/schema.md §6) and their
 retention periods, never stored; what Settings › Storage shows; and file pruning, which removes
-expired files after a verified backup and keeps every record.
+expired files and those only deleted receipts name, and keeps every record.
 
 A record's end and period, by what the file is attached to:
 
@@ -11,9 +11,11 @@ A record's end and period, by what the file is attached to:
 - an account (a statement): ends with the statement's period (its date), or without one with
   the account's last transaction once closed; its period is Settings › Storage's *Keep
   statements for*;
-- a physical-asset item ends at its sale; a qualified expense or a donation on its date; a gift
-  given or received at the later of its occasion's year end and its purchase, else stays open;
-  each takes its transaction's period, and has none without one.
+- a physical-asset item ends at its sale, and has no period: it has no category, so its files
+  are kept for ever (S14.10.2, G#675);
+- a qualified expense or a donation ends on its date; a gift given or received at the later of
+  its occasion's year end and its purchase, else stays open; each takes its transaction's
+  period, and has none without one.
 
 A deleted record ended no later than its deletion. A file expires at the latest end plus the
 longest period; with Keep on, attached to nothing, or with any record without a period, it is
@@ -25,10 +27,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import false, select
+import sqlalchemy as sa
+from sqlalchemy import false, select, true
 from sqlalchemy.orm import Session
 
 from .. import clock, settings
+from ..store import views
 from ..store.entities.accounts import Account, Category, Lot, Split, Transaction
 from ..store.entities.assets import Item
 from ..store.entities.education import Gift, QualifiedExpense
@@ -41,7 +45,6 @@ SOON_DAYS = 90
 OPEN_WHAT = {
     "transaction": "the lot",
     "account": "the account",
-    "item": "the item",
     "gift": "the gift",
 }
 
@@ -115,10 +118,19 @@ class Context:
         return self._lot_ends[account_id]
 
 
-def _deleted(row, end: dt.date | None) -> dt.date | None:
-    if row.deletedAt is None:
+def _deleted(s, row, end: dt.date | None) -> dt.date | None:
+    """A record's end: the earlier of its declared end and when it was deleted, itself or
+    with what it belongs to, as its Effective view says (an account's transactions and items
+    with the account; schema.md §6.2)."""
+    table = sa.inspect(type(row)).local_table
+    if views.parents(table):
+        view = views.view_table(table)
+        at = s.scalar(select(view.c.effectiveDeletedAt).where(view.c.id == row.id))
+    else:
+        at = row.deletedAt
+    if at is None:
         return end
-    gone = row.deletedAt.date()
+    gone = at.date()
     return gone if end is None else min(end, gone)
 
 
@@ -130,7 +142,7 @@ def _transaction(ctx: Context, t: Transaction | None) -> tuple[dt.date | None, i
     for lot in ctx.s.scalars(select(Lot).where(Lot.transactionId == t.id)):
         lot_end = ctx.lot_ends(t.accountId).get(lot.id, t.date)
         end = None if lot_end is None or end is None else max(end, lot_end)
-    end = _deleted(t, end)
+    end = _deleted(ctx.s, t, end)
     if t.transferId is not None or t.kind.startswith("transfer"):
         return end, None, ""
     splits = list(
@@ -155,7 +167,7 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
         if a is None:
             return dt.date.min, ctx.statements, "Statements"
         end = r.date if r.date is not None else a.closedOn
-        return _deleted(a, end), ctx.statements, "Statements"
+        return _deleted(s, a, end), ctx.statements, "Statements"
     row = {
         "item": Item,
         "expense": QualifiedExpense,
@@ -165,11 +177,12 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
     x = s.get(row, link.itemId)
     if x is None:
         return dt.date.min, None, ""
-    txn = s.get(Transaction, x.transactionId) if getattr(x, "transactionId", None) else None
-    _, years, name = _transaction(ctx, txn) if txn is not None else (None, None, "")
     if link.kind == "item":
-        end = x.soldOn
-    elif link.kind == "gift":
+        # No category, so no period: kept for ever, sold or not (S14.10.2, G#675).
+        return _deleted(s, x, x.soldOn), None, ""
+    txn = s.get(Transaction, x.transactionId) if x.transactionId else None
+    _, years, name = _transaction(ctx, txn) if txn is not None else (None, None, "")
+    if link.kind == "gift":
         if x.status in ("given", "received"):
             day = dt.date(x.occasionYear, 12, 31) if x.occasionYear else x.updatedAt.date()
             end = max(day, txn.date) if txn is not None else day
@@ -177,7 +190,7 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
             end = None
     else:
         end = x.date
-    return _deleted(x, end), years, name
+    return _deleted(s, x, end), years, name
 
 
 def retention(ctx: Context, r: Receipt) -> Retention:
@@ -244,6 +257,8 @@ class Storage:
     # Files in the receipts directory that no receipt row names, deleted rows included: left
     # behind when an older database was restored under files written later (S14.6).
     orphans: Group = field(default_factory=Group)
+    # Files only deleted receipts name, which keep no file (S9.7): prunable on their own.
+    deleted: Group = field(default_factory=Group)
 
 
 def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Storage:
@@ -251,10 +266,11 @@ def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Sto
     out = Storage(_dir_bytes(receipts_dir), Group(), Group(), Group(), 0)
     years: dict[int, dict[str, Group]] = defaultdict(lambda: defaultdict(Group))
     seen_files: set[str] = set()
+    pruned = select(sa.func.count()).select_from(Receipt).where(Receipt.filePrunedAt.is_not(None))
+    out.pruned = s.scalar(pruned) or 0
     for r in s.scalars(select(Receipt).where(Receipt.deleted == false())):
         rt = retention(ctx, r)
         if rt.state == "pruned":
-            out.pruned += 1
             continue
         # A file shared by several receipts counts once, with the first.
         size = 0 if r.fileId in seen_files else _size(receipts_dir, r.fileId)
@@ -271,6 +287,10 @@ def storage(s: Session, receipts_dir: Path, today: dt.date | None = None) -> Sto
             y.files += 1
             y.bytes += size
     out.byYear = {k: dict(v) for k, v in sorted(years.items())}
+    for r in deleted_only(s):
+        out.deleted.files += 1
+        out.deleted.bytes += 0 if r.fileId in seen_files else _size(receipts_dir, r.fileId)
+        seen_files.add(r.fileId)
     for p in orphan_files(s, receipts_dir):
         out.orphans.files += 1
         out.orphans.bytes += p.stat().st_size
@@ -297,15 +317,37 @@ def remove_orphans(srv, s: Session) -> tuple[int, int]:
     return len(gone), sum(size for _, size in gone)
 
 
-def prunable(s: Session, categories: list[str] | None, today: dt.date | None = None):
-    """The expired receipts, of the categories named (all when none are)."""
+def deleted_only(s: Session) -> list[Receipt]:
+    """The deleted receipts with a file no live receipt needs (S9.7, S14.10.5)."""
+    needed = select(Receipt.fileId).where(
+        Receipt.deleted == false(), Receipt.filePrunedAt.is_(None), Receipt.fileId.is_not(None)
+    )
+    return list(
+        s.scalars(
+            select(Receipt)
+            .where(
+                Receipt.deleted == true(),
+                Receipt.filePrunedAt.is_(None),
+                Receipt.fileId.is_not(None),
+                Receipt.fileId.not_in(needed),
+            )
+            .order_by(Receipt.id)
+        )
+    )
+
+
+def prunable(
+    s: Session, categories: list[str] | None, deleted: bool = False, today: dt.date | None = None
+):
+    """The expired receipts, of the categories named (all when none are), and with `deleted`
+    the deleted receipts whose file no live one needs."""
     ctx = Context(s, today)
     out = []
     for r in s.scalars(select(Receipt).where(Receipt.deleted == false())):
         rt = retention(ctx, r)
         if rt.state == "expired" and (categories is None or (rt.category or "Other") in categories):
             out.append(r)
-    return out
+    return out + (deleted_only(s) if deleted else [])
 
 
 def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
@@ -329,5 +371,11 @@ def prune_files(srv, s: Session, rows: list[Receipt], by: str) -> int:
         )
         if still is not None:
             continue
+        # Every receipt naming the file goes with it, deleted ones included, so none is left
+        # counted as a deleted receipt's file that is gone (S14.10.4).
+        for other in s.scalars(
+            select(Receipt).where(Receipt.fileId == file_id, Receipt.filePrunedAt.is_(None))
+        ):
+            other.filePrunedAt, other.filePrunedById, other.thumbnail = now, by, None
         freed += store.remove(file_path(receipts_dir, file_id).name)
     return freed

@@ -19749,6 +19749,8 @@
               "too-many-rules",
               "too-many-tries",
               "too-many-wrong",
+              "total-check-blank",
+              "total-check-fixed",
               "trade-incomplete",
               "transaction-fixed",
               "transaction-unknown",
@@ -20287,6 +20289,8 @@
                   "too-many-rules",
                   "too-many-tries",
                   "too-many-wrong",
+                  "total-check-blank",
+                  "total-check-fixed",
                   "trade-incomplete",
                   "transaction-fixed",
                   "transaction-unknown",
@@ -21013,10 +21017,15 @@
           "count": {
             "title": "Count",
             "type": "integer"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
           }
         },
         "required": [
           "categories",
+          "deleted",
           "count"
         ],
         "title": "PruneIn",
@@ -21432,6 +21441,21 @@
             "title": "Readstatus",
             "type": "string"
           },
+          "scanTotal": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scantotal"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -21467,6 +21491,17 @@
               }
             ],
             "title": "Text"
+          },
+          "totalChecked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalchecked"
           },
           "uploadedAt": {
             "format": "date-time",
@@ -21505,6 +21540,8 @@
           "matches",
           "text",
           "suggested",
+          "scanTotal",
+          "totalChecked",
           "readMethod",
           "readEngine",
           "readAt",
@@ -21637,6 +21674,18 @@
             "title": "Tagids",
             "type": "array",
             "uniqueItems": true
+          },
+          "totalChecked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Totalchecked"
           }
         },
         "title": "ReceiptRecord",
@@ -25097,6 +25146,9 @@
             "title": "Databasebytes",
             "type": "integer"
           },
+          "deleted": {
+            "$ref": "#/components/schemas/Size"
+          },
           "expired": {
             "$ref": "#/components/schemas/Size"
           },
@@ -25146,7 +25198,8 @@
           "byYear",
           "expiredBy",
           "keepStatementsYears",
-          "orphans"
+          "orphans",
+          "deleted"
         ],
         "title": "StorageOut",
         "type": "object"
@@ -39050,7 +39103,7 @@
     },
     "/ui/api/settings/storage/prune": {
       "post": {
-        "description": "Remove the expired files of the categories ticked, keeping every record; recorded in\nActivity with its counts (S14.10.5). No backup first: a backup holds no files, the host's\nown backups do.",
+        "description": "Remove the expired files of the categories ticked, and the deleted receipts' files if\nticked, keeping every record; recorded in Activity with its counts (S14.10.5). No backup\nfirst: a backup holds no files, the host's own backups do.",
         "operationId": "prune_files_ui_api_settings_storage_prune_post",
         "requestBody": {
           "content": {

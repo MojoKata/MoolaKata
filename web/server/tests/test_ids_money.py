@@ -48,6 +48,17 @@ def test_amounts_refuse_floats_and_excess_places():
         money.parse("1.005", places=2)
 
 
+def test_an_amount_is_an_exact_number_as_json_reads_it_and_the_refusal_says_so():
+    """R1.9, S13.8.2: an exact number literal, read as a Decimal, is an amount; the refusal of
+    anything else names that form, never a string."""
+    from moolakata import exactjson
+
+    assert money.parse(exactjson.loads("1234.50")) == Decimal("1234.50")
+    with pytest.raises(money.AmountError) as refused:
+        money.parse([1234.5])
+    assert str(refused.value) == "amounts are exact numbers, such as 1234.50"
+
+
 def test_cents_round_half_even():
     assert money.to_cents(Decimal("0.125")) == 12
     assert money.to_cents(Decimal("0.135")) == 14

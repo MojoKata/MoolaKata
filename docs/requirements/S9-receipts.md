@@ -12,8 +12,8 @@
    found by the hash in the database, never by the file's name: the same file uploaded again by
    the same person gives back the receipt they have, and someone else's upload of it is their
    own receipt over the one stored file. Files use the streaming format of S11.9.6 under the
-   receipts key (S15.3.2), with the file's id as what the associated data names; a
-   re-encryption (S15.7.2) writes each one again under the new key.
+   receipts key (S15.3.2), with its own label and the file's id and the chunk's number as its
+   associated data (S11.9.6.2, S11.9.6.3); a re-encryption (S15.7.2) writes each one again under the new key.
 3. **Links**: a receipt can be attached to any number of transactions, tax items (a donation,
    a medical expense) or tax documents (a 1099), physical-asset items (a purchase receipt,
    an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
@@ -63,12 +63,23 @@
       *read from the receipt*, and the user confirms or corrects them. OCR never overwrites a
       value a person entered, and never attaches a receipt by itself.
    2. **The pipeline**, per receipt:
-      1. **PDF with a text layer** (an emailed invoice, a downloaded statement): the text is
-         read with pypdfium2, with no OCR. A page counts as having a text layer when it gives
-         at least 20 characters.
+      1. **A PDF is read page by page.** A page with a text layer (an emailed invoice, a
+         downloaded statement) is read from it with pypdfium2, with no OCR: a text layer is
+         the document's exact text. A page counts as having one when it gives at least 20
+         characters. Any other page (a scan) is rendered and read by OCR. The receipt's method
+         is *text layer*, *OCR*, or both, for a file with pages of each (a typed cover letter
+         before a scanned receipt).
+         1. **The total is checked against the scan.** When a page's text layer gives the
+            receipt's total, that one page is also rendered and read by OCR. If the OCR
+            doesn't find the same amount there, the receipt is flagged *The text and the scan
+            disagree: check the total*, showing both readings, and no transaction is offered
+            for it (S9.8.2.6) until someone confirms its amount: picks one of the readings or
+            types it, and saves. Only that page is read twice, never the whole file, and a
+            page with no text layer is read by OCR once.
       2. **Images and scanned PDFs** are prepared first. Pillow applies the EXIF orientation,
          converts HEIC, converts to greyscale, and scales the long side to 2,000 pixels.
-         pypdfium2 renders at most the first 3 PDF pages at 300 DPI.
+         pypdfium2 renders at 300 DPI at most 3 of a PDF's pages without a text layer, the
+         first ones.
       3. **RapidOCR** (the `rapidocr` package on **ONNX Runtime**, CPU only) runs the
          PP-OCR models: text detection, orientation classification, then text recognition.
          It returns each line's box, text and confidence. Skewed, curled and faded thermal
@@ -82,8 +93,12 @@
          2. **date**: every common format (`10/09/2026`, `2026-10-09`, `09 OCT 26`,
             `Oct 9, 2026`), the most plausible one: not in the future, not before the
             account's opening;
-         3. **merchant**: from the top lines, normalised by the user's payee rules (S2.7) and
-            matched against payees they already have;
+         3. **merchant**: from the top lines, normalised by the user's payee rules (S2.7), or,
+            when no rule renames it, matched against the payees of their own accounts'
+            transactions: one with the same words, or all of the shorter name's when it has
+            two or more, store numbers and words of two letters left out (*Blue Bottle Coffee
+            #042* is *Blue Bottle Coffee Hayes Valley*; *Kroger* is never *Kroger Fuel*), the closest,
+            then the most used, taking its place;
          4. **card**: `XXXX1234`, `****1234`, `ending in 1234`.
       6. **Matching**: the user's transactions (in accounts they can write to) with the same
          amount, within 5 days of the date, ranked by date distance and payee similarity. A
@@ -152,7 +167,12 @@
       OCR-suggested fields are replaced.
    7. **Settings › Receipts**: **Read receipts** on or off (on by default; off for a host too
       small to run it), the number of jobs at a time, and the queue's state (waiting,
-      failed, last run).
-   8. **Not in this version**: line items, handwriting, multi-receipt photos, currencies
-      other than USD, and non-Latin scripts. A receipt that the parser can't
-      make sense of still has its searchable text.
+      failed, last run). Both apply from the save that changes them: turned on, reading
+      queues every receipt uploaded while it was off, but those deleted or whose file was
+      pruned; a new number of jobs starts more, or lets the extra ones go once the receipt in
+      hand is read.
+   8. **Not read**: line items ([#628](https://github.com/MojoKata/MoolaKata/issues/628));
+      handwriting, several receipts in one photo and fields from receipts in other languages
+      ([NO#629](https://github.com/MojoKata/MoolaKata/issues/629)); currencies other than USD
+      are out of scope (R1.23). A receipt that the parser can't make sense of still has its
+      searchable text.

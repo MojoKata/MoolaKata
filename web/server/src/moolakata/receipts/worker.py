@@ -86,8 +86,8 @@ def handle(job: dict, data: bytes) -> dict:
             pages = job.get("pages")
             if type(pages) is not int or not 1 <= pages <= ocr.STATEMENT_PAGES:
                 pages = ocr.MAX_PAGES
-            r = ocr.read(data, str(job.get("media") or ""), pages)
-            return {"lines": r.lines, "method": r.method, "engine": r.engine}
+            r = ocr.read(data, str(job.get("media") or ""), pages, job.get("check") is True)
+            return {"lines": r.lines, "method": r.method, "engine": r.engine, "check": r.check}
         if op == "text":
             return {"lines": ocr.text_layer(data)}
         if op == "thumbnail":

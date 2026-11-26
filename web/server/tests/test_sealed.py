@@ -243,3 +243,18 @@ def test_an_overflowing_inbox_is_discarded_for_a_full_snapshot(server, setup, mo
     assert changes.waiting(server.config.data_dir, link_id) == []
     with server.db.read(unscoped="test") as s:
         assert s.get(Link, link_id).needsFull
+
+
+def test_every_label_a_file_is_sealed_under_is_the_one_the_requirements_name():
+    """S11.9.6.2: each kind of file, a linked copy's and the household's own receipts (S9.2),
+    is sealed under the label written for it, so a file can be checked against the text."""
+    import re
+
+    from moolakata import paths
+    from moolakata.keys import files
+
+    text = (paths.ROOT / "docs/requirements/S11-linked-servers.md").read_text()
+    item = text[text.index("2. **Key**: HKDF-SHA256") : text.index("3. **Chunks**")]
+    named = set(re.findall(r"`(moolakata [a-z ]+)`", re.sub(r"\s+", " ", item)))
+    labels = {files.RECEIPT, *(x.decode() for x in (sealed.RECEIPT, sealed.CHANGE, sealed.ENTRY))}
+    assert named == labels

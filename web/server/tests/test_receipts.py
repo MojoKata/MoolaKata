@@ -283,3 +283,27 @@ def test_a_slow_thumbnail_holds_no_one_elses_write(server, jane, monkeypatch):
         t.join(30)
     assert answers and answers[0].status_code == 201, answers
     assert answers[0].json()["hasThumbnail"] is False, "it keeps its icon"
+
+
+def test_the_receipts_guide_shares_a_receipt_through_everything_s9_6_names():
+    """S9.6, S9.3: *All* lists every receipt the reader can see, and *Sharing* names each kind
+    of thing a receipt is seen through, not transactions alone."""
+    from moolakata import paths
+
+    guide = (paths.UI / "guides" / "receipts.md").read_text()
+    show = guide.split("## Show", 1)[1].split("\n## ", 1)[0]
+    sharing = " ".join(guide.split("## Sharing", 1)[1].split())
+    assert "every receipt you can see" in " ".join(show.split())
+    for kind in ("transaction", "gift", "donation", "item", "loan", "529", "statement", "tax"):
+        assert kind in sharing, kind
+
+
+def test_s9_6_cites_the_tax_books_sharing_for_who_sees_a_tax_documents_file():
+    """S9.6 names who sees a tax document's file by the tax book's sharing (S8.14.3), never by
+    the documents' own item (S8.16), which says nothing of who may read them."""
+    from moolakata import paths
+
+    text = " ".join((paths.ROOT / "docs/requirements/S9-receipts.md").read_text().split())
+    clause = text.split("a tax document's file by", 1)[1].split(")", 1)[0]
+    assert clause.startswith(" whoever can read the tax book")
+    assert "S8.14.3" in clause and "S8.16" not in clause

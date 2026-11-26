@@ -229,13 +229,18 @@ export function ReceiptDialog({ close, id }) {
             ? "Read from the PDF's text layer"
             : r.readMethod === 'ocr'
             ? 'Read with OCR'
+            : r.readMethod === 'both'
+            ? "Read from the PDF's text layer and with OCR"
             : ''}${r.suggested.card ? ` · card ending ${r.suggested.card.value}` : ''}</span><span
-              class="spacer"></span><${Action} class="btn sm" disabled=${again.busy}
-                why=${whyRead(r) || (reading ? 'Being read now' : null)}
-                onClick=${() =>
-                  again.run().catch((e) =>
-                    toast(e.message)
-                  )}><${Icon} name="refresh" /> Read Again</${Action}></div>
+              class="spacer"></span>${// A pruned file never comes back: nothing to read again (S14.10.5).
+              r.filePrunedAt ? null : html`
+                <${Action} class="btn sm" disabled=${again.busy}
+                  why=${whyRead(r) || (reading ? 'Being read now' : null)}
+                  onClick=${() =>
+                    again.run().catch((e) =>
+                      toast(e.message)
+                    )}><${Icon} name="refresh" /> Read Again</${Action}>
+              `}</div>
           ${r.filePrunedAt ? null : html`
             <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
               ? 'Kept for ever, whatever its retention.'
@@ -257,6 +262,26 @@ export function ReceiptDialog({ close, id }) {
             ? html`
               <${Attention} tone="bad" icon=${html`<${Icon} name="alert" />`}>Couldn't read it:${' '}
                 ${r.readError}</${Attention}>
+            `
+            : r.totalChecked === false && !rec.get('totalChecked')
+            ? html`
+              <${Attention} tone="warn" icon=${html`<${Icon} name="alert" />`}>The text and the
+                scan disagree: check the total. Text ${money(r.suggested.total?.value)} · scan ${r
+                    .scanTotal === null
+                  ? 'reads no total'
+                  : money(r.scanTotal)}<div class="toolbar" style=${{
+                  margin: '8px 0 0',
+                }}>${[r.suggested.total?.value ?? null, r.scanTotal].filter((v) => v !== null).map((
+                  /** @type {string} */ v,
+                ) =>
+                  html`
+                    <${Action} class="btn sm" why=${whyRead(r)} onClick=${() => {
+                      // Picked, it is the person's amount, as one typed is (S9.8.2.1.1).
+                      rec.set('amount', v);
+                      rec.set('totalChecked', true);
+                    }}>Use ${money(v)}</${Action}>
+                  `
+                )}</div></${Attention}>
             `
             : null}
           <div class="row">

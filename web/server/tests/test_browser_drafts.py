@@ -1005,6 +1005,80 @@ def test_a_receipt_is_attached_and_detached_with_save(browser, household):
     page.close()
 
 
+def test_a_receipt_whose_file_was_pruned_has_no_read_again(browser, household):
+    """S14.10.5, S9.8.6: a pruned file never comes back, so its receipt has nothing to read
+    again; the button is left out, not shown off (the file's note says why)."""
+    import json
+
+    h = household
+    r = h.extra["receipt"]
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    again = '.dialog button:has-text("Read Again")'
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+    page.click(card)
+    wait(page, again, problems)
+    page.keyboard.press("Escape")
+    wait(page, ".dialog", problems, state="detached")
+
+    def pruned(route):
+        out = route.fetch()
+        body = {
+            **out.json(),
+            "filePrunedAt": "2026-10-01T12:00:00Z",
+            "kept": "File pruned Oct 1, 2026",
+        }
+        route.fulfill(response=out, body=json.dumps(body))
+
+    page.route(f"**/ui/api/receipts/{r['id']}", pruned)
+    page.click(card)
+    wait(page, ".dialog :text('File pruned Oct 1, 2026')", problems)
+    assert page.locator(again).count() == 0
+    assert problems == []
+    page.close()
+
+
+def test_a_total_the_text_and_the_scan_disagree_on_is_confirmed_by_picking_one(browser, household):
+    """S9.8.2.1.1: both readings shown; picking one confirms the amount, sent with the save."""
+    import json
+
+    h = household
+    r = h.extra["receipt"]
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    flag = ".dialog .notice:has-text('The text and the scan disagree')"
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+
+    def disagreeing(route):
+        out = route.fetch()
+        got = out.json()
+        total = {"value": r["amount"], "confidence": 100}
+        body = {**got, "suggested": {**got["suggested"], "total": total}}
+        body |= {"scanTotal": "6.90", "totalChecked": False}
+        route.fulfill(response=out, body=json.dumps(body))
+
+    sent = []
+
+    def confirmed(route):
+        # What the dialog sends is the test's; the server, whose receipt was never read so,
+        # gets the save without it.
+        body = json.loads(route.request.post_data)
+        sent.append(body["ops"][0]["fields"])
+        body["ops"][0]["fields"] = {}
+        route.continue_(post_data=json.dumps(body))
+
+    page.route(f"**/ui/api/receipts/{r['id']}", disagreeing)
+    page.route("**/ui/api/save", confirmed)
+    page.click(card)
+    wait(page, flag, problems)
+    assert "Text $6.40 · scan $6.90" in page.inner_text(flag)
+    page.click(f"{flag} button:has-text('Use $6.40')")
+    wait(page, flag, problems, state="detached")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    assert sent == [{"totalChecked": True}], "the amount it had, confirmed"
+    assert problems == []
+    page.close()
+
+
 def test_a_receipt_added_to_a_transaction_is_attached_on_save(browser, household):
     """Uploaded at once, into the inbox; attached by the transaction's draft on Save."""
     h = household

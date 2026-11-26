@@ -6,7 +6,7 @@ confidence. Rules, not a model, and tested on their own.
 import datetime as dt
 import re
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 MONTHS = {
     m: i + 1
@@ -88,13 +88,8 @@ class Fields:
 
 
 def amounts(line: str) -> list[Decimal]:
-    out = []
-    for m in AMOUNT.finditer(line):
-        try:
-            out.append(Decimal(m.group(1).replace(",", "") + "." + m.group(2)))
-        except InvalidOperation:
-            continue
-    return out
+    # AMOUNT's groups are digits (any script's, which Decimal reads too), so each is a number.
+    return [Decimal(m.group(1).replace(",", "") + "." + m.group(2)) for m in AMOUNT.finditer(line)]
 
 
 def join_split_amounts(line: str) -> str:
@@ -183,6 +178,32 @@ def find_merchant(lines: list[str]) -> Field | None:
         name = re.sub(r"\s*(#\s*\d+|store\s*\d+)\s*$", "", text, flags=re.I).strip(" -*")
         return Field(name.title() if name.isupper() else name, 70)
     return None
+
+
+def _words(name: str) -> frozenset[str]:
+    """A name's words as payees are compared: lower case, leaving out store numbers and words
+    of one or two letters (`#042`, `SF`)."""
+    return frozenset(
+        w for w in re.findall(r"[\w']+", name.lower()) if len(w) > 2 and not re.search(r"\d", w)
+    )
+
+
+def known_payee(read: str, payees: list[str]) -> str | None:
+    """The payee, of those given (most used first), that a merchant read from a receipt names
+    (S9.8.2.5.3): the same words, or all of the shorter name's when it has two or more (*Whole
+    Foods* in *Whole Foods Market*), never one word in a longer name (*Kroger*, *Kroger Fuel*).
+    The closest wins, the first among equals; None when none does."""
+    mine = _words(read)
+    best, score = None, 0.0
+    for payee in payees:
+        theirs = _words(payee)
+        common, short = len(mine & theirs), min(len(mine), len(theirs))
+        if not common or (mine != theirs and (common < short or short < 2)):
+            continue
+        alike = common / len(mine | theirs)
+        if alike > score:
+            best, score = payee, alike
+    return best
 
 
 def parse(lines: list[str], today: dt.date, not_before: dt.date | None = None) -> Fields:

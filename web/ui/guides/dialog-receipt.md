@@ -7,13 +7,23 @@ When it was uploaded, MoolaKata read it on the server: its date, total and merch
 fields, marked _read from the receipt_ with how sure the reader was. Check them; anything you type
 stays yours and is never replaced. **Read Again** reads it once more.
 
-A receipt whose file is pruned keeps its record: its amounts, dates and links. One being read on the
-server fills in its fields when it's done, and they can be typed meanwhile; one that couldn't be
-read is typed by hand.
+A receipt whose file is pruned keeps its record: its amounts, dates and links, and the text read
+from it; with no file, it has no **Read Again**. One being read on the server fills in its fields
+when it's done, and they can be typed meanwhile; one that couldn't be read is typed by hand.
+
+A PDF is read page by page: a page with text in it directly, a scanned page by OCR, so an emailed
+letter with a scanned receipt behind it is read whole.
 
 A transaction of the receipt's amount within five days of its date is offered to attach it to; one
 that hasn't arrived is attached from the transaction when it does. A receipt without a date and
 amount is attached from the transaction itself.
+
+## The text and the scan disagree
+
+A total read from a PDF's text is checked against the picture of that page. When they differ (a
+scanner's own text can misread a digit), both readings are shown and no transaction is offered
+until you confirm the amount: **Use** one of them, or type it, and save. It is then yours, as a
+typed amount is.
 
 ## Keep
 
@@ -36,7 +46,9 @@ printed.
 
 ## Payee {#receipt-payee}
 
-Who was paid, as the receipt says.
+Who was paid, as the receipt says, renamed by your payee rules or, when none renames it, as a payee
+of your own accounts' transactions that has its words: _Blue Bottle Coffee #042_ is read as _Blue
+Bottle Coffee Hayes Valley_ when that is how your transactions name it.
 
 ## Notes {#receipt-notes}
 

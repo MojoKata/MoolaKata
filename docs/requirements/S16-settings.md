@@ -113,7 +113,7 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     default, 1 to 336), and the time of the daily summary email (07:00 by default, in each
     user's time zone).
 17. **Storage** (S14.10): the size of the database and of the receipts directory, files
-    expired against the rest, the files no record names with **Remove** (S14.6), what
+    expired against the rest and the deleted receipts' files, the files no record names with **Remove** (S14.6), what
     expires each coming year by category, **Keep statements for** (years, empty for ever),
     each category's **Keep receipts for**, and **Prune**.
 18. **Connector** (S18): pairing with the MoolaKata Connector (**The connector reaches MoolaKata

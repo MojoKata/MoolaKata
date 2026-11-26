@@ -8,9 +8,9 @@ from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, save_settings
+from edits import change, remove, save_settings
 from PIL import Image
-from test_receipts import upload
+from test_receipts import png, upload
 
 from moolakata.dev.seed_receipts import draw
 from moolakata.receipts import ocr, parser
@@ -54,6 +54,43 @@ def test_date_formats(line, day):
     assert fields([line]).date.value == day
 
 
+@pytest.mark.parametrize(
+    ("lines", "total", "confidence"),
+    [
+        (["TOTAL", "THANK YOU", "LATTE 5.75"], "5.75", 55),  # a label with no amount near it
+        (["TOTAL", "THANK YOU"], None, None),
+        (["TOTAL:", "$19.92"], "19.92", 92),  # its amount on the next line
+    ],
+)
+def test_a_total_label_with_no_amount_falls_back_to_the_largest(lines, total, confidence):
+    got = fields(lines).total
+    assert (got and (str(got.value), got.confidence)) == (total and (total, confidence))
+
+
+def test_a_tax_line_with_no_amount_is_passed_over():
+    assert fields(["SALES TAX EXEMPT", "TAX 1.52", "TOTAL 19.92"]).tax.value == Decimal("1.52")
+    assert fields(["TAX EXEMPT"]).tax is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "12 FOO 2026",  # no month by that name
+        "02/30/2026",  # no such day
+        "13/09/2026",  # no such month
+        "01/05/2022",  # over three years before today
+    ],
+)
+def test_a_date_that_cant_be_is_passed_over(line):
+    assert fields([line]).date is None
+    assert fields([line, "10/09/2026"]).date.value == dt.date(2026, 10, 9), "the next one"
+
+
+def test_an_address_line_is_never_the_merchant():
+    assert fields(["Market Street Suite", "CORNER STORE #12"]).merchant.value == "Corner Store"
+    assert fields(["www dot example", "1440 N STATE ST"]).merchant is None
+
+
 def test_dates_in_the_future_or_before_the_account_are_passed_over():
     found = parser.parse(["12/31/2026", "10/01/2026"], TODAY)
     assert found.date.value == dt.date(2026, 10, 1)
@@ -78,8 +115,106 @@ def test_merchant_card_and_tax():
     assert fields(["Paid with card ending in 4821"]).card.value == "4821"
 
 
+@pytest.mark.parametrize(
+    ("read", "payees", "known"),
+    [
+        # The same words, whatever the case, store number or state.
+        ("Blue Bottle Coffee", ["Blue Apron", "BLUE BOTTLE COFFEE SF"], "BLUE BOTTLE COFFEE SF"),
+        ("Kroger", ["KROGER #123"], "KROGER #123"),
+        ("trader joe's", ["Trader Joe's"], "Trader Joe's"),
+        # All of the shorter name's words, when it has two or more.
+        ("Whole Foods Market", ["WHOLE FOODS"], "WHOLE FOODS"),
+        ("The Home Depot", ["Home Depot"], "Home Depot"),
+        # One word in a longer name, or a word in common, is a near miss.
+        ("Kroger", ["Kroger Fuel"], None),
+        ("Blue Bottle Coffee", ["Blue Apron"], None),
+        ("Shell", ["Shell Oil", "Shellfish Shack"], None),
+        ("#042", ["Store 042"], None),
+        # The closest wins; among equals, the first given (the most used).
+        ("Whole Foods", ["Whole Foods Market Austin", "WHOLE FOODS MARKET"], "WHOLE FOODS MARKET"),
+        ("Whole Foods Market", ["WHOLE FOODS", "Whole Foods"], "WHOLE FOODS"),
+    ],
+)
+def test_a_merchant_is_matched_to_a_payee_its_owner_has(read, payees, known):
+    """S9.8.2.5.3: the payee the merchant names, else none."""
+    assert parser.known_payee(read, payees) == known
+
+
+def test_a_receipts_merchant_takes_the_payee_its_owner_already_has(server):
+    """S9.8.2.5.3: after the rules, the owner's own payee the merchant names replaces it, from
+    their accounts only, and a payee typed by hand stays."""
+    from edits import make
+    from test_accounts import add, new_account
+
+    from moolakata.receipts.reading import save_reading
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    add(jane, new_account(jane)["id"], "-5.75", "2026-10-02", payee="BLUE BOTTLE COFFEE SF")
+    add(john, new_account(john)["id"], "-5.75", "2026-10-02", payee="Blue Bottle Coffee Oakland")
+    make(jane, "Rule", payeeMatch="kroger", payee="Kroger Groceries")
+    lines = ["BLUE BOTTLE COFFEE #042", "TOTAL 5.75"]
+    theirs = upload(john, png((1, 2, 3))).json()["id"]
+    mine = upload(jane, png((4, 5, 6))).json()["id"]
+    renamed = upload(jane, png((7, 8, 9))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        save_reading(s, s.get(Receipt, mine), lines, "text", "test")
+        save_reading(s, s.get(Receipt, theirs), lines, "text", "test")
+        save_reading(s, s.get(Receipt, renamed), ["KROGER #12", "TOTAL 9.10"], "text", "test")
+    assert jane.get(f"/ui/api/receipts/{mine}").json()["payee"] == "BLUE BOTTLE COFFEE SF"
+    assert john.get(f"/ui/api/receipts/{theirs}").json()["payee"] == "Blue Bottle Coffee Oakland"
+    assert jane.get(f"/ui/api/receipts/{renamed}").json()["payee"] == "Kroger Groceries"
+    r = change(jane, "Rcpt", jane.get(f"/ui/api/receipts/{mine}").json(), payee="Blue Bottle")
+    assert r.status_code == 200, r.text
+    with server.db.tx(unscoped="test") as s:
+        save_reading(s, s.get(Receipt, mine), lines, "text", "test")
+    assert jane.get(f"/ui/api/receipts/{mine}").json()["payee"] == "Blue Bottle", "typed stays"
+
+
 def test_the_shipped_models_are_the_pinned_ones():
     assert set(ocr.check_models()) == {"det", "cls", "rec"}
+
+
+def test_a_model_missing_or_not_the_pinned_one_is_refused(monkeypatch, tmp_path):
+    """S9.8.2.3: the models are checked against their SHA-256 before they are loaded."""
+    monkeypatch.setattr(ocr, "models_dir", lambda: tmp_path)
+    with pytest.raises(ocr.ReadError, match=r"^the OCR model PP-OCRv6_det_small\.onnx is missing$"):
+        ocr.check_models()
+    for name, _ in ocr.MODELS.values():
+        (tmp_path / name).write_bytes(b"not a model")
+    with pytest.raises(
+        ocr.ReadError,
+        match=r"^the OCR model PP-OCRv6_det_small\.onnx is not the one MoolaKata was built with$",
+    ):
+        ocr.check_models()
+
+
+def test_what_the_reader_cant_open_is_refused_in_words_safe_to_show():
+    """S9.8.4.3: a broken PDF or image, or one past the pixel cap, is a reason, never a trace."""
+    from test_reader_worker import huge_png
+
+    for data, media, why in (
+        (b"%PDF-1.4 broken", "application/pdf", "the PDF can't be opened"),
+        (
+            b"\x89PNG\r\n\x1a\nbroken",
+            "image/png",
+            "the image can't be opened (UnidentifiedImageError)",
+        ),
+    ):
+        with pytest.raises(ocr.ReadError) as e:
+            ocr.read(data, media)
+        assert str(e.value) == why
+    with pytest.warns(Image.DecompressionBombWarning), pytest.raises(ocr.ReadError) as e:
+        ocr.read(huge_png(10_000, 5_000), "image/png")
+    assert str(e.value) == "the image is larger than 40 million pixels"
+
+
+def test_a_blank_image_reads_no_lines():
+    """An image with nothing written on it: the engine finds no box, and no line is read."""
+    r = ocr.read(_png(Image.new("RGB", (120, 160), (255, 255, 255))), "image/png")
+    assert (r.lines, r.method) == ([], "ocr")
 
 
 def test_the_engine_switches_onnxruntime_telemetry_off(monkeypatch):
@@ -114,7 +249,7 @@ def test_ocr_in_the_worker_reads_a_tilted_receipt():
     ).rotate(3, expand=True, fillcolor="white")
     w = Worker()
     try:
-        status, lines, method, engine = w.read(_png(img), "image/png", user="User_a")
+        status, lines, method, engine, _ = w.read(_png(img), "image/png", user="User_a")
     finally:
         w.stop()
     assert status == "ok" and method == "ocr" and "PP-OCRv6" in engine
@@ -156,6 +291,118 @@ def test_a_pdf_with_a_text_layer_is_read_without_ocr():
     assert parser.parse(r.lines, TODAY).total.value == Decimal("153.58")
 
 
+def pdf(*pages: dict) -> bytes:
+    """A PDF of these pages, each a dict: `text`, lines in its text layer (`hidden`: drawn
+    invisible, as a scanner's own OCR layer is); `scan`, lines drawn as an image, as a scanned
+    page is."""
+    objs = ["<< /Type /Catalog /Pages 2 0 R >>", None]
+    font = len(objs) + 1
+    objs.append("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    kids = []
+    for p in pages:
+        content, xobjects = "", ""
+        if p.get("scan"):
+            img = draw(p["scan"]).convert("L")
+            w, h = img.size
+            raw = img.tobytes()
+            objs.append(
+                f"<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace"
+                f" /DeviceGray /BitsPerComponent 8 /Length {len(raw)} >>\nstream\n"
+                + raw.decode("latin-1")
+                + "\nendstream"
+            )
+            xobjects = f"/XObject << /Im1 {len(objs)} 0 R >>"
+            height = 300 * h / w
+            content += f"q 300 0 0 {height:.2f} 0 {400 - height:.2f} cm /Im1 Do Q "
+        if p.get("text"):
+            mode = "3 Tr " if p.get("hidden") else ""
+            content += f"BT {mode}/F1 12 Tf 40 360 Td 14 TL "
+            content += " ".join(f"({x}) '" for x in p["text"]) + " ET"
+        objs.append(f"<< /Length {len(content)} >>\nstream\n{content}\nendstream")
+        contents = len(objs)
+        objs.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << /Font << /F1"
+            f" {font} 0 R >> {xobjects} >> /Contents {contents} 0 R >>"
+        )
+        kids.append(f"{len(objs)} 0 R")
+    objs[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>"
+    out = "%PDF-1.4\n"
+    offsets = []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n{o}\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n"
+    out += "".join(f"{o:010d} 00000 n \n" for o in offsets)
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    return out.encode("latin-1")
+
+
+LETTER = {"text": ["Dear Jane,", "Please find your receipt for the repair attached."]}
+INVOICE = {"text": ["City Power & Water", "Invoice 2026-117", "AMOUNT DUE 153.58"]}
+SCAN = {"scan": ["CORNER STORE", "OCT 9, 2026", "TOTAL 12.34"]}
+
+
+@pytest.fixture
+def ocr_calls(monkeypatch):
+    """The pages read by OCR, counted."""
+    calls = []
+    real = ocr._ocr
+    monkeypatch.setattr(ocr, "_ocr", lambda images: calls.append(1) or real(images))
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("pages", "method", "read", "ocred"),
+    [
+        ([LETTER, INVOICE], "text", ["Dear Jane,", "AMOUNT DUE 153.58"], 0),
+        ([SCAN, {"scan": ["PAGE TWO"]}], "ocr", ["TOTAL 12.34", "PAGE TWO"], 2),
+        ([LETTER, SCAN], "both", ["Dear Jane,", "TOTAL 12.34"], 1),
+        ([SCAN, LETTER], "both", ["TOTAL 12.34", "Dear Jane,"], 1),
+    ],
+    ids=["all text", "all scanned", "a letter, then a scan", "a scan, then a letter"],
+)
+def test_a_pdf_is_read_page_by_page(pages, method, read, ocred, ocr_calls):
+    """S9.8.2.1: a page with a text layer is read from it, any other by OCR, in page order;
+    the method says which, or both."""
+    r = ocr.read(pdf(*pages), "application/pdf")
+    assert r.method == method
+    assert [x for x in r.lines if x in read] == read, r.lines
+    assert len(ocr_calls) == ocred
+    if method == "both":
+        assert r.engine.startswith("pypdfium2 text layer, rapidocr")
+        assert parser.parse(r.lines, TODAY).total.value == Decimal("12.34")
+
+
+def test_the_page_cap_counts_only_the_pages_read_by_ocr(ocr_calls):
+    """S9.8.2.2: the cap is on scanned pages; a text page past it is still read."""
+    r = ocr.read(pdf(SCAN, LETTER, {"scan": ["PAGE THREE"]}, INVOICE), "application/pdf", 1)
+    assert r.method == "both" and len(ocr_calls) == 1
+    assert "TOTAL 12.34" in r.lines and "PAGE THREE" not in r.lines
+    assert "AMOUNT DUE 153.58" in r.lines, "the text page after the cap"
+
+
+def test_the_total_is_checked_against_the_scan_of_its_page(ocr_calls):
+    """S9.8.2.1.1: the page whose text layer gives the total is read by OCR too, alone."""
+    agrees = pdf(LETTER, {**INVOICE, "scan": INVOICE["text"], "hidden": True})
+    r = ocr.read(agrees, "application/pdf", check=True)
+    assert r.method == "text" and len(ocr_calls) == 1, "that one page, not the letter"
+    assert r.check == {"text": "153.58", "scan": "153.58", "agrees": True}
+    # A scanner's text layer that misread the total: the scan says otherwise.
+    misread = {"text": ["CORNER STORE", "TOTAL 72.34"], "hidden": True, "scan": SCAN["scan"]}
+    r = ocr.read(pdf(misread), "application/pdf", check=True)
+    assert r.check == {"text": "72.34", "scan": "12.34", "agrees": False}
+    # Not asked (a statement), or a total read by OCR already: nothing read twice.
+    ocr_calls.clear()
+    assert ocr.read(pdf(misread), "application/pdf").check is None
+    assert ocr.read(pdf(LETTER, SCAN), "application/pdf", check=True).check is None
+    assert len(ocr_calls) == 1, "the scanned page, once"
+    # A text layer with no total at all: nothing to check, nothing read by OCR.
+    ocr_calls.clear()
+    assert ocr.read(pdf(LETTER), "application/pdf", check=True).check is None
+    assert ocr_calls == []
+
+
 class _Process:
     """A worker process as Worker sees it, without starting one: each has its own pid."""
 
@@ -182,6 +429,7 @@ def no_process(monkeypatch):
     monkeypatch.setattr(Worker, "_start", lambda self: setattr(self, "proc", _Process()))
     from moolakata import parsing
 
+    monkeypatch.setattr(Worker, "_send", lambda self, data, deadline: None)
     monkeypatch.setattr(
         Worker, "_recv", lambda self, deadline: {"lines": [], "method": "text", "engine": "x"}
     )
@@ -293,6 +541,53 @@ def test_a_worker_past_its_time_is_stopped():
         w.stop()
 
 
+def test_a_worker_that_stops_reading_its_job_is_stopped_at_the_jobs_deadline(monkeypatch):
+    """S9.8.4.2: the time limit counts from the job's start, its sending included, so a worker
+    that stops reading (a hostile file's code, a library wedged) is stopped, not waited on."""
+    import os
+    import threading
+
+    pipes = []
+
+    class Deaf:
+        """A started worker that never reads its stdin and never answers."""
+
+        def __init__(self):
+            r_in, w_in = os.pipe()
+            r_out, w_out = os.pipe()
+            pipes.extend((r_in, w_out))
+            self.pid = os.getpid()
+            self.stdin = os.fdopen(w_in, "wb")
+            self.stdout = os.fdopen(r_out, "rb")
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(Worker, "_start", lambda self: setattr(self, "proc", Deaf()))
+    w = Worker()
+    out = []
+    job = threading.Thread(
+        target=lambda: out.append(w.call("thumbnail", b"x" * (4 << 20), 0.2, user="User_a")),
+        daemon=True,
+    )
+    try:
+        job.start()
+        job.join(30)
+        assert not job.is_alive(), "the caller waits on the worker for good"
+        assert out == [{"error": "it took longer than 0 seconds"}]
+        assert w.proc is None, "the worker is stopped"
+    finally:
+        for fd in pipes:  # a caller still stuck in its write is let go
+            os.close(fd)
+        job.join(30)
+
+
 def test_reading_fills_empty_fields_never_typed_ones(server):
     make_user(server, "jane")
     c = sign_in(server, "jane")
@@ -331,6 +626,187 @@ def test_reading_off_leaves_receipts_unread(server, admin_client):
     assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "off"
     q = admin_client.get("/ui/api/settings/receipts").json()
     assert q["waiting"] == 0
+
+
+def test_text_and_scan_disagreeing_flag_the_total_until_someone_confirms_it(server):
+    """S9.8.2.1.1: the scan's reading kept beside the amount and no transaction offered, until
+    its amount is picked or typed and saved; then it is the person's, as a typed one is. The
+    receipt's own columns say so (`scanTotal`, `totalChecked`), nothing inside `suggested`."""
+    from test_accounts import add, new_account
+    from test_budget_refusals import refused
+
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    acct = new_account(c)
+    add(c, acct["id"], "-72.34", "2026-10-09", payee="Corner Store")
+    lines = ["CORNER STORE", "OCT 9, 2026", "TOTAL 72.34"]
+    rid = upload(c, text_pdf(lines), name="r.pdf").json()["id"]
+    answer = ("ok", lines, "text", "pypdfium2 text layer", None)
+    w = Worker()
+    once = ("totalChecked", "total-check-fixed", "Only a total waiting to be checked is confirmed.")
+
+    def read_with(check):
+        w.read = lambda data, media, *a, user, check=False: (*answer[:4], found if check else None)
+        found = check
+        assert c.post(f"/ui/api/receipts/{rid}/read").status_code == 200
+        Reader(server, workers=1).read_one(rid, w)
+        with server.db.read(unscoped="test") as s:
+            assert "totalCheck" not in json.loads(s.get(Receipt, rid).suggested)
+        return c.get(f"/ui/api/receipts/{rid}").json()
+
+    got = read_with(None)
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None), "nothing checked"
+    got = read_with({"text": "72.34", "scan": "72.34", "agrees": True})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None), "they agree"
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    # A total the server's own reading doesn't give checks nothing.
+    got = read_with({"text": "99.99", "scan": "12.34", "agrees": False})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None)
+    got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
+    assert (got["scanTotal"], got["totalChecked"]) == ("12.34", False)
+    assert got["matches"] == [], "nothing offered meanwhile"
+    assert got["suggested"]["total"]["value"] == "72.34" and got["amount"] == "72.34"
+    # A save of anything else leaves it waiting.
+    assert change(c, "Rcpt", got, notes="from the shoebox").status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert got["totalChecked"] is False and "amount" in got["filled"]
+    refused(change(c, "Rcpt", got, totalChecked=None), *once)
+    # Picking the text's reading confirms it, once.
+    assert change(c, "Rcpt", got, totalChecked=True).status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["scanTotal"], got["totalChecked"], got["amount"]) == ("12.34", True, "72.34")
+    assert "amount" not in got["filled"], "the person's now"
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    for wrong in (None, False):
+        refused(change(c, "Rcpt", got, totalChecked=wrong), *once)
+    # Read again, it disagrees again over the person's amount: theirs, nothing to confirm.
+    got = read_with({"text": "72.34", "scan": "12.34", "agrees": False})
+    assert (got["scanTotal"], got["totalChecked"]) == ("12.34", True)
+    assert [m["amount"] for m in got["matches"]] == ["-72.34"]
+    # A scan with no total at all disagrees too.
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = read_with({"text": "72.34", "scan": None, "agrees": False})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, False)
+    # Clearing the amount confirms nothing; a total confirmed blank is refused.
+    blank = ("amount", "total-check-blank", "Pick or type the total to confirm it.")
+    refused(change(c, "Rcpt", got, amount=None, totalChecked=True), *blank)
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["amount"], got["totalChecked"]) == (None, False)
+    # Typing the amount confirms it as well.
+    assert change(c, "Rcpt", got, amount="12.34").status_code == 200
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["totalChecked"], got["amount"]) == (True, "12.34")
+    # Agreeing, there is nothing to confirm.
+    assert change(c, "Rcpt", got, amount=None).status_code == 200
+    got = read_with({"text": "72.34", "scan": "72.34", "agrees": True})
+    assert (got["scanTotal"], got["totalChecked"]) == (None, None)
+    refused(change(c, "Rcpt", got, totalChecked=True), *once)
+    refused(change(c, "Rcpt", got, totalChecked=False), *once)
+
+
+def test_a_receipt_whose_file_was_pruned_is_never_left_reading(server, admin_client):
+    """S9.8.6, S14.10.5: Read again is refused on a pruned receipt, before reading being off is;
+    and one queued already (at a start, or before the prune) fails, saying why."""
+    from moolakata import clock
+    from moolakata.store.entities.receipts import Receipt
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    rid = upload(c, _png(draw(["TOTAL 1.00"]))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, rid).filePrunedAt = dt.datetime(2026, 10, 1, 12, tzinfo=dt.UTC)
+    r = c.post(f"/ui/api/receipts/{rid}/read")
+    assert (r.status_code, r.json()["code"]) == (409, "file-pruned")
+    assert r.json()["detail"] == "Its file was pruned on Oct 1, 2026."
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    assert c.post(f"/ui/api/receipts/{rid}/read").json()["code"] == "file-pruned"
+    assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+    assert c.get(f"/ui/api/receipts/{rid}").json()["readStatus"] == "waiting"
+    clock.fix(dt.datetime(2026, 10, 2, 9, tzinfo=dt.UTC))
+    try:
+        Reader(server, workers=1).read_one(rid, None)
+    finally:
+        clock.fix(None)
+    got = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (got["readStatus"], got["readError"]) == ("failed", "its file was pruned")
+
+
+class _Queue:
+    """The running reader as a save reaches it: what it was asked, in order."""
+
+    def __init__(self):
+        self.asked = []
+
+    def resize(self):
+        self.asked.append("resize")
+
+    def queue(self, rid):
+        self.asked.append(rid)
+
+
+def test_turning_reading_on_reads_what_came_in_while_it_was_off(server, admin_client):
+    """S9.8.4.1, S9.8.7: every receipt uploaded while reading was off is queued once it is on
+    again, in the order they came; one deleted or whose file was pruned stays as it is."""
+    from moolakata import clock
+    from moolakata.store.entities.receipts import Receipt
+
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    first = upload(jane, _png(draw(["TOTAL 1.00"]))).json()["id"]
+    second = upload(john, _png(draw(["TOTAL 2.00"]))).json()["id"]
+    pruned = upload(jane, _png(draw(["TOTAL 3.00"]))).json()["id"]
+    deleted = upload(jane, _png(draw(["TOTAL 4.00"]))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, pruned).filePrunedAt = clock.now()
+        s.get(Receipt, deleted).mark_deleted(None)
+    server.reader = _Queue()
+    try:
+        assert save_settings(admin_client, {"readReceipts": True}).status_code == 200
+        assert server.reader.asked == ["resize", first, second]
+    finally:
+        server.reader = None
+    with server.db.read(unscoped="test") as s:
+        got = {rid: s.get(Receipt, rid).readStatus for rid in (first, second, pruned, deleted)}
+    assert got == {first: "waiting", second: "waiting", pruned: "off", deleted: "off"}
+    # Turned on by going back to its default, likewise.
+    assert save_settings(admin_client, {"readReceipts": False}).status_code == 200
+    third = upload(jane, _png(draw(["TOTAL 5.00"]))).json()["id"]
+    ref = admin_client.get("/ui/api/settings").json()["records"]["readReceipts"]
+    server.reader = _Queue()
+    try:
+        assert remove(admin_client, "Setng", ref).status_code == 200
+        assert server.reader.asked == ["resize", third]
+    finally:
+        server.reader = None
+
+
+def test_jobs_at_a_time_applies_from_the_save(server, admin_client, no_process):
+    """S9.8.7, R3.7: a new number of jobs starts more threads, or lets the extra ones go once
+    the receipt in hand is read; the queue is kept."""
+    from moolakata.dev.waits import eventually
+
+    reader = Reader(server)
+    server.reader = reader
+    try:
+        reader.start()
+        assert len(reader.threads) == 1
+        assert save_settings(admin_client, {"receiptReadJobs": 3}).status_code == 200
+        assert len(reader.threads) == 3 and len(reader.workers) == 3
+        assert save_settings(admin_client, {"receiptReadJobs": 2}).status_code == 200
+        eventually(lambda: len(reader.threads) == 2, what="one thread let go")
+        assert len(reader.workers) == 2 and reader.size == 2
+        assert all(t.is_alive() for t in reader.threads)
+    finally:
+        reader.stop()
+        server.reader = None
+    for t in list(reader.threads):
+        t.join(30)
+    assert not any(t.is_alive() for t in reader.threads), "every thread stops with the reader"
 
 
 def _variants(img: Image.Image):
@@ -427,6 +903,19 @@ def test_an_answer_out_of_shape_is_refused(monkeypatch):
         w, "call", lambda *a, **k: {"lines": ["ok", 7], "method": "ocr", "engine": "x"}
     )
     assert w.read(b"", "image/png", user="User_a") == ("error", "the reader answered out of turn")
+    good = {"text": "72.34", "scan": None, "agrees": False}
+    for check in (
+        "yes",
+        {**good, "text": "NaN"},
+        {**good, "scan": "1e9"},
+        {**good, "agrees": "no"},
+        {**good, "more": 1},
+    ):
+        answer = {"lines": ["ok"], "method": "both", "engine": "x", "check": check}
+        monkeypatch.setattr(w, "call", lambda *a, answer=answer, **k: answer)
+        assert w.read(b"", "application/pdf", user="User_a", check=True)[0] == "error", check
+    monkeypatch.setattr(w, "call", lambda *a, **k: {**answer, "check": good})
+    assert w.read(b"", "application/pdf", user="User_a", check=True)[4] == good
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"webp": "not base64!"})
     assert parsing.thumbnail(b"", "image/png", user="User_a") is None
     monkeypatch.setattr(parsing, "_call", lambda op, data, **k: {"jpeg": "aGVsbG8="})

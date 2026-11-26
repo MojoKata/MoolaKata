@@ -14,10 +14,12 @@ request, by a separate worker process, so a hostile or broken file can't take th
 
 import contextlib
 import datetime as dt
+import itertools
 import json
 import logging
 import os
 import queue
+import re
 import select
 import subprocess
 import sys
@@ -57,6 +59,21 @@ def resident(pid: int) -> int:
 MAX_ANSWER = 64 * 1024 * 1024
 MAX_LINES = 20_000
 MAX_LINE = 2_000
+AMOUNT = re.compile(r"-?\d{1,12}\.\d{2}")
+
+
+def _a_check(found) -> bool:
+    """The total against the scan as the worker answers it: two amounts, the scan's or none,
+    and whether they agree."""
+    return (
+        isinstance(found, dict)
+        and set(found) == {"text", "scan", "agrees"}
+        and isinstance(found["text"], str)
+        and AMOUNT.fullmatch(found["text"]) is not None
+        and (found["scan"] is None or isinstance(found["scan"], str))
+        and (found["scan"] is None or AMOUNT.fullmatch(found["scan"]) is not None)
+        and isinstance(found["agrees"], bool)
+    )
 
 
 class Worker:
@@ -109,6 +126,25 @@ class Worker:
         out, self._buf = self._buf[:n], self._buf[n:]
         return out
 
+    def _send(self, data: bytes, deadline: float) -> None:
+        """Bytes into the worker's stdin under the job's deadline and memory watch: a worker
+        that stops reading (a hostile file's code, a library wedged between jobs) is stopped
+        when it passes, never waited on by its caller and the quick jobs behind it (S9.8.4.2)."""
+        fd = self.proc.stdin.fileno()
+        os.set_blocking(fd, False)
+        # poll, not select, as in _exactly.
+        ready = select.poll()
+        ready.register(fd, select.POLLOUT)
+        view = memoryview(data)
+        while view:
+            if time.monotonic() > deadline:
+                raise TimeoutError
+            if resident(self.proc.pid) > MEMORY_CAP:
+                raise MemoryError
+            if ready.poll(250):
+                with contextlib.suppress(BlockingIOError):
+                    view = view[os.write(fd, view[: 1 << 16]) :]
+
     def _recv(self, deadline: float):
         n = int.from_bytes(self._exactly(4, deadline), "big")
         if n > MAX_ANSWER:
@@ -137,12 +173,12 @@ class Worker:
                 self.stop()
                 return {"error": "the reader couldn't start"}
         head = json.dumps({"op": op, **params, "length": len(data)}).encode()
+        # The limit counts from the job's start, its sending included.
+        deadline = time.monotonic() + limit
         try:
-            stdin = self.proc.stdin
-            stdin.write(len(head).to_bytes(4, "big") + head + len(data).to_bytes(4, "big"))
-            stdin.write(data)
-            stdin.flush()
-            out = self._recv(time.monotonic() + limit)
+            self._send(len(head).to_bytes(4, "big") + head + len(data).to_bytes(4, "big"), deadline)
+            self._send(data, deadline)
+            out = self._recv(deadline)
         except TimeoutError:
             self.stop()
             return {"error": f"it took longer than {int(limit)} seconds"}
@@ -167,26 +203,32 @@ class Worker:
         pages: int | None = None,
         *,
         user: str,
+        check: bool = False,
     ) -> tuple:
-        """A receipt or statement read: ("ok", lines, method, engine), or ("error", why). A
-        statement asks for more pages than a receipt's three, with a longer limit. `user` is
+        """A receipt or statement read: ("ok", lines, method, engine, check), or ("error",
+        why). A statement asks for more pages than a receipt's three, with a longer limit; a
+        receipt asks for its total to be checked against the scan (S9.8.2.1.1). `user` is
         whose file it is."""
         extra = {"pages": pages} if pages else {}
+        if check:
+            extra["check"] = True
         out = self.call("read", data, limit, user=user, media=media, **extra)
         if "error" in out:
             return ("error", out["error"])
         lines, method, engine = out.get("lines"), out.get("method"), out.get("engine")
+        found = out.get("check")
         if (
             not isinstance(lines, list)
             or len(lines) > MAX_LINES
             or not all(isinstance(x, str) and len(x) <= MAX_LINE for x in lines)
-            or method not in ("text", "ocr")
+            or method not in ("text", "ocr", "both")
             or not isinstance(engine, str)
             or len(engine) > 200
+            or not (found is None or _a_check(found))
         ):
             self.stop()
             return ("error", "the reader answered out of turn")
-        return ("ok", lines, method, engine)
+        return ("ok", lines, method, engine, found)
 
     def stop(self) -> None:
         if self.proc is not None:
@@ -202,23 +244,37 @@ class Worker:
         self._buf = b""
 
 
+# Taken from the reading queue before any receipt: the server stopping, then a thread let go
+# when Jobs at a time is lowered. Receipts follow in the order they were queued.
+_STOP, _RETIRE, _RECEIPT = 0, 1, 2
+
+
 class Reader:
-    """The queue and its threads, one per job allowed at a time."""
+    """The queue and its threads, one per job allowed at a time: as many as Settings ›
+    Receipts' Jobs at a time says, from the save that changes it (S9.8.7, R3.7)."""
 
     def __init__(self, server, workers: int | None = None) -> None:
         self.server = server
-        self.jobs: queue.Queue[str | None] = queue.Queue()
+        self.jobs: queue.PriorityQueue[tuple[int, int, str | None]] = queue.PriorityQueue()
+        self._order = itertools.count()
+        self._lock = threading.Lock()
         self.threads: list[threading.Thread] = []
         self.workers: list[Worker] = []
         self.count = workers
+        self.size = 0  # the threads asked for: those running, less those told to go
         self.stopping = threading.Event()
         self.last_run: dt.datetime | None = None
+
+    def _jobs_at_a_time(self) -> int:
+        if self.count:
+            return self.count
+        with self.server.db.read(unscoped="receipts.reading: jobs at a time") as s:
+            return settings.get(s, "receiptReadJobs")
 
     def start(self) -> None:
         if self.threads:
             return
         with self.server.db.read(unscoped="receipts.reading: start") as s:
-            n = self.count or settings.get(s, "receiptReadJobs")
             pending = [
                 rid
                 for (rid,) in s.execute(
@@ -230,32 +286,48 @@ class Reader:
                     .order_by(Receipt.createdAt)
                 )
             ]
-        for i in range(n):
-            w = Worker(self.server.config.data_dir)
-            t = threading.Thread(target=self._loop, args=(w,), daemon=True, name=f"mk-read-{i}")
-            self.workers.append(w)
-            self.threads.append(t)
-            t.start()
+        self.resize()
         for rid in pending:
-            self.jobs.put(rid)
+            self.queue(rid)
+
+    def resize(self) -> None:
+        """As many threads as Jobs at a time says: more started, or as many told to go once
+        the receipt in hand is read; the queue is kept (S9.8.7)."""
+        if self.stopping.is_set():
+            return
+        n = self._jobs_at_a_time()
+        with self._lock:
+            for _ in range(self.size, n):
+                w = Worker(self.server.config.data_dir)
+                t = threading.Thread(target=self._loop, args=(w,), daemon=True, name="mk-read")
+                self.workers.append(w)
+                self.threads.append(t)
+                t.start()
+            for _ in range(n, self.size):
+                self.jobs.put((_RETIRE, next(self._order), None))
+            self.size = n
 
     def stop(self) -> None:
         self.stopping.set()
-        for _ in self.threads:
-            self.jobs.put(None)
-        for w in self.workers:
-            w.stop()
+        with self._lock:
+            for _ in self.threads:
+                self.jobs.put((_STOP, next(self._order), None))
+            for w in self.workers:
+                w.stop()
 
     def queue(self, receipt_id: str) -> None:
-        self.jobs.put(receipt_id)
-
-    def waiting(self) -> int:
-        return self.jobs.qsize()
+        self.jobs.put((_RECEIPT, next(self._order), receipt_id))
 
     def _loop(self, worker: Worker) -> None:
         while not self.stopping.is_set():
-            rid = self.jobs.get()
-            if rid is None:
+            kind, _, rid = self.jobs.get()
+            if kind == _STOP:
+                return
+            if kind == _RETIRE:
+                with self._lock:
+                    worker.stop()
+                    self.threads.remove(threading.current_thread())
+                    self.workers.remove(worker)
                 return
             try:
                 self.read_one(rid, worker)
@@ -269,12 +341,10 @@ class Reader:
         srv = self.server
         with srv.db.tx(unscoped="receipts.reading: read one") as s:
             r = s.get(Receipt, rid)
-            if (
-                r is None
-                or r.deleted
-                or r.filePrunedAt is not None
-                or r.readStatus not in ("waiting", "reading")
-            ):
+            if r is None or r.deleted or r.readStatus not in ("waiting", "reading"):
+                return
+            if r.filePrunedAt is not None:  # never left *Reading…* for good (S14.10.5)
+                r.readStatus, r.readError, r.readAt = "failed", "its file was pruned", clock.now()
                 return
             if not settings.get(s, "readReceipts"):
                 r.readStatus = "off"
@@ -289,21 +359,19 @@ class Reader:
         try:
             data = whole(srv, file)
             # The owner's file: read in a worker no other user's file has been in (S9.8.4.2).
-            outcome = worker.read(data, media, user=owner)
+            outcome = worker.read(data, media, user=owner, check=True)
             if not drawn:  # one the upload couldn't draw is tried again
                 thumb = parsing.thumbnail(data, media, user=owner)
         except Exception as e:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()
         with srv.db.tx(unscoped="receipts.reading: read one") as s:
-            r = s.get(Receipt, rid)
-            if r is None:
-                return
+            r = s.get(Receipt, rid)  # a receipt row is never removed
             if thumb is not None and r.thumbnail is None:
                 r.thumbnail = thumb
             if outcome[0] == "ok":
-                _, lines, method, engine = outcome
-                save_reading(s, r, lines, method, engine)
+                _, lines, method, engine, found = outcome
+                save_reading(s, r, lines, method, engine, found)
             else:
                 r.readStatus, r.readError, r.readAt = "failed", outcome[1], clock.now()
         srv.events.publish("receipt", {"id": rid}, users=[owner])
@@ -320,13 +388,45 @@ def _not_before(s, r: Receipt):
     )
 
 
-def save_reading(s, r: Receipt, lines: list[str], method: str, engine: str) -> None:
-    """Store what was read, and fill the fields nobody typed (S9.8.1)."""
+def _payees(s, owner_id: str) -> list[str]:
+    """The payees of the transactions in the owner's own accounts, the most used first."""
+    from ..store.entities.accounts import Transaction
+
+    used = sa.func.count(Transaction.id)
+    return list(
+        s.scalars(
+            sa.select(Transaction.payee)
+            .join(Account, Account.id == Transaction.accountId)
+            .where(
+                Account.ownerId == owner_id,
+                Account.deleted == sa.false(),
+                Transaction.deleted == sa.false(),
+                Transaction.payee.is_not(None),
+                Transaction.payee != "",
+            )
+            .group_by(Transaction.payee)
+            .order_by(used.desc(), Transaction.payee)
+        )
+    )
+
+
+def save_reading(
+    s, r: Receipt, lines: list[str], method: str, engine: str, check: dict | None = None
+) -> None:
+    """Store what was read, and fill the fields nobody typed (S9.8.1). A total its text layer
+    gives that the scan of its page doesn't keeps the scan's reading, and waits for a person
+    to confirm the amount unless it is already theirs (S9.8.2.1.1)."""
     found = parser.parse(lines, clock.today(), _not_before(s, r))
     r.text = "\n".join(lines)
     r.readMethod, r.readEngine = method, engine
     r.readStatus, r.readError, r.readAt = "read", None, clock.now()
     r.suggested = json.dumps(found.as_dict())
+    disagree = (
+        check is not None
+        and not check["agrees"]
+        and found.total is not None
+        and Decimal(check["text"]) == found.total.value
+    )
     filled = set(json.loads(r.filled or "[]"))
     values = {
         "date": found.date.value if found.date else None,
@@ -334,10 +434,14 @@ def save_reading(s, r: Receipt, lines: list[str], method: str, engine: str) -> N
         "payee": found.merchant.value if found.merchant else None,
     }
     if values["payee"]:
-        # The merchant as the uploader's payee rules show it (S2.7.7, S9.8.2.5.3).
+        # The merchant as the uploader's payee rules show it (S2.7.7, S9.8.2.5.3), else as a
+        # payee they already have names it.
         from ..store.repos.rules import Rules
 
-        values["payee"] = Rules(s, r.ownerId).rename(values["payee"])
+        read = values["payee"]
+        values["payee"] = Rules(s, r.ownerId).rename(read)
+        if values["payee"] == read:
+            values["payee"] = parser.known_payee(read, _payees(s, r.ownerId)) or read
     for f in FIELDS:
         empty = getattr(r, f) in (None, "")
         if (empty or f in filled) and values[f] is not None:
@@ -345,6 +449,11 @@ def save_reading(s, r: Receipt, lines: list[str], method: str, engine: str) -> N
             setattr(r, f, Decimal(v) if f == "amount" else v)
             filled.add(f)
     r.filled = json.dumps(sorted(filled))
+    if check is not None and disagree:
+        r.scanTotal = None if check["scan"] is None else Decimal(check["scan"])
+        r.totalChecked = "amount" not in filled  # a person's amount is confirmed already
+    else:
+        r.scanTotal = r.totalChecked = None
     index(s, r)
 
 
@@ -370,6 +479,25 @@ def search(s, query: str) -> set[str]:
             {"q": match},
         )
     }
+
+
+def turned_on(s) -> list[str]:
+    """Read receipts turned on: what came in while it was off is queued, every receipt not
+    deleted whose file is kept (S9.8.4.1, S9.8.7). `s` reads as the server; the ids, in the
+    order they came, for the reader once the change is saved."""
+    ids = []
+    for r in s.scalars(
+        sa.select(Receipt)
+        .where(
+            Receipt.readStatus == "off",
+            Receipt.deletedAt.is_(None),
+            Receipt.filePrunedAt.is_(None),
+        )
+        .order_by(Receipt.createdAt)
+    ):
+        read_again(s, r)
+        ids.append(r.id)
+    return ids
 
 
 def read_again(s, r: Receipt) -> None:

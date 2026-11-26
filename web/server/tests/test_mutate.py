@@ -396,7 +396,8 @@ def _plan(capsys, extra):
 def test_modules_no_test_reaches_are_run_as_nothing_exported_as_unreached_and_named(
     tmp_path, monkeypatch, capsys
 ):  # fmt: skip
-    """receipts/worker.py runs only as a subprocess: no test file imports or maps to it."""
+    """A module no test file imports or maps to (one run only as a subprocess, say): the test
+    files are the test's own, none reaching it, so the rule holds whatever the suite reaches."""
     work = tmp_path / "work"
     monkeypatch.setattr(mutate, "WORK", work)
     monkeypatch.setattr(mutate, "COPY", work / "web" / "server")
@@ -405,6 +406,7 @@ def test_modules_no_test_reaches_are_run_as_nothing_exported_as_unreached_and_na
     monkeypatch.setattr(mutate, "BASELINE", tmp_path / "baseline")
     monkeypatch.setattr(mutate.paths, "WEB", tmp_path)
     monkeypatch.setattr(mutate, "make_copy", lambda: pytest.fail("no copy without tests"))
+    monkeypatch.setattr(mutate, "fast_tests", lambda: [])
     (tmp_path / "map.json").write_text("{}")
     worker = "moolakata/receipts/worker.py"
     assert mutate.main(["run", worker, "--map", str(tmp_path / "map.json")]) == 0
