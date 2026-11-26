@@ -1363,6 +1363,39 @@
         "title": "AlertRow",
         "type": "object"
       },
+      "AllocationSlice": {
+        "additionalProperties": false,
+        "description": "One asset class of the allocation (S5.2.4): its value and its share in percent.",
+        "properties": {
+          "assetClass": {
+            "title": "Assetclass",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "examples": [
+              12.5
+            ],
+            "format": "decimal",
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "assetClass",
+          "value",
+          "weight"
+        ],
+        "title": "AllocationSlice",
+        "type": "object"
+      },
       "Allowed": {
         "additionalProperties": false,
         "description": "What the reader may do with a category now (S7.2.3).",
@@ -5337,6 +5370,13 @@
       "Dashboard": {
         "additionalProperties": false,
         "properties": {
+          "allocation": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationSlice"
+            },
+            "title": "Allocation",
+            "type": "array"
+          },
           "attention": {
             "items": {
               "$ref": "#/components/schemas/Attention"
@@ -5436,6 +5476,7 @@
           "cashAccounts",
           "lastUpdated",
           "groups",
+          "allocation",
           "attention",
           "upcoming",
           "budget"
@@ -18741,6 +18782,13 @@
       "PortfolioHoldings": {
         "additionalProperties": false,
         "properties": {
+          "allocation": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationSlice"
+            },
+            "title": "Allocation",
+            "type": "array"
+          },
           "capitalAtRisk": {
             "anyOf": [
               {
@@ -18813,7 +18861,8 @@
           "cash",
           "total",
           "optionsValue",
-          "capitalAtRisk"
+          "capitalAtRisk",
+          "allocation"
         ],
         "title": "PortfolioHoldings",
         "type": "object"

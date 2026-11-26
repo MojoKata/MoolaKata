@@ -1215,7 +1215,7 @@ SCREENS.dashboard = (param) => {
   const sum = (g) => accts.filter((a) => a.group === g).reduce((s, a) => s + a.bal, 0);
   const assets = ['banking', 'investing', 'retirement', 'education', 'crypto', 'other'].reduce((s, g) => s + sum(g), 0), liab = sum('liability');
   const alloc = [
-    { name: 'US stocks', v: 412000, color: 'var(--c1)' }, { name: 'Intl stocks', v: 96000, color: 'var(--c5)' },
+    { name: 'US stocks', v: 412000, color: 'var(--c1)' }, { name: 'International stocks', v: 96000, color: 'var(--c5)' },
     { name: 'Bonds', v: 88000, color: 'var(--c3)' }, { name: 'Cash', v: 72000, color: 'var(--c2)' },
     { name: 'Crypto', v: 59680, color: 'var(--c4)' }, { name: 'Real estate', v: 640000, color: 'var(--c8)' },
   ];
@@ -1231,7 +1231,7 @@ SCREENS.dashboard = (param) => {
     <div class="card"><h3>Net Worth<span class="spacer"></span>${rangeChips()}</h3>
       ${lineChart({ labels: rangeSlice(MONTHS), series: [{ name: 'Net worth', color: 'var(--accent)', values: rangeSlice(NETWORTH) }] })}
     </div>
-    <div class="card"><h3>Allocation<span class="spacer"></span><a data-go="portfolios/all">Details</a></h3>
+    <div class="card" data-help="allocation"><h3>Allocation<span class="spacer"></span><a data-go="portfolios/all">Details</a></h3>
       <div class="split">${donut(alloc, 140)}${legend(alloc, true)}</div>
     </div>
   </div>
@@ -1589,7 +1589,15 @@ function portfolioPage(id) {
     <div class="card mt"><h3>Returns by Period</h3><div class="table-wrap"><table class="t"><thead><tr><th>Account</th><th class="num">1M</th><th class="num">3M</th><th class="num">YTD</th><th class="num">1Y</th><th class="num">3Y (Ann.)</th><th class="num">5Y (Ann.)</th></tr></thead><tbody>
       ${[['Individual Brokerage', 1.8, 4.2, 15.1, 17.2, 11.4, 12.9], ['Options Account', -1.3, 2.4, 9.8, 11.0, 8.2, null], ['Roth IRA', 1.5, 3.9, 14.0, 15.8, 10.9, 12.2], ['Rollover IRA', 1.1, 3.1, 11.6, 13.0, 9.1, 10.4], ['Cold storage', -3.1, 12.4, 31.2, 58.0, 41.8, 38.0]].map((r) => `<tr><td>${r[0]}</td>${r.slice(1).map((v) => `<td class="num">${v == null ? '<span class="dim">—</span>' : pct(v)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div></div>`;
-  else body = holdingsTable(id === 'all' ? PORTFOLIO_OTHERS : []);
+  else {
+    // Its allocation by asset class (S5.2.4), above the holdings.
+    const alloc = [
+      { name: 'US stocks', v: 318400, color: 'var(--c1)' }, { name: 'International stocks', v: 74200, color: 'var(--c5)' },
+      { name: 'Bonds', v: 88000, color: 'var(--c3)' }, { name: 'Cash', v: 31240, color: 'var(--c2)' },
+      { name: 'Crypto', v: 13300, color: 'var(--c4)' },
+    ];
+    body = `<div class="card" data-help="allocation"><h3>Allocation</h3><div class="split">${donut(alloc, 140)}${legend(alloc, true)}</div></div><div class="mt">${holdingsTable(id === 'all' ? PORTFOLIO_OTHERS : [])}</div>`;
+  }
   return `<div class="toolbar"><div class="tile t-${id === 'mom' ? 'linked' : 'investing'}">${icon(id === 'mom' ? 'link' : 'pie')}</div><b style="font-size:16px">${esc(name)}</b>${id === 'mom' ? statePill('linked · read', 'Shared from doe-parents, read only, as of 2 h ago.', 'info') : ''}<span class="spacer"></span>${id === 'mom' ? '' : `<button class="btn" data-act="dlg" data-v="share" data-name="${esc(name)}" data-kind="portfolio">${icon('share')} Share</button><button class="btn" data-act="dlg" data-v="newPortfolio">Edit Accounts</button>`}</div>${bar}${body}`;
 }
 
@@ -2965,7 +2973,7 @@ const GUIDES = {
     <h2 ${hid('Type RESET')}>Type RESET</h2><p>In capitals, to confirm.</p>`,
   dashboard: `<h1>Dashboard</h1><p>Where you land after signing in: what you’re worth, how it’s moving, and what needs your attention.</p><div class="shot">screenshot · dashboard</div>
     <h2 id="h-net-worth">Net Worth</h2><p>Assets minus liabilities, across your accounts and the shared accounts you’ve set to <b>Count in my totals</b>. The chart’s range buttons choose the period; hover for a month’s figure.</p>
-    <h2 id="h-allocation">Allocation</h2><p>What your money is in, by asset class. <b>Details</b> opens your <i>All my accounts</i> portfolio.</p>
+    <h2 id="h-allocation">Allocation</h2><p>What your accounts that count in net worth hold, by asset class: cash, bonds, US stocks, international stocks, real estate, crypto and metals, each holding in the class a projection grows it by; a home or land is real estate, and any other item, such as a car, or an option is <i>other</i>. What you owe, on a loan or a card, takes no share. <b>Details</b> opens your <i>All my accounts</i> portfolio.</p>
     <h2 id="h-budget">Budget</h2><p>The budget you follow, this month: what was spent against what was planned. Open it for the rest. In an envelope budget, spending charged to a card beyond what its envelope held counts as spent and is named: <i>on cards, not backed</i>.</p>
     <h2 id="h-needs-attention">Needs Attention</h2><p>Options expiring within a week, uncategorised transactions, receipts in the inbox, lots without a cost basis, a year whose realized gains changed after its federal return was filed, an occasion coming up with nothing bought yet, giving behind the even pace to its target, a holding still valued from an old statement, items valued over a year ago, and a connection that needs a sign-in or is failing. Admins also see a price source failing for longer than Settings › Alerts allows.</p>
     <h2 id="h-upcoming">Upcoming</h2><p>Recurring transactions expected in the coming month, soonest first: each with its next date, how often it comes, and its usual amount. They’re found in your cash and card accounts’ history, as a budget’s Recurring tab finds them; one that has stopped coming is left out.</p>
@@ -3229,6 +3237,7 @@ const GUIDES = {
   portfolios: `<h1>Portfolios</h1><p>Named groups of accounts, charted as one: value against a benchmark, returns, and holdings.</p><div class="shot">screenshot · portfolio</div>
     <h2 id="h-time-weighted-return">Time-Weighted Return</h2><p>How the investments did, ignoring when you added or took out money. Use it to compare with a benchmark.</p>
     <h2 id="h-money-weighted">Money-Weighted (IRR)</h2><p>How <i>your</i> money did, counting when you added it.</p>
+    <h2 id="h-allocation">Allocation</h2><p>What the portfolio holds, by asset class: cash, bonds, US stocks, international stocks, real estate, crypto and metals, each holding in the class a projection grows it by; a home or land is real estate, and any other item, such as a car, or an option is <i>other</i>. What you owe, on a loan or a card, takes no share.</p>
     <h2>Holdings</h2><p>What the accounts hold, added up by instrument, with each loan and item on a row of its own: a loan what is still owed, an item what it is worth. The total is the portfolio’s value. A weight is a share of what is held; a loan takes none.</p>`,
   positions: `<h1>Positions</h1><p>What you hold, from open to closed, with gains and losses. Options included.</p><div class="shot">screenshot · positions</div>
     <h2>Strategies</h2><p>Legs held together, such as a covered call or an iron condor, shown as one with their credit (or cost, negative), P/L, max profit and loss and breakevens at expiry. A contract adjusted to deliver another company’s shares counts them at that company’s price; with no price for them, the figures read <i>not priced</i>. Legs opened together on one underlying are offered as a strategy, and so is a short call against the shares it delivers, held, the shares a merger brought included; you can group legs by hand or undo a group. A leg closed and another opened the same day can stay in the group as a roll. Grouping is a label: lots, gains and wash sales stay per leg.</p>

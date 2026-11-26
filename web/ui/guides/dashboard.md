@@ -25,6 +25,15 @@ In an envelope budget, spending charged to a card beyond what its envelope held 
 is named: *on cards, not backed*.
 Without one, the count of what needs attention shows here instead.
 
+## Allocation
+
+What your accounts that count in net worth hold, by asset class: cash, bonds, US stocks,
+international stocks, real estate, crypto and metals, each holding in the class a projection
+grows it by; a home or land is real estate, and any other item, such as a car, or an option is
+*other*. What you owe, on a loan or a card, takes
+no share. **Details** opens *All my accounts*.
+**Show as table** lists each class's value and share.
+
 ## Range
 
 How far back the chart goes: a month, three months, this year, a year, five years, or everything.

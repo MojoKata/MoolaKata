@@ -319,6 +319,14 @@ class OtherHolding(Model):
     weight: Ratio | None
 
 
+class AllocationSlice(Model):
+    """One asset class of the allocation (S5.2.4): its value and its share in percent."""
+
+    assetClass: str
+    value: Money
+    weight: Ratio
+
+
 class PortfolioHoldings(Model):
     holdings: list[HoldingTotal]
     others: list[OtherHolding]  # loans and items, each its own row
@@ -327,6 +335,7 @@ class PortfolioHoldings(Model):
     optionsValue: Money | None  # its options' market value
     capitalAtRisk: Money | None  # beside it (S3.5.6)
     capitalAtRiskUnlimited: bool = False  # an open strategy's risk is unlimited
+    allocation: list[AllocationSlice]  # by asset class (S5.2.4)
 
 
 def _target(s, c: Caller, portfolio_id: str) -> tuple[Portfolio | None, list[Account], str]:
@@ -427,10 +436,12 @@ def portfolio_returns(portfolio_id: str, request: Request, c: Caller = Depends(c
 @router.get("/portfolios/{portfolio_id}/holdings", response_model=PortfolioHoldings)
 def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(caller)):
     """What the portfolio's visible accounts hold, added up by instrument."""
+    from .. import projections
     from ..store.entities.accounts import Instrument
 
     with server(request).db.read(user=c.id) as s:
         _, accounts, _ = _target(s, c, portfolio_id)
+        every: list[valuation.Part] = []
         by: dict[str, dict] = {}
         others: list[tuple[valuation.Part, Account]] = []
         cash = Decimal(0)
@@ -446,6 +457,7 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
                 opts, any_open = opts + v, any_open or held
                 risk = None if risk is None or r is None else risk + r
             for part in valuation.parts(s, led, investing):
+                every.append(part)
                 if part.kind == "cash":
                     cash += part.value
                     continue
@@ -529,4 +541,8 @@ def portfolio_holdings(portfolio_id: str, request: Request, c: Caller = Depends(
             optionsValue=opts if any_open else None,
             capitalAtRisk=risk if any_open else None,
             capitalAtRiskUnlimited=any_open and risk is None,
+            allocation=[
+                AllocationSlice(assetClass=k, value=v, weight=w)
+                for k, v, w in projections.allocation(s, every)
+            ],
         )

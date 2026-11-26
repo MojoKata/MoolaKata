@@ -218,6 +218,14 @@
  */
 
 /**
+ * One asset class of the allocation (S5.2.4): its value and its share in percent.
+ * @typedef {Object} AllocationSlice
+ * @property {string} assetClass
+ * @property {import('../kit/dec.js').Dec} value
+ * @property {import('../kit/dec.js').Dec} weight
+ */
+
+/**
  * What the reader may do with a category now (S7.2.3).
  * @typedef {Object} Allowed
  * @property {boolean} rename
@@ -934,6 +942,7 @@
  * @property {number} cashAccounts
  * @property {(string | null)} lastUpdated
  * @property {Array<GroupTotal>} groups
+ * @property {Array<AllocationSlice>} allocation
  * @property {Array<Attention>} attention
  * @property {Array<Upcoming>} upcoming
  * @property {(BudgetCard | null)} budget
@@ -3247,6 +3256,7 @@
  * @property {(import('../kit/dec.js').Dec | null)} optionsValue
  * @property {(import('../kit/dec.js').Dec | null)} capitalAtRisk
  * @property {boolean} [capitalAtRiskUnlimited]
+ * @property {Array<AllocationSlice>} allocation
  */
 
 /**

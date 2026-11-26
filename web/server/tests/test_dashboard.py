@@ -1,6 +1,7 @@
-"""The Dashboard (requirements S12.2.1): the recurring transactions coming up, and what needs
-attention beyond what test_figures covers: giving behind its pace, stale valuations, and
-sources that need attention."""
+"""The Dashboard (requirements S12.2.1): the allocation by asset class (with a portfolio's,
+S5.2.4), the recurring transactions coming up, and what needs attention beyond what
+test_figures covers: giving behind its pace, stale valuations, and sources that need
+attention."""
 
 import datetime as dt
 
@@ -43,6 +44,74 @@ def made(r) -> dict:
 
 def attention(c, kind: str) -> list[dict]:
     return [a for a in dash(c)["attention"] if a["kind"] == kind]
+
+
+# ---- Allocation (S5.2.4) ----
+
+
+def test_an_allocation_puts_each_part_in_its_class_and_shares_what_is_held():
+    """Each holding in the class a projection grows it by (S6.4.2.2); a real-estate item real
+    estate, any other item and an option other; what is owed and a part with no price take no
+    share; the classes in their order, each with its share to a tenth."""
+    from decimal import Decimal as D
+    from types import SimpleNamespace as NS
+
+    from moolakata import projections
+
+    insts = {
+        "vxus": NS(instrumentClass="etf", symbol="VXUS", name="Total International Stock"),
+        "bnd": NS(instrumentClass="etf", symbol="BND", name="Total Bond Market"),
+        "vti": NS(instrumentClass="etf", symbol="VTI", name="Total Stock Market"),
+    }
+    s = NS(get=lambda _cls, i: insts[i])
+
+    def part(kind, value, iid=None, metal=None, type=""):
+        return NS(kind=kind, value=None if value is None else D(value), accountType=type,
+                  position=NS(instrumentId=iid), item=NS(metal=metal))  # fmt: skip
+
+    parts = [
+        part("security", "500", "vti"),
+        part("security", "200", "vxus"),
+        part("security", "100", "bnd"),
+        part("security", None, "vti"),  # no price: counts nothing
+        part("cash", "150"),
+        part("cash", "-250", type="credit-card"),  # a card's balance owed: no share
+        part("option", "-30"),  # a short option: no share
+        part("item", "300", type="real-estate"),
+        part("item", "40", metal="gold", type="precious-metals"),
+        part("item", "60", type="vehicle"),
+        part("option", "10"),
+        part("loan", "-900", type="mortgage"),
+    ]
+    assert projections.allocation(s, parts) == [
+        ("usStocks", D(500), D("36.8")),
+        ("intlStocks", D(200), D("14.7")),
+        ("bonds", D(100), D("7.4")),
+        ("cash", D(150), D("11.0")),
+        ("realEstate", D(300), D("22.1")),
+        ("metals", D(40), D("2.9")),
+        ("other", D(70), D("5.1")),
+    ]
+    assert projections.allocation(s, [part("cash", "-5"), part("loan", "-9")]) == []
+
+
+def test_the_dashboard_and_a_portfolio_show_the_allocation_of_what_they_hold(server, jane):
+    new_account(jane, openingBalance="1000.00", openingDate="2026-01-01")
+    new_account(
+        jane, name="Card", type="credit-card", mask="5555", openingBalance="-200.00",
+        openingDate="2026-01-01",
+    )  # fmt: skip
+    home = new_account(jane, name="Home", type="real-estate")
+    made(make(jane, "Item", accountId=home["id"], name="House", acquiredOn="2024-01-10",
+              costBasis="3000"))  # fmt: skip
+    want = [
+        {"assetClass": "cash", "value": "1000.00", "weight": "25.0"},
+        {"assetClass": "realEstate", "value": "3000.00", "weight": "75.0"},
+    ]
+    assert dash(jane)["allocation"] == want
+    got = jane.get("/ui/api/portfolios/all/holdings")
+    assert got.status_code == 200, got.text
+    assert got.json()["allocation"] == want
 
 
 # ---- Upcoming (S7.5, S12.2.1) ----

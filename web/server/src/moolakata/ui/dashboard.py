@@ -7,7 +7,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import false, func, select
 
-from .. import access, budgets, figures, valuation
+from .. import access, budgets, figures, projections, valuation
 from ..ledger import expected, reconcile
 from ..ledger import types as atypes
 from ..prices import refresh as pricing
@@ -17,6 +17,7 @@ from ..store.entities.budgets import Budget
 from ..store.repos import ledger as repo
 from .conventions import ExactRoute, Model, Money
 from .deps import Caller, caller, server
+from .portfolios import AllocationSlice
 from .sharing import counted_for
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["dashboard"])
@@ -73,6 +74,7 @@ class Dashboard(Model):
     cashAccounts: int
     lastUpdated: dt.datetime | None
     groups: list[GroupTotal]
+    allocation: list[AllocationSlice]  # over the net-worth accounts (S5.2.4)
     attention: list[Attention]
     upcoming: list[Upcoming]
     budget: BudgetCard | None
@@ -103,12 +105,14 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
         mine = figures.net_worth_accounts(s, c.id, counted_for(s, c.id))
         # Each account's ledger is loaded once and valued on the four days the screen needs.
         values: dict[str, dict[str, Decimal]] = {}
+        held: list[valuation.Part] = []
         for a in mine:
             ledger = repo.load(s, a)
             investing = atypes.investing(a.type)
             values[a.id] = {
                 k: valuation.account_value(s, ledger, investing, d) for k, d in days.items()
             }
+            held += valuation.parts(s, ledger, investing, today)
 
         def total(accounts: list, key: str = "now") -> Decimal:
             return sum((values[a.id][key] for a in accounts), Decimal(0))
@@ -161,6 +165,10 @@ def dashboard(request: Request, c: Caller = Depends(caller)):
                 )
                 for g in atypes.GROUP_ORDER
                 if g in groups
+            ],
+            allocation=[
+                AllocationSlice(assetClass=k, value=v, weight=w)
+                for k, v, w in projections.allocation(s, held)
             ],
             attention=attention,
             upcoming=_upcoming(s, mine, today),

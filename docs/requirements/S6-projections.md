@@ -100,7 +100,8 @@
       2. **The mix** comes from the holdings of what it is built on: cash and money-market
          funds are cash, bonds and bond funds bonds, crypto crypto, metals metals (precious-
          metal items too, at spot); other funds and shares are US stocks unless their name says
-         international, emerging or real estate. A typed amount gives its own mix (60/40
+         international, emerging or real estate. An allocation shows the same classes
+         (S5.2.4). A typed amount gives its own mix (60/40
          stocks and bonds unless set). A loan, an item other than a precious metal (a home, a
          car) and options aren't grown: the projection leaves them out of its start and its
          tracking alike and names each, with its value, under its chart, to a viewer only where

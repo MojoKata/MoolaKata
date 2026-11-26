@@ -11,7 +11,7 @@ import { Amt } from '../kit/amount.js';
 import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { GROUP_LABELS, Tile } from '../components/groups.js';
 import { Icon } from '../kit/icon.js';
-import { RANGES, TimeChart } from '../charts/chart.js';
+import { AllocationChart, RANGES, TimeChart } from '../charts/chart.js';
 import { openDialog } from '../kit/dialog.js';
 import { NewAccount } from './new-account.js';
 import { num } from '../kit/dec.js';
@@ -101,7 +101,8 @@ export default function Dashboard() {
           </div>
         `}
     </div>
-    <div class="card mt"><h3>Net Worth<span class="spacer"></span><${Chips} label="Range"
+    <div class="grid g-main mt">
+      <div class="card"><h3>Net Worth<span class="spacer"></span><${Chips} label="Range"
       value=${range} onChange=${setRange} options=${RANGES} /></h3>
       ${s
         ? html`<${TimeChart} label="Net worth over time, by account group" series=${
@@ -116,6 +117,13 @@ export default function Dashboard() {
           }))
         } />`
         : html`<${Loading} lines=${4} />`}
+      </div>
+      <div class="card" data-help="allocation"><h3>Allocation<span class="spacer"></span><a
+      class="small" href="/ui/portfolios/all/holdings">Details</a></h3>
+      ${d.allocation.length
+        ? html`<${AllocationChart} label="What your accounts hold, by asset class" slices=${d.allocation} />`
+        : html`<${Empty}>Nothing held yet</${Empty}>`}
+      </div>
     </div>
     <div class="grid g-main mt">
       <div class="card"><h3>Accounts<span class="spacer"></span><button type="button" class="btn sm"
