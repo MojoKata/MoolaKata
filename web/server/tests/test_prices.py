@@ -977,6 +977,61 @@ def test_a_refresh_asks_each_source_for_what_is_missing_and_stores_it(server, mo
             MONDAY, MONDAY, None)  # fmt: skip
 
 
+def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_later_run(
+    server, monday
+):
+    """S4.4, S13.4: a source whose limits would hold the refresh past LONGEST_WAIT is set aside
+    for the rest of it, what it would price tried with the next source; the refresh asks to
+    run again once the limits allow, and that run picks up what was left. A source set aside
+    before any call has not run."""
+    import threading
+
+    from moolakata.store.repos import secrets as secret_repo
+    from moolakata.tasks import ProviderLimits, TaskContext
+
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        keyed = r.source("keyed-test", {"etf": 1})
+        secret_repo.put(s, server.keys.secrets, "PriceSource", keyed.id, "apiKey", "k", None)
+        acct = r.account()
+        etfs = [r.inst(f"E{k}", "etf") for k in range(3)]
+        for e in etfs:
+            r.txn(acct, e, _d(10, 1))
+    ANSWERS.update({f"E{k}": [(D0, D(10 + k))] for k in range(4)})  # up to date once asked
+    asked = []
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {"stored": 2, "unpriced": 0}  # two calls an hour
+    assert len(CALLS) == 2 and asked == [pytest.approx(3600, abs=5)]
+    CALLS.clear()
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {"stored": 1, "unpriced": 0}  # the one left
+    [(_, left, _, _)] = CALLS
+    assert left.symbol in {"E0", "E1", "E2"} and len(asked) == 1
+    with server.db.read(unscoped="test") as s:
+        assert set(pricing.stored_closes(s, [e.id for e in etfs], D0)) == {e.id for e in etfs}
+    # Its window already full when the refresh starts: set aside at once, never run, and the
+    # next source prices it.
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        rec = r.source("recorder-test", {"etf": 2})
+        e3 = r.inst("E3", "etf")
+        r.txn(r.account(), e3, _d(10, 1))
+        s.get(PriceSource, keyed.id).lastRunAt = None
+    CALLS.clear()
+    limits = ProviderLimits()
+    limits.set("keyed-test", Keyed.limits)
+    assert [limits.delay("keyed-test") for _ in range(2)] == [0, 0]
+    ctx = TaskContext("prices", threading.Event(), limits, again=asked.append)
+    assert pricing.refresh(server, ctx) == {"stored": 1, "unpriced": 0}
+    [call] = CALLS
+    assert call == ("recorder-test", Ref(e3.id, "E3", "etf"), _d(9, 24), D0)
+    assert len(asked) == 2
+    with server.db.read(unscoped="test") as s:
+        rows = {x.id: x for x in s.scalars(select(PriceSource))}
+    assert (rows[keyed.id].lastRunAt, rows[keyed.id].lastError) == (None, None)
+    assert rows[rec.id].lastOkAt == MONDAY
+
+
 def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, caplog):
     """S4.4: each failure falls back to the next source; one that answers once is ok, with no
     error kept; an answer a source couldn't read is logged, a source's own failure isn't; a

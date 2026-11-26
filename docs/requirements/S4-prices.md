@@ -42,7 +42,9 @@
    transaction and at most five years back. SPY, VT and BND are always loaded, as the
    benchmarks (S5.2.1). **Refresh prices** does the same on demand. Requests are spread to
    stay inside each source's limits (Tiingo's 50 an hour means a few hours for a large
-   household). A source that fails falls back to the next one
+   household): a refresh that would wait more than five minutes on a source's limits sets that
+   source aside for the rest of it, tries the next one for that class, and runs again once the
+   limits allow, picking up what was left. A source that fails falls back to the next one
    for that class; Settings shows the last error, and a failure lasting past the alert
    threshold raises an alert (S12.11). Intraday quotes are not fetched.
 5. **Option marks**: the day's close from the source that serves options, else manual or
