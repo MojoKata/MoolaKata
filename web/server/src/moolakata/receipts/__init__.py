@@ -383,13 +383,9 @@ TARGETS = {
 
 
 def _account_of(s: Session, ln: ReceiptLink) -> Account | None:
-    """The live account a link's transaction, item or expense is in, or its account."""
-    if ln.kind == "account":
-        a = s.get(Account, ln.itemId)
-    else:
-        entity = {"transaction": Transaction, "item": Item, "expense": QualifiedExpense}[ln.kind]
-        x = s.get(entity, ln.itemId)
-        a = s.get(Account, x.accountId) if x is not None and not x.deleted else None
+    """The live account a link's transaction is in."""
+    x = s.get(Transaction, ln.itemId)
+    a = s.get(Account, x.accountId) if x is not None and not x.deleted else None
     return a if a is not None and not a.deleted else None
 
 
@@ -411,7 +407,8 @@ def target(s: Session, user_id: str, kind: str, item_id: str) -> access.Perms | 
 
 
 def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id: str):
-    """A draft's link (S13.8.11): onto what the user can change, once (S9.3)."""
+    """A draft's link (S13.8.11): onto what the user can change, once (S9.3). The save's
+    creation rule has refused a target missing or read only (`may_create`)."""
     ln = ReceiptLink(
         id=link_id,
         receiptId=r.id,
@@ -420,11 +417,6 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
         createdAt=clock.now(),
         linkedById=user_id,
     )
-    p = target(s, user_id, kind, item_id)
-    if p is None:
-        raise refuse("itemId", "not-found", "That is not there.", 404)
-    if not p.writable:
-        raise refuse("itemId", "read-only", "That is shared with you to read.", 403)
     have = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
     if have is not None and not have.deleted:
         raise refuse("itemId", "already-attached", "The receipt is attached to that already.", 409)
@@ -434,17 +426,9 @@ def link(s: Session, user_id: str, r: Receipt, kind: str, item_id: str, link_id:
 
 
 def unlink(s: Session, user_id: str, ln: ReceiptLink) -> None:
-    """A link taken away by whoever can change what it names, or, once that is gone, by the
-    receipt's owner."""
-    p = target(s, user_id, ln.kind, ln.itemId)
-    owner = s.scalars(
-        scoping.unscoped(
-            select(Receipt.ownerId).where(Receipt.id == ln.receiptId), "a receipt's owner"
-        )
-    ).first()
-    if p is None and owner != user_id:
-        raise Problem(404, "not-found", "Not found")
-    if p is not None and not p.writable:
+    """A link taken away by whoever can change what it names: one the user loads names
+    something they read (ReceiptLinkAccess)."""
+    if not target(s, user_id, ln.kind, ln.itemId).writable:
         raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     ln.mark_deleted(user_id, clock.now())
 
@@ -469,27 +453,23 @@ def attach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") 
     """A photo or document of a physical-asset item (S1.10.1), or a qualified expense's
     receipt (S1.8.3): kept with it, in the item's account."""
     access.account(s, user_id, item.accountId, "write")
-    row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
-    if row is None:
-        s.add(
-            ReceiptLink(
-                receiptId=r.id,
-                kind=kind,
-                itemId=item.id,
-                createdAt=clock.now(),
-                linkedById=user_id,
-            )
+    # Called for a receipt not kept with it (its draft's set less every live link): a user's
+    # session reads no deleted link, so one put back is a new link.
+    s.add(
+        ReceiptLink(
+            receiptId=r.id,
+            kind=kind,
+            itemId=item.id,
+            createdAt=clock.now(),
+            linkedById=user_id,
         )
-    elif row.deleted:
-        row.restore()
+    )
     s.flush()
 
 
 def detach_item(s: Session, user_id: str, r: Receipt, item, kind: str = "item") -> None:
     access.account(s, user_id, item.accountId, "write")
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item.id)
-    if row is None or row.deleted:
-        raise Problem(404, "not-found", "The receipt is not kept with that.")
     row.mark_deleted(user_id, clock.now())
 
 
@@ -510,13 +490,9 @@ def of_item(s: Session, item_id: str, kind: str = "item") -> list[Receipt]:
 
 
 def detach_kept(s: Session, user_id: str, r: Receipt, kind: str, item_id: str) -> None:
-    """A receipt's link to a gift or a donation, by someone who can change that (S9.6)."""
+    """A receipt's link to a gift or a donation, by someone who can change that (S9.6): the
+    save has checked they may."""
     row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
-    if row is None or row.deleted or kind not in ("gift", "donation"):
-        raise Problem(404, "not-found", "The receipt is not kept with that.")
-    held = target(s, user_id, kind, item_id)
-    if held is None or not held.writable:
-        raise Problem(403, "read-only", "Only who can change it can take its receipt away.")
     row.mark_deleted(user_id, clock.now())
 
 
@@ -525,19 +501,17 @@ def keep_set(s: Session, user_id: str, kind: str, item_id: str, was, now) -> Non
     attached, those taken away detached."""
     for receipt_id in sorted(set(now) - set(was)):
         r = to_attach(s, user_id, receipt_id, "receiptIds")
-        row = by_key(s, ReceiptLink, receiptId=r.id, kind=kind, itemId=item_id)
-        if row is None:
-            s.add(
-                ReceiptLink(
-                    receiptId=r.id,
-                    kind=kind,
-                    itemId=item_id,
-                    createdAt=clock.now(),
-                    linkedById=user_id,
-                )
+        # Not kept with it (`was` is every live link); a user's session reads no deleted
+        # link, so one put back is a new link.
+        s.add(
+            ReceiptLink(
+                receiptId=r.id,
+                kind=kind,
+                itemId=item_id,
+                createdAt=clock.now(),
+                linkedById=user_id,
             )
-        elif row.deleted:
-            row.restore()
+        )
     for receipt_id in sorted(set(was) - set(now)):
         r, _ = get(s, user_id, receipt_id)
         detach_kept(s, user_id, r, kind, item_id)

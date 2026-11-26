@@ -366,9 +366,7 @@ class Reader:
             outcome = ("error", f"its file can't be opened ({type(e).__name__})")
         self.last_run = clock.now()
         with srv.db.tx(unscoped="receipts.reading: read one") as s:
-            r = s.get(Receipt, rid)
-            if r is None:
-                return
+            r = s.get(Receipt, rid)  # a receipt row is never removed
             if thumb is not None and r.thumbnail is None:
                 r.thumbnail = thumb
             if outcome[0] == "ok":

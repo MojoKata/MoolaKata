@@ -124,6 +124,8 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
     from ..store.entities.giving import Donation, Organisation
     from ..store.entities.taxes import TaxBook
 
+    # A user's session reads no link to a deleted record, nor a tax document of a deleted
+    # book (ReceiptLinkAccess, TaxDocumentAccess).
     out = []
     for ln in receipts.links(s, r.id):
         if ln.kind in ("item", "expense"):
@@ -166,8 +168,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             continue
         if ln.kind in ("gift", "donation"):
             thing = s.get(Gift if ln.kind == "gift" else Donation, ln.itemId)
-            if thing is None or thing.deleted:
-                continue
             if ln.kind == "gift":
                 label = f"The gift {thing.description}"
                 when, amount = None, thing.cost
@@ -191,8 +191,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
             )
             continue
         t = s.get(Transaction, ln.itemId)
-        if t is None or t.deleted:
-            continue
         a = s.get(Account, t.accountId)
         out.append(
             LinkOut(
@@ -210,8 +208,6 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
         )
     for doc in receipts.on_tax_documents(s, r.id):
         book = s.get(TaxBook, doc.bookId)
-        if book is None or book.deleted:
-            continue
         out.append(
             LinkOut(
                 id=None,

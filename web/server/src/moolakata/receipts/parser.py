@@ -6,7 +6,7 @@ confidence. Rules, not a model, and tested on their own.
 import datetime as dt
 import re
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 MONTHS = {
     m: i + 1
@@ -88,13 +88,8 @@ class Fields:
 
 
 def amounts(line: str) -> list[Decimal]:
-    out = []
-    for m in AMOUNT.finditer(line):
-        try:
-            out.append(Decimal(m.group(1).replace(",", "") + "." + m.group(2)))
-        except InvalidOperation:
-            continue
-    return out
+    # AMOUNT's groups are digits (any script's, which Decimal reads too), so each is a number.
+    return [Decimal(m.group(1).replace(",", "") + "." + m.group(2)) for m in AMOUNT.finditer(line)]
 
 
 def join_split_amounts(line: str) -> str:
