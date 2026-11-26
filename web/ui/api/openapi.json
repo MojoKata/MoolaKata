@@ -5418,6 +5418,13 @@
             "format": "money",
             "title": "Networth",
             "type": "number"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/Upcoming"
+            },
+            "title": "Upcoming",
+            "type": "array"
           }
         },
         "required": [
@@ -5430,6 +5437,7 @@
           "lastUpdated",
           "groups",
           "attention",
+          "upcoming",
           "budget"
         ],
         "title": "Dashboard",
@@ -27674,6 +27682,41 @@
           "spent"
         ],
         "title": "Unplanned",
+        "type": "object"
+      },
+      "Upcoming": {
+        "additionalProperties": false,
+        "description": "A recurring transaction's next date (S7.5), on the Dashboard's Upcoming card.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "every": {
+            "title": "Every",
+            "type": "string"
+          },
+          "payee": {
+            "title": "Payee",
+            "type": "string"
+          }
+        },
+        "required": [
+          "payee",
+          "date",
+          "every",
+          "amount"
+        ],
+        "title": "Upcoming",
         "type": "object"
       },
       "UpcomingOut": {

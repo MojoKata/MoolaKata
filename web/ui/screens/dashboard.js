@@ -1,9 +1,10 @@
 // The Dashboard (requirements S12.2.1): net worth and its change, the net-worth chart with its
-// composition by account group, the accounts by group, and what needs attention.
+// composition by account group, the accounts by group, what needs attention, and the recurring
+// transactions coming up.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { ago } from '../kit/format.js';
+import { ago, date } from '../kit/format.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
 import { Amt } from '../kit/amount.js';
@@ -151,9 +152,35 @@ export default function Dashboard() {
           )
           : html`<${Empty}>Nothing needs you right now</${Empty}>`}
       </div>
+        ${d.upcoming.length
+          ? html`
+            <div class="card" data-help="upcoming"><h3>Upcoming</h3>
+              ${d.upcoming.map((/** @type {any} */ u) =>
+                html`
+                  <div class="list-item">
+                    <div class="grow small">${u.payee}<div class="dim">${date(u.date, {
+                      year: false,
+                    })} · ${rhythm(u.every)}</div></div>
+                    <${Amt} v=${u.amount} signed />
+                  </div>
+                `
+              )}
+            </div>
+          `
+          : null}
       </div>
     </div>
   `;
+}
+
+/** A series' rhythm as the Upcoming card words it: *monthly*, *every 2 weeks*. */
+function rhythm(/** @type {string} */ every) {
+  return /** @type {Record<string, string>} */ ({
+    week: 'weekly',
+    month: 'monthly',
+    quarter: 'quarterly',
+    year: 'yearly',
+  })[every] || (every === 'twice a month' ? every : `every ${every}`);
 }
 
 const TONE =

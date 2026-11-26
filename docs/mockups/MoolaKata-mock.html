@@ -1251,7 +1251,7 @@ SCREENS.dashboard = (param) => {
         <div class="list-item">${icon('heart')}<div class="grow small">Giving is ${money(GIVING_PACE.behind, { cents: false })} behind pace <span class="dim">· ${GIVING_PACE.pct}% of the target</span></div><a data-go="giving">See</a></div>
         <div class="list-item">${icon('gem')}<div class="grow small">2 collectable valuations over a year old</div><a data-go="account/collect">Update</a></div>
       </div>
-      <div class="card"><h3>Upcoming</h3>
+      <div class="card" data-help="upcoming"><h3>Upcoming</h3>
         <div class="list-item"><div class="grow small">Acme Corp Payroll<div class="dim">Oct 21 · every 2 weeks</div></div>${signed(4820)}</div>
         <div class="list-item"><div class="grow small">Rocket Mortgage<div class="dim">Nov 1 · monthly</div></div>${signed(-2410.77)}</div>
         <div class="list-item"><div class="grow small">Netflix<div class="dim">Nov 5 · monthly</div></div>${signed(-15.49)}</div>
@@ -2967,7 +2967,8 @@ const GUIDES = {
     <h2 id="h-net-worth">Net Worth</h2><p>Assets minus liabilities, across your accounts and the shared accounts you’ve set to <b>Count in my totals</b>. The chart’s range buttons choose the period; hover for a month’s figure.</p>
     <h2 id="h-allocation">Allocation</h2><p>What your money is in, by asset class. <b>Details</b> opens your <i>All my accounts</i> portfolio.</p>
     <h2 id="h-budget">Budget</h2><p>The budget you follow, this month: what was spent against what was planned. Open it for the rest. In an envelope budget, spending charged to a card beyond what its envelope held counts as spent and is named: <i>on cards, not backed</i>.</p>
-    <h2 id="h-needs-attention">Needs Attention</h2><p>Options expiring within a week, uncategorised transactions, receipts in the inbox, lots without a cost basis, and a year whose realized gains changed after its federal return was filed.</p>
+    <h2 id="h-needs-attention">Needs Attention</h2><p>Options expiring within a week, uncategorised transactions, receipts in the inbox, lots without a cost basis, a year whose realized gains changed after its federal return was filed, an occasion coming up with nothing bought yet, giving behind the even pace to its target, a holding still valued from an old statement, items valued over a year ago, and a connection that needs a sign-in or is failing. Admins also see a price source failing for longer than Settings › Alerts allows.</p>
+    <h2 id="h-upcoming">Upcoming</h2><p>Recurring transactions expected in the coming month, soonest first: each with its next date, how often it comes, and its usual amount. They’re found in your cash and card accounts’ history, as a budget’s Recurring tab finds them; one that has stopped coming is left out.</p>
     <blockquote>Values derived from prices show their age on hover. The dot by the time at the top turns amber when prices are stale.</blockquote>`,
   accounts: `<h1>Accounts</h1><p>Every account you own or that someone has shared with you, grouped by kind.</p><div class="shot">screenshot · accounts</div>
     <h2 id="h-filters">Filters</h2><p><b>Mine</b>, <b>Shared with me</b> (an eye for read, a pencil for write), and <b>Shared by me</b>.</p>

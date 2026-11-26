@@ -935,6 +935,7 @@
  * @property {(string | null)} lastUpdated
  * @property {Array<GroupTotal>} groups
  * @property {Array<Attention>} attention
+ * @property {Array<Upcoming>} upcoming
  * @property {(BudgetCard | null)} budget
  */
 
@@ -4689,6 +4690,15 @@
  * @property {string} categoryId
  * @property {string} label
  * @property {import('../kit/dec.js').Dec} spent
+ */
+
+/**
+ * A recurring transaction's next date (S7.5), on the Dashboard's Upcoming card.
+ * @typedef {Object} Upcoming
+ * @property {string} payee
+ * @property {string} date
+ * @property {string} every
+ * @property {import('../kit/dec.js').Dec} amount
  */
 
 /**
