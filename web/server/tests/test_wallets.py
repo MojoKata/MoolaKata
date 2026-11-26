@@ -733,6 +733,22 @@ def test_a_used_address_another_key_holds_counts_for_the_keys_gap(server, jane, 
     assert v["watched"] == 41, "receive 0 used: receive 1 to 20 past it, change 0 to 19"
 
 
+def test_a_descriptor_watches_the_chains_it_names(server, jane):
+    """S1.6.1.4: a descriptor's addresses are derived on its own chains only, and one the
+    wallet's extended key derives too is watched once."""
+    raw = keys.b58check_decode(ZPUB)
+    xpub = keys.b58check_encode(bytes.fromhex("0488b21e") + raw[4:])
+    receive = f"wpkh([73c5da0a/84'/0'/0']{xpub}/0/*)"
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], receive))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    assert v["keys"][0]["kind"] == "descriptor" and v["watched"] == 20
+    assert {a["chain"] for a in v["addresses"]} == {0}
+    assert v["addresses"][0]["address"] == FIRST
+    saved(wallet(jane, w["id"], f"{ZPUB}\n{receive}"))
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 40
+
+
 def test_one_wallet_failing_leaves_the_others_read(server, jane, monkeypatch):
     one = new_account(jane, name="One", type="crypto-wallet")
     two = new_account(jane, name="Two", type="crypto-wallet")
