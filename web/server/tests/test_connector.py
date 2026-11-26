@@ -684,6 +684,31 @@ def test_a_posted_statement_is_kept_without_reading_once(server, paired):
     c = sign_in(server, "jane")
     receipts = c.get("/ui/api/receipts").json()["items"]
     assert len(receipts) == 1 and receipts[0]["payee"].endswith("statement")
+    # No text layer to keep, and nothing queued: never *Reading…* until a restart (S1.3.3.6).
+    assert receipts[0]["readStatus"] == "off"
+
+
+def test_a_posted_statement_keeps_its_text_layer_read(server, paired):
+    """S1.3.3.6, S9.8.6: a statement kept without its lines read keeps what its text layer
+    gave, read and found, as an import's kept statement does; nothing waits to be read."""
+    from test_reading import text_pdf
+
+    from moolakata.receipts import reading
+
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane, driver="ofx-direct")
+    aid = account(server, jane, cid)
+    body, ctype = _multipart(text_pdf(["UMB BANK", "QUINCEBALANCE 12.00"]), {"connectionId": cid},
+                             name="umb-2026-09.pdf")  # fmt: skip
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 200, r.text
+    c = sign_in(server, "jane")
+    (got,) = c.get("/ui/api/receipts").json()["items"]
+    assert got["readStatus"] == "read" and got["amount"] is None
+    with server.db.read(unscoped="test") as s:
+        assert reading.search(s, "quincebalance") == {got["id"]}
 
 
 def test_the_owners_upload_limit_counts_the_connectors_posts(server, paired):

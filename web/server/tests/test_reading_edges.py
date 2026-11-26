@@ -247,6 +247,45 @@ def test_a_receipt_the_upload_couldnt_draw_is_drawn_as_it_is_read(server, jane, 
         assert s.get(Receipt, rid).thumbnail == b"RIFF....WEBP"
 
 
+def test_a_statement_is_read_again_as_a_statement_and_given_no_amount(server, jane):
+    """S9.8.6, S1.3.3.2: a statement kept on its account, read again (Read again, Re-read
+    all), is read with a statement's pages and time, not a receipt's three and one minute; its
+    text is kept and found, and nothing is filled from it: its date and name are its period's,
+    and its largest figure is no amount."""
+    import datetime as dt
+
+    from test_accounts import new_account
+
+    from moolakata import receipts
+    from moolakata.receipts import ocr
+
+    acct = new_account(jane)
+    rid = upload(jane, png((4, 5, 6))).json()["id"]
+    name = "UMB statement, Sep 1 – Sep 30, 2026"
+    with server.db.tx(unscoped="test") as s:
+        r = s.get(Receipt, rid)
+        receipts.attach_account(s, r.ownerId, r, acct["id"])
+        r.date, r.payee, r.amount, r.filled = dt.date(2026, 9, 30), name, None, "[]"
+        reading.read_again(s, r)
+    asked = []
+
+    def read(data, media, limit=reading.TIME_LIMIT, pages=None, *, user, check=False):
+        asked.append((limit, pages, check))
+        lines = ["UMB BANK", "ENDING BALANCE 14,210.55", "TOTAL 14,210.55", "10/02/2026"]
+        return ("ok", lines, "ocr", "e", None)
+
+    w = Worker()
+    w.read = read
+    Reader(server, workers=1).read_one(rid, w)
+    assert asked == [(reading.STATEMENT_TIME_LIMIT, ocr.STATEMENT_PAGES, False)]
+    with server.db.read(unscoped="test") as s:
+        r = s.get(Receipt, rid)
+        assert (r.readStatus, r.amount, r.date, r.payee) == ("read", None, dt.date(2026, 9, 30),
+                                                             name)  # fmt: skip
+        assert "ENDING BALANCE" in r.text and r.filled == "[]"
+        assert reading.search(s, "ending balance") == {rid}
+
+
 def test_a_receipt_deleted_or_pruned_mid_read_keeps_what_was_read_unsearched(server, jane):
     """S9.7, S14.10.5: deleted as it is read, its reading is kept on its row, never found by
     search; pruned, its reading is kept and found."""

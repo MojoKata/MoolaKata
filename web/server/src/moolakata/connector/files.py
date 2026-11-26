@@ -131,6 +131,7 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
     when a PDF's text layer gives one, and recorded as an import that adds nothing."""
     digest = hashlib.sha256(data).hexdigest()
     start = end = institution = None
+    lines = None
     if media == "application/pdf":
         try:
             # In the reader's worker, as the account's owner's file (S9.8.4.2).
@@ -157,6 +158,9 @@ def _keep(srv, c: Connection, a: Account, data: bytes, name: str, media: str) ->
         r.date = end
         r.payee = statements.name(institution or a.institution, start, end)
         receipts.attach_account(s, c.ownerId, r, a.id)
+        from ..receipts import reading
+
+        reading.kept_unread(s, r, lines, "text")
         from .. import ids
 
         s.add(
