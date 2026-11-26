@@ -24,8 +24,7 @@ transactions stay as they are.
 ## Gap limit
 
 How many unused addresses past the last used one are derived and watched on each chain, from 1 to
-1,000. 20 suits most
-wallets.
+200. 20 suits most wallets.
 
 ## Watched {#watched}
 
@@ -37,16 +36,17 @@ Settings › Bitcoin last checked them. **Addresses** lists them: receive and ch
 Reads the wallet from the explorer or node in Settings › Bitcoin now, rather than at the next
 hourly check. Each confirmed transaction is recorded once: bitcoin received as a transfer in
 (enter its cost basis from the Transactions tab, or Taxes shows it as missing), and bitcoin sent
-as a transfer out, its network fee included. A transfer out that was a sale or a payment can be
-changed to one.
+as a transfer out, and its network fee as a sale of its own (below). A transfer out that was a sale
+or a payment can be changed to one.
 
 ## What is recorded
 
 Each transaction once it has 6 confirmations, about an hour. Bitcoin received is a transfer in,
 its basis to be entered unless it is matched to a transfer out of another of your accounts; bitcoin
 sent is a transfer out, and its network fee a sale of the fee's sats at that day's price, beside a
-fee of the same amount. A transaction the explorer or node no longer has is marked _no longer on
-the chain_, never deleted: keep it, or delete it.
+fee of the same amount. A transaction the explorer or node no longer has is never deleted: once
+two reads in a row miss it, it is marked _no longer on the chain_. Keep it, and it stays kept; or
+delete it.
 
 ## Transfers between your accounts
 

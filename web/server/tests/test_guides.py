@@ -136,3 +136,26 @@ def test_the_guides_say_what_the_screens_and_sections_do():
     assert "come with 529" not in prose["projections"]
     gains = " ".join(prose["taxes-gains"].split())
     assert "as for crypto" not in gains and "G–I short term and J–L long term" in gains
+
+
+LOANS = ("loan", "mortgage", "heloc", "auto-loan", "personal-loan", "student-loan")
+
+
+def test_the_wallet_and_loan_guides_say_the_rules_the_ledger_applies():
+    """S1.6.2.6: a send's network fee is a sale of its own, never part of the transfer out;
+    S1.6.2.7: marked off the chain once two reads in a row miss it, and one kept stays kept;
+    S1.6.1.2: a gap limit of 1 to 200; S1.9.3: a payment's candidates are bank transactions
+    not yet a transfer and not filed under another category."""
+    prose = guides()
+    wallet = " ".join(prose["account-crypto-wallet"].split())
+    assert "its network fee included" not in wallet
+    assert "its network fee as a sale of its own" in wallet
+    assert "two reads in a row miss it" in wallet and "stays kept" in wallet
+    assert "from 1 to 200" in wallet and "1,000" not in wallet
+    for name in LOANS:
+        text = " ".join(prose[f"account-{name}"].split())
+        assert "aren't a transfer yet or filed under another category" in text, name
+    mock = " ".join(MOCKUP.read_text().split())
+    assert "aren’t a transfer yet or filed under another category" in mock
+    assert "once two reads in a row miss it" in mock
+    assert "'spin', '1-1000'" not in mock

@@ -26,7 +26,7 @@ it is ahead of the plan or behind.
 
 ## Looks like a Payment
 
-Bank transactions of the last 90 days within 2% of the payment that aren't a transfer yet. **Link**
+Bank transactions of the last 90 days within 2% of the payment that aren't a transfer yet or filed under another category. **Link**
 makes one the transfer into this loan, split by the schedule. When the loan already holds the
 payment, recorded with *From account: None*, **Pair** makes the two one transfer and records
 nothing new; a transaction a few days from a payment of another amount isn't offered, as it is most
