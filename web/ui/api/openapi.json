@@ -1631,8 +1631,15 @@
             "type": "string"
           },
           "ageDays": {
-            "title": "Agedays",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agedays"
           },
           "awaited": {
             "examples": [
@@ -1654,9 +1661,16 @@
             "title": "Category"
           },
           "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "offers": {
             "items": {
@@ -1704,8 +1718,15 @@
             "type": "number"
           },
           "spendingId": {
-            "title": "Spendingid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spendingid"
           },
           "splitId": {
             "anyOf": [
@@ -33039,7 +33060,7 @@
     },
     "/ui/api/budgets/{budget_id}/reimbursements": {
       "get": {
-        "description": "What the budget's accounts await, oldest first, each with the deposits that may pay it\nback among the caller's own accounts and those they can change.",
+        "description": "What the budget's accounts await, oldest first, each with the deposits that may pay it\nback among the caller's own accounts and those they can change. Once access to the budget\nis checked, read as the server reads it: every account `members` gives the caller, the\nowner's own among them; one not shared with the caller is never named, nor its rows' ids,\ndates or payees given, its rows added into one (S7.1.1).",
         "operationId": "awaiting_ui_api_budgets__budget_id__reimbursements_get",
         "parameters": [
           {

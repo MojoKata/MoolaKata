@@ -1312,7 +1312,7 @@ function Recurring({ b }) {
 
 /**
  * What the budget's accounts await being paid back (S2.9), oldest first, with the deposits that
- * may pay each back.
+ * may pay each back. An account not shared with the viewer is one row, unnamed (S7.1.1).
  * @param {{ b: any }} p
  */
 function Reimbursements({ b }) {
@@ -1343,7 +1343,7 @@ function Reimbursements({ b }) {
         <tbody>${rows.map((r) =>
           html`
             <tr>
-              <td>${date(r.date)}</td>
+              <td>${r.date ? date(r.date) : '—'}</td>
               <td>${r.payee || '—'}${r.splitId
                 ? html`${' '}<span class="small dim">(one part)</span>`
                 : null}<div class="small dim">${r.accountName}</div></td>
@@ -1352,9 +1352,12 @@ function Reimbursements({ b }) {
               <td class="num amt">${money(r.awaited)}${dec(r.paidBack).gt(0)
                 ? html`<div class="small dim">of ${money(r.reimbursable)}</div>`
                 : null}</td>
-              <td>${r.ageDays} day${r.ageDays === 1 ? '' : 's'}</td>
+              <td>${r.ageDays == null ? '—' : `${r.ageDays} day${r.ageDays === 1 ? '' : 's'}`}</td>
               <td><button type="button" class="btn sm" data-help="pair" disabled=${!r.offers
-                .length} onClick=${() => pair(r)}>Pair a Payback</button></td>
+                .length} title=${r.spendingId
+                ? null
+                : 'In an account not shared with you'} onClick=${() =>
+                pair(r)}>Pair a Payback</button></td>
             </tr>
           `
         )}</tbody>

@@ -1,10 +1,11 @@
 """Reimbursable spending (requirements S2.9, S7.3.4)."""
 
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, make, remove, saved
+from edits import change, make, remove, saved, share
 from test_accounts import add, new_account
 from test_budgets import month, setup_budget
 
@@ -116,6 +117,56 @@ def test_a_split_part_paid_back_and_the_rest_counted_again(server, frozen):
     assert [x["id"] for x in t["splits"]] == [x["id"] for x in bill["splits"]]
     saved(change(c, "Txn", t, memo="water and power"))
     assert awaiting(c, b) == [], "an edit of the transaction leaves its parts alone"
+
+
+def test_a_receiver_awaits_what_an_account_they_cant_see_awaits_unnamed(server, frozen):
+    """S7.1.1, S2.9: John reads Jane's budget and her Checking, not her Ally: what Ally awaits
+    counts for him all the same, as one row of *an account not shared* with no payee, date,
+    age or id, and nothing to pair."""
+    c, acct, cat, _ = setup_budget(server)
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    john_id = john.get("/ui/api/session").json()["user"]["id"]
+    ally = new_account(c, name="Ally", type="savings", mask="2222")
+    b = make(c, "Bdgt", name="Both", accountIds=[acct["id"], ally["id"]]).json()
+    add(c, acct["id"], "-412.60", "2026-10-02", payee="Delta Air Lines",
+        categoryId=cat["Travel"], reimbursable="412.60", owedBy="Acme Corp")  # fmt: skip
+    hidden = [
+        add(
+            c,
+            ally["id"],
+            "-100.00",
+            "2026-10-03",
+            payee="Dentist",
+            reimbursable="100.00",
+            owedBy="Insurer",
+        ),
+        add(c, ally["id"], "-50.00", "2026-10-04", payee="Pharmacy", reimbursable="50.00"),
+    ]
+    share(c, "budget", b["id"], users={john_id: "read"})
+    share(c, "account", acct["id"], users={john_id: "read"})
+    mine = awaiting(c, b)
+    r = john.get(f"/ui/api/budgets/{b['id']}/reimbursements")
+    assert r.status_code == 200, r.text
+    theirs = r.json()["items"]
+    assert sum(Decimal(x["awaited"]) for x in mine) == sum(Decimal(x["awaited"]) for x in theirs)
+    seen, (other,) = theirs[:1], theirs[1:]
+    assert seen[0]["payee"] == "Delta Air Lines" and seen[0]["accountName"] == acct["name"]
+    assert other == {
+        "spendingId": None, "splitId": None, "date": None, "payee": None,
+        "accountName": "an account not shared", "category": None, "owedBy": None,
+        "reimbursable": "150.00", "paidBack": "0.00", "awaited": "150.00", "ageDays": None,
+        "offers": [],
+    }  # fmt: skip
+    for secret in (
+        ally["id"],
+        "Ally",
+        "Dentist",
+        "Pharmacy",
+        "Insurer",
+        *(t["id"] for t in hidden),
+    ):
+        assert secret not in r.text, secret
 
 
 def test_marks_and_pairings_are_checked(server, frozen):

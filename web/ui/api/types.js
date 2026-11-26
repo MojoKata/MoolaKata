@@ -282,9 +282,9 @@
 
 /**
  * @typedef {Object} AwaitingRow
- * @property {string} spendingId
+ * @property {(string | null)} spendingId
  * @property {(string | null)} splitId
- * @property {string} date
+ * @property {(string | null)} date
  * @property {(string | null)} payee
  * @property {string} accountName
  * @property {(string | null)} category
@@ -292,7 +292,7 @@
  * @property {import('../kit/dec.js').Dec} reimbursable
  * @property {import('../kit/dec.js').Dec} paidBack
  * @property {import('../kit/dec.js').Dec} awaited
- * @property {number} ageDays
+ * @property {(number | null)} ageDays
  * @property {Array<Offer>} offers
  */
 
