@@ -541,6 +541,32 @@ def test_an_address_two_keys_derive_is_watched_once(server, jane):
     assert watched.count(first) == 1
 
 
+def test_an_address_typed_as_well_then_taken_out_is_the_keys_again(server, jane):
+    """S1.6.1: the key's own address, once the typed one holding it goes, is derived again."""
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], f"{FIRST}\n{ZPUB}"))
+    assert jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()["watched"] == 40
+    saved(wallet(jane, w["id"], ZPUB))
+    v = jane.get(f"/ui/api/accounts/{w['id']}/wallet").json()
+    assert v["watched"] == 40
+    assert (FIRST, 0, 0) in {(a["address"], a["chain"], a["index"]) for a in v["addresses"]}
+
+
+def test_a_used_address_another_key_holds_counts_for_the_keys_gap(server, jane, monkeypatch):
+    """S1.6.1: the gap runs from the key's last used address, whichever key's row holds it."""
+
+    class Used:
+        def history(self, addresses):
+            return [sources.Tx("a" * 64, T1, 50_000, 0, {FIRST})] if FIRST in addresses else []
+
+    w = new_account(jane, name="Cold storage", type="crypto-wallet")
+    saved(wallet(jane, w["id"], f"{FIRST}\n{ZPUB}"))
+    monkeypatch.setattr(sync, "source", lambda srv, s: Used())
+    v = jane.post(f"/ui/api/accounts/{w['id']}/wallet/sync").json()["wallet"]
+    assert v["used"] == 1
+    assert v["watched"] == 41, "receive 0 used: receive 1 to 20 past it, change 0 to 19"
+
+
 def test_one_wallet_failing_leaves_the_others_read(server, jane, monkeypatch):
     one = new_account(jane, name="One", type="crypto-wallet")
     two = new_account(jane, name="Two", type="crypto-wallet")
