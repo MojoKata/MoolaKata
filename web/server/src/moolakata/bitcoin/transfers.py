@@ -3,9 +3,7 @@ transfer in of the same amount (the network fee is a sale of its own, S8.19), wi
 are proposed as a pair. Confirmed, the coins arrive with the lots they left with: the basis
 and the day each was acquired carry over, so nothing is missing a basis and nothing is taxed."""
 
-import datetime as dt
-
-from sqlalchemy import false, or_, select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from .. import clock, ids
@@ -93,19 +91,6 @@ def pending(s: Session, owner_id: str) -> list[TransferMatch]:
     )
 
 
-def of_account(s: Session, account_id: str) -> list[TransferMatch]:
-    txns = select(Transaction.id).where(Transaction.accountId == account_id)
-    return list(
-        s.scalars(
-            select(TransferMatch).where(
-                TransferMatch.deleted == false(),
-                TransferMatch.state == "proposed",
-                or_(TransferMatch.outId.in_(txns), TransferMatch.inId.in_(txns)),
-            )
-        )
-    )
-
-
 def confirm(s: Session, user_id: str, m: TransferMatch) -> int:
     """The pair linked, and the coins opened in the receiving account with the lots they left
     with: acquired on the same days, with the same basis. Returns the lots opened."""
@@ -156,7 +141,3 @@ def describe(s: Session, m: TransferMatch) -> dict:
         "quantity": abs(out.quantity),
         "version": m.version,
     }
-
-
-def today() -> dt.date:
-    return clock.today()

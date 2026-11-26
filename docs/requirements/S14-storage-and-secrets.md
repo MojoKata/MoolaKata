@@ -91,7 +91,8 @@
       General), or a zone they choose by name (`America/Denver`).
    3. **Calendar dates have no time zone**: a transaction's date, a statement's period, the
       day of a balance or positions a file reports, a birthday and a due date are dates as
-      the institution or the user wrote them, never shifted.
+      the institution or the user wrote them, never shifted. A bitcoin transaction is a moment
+      on the chain, not a date written: it is dated in its owner's zone (S1.6.2.6.1).
    4. **A trading day** is the US market's, in New York time: a daily close is dated by its
       market day, whatever the viewer's zone (S4.4).
    5. **"Today" for a user** follows their time zone: the year a tax year screen opens on,

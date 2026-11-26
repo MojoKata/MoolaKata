@@ -22,6 +22,7 @@ from ..store.entities.accounts import (
     WalletKey,
 )
 from ..store.entities.prices import Price
+from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..store.repos import secrets as secret_repo
 from . import sources, wallet
@@ -193,16 +194,72 @@ def revalue_fees(s, account_id: str) -> int:
             continue
         value = (t.quantity * price).quantize(Decimal("0.01"))
         t.amount, t.price = value, price
+        # Its own wallet's cash: two of the owner's wallets may spend in one transaction. Every
+        # fee's sale is made beside its cash (`_fee`), and records are never removed.
         cash = s.scalars(
-            select(Transaction).where(Transaction.fitId == "btcfeecash:" + t.fitId[7:])
-        ).first()
-        if cash is not None:
-            cash.amount = -value
+            select(Transaction).where(
+                Transaction.accountId == account_id,
+                Transaction.fitId == "btcfeecash:" + t.fitId[7:],
+            )
+        ).one()
+        cash.amount = -value
+        done += 1
+    return done
+
+
+def zone_of(s, a: Account) -> ZoneInfo:
+    """A transaction is a moment on the chain, dated in the zone of its account's owner (S1.6.2.6,
+    S14.9.2): the taxpayer whose lots, holding periods and fee sales it makes, not the server."""
+    return ZoneInfo(timezones.zone_for(s.get(User, a.ownerId).timeZone))
+
+
+def redate(s, a: Account, txs: list[sources.Tx], zone: ZoneInfo) -> int:
+    """Each recorded transaction of the read dated again in its owner's zone as it is now, with its
+    fee's sale and cash, so a change of zone re-dates it (S1.6.2.6). A date its moment has in no
+    zone (more than a day from its day in UTC) was typed by hand, and stays; so does one the new
+    date would move into or out of a closed tax year (S2.8.1). Returns those dated again."""
+    moments = {f"btc:{t.txid}": t.confirmedAt for t in txs if t.confirmedAt is not None}
+    rows = s.scalars(
+        select(Transaction).where(
+            Transaction.accountId == a.id,
+            Transaction.fitId.in_(moments),
+            Transaction.deleted == false(),
+        )
+    ).all()
+    closed: set[int] | None = None
+    done = 0
+    for r in rows:
+        at = moments[r.fitId]
+        day = at.astimezone(zone).date()
+        if r.date == day or abs((r.date - at.astimezone(dt.UTC).date()).days) > 1:
+            continue
+        if r.date.year != day.year:
+            if closed is None:
+                from ..taxes import closed as closed_years
+
+                closed = closed_years.years_of(s, a.id)
+            if {r.date.year, day.year} & closed:
+                continue
+        r.date = day
+        txid = r.fitId.removeprefix("btc:")
+        for f in s.scalars(
+            select(Transaction).where(
+                Transaction.accountId == a.id,
+                Transaction.fitId.in_((f"btcfee:{txid}", f"btcfeecash:{txid}")),
+                Transaction.deleted == false(),
+            )
+        ):
+            # The fee's sale is at its new day's price: valued again below, as one waiting.
+            f.date, f.amount = day, Decimal(0)
+            if f.kind == "sell":
+                f.price = None
         done += 1
     return done
 
 
 def record(s, account_id: str, txs: list[sources.Tx]) -> int:
+    """Each transaction of the read deep enough recorded once, by its txid (S1.6.2.6); those
+    recorded before dated again in their owner's zone, and fees valued that waited."""
     a = s.get(Account, account_id)
     have = set(
         s.scalars(
@@ -211,7 +268,7 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
             )
         )
     )
-    zone = ZoneInfo(timezones.host_zone())
+    zone = zone_of(s, a)
     btc = repo.instrument(s, "BTC", "Bitcoin", "crypto")
     made = 0
     for t in sorted(txs, key=lambda x: x.confirmedAt or dt.datetime.max.replace(tzinfo=dt.UTC)):
@@ -244,6 +301,8 @@ def record(s, account_id: str, txs: list[sources.Tx]) -> int:
         if fee:
             _fee(s, a, btc, row, fee, t.txid)
         made += 1
+    s.flush()
+    redate(s, a, txs, zone)
     s.flush()
     revalue_fees(s, account_id)
     return made
