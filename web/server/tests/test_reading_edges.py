@@ -257,12 +257,14 @@ def test_a_receipt_deleted_or_pruned_mid_read_keeps_what_was_read_unsearched(ser
 
     def deleting(rid):
         def read(data, media, *a, user, check=False):
+            files = set()
             with server.db.tx(unscoped="test") as s:
                 r = s.get(Receipt, rid)
                 if rid == gone:
                     r.mark_deleted(None)
                 else:
-                    retention.prune_files(server, s, [r], r.ownerId)
+                    files = retention.mark_pruned(s, [r], r.ownerId)
+            retention.remove_pruned(server, files)
             return ("ok", [f"QUINCE {rid[-4:]}", "TOTAL 2.00"], "text", "e", None)
 
         return read

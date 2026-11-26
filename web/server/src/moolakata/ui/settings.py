@@ -1447,16 +1447,16 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
 
     recent_auth(c)
     srv = server(request)
-    with srv.db.read(unscoped="storage: the household's prunable files, for an admin") as s:
-        rows = retention.prunable(s, body.categories, body.deleted)
-    if not rows:
-        raise refuse("categories", "nothing-to-prune", "No files to prune in what is ticked.")
-    if body.count != len(rows):
-        raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
-    # Whether a file is still named is every receipt's to say, whoever's it is.
+    # Whether a file is still named is every receipt's to say, whoever's it is. The rows are
+    # found once, in the write that marks them, so the count typed is the count pruned; the
+    # files go only once that is committed (S14.10.5).
     with srv.db.tx(unscoped="storage: files pruned by an admin") as s:
         rows = retention.prunable(s, body.categories, body.deleted)
-        freed = retention.prune_files(srv, s, rows, c.id)
+        if not rows:
+            raise refuse("categories", "nothing-to-prune", "No files to prune in what is ticked.")
+        if body.count != len(rows):
+            raise refuse("count", "count-mismatch", f"Type {len(rows):,} to prune them.")
+        files = retention.mark_pruned(s, rows, c.id)
         activity.record(
             s,
             "files.pruned",
@@ -1464,11 +1464,12 @@ def prune_files(body: PruneIn, request: Request, c: Caller = Depends(admin)):
             for_admins=True,
             detail={
                 "files": len(rows),
-                "bytes": freed,
+                "bytes": retention.file_sizes(srv, files),
                 "categories": body.categories,
                 "deleted": body.deleted,
             },
         )
+    freed = retention.remove_pruned(srv, files)
     return PruneOut(files=len(rows), bytes=freed)
 
 
