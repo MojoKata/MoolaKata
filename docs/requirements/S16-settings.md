@@ -60,10 +60,12 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
 11. **Tax tables**: per year, for every year a tax book may cover (S8.14), shipped and
     correctable: contribution limits and thresholds, the annual gift exclusion, the 529-to-Roth
     lifetime limit, the QCD limit, the collectables rate, the unearned income above which Form
-    8615 applies (S8.14.5.3), the shipped college-cost averages (S6.2.2), the bitcoin models'
-    published figures (S6.3.1), and the metal per share of SLV, PPLT and PALL (S4.3). A
-    corrected figure is marked, with the shipped value beside it; setting it back to the
-    shipped value removes the correction. A year after the latest shipped uses the latest. The
+    8615 applies (S8.14.5.3), the federal return's due date (a month and a day of the year
+    after, before IRC §7503's moves, S8.15.3), the shipped college-cost averages (S6.2.2), the
+    bitcoin models' published figures (S6.3.1), and the metal per share of SLV, PPLT and PALL
+    (S4.3). A corrected figure is marked, with the shipped value beside it; setting it back to
+    the shipped value removes the correction. A year after the latest shipped uses the latest:
+    for the due date, its month and day in the year after that year. The
     college-cost averages and the metal per share arrive with the features that use them (529s,
     physical assets).
 12. **Backups**: the time of day (02:30 by default) and the **copies kept**: the days of

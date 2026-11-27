@@ -1024,6 +1024,10 @@ def test_the_federal_due_date_is_the_next_years_april_15_or_the_next_business_da
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
     assert books.federal_due(st.s, 2027) == next_business_day(dt.date(2028, 4, 15))
     assert books.federal_due(st.s, 2027) != dt.date(2028, 4, 15)  # a Saturday
+    # A year after the latest shipped takes the latest's month and day in its own year after
+    # (S16.11): Apr 15, 2028 is a Saturday and Emancipation Day is observed on Monday the 17th.
+    assert books.federal_due(st.s, 2027) == dt.date(2028, 4, 18)
+    assert books.federal_due(st.s, 2030) == dt.date(2031, 4, 15)
 
 
 def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(st):
