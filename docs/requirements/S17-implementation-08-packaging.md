@@ -57,9 +57,9 @@
          and `ix-dev/community/moolakata-connector/` in `truenas/apps`), each with its
          metadata, its install form, its compose template and its test values (one plain,
          one with a certificate, one on host paths and the host network). TrueNAS decides
-         what its catalog includes; until the apps are in it, **Install via YAML** is the
-         way, and once they are, TrueNAS's own update bot moves their images to each new
-         release.
+         what its catalog includes; **Install via YAML** works whether or not the catalog
+         lists the apps, and once it does, TrueNAS's own update bot moves their images to
+         each new release.
       2. **The server's form**: its time zone, in TrueNAS's own field, which a user's
          **Auto** zone follows (S14.9.2); the addresses browsers use, for the certificate the
          server makes for itself; the web port (37373); a certificate from **System ›

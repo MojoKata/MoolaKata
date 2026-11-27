@@ -17,10 +17,7 @@
       reviewed by hand and committed, and a test fails when tables and revisions disagree. At
       the unlock the server copies the database (verified) into `pre-upgrade/` in the data
       directory, keeping the three newest copies, and then migrates it, one revision per
-      transaction. A committed revision is never changed: a change is a new revision. Until the
-      first release, the revisions may be folded into one baseline, keeping at least one
-      revision after it so a test can carry rows written at the baseline through the server's
-      own upgrade.
+      transaction. A committed revision is never changed: a change is a new revision.
    4. **Access:** each table has a repository module. A unit of work is `Database.tx()`
       (`BEGIN IMMEDIATE`) or `Database.read()` (`PRAGMA query_only`, which refuses any
       write). Foreign keys are on, with a 10-second busy timeout. A unit of work reads and
