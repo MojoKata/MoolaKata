@@ -150,6 +150,27 @@ def test_tasks_record_runs_and_keep_error_text_out_unless_safe():
     assert recorded["safe"].error == "TaskError: Tiingo answered 401"
 
 
+def test_a_run_whose_record_fails_still_ends_and_says_so_to_those_waiting(caplog):
+    """S13.4: recording a run that fails is logged, and the run still ends: the task is free
+    again and what waited on the run hears of it."""
+
+    def record(name, run):
+        raise OSError("disk full")
+
+    tasks = Tasks(record=record)
+    tasks.register("backups", lambda ctx: None, None)
+    heard = threading.Event()
+    try:
+        with caplog.at_level("ERROR", logger="moolakata.tasks"):
+            tasks.run_now("backups", lambda run: heard.set())
+            tasks.tick()
+            assert heard.wait(10)
+        assert tasks.status()["backups"]["running"] is False
+        assert [r.getMessage() for r in caplog.records] == ["recording task backups failed"]
+    finally:
+        tasks.stop()
+
+
 def test_egress_guard():
     guard = net.Guard(
         resolver=lambda h, p: {
