@@ -97,12 +97,8 @@ def filer_people(s: Session, book: TaxBook) -> list[str]:
             TaxBookFiler.bookId == book.id, TaxBookFiler.deleted == false()
         )
     )
-    out = []
-    for uid in who:
-        p = people.of_user(s, uid)
-        if p is not None:
-            out.append(p.id)
-    return out
+    # Every user has their person, never kept private: the whole household sees it (S10.10.2).
+    return [people.of_user(s, uid).id for uid in who]
 
 
 @dataclass
