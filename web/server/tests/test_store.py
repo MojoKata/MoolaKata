@@ -173,11 +173,134 @@ def _an_account_and_instrument(s) -> tuple[str, str]:
     return acct.id, inst.id
 
 
-@pytest.mark.parametrize("make", [_a_lot, _a_holding, _a_price], ids=["Lot", "Holding", "Price"])
+def _a_transaction(s):
+    from moolakata.store.entities.accounts import Transaction
+
+    acct, _ = _an_account_and_instrument(s)
+    txn = Transaction(
+        id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind="buy", amount=-100
+    )
+    return txn, "memo", ("expired", "synced")
+
+
+def _an_import(s):
+    from moolakata.store.entities.accounts import Account, Import
+
+    acct, _ = _an_account_and_instrument(s)
+    owner = s.get(Account, acct).ownerId
+    imp = Import(
+        id=ids.new_id("Imprt"), accountId=acct, userId=owner, format="ofx", fileName="a.ofx",
+        fileHash="h",
+    )  # fmt: skip
+    return imp, "added", (3, 4)
+
+
+def _an_anchor(s):
+    from moolakata.store.entities.accounts import Anchor
+
+    acct, _ = _an_account_and_instrument(s)
+    anchor = Anchor(
+        id=ids.new_id("Anchr"), accountId=acct, date=dt.date(2026, 3, 2), balance=100,
+        source="ofx",
+    )  # fmt: skip
+    return anchor, "balance", (110, 120)
+
+
+def _a_holding_check(s):
+    from moolakata.store.entities.accounts import HoldingCheck
+
+    acct, inst = _an_account_and_instrument(s)
+    check = HoldingCheck(
+        id=ids.new_id("HdChk"), accountId=acct, instrumentId=inst, asOf=dt.date(2026, 3, 2),
+        label="VTI", quantity=10,
+    )  # fmt: skip
+    return check, "quantity", (11, 12)
+
+
+def _a_transfer_match(s):
+    from moolakata.store.entities.accounts import Account, Transaction, TransferMatch
+
+    acct, _ = _an_account_and_instrument(s)
+    owner = s.get(Account, acct).ownerId
+    out, in_ = (
+        Transaction(id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind=k,
+                    amount=a)
+        for k, a in (("transfer-out", -1), ("transfer-in", 1))
+    )  # fmt: skip
+    s.add_all([out, in_])
+    s.flush()
+    match = TransferMatch(id=ids.new_id("XfrMt"), ownerId=owner, outId=out.id, inId=in_.id)
+    return match, "state", ("rejected", "confirmed")
+
+
+def _a_price_source(s):
+    from moolakata.store.entities.prices import PriceSource
+
+    src = PriceSource(id=ids.new_id("Src"), name="counted-test", enabled=True)
+    return src, "lastError", ("refused", "timed out")
+
+
+def _a_link_row(s):
+    from moolakata.store.entities.links import Link
+
+    return s.get(Link, _a_link(s)), "lastError", ("unreachable", "refused")
+
+
+def _a_connector(s):
+    from moolakata.store.entities.connector import Connector
+
+    return Connector(id=ids.new_id("Cnctr"), state="paired"), "connectorVersion", ("1.1", "1.2")
+
+
+def _a_connection(s):
+    from moolakata.store.entities.connector import Connection
+
+    connector, _, _ = _a_connector(s)
+    s.add(connector)
+    s.flush()
+    row = Connection(
+        id=ids.new_id("Conn"), ownerId=new_user(s).id, connectorId=connector.id,
+        driver="folder", label="Bank", state="ok",
+    )  # fmt: skip
+    return row, "state", ("failing", "needs-sign-in")
+
+
+def _a_setting(s):
+    from moolakata.store.entities.core import Setting
+
+    row = Setting(id=ids.new_id("Setng"), key="bitcoinNodeCertOffered", value='"a"')
+    return row, "value", ('"b"', "null")
+
+
+BACKGROUND = {
+    "Lot": _a_lot,
+    "Holding": _a_holding,
+    "Price": _a_price,
+    # The connector's files (S18.8), the bitcoin sync (S1.6.2) and the hourly option expiry
+    # (S3.6).
+    "Transaction": _a_transaction,
+    # The connector's files.
+    "Import": _an_import,
+    "Anchor": _an_anchor,
+    "HoldingCheck": _a_holding_check,
+    # The bitcoin sync's proposals (S1.6.2).
+    "TransferMatch": _a_transfer_match,
+    # The price refresh (S16.7).
+    "PriceSource": _a_price_source,
+    # The hourly exchange (S11.4).
+    "Link": _a_link_row,
+    # The connector's reports (S18.5).
+    "Connector": _a_connector,
+    "Connection": _a_connection,
+    # The bitcoin sync's certificate offer (S1.6.2).
+    "Setting": _a_setting,
+}
+
+
+@pytest.mark.parametrize("make", BACKGROUND.values(), ids=BACKGROUND.keys())
 def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, make):
     """schema.md §2: a table the server writes in the background, outside a person's save, is
-    counted: lots and holdings from the connector's files (S18.8), prices from their refresh
-    (S16.7). A write from a copy read before another save is never refused for its version,
+    counted. A write from a copy read before another save is never refused for its version,
     and both saves are counted."""
     from moolakata.store import mapping
 
@@ -193,6 +316,89 @@ def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, ma
         now = s.get(type(row), row.id)
         assert (getattr(now, field_), now.version) == (last, 3)
     assert type(row) in mapping.COUNTED
+
+
+def _persons(s, owner: str, prefix: str):
+    """A record of a counted table that a person saves with a version, owned by `owner`, and
+    the field a background write changes on it."""
+    from moolakata.store.entities.accounts import Account, Anchor, Transaction
+    from moolakata.store.entities.connector import Connection, Connector
+    from moolakata.store.entities.core import Setting
+    from moolakata.store.entities.prices import PriceSource
+
+    if prefix == "Src":
+        return PriceSource(id=ids.new_id("Src"), name="tiingo", enabled=True), "lastError"
+    if prefix == "Setng":
+        return Setting(id=ids.new_id("Setng"), key="householdName", value='"Home"'), "value"
+    if prefix == "Conn":
+        connector = Connector(id=ids.new_id("Cnctr"), state="paired")
+        s.add(connector)
+        s.flush()
+        row = Connection(
+            id=ids.new_id("Conn"), ownerId=owner, connectorId=connector.id, driver="folder",
+            label="Bank", state="ok",
+        )  # fmt: skip
+        return row, "message"
+    acct = Account(id=ids.new_id("Acct"), ownerId=owner, name="Checking", type="checking")
+    s.add(acct)
+    s.flush()
+    if prefix == "Anchr":
+        row = Anchor(
+            id=ids.new_id("Anchr"), accountId=acct.id, date=dt.date(2026, 3, 2), balance=100,
+            source="typed",
+        )  # fmt: skip
+        return row, "note"
+    row = Transaction(
+        id=ids.new_id("Txn"), accountId=acct.id, date=dt.date(2026, 3, 2), kind="withdrawal",
+        amount=-100,
+    )  # fmt: skip
+    return row, "memo"
+
+
+@pytest.mark.parametrize("prefix", ["Txn", "Anchr", "Src", "Conn", "Setng"])
+def test_a_persons_stale_save_of_a_counted_table_is_still_refused(server, admin_client, prefix):
+    """schema.md §2: a counted table's version locks nothing in the store, but a person's save
+    names the version its draft read (S13.8.6), and one older than a background write is
+    refused at the save, with the record as it is now. The other counted tables of #665
+    (imports, holding checks, links, the connector) have no save of a person's that names a
+    version; a transfer match's answer does (the next test)."""
+    from sqlalchemy import select
+
+    with server.db.tx(unscoped="test") as s:
+        owner = s.scalars(select(User.id).where(User.username == "admin")).one()
+        row, field_ = _persons(s, owner, prefix)
+        s.add(row)
+    with server.db.tx(unscoped="test") as s:
+        setattr(s.get(type(row), row.id), field_, '"Away"')  # the background write
+    op = {"op": "update", "entity": prefix, "id": row.id, "version": 1, "fields": {}}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 412, r.text
+    assert r.json()["code"] == "stale-version"
+    (current,) = r.json()["current"]
+    assert (current["id"], current["version"]) == (row.id, 2)
+
+
+def test_a_stale_answer_to_a_transfer_match_is_still_refused(server, admin_client):
+    """schema.md §2: a transfer match is counted, so the bitcoin sync's writes never fail on
+    it, but a person's answer names the version it read (S13.8.6) and a stale one is refused."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import Account, Transaction
+
+    with server.db.tx(unscoped="test") as s:
+        match, _, _ = _a_transfer_match(s)
+        admin = s.scalars(select(User.id).where(User.username == "admin")).one()
+        s.get(Account, s.get(Transaction, match.outId).accountId).ownerId = admin
+        match.ownerId = admin
+        s.add(match)
+    with server.db.tx(unscoped="test") as s:
+        s.get(type(match), match.id).state = "proposed"  # the sync proposes it again
+    r = admin_client.post(
+        f"/ui/api/transfers/bitcoin/{match.id}", json={"confirm": False},
+        headers={"If-Match": '"1"'},
+    )  # fmt: skip
+    assert r.status_code == 412, r.text
+    assert (r.json()["code"], r.json()["version"]) == ("stale-version", 2)
 
 
 def test_a_signup_request_written_only_by_a_persons_action_is_locked(db):

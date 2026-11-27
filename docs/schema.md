@@ -60,9 +60,10 @@ answers keep the API's camelCase fields.
     refused as stale.
   - **Counted** are the tables the server writes in the background, outside a person's save
     (a scheduled task, a sync, a worker, a refresh), whatever else writes them too: `Activity`,
-    `Alert`, `AlertState`, `Holding`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`,
-    `OneTimeToken`, `Price`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`,
-    `WalletAddress`, `WashSale`. The version only counts their saves, each one adding 1 in the
+    `Alert`, `AlertState`, `Anchor`, `Connection`, `Connector`, `Holding`, `HoldingCheck`,
+    `Import`, `Link`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`, `OneTimeToken`, `Price`,
+    `PriceSource`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`, `Setting`,
+    `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version only counts their saves, each one adding 1 in the
     database, and locks nothing: a write is never refused for it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
   an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,

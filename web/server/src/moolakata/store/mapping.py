@@ -137,25 +137,27 @@ def map_all() -> None:
         (asx.ItemValuation, assets.ItemValuation),
         (asx.Improvement, assets.Improvement),
         (asx.ResidencePeriod, assets.ResidencePeriod),
-        (acc.Import, accounts.Import),
-        (acc.Transaction, accounts.Transaction),
         (acc.CorporateAction, accounts.CorporateAction),
         (acc.Split, accounts.Split),
         (acc.Reimbursement, accounts.Reimbursement),
-        (acc.Anchor, accounts.Anchor),
-        (acc.HoldingCheck, accounts.HoldingCheck),
-        (acc.TransferMatch, accounts.TransferMatch),
         (acc.Reconciliation, accounts.Reconciliation),
     ):
         _versioned(entity, table)
-    # Written by the connector's files as well as a person's save (S18.8).
+    # Written by the connector's files as well as a person's save (S18.8); transactions by the
+    # bitcoin sync (S1.6.2) and the hourly option expiry (S3.6) too, and transfer matches by
+    # the sync's proposals.
+    _counted(acc.Import, accounts.Import)
+    _counted(acc.Transaction, accounts.Transaction)
+    _counted(acc.Anchor, accounts.Anchor)
+    _counted(acc.HoldingCheck, accounts.HoldingCheck)
+    _counted(acc.TransferMatch, accounts.TransferMatch)
     _counted(acc.Lot, accounts.Lot)
     _counted(acc.Holding, accounts.Holding)
     _versioned(acc.Tag, accounts.Tag)
     _map(acc.TransactionTag, accounts.TransactionTags)
     _map(acc.RuleTag, accounts.RuleTags)
     _versioned(acc.LotPick, accounts.LotPick)
-    _versioned(pr.PriceSource, prices.PriceSource)
+    _counted(pr.PriceSource, prices.PriceSource)  # the price refresh's run (S16.7)
     _counted(pr.Price, prices.Price)
     _versioned(pr.TypedPrice, prices.TypedPrice)
     _versioned(sh.Portfolio, sharing.Portfolio)
@@ -186,10 +188,11 @@ def map_all() -> None:
     _versioned(pj.TaxFigure, projections.TaxFigure)
     _map(pj.ShownProjection, projections.ShownProjections)
     _versioned(sh.CountedAccount, sharing.CountedAccount)
-    _versioned(Setting, core.Setting)
-    _versioned(lk.Link, links.Link)
-    _versioned(cn.Connector, connector.Connector)
-    _versioned(cn.Connection, connector.Connection)
+    _counted(Setting, core.Setting)  # the bitcoin sync's certificate offer (S1.6.2)
+    _counted(lk.Link, links.Link)  # the hourly exchange (S11.4)
+    # The connector's reports (S18.5).
+    _counted(cn.Connector, connector.Connector)
+    _counted(cn.Connection, connector.Connection)
     _counted(lk.LinkedItem, links.LinkedItem)
     _counted(lk.LinkSent, links.LinkSent)
     _counted(lk.LinkFile, links.LinkFile)
