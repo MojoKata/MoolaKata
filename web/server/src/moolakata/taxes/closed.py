@@ -60,9 +60,8 @@ def book_gains(s: Session, book: TaxBook) -> dict[str, Decimal]:
 
     rows, _ = panels.form_8949(s, book, panels.spouse_accounts(s, book))
     out: dict[str, Decimal] = {}
-    for r in rows:
-        if r.accountId:
-            out[r.accountId] = out.get(r.accountId, ZERO) + (r.gain or ZERO)
+    for r in rows:  # every row is of an account, a sale's or an item's
+        out[r.accountId] = out.get(r.accountId, ZERO) + (r.gain or ZERO)
     return out
 
 
@@ -165,9 +164,7 @@ def _keep_as_filed(s: Session, book: TaxBook, gains: dict[str, Decimal]) -> None
     leaving the filing's version as the person last saved it."""
     from ..store.tables.taxes import Filing as FilingTable
 
-    f = closing_filing(s, book)
-    if f is None:
-        return
+    f = closing_filing(s, book)  # a closing book's: there is one
     kept = {
         "gains": {a: str(v) for a, v in sorted(gains.items())},
         "changes": sorted(c.id for c in _changes(s, book)),
@@ -262,7 +259,7 @@ def _track(s: Session, _ctx, _instances) -> None:
             touched.add(("book", obj.bookId))
             if name == "TaxBookAccount":
                 touched.add(("account", obj.accountId))
-        elif name == "AccountShare":
+        else:  # an AccountShare, the last of the inputs
             touched.add(("account", obj.targetId))
 
 
@@ -282,10 +279,9 @@ def _households(s: Session, touched: set) -> tuple[set[str], set[str]]:
             if a is not None:
                 owners.add(a.ownerId)
         elif kind == "sale":
+            # A pick's sale, flushed by the time the write commits, and never removed.
             t = s.get(Transaction, key)
-            a = s.get(Account, t.accountId) if t is not None else None
-            if a is not None:
-                owners.add(a.ownerId)
+            owners.add(s.get(Account, t.accountId).ownerId)
         elif kind == "person":
             u = people.user_of(s, key)
             if u is not None:

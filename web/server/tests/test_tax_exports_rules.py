@@ -1039,6 +1039,44 @@ def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(s
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
 
 
+def test_a_trade_made_a_bank_transaction_can_move_gains_and_a_bank_one_never(st):
+    """S8.15: a transaction whose instrument is taken off was a trade, so its change is
+    checked against a closed year; one that never had one is a bank transaction's."""
+    from moolakata.taxes import closed
+
+    a = st.account(type="brokerage")
+    t = st.txn(a, dt.date(2026, 3, 2), "-100", kind="buy", instrument=st.instrument().id)
+    bank = st.txn(a, dt.date(2026, 3, 3), "50")
+    t.instrumentId, bank.amount = None, D(60)
+    assert closed._moves_gains(st.s, t, "Transaction") is True
+    assert closed._moves_gains(st.s, bank, "Transaction") is False
+
+
+def test_a_relationship_of_someone_who_signs_in_nowhere_moves_no_ones_books(st):
+    """S8.15: a person who isn't a user owns no account, so a change of theirs reaches no
+    household's figures."""
+    from moolakata.store.entities.education import Person
+    from moolakata.taxes import closed
+
+    kid = st.put(Person(id=ids.new_id("Persn"), name="Lisa", sex="female", birthYear=2015))
+    assert closed._households(st.s, {("person", kid.id)}) == (set(), set())
+
+
+def test_a_closed_book_is_moved_by_an_account_it_added_from_another_household(st):
+    """S8.14.2, S8.15: a book counts an account it added whole, whoever owns it, so a write to
+    that owner's accounts may move the closed year; another owner's never."""
+    from moolakata.taxes import closed
+
+    b = st.book(2025)
+    st.put(Filing(id=ids.new_id("Filng"), bookId=b.id, jurisdiction="federal", form="1040",
+                  progress="filed", carried="{}"))  # fmt: skip
+    custodial = st.account("bart", type="brokerage", name="Bart's")
+    st.share(custodial, "jane")
+    st.counts(b, custodial, by="jane")
+    assert closed._affected(st.s, {st.u["bart"]}, set()) == [b]
+    assert closed._affected(st.s, {st.u["dave"]}, set()) == []
+
+
 def test_a_new_book_copies_an_account_both_last_years_books_changed_once(st):
     """S8.14.4: after filing separately, an account each of last year's books added or left
     out is copied once, as the first filer's book had it."""
