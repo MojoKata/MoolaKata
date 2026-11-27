@@ -28,7 +28,7 @@ import {
 } from '../components/edu.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { ago, date, price, quantity } from '../kit/format.js';
+import { ago, date, price, quantity, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
@@ -243,12 +243,14 @@ function Holdings({ a }) {
                   ? 'true'
                   : 'false'} onClick=${() =>
                   setOpen(open === x.instrumentId ? null : x.instrumentId)}
-                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${x.symbol}</button>${x.stale
+                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${symbol(
+                    x.symbol,
+                  )}</button>${x.stale
                     ? html`${' '}<span class="pill warn">stale</span>`
                     : null}${x.unknownSymbol
                     ? html`<div class="small" style=${{
                       color: 'var(--ask)',
-                    }}>No price source knows ${x.symbol}</div>`
+                    }}>No price source knows ${symbol(x.symbol)}</div>`
                     : null}</td>
                 <td class="dim">${x.name || ''}</td>
                 <td class="num">${x.symbol === 'BTC'
@@ -280,7 +282,7 @@ function Holdings({ a }) {
                   <tr>
                     <td colspan="7">
                       <table class="t">
-                        <caption class="sr-only">Lots of ${x.symbol}</caption>
+                        <caption class="sr-only">Lots of ${symbol(x.symbol)}</caption>
                         <thead>
                           <tr>
                             <th>Acquired</th>
@@ -1088,7 +1090,7 @@ function StatementChecks({ v }) {
         }</h3>${
           v.holdingChecks.map((/** @type {any} */ h) =>
             html`<div class="list-item"><div class="grow">${
-              h.symbol || h.label
+              symbol(h.symbol) || h.label
             }<div class="small dim"
             >statement ${h.statement ?? '—'} · MoolaKata ${h.held ?? 'not held'}${
               h
@@ -1135,7 +1137,7 @@ function TransferPairs({ a, reload }) {
           <${Icon} name="info" />
           <div><b>${x.symbol === 'BTC'
             ? fmt.bitcoin(x.sats, true)
-            : `${quantity(x.quantity)} ${x.symbol}`}</b> left ${x.fromAccount} on ${date(
+            : `${quantity(x.quantity)} ${symbol(x.symbol)}`}</b> left ${x.fromAccount} on ${date(
               x.fromDate,
             )} and arrived in ${x
             .toAccount} on ${date(

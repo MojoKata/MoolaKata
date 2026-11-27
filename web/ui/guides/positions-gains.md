@@ -22,4 +22,10 @@ Each group's short- and long-term gains and losses.
 
 ## Unrealized
 
-What open positions would realize if sold at the latest close, by account (or by instrument).
+What open positions would realize if sold at the latest close, by account (or by instrument),
+each lot's gain under its own term.
+
+## Unknown Term
+
+The gain of lots whose day bought is missing, shares moved in without it, shown only when there
+are some. Type each lot's day bought on the shares moved in to give it its term.

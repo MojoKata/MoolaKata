@@ -1322,6 +1322,7 @@
  * @property {import('../kit/dec.js').Dec} shortTerm
  * @property {import('../kit/dec.js').Dec} longTerm
  * @property {import('../kit/dec.js').Dec} total
+ * @property {(import('../kit/dec.js').Dec | null)} [unknownTerm]
  */
 
 /**

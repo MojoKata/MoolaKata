@@ -131,7 +131,7 @@
       book is being prepared (not started, in progress or rejected), the year is open again
       and changes ask nothing; once the amended return is filed, the year is closed again.
    2. **Every write is checked**, whatever makes it: a transaction added, changed or deleted, a
-      lot picked, an option trade or its end, a corporate action, a trade in another account
+      lot picked, a trade of options or its end, a corporate action, a trade in another account
       or a spouse's that makes or ends a wash sale (S3.8), an account deleted, an account added
       to or left out of the tax book, a marriage recorded, a statement or a file imported. Once
       its changes are in, the closed books of the households it touched are worked out as they

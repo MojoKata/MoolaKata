@@ -6,7 +6,7 @@ import { useList } from '../app/hooks.js';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { addCategory, categoryOptions, NEW, useCategories } from './categories.js';
-import { date, price, quantity } from '../kit/format.js';
+import { date, price, quantity, symbol } from '../kit/format.js';
 import { Amt } from '../kit/amount.js';
 import { Icon } from '../kit/icon.js';
 import { openDialog } from '../kit/dialog.js';
@@ -18,7 +18,7 @@ import { RowTool, StatePill } from '../kit/state.js';
 export { useCategories };
 
 /** What a transaction is called in its row: its payee, else its kind and symbol. @param {any} t */
-const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
+const payeeOf = (t) => symbol(t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind));
 
 /** A transaction's receipts, as a clip after its payee whose tooltip counts them. @param {any} t */
 function clipOf(t) {
@@ -112,7 +112,7 @@ export function TxTable({ rows, showAccount = true, onChanged, accounts = [] }) 
         <td class="dim" style=${{ whiteSpace: 'nowrap' }}>${date(t.date)}</td>
         <td>${payeeOf(t)}${clipOf(t)}${
               t.symbol && t.quantity
-                ? html`<div class="small dim">${quantity(t.quantity)} ${t.symbol}${
+                ? html`<div class="small dim">${quantity(t.quantity)} ${symbol(t.symbol)}${
                   t.price ? [' at ', html`<span class="amt">${price(t.price)}</span>`] : null
                 }</div>`
                 : null

@@ -69,8 +69,8 @@ produces worksheets and exports. It never files, and says so (R1.16).
    coverage's (self-only or family, set on the account; unset, the family limit, and the panel
    asks), $1,000 more at 55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
-   transactions and **receipts**. Charitable gifts above the substantiation threshold show
-   whether a receipt is attached. Medical, childcare, education, HSA, and estimated tax
+   transactions and **receipts**. Charitable gifts of $250 or more (S8.9) show whether a
+   receipt is attached. Medical, childcare, education, HSA, and estimated tax
    payments by quarter.
 8. **Documents checklist**: the 1099s, W-2s and statements expected for the year from the
    accounts held, each marked received (attach the PDF, S9) or missing (S8.16). A received 1099-B can

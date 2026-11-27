@@ -7,7 +7,7 @@ import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { money } from '../kit/format.js';
+import { money, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Dialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
@@ -139,12 +139,12 @@ export function Settle({ close, row }) {
       date: f.date,
       contracts: clean(f.contracts),
     });
-    toast(`${row.symbol}: recorded`);
+    toast(`${symbol(row.symbol)}: recorded`);
     close(true);
   });
   const e = save.error;
   return html`
-    <${Dialog} title=${`${row.symbol}: What Happened?`} close=${close} onSubmit=${() =>
+    <${Dialog} title=${`${symbol(row.symbol)}: What Happened?`} close=${close} onSubmit=${() =>
       save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Record</button>`}>
       <div class="field" data-help="how" id="x-how"><label>It was</label>
@@ -185,8 +185,8 @@ export function Mark({ close, row }) {
   }, [row.instrumentId, day]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title=${`Mark ${row.symbol}`} close=${close} what="This mark"
-      done=${`${row.symbol}: marked`}>
+    <${DraftDialog} f=${f} title=${`Mark ${symbol(row.symbol)}`} close=${close} what="This mark"
+      done=${`${symbol(row.symbol)}: marked`}>
       <div class="row">
         <${Field} label="On" id="mark-date" error=${rec?.error('date')}>
           <${TypedInput} kind="date" value=${day} onInput=${setDay} />

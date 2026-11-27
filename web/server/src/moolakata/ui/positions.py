@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from .. import access, clock, options, valuation
 from ..ledger import types as atypes
+from ..money import CENT
 from ..store.entities.accounts import Instrument, Transaction
 from ..store.repos import ledger as repo
 from .conventions import ExactRoute, Model, Money, Quantity, Ratio
@@ -300,6 +301,9 @@ class GainGroup(Model):
     shortTerm: Money
     longTerm: Money
     total: Money
+    # Unrealized only: the lots whose day bought is missing (S3.1), None when the group has
+    # none, so the column is shown only then (S3.9).
+    unknownTerm: Money | None = None
 
 
 class GainsView(Model):
@@ -307,6 +311,21 @@ class GainsView(Model):
     year: int | None
     realized: list[GainGroup]
     unrealized: list[GainGroup]
+
+
+def _by_lot(r: OpenRow) -> list[tuple[bool | None, Decimal]]:
+    """A position's unrealized gain split by lot (S3.9): each lot's shares at the position's
+    price less its basis, to the cent, with its term (None: its day bought is missing, S3.1).
+    The last lot takes what rounding leaves, so the parts come to the position's gain."""
+    out, given = [], ZERO
+    for i, lot in enumerate(r.lots):
+        if i == len(r.lots) - 1:
+            part = r.unrealized - given
+        else:
+            part = (r.value * lot.quantity / r.quantity - lot.basis).quantize(CENT)
+        given += part
+        out.append((lot.longTerm, part))
+    return out
 
 
 @router.get("/positions/gains", response_model=GainsView)
@@ -345,7 +364,7 @@ def gains(
             GainGroup(key=k, label=labels[k], shortTerm=v[0], longTerm=v[1], total=v[0] + v[1])
             for k, v in sorted(groups.items(), reverse=by in ("year", "month"))
         ]
-        un: dict[str, list[Decimal]] = {}
+        un: dict[str, list] = {}
         un_labels: dict[str, str] = {}
         for r in open_rows:
             if r.unrealized is None:
@@ -353,8 +372,12 @@ def gains(
             key, label = (
                 (r.instrumentId, r.symbol) if by == "instrument" else (r.accountId, r.accountName)
             )
-            g = un.setdefault(key, [ZERO, ZERO])
-            g[1 if r.term == "long" else 0] += r.unrealized
+            g = un.setdefault(key, [ZERO, ZERO, None])
+            for term, part in _by_lot(r):
+                if term is None:
+                    g[2] = (g[2] or ZERO) + part
+                else:
+                    g[1 if term else 0] += part
             un_labels[key] = label
         return GainsView(
             by=by,
@@ -362,9 +385,16 @@ def gains(
             realized=realized,
             unrealized=[
                 GainGroup(
-                    key=k, label=un_labels[k], shortTerm=v[0], longTerm=v[1], total=v[0] + v[1]
+                    key=k,
+                    label=un_labels[k],
+                    shortTerm=v[0],
+                    longTerm=v[1],
+                    unknownTerm=v[2],
+                    total=v[0] + v[1] + (v[2] or ZERO),
                 )
-                for k, v in sorted(un.items(), key=lambda x: -(x[1][0] + x[1][1]))
+                for k, v in sorted(
+                    un.items(), key=lambda x: -(x[1][0] + x[1][1] + (x[1][2] or ZERO))
+                )
             ],
         )
 
