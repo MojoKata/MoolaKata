@@ -324,7 +324,9 @@ def test_an_open_position_says_its_prices_day_and_whether_it_is_stale(server, ja
 def test_a_spin_off_recorded_after_the_shares_were_sold_moves_their_basis(server, jane):
     """S2.4.1, S2.8: XYZ spun off NEWCO on Mar 2 and was all sold in May; recorded in October,
     the spin-off is checked and sized by what was held on Mar 2, and the May sale's basis is
-    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked."""
+    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked. A
+    checking account holds nothing to offer."""
+    new_account(jane, name="Checking", type="checking")
     a = new_account(jane, name="Brokerage", type="brokerage")["id"]
     trade(jane, a, "2026-01-05", "buy", "100", "100", "XYZ")
     trade(jane, a, "2026-05-01", "sell", "100", "120", "XYZ")
