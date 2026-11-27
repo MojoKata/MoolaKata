@@ -1376,6 +1376,21 @@ def test_a_roll_takes_new_legs_on_its_underlying_and_turned_down_isnt_offered_ag
                     "MSFT 20NOV26 535 P": "2026-10-10"}  # fmt: skip
 
 
+def test_a_roll_taken_in_moves_the_strategys_version(jane):
+    """S3.5.3, schema.md §2: a strategy's legs are rows of their own; a roll that adds one is
+    the strategy's change too, so a draft read before it is stale."""
+    a = new_account(jane, type="brokerage")["id"]
+    st = saved(create(jane, "Strat", accountId=a, legs=_spread(jane, a)))
+    option(jane, a, "buy-to-close", "2026-10-10", "1.00", strike="540", fees="0")
+    option(jane, a, "sell-to-open", "2026-10-10", "1.50", strike="535", fees="0")
+    held = {x["symbol"]: x["instrumentId"] for x in jane.get("/ui/api/positions").json()["open"]}
+    clock.fix(T0 + dt.timedelta(minutes=1))  # later than it was made, so its stamp changes
+    r = jane.post(f"/ui/api/strategies/{st['id']}/roll",
+                  json={"roll": [{"instrumentId": held["MSFT 20NOV26 535 P"]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert r.json()["version"] == st["version"] + 1
+
+
 def test_a_roll_is_of_a_strategy_the_caller_may_change(server):
     from edits import share
     from test_sharing import setup
