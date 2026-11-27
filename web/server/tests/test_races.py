@@ -21,7 +21,7 @@ from moolakata.receipts import retention
 # transaction, each with its test below; "" where it works in single transactions only.
 INVENTORY = {
     "backups": "the database by SQLite's backup, consistent on its own: none",
-    "pruning": "sessions and one-time tokens, in one transaction: none",
+    "pruning": "sessions, one-time tokens and lapsed sign-ups' hashes, in one transaction: none",
     "certificate": "the self-signed pair's files, each written whole and renamed: none",
     "prices": "price rows, in transactions: none",
     "mail": "the mail folder's files, its own: none",

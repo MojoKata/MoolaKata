@@ -32,6 +32,45 @@ def test_build_registers_every_background_task(keyed_config, master_key):
         server.db.dispose()
 
 
+def test_the_hourly_prune_clears_a_lapsed_sign_up_requests_password_hash(keyed_config, master_key):
+    """A request whose link lapsed unopened keeps no password hash; one still within its
+    hours, or waiting for the admins, keeps it (schema.md §4.4.1)."""
+    import datetime as dt
+
+    from moolakata import clock, ids
+    from moolakata.store.entities.users import SignupRequest
+
+    server = Server(config=keyed_config)
+    build(server, master_key)
+    try:
+        now = clock.now()
+        made = {}
+        with server.db.tx(unscoped="test") as s:
+            for name, status, hours in [
+                ("lapsed", "confirming", -1),
+                ("open", "confirming", 1),
+                ("waiting", "waiting", -1),
+            ]:
+                req = SignupRequest(
+                    id=ids.new_id("Sgnup"),
+                    displayName=name,
+                    username=name,
+                    email=f"{name}@shaw.family",
+                    passwordHash="hash",
+                    sex="female",
+                    status=status,
+                    confirmBy=now + dt.timedelta(hours=hours),
+                )
+                s.add(req)
+                made[name] = req.id
+        server.tasks._tasks["pruning"].run(None)
+        with server.db.read(unscoped="test") as s:
+            kept = {n: s.get(SignupRequest, rid).passwordHash for n, rid in made.items()}
+        assert kept == {"lapsed": None, "open": "hash", "waiting": "hash"}
+    finally:
+        server.db.dispose()
+
+
 def test_a_failure_after_the_store_opens_leaves_the_server_locked(
     keyed_config, master_key, monkeypatch
 ):

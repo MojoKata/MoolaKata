@@ -11,7 +11,7 @@ from sqlalchemy import delete, select
 
 from . import clock, figures, listener, settings, timezones
 from .app import Server, create_app
-from .auth import sessions, users
+from .auth import sessions, signup, users
 from .config import Config, RefuseStart
 from .keys import master
 from .prices import refresh as pricing
@@ -76,10 +76,12 @@ def register_tasks(server: Server) -> None:
     server.tasks.register("backups", backup, Daily(setting_time("backupTime")), last.get("backups"))
 
     def prune(ctx: TaskContext) -> None:
-        """Expired sessions and one-time tokens are removed outright (schema.md §4.4.1)."""
+        """Expired sessions and one-time tokens are removed outright, and a lapsed sign-up
+        request's password hash with them (schema.md §4.4.1)."""
         with server.db.tx(unscoped="runtime: prune") as s:
             sessions.prune(s)
             s.execute(delete(OneTimeToken).where(OneTimeToken.expiresAt <= sessions.now()))
+            signup.prune(s)
 
     server.tasks.register("pruning", prune, Every(3600), last.get("pruning"))
 

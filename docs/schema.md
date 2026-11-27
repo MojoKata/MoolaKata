@@ -233,7 +233,8 @@ Records are never removed from the database: they are marked deleted. The except
 4. **Exceptions**, removed outright:
    1. **sessions and one-time tokens** (invitation, sign-up confirmation, reset, email
       change, a sign-in waiting for its two-step code), when used or expired, and two-step
-      recovery codes when used or replaced;
+      recovery codes when used or replaced; and a sign-up request's password hash (the field,
+      not the request) once the request is approved, rejected or its link lapses unopened;
    2. **a secret's old ciphertext** when the secret is replaced or removed, so an old API key
       or token can't be recovered from the database or a later backup;
    3. **linked copies**: another household's data, removed with the share or link it came

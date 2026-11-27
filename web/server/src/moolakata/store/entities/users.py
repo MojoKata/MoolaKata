@@ -98,7 +98,7 @@ class SignupRequest(Record):
     displayName: str
     username: str
     email: str
-    passwordHash: str
+    passwordHash: str | None
     sex: str
     confirmBy: dt.datetime
     status: str = "confirming"
