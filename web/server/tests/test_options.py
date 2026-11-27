@@ -144,6 +144,27 @@ def test_a_short_put_assigned_folds_the_credit_into_the_stock_basis(jane):
     )
 
 
+def test_an_option_settled_in_a_filed_year_is_asked_first_and_kept_once_confirmed(jane):
+    """S2.8.2: an expiry recorded in 2025, a year whose return is filed, moves its gains: it is
+    refused with the closed-year question until the request confirms it."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    opt(jane, brk["id"], "sell-to-open", "2025-09-02", "6.40", expiry="2025-11-21", fees="0")
+    put = _held(jane, brk["id"], "MSFT 21NOV25 480 P")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    book = make(jane, "TaxBk", year=2025, filers=[me]).json()
+    r = make(jane, "Filng", bookId=book["id"], jurisdiction="federal", form="1040",
+             progress="filed", filedOn="2026-04-10")  # fmt: skip
+    assert r.status_code == 200, r.text
+    url = f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle"
+    body = {"how": "expired", "date": "2025-11-21", "contracts": "1"}
+    r = jane.post(url, json=body)
+    assert r.status_code == 409 and r.json()["code"] == "closed-year", r.text
+    assert _held(jane, brk["id"], "MSFT 21NOV25 480 P") is not None, "refused: as it was"
+    r = jane.post(url, json=body, params={"confirm": "true"})
+    assert r.status_code == 201, r.text
+    assert _held(jane, brk["id"], "MSFT 21NOV25 480 P") is None
+
+
 def test_an_assignment_follows_its_opening_trade_and_goes_with_its_stock_trade(server, jane):
     # The premium is folded in at replay, so a change to the opening trade (a re-import
     # with a corrected amount) follows through; deleting the assignment deletes its stock trade.
