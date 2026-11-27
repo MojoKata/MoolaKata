@@ -2824,7 +2824,7 @@ DIALOGS.editTxAsks = () => ({ ...DIALOGS.editTx(), body: `<div class="notice" st
   <div class="row">${field('Date', inp('2025-12-15', '', 'date'))}${field('Amount', inp('4,212.50'))}</div>${field('Payee', inp('Sold 30 VTI'))}${field('Category', sel(['Investments › Sales', 'Food › Groceries'], 'Investments › Sales'))}${field('Memo', inp('price corrected from the trade confirmation'))}`, ok: 'Change It Anyway' });
 // S3.4, S2.4.7: what an assignment or a corporate action made keeps its figures; its notes change.
 DIALOGS.editTxMade = () => {
-  const why = 'This trade came with the assignment of MSFT 20NOV26 480 P on Nov 20, 2026: change that.';
+  const why = 'This trade came with the assignment of MSFT 20 Nov 26 480 P on Nov 20, 2026: change that.';
   return { title: 'Edit Transaction', body: `<p class="small dim" style="margin-top:0">${why}</p><div class="row">${field('Date', readVal('11/20/2026'))}${field('Kind', readVal('Buy', { select: true }))}</div><div class="row">${field('Symbol', readVal('MSFT'))}${field('Quantity', readVal('100'))}${field('Price', readVal('480.00'))}</div><div class="row">${field('Amount', readVal('-48,000.00'))}${field('Fees', readVal('0.00'))}</div>${field('Memo', inp('assigned early'))}${field('Tags', tagBox(['options']))}`, ok: 'Save' };
 };
 // S2.3: a change that drops a sale's pick asks first.

@@ -230,8 +230,8 @@ def test_a_long_call_exercised_adds_its_premium_to_the_basis(jane):
 @pytest.mark.parametrize(
     ("side", "right", "how", "word", "payee"),
     [
-        ("sell-to-open", "put", "assign", "assignment", "MSFT 20NOV26 480 P"),
-        ("buy-to-open", "call", "exercise", "exercise", "MSFT 20NOV26 480 C"),
+        ("sell-to-open", "put", "assign", "assignment", "MSFT 20 Nov 26 480 P"),
+        ("buy-to-open", "call", "exercise", "exercise", "MSFT 20 Nov 26 480 C"),
     ],
 )
 def test_a_stock_trade_from_an_assignment_or_exercise_goes_only_with_it(
@@ -306,7 +306,9 @@ def test_out_of_the_money_expires_the_day_after(server, jane):
     assert expired["realized"] == "640.00"
     from moolakata import alerts
 
-    assert [a.kind for a in alerts.evaluate(server)] == ["option-expired"]
+    assert [(a.kind, a.title) for a in alerts.evaluate(server)] == [
+        ("option-expired", "MSFT 09 Oct 26 530 P expired: what happened?")
+    ]
 
 
 def test_each_option_trade_has_its_premium_pl_and_return(jane):
@@ -1358,3 +1360,49 @@ def test_a_corporate_actions_transactions_keep_their_figures_and_take_their_note
         t = saved(change(jane, "Txn", t, memo="as the broker wrote it", cleared=True))
         assert (t["memo"], t["cleared"]) == ("as the broker wrote it", True)
     assert act["transactions"][0]["kind"] == "symbol-change"
+
+
+def test_an_option_symbol_is_shown_with_its_expiry_as_day_month_and_year():
+    """S2.1: the server's own words name a contract as people are shown it; other symbols, and
+    text around them, as they are."""
+    from moolakata.options import shown
+
+    assert shown("AAPL 18DEC26 250 C") == "AAPL 18 Dec 26 250 C"
+    assert shown("Sold 1 MSFT1 20NOV26 2.5 P, then MSFT 20NOV26 480 C.") == (
+        "Sold 1 MSFT1 20 Nov 26 2.5 P, then MSFT 20 Nov 26 480 C.")  # fmt: skip
+    for same in ("AAPL", "BRK.B", "VTI 18DEC26", "X 18DEC26 250 Q", "X 18DXC26 250 C", ""):
+        assert shown(same) == same
+
+
+STORED = r"\b\d\d(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d\d\b"
+
+
+def test_no_server_message_names_a_contract_in_its_stored_form_but_the_exports_do(jane):
+    """S2.1: refusals, Issues and the activity log name a contract as people are shown it; the
+    API's symbols and the exports keep the stored form, as a broker's file does."""
+    import re
+
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    opt(jane, brk, "sell-to-open", "2026-09-02", "6.40", fees="0")  # assigned below
+    opt(jane, brk, "buy-to-open", "2026-09-02", "1.00", strike="300", expiry="2026-10-09",
+        fees="0")  # fmt: skip  # expired, its end not recorded
+    opt(jane, brk, "buy-to-open", "2026-09-03", "2.00", strike="350", fees="0")
+    opt(jane, brk, "sell-to-close", "2026-09-10", "3.00", strike="350", fees="0")  # sold
+    put = _held(jane, brk, "MSFT 20NOV26 480 P")
+    _, stock = jane.post(f"/ui/api/accounts/{brk}/options/{put['instrumentId']}/settle",
+                           json={"how": "assign", "date": "2026-11-20",
+                                 "contracts": "1"}).json()  # fmt: skip
+    words = [m for _, _, m in _refused(remove(jane, "Txn", stock))]
+    words += [m for _, _, m in _refused(change(jane, "Txn", stock, amount="-1.00"))]
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    book = make(jane, "TaxBk", year=2026, filers=[me]).json()["id"]
+    panels = jane.get(f"/ui/api/tax-books/{book}/panels").json()
+    issues = [i["text"] for i in panels["issues"]]
+    assert any("MSFT 09 Oct 26 300 P expired on Oct 9" in x for x in issues), issues
+    activity = [e["text"] for e in jane.get("/ui/api/activity").json()["items"]]
+    assert words and activity
+    assert [x for x in words + issues + activity if re.search(STORED, x)] == []
+    # The API and the exports keep the stored form.
+    assert "1 MSFT 20NOV26 350 P" in [r["description"] for r in panels["rows"]]
+    csv = jane.get(f"/ui/api/tax-books/{book}/exports/8949.csv").text
+    assert "1 MSFT 20NOV26 350 P" in csv

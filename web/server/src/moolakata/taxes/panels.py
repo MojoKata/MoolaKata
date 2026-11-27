@@ -11,7 +11,7 @@ from decimal import ROUND_CEILING, Decimal
 from sqlalchemy import and_, false, not_, or_, select
 from sqlalchemy.orm import Session
 
-from .. import assets, clock, education, gifts, giving, loans, people
+from .. import assets, clock, education, gifts, giving, loans, options, people
 from ..ledger import lots
 from ..ledger import types as atypes
 from ..money import grouped
@@ -1322,6 +1322,10 @@ class Issue:
     kind: str
     text: str
     link: str | None = None
+
+    def __post_init__(self) -> None:
+        # A contract it names reads as people are shown it (S2.1), whichever line wrote it.
+        self.text = options.shown(self.text)
 
 
 # What a possible wash sale left for review is near (S3.8.5), by its rule.

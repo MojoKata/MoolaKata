@@ -2,6 +2,7 @@
 comes to."""
 
 import datetime as dt
+import re
 from decimal import Decimal
 
 from sqlalchemy import false, select
@@ -20,6 +21,21 @@ def symbol(underlying: str, expiry: dt.date, right: str, strike: Decimal) -> str
     """A contract's symbol as people read it: MSFT 20NOV26 480 P."""
     k = f"{strike.normalize():f}"
     return f"{underlying} {expiry:%d%b%y}".upper() + f" {k} {'C' if right == 'call' else 'P'}"
+
+
+# An option's symbol as stored (`symbol`): its root, its expiry as DDMMMYY, its strike, C or P.
+_STORED = re.compile(
+    r"(?<!\S)(\S+) (\d\d)(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d\d) "
+    r"(\d+(?:\.\d+)?) ([CP])(?=$|[\s,.;:)])"
+)
+
+
+def shown(text: str) -> str:
+    """Text naming a contract, with its symbol as people are shown it (S2.1): the stored
+    `AAPL 18DEC26 250 C` reads `AAPL 18 Dec 26 250 C`; any other symbol as it is. For the
+    server's own words (refusals, Issues, alerts, activity), never an export, which keeps the
+    stored form."""
+    return _STORED.sub(lambda m: f"{m[1]} {m[2]} {m[3].capitalize()} {m[4]} {m[5]} {m[6]}", text)
 
 
 def occ(underlying: str, c: OptionContract) -> str:
