@@ -418,6 +418,9 @@ function Trades() {
 const UNKNOWN_TERM =
   'Lots whose day bought is missing, so their term isn’t known: type each lot’s day bought on the shares moved in.';
 
+/** How to count a lot left out of the unrealized gains (S3.9). */
+const NO_BASIS = 'Their gain isn’t known: add each lot’s cost basis on the shares moved in.';
+
 /** Why an adjusted contract's Close… is off: the dialog names a contract by its underlying. */
 const ADJUSTED =
   'An adjusted contract trades under its own root, which the trade dialog can’t name.';
@@ -448,56 +451,66 @@ function Gains() {
   const [year, setYear] = useState('');
   const res = useApi('/positions/gains', { by, year: year || undefined }, ['import', 'prices']);
   const v = /** @type {any} */ (res.data);
-  /** @param {any[]} rows @param {string} title */
-  const table = (rows, title) => {
+  /** @param {any[]} rows @param {string} title @param {any} [after] */
+  const table = (rows, title, after = null) => {
     // A lot whose day bought is missing has no term (S3.1): its own column, only then (S3.9).
     const unknown = rows.some((g) => g.unknownTerm != null);
-    return html`<div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{
-      padding: '8px 8px 0',
-    }}>${title}</h3>${
-      rows.length
-        ? html`
-          <div class="table-wrap">
-            <table class="t">
-              <caption class="sr-only">${title}</caption>
-              <thead>
-                <tr>
-                  <th></th>
-                  <th class="num">Short Term</th>
-                  <th class="num">Long Term</th>
-                  ${unknown
-                    ? html`<th class="num" data-tip=${UNKNOWN_TERM} aria-description=${UNKNOWN_TERM}>
-                        Unknown Term</th>`
-                    : null}
-                  <th class="num">Total</th>
-                </tr>
-              </thead>
-              <tbody>${rows.map((g) =>
-                html`
+    return html`
+      <div class="card"
+        style=${{ padding: '4px 8px' }}><h3 style=${{
+          padding: '8px 8px 0',
+        }}>${title}</h3>${rows.length
+          ? html`
+            <div class="table-wrap">
+              <table class="t">
+                <caption class="sr-only">${title}</caption>
+                <thead>
                   <tr>
-                    <td>${g.label}</td>
-                    <td class="num">
-                      <${Amt} v=${g.shortTerm} signed />
-                    </td>
-                    <td class="num">
-                      <${Amt} v=${g.longTerm} signed />
-                    </td>
+                    <th></th>
+                    <th class="num">Short Term</th>
+                    <th class="num">Long Term</th>
                     ${unknown
-                      ? html`<td class="num">${
-                        g.unknownTerm != null ? html`<${Amt} v=${g.unknownTerm} signed />` : ''
-                      }</td>`
+                      ? html`<th class="num" data-tip=${UNKNOWN_TERM} aria-description=${UNKNOWN_TERM}>
+                        Unknown Term</th>`
                       : null}
-                    <td class="num"><b><${Amt}
-                                v=${g.total} signed /></b></td>
+                    <th class="num">Total</th>
                   </tr>
-                `
-              )}</tbody>
-            </table>
-          </div>
-        `
-        : html`<p class="small dim">None.</p>`
-    }</div>`;
+                </thead>
+                <tbody>${rows.map((g) =>
+                  html`
+                    <tr>
+                      <td>${g.label}</td>
+                      <td class="num">
+                        <${Amt} v=${g.shortTerm} signed />
+                      </td>
+                      <td class="num">
+                        <${Amt} v=${g.longTerm} signed />
+                      </td>
+                      ${unknown
+                        ? html`<td class="num">${
+                          g.unknownTerm != null ? html`<${Amt} v=${g.unknownTerm} signed />` : ''
+                        }</td>`
+                        : null}
+                      <td class="num"><b><${Amt}
+                                  v=${g.total} signed /></b></td>
+                    </tr>
+                  `
+                )}</tbody>
+              </table>
+            </div>
+          `
+          : html`<p class="small dim">None.</p>`}${after}</div>
+    `;
   };
+  // Lots without a cost basis have no gain to count (S3.9): named under the table.
+  const leftOut = v?.leftOut?.length
+    ? html`
+      <p class="small dim" style=${{ padding: '0 8px' }} data-tip=${NO_BASIS}
+        aria-description=${NO_BASIS}>Left out, no cost basis: ${v.leftOut.map((
+          /** @type {any} */ x,
+        ) => `${symbol(x.symbol)} (${x.lots} lot${x.lots === 1 ? '' : 's'})`).join(', ')}</p>
+    `
+    : null;
   return html`
     <div
       class="toolbar"><${Chips} label="By" value=${by} onChange=${setBy} options=${[
@@ -517,6 +530,7 @@ function Gains() {
         : 'grid g2'}>${table(v.realized, 'Realized')}${table(
           v.unrealized,
           by === 'instrument' ? 'Unrealized, by instrument' : 'Unrealized, by account',
+          leftOut,
         )}</div>
     `}
   `;

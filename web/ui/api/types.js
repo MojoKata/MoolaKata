@@ -1331,6 +1331,7 @@
  * @property {(number | null)} year
  * @property {Array<GainGroup>} realized
  * @property {Array<GainGroup>} unrealized
+ * @property {Array<NoBasis>} leftOut
  */
 
 /**
@@ -2385,6 +2386,15 @@
  * @property {string} date
  * @property {number} days
  * @property {(number | null)} turns
+ */
+
+/**
+ * An instrument with lots open whose cost basis is missing: left out of the unrealized
+ * gains, and named under them (S3.9).
+ * @typedef {Object} NoBasis
+ * @property {string} instrumentId
+ * @property {string} symbol
+ * @property {number} lots
  */
 
 /**

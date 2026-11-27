@@ -314,20 +314,33 @@ class GainGroup(Model):
     unknownTerm: Money | None = None
 
 
+class NoBasis(Model):
+    """An instrument with lots open whose cost basis is missing: left out of the unrealized
+    gains, and named under them (S3.9)."""
+
+    instrumentId: str
+    symbol: str
+    lots: int
+
+
 class GainsView(Model):
     by: str
     year: int | None
     realized: list[GainGroup]
     unrealized: list[GainGroup]
+    leftOut: list[NoBasis]  # by symbol
 
 
 def _by_lot(r: OpenRow) -> list[tuple[bool | None, Decimal]]:
-    """A position's unrealized gain split by lot (S3.9): each lot's shares at the position's
-    price less its basis, to the cent, with its term (None: its day bought is missing, S3.1).
-    The last lot takes what rounding leaves, so the parts come to the position's gain."""
+    """A valued position's unrealized gain split by lot (S3.9): each lot with a basis, its
+    shares at the position's price less that basis, to the cent, with its term (None: its day
+    bought is missing, S3.1); a lot without one has no gain to count. With every basis known
+    the last lot takes what rounding leaves, so the parts come to the position's gain."""
     out, given = [], ZERO
     for i, lot in enumerate(r.lots):
-        if i == len(r.lots) - 1:
+        if lot.basis is None:
+            continue
+        if r.unrealized is not None and i == len(r.lots) - 1:
             part = r.unrealized - given
         else:
             part = (r.value * lot.quantity / r.quantity - lot.basis).quantize(CENT)
@@ -374,9 +387,17 @@ def gains(
         ]
         un: dict[str, list] = {}
         un_labels: dict[str, str] = {}
+        no_basis: dict[str, NoBasis] = {}
         for r in open_rows:
-            if r.unrealized is None:
-                continue
+            missing = sum(lot.basis is None for lot in r.lots)
+            if missing:
+                if r.instrumentId not in no_basis:
+                    no_basis[r.instrumentId] = NoBasis(
+                        instrumentId=r.instrumentId, symbol=r.symbol, lots=0
+                    )
+                no_basis[r.instrumentId].lots += missing
+            if r.value is None or missing == len(r.lots):
+                continue  # no price to value it by, or no lot with a basis
             key, label = (
                 (r.instrumentId, r.symbol) if by == "instrument" else (r.accountId, r.accountName)
             )
@@ -404,6 +425,7 @@ def gains(
                     un.items(), key=lambda x: -(x[1][0] + x[1][1] + (x[1][2] or ZERO))
                 )
             ],
+            leftOut=sorted(no_basis.values(), key=lambda x: x.symbol),
         )
 
 

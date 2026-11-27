@@ -7843,6 +7843,13 @@
             "title": "By",
             "type": "string"
           },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/NoBasis"
+            },
+            "title": "Leftout",
+            "type": "array"
+          },
           "realized": {
             "items": {
               "$ref": "#/components/schemas/GainGroup"
@@ -7873,7 +7880,8 @@
           "by",
           "year",
           "realized",
-          "unrealized"
+          "unrealized",
+          "leftOut"
         ],
         "title": "GainsView",
         "type": "object"
@@ -14514,6 +14522,31 @@
           "turns"
         ],
         "title": "NextDate",
+        "type": "object"
+      },
+      "NoBasis": {
+        "additionalProperties": false,
+        "description": "An instrument with lots open whose cost basis is missing: left out of the unrealized\ngains, and named under them (S3.9).",
+        "properties": {
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "lots": {
+            "title": "Lots",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrumentId",
+          "symbol",
+          "lots"
+        ],
+        "title": "NoBasis",
         "type": "object"
       },
       "OccasionOut": {
