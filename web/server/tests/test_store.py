@@ -1551,6 +1551,52 @@ def test_0073_gives_every_tax_book_no_magi(tmp_path):
     engine.dispose()
 
 
+def _jane_at(conn, made: str) -> str:
+    """A user written in an old revision's terms, for the rows that need an owner."""
+    person, user = ids.new_id("Persn"), ids.new_id("User")
+    conn.exec_driver_sql(
+        'INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+        "VALUES (?, 'Jane', 'female', ?, ?)",
+        (person, made, made),
+    )
+    conn.exec_driver_sql(
+        'INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+        "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+        (user, person, made, made),
+    )
+    return user
+
+
+def test_0074_keeps_every_sign_up_request_and_lets_its_hash_go(tmp_path):
+    """S10.1.4.2, schema.md §4.4.1: `SignupRequest.passwordHash` takes null, each request kept
+    as it was; a decided one is then written with none."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    req = ids.new_id("Sgnup")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0073")
+        conn.commit()
+        conn.exec_driver_sql(
+            'INSERT INTO "SignupRequest" (id, "displayName", username, email, "passwordHash", '
+            'sex, "confirmBy", "createdAt", "updatedAt") VALUES (?, \'Erin\', \'erin\', '
+            "'erin@shaw.family', 'h', 'female', ?, ?, ?)",
+            (req, made, made, made),
+        )
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = q('SELECT id, username, "passwordHash", status FROM "SignupRequest"').one()
+        assert tuple(got) == (req, "erin", "h", "confirming")
+        q('UPDATE "SignupRequest" SET "passwordHash" = NULL, status = \'rejected\'')
+        assert q('SELECT "passwordHash" FROM "SignupRequest"').scalar_one() is None
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError
