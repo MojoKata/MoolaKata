@@ -2641,7 +2641,7 @@ DIALOGS.itemNotes = () => DIALOGS.assetItem({ kind: 'collectable', name: COLLECT
 DIALOGS.itemGift = () => DIALOGS.assetItem({ kind: 'collectable', name: COLLECT[0].name, gift: true });
 DIALOGS.itemHome = () => DIALOGS.assetItem({ kind: 'home', name: '1428 Elm St' });
 DIALOGS.optionMark = () => ({ title: 'Mark MSFT 16 Oct 26 480 P', body: `<div class="row">${field('Marked on', inp('2026-10-10', '', 'date'))}${field('Mark', inp('0.22'))}</div>`, ok: 'Save' });
-DIALOGS.optionSettle = () => ({ title: 'MSFT 20NOV26 480 P: What Happened?', body: `<div class="field"><label>It was</label><div class="seg"><button data-act="seg">Expired worthless</button><button class="on" data-act="seg">Assigned</button></div></div>
+DIALOGS.optionSettle = () => ({ title: 'MSFT 20 Nov 26 480 P: What Happened?', body: `<div class="field"><label>It was</label><div class="seg"><button data-act="seg">Expired worthless</button><button class="on" data-act="seg">Assigned</button></div></div>
   <div class="row">${field('Settled on', inp('2026-11-20', '', 'date'))}${field('Contracts settled', withWords(inp(''), [['all', '2', 'All: 2 contracts']]))}</div>
   <p class="small dim">200 MSFT bought at 480, the $1,279.35 credit taking off their basis.</p>`, ok: 'Record' });
 DIALOGS.taxBook = () => ({ title: 'New Tax Book', body: `${field('Year', sel(['2027', '2026', '2025'], '2027'))}

@@ -4,7 +4,7 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
 import { useApi, useList } from '../app/hooks.js';
-import { date, quantity } from '../kit/format.js';
+import { date, quantity, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
@@ -203,7 +203,7 @@ function Holdings({ p }) {
           <tbody>${h.holdings.map((/** @type {any} */ x) =>
             html`
               <tr>
-                <td><b>${x.symbol}</b>${x.stale
+                <td><b>${symbol(x.symbol)}</b>${x.stale
                   ? html`${' '}<span class="pill warn">stale</span>`
                   : null}
                     <div class="small dim">${x.accounts.join(', ')}</div></td>

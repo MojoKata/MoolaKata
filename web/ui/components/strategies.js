@@ -6,7 +6,7 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { date, quantity } from '../kit/format.js';
+import { date, quantity, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Amt } from '../kit/amount.js';
 import { Dec, dec } from '../kit/dec.js';
@@ -25,8 +25,8 @@ import { Action, RowTool } from '../kit/state.js';
 /** "Short 1 SPY 20NOV26 540 P", or "Long 100 AAPL". @param {any} x */
 const legLine = (x) => {
   const n = dec(x.quantity);
-  if (n.isZero()) return `${x.symbol} · closed ${x.closedOn ? date(x.closedOn) : ''}`;
-  return `${n.isNegative() ? 'Short' : 'Long'} ${quantity(n.abs())} ${x.symbol}`;
+  if (n.isZero()) return `${symbol(x.symbol)} · closed ${x.closedOn ? date(x.closedOn) : ''}`;
+  return `${n.isNegative() ? 'Short' : 'Long'} ${quantity(n.abs())} ${symbol(x.symbol)}`;
 };
 
 /** @param {any} v @param {boolean} cents */
@@ -90,7 +90,8 @@ export function Strategies() {
           <${Icon} name="info" />
           <div>${p.kind === 'roll'
             ? html`
-              ${p.legs[0].symbol} opened ${date(p.openedOn)} in ${p.accountName}, the day a leg
+              ${symbol(p.legs[0].symbol)} opened ${date(p.openedOn)} in ${p
+                .accountName}, the day a leg
                         of <b>${p.shape}</b> on ${p
                           .underlying} closed: a roll? <button type="button" class="btn sm
                         primary" disabled=${act.busy} onClick=${() =>
@@ -103,7 +104,7 @@ export function Strategies() {
                 ? 'in'
                 : `opened ${date(p.openedOn)} in`} ${p.accountName} look like a <b>${p.shape
                 .toLowerCase()}</b>: ${p.legs.map((/** @type {any} */ l) =>
-                  l.quantity ? `${quantity(l.quantity)} ${l.symbol}` : l.symbol
+                  symbol(l.quantity ? `${quantity(l.quantity)} ${l.symbol}` : l.symbol)
                 ).join(', ')}. <button
                 type="button" class="btn sm primary" disabled=${act.busy}
                 onClick=${() =>
@@ -302,7 +303,7 @@ function AdjustDialog({ close }) {
                       const r = row(c);
                       return html`
                         <tr>
-                          <td><b>${c.symbol}</b><div class="small dim">${c.held.join(
+                          <td><b>${symbol(c.symbol)}</b><div class="small dim">${c.held.join(
                             '; ',
                           )}</div></td>
                           <td><input class="in" style=${{ maxWidth: '90px' }}

@@ -6,7 +6,7 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi } from '../app/hooks.js';
 import { api } from '../api/client.js';
-import { date, money, quantity } from '../kit/format.js';
+import { date, money, quantity, symbol } from '../kit/format.js';
 import { Amt } from '../kit/amount.js';
 import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
@@ -193,7 +193,7 @@ function Gains({ p }) {
                   html`
                     <tr>
                       <td>${r.box}</td>
-                      <td>${r.description}<div class="small dim">${r.account}${r
+                      <td>${symbol(r.description)}<div class="small dim">${r.account}${r
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
@@ -247,7 +247,7 @@ function Gains({ p }) {
           ? p.washes.map((/** @type {any} */ w) => {
             // A short sale's review names its cover and the other short sale (S3.8.5.1).
             const short = w.rule === 'short-sale';
-            const sale = `${w.symbol} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
+            const sale = `${symbol(w.symbol)} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
             const near = `${short ? 'sold short' : 'replaced'} ${
               date(w.replacedOn)
             } in ${w.replacementAccount} (${quantity(w.replacementQty)} shares)`;

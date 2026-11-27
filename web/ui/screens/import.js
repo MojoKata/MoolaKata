@@ -6,7 +6,7 @@ import { html } from '../app/html.js';
 import { canAdd } from '../app/draft.js';
 import { api } from '../api/client.js';
 import { changes } from '../app/stream.js';
-import { cents, date, fromCents, money } from '../kit/format.js';
+import { cents, date, fromCents, money, symbol } from '../kit/format.js';
 import { Dialog, openDialog } from '../kit/dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
 import { useDialogGuide } from '../components/help.js';
@@ -741,7 +741,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
         <tbody>${review.positions.map((/** @type {any} */ p) =>
           html`
             <tr>
-              <td><b>${p.symbol || p.label}</b>${p.symbol
+              <td><b>${symbol(p.symbol) || p.label}</b>${p.symbol
                 ? html`<div class="small dim">${p.label}</div>`
                 : null}</td>
               <td class="num">${p.quantity ?? '—'}</td>
@@ -760,7 +760,7 @@ function BrokerageReview({ review, setReview, close, done, accounts }) {
             </tr>${p.hint
               ? html`
                 <tr>
-                  <td colspan="5" class="small"><${Icon} name="alert" /> ${p.symbol ||
+                  <td colspan="5" class="small"><${Icon} name="alert" /> ${symbol(p.symbol) ||
                     p.label}: ${p.hint}.</td>
                 </tr>
               `

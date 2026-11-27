@@ -3,7 +3,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { date, quantity } from '../kit/format.js';
+import { date, quantity, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
@@ -92,7 +92,7 @@ export default function Positions({ tab }) {
             <div class="value">${v.summary.expiringSoon.length}</div>
             <div class="delta">${v.summary.expiringSoon.map((/** @type {any} */ x) =>
               html`
-                <span class=${'pill ' + (x.inTheMoney ? 'warn' : '')}>${x.symbol}</span>
+                <span class=${'pill ' + (x.inTheMoney ? 'warn' : '')}>${symbol(x.symbol)}</span>
               `
             )}</div>
           </div>
@@ -168,12 +168,12 @@ function Open({ rows, reload }) {
             return html`
               <tr>
                 <td><input
-                  type="checkbox" aria-label=${'Select ' + r.symbol}
+                  type="checkbox" aria-label=${'Select ' + symbol(r.symbol)}
                   checked=${picked.includes(key)} onChange=${() => pick(key)} /></td>
                 <td><button type="button" class="linklike" aria-expanded=${shown === key
                   ? 'true'
                   : 'false'} onClick=${() => setShown(shown === key ? null : key)}
-                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${r.symbol}</button>${r
+                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${symbol(r.symbol)}</button>${r
                       .daysToExpiry != null
                     ? html`${' '}<span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${
                       r.daysToExpiry < 0 ? 'expired' : `${r.daysToExpiry}d`
@@ -188,7 +188,7 @@ function Open({ rows, reload }) {
                       .unknownSymbol
                     ? html`<div class="small" style=${{
                       color: 'var(--ask)',
-                    }}>No price source knows ${r.symbol}</div>`
+                    }}>No price source knows ${symbol(r.symbol)}</div>`
                     : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
@@ -300,7 +300,9 @@ function Closed({ rows }) {
           <tbody>${rows.map((r) =>
             html`
               <tr>
-                <td><b>${r.symbol}</b> <span class="small dim">${quantity(r.quantity)}</span></td>
+                <td><b>${symbol(r.symbol)}</b> <span class="small dim">${quantity(
+                  r.quantity,
+                )}</span></td>
                 <td class="small dim">${r.accountName}</td>
                 <td class="small dim">${date(r.opened)}</td>
                 <td class="small dim">${date(r.closed)}</td>
@@ -366,15 +368,15 @@ function Trades() {
           <tbody>${rows.map((r) =>
             html`
               <tr>
-                <td><b>${r.symbol}</b> <span class=${'pill ' +
+                <td><b>${symbol(r.symbol)}</b> <span class=${'pill ' +
                   (r.side === 'short' ? 'warn' : '')}>${r
                     .side === 'short'
                   ? 'Short'
                   : 'Long'}</span> <span class="small dim">×${quantity(r.contracts)}</span>${r
                     .adjustedFrom
-                  ? html`<div class="small dim">adjusted ${
-                    date(r.adjustedOn)
-                  } from ${r.adjustedFrom}</div>`
+                  ? html`<div class="small dim">adjusted ${date(r.adjustedOn)} from ${
+                    symbol(r.adjustedFrom)
+                  }</div>`
                   : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td class="small dim">${date(r.opened)}</td>
