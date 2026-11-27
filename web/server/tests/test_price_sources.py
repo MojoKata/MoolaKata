@@ -92,7 +92,7 @@ def test_quotes_are_each_instruments_latest_close_in_ten_days():
     finally:
         clock.fix(None)
     assert got == {"A": Quote(D(11), d(2026, 10, 12))}
-    assert Plain(None, None).lookup("VTI") is None  # a source that can't check a symbol
+    assert not hasattr(Plain(None, None), "lookup")  # S4.2.2: the refresh finds unknown symbols
 
 
 def test_massive_reads_its_daily_bars_and_needs_its_key():
@@ -109,7 +109,7 @@ def test_massive_reads_its_daily_bars_and_needs_its_key():
                                                    d(2026, 1, 2))  # fmt: skip
 
 
-def test_tiingo_skips_a_day_without_a_close_and_checks_a_symbol():
+def test_tiingo_skips_a_day_without_a_close():
     rows = [{"date": "2026-10-13T00:00:00.000Z", "close": 101.5},
             {"date": "2026-10-12T00:00:00.000Z", "close": None}]  # fmt: skip
     src = Tiingo(Client((200, rows)), "k")
@@ -118,9 +118,6 @@ def test_tiingo_skips_a_day_without_a_close_and_checks_a_symbol():
     ]
     assert Tiingo(Client((200, [])), "k").history(Ref("i", "VTI", "etf"), d(2026, 10, 12),
                                                    d(2026, 10, 13)) == []  # fmt: skip
-    found = Tiingo(Client((200, {"ticker": "vti", "name": "Vanguard Total"})), "k")
-    assert found.lookup("vti") == {"symbol": "VTI", "name": "Vanguard Total"}
-    assert Tiingo(Client((404, {})), "k").lookup("NOPE") is None
 
 
 def test_cboe_names_what_it_cant_read():
@@ -264,12 +261,6 @@ def test_tiingo_asks_by_lowercase_symbol_with_its_key_and_reads_past_a_missing_c
     ]
     headers = {"Authorization": "Token k1", "Content-Type": "application/json"}
     assert src.client.kws == [{"headers": headers}]
-    # A symbol is checked the same way; one the answer doesn't name keeps the one asked for.
-    src = Tiingo(Client((200, {"name": "Vanguard Total"})), "k1")
-    assert src.lookup("Vti") == {"symbol": "VTI", "name": "Vanguard Total"}
-    assert src.client.urls == ["https://api.tiingo.com/tiingo/daily/vti"]
-    assert src.client.kws == [{"headers": headers}]
-    assert Tiingo(Client((200, {"ticker": "voo"})), "k").lookup("vti")["symbol"] == "VOO"
 
 
 def test_cboe_reads_an_occ_ticker_of_one_letter():

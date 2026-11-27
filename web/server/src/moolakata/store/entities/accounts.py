@@ -49,6 +49,7 @@ class Instrument(Record):
     instrumentClass: str
     name: str | None = None
     cusip: str | None = None
+    priceMissedAt: dt.datetime | None = None
 
 
 @dataclass(kw_only=True, eq=False)

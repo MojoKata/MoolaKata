@@ -184,7 +184,12 @@ function Open({ rows, reload }) {
                     }`
                     : null}${r.stale
                     ? html`${' '}<span class="pill warn">stale</span>`
-                    : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}</td>
+                    : null}${r.name ? html`<div class="small dim">${r.name}</div>` : null}${r
+                      .unknownSymbol
+                    ? html`<div class="small" style=${{
+                      color: 'var(--ask)',
+                    }}>No price source knows ${r.symbol}</div>`
+                    : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
                   ? 'Short'

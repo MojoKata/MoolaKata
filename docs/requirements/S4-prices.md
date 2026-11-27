@@ -9,12 +9,19 @@
    1. **What a source declares**: its name, the instrument classes it serves, whether it
       needs an **API key** (and where to get a free one), its rate limits, and the terms it
       was written against, with the date.
-   2. **What it does**: `quotes(instruments) → {instrument: (price, as_of)}`, `history(
-      instrument, start, end) → daily closes`, and, where it can, `lookup(symbol)` to check a
-      symbol before it is used.
+   2. **What it does**: `quotes(instruments) → {instrument: (price, as_of)}` and `history(
+      instrument, start, end) → daily closes`, or an answer that it doesn't list the symbol.
+      A symbol is checked by the daily refresh (S4.4), with whichever sources the server has:
+      a held instrument with no stored close that every enabled source serving its class was
+      asked for, and either didn't list or knew no close of, is recorded as one no price source
+      knows. Its holding and its position say *No price source knows VTIX*, and Settings ›
+      Prices lists it. Its first close clears it, as does a refresh that finds it no longer
+      held or has no source to ask; a source that fails leaves it as it was. An option's ticker
+      and a metal's proxy are MoolaKata's own and never recorded.
    3. **Settings › Prices** lists the enabled sources, each with its classes, its key
       (*set*, with when and by whom; a key is a secret, S14.4), its order of preference per
-      class, its last run and its last error. **Add a source** picks from every source
+      class, its last run and its last error, and below them **Symbols No Source Knows**
+      (S4.2.2): each symbol, its class and since when. **Add a source** picks from every source
       MoolaKata ships. A source that needs a key can't be enabled without one.
 3. **Starting sources**, chosen for being free and daily. Their terms change, so each is
    checked again when a release ships.

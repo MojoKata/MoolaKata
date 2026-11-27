@@ -245,6 +245,10 @@ function Holdings({ a }) {
                   setOpen(open === x.instrumentId ? null : x.instrumentId)}
                   style=${{ color: 'var(--fg)', fontWeight: 600 }}>${x.symbol}</button>${x.stale
                     ? html`${' '}<span class="pill warn">stale</span>`
+                    : null}${x.unknownSymbol
+                    ? html`<div class="small" style=${{
+                      color: 'var(--ask)',
+                    }}>No price source knows ${x.symbol}</div>`
                     : null}</td>
                 <td class="dim">${x.name || ''}</td>
                 <td class="num">${x.symbol === 'BTC'

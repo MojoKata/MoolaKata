@@ -12,7 +12,7 @@ import logging
 import math
 from decimal import Decimal
 
-from sqlalchemy import and_, false, func, insert, select
+from sqlalchemy import and_, false, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from .. import clock, ids, options, valuation
@@ -23,7 +23,7 @@ from ..store.entities.prices import Price, PriceSource
 from ..store.repos import secrets as secret_repo
 from ..store.tables import prices as prices_table
 from ..tasks import Stopping, TaskContext
-from .base import SOURCES, Ref, SourceError, TickerSource
+from .base import SOURCES, NotListed, Ref, SourceError, TickerSource
 
 log = logging.getLogger("moolakata.prices")
 BENCHMARKS = ("SPY", "VT", "BND")
@@ -332,6 +332,9 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
     runs: dict[str, dict] = {r.id: {"ok": False, "used": False} for r in sources}
     built: dict[str, TickerSource] = {}
     stored = missing = 0
+    # Instruments no source knows (S4.2.2), and those a failure leaves unknown either way.
+    misses: set[str] = set()
+    unsure: set[str] = set()
     for inst, first in wanted:
         if ctx:
             ctx.check()
@@ -372,6 +375,9 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         if not candidates:
             missing += 1
             continue
+        # Whether a source gave a close; whether every one asked said it doesn't know the
+        # symbol, or knew no close of it.
+        known, unknown = False, True
         for src in candidates:
             run = runs[src.id]
             run["used"] = True
@@ -388,14 +394,21 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
                 run["error"] = (
                     str(e) if isinstance(e, SourceError) else "an answer it couldn't read"
                 )
+                unknown = unknown and isinstance(e, NotListed)
                 continue
             run["ok"] = True
+            known, unknown = bool(closes), unknown and not closes
             if per_share:
                 closes = [(d, (c / per_share).quantize(Decimal("0.01"))) for d, c in closes]
             # Closes have no access view: named or not, the reason changes nothing written.
             with server.db.tx(unscoped="prices.refresh: refresh") as s:  # pragma: no mutate
                 stored += store(s, inst.id, closes, src.name)
             break
+        # A symbol someone typed that no source knows (S4.2.2): an option's ticker and a metal's
+        # proxy are MoolaKata's own, and one with a close stored, then or before, is known.
+        if inst.instrumentClass == "option" or per_share is not None or known or inst.id in last:
+            continue
+        (misses if unknown else unsure).add(inst.id)
     now = clock.now()
     with server.db.tx(unscoped="prices.refresh: refresh") as s:
         for src in s.scalars(select(PriceSource).where(PriceSource.id.in_(list(runs)))):
@@ -406,11 +419,26 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             if run["ok"]:
                 src.lastOkAt = now
             src.lastError = run["error"] if not run["ok"] else None
+        # A miss is kept from the first refresh of a run of them: cleared by a close, by its
+        # being no longer held, or by a refresh with no source to ask; one a failure left
+        # unknown keeps what it had.
+        s.execute(
+            update(Instrument)
+            .where(Instrument.id.in_(misses), Instrument.priceMissedAt.is_(None))
+            .values(priceMissedAt=now)
+            .execution_options(synchronize_session=False)
+        )
+        s.execute(
+            update(Instrument)
+            .where(Instrument.priceMissedAt.is_not(None), Instrument.id.not_in(misses | unsure))
+            .values(priceMissedAt=None)
+            .execution_options(synchronize_session=False)
+        )
     server.events.publish("prices", {"asOf": now.isoformat(), "stored": stored})
     used = [r for r in runs.values() if r["used"]]
     if used and not any(r["ok"] for r in used):
         raise SourceError(next(r["error"] for r in used if r["error"]))
-    return {"stored": stored, "unpriced": missing}
+    return {"stored": stored, "unpriced": missing, "unknown": len(misses)}
 
 
 def status(s: Session, dev: bool, viewer: str) -> dict:

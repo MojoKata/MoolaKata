@@ -60,9 +60,19 @@ class SourceRow(SourceKind):
     version: int
 
 
+class UnknownSymbol(Model):
+    """A held instrument no enabled source knew at the last refresh (S4.2.2)."""
+
+    instrumentId: str
+    symbol: str
+    instrumentClass: str
+    missedAt: dt.datetime
+
+
 class SourcesView(Model):
     available: list[SourceKind]
     sources: list[SourceRow]
+    unknown: list[UnknownSymbol]
     refreshTime: str
     refreshZone: str
 
@@ -120,9 +130,24 @@ def _view(s, dev: bool) -> SourcesView:
     rows = s.scalars(
         select(PriceSource).where(PriceSource.deleted == false()).order_by(PriceSource.createdAt)
     ).all()
+    # Instruments are the household's (schema.md §7): a symbol no source knows is no one's.
+    missed = s.scalars(
+        select(Instrument)
+        .where(Instrument.priceMissedAt.is_not(None), Instrument.deleted == false())
+        .order_by(Instrument.symbol)
+    )
     return SourcesView(
         available=[_kind(c) for c in _shipped(dev)],
         sources=[_row(s, r) for r in rows if r.name in SOURCES],
+        unknown=[
+            UnknownSymbol(
+                instrumentId=i.id,
+                symbol=i.symbol,
+                instrumentClass=i.instrumentClass,
+                missedAt=i.priceMissedAt,
+            )
+            for i in missed
+        ],
         refreshTime=settings.get(s, "priceRefreshTime"),
         refreshZone=settings.get(s, "priceRefreshZone"),
     )

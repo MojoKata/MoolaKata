@@ -45,9 +45,3 @@ class Tiingo(TickerSource):
                 continue
             out.append((dt.date.fromisoformat(row["date"][:10]), Decimal(str(close))))
         return sorted(out)
-
-    def lookup(self, symbol: str) -> dict | None:
-        meta = self.get_json(f"{API}/tiingo/daily/{quote(symbol.lower())}", headers=self._headers())
-        if not meta:
-            return None
-        return {"symbol": meta.get("ticker", symbol).upper(), "name": meta.get("name")}

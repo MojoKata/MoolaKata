@@ -3,7 +3,7 @@ import json
 from decimal import Decimal as D
 
 import pytest
-from conftest import make_user, sign_in
+from conftest import ADMIN_PW, make_user, sign_in
 from edits import change, create, make, remove, saved
 from sqlalchemy import func, select
 
@@ -1007,7 +1007,7 @@ def test_a_refresh_asks_each_source_for_what_is_missing_and_stores_it(server, mo
         "SPY": [(_d(10, 9), D(580))],
     })  # fmt: skip
     ctx = TaskContext("prices", threading.Event(), ProviderLimits())
-    assert pricing.refresh(server, ctx) == {"stored": 6, "unpriced": 2}
+    assert pricing.refresh(server, ctx) == {"stored": 6, "unpriced": 2, "unknown": 2}
     week = dt.timedelta(days=7)
     backfill = D0 - dt.timedelta(days=pricing.BACKFILL_DAYS)
     assert sorted(CALLS, key=repr) == sorted([
@@ -1036,6 +1036,60 @@ def test_a_refresh_asks_each_source_for_what_is_missing_and_stores_it(server, mo
             MONDAY, MONDAY, None)  # fmt: skip
 
 
+def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, monday):
+    """S4.2.2: a held instrument every source serving its class says it doesn't list, or knows
+    no close of, is recorded at the refresh: its holding and its position say so, and Settings ›
+    Prices lists it. Its first close clears it, as do its being sold and a refresh with no
+    source to ask; a source's failure leaves it as it was, and a miss keeps the day the misses
+    began. An option's ticker and a metal's proxy are MoolaKata's own, never recorded."""
+    from moolakata.prices.base import NotListed
+    from moolakata.store.entities.accounts import Instrument
+
+    admin = sign_in(server, "admin", ADMIN_PW)
+    earlier = MONDAY - dt.timedelta(days=3)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        src = r.source("recorder-test")
+        acct = r.account()
+        vtix, ghost, flaky, known, und = (r.inst(k) for k in ("VTIX", "GHOST", "FLAKY", "KNOWN",
+                                                              "UND"))  # fmt: skip
+        sold, opt, xau = r.inst("SOLD"), r.inst("UND1P", "option"), r.inst("XAU", "metal")
+        r.contract(opt, und, _d(12, 18))
+        for i in (vtix, ghost, flaky, known, opt, xau):
+            r.txn(acct, i, _d(10, 1))
+        r.price(known, _d(10, 9))
+        flaky.priceMissedAt = sold.priceMissedAt = earlier  # an earlier refresh's
+    ANSWERS.update({"VTIX": NotListed("Recorder doesn't list VTIX"),
+                    "FLAKY": SourceError("Recorder answered HTTP 500")})  # fmt: skip
+
+    def missed():
+        with server.db.read(unscoped="test") as s:
+            return {i.symbol: i.priceMissedAt for i in s.scalars(select(Instrument))
+                    if i.priceMissedAt}  # fmt: skip
+
+    assert pricing.refresh(server)["unknown"] == 3
+    assert missed() == {"VTIX": MONDAY, "GHOST": MONDAY, "UND": MONDAY, "FLAKY": earlier}
+    view = admin.get("/ui/api/price-sources").json()
+    assert view["unknown"] == [
+        {"instrumentId": i.id, "symbol": i.symbol, "instrumentClass": "equity",
+         "missedAt": when.isoformat().replace("+00:00", "Z")}
+        for i, when in ((flaky, earlier), (ghost, MONDAY), (und, MONDAY), (vtix, MONDAY))
+    ]  # fmt: skip
+    rows = admin.get(f"/ui/api/accounts/{acct.id}/holdings").json()["holdings"]
+    shown = {x["symbol"]: x["unknownSymbol"] for x in rows}
+    assert shown == {"VTIX": True, "GHOST": True, "FLAKY": True, "KNOWN": False,
+                     "UND1P": False, "XAU": False}  # fmt: skip
+    rows = admin.get("/ui/api/positions").json()["open"]
+    assert {x["symbol"]: x["unknownSymbol"] for x in rows} == shown
+    ANSWERS.update({"VTIX": [(_d(10, 9), D(30))], "FLAKY": []})
+    pricing.refresh(server)
+    assert missed() == {"GHOST": MONDAY, "UND": MONDAY, "FLAKY": earlier}, "VTIX has a close"
+    with server.db.tx(unscoped="test") as s:
+        s.get(PriceSource, src.id).enabled = False
+    pricing.refresh(server)
+    assert missed() == {}, "no source to ask: nothing known either way"
+
+
 def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, caplog):
     """S4.4: each failure falls back to the next source; one that answers once is ok, with no
     error kept; an answer a source couldn't read is logged, a source's own failure isn't; a
@@ -1053,7 +1107,7 @@ def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, capl
             r.txn(acct, r.inst(symbol, "etf"), _d(10, 1))
     ANSWERS.update({"VTI": [(_d(10, 9), D(250))], "VTX": SourceError("Recorder answered 500")})
     with caplog.at_level("WARNING", logger="moolakata.prices"):
-        assert pricing.refresh(server) == {"stored": 1, "unpriced": 0}
+        assert pricing.refresh(server) == {"stored": 1, "unpriced": 0, "unknown": 0}
     assert sorted(x.getMessage() for x in caplog.records if x.name == "moolakata.prices") == [
         f"garbled-test failed for {symbol}: ValueError('unexpected token at line 1')"
         for symbol in ("VTI", "VTX")

@@ -16,6 +16,9 @@ intrinsic value), the unrealized gain or loss, and whether its lots are
 short or long term. Click one for its lots: when each was bought, how long ago, and its basis. A lot
 held more than a year is long term.
 
+One whose symbol no price source knew at the last daily refresh says so: check the symbol on its
+trades, or add a source that lists it in Settings › Prices.
+
 An option also shows its expiry. **Expired, Assigned or Exercised…** records its end; **Type a
 Mark…** gives it a price when the price source has none.
 
