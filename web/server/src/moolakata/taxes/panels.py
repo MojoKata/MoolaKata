@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 
-from sqlalchemy import false, select
+from sqlalchemy import and_, false, not_, or_, select
 from sqlalchemy.orm import Session
 
 from .. import assets, clock, education, gifts, giving, loans, people
@@ -101,7 +101,10 @@ class Wash:
     replacementQty: Decimal
     adjustedBasis: Decimal | None  # the replacement lot's basis with the loss added
     review: bool = False  # for the preparer to decide, never adjusted (S3.8.5)
-    # A review's rule: "option", an option on the same underlying (S3.8.5.2–4),
+    # A review's rule (S3.8.5): "option-loss", an option's loss with an option on its
+    # underlying opened (S3.8.5.2); "through-option", a stock's loss with its shares bought
+    # through an option (S3.8.5.3); "option", one with an option on it opened (S3.8.5.4);
+    # "stock-bought", an option's loss with its stock bought (S3.8.5.6);
     # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1), or
     # "short-cover", a loss with shares bought near it to close a short sale (S3.8.5.5).
     rule: str | None = None
@@ -289,9 +292,16 @@ def _stored_washes(
     return out
 
 
+# An option bought or written to open one (S3.8.5.2, S3.8.5.4).
+_OPENS = ("buy-to-open", "sell-to-open")
+
+
 def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts) -> list[Wash]:
-    """A loss sale of a stock with an option on it bought within 30 days, or an option's loss
-    with its stock bought: flagged for the preparer (S3.8, S8.3)."""
+    """Possible wash sales an option makes, flagged for the preparer, never adjusted (S3.8.5),
+    each with its rule: a stock's loss with its shares bought back through an option
+    ("through-option", S3.8.5.3) or an option on it opened ("option", S3.8.5.4); an option's
+    loss with an option on the same underlying opened ("option-loss", S3.8.5.2) or its stock
+    bought ("stock-bought", S3.8.5.6)."""
     from .. import options as opts
 
     ids_ = {a.id: a for a in accounts}
@@ -299,6 +309,14 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
 
     def first(near, *where) -> Transaction | None:
         return s.scalars(select(Transaction).where(*near, *where)).first()
+
+    def options_on(underlying_ids: list[str]) -> list[str]:
+        return [
+            oc.instrumentId
+            for oc in s.scalars(
+                select(OptionContract).where(OptionContract.underlyingId.in_(underlying_ids))
+            )
+        ]
 
     # The rows are the sales of the accounts given, each of an instrument in `insts`.
     for r in rows:
@@ -311,33 +329,75 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
             Transaction.date >= r.sold - dt.timedelta(days=WASH_DAYS),
             Transaction.date <= r.sold + dt.timedelta(days=WASH_DAYS),
         )
+        hit, rule = None, None
         if inst.instrumentClass == "option":
-            # Its stock bought; an option with no contract (a file's, unread) has none.
+            # An option with no contract (a file's, unread) has no underlying to look for.
             c = opts.contract_of(s, inst.id)
-            targets = [c.underlyingId] if c else []
-            hit = first(
-                near,
-                Transaction.instrumentId.in_(targets),
-                Transaction.kind.in_(("buy", "reinvest")),
-            )
-        else:
-            on_it = [
-                oc.instrumentId
-                for oc in s.scalars(
-                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
-                )
-            ]
-            # An option on it bought, or the stock bought back through an option: a put
-            # assigned, a call exercised.
-            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
-            hit = first(
-                near, Transaction.instrumentId.in_(on_it), Transaction.kind == "buy-to-open"
-            ) or first(
-                near,
+            stock = [c.underlyingId] if c else []
+            # The trade that opened the option sold is never its own match, as the shares of
+            # a lot sold never replace it (S3.8.2).
+            own = first(
+                (Transaction.deleted == false(),),
+                Transaction.accountId == r.accountId,
                 Transaction.instrumentId == inst.id,
-                Transaction.kind == "buy",
-                Transaction.optionTransactionId.in_(ends),
+                Transaction.date == r.acquired,
+                Transaction.kind.in_(_OPENS),
             )
+            hit = first(
+                near,
+                Transaction.instrumentId.in_(options_on(stock)),
+                Transaction.kind.in_(_OPENS),
+                *((Transaction.id != own.id,) if own is not None else ()),
+            )
+            rule = "option-loss"
+            if hit is None:
+                hit, rule = (
+                    first(
+                        near,
+                        Transaction.instrumentId.in_(stock),
+                        Transaction.kind.in_(("buy", "reinvest")),
+                    ),
+                    "stock-bought",
+                )
+        else:
+            # The stock bought back through an option: a put assigned, a call exercised.
+            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
+            hit, rule = (
+                first(
+                    near,
+                    Transaction.instrumentId == inst.id,
+                    Transaction.kind == "buy",
+                    Transaction.optionTransactionId.in_(ends),
+                ),
+                "through-option",
+            )
+            if hit is None:
+                # An option on it bought or written; the option whose end made this sale, or
+                # opened the short sale it closes, is the trade itself, never its match
+                # (S3.8.2): a call assigned, a put exercised.
+                made = Transaction.id == r.saleId
+                if r.short:
+                    made = or_(
+                        made, and_(Transaction.date == r.acquired, Transaction.kind == "sell")
+                    )
+                ends_ = select(Transaction.optionTransactionId).where(
+                    Transaction.accountId == r.accountId, Transaction.instrumentId == inst.id, made
+                )
+                own = select(Transaction.instrumentId).where(Transaction.id.in_(ends_))
+                hit, rule = (
+                    first(
+                        near,
+                        Transaction.instrumentId.in_(options_on([inst.id])),
+                        Transaction.kind.in_(_OPENS),
+                        not_(
+                            and_(
+                                Transaction.accountId == r.accountId,
+                                Transaction.instrumentId.in_(own),
+                            )
+                        ),
+                    ),
+                    "option",
+                )
         if hit is not None:
             out.append(
                 Wash(
@@ -351,7 +411,7 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
                     abs(hit.quantity or ZERO),
                     None,
                     review=True,
-                    rule="option",
+                    rule=rule,
                 )
             )
     return out
@@ -1266,7 +1326,10 @@ class Issue:
 
 # What a possible wash sale left for review is near (S3.8.5), by its rule.
 _NEAR = {
-    "option": "an option on it",
+    "option": "an option on it bought or written",
+    "option-loss": "an option on the same underlying opened",
+    "through-option": "shares of it bought through an option",
+    "stock-bought": "its stock bought",
     "short-sale": "another short sale of it",
     "short-cover": "shares bought to close a short sale of it",
 }
@@ -1363,7 +1426,7 @@ def issues(s: Session, book: TaxBook, rows: list[Row], washes: list[Wash] = ()) 
                 Issue(
                     "possible-wash-sale",
                     f"Possible wash sale: {w.symbol} sold at a loss of ${grouped(w.loss)} on "
-                    f"{w.sold:%b %-d} in {w.account}, near {_NEAR[w.rule or 'option']}: for "
+                    f"{w.sold:%b %-d} in {w.account}, near {_NEAR[w.rule]}: for "
                     "the preparer to decide",
                     "/ui/taxes/gains",
                 )

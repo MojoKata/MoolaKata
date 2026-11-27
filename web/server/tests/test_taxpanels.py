@@ -381,7 +381,7 @@ def test_a_possible_wash_sale_is_an_issue_linking_to_the_wash_sales(jane):
     assert got == [
         (
             "Possible wash sale: MSFT sold at a loss of $5,000.00 on Sep 1 in Brokerage, "
-            "near an option on it: for the preparer to decide",
+            "near an option on it bought or written: for the preparer to decide",
             "/ui/taxes/gains",
         )
     ]

@@ -147,7 +147,10 @@ function txfLeftOut(n) {
 
 /** Why a possible wash sale is the preparer's to decide, by its rule (S3.8.5). */
 const REVIEW_WHY = /** @type {Record<string, string>} */ ({
-  option: 'An option on the same underlying.',
+  'option-loss': 'An option on the same underlying opened within 30 days.',
+  'through-option': 'Shares of it bought through an option within 30 days.',
+  option: 'An option on it bought or written within 30 days.',
+  'stock-bought': 'Its stock bought within 30 days: whether stock replaces an option is unsettled.',
   'short-sale': 'A short sale closed at a loss, with another short sale of it within 30 days.',
   'short-cover':
     'Shares bought to close a short sale within 30 days: whether they replace it is unsettled.',

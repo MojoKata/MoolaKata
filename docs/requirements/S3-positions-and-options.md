@@ -146,13 +146,18 @@
       1. a loss on a **short sale** closed with shares bought within 30 days of another
          short sale of the same stock, or of opening one;
       2. a loss on an **option itself** (a call or put closed or expired at a loss) with the
-         same option, or one on the same underlying, opened within 30 days either side;
+         same option, or one on the same underlying, opened (bought or written) within 30 days
+         either side; the trade that opened the option sold is never its own match;
       3. a loss on stock whose **replacement came through an option**: a put assigned to the
          user, or a call they exercised, within 30 days either side of the loss sale;
       4. a loss on stock with an **option on it bought or sold** within 30 days either side;
+         the option whose assignment or exercise made the sale, or opened the short sale it
+         closes, is the trade itself, never its match;
       5. a loss on stock with **shares of it bought to close a short sale** (S3.4) within 30
          days either side: those shares are never taken as its replacement; what the buy
-         leaves long is, as any purchase.
+         leaves long is, as any purchase;
+      6. a loss on an **option** with **its stock bought** within 30 days either side: whether
+         stock replaces an option is unsettled.
 
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;

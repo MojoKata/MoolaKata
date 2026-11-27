@@ -358,8 +358,14 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
         "XYZ bought back Apr 5, 2021 TP broker · sold short Apr 25, 2021 in TP broker (100 shares) "
         "review"
     ) in washes
-    pill = page.locator(f'{_card("Wash Sales")} .list-item:has-text("XYZ") .pill')
-    assert "another short sale of it within 30 days" in (pill.get_attribute("data-tip") or "")
+    # The other short sale's call, written 5 days after the cover, is an option on the stock
+    # too (S3.8.5.4): a review of its own.
+    pills = page.locator(f'{_card("Wash Sales")} .list-item:has-text("XYZ") .pill').all()
+    tips = sorted(p.get_attribute("data-tip") or "" for p in pills)
+    assert tips == [
+        "A short sale closed at a loss, with another short sale of it within 30 days.",
+        "An option on it bought or written within 30 days.",
+    ]
     assert problems == []
     page.close()
 
