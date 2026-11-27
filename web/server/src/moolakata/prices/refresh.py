@@ -42,14 +42,9 @@ def trading_days_between(a: dt.date, b: dt.date) -> int:
     return n
 
 
-def typed_stale(as_of: dt.date, today: dt.date) -> bool:
-    """A typed price is stale after 90 days (S4.7)."""
-    return (today - as_of).days > valuation.TYPED_STALE_DAYS
-
-
 def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
     """A fetched close's staleness by its class (S4.7). Only a fetching source stores closes; a
-    typed price is a TypedPrice, stale by `typed_stale`."""
+    typed price is a TypedPrice, stale after 90 days (`valuation.TYPED_STALE_DAYS`)."""
     if cls in STALE_DAYS:
         return (today - as_of).days > STALE_DAYS[cls]
     # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
@@ -166,24 +161,28 @@ def held(s: Session) -> set[str]:
     }
 
 
-def _held_by(s: Session, viewer: str) -> list[str]:
-    """What the accounts the viewer can see hold, but cash."""
+def _held_by(s: Session, viewer: str) -> dict[str, list[str]]:
+    """What the accounts the viewer can see hold, but cash, by each account's owner: whose
+    prices value it (S4.10)."""
     from .. import access
     from ..store.repos import ledger as repo
 
-    ids = {
-        lot.instrumentId
-        for a, _ in access.accounts(s, viewer)
-        for lot in repo.load(s, a).replay().open
-        if lot.quantity
-    }
-    if not ids:
-        return []
-    return [
-        i.id
-        for i in s.scalars(select(Instrument).where(Instrument.id.in_(ids)))
-        if i.instrumentClass not in ("cash", "money-market")
-    ]
+    by: dict[str, set[str]] = {}
+    for a, _ in access.accounts(s, viewer):
+        held = {lot.instrumentId for lot in repo.load(s, a).replay().open if lot.quantity}
+        if held:
+            by.setdefault(a.ownerId, set()).update(held)
+    if not by:
+        return {}
+    cash = set(
+        s.scalars(
+            select(Instrument.id).where(
+                Instrument.id.in_(set().union(*by.values())),
+                Instrument.instrumentClass.in_(("cash", "money-market")),
+            )
+        )
+    )
+    return {owner: sorted(ids - cash) for owner, ids in by.items() if ids - cash}
 
 
 def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
@@ -415,19 +414,19 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
 
 
 def status(s: Session, dev: bool, viewer: str) -> dict:
-    """The header's last refresh and whether held prices are stale (S12.5): what the viewer's
-    accounts hold, with the prices they typed (S4.10). Held prices only: the benchmarks every
-    server watches leave a new server, which holds nothing, with nothing to be stale."""
+    """The header's last refresh and whether held prices are stale (S12.5): each holding the
+    viewer can see judged by the price that values it for its account's owner (S4.10), stale by
+    that price's own rule (S4.3, S4.7), an option at intrinsic value by its underlying's (S3.7).
+    Held prices only: the benchmarks every server watches leave a new server, which holds
+    nothing, with nothing to be stale."""
     rows = enabled(s, dev)
     last = max((r.lastOkAt for r in rows if r.lastOkAt), default=None)
-    ids = _held_by(s, viewer)
     today = clock.today()
-    # Each held instrument's latest price, as (its day, whether stale): a close, or a price
-    # the viewer typed on its day or after.
-    latest = {i: (p.asOf, p.stale) for i, p in stored_closes(s, ids, today).items()}
-    for t in valuation.typed(s, viewer, ids, None, today):
-        if t.instrumentId not in latest or t.date >= latest[t.instrumentId][0]:
-            latest[t.instrumentId] = (t.date, typed_stale(t.date, today))
-    # One held with no price at all is stale too.
-    stale = len(latest) < len(ids) or any(old for _, old in latest.values())
+    stale = False
+    for owner, held_ids in _held_by(s, viewer).items():
+        found = valuation.prices(s, held_ids, today, owner=owner)
+        for iid in held_ids:
+            p = found.get(iid) or valuation.intrinsic(s, iid, today, owner)
+            # One held with no price at all is stale too.
+            stale = stale or p is None or p.stale
     return {"lastRefresh": last, "stale": stale, "sources": len(rows)}

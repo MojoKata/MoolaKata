@@ -16,7 +16,7 @@ from moolakata.prices.coinbase import Coinbase
 from moolakata.prices.stub import Stub, walk
 from moolakata.prices.tiingo import Tiingo
 from moolakata.store.entities.accounts import Account
-from moolakata.store.entities.prices import Price, PriceSource
+from moolakata.store.entities.prices import Price, PriceSource, TypedPrice
 from moolakata.store.repos import ledger as repo
 
 TODAY = dt.date.today()
@@ -243,7 +243,7 @@ def test_only_what_is_held_is_priced(server):
 
 def test_staleness():
     """S4.5, S4.7, each on its bound: an option's close after one trading day, a stock's after
-    two, a coin's after two days, a typed price after 90 days."""
+    two, a coin's after two days (a typed price's 90 days: the header's test below)."""
     friday = dt.date(2026, 10, 9)
     assert not pricing.is_stale("option", friday, dt.date(2026, 10, 12))
     assert pricing.is_stale("option", friday, dt.date(2026, 10, 13))
@@ -251,8 +251,6 @@ def test_staleness():
     assert pricing.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
     assert not pricing.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
     assert pricing.is_stale("crypto", friday, dt.date(2026, 10, 12))
-    assert not pricing.typed_stale(friday, friday + dt.timedelta(days=90))
-    assert pricing.typed_stale(friday, friday + dt.timedelta(days=91))
 
 
 def test_price_sources_in_settings(admin_client, server):
@@ -601,13 +599,13 @@ class Rows:
         return self.add(Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass=cls,
                                    deletedAt=MONDAY if deleted else None))  # fmt: skip
 
-    def txn(self, acct, inst, day, kind="buy", deleted=False):
+    def txn(self, acct, inst, day, kind="buy", deleted=False, price=D(10)):
         from moolakata.store.entities.accounts import Lot, Transaction
 
         buy = kind == "buy"
         t = self.add(Transaction(id=ids.new_id("Txn"), accountId=acct.id, date=day, kind=kind,
                                  amount=D("-10.00") if buy else D("1.00"), instrumentId=inst.id,
-                                 quantity=D(1) if buy else None, price=D(10) if buy else None,
+                                 quantity=D(1) if buy else None, price=price if buy else None,
                                  deletedAt=MONDAY if deleted else None))  # fmt: skip
         if buy:
             self.add(Lot(id=ids.new_id("Lot"), accountId=acct.id, instrumentId=inst.id,
@@ -823,13 +821,13 @@ def test_what_is_priced_and_from_when(server, monday):
         got = pricing.priced(s)
         assert {i.id: day for i, day in got} == want and len(got) == len(want)
         assert pricing.held(s) == held
-        by = pricing._held_by(s, r.owner)
-        assert sorted(by) == sorted(held - {mm.id, cash.id})
+        assert pricing._held_by(s, r.owner) == {r.owner: sorted(held - {mm.id, cash.id})}
 
 
 def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monday):
     """S12.5, S4.10: the viewer's held instruments, by their latest close or a price the viewer
     typed on its day or after it; one with no price at all is stale too."""
+    pricing.install()
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
         owner, acct = r.owner, r.account()
@@ -853,7 +851,7 @@ def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monda
     write(lambda r: r.txn(acct, e, _d(9, 1)), lambda r: r.price(e, _d(10, 9)))
     assert status()["stale"] is False
     [f] = write(lambda r: r.inst("F"))
-    write(lambda r: r.txn(acct, f, _d(9, 1)))
+    write(lambda r: r.txn(acct, f, _d(9, 1), price=None))
     assert status()["stale"] is True  # no price at all
     write(lambda r: r.typed(f, D0))
     assert status()["stale"] is False
@@ -864,8 +862,69 @@ def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monda
     write(lambda r: r.typed(g, _d(9, 30)))
     assert status()["stale"] is False  # typed on the close's day: the typed price
     [h] = write(lambda r: r.inst("H"))
-    write(lambda r: r.txn(acct, h, _d(7, 1)), lambda r: r.typed(h, _d(7, 3)))
-    assert status()["stale"] is True  # typed over 90 days ago
+    write(lambda r: r.txn(acct, h, _d(7, 1)), lambda r: r.typed(h, D0 - dt.timedelta(days=90)))
+    assert status()["stale"] is False  # typed 90 days ago: not yet stale
+    write(lambda r: r.typed(h, D0 - dt.timedelta(days=91)))
+    with server.db.tx(unscoped="test") as s:
+        for t in s.scalars(select(TypedPrice).where(TypedPrice.instrumentId == h.id)):
+            if t.date == D0 - dt.timedelta(days=90):
+                t.mark_deleted(owner)
+    assert status()["stale"] is True  # typed 91 days ago
+
+
+def test_the_header_judges_each_holding_by_the_price_that_values_it(server, monday):
+    """S12.5, S4.3, S3.7, S4.10: a holding valued from a statement is stale only once that
+    value is; an option at intrinsic value only once its underlying's close is; a shared
+    account's holding by the prices its owner typed, never the viewer's."""
+    from moolakata.sharing import new_share
+
+    pricing.install()
+    john = make_user(server, "john").id
+
+    def status():
+        with server.db.read(unscoped="test") as s:
+            return pricing.status(s, True, owner)["stale"]
+
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        owner, acct = r.owner, r.account()
+        trust = r.inst("TRUST1", "other")
+        r.holding(acct, trust, _d(10, 1))  # last week's statement, no close
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        under, opt = r.inst("U1"), r.inst("U1P", "option")
+        r.contract(opt, under, _d(12, 18))
+        r.txn(acct, opt, _d(10, 1))
+        r.price(under, _d(10, 9))  # Friday's close: the option's intrinsic value is fresh
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Price).where(Price.instrumentId == under.id)).one().date = _d(10, 1)
+    assert status() is True  # the underlying's close is old, and so its intrinsic value
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Price).where(Price.instrumentId == under.id)).one().date = _d(10, 9)
+        r = Rows(s)
+        johns = r.add(Account(id=ids.new_id("Acct"), ownerId=john, name="J", type="brokerage"))
+        s.add(new_share("account", johns.id, "read", user_id=owner, by=john))
+        shared = r.inst("SH1")
+        r.txn(johns, shared, _d(9, 1))
+        s.add(TypedPrice(id=ids.new_id("TyPrc"), userId=john, instrumentId=shared.id,
+                         date=_d(10, 9), close=D(12)))  # fmt: skip
+        r.typed(shared, _d(6, 1))  # the viewer's own, old: it values nothing of John's
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(TypedPrice).where(TypedPrice.userId == john)).one().date = _d(6, 2)
+        Rows(s).typed(shared, D0)  # the viewer's own, fresh: still nothing of John's
+    assert status() is True  # John's typed price, his account's, is over 90 days old
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(TypedPrice).where(TypedPrice.userId == john)).one().date = _d(10, 9)
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        # A statement's value once its next yearly statement is overdue, in an account
+        # expecting none.
+        r.holding(r.account(), r.inst("TRUST2", "other"), _d(6, 1, 2025))
+    assert status() is True
 
 
 def test_a_source_is_built_with_its_key_its_client_and_its_tasks_limits(server, monday):

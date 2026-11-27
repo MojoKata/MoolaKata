@@ -271,7 +271,10 @@ def _positions(s: Session, ledger, day: dt.date | None) -> list[Position]:
 
 def intrinsic(s: Session, instrument_id: str, day: dt.date | None, owner: str) -> Price | None:
     """An option's value at the underlying's close, when no close or typed mark is known:
-    what exercising it would be worth, labelled as such (S3.7)."""
+    what exercising it would be worth, labelled as such (S3.7), and stale when a price it
+    rests on is."""
+    import json
+
     from . import options
 
     c = options.contract_of(s, instrument_id)
@@ -282,7 +285,9 @@ def intrinsic(s: Session, instrument_id: str, day: dt.date | None, owner: str) -
         return None
     price, asof = under
     worth = price - c.strike if c.right == "call" else c.strike - price
-    return Price(max(worth, ZERO), asof, "intrinsic")
+    parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
+    stale = any(p.stale for p in prices(s, parts or [c.underlyingId], day, owner=owner).values())
+    return Price(max(worth, ZERO), asof, "intrinsic", stale)
 
 
 def multipliers(s: Session, instrument_ids: list[str]) -> dict[str, int]:

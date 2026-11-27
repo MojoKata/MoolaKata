@@ -69,5 +69,6 @@ Up to five recurring transactions due in the next 30 days, soonest first: each w
 date, how often it comes, and its usual amount. They're found in your cash and card accounts' history, as a
 budget's Recurring tab finds them; one that has stopped coming is left out.
 
-> Prices are daily closes, never live. The dot by **Prices** at the top turns amber when a held
-> instrument's price is stale.
+> Prices are daily closes, never live. The dot by **Prices** at the top turns amber when a holding
+> you can see has no price, or its price is stale: each is judged by the price that values it for
+> its account's owner, an option at intrinsic value by its underlying's price.
