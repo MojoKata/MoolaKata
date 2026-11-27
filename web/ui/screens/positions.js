@@ -15,6 +15,7 @@ import { Mark, OptionTrade, Settle } from '../components/optiontrade.js';
 import { CorporateAction } from '../components/corporate.js';
 import { Dec, dec, num } from '../kit/dec.js';
 import { GroupButton, Strategies } from '../components/strategies.js';
+import { Action } from '../kit/state.js';
 
 const TABS = /** @type {[string, string][]} */ ([
   ['open', 'Open'],
@@ -106,8 +107,8 @@ export default function Positions({ tab }) {
       <button class="btn" onClick=${() =>
         openDialog(CorporateAction, {}).then((x) => x && res.reload())}>Corporate Action…</button>
       <button class="btn primary" onClick=${() =>
-        openDialog(OptionTrade, {}).then((x) => x && res.reload())}><${Icon} name="plus" /> Record
-        an Option Trade</button>
+        openDialog(OptionTrade, {}).then((x) => x && res.reload())}><${Icon} name="plus" /> Add
+        Trade</button>
     </div>
     <${Tabs} tabs=${TABS} current=${current} base="/ui/positions" />
     ${res.error
@@ -246,7 +247,15 @@ function Open({ rows, reload }) {
                                     <div
                                       class="toolbar mt"><span class="dim">Expires ${date(
                                         r.expiry,
-                                      )}</span><span class="spacer"></span><button class="btn sm"
+                                      )}</span><span class="spacer"></span><${Action} class="btn sm"
+                                        why=${r.root ? ADJUSTED : null}
+                                        onClick=${(/** @type {Event} */ ev) => {
+                                          ev.stopPropagation();
+                                          openDialog(OptionTrade, {
+                                            accountId: r.accountId,
+                                            start: closing(r),
+                                          }).then((x) => x && reload());
+                                        }}>Close…</${Action}><button class="btn sm"
                                                                         onClick=${(
                                                                           /** @type {Event} */ ev,
                                                                         ) => {
@@ -408,6 +417,29 @@ function Trades() {
 /** Why a gain has no term (S3.1), and how to give it one. */
 const UNKNOWN_TERM =
   'Lots whose day bought is missing, so their term isn’t known: type each lot’s day bought on the shares moved in.';
+
+/** Why an adjusted contract's Close… is off: the dialog names a contract by its underlying. */
+const ADJUSTED =
+  'An adjusted contract trades under its own root, which the trade dialog can’t name.';
+
+/**
+ * The trade that closes an open option (S3.2): buy to close a short one, sell to close a long
+ * one, all its contracts, on its contract.
+ * @param {any} r
+ */
+function closing(r) {
+  // As a person types them: "40", not the API's "40.0".
+  const typed = (/** @type {any} */ x) => String(x).replace(/\.0*$|(\.\d*?)0+$/, '$1');
+  return {
+    symbol: r.symbol,
+    action: r.side === 'short' ? 'buy-to-close' : 'sell-to-close',
+    underlying: r.underlyingSymbol,
+    right: r.right,
+    strike: typed(r.strike),
+    expiry: r.expiry,
+    contracts: typed(dec(r.quantity).abs()),
+  };
+}
 
 function Gains() {
   const fmt = useFormats();

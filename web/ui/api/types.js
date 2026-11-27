@@ -2483,6 +2483,9 @@
  * @property {(boolean | null)} [inTheMoney]
  * @property {(string | null)} [underlyingId]
  * @property {(string | null)} [underlyingSymbol]
+ * @property {(string | null)} [right]
+ * @property {(import('../kit/dec.js').Dec | null)} [strike]
+ * @property {(string | null)} [root]
  */
 
 /**

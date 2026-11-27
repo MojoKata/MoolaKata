@@ -454,7 +454,11 @@ def _check(
         )
     elif kind_sent and kind in OPTION_KINDS:
         errors.append(
-            FieldError("kind", "option-kind", "Record an option trade from the account's Holdings.")
+            FieldError(
+                "kind",
+                "option-kind",
+                "Add the trade from the account's Holdings or Positions: Add Trade.",
+            )
         )
     if kind_sent:
         if (kind in INSTRUMENT_KINDS or kind == "foreign-tax") and not investing:

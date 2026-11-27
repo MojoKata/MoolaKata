@@ -65,6 +65,11 @@ class OpenRow(Model):
     # An option's stock: a split of it reaches the option, recorded on it (S3.10.1).
     underlyingId: str | None = None
     underlyingSymbol: str | None = None
+    # An option's contract, which its Close… starts the trade dialog on (S3.2); `root` is an
+    # adjusted contract's own (S3.10.2), None while it trades under its underlying's symbol.
+    right: str | None = None
+    strike: Quantity | None = None
+    root: str | None = None
 
 
 class ClosedRow(Model):
@@ -196,6 +201,9 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
                     "inTheMoney": options.in_the_money(oc, under[0]) if under else None,
                     "underlyingId": oc.underlyingId,
                     "underlyingSymbol": stock.symbol,
+                    "right": oc.right,
+                    "strike": oc.strike,
+                    "root": oc.root,
                 }
             open_rows.append(
                 OpenRow(

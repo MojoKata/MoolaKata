@@ -234,10 +234,8 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     # S3.2: the dialog from Positions, the trade chosen, the cash paid said as it is typed.
     h = household
     acct = brokerage(h, "Desk")
-    page, problems = signed_in(
-        browser, h, "/ui/positions/open", 'button:has-text("Record an Option Trade")'
-    )
-    page.click('button:has-text("Record an Option Trade")')
+    page, problems = signed_in(browser, h, "/ui/positions/open", 'button:has-text("Add Trade")')
+    page.click('button:has-text("Add Trade")')
     wait(page, "#f-underlying", problems)
     page.select_option("#f-account", label="Desk")
     page.get_by_role("radio", name="Buy to open").click()
@@ -268,6 +266,30 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     assert t["symbol"].startswith("ZDK ") and t["symbol"].endswith(" 45 C")
     # The one refusal: the fees cleared.
     assert [p for p in problems if not p.startswith("422 for")] == []
+    page.close()
+
+
+def test_an_open_options_close_starts_the_trade_on_its_contract(browser, household):
+    # S3.2: a short put's Close… opens the trade dialog named for its contract, on its account,
+    # buying to close all its contracts; recorded, the position is closed.
+    h = household
+    acct = brokerage(h, "Closing desk")
+    option(h, acct, OPENED, "sell-to-open", "ZCL", "put", "40", contracts="2", premium="1.00")
+    page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZCL")
+    row(page, "ZCL").locator("button.linklike").first.click()
+    page.get_by_role("button", name="Close…").click()
+    wait(page, "#f-premium", problems)
+    title = page.locator(".dialog h2, .dialog h3").first.inner_text()
+    assert re.fullmatch(r"Close ZCL \d\d [A-Z][a-z]{2} \d\d 40 P", title), title
+    assert page.get_by_role("radio", name="Buy to close").is_checked()
+    assert (page.input_value("#f-underlying"), page.input_value("#f-strike"),
+            page.input_value("#f-contracts")) == ("ZCL", "40", "2")  # fmt: skip
+    page.fill("#f-premium", "0.30")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    toast(page, "Trade recorded", problems)
+    assert open_rows(h, acct) == []
+    assert problems == []
     page.close()
 
 

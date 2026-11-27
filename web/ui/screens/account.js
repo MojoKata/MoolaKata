@@ -214,7 +214,7 @@ function Holdings({ a }) {
       why=${whyNotAdd('Txn', a)} onClick=${() =>
         openDialog(OptionTrade, { accountId: a.id }).then((x) =>
           x && res.reload()
-        )}>Record an Option Trade</${Action}></div>
+        )}>Add Trade</${Action}></div>
   `;
   if (!h.holdings.length) {
     return html`${trade}<${Empty}>Nothing held yet</${Empty}>`;

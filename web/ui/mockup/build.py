@@ -92,7 +92,7 @@ DIALOGS = (
     ("/ui/gifts/people", "Add a person", "dialog-person"),
     ("/ui/gifts/gifts", "Add a gift", "dialog-gift"),
     ("/ui/giving/donations", "Record a donation", "dialog-donation"),
-    ("/ui/positions/open", "Record an option trade", "dialog-option-trade"),
+    ("/ui/positions/open", "Add trade", "dialog-option-trade"),
     ("/ui/positions/strategies", "An underlying was adjusted…", "dialog-option-adjust"),
     ("/ui/giving/organisations", "Add an organisation", "dialog-organisation"),
     ("/ui/taxes/summary", "New tax book", "dialog-tax-book"),
