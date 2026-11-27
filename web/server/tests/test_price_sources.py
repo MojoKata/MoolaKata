@@ -14,6 +14,7 @@ from moolakata import clock
 from moolakata.prices.base import SOURCES, Quote, Ref, SourceError, TickerSource, register
 from moolakata.prices.cboe import Cboe, mark, split_occ
 from moolakata.prices.coinbase import Coinbase
+from moolakata.prices.manual import Manual
 from moolakata.prices.massive import Massive
 from moolakata.prices.stub import Stub, _seed, walk
 from moolakata.prices.tiingo import Tiingo
@@ -414,3 +415,13 @@ def test_the_stub_has_closes_for_market_days_before_today_and_every_day_for_coin
     occ = "O:VTI261120C00300000"
     opt = src.history(Ref("i", occ, "option"), d(2026, 10, 9), d(2026, 10, 9))
     assert opt == [(d(2026, 10, 9), (walk(occ, d(2026, 10, 9)) / 60).quantize(D("0.01")))]
+
+
+def test_the_manual_source_asks_no_one_and_has_no_history():
+    """S4.3: a manual price is typed or read from a statement: the source calls out to no host,
+    needs no key, isn't fetched, and its history and quotes are empty whatever is asked."""
+    assert (Manual.fetches, Manual.needs_key, Manual.hosts) == (False, False, ())
+    m = Manual(None, None)
+    ref = Ref("Instr_1", "BOND1", "bond")
+    assert m.history(ref, dt.date(2021, 1, 1), dt.date(2026, 10, 9)) == []
+    assert m.quotes([ref]) == {}
