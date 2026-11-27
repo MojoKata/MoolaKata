@@ -10,7 +10,7 @@
       constraints and indexes.
    2. **Entities** are plain dataclasses in `store/entities/` that import nothing from
       SQLAlchemy. `store/mapping.py` maps each one onto its table
-      (`registry.map_imperatively`), relationships included. Business logic lives in the
+      (`registry.map_imperatively`); what a record belongs to is read by queries. Business logic lives in the
       feature modules (`ledger/`, `loans/`, `giving/` and the others), and a test fails when
       their calculation code imports SQLAlchemy.
    3. **Revisions:** each change to the tables is a numbered Alembic revision, generated,

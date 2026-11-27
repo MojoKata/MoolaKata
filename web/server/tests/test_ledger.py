@@ -441,6 +441,16 @@ def test_calculations_never_import_sqlalchemy():
                 assert not any(n.startswith("sqlalchemy") for n in names), path
 
 
+def test_the_mapping_maps_no_relationships():
+    """What a record belongs to is read by queries, never an ORM relationship (S14.1.2)."""
+    from moolakata.store import mapping
+
+    mapping.map_all()
+    mappers = list(mapping.mapper_registry.mappers)
+    assert len(mappers) > 50
+    assert [m.class_.__name__ for m in mappers if m.relationships] == []
+
+
 def test_possible_duplicates_are_one_day_amount_payee_and_instrument_or_one_file_id():
     """S1.11.5: rows alike in day, amount, payee (case aside, the bank's words when no payee)
     and instrument are possible duplicates, and so are rows a file gave one id (`X` and
