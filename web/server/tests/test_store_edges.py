@@ -6,6 +6,9 @@ import json
 import os
 import shutil
 
+import pytest
+
+from moolakata.config import RefuseStart
 from moolakata.keys import files, master
 from moolakata.store import copies, maintenance
 
@@ -121,3 +124,233 @@ def test_a_file_made_as_root_is_given_to_the_servers_account(tmp_path, monkeypat
     monkeypatch.setattr(os, "chown", lambda path, uid, gid: given.append((path, uid, gid)))
     copies.chown_to_server(tmp_path / "keyring.next")
     assert given == [(tmp_path / "keyring.next", 10001, 10001)]
+
+
+def _journal(config, steps: dict, **more) -> None:
+    from moolakata.store import reencrypt as journaled
+
+    j = {"why": "settings", "scheduledAt": "2026-10-01T00:00:00+00:00", "by": None,
+         "copies": {}, "steps": steps, **more}  # fmt: skip
+    (config.data_dir / journaled.JOURNAL).write_text(json.dumps(j))
+
+
+# ---------- opening, host events, backups and restores (S14.6, S15.4.7, S15.6.8) ----------
+
+
+def test_a_database_that_fails_to_open_for_another_reason_refuses_the_start(
+    keyed_config, master_key, monkeypatch
+):
+    """S15.4: a database that can't be opened at all says so by the kind of failure, never by
+    what it holds."""
+
+    class Engine:
+        def connect(self):
+            raise PermissionError("denied")
+
+    monkeypatch.setattr(maintenance, "make_engine", lambda path, key: Engine())
+    with pytest.raises(RefuseStart, match="cannot be opened: PermissionError"):
+        maintenance.open_store(keyed_config, master_key)
+
+
+def test_a_reencryption_already_scheduled_runs_as_scheduled(store, keyed_config, master_key):
+    """S15.7.2: on the host, a run already in the journal is carried out with its own choices;
+    the ones given now don't replace them."""
+    from moolakata.store import reencrypt as journaled
+
+    b = _folder_copy(keyed_config, "moolakata-20261001-000000")
+    _journal(keyed_config, {"backup": None}, copies={b.name: "delete"})
+    again = maintenance.reencrypt(keyed_config, store, master_key, {b.name: "leave"})
+    assert journaled.report(keyed_config)["copies"][b.name] == "deleted"
+    assert not b.exists()
+    again.db.dispose()
+
+
+def test_a_host_event_goes_to_the_queue_the_server_hasnt_taken(keyed_config, monkeypatch):
+    """S15.7.4: a line is written to the file at the queue's name; one removed or taken while
+    it waited for the lock is opened again. Root's queue is given to the server's account."""
+    real_stat, gone = os.stat, []
+    queue = keyed_config.data_dir / maintenance.HOST_EVENTS
+
+    def stat(path, *a, **k):
+        if path == queue and not gone:
+            gone.append(path)
+            raise FileNotFoundError(path)
+        return real_stat(path, *a, **k)
+
+    given = []
+    monkeypatch.setattr(os, "stat", stat)
+    monkeypatch.setattr(os, "geteuid", lambda: 0)
+    monkeypatch.setattr(os, "chown", lambda path, uid, gid: given.append((path, uid)))
+    maintenance.queue_host_event(keyed_config, "db.shell", {})
+    monkeypatch.undo()
+    assert gone == [queue] and given == [(queue, 10001)]
+    with open(queue, "a") as f:
+        f.write("not json\n")
+    assert [e["kind"] for e in maintenance.take_host_events(keyed_config)] == ["db.shell"]
+
+
+def test_a_backups_time_comes_from_its_manifest(keyed_config):
+    """S14.6: a copy with no manifest has no time of its own; a manifest that doesn't say
+    when, or a backup named with no time, is refused."""
+    assert maintenance.made_of(keyed_config.data_dir) is None
+    b = _folder_copy(keyed_config, "moolakata-20261001-000000")
+    manifest = {"made": "2026-10-01T00:00:00+00:00", "files": {}}
+    (b / "manifest.json").write_text(json.dumps({k: v for k, v in manifest.items() if k != "made"}))
+    with pytest.raises(RefuseStart, match="manifest doesn't say when it was made"):
+        maintenance.made_of(b)
+    (b / "manifest.json").write_text(json.dumps(manifest))
+    renamed = b.with_name("moolakata-latest")
+    b.rename(renamed)
+    with pytest.raises(RefuseStart, match="not when its name says"):
+        maintenance.made_of(renamed)
+    # A folder not named as a backup (one a restore set aside) goes by its manifest alone.
+    aside = renamed.rename(keyed_config.data_dir / "before-restore-20261001-000000")
+    assert maintenance.made_of(aside).isoformat() == "2026-10-01T00:00:00+00:00"
+
+
+def test_verifying_with_no_backup_says_there_is_none(keyed_config, master_key):
+    with pytest.raises(RefuseStart, match="there is no backup in"):
+        maintenance.verify_backup(keyed_config, master_key)
+
+
+def test_an_interrupted_restore_carries_on_from_its_journal(store, keyed_config, master_key):
+    """S15.6.8: a restore that stopped after copying in is finished by the next, into the same
+    before-restore folder."""
+    store.db.dispose()
+    b = _folder_copy(keyed_config, "moolakata-20261001-000000")
+    aside = keyed_config.data_dir / "before-restore-20261001-000000"
+    aside.mkdir()
+    (keyed_config.data_dir / maintenance.RESTORE_JOURNAL).write_text(
+        json.dumps({"aside": aside.name, "source": b.name})
+    )
+    assert maintenance.restore(keyed_config, b, master_key) == aside
+    assert not (keyed_config.data_dir / maintenance.RESTORE_JOURNAL).exists()
+    restored = json.loads((keyed_config.data_dir / maintenance.RESTORED_MARK).read_text())
+    assert restored["source"] == b.name
+
+
+def test_a_pre_upgrade_copy_under_another_phrase_is_refused_by_name(store, keyed_config):
+    """S15.6.8: a copy made before a migration opens with the phrase of its day, or not at all."""
+    older = keyed_config.data_dir / "pre-upgrade"
+    older.mkdir()
+    db = older / "moolakata-before-0009-t.db"
+    _tiny(db, store.keys.keys.sqlcipher_key)
+    shutil.copy2(keyed_config.keyring_path, db.with_suffix(".keyring"))
+    store.db.dispose()
+    with pytest.raises(RefuseStart, match=f"{db.name} does not open with that phrase"):
+        maintenance.restore(keyed_config, db, os.urandom(16))
+
+
+def test_a_restore_onto_a_folder_with_no_keyring_asks_nothing(store, keyed_config, master_key):
+    """S15.6.8: with no keyring in place there is no phrase it replaces, so nothing to ask."""
+    b = maintenance.backup(keyed_config, store)
+    store.db.dispose()
+    keyed_config.keyring_path.unlink()
+    aside = maintenance.restore(keyed_config, b, master_key, confirm=lambda q: pytest.fail(q))
+    assert keyed_config.keyring_path.exists() and not (aside / "keyring").exists()
+
+
+def _sealed(config, keys: master.DataKeys, name: str) -> None:
+    config.receipts_dir.mkdir(parents=True, exist_ok=True)
+    files.write(config.receipts_dir / f"{name}.mkr", [b"a receipt"], keys.receipts.public_key(),
+                name)  # fmt: skip
+
+
+def test_receipts_under_another_key_with_no_replaced_keyring_are_set_aside(
+    keyed_config, master_key
+):
+    """S15.6.8: receipt files the restored key doesn't open, with no keyring replaced to open
+    them with, are set aside rather than lost."""
+    from moolakata.store import reencrypt
+
+    _sealed(keyed_config, master.DataKeys.derive(master.new_data_key()), "lost")
+    aside = keyed_config.data_dir / "before-restore-20261001-000000"
+    aside.mkdir()
+    assert maintenance._rewrap_restored(keyed_config, aside, master_key, None) == ["lost.mkr"]
+    assert (keyed_config.data_dir / reencrypt.SET_ASIDE / "lost.mkr").exists()
+
+
+def test_receipts_under_a_replaced_keyring_of_another_phrase_take_that_phrase(
+    keyed_config, master_key
+):
+    """S15.6.8: the replaced keyring's phrase is asked for by its fingerprint; without a way to
+    ask, or with a phrase that doesn't open it, the restore stops and says so."""
+    from moolakata.store import reencrypt
+
+    other, data = os.urandom(16), master.new_data_key()
+    _sealed(keyed_config, master.DataKeys.derive(data), "kept")
+    aside = keyed_config.data_dir / "before-restore-20261001-000000"
+    aside.mkdir()
+    master.write_keyring(
+        aside / "keyring", master.wrap(other, data, master.now(), master.now(), ())
+    )
+    with pytest.raises(RefuseStart, match="its phrase is needed to re-wrap them"):
+        maintenance._rewrap_restored(keyed_config, aside, master_key, None)
+    with pytest.raises(RefuseStart, match="that phrase doesn't open the replaced keyring"):
+        maintenance._rewrap_restored(keyed_config, aside, master_key, lambda q: os.urandom(16))
+    asked = []
+    assert (
+        maintenance._rewrap_restored(
+            keyed_config, aside, master_key, lambda q: asked.append(q) or other
+        )
+        == []
+    )
+    assert asked == [f"the replaced keyring's phrase ({master.fingerprint(other)}): "]
+    target = master.DataKeys.derive(master.unlock_keys(keyed_config, master_key).data_key)
+    assert reencrypt.opens(keyed_config.receipts_dir / "kept.mkr", target.receipts, "kept")
+
+
+def test_the_maintenance_shell_runs_each_statement_and_shows_its_rows(
+    store, keyed_config, master_key, monkeypatch, capsys
+):
+    """S14.7: a statement ends at its semicolon, over as many lines as it takes; a failing one
+    says why and the shell goes on; Ctrl-D ends it."""
+    store.db.dispose()
+    lines = iter(["SELECT 1 AS one,", "NULL AS none;", "CREATE TEMP TABLE t (x);",
+                  "SELECT * FROM nothing_here;"])  # fmt: skip
+
+    def typed(prompt):
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    monkeypatch.setattr("builtins.input", typed)
+    assert maintenance.shell(keyed_config, master_key) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:] == ["one | none", "1 | ", "error: no such table: nothing_here", ""]
+
+
+def test_the_maintenance_shell_refuses_a_wrong_phrase_or_a_database_it_cant_open(
+    store, keyed_config, master_key
+):
+    store.db.dispose()
+    with pytest.raises(RefuseStart, match="the data key was wrapped by"):
+        maintenance.shell(keyed_config, os.urandom(16))
+    keyed_config.db_path.write_bytes(b"not a database at all" * 100)
+    with pytest.raises(RefuseStart, match="does not open with this key"):
+        maintenance.shell(keyed_config, master_key)
+
+
+def test_a_rotation_says_what_each_copy_will_meet(store, keyed_config, master_key):
+    """S15.7.1: a copy whose keyring can't be read is left, and one under an earlier phrase
+    needs that phrase; a set-aside keyring is only ever left."""
+    unread = keyed_config.backup_dir / "moolakata-20260102-000000"
+    unread.mkdir(parents=True)
+    (unread / "keyring").write_text("not a keyring")
+    other = os.urandom(16)
+    older = keyed_config.data_dir / "pre-upgrade"
+    older.mkdir()
+    db = older / "moolakata-before-0009-t.db"
+    _tiny(db, store.keys.keys.sqlcipher_key)
+    ring = master.wrap(other, store.keys.data_key, master.now(), master.now(), ())
+    master.write_keyring(db.with_suffix(".keyring"), ring)
+    aside_ring = keyed_config.data_dir / (copies.SET_ASIDE_RING + "20260101-000000")
+    shutil.copy2(keyed_config.keyring_path, aside_ring)
+    store2, outcomes = maintenance.rotate_running(keyed_config, store, os.urandom(16))
+    assert outcomes == {
+        unread.name: "left: its keyring cannot be read",
+        db.name: f"left: needs the phrase of {master.fingerprint(other)}",
+        aside_ring.name: "left",
+    }
+    store2.db.dispose()
