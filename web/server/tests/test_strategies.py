@@ -225,6 +225,9 @@ def test_a_strategy_closes_by_any_outcome_and_unlimited_risk_is_said_so(jane):
     assert st["capitalAtRiskNow"] is None and st["capitalAtRiskAtOpen"] is None
     acct = jane.get(f"/ui/api/accounts/{a}").json()
     assert acct["capitalAtRiskUnlimited"] and acct["capitalAtRisk"] is None
+    # Its risk at open unlimited, each leg's trade keeps its own capital required (S3.9.2).
+    trades = jane.get("/ui/api/positions/option-trades").json()["items"]
+    assert sorted(x["capitalRequired"] for x in trades) == [48000, 48000]
     _, put = sorted(p["legs"], key=lambda x: x["symbol"])
     r = option(jane, a, "buy-to-close", "2026-10-09", "1.00", right="call", fees="0")
     assert r.status_code == 200, r.text

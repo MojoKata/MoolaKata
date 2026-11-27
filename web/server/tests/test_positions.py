@@ -514,6 +514,8 @@ def test_shares_moved_in_with_no_basis_have_no_cost_average_or_gain(jane):
     assert (row["cost"], row["averageCost"], row["value"], row["unrealized"],
             row["unrealizedPct"]) == (None, None, "3000.00", None, None)  # fmt: skip
     assert jane.get("/ui/api/positions").json()["summary"]["unrealized"] == "0.00"
+    # No gain to split by lot or term: the Gains tab leaves it out, never counts it as 0.
+    assert jane.get("/ui/api/positions/gains").json()["unrealized"] == []
 
 
 def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(jane):
