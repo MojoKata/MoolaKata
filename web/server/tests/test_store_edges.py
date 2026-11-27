@@ -626,3 +626,15 @@ def test_a_record_made_and_deleted_in_one_save_asks_no_permission(db):
         a = Account(id=ids.new_id("Acct"), ownerId=other, name="Not mine", type="checking")
         s.add(a)
         a.mark_deleted(uid)
+
+
+def test_the_data_versions_triggers_are_made_again_from_their_declarations(db):
+    """Every generated trigger is dropped and made again, the row kept."""
+    from moolakata.store import data_version
+    from moolakata.store.tables import metadata
+
+    with db.engine.begin() as conn:
+        before = data_version.drop_all_sql(conn)
+        assert before
+        data_version.sync(conn, metadata)
+        assert sorted(data_version.drop_all_sql(conn)) == sorted(before)
