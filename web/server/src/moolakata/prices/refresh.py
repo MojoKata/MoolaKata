@@ -362,6 +362,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         known, unknown = False, True
         for src in candidates:
             if src.id in later:
+                # Not asked: whether it knows the symbol is still unknown (S4.2.2).
+                unknown = False
                 continue
             run = runs[src.id]
             try:
@@ -372,6 +374,7 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
                 raise
             except Later as e:
                 later[src.id] = e.seconds
+                unknown = False
                 continue
             except Exception as e:
                 run["used"] = True

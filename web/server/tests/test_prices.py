@@ -1123,6 +1123,12 @@ def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_l
         "unknown": 0,
     }  # two calls an hour
     assert len(CALLS) == 2 and asked == [pytest.approx(3600, abs=5)]
+    with server.db.read(unscoped="test") as s:
+        from moolakata.store.entities.accounts import Instrument
+
+        assert not any(s.get(Instrument, e.id).priceMissedAt for e in etfs), (
+            "a symbol its source was set aside before asking about is no unknown symbol"
+        )
     CALLS.clear()
     ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
     assert pricing.refresh(server, ctx) == {
