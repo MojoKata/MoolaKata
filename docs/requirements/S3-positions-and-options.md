@@ -14,8 +14,9 @@
    account holds on that side at the end of its day.
    1. **From a broker's file**: an OFX file's option trades (`BUYOPT`, `SELLOPT`) are the four
       trades by their `OPTBUYTYPE` and `OPTSELLTYPE`, and its `CLOSUREOPT` is the option's
-      end by its `OPTACTION`. A contract is named by its OCC ticker, or by the underlying,
-      right, strike and expiry its `OPTINFO` gives. A CSV's option is read from its symbol
+      end by its `OPTACTION`. A contract is named by its OCC ticker (its root padded,
+      unpadded, or with `O:` before it), or by the underlying, right, strike and expiry its
+      `OPTINFO` gives. A CSV's option is read from its symbol
       (`AAPL  260918P00150000`, `AAPL 09/18/2026 150.00 P`, `-AAPL260918P150`), and its row
       must say whether it opens or closes (*Buy to Open*, *Sell to Close*) or how it ended
       (*Expired*, *Assigned*, *Exercised*): a plain buy or sell of an option refuses the file,
@@ -196,10 +197,10 @@
        information memo (linked to its search), on Positions › Strategies (*An underlying was
        adjusted*); every account the user can change that holds the contract is adjusted.
        The multiplier stays 100: what changes is the deliverable.
-    3. **On import**, an option named by its OCC ticker is made a contract. One whose root
-       is adjusted (ending in a digit) links to the adjusted contract already here; while the
-       account still holds the contract it adjusts, the import names it in a warning, to be
-       adjusted from the memo so its lots carry over.
+    3. **On import**, an option named by its OCC ticker, in any of S3.2.1's forms, is made a
+       contract. One whose root is adjusted (ending in a digit) links to the adjusted contract
+       already here; while the account still holds the contract it adjusts, the import names it
+       in a warning, to be adjusted from the memo so its lots carry over.
     4. **Assignment and exercise** of an adjusted contract open or close a lot for each
        instrument in its deliverable, and its cash goes into the proceeds or the basis. The
        strike paid or received, the premium and the cash are spread over the deliverable's
