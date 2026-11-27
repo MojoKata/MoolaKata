@@ -490,7 +490,7 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
                     f"{clock.today():%B %-d, %Y}.",
                     "MoolaKata gathers figures and their sources. It does not compute the tax, "
                     "choose a filing status, or file.",
-                    exports.COVERS,
+                    exports.covers(b.bitcoinFees),
                     *(f"Left out of this book: {x}" for x in p.leftOut),
                 ],
             ),

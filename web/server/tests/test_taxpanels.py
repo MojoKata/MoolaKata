@@ -103,6 +103,25 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(jane):
     assert pdf.content.startswith(b"%PDF-1.4") and pdf.content.rstrip().endswith(b"%%EOF")
 
 
+@pytest.mark.parametrize("reading", ["sale", "not-taxed"])
+def test_the_pdf_says_how_the_book_reads_network_fees(jane, reading):
+    """S8.2, S8.19: the preparer's summary says what it covers, the book's reading of bitcoin
+    network fees among it, as the CSV and the Summary panel do."""
+    import re
+
+    from test_tax_exports_rules import pages_of
+
+    from moolakata.taxes import exports
+
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    b = make(jane, "TaxBk", year=2026, filers=[me], bitcoinFees=reading).json()["id"]
+    data = jane.get(f"/ui/api/tax-books/{b}/exports/summary.pdf").content
+    lines = [re.search(rb"Td \((.*)\) Tj", o)[1] for o in pages_of(data)[0][1:-1]]
+    text = b" ".join(x.strip() for x in lines).replace(b"\\(", b"(").replace(b"\\)", b")")
+    about = text.split(b"About this summary ", 1)[1].split(b"Capital gains", 1)[0]
+    assert exports.covers(reading).encode("cp1252") in about
+
+
 def test_collectables_and_personal_use_losses(jane):
     coll = new_account(jane, name="Collectables", type="collectables")
     cars = new_account(jane, name="Cars", type="vehicle")
