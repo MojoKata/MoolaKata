@@ -115,6 +115,14 @@ def federal_due(s: Session, year: int) -> dt.date:
     return next_business_day(dt.date(year + 1, int(month), int(day)))
 
 
+def federal_extended_due(year: int) -> dt.date:
+    """Where a federal extension (Form 4868) moves the return's due date: six months on, Oct
+    15 of the following year, moved as the due date is (S8.15.3)."""
+    from .dates import next_business_day
+
+    return next_business_day(dt.date(year + 1, 10, 15))
+
+
 def filings(s: Session, book: TaxBook) -> list[Filing]:
     return list(
         s.scalars(

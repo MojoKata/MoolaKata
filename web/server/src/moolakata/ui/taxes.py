@@ -475,6 +475,8 @@ class BookDetail(BookRow):
     received: list[DocumentOut]  # received documents not on the expected list
     lastYear: list[LastYear]
     federalDue: dt.date
+    # What a federal filing's *Extended to* offers as its default (R3.11, S8.15.3).
+    federalExtendedDue: dt.date
 
 
 def _dependent(d: dependents.Dependent) -> DependentOut:
@@ -653,6 +655,7 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
             for f, figures, ly in books.carried_from_last_year(s, b)
         ],
         federalDue=books.federal_due(s, b.year),
+        federalExtendedDue=books.federal_extended_due(b.year),
     )
 
 
@@ -865,6 +868,10 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         e.append(FieldError("resultKind", "result-invalid", "A refund, an amount owed, nothing."))
     if body.progress in ("filed", "accepted") and not body.filedOn:
         e.append(FieldError("filedOn", "filed-on-missing", "The day it was filed."))
+    # An extension is judged by its new due date, which is typed, never read from a blank
+    # (R3.11, S8.15.3): a federal filing's field offers the default.
+    if body.extensionFiledOn and not body.extendedDue:
+        e.append(FieldError("extendedDue", "extended-due-missing", "The new due date."))
     carried = getattr(body, "carried", None)
     bases = (carried.basis8606 if carried is not None else None) or {}
     on = {f.userId for f in books.filers(s, b)}

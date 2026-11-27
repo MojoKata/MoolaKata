@@ -45,7 +45,9 @@ The day an extension was filed.
 
 ## Extended to {#extended-due}
 
-The new due date.
+The new due date, needed once an extension is filed. A federal extension runs to Oct 15 of the
+year after, moved past a weekend or a legal holiday as the due date is: **default** fills it in.
+A state's or a locality's is typed.
 
 ## Date filed {#filed-on}
 

@@ -160,3 +160,37 @@ def test_a_transfer_in_takes_its_lots_as_bought(browser, household):
         page.close()
     finally:
         made(remove(h.c, "Acct", h.c.get(f"/ui/api/accounts/{a['id']}").json(), confirm=True))
+
+
+def test_an_extension_filed_asks_for_its_new_due_date_and_offers_the_federal_one(
+    browser, household
+):
+    """R3.11, S8.15.3: *Extended to* left blank is refused at its field once *Extension filed*
+    is set; a federal filing's **default** fills in Oct 15 (moved by IRC §7503)."""
+    h = household
+    year = int(months_back(0)[:4]) - 4
+    me = h.c.get("/ui/api/session").json()["user"]["id"]
+    book = made(make(h.c, "TaxBk", year=year, filers=[me]))
+    try:
+        made(make(h.c, "Filng", bookId=book["id"], form="Form 1040"))
+        due = h.c.get(f"/ui/api/tax-books/{book['id']}").json()["federalExtendedDue"]
+        page, problems = signed_in(browser, h, "/ui/taxes/filings", "#f-tax-book")
+        page.select_option("#f-tax-book", book["id"])
+        wait(page, "h3 .row-tool", problems)
+        page.locator("h3 .row-tool").first.click()
+        dialog = page.locator(".dialog")
+        wait(page, ".dialog #f-extension-filed-on", problems)
+        dialog.locator("#f-extension-filed-on").fill(f"{year + 1}-04-14")
+        dialog.locator("footer button.primary").click()
+        wait(page, '.dialog .err:has-text("The new due date.")', problems)
+        assert problems and all("422" in p for p in problems)
+        problems.clear()
+        dialog.get_by_role("button", name=re.compile("^Use the default: Oct 1[5-9]")).click()
+        dialog.locator("footer button.primary").click()
+        wait(page, ".dialog", problems, state="detached")
+        [f] = h.c.get(f"/ui/api/tax-books/{book['id']}").json()["filings"]
+        assert (f["extensionFiledOn"], f["extendedDue"]) == (f"{year + 1}-04-14", due)
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "TaxBk", h.c.get(f"/ui/api/tax-books/{book['id']}").json()))

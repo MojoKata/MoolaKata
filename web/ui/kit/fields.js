@@ -232,31 +232,12 @@ export function ValueInput(
   if (!clear && !words.length) {
     return html`<${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />`;
   }
-  /** A value filled in, and the focus to the field: the button may go, or go off, under it. */
-  const fillIn = (/** @type {any} */ e, /** @type {string} */ to) => {
-    const field = /** @type {HTMLInputElement | null} */ (e.currentTarget.closest('.value-input')
-      ?.querySelector('input'));
-    onInput(to);
-    field?.focus();
-  };
   const ends = clears
     ? html`<span class="value-ends"><button type="button" class="icon-btn" aria-label="Clear"
-        data-tip="Clear" onClick=${(/** @type {any} */ e) => fillIn(e, '')}><${Icon}
+        data-tip="Clear" onClick=${(/** @type {any} */ e) => fillIn(e, '', onInput)}><${Icon}
           name="x" /></button></span>`
     : null;
-  const bar = words.length
-    ? html`<span class="value-bar">${
-      words.map((f, i) =>
-        html`
-          ${i
-            ? html`<span class="sep" aria-hidden="true">·</span>`
-            : null}<button type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
-            disabled=${v === f.value} onClick=${(/** @type {any} */ e) => fillIn(e, f.value)}>${f
-              .text}</button>
-        `
-      )
-    }</span>`
-    : null;
+  const bar = words.length ? fillWords(words, v, onInput) : null;
   return html`
     <span
       class="value-input"><span class=${'value-in' +
@@ -264,6 +245,36 @@ export function ValueInput(
           ? ' ends-1'
           : '')}><${Input} value=${v} onInput=${onInput} bad=${bad} ...${rest} />${ends}</span>${bar}</span>
   `;
+}
+
+/**
+ * A value filled in, and the focus to its field: the button may go, or go off, under it.
+ * @param {any} e @param {string} to @param {(v: string) => void} onInput
+ */
+function fillIn(e, to, onInput) {
+  const field = /** @type {HTMLInputElement | null} */ (e.currentTarget.closest('.value-input')
+    ?.querySelector('input'));
+  onInput(to);
+  field?.focus();
+}
+
+/**
+ * The words under a field that fill it in (R3.11), a dot between each, each off while the field
+ * holds its value.
+ * @param {Fill[]} words @param {string} value @param {(v: string) => void} onInput
+ */
+function fillWords(words, value, onInput) {
+  return html`<span class="value-bar">${
+    words.map((f, i) =>
+      html`
+        ${i
+          ? html`<span class="sep" aria-hidden="true">·</span>`
+          : null}<button type="button" class="link-btn" aria-label=${f.label} data-tip=${f.label}
+          disabled=${value === f.value} onClick=${(/** @type {any} */ e) =>
+            fillIn(e, f.value, onInput)}>${f.text}</button>
+      `
+    )
+  }</span>`;
 }
 
 /**
@@ -499,14 +510,25 @@ export function TypedInput(
   };
   if (kind === 'date' || kind === 'time') {
     // Typed as people write them (S12.18.10, S12.18.11); a date's bounds bound its calendar.
-    const { min, max, clear: _c, reset: _r, fill: _f, noun: _n, format: _fm, type: _t, ...pass } =
+    // Its **default** and other values to fill in are words under it, as any field's (R3.11).
+    const { min, max, clear: _c, reset, fill = [], noun: _n, format: _fm, type: _t, ...pass } =
       rest;
     const C = kind === 'date' ? DateInput : TimeInput;
-    return html`
+    const control = html`
       <${C} value=${value} min=${min} max=${max} today=${kind === 'date' ? now : undefined}
         ...${pass} ...${handlers}
         onBeforeInput=${undefined} onPaste=${undefined} onDrop=${undefined} ...${marked} />
     `;
+    const words = /** @type {Fill[]} */ ([
+      reset
+        ? { text: 'default', value: reset.value, label: `Use the default: ${reset.label}` }
+        : null,
+      ...fill,
+    ].filter((x) => x !== null));
+    if (!words.length) return control;
+    return html`<span class="value-input"><span class="value-in">${control}</span>${
+      fillWords(words, String(value ?? ''), handlers.onInput)
+    }</span>`;
   }
   if (way) {
     const unit = prefix === undefined ? k.prefix : prefix;

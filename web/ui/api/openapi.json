@@ -2282,6 +2282,11 @@
             "title": "Federaldue",
             "type": "string"
           },
+          "federalExtendedDue": {
+            "format": "date",
+            "title": "Federalextendeddue",
+            "type": "string"
+          },
           "filers": {
             "items": {
               "$ref": "#/components/schemas/Filer"
@@ -2366,7 +2371,8 @@
           "expected",
           "received",
           "lastYear",
-          "federalDue"
+          "federalDue",
+          "federalExtendedDue"
         ],
         "title": "BookDetail",
         "type": "object"
@@ -19506,6 +19512,7 @@
               "expense-fixed",
               "expired",
               "expiry-required",
+              "extended-due-missing",
               "fees-invalid",
               "figure-corrected",
               "figure-fixed",
@@ -20051,6 +20058,7 @@
                   "expense-fixed",
                   "expired",
                   "expiry-required",
+                  "extended-due-missing",
                   "fees-invalid",
                   "figure-corrected",
                   "figure-fixed",
