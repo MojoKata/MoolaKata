@@ -258,6 +258,17 @@ def test_an_ira_limit_holds_across_a_persons_accounts(jane):
     assert first["across"] == "IRAs"
 
 
+def test_a_book_reading_bitcoin_fees_as_not_taxed_keeps_every_other_sale(jane):
+    """S8.19: only a network fee on a transfer between the owner's own accounts leaves Form
+    8949 with *not taxed*; a sale of shares stays."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-01-05", "buy", "10", "100")
+    trade(jane, brk["id"], "2026-03-05", "sell", "10", "120")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    b = make(jane, "TaxBk", year=2026, filers=[me], bitcoinFees="not-taxed").json()["id"]
+    assert [r["description"] for r in panels(jane, b)["rows"]] == ["10 VTI"]
+
+
 def test_a_roth_contribution_is_flagged_past_what_the_typed_magi_allows(jane):
     """S8.6: the MAGI typed on the book, with the federal return's filing status, reads each
     Roth IRA contribution against the year's phase-out; above what it allows, it is flagged."""

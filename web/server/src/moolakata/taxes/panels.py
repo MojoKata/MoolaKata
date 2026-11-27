@@ -583,8 +583,9 @@ def income(s: Session, book: TaxBook) -> Income:
             elif t.kind == "return-of-capital":
                 # 1099-DIV box 3: off the basis, not a dividend on Schedule B.
                 divs["return-of-capital"] += abs(t.amount)
-            elif t.kind in ("dividend", "reinvest"):
-                # A reinvested dividend is a dividend too, ordinary unless typed.
+            else:
+                # A dividend, the query's last kinds: a reinvested one is a dividend too,
+                # ordinary unless typed.
                 amount = t.amount if t.kind == "dividend" else -t.amount
                 divs[t.dividendType or "ordinary"] += amount
                 by_payer[payer] += amount
@@ -761,9 +762,9 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             elif age and age >= 50:
                 limit += Decimal(str(figures["k401CatchUp"]))
                 note = "with the catch-up at 50 and over"
-        elif a.type == "hsa":
-            # Employee and employer money both count against an HSA's limit, which its
-            # coverage sets, with $1,000 more at 55 (S8.6).
+        else:
+            # An HSA, the last of the retirement types: employee and employer money both count
+            # against its limit, which its coverage sets, with $1,000 more at 55 (S8.6).
             if a.hsaCoverage == "self":
                 limit, note = Decimal(str(figures["hsaSelf"])), "self-only coverage"
             else:
@@ -774,20 +775,20 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 note += "; with the catch-up at 55 and over"
             if employer:
                 note += f"; {grouped(employer)} of it from the employer"
-        if counted or limit:
-            contributions.append(
-                Contribution(
-                    a.name,
-                    atypes.LABELS[a.type],
-                    owner.displayName,
-                    counted,
-                    limit,
-                    note,
-                    group=LIMIT_GROUPS[a.type],
-                    ownerId=owner.id,
-                    rothAllowed=allowed if a.type == "roth-ira" else None,
-                )
+        # Every retirement type has a limit, so each account is listed, nothing put in or not.
+        contributions.append(
+            Contribution(
+                a.name,
+                atypes.LABELS[a.type],
+                owner.displayName,
+                counted,
+                limit,
+                note,
+                group=LIMIT_GROUPS[a.type],
+                ownerId=owner.id,
+                rothAllowed=allowed if a.type == "roth-ira" else None,
             )
+        )
         if taken:
             distributions.append((a.name, taken))
             taken_from[a.id] = taken

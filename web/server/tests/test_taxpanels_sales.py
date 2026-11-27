@@ -1079,6 +1079,10 @@ def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged
     ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
     # With no loss to check, a spouse's accounts are never read.
     assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
+    # With one, a spouse's bank account holds no short sale: its ledger is never read.
+    bank = SimpleNamespace(id="a3", name="Bank", type="checking")
+    got = panels._short_reviews(None, rows, shorts, [bank], insts)
+    assert [w.replacementAccount for w in got] == ["Two"]
 
 
 def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, jane):
