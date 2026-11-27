@@ -159,7 +159,8 @@
       6. a loss on an **option** with **its stock bought** within 30 days either side: whether
          stock replaces an option is unsettled.
 
-      The issue names the rule it may fall under and says the preparer decides.
+      A sale more than one case flags is one possible wash sale: its issue names every case
+      it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;
    unrealized now, each lot's (its shares at the position's price less its basis) to its own
    term, and a lot whose day bought is missing (S3.1) under **unknown term**, a column shown

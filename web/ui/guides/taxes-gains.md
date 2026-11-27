@@ -41,5 +41,5 @@ written, or with its shares bought back through an option (a put assigned, a cal
 option's loss with the same option, or another on the stock, bought or written to open, or with the
 stock bought; a short sale's loss with another short sale of the stock; and a loss with shares of
 the stock bought to close a short sale. The trade a sale is part of (the option that opened the
-position sold, or whose assignment made the sale) is never its own match. Each is listed in the
-Issues too.
+position sold, or whose assignment made the sale) is never its own match. A sale more than one of
+these flags is one review, with a pill for each, and is listed in the Issues too.

@@ -45,9 +45,9 @@ class WashOut(Model):
     replacementQty: Quantity
     adjustedBasis: Money | None
     review: bool
-    # A review's (S3.8.5): "option-loss", "through-option", "option", "short-cover",
-    # "short-sale" or "stock-bought".
-    rule: str | None
+    # A review's, every S3.8.5 case it may fall under, in the list's order: "short-sale",
+    # "option-loss", "through-option", "option", "short-cover", "stock-bought".
+    rules: list[str]
 
 
 class BoxTotal(Model):
@@ -317,7 +317,7 @@ def _build(s, b) -> Panels:
     return Panels(
         year=b.year,
         rows=[RowOut(**{k: getattr(r, k) for k in RowOut.model_fields}) for r in rows],
-        washes=[WashOut(**w.__dict__) for w in washes],
+        washes=[WashOut(**{k: getattr(w, k) for k in WashOut.model_fields}) for w in washes],
         scheduleD=ScheduleDOut(
             boxes=[
                 BoxTotal(box=k, proceeds=v[0], basis=v[1], adjustment=v[2], gain=v[3])

@@ -5,7 +5,7 @@ and their sources only: MoolaKata never computes the tax."""
 
 import datetime as dt
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, Decimal
 
 from sqlalchemy import and_, false, not_, or_, select
@@ -101,13 +101,16 @@ class Wash:
     replacementQty: Decimal
     adjustedBasis: Decimal | None  # the replacement lot's basis with the loss added
     review: bool = False  # for the preparer to decide, never adjusted (S3.8.5)
-    # A review's rule (S3.8.5): "option-loss", an option's loss with an option on its
-    # underlying opened (S3.8.5.2); "through-option", a stock's loss with its shares bought
-    # through an option (S3.8.5.3); "option", one with an option on it opened (S3.8.5.4);
-    # "stock-bought", an option's loss with its stock bought (S3.8.5.6);
-    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1), or
-    # "short-cover", a loss with shares bought near it to close a short sale (S3.8.5.5).
-    rule: str | None = None
+    # A review's rules, every S3.8.5 case it may fall under, in the list's order:
+    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1);
+    # "option-loss", an option's loss with an option on its underlying opened (S3.8.5.2);
+    # "through-option", a stock's loss with its shares bought through an option (S3.8.5.3);
+    # "option", one with an option on it opened (S3.8.5.4); "short-cover", a loss with shares
+    # bought near it to close a short sale (S3.8.5.5); "stock-bought", an option's loss with
+    # its stock bought (S3.8.5.6). The details are of the first's match.
+    rules: tuple[str, ...] = ()
+    # The 8949 row a review is of, so the cases of one sale make one review.
+    row: tuple | None = field(default=None, compare=False, repr=False)
 
 
 # Digital assets' basis reporting on Form 1099-DA: brokers report the gross proceeds of sales
@@ -217,11 +220,36 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
     if book.bitcoinFees == "not-taxed":
         rows = [r for r in rows if not _own_transfer_fee(s, r.saleId)]
     washes_ = _stored_washes(s, book, losses, {a.id for a in counted})
-    washes_ += _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
-    washes_ += _short_reviews(s, rows, shorts, spouse_accounts or [], insts)
-    washes_ += _cover_reviews(rows, covers, insts)
+    washes_ += _one_per_sale(
+        _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
+        + _short_reviews(s, rows, shorts, spouse_accounts or [], insts)
+        + _cover_reviews(rows, covers, insts)
+    )
     rows += _items(s, counted, first, last)
     return rows, washes_
+
+
+# S3.8.5's cases in its order, which a review names them in.
+CASES = ("short-sale", "option-loss", "through-option", "option", "short-cover", "stock-bought")
+
+
+def _row_key(r: Row) -> tuple:
+    return (r.saleId, r.accountId, r.instrumentId, r.acquired, r.sold, r.quantity)
+
+
+def _one_per_sale(reviews: list[Wash]) -> list[Wash]:
+    """A sale more than one case flags is one possible wash sale naming every case it may fall
+    under (S3.8.5), with the details of the first case's match."""
+    by_row: dict[tuple, list[Wash]] = {}
+    for w in reviews:
+        by_row.setdefault(w.row, []).append(w)
+    out = []
+    for found in by_row.values():
+        found.sort(key=lambda w: CASES.index(w.rules[0]))
+        first = found[0]
+        first.rules = tuple(dict.fromkeys(r for w in found for r in w.rules))
+        out.append(first)
+    return out
 
 
 def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
@@ -411,7 +439,8 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
                     abs(hit.quantity or ZERO),
                     None,
                     review=True,
-                    rule=rule,
+                    rules=(rule,),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -447,7 +476,8 @@ def _short_reviews(
                     qty,
                     None,
                     review=True,
-                    rule="short-sale",
+                    rules=("short-sale",),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -481,7 +511,8 @@ def _cover_reviews(rows: list[Row], covers: list, insts) -> list[Wash]:
                     qty,
                     None,
                     review=True,
-                    rule="short-cover",
+                    rules=("short-cover",),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -1335,6 +1366,11 @@ _NEAR = {
 }
 
 
+def _and(words: list[str]) -> str:
+    """Words in a sentence: "a", "a, and b", "a, b, and c"."""
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + ", and " + words[-1]
+
+
 def issues(s: Session, book: TaxBook, rows: list[Row], washes: list[Wash] = ()) -> list[Issue]:
     """What to look at before the return is prepared (S8.4)."""
     from .. import options
@@ -1426,8 +1462,8 @@ def issues(s: Session, book: TaxBook, rows: list[Row], washes: list[Wash] = ()) 
                 Issue(
                     "possible-wash-sale",
                     f"Possible wash sale: {w.symbol} sold at a loss of ${grouped(w.loss)} on "
-                    f"{w.sold:%b %-d} in {w.account}, near {_NEAR[w.rule]}: for "
-                    "the preparer to decide",
+                    f"{w.sold:%b %-d} in {w.account}, near {_and([_NEAR[r] for r in w.rules])}: "
+                    "for the preparer to decide",
                     "/ui/taxes/gains",
                 )
             )

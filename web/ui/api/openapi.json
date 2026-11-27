@@ -29004,16 +29004,12 @@
             "title": "Review",
             "type": "boolean"
           },
-          "rule": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rule"
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules",
+            "type": "array"
           },
           "sold": {
             "format": "date",
@@ -29036,7 +29032,7 @@
           "replacementQty",
           "adjustedBasis",
           "review",
-          "rule"
+          "rules"
         ],
         "title": "WashOut",
         "type": "object"

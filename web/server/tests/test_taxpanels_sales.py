@@ -645,12 +645,12 @@ def test_a_stock_sold_at_a_loss_with_an_option_bought_or_written_on_it_is_flagge
     assert w == {
         "sold": "2026-03-05", "symbol": "DDD", "account": "Brokerage", "loss": "100.00",
         "disallowed": "0.00", "replacedOn": "2026-03-10", "replacementAccount": "Brokerage",
-        "replacementQty": "2.0", "adjustedBasis": None, "review": True, "rule": "option",
+        "replacementQty": "2.0", "adjustedBasis": None, "review": True, "rules": ["option"],
     }  # fmt: skip
-    assert (written["symbol"], written["replacedOn"], written["rule"]) == (
+    assert (written["symbol"], written["replacedOn"], written["rules"]) == (
         "EEE",
         "2026-03-10",
-        "option",
+        ["option"],
     )
     issues = [i["text"] for i in p["issues"] if i["kind"] == "possible-wash-sale"]
     assert issues[0] == (
@@ -700,9 +700,9 @@ def test_an_options_loss_with_an_option_on_its_stock_opened_is_flagged(
         opt(jane, brk["id"], action, day, "0.50", underlying="XYZ", right=right)
     elif action:
         opt(jane, brk["id"], action, day, "1.00", underlying=underlying, right=right)
-    got = [(w["symbol"], w["replacedOn"], w["rule"]) for w in reviews(jane, book(jane))
+    got = [(w["symbol"], w["replacedOn"], w["rules"]) for w in reviews(jane, book(jane))
            if w["symbol"] == "XYZ 18DEC26 500 C"]  # fmt: skip
-    assert got == ([("XYZ 18DEC26 500 C", day, "option-loss")] if flagged else [])
+    assert got == ([("XYZ 18DEC26 500 C", day, ["option-loss"])] if flagged else [])
 
 
 @pytest.mark.parametrize("kind", ["buy", "reinvest", "sell"])
@@ -727,14 +727,14 @@ def test_an_options_loss_with_its_stock_bought_is_flagged(jane, kind):
             add(jane, brk["id"], "-700.00", "2026-03-20", kind=kind, symbol=symbol,
                 quantity="7", price="100")  # fmt: skip
     p = read_panels(jane, book(jane))
-    got = [(w["symbol"], w["loss"], w["replacedOn"], w["replacementQty"], w["rule"])
+    got = [(w["symbol"], w["loss"], w["replacedOn"], w["replacementQty"], w["rules"])
            for w in p["washes"] if w["review"]]  # fmt: skip
     if kind == "sell":
         assert got == []
     else:
         assert got == [
-            ("XYZ 18DEC26 500 C", "300.00", "2026-03-20", "7.0", "stock-bought"),
-            ("PQR 18DEC26 500 P", "50.00", "2026-03-20", "7.0", "stock-bought"),
+            ("XYZ 18DEC26 500 C", "300.00", "2026-03-20", "7.0", ["stock-bought"]),
+            ("PQR 18DEC26 500 P", "50.00", "2026-03-20", "7.0", ["stock-bought"]),
         ]
         said = [i["text"] for i in p["issues"] if i["kind"] == "possible-wash-sale"]
         assert said[0].endswith("near its stock bought: for the preparer to decide")
@@ -1025,8 +1025,8 @@ def test_a_call_assigned_on_shares_held_is_never_its_own_sales_match(jane):
     b = book(jane)
     assert reviews(jane, b) == []
     opt(jane, brk["id"], "sell-to-open", "2026-09-01", "1.00", underlying="XYZ", strike="55")
-    got = [(w["replacedOn"], w["rule"]) for w in reviews(jane, b)]
-    assert got == [("2026-09-01", "option")]
+    got = [(w["replacedOn"], w["rules"]) for w in reviews(jane, b)]
+    assert got == [("2026-09-01", ["option"])]
 
 
 def test_a_short_sales_loss_is_no_wash_sale_and_its_cover_was_bought_back(jane):
@@ -1071,20 +1071,32 @@ def test_a_short_sales_loss_with_another_short_sale_within_30_days_is_flagged(
     short_sale(jane, brk["id"], opened, assigned, strike="55")
     # Covers the first, the oldest: 900 lost.
     trade(jane, brk["id"], "2026-08-25", "buy", "100", "60", "XYZ")
-    every = reviews(jane, book(jane))
+    b = book(jane)
+    got = reviews(jane, b)
     # The call written for the other short sale is an option on the stock, written within 30
     # days of the cover only when opened after it (S3.8.5.4); the first's own call never is.
-    near = [(w["replacedOn"], w["replacementQty"]) for w in every if w["rule"] == "option"]
-    assert near == ([(opened, "1.0")] if opened == "2026-09-01" else [])
-    got = [w for w in every if w["rule"] == "short-sale"]
-    if not flagged:
+    # One sale, one possible wash sale naming every case, with the first case's match.
+    rules = (["short-sale"] if flagged else []) + (["option"] if opened == "2026-09-01" else [])
+    if not rules:
         assert got == []
         return
-    assert got == [{
+    (w,) = got
+    assert w["rules"] == rules
+    if len(rules) == 2:
+        (said,) = [i["text"] for i in read_panels(jane, b)["issues"]
+                   if i["kind"] == "possible-wash-sale"]  # fmt: skip
+        assert said.endswith(
+            "near another short sale of it, and an option on it bought or written: for the "
+            "preparer to decide"
+        )
+    if not flagged:
+        assert (w["replacedOn"], w["replacementQty"]) == (opened, "1.0")
+        return
+    assert w == {
         "sold": "2026-08-25", "symbol": "XYZ", "account": "Brokerage", "loss": "900.00",
         "disallowed": "0.00", "replacedOn": assigned, "replacementAccount": "Brokerage",
-        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-sale",
-    }]  # fmt: skip
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rules": rules,
+    }  # fmt: skip
 
 
 def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
@@ -1105,11 +1117,11 @@ def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
         book_ = s.get(TaxBook, b)
         assert panels.form_8949(s, book_)[1] == []
         _, washes = panels.form_8949(s, book_, [s.get(Account, theirs["id"])])
-    # John's call, written 22 days before the cover, is an option on the stock (S3.8.5.4); the
-    # short sale its assignment made is another short sale near it (S3.8.5.1).
-    assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rule) for w in washes] == [
-        ("XYZ", dt.date(2026, 8, 3), "John's", "option"),
-        ("XYZ", dt.date(2026, 9, 10), "John's", "short-sale"),
+    # The short sale John's call made is another short sale near it (S3.8.5.1), and the call,
+    # written 22 days before the cover, an option on the stock (S3.8.5.4): one sale, one
+    # possible wash sale naming both, with the first case's match.
+    assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rules) for w in washes] == [
+        ("XYZ", dt.date(2026, 9, 10), "John's", ("short-sale", "option")),
     ]
 
 
@@ -1152,8 +1164,8 @@ def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged
     insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
     got = panels._short_reviews(None, rows, shorts, [], insts)
     assert [
-        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rule) for w in got
-    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
+        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rules) for w in got
+    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), ("short-sale",))]
     # With no loss to check, a spouse's accounts are never read.
     assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
     # With one, a spouse's bank account holds no short sale: its ledger is never read.
@@ -1182,12 +1194,13 @@ def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, 
     trade(jane, shorted["id"], "2026-08-25", "buy", "120", "62", "XYZ")
     with server.db.read(unscoped="test") as s:
         assert [w.quantity for w in s.query(WashSale).all()] == [20], "only what stays long"
-    got = [w for w in reviews(jane, book(jane)) if w["rule"] == "short-cover"]
+    got = [w for w in reviews(jane, book(jane)) if "short-cover" in w["rules"]]
     assert got == [{
         # The loss left once the 20 shares' part of it is disallowed: 1,000 less 200.
         "sold": "2026-08-20", "symbol": "XYZ", "account": "Held", "loss": "800.00",
         "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
-        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True,
+        "rules": ["short-cover"],
     }]  # fmt: skip
 
 

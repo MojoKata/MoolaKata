@@ -249,14 +249,19 @@ function Gains({ p }) {
         <div class="card"><h3 data-help="wash-sales">Wash Sales</h3>${p.washes.length
           ? p.washes.map((/** @type {any} */ w) => {
             // A short sale's review names its cover and the other short sale (S3.8.5.1).
-            const short = w.rule === 'short-sale';
+            // The details are the first case's match (S3.8.5's order).
+            const short = w.rules[0] === 'short-sale';
             const sale = `${symbol(w.symbol)} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
             const near = `${short ? 'sold short' : 'replaced'} ${
               date(w.replacedOn)
             } in ${w.replacementAccount} (${quantity(w.replacementQty)} shares)`;
             const basis = w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : '';
             const outcome = w.review
-              ? html`<${StatePill} tone="warn" why=${REVIEW_WHY[w.rule]}>review</${StatePill}>`
+              ? html`<span style=${{ display: 'inline-flex', gap: '4px' }}>${
+                w.rules.map((/** @type {string} */ r) =>
+                  html`<${StatePill} tone="warn" why=${REVIEW_WHY[r]}>review</${StatePill}>`
+                )
+              }</span>`
               : html`
                 <span
                   class="small"><span class="pill warn">W</span> <${Amt} v=${w
