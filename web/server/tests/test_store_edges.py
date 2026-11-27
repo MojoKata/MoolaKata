@@ -7,6 +7,7 @@ import os
 import shutil
 
 import pytest
+from test_store import new_user
 
 from moolakata.config import RefuseStart
 from moolakata.keys import files, master
@@ -578,3 +579,50 @@ def test_live_with_the_deleted_reads_every_row():
     from moolakata.store.tables import users
 
     assert str(live(User, users.User, include_deleted=True)) == str(select(User))
+
+
+def test_a_session_that_names_neither_a_user_nor_why_reads_no_viewed_table(db):
+    """schema.md §7.6: a query of a table with an access view needs a user or a reason; one
+    that reads no such table needs neither; a reason is never blank."""
+    from sqlalchemy import select, text
+
+    from moolakata.store import scoping
+    from moolakata.store.entities.core import TaskRun
+    from moolakata.store.entities.users import User
+
+    with db.read() as s:
+        assert s.execute(text("SELECT 1")).scalar_one() == 1
+        assert s.scalars(select(TaskRun)).all() == []  # a table no access view guards
+        with pytest.raises(scoping.Unscoped, match="names why it reads as the server"):
+            s.scalars(select(User)).all()
+    with pytest.raises(ValueError, match="an unscoped session says why"), db.read(unscoped=""):
+        pass
+
+
+def test_a_statement_read_as_the_server_in_a_users_session_selects_columns_only(db):
+    """schema.md §7.6: what it reads is never a record that would join the user's session."""
+    from sqlalchemy import select
+
+    from moolakata.store import scoping
+    from moolakata.store.entities.users import User
+
+    with db.tx(unscoped="test") as s:
+        uid = new_user(s).id
+    with db.read(user=uid) as s:
+        assert s.scalars(scoping.unscoped(select(User.id), "test")).all() == [uid]
+        with pytest.raises(scoping.Unscoped, match="selects columns, never records"):
+            s.scalars(scoping.unscoped(select(User), "test")).all()
+
+
+def test_a_record_made_and_deleted_in_one_save_asks_no_permission(db):
+    """schema.md §7: one deleted again before the commit is never checked for `writable`."""
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Account
+
+    with db.tx(unscoped="test") as s:
+        uid = new_user(s).id
+        other = new_user(s, "bart").id
+    with db.tx(user=uid) as s:
+        a = Account(id=ids.new_id("Acct"), ownerId=other, name="Not mine", type="checking")
+        s.add(a)
+        a.mark_deleted(uid)
