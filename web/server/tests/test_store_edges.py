@@ -544,3 +544,19 @@ def test_the_stores_clock_is_the_servers():
         assert types.utcnow() == at
     finally:
         clock.fix(None)
+
+
+# ---------- the views, scoping and the data version (schema.md §4.2, §7) ----------
+
+
+def test_a_table_cannot_belong_to_itself():
+    """schema.md §4.2: a cascading key to its own table would make a row its own parent."""
+    from sqlalchemy import Column, ForeignKey, MetaData, Table, Text
+
+    from moolakata.store import views
+
+    t = Table("Node", MetaData(), Column("id", Text, primary_key=True),
+              Column("parentId", Text, ForeignKey("Node.id", ondelete="CASCADE")),
+              info={"softDelete": True})  # fmt: skip
+    with pytest.raises(ValueError, match=r"Node.parentId: a table cannot belong to itself"):
+        views.parents(t)
