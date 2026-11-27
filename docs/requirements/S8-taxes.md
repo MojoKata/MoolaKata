@@ -29,7 +29,7 @@ produces worksheets and exports. It never files, and says so (R1.16).
    rows counts them by why beside the TXF export (*TXF leaves out 4 sales (3 digital assets,
    1 collectable): enter them from the CSV.*).
 3. **Wash sales** found (S3.8), with the disallowed amounts and the replacement lots, and
-   the flags left for review.
+   the flags left for review, each also listed in the Issues (S8.4).
 4. **Missing or doubtful data**: lots without a basis, sales without a matching lot, options
    with an unresolved expiry, transfers between users' accounts (a gift's carry-over basis),
    crypto without a known acquisition, possible wash sales the rules leave to the
@@ -44,7 +44,12 @@ produces worksheets and exports. It never files, and says so (R1.16).
    exchange's file brings them as its *Staking Income* and *Rewards Income* lines.
 6. **Retirement**: contributions per account against the year's limits (with catch-up by
    age), Roth eligibility by MAGI as the user enters it, backdoor-Roth steps (non-deductible
-   contribution, conversion, Form 8606 figures), distributions, and RMDs due. Each movement of
+   contribution, conversion, Form 8606 figures), distributions, and RMDs due. The MAGI is the
+   tax book's, typed from its return; each Roth IRA contribution is read against the year's
+   phase-out for the federal return's filing status (a joint book's is joint; S16.11):
+   eligible, partly, with the most it allows (the limit cut in proportion, raised to the next
+   $10, and to $200 when less), or not, and flagged past it. It waits, saying for what, while
+   the MAGI or the status isn't typed (R3.11). Each movement of
    money into or out of a retirement account is one thing, told once: a **contribution** (the
    owner's, or the employer's), a **rollover** (between accounts of the same tax treatment, a
    trustee-to-trustee move too), a **conversion** (pre-tax to Roth) or a **distribution**. A
@@ -64,9 +69,10 @@ produces worksheets and exports. It never files, and says so (R1.16).
    coverage's (self-only or family, set on the account; unset, the family limit, and the panel
    asks), $1,000 more at 55, and the employer's money counts against it with the owner's.
 7. **Deductions and credits**: totals of tax-tagged categories (S7.2) with their
-   transactions and **receipts**. Charitable gifts above the substantiation threshold show
-   whether a receipt is attached. Medical, childcare, education, HSA, and estimated tax
-   payments by quarter.
+   transactions and how many of them have a **receipt** attached; a charitable gift's
+   written acknowledgement, which any single gift of $250 or more needs, shows on the
+   Giving panel (S8.9). Medical, childcare, education, HSA, and estimated tax payments by
+   quarter.
 8. **Documents checklist**: the 1099s, W-2s and statements expected for the year from the
    accounts held, each marked received (attach the PDF, S9) or missing (S8.16). A received 1099-B can
    be **reconciled** against MoolaKata's own totals, with the differences listed.

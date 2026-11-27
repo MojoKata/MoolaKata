@@ -6,7 +6,7 @@ import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi } from '../app/hooks.js';
 import { api } from '../api/client.js';
-import { date, money, quantity } from '../kit/format.js';
+import { date, money, quantity, symbol } from '../kit/format.js';
 import { Amt } from '../kit/amount.js';
 import { Chips, Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
@@ -147,7 +147,10 @@ function txfLeftOut(n) {
 
 /** Why a possible wash sale is the preparer's to decide, by its rule (S3.8.5). */
 const REVIEW_WHY = /** @type {Record<string, string>} */ ({
-  option: 'An option on the same underlying.',
+  'option-loss': 'An option on the same underlying opened within 30 days.',
+  'through-option': 'Shares of it bought through an option within 30 days.',
+  option: 'An option on it bought or written within 30 days.',
+  'stock-bought': 'Its stock bought within 30 days: whether stock replaces an option is unsettled.',
   'short-sale': 'A short sale closed at a loss, with another short sale of it within 30 days.',
   'short-cover':
     'Shares bought to close a short sale within 30 days: whether they replace it is unsettled.',
@@ -193,7 +196,7 @@ function Gains({ p }) {
                   html`
                     <tr>
                       <td>${r.box}</td>
-                      <td>${r.description}<div class="small dim">${r.account}${r
+                      <td>${symbol(r.description)}<div class="small dim">${r.account}${r
                           .collectable
                         ? ' · collectable'
                         : ''}</div></td>
@@ -246,14 +249,19 @@ function Gains({ p }) {
         <div class="card"><h3 data-help="wash-sales">Wash Sales</h3>${p.washes.length
           ? p.washes.map((/** @type {any} */ w) => {
             // A short sale's review names its cover and the other short sale (S3.8.5.1).
-            const short = w.rule === 'short-sale';
-            const sale = `${w.symbol} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
+            // The details are the first case's match (S3.8.5's order).
+            const short = w.rules[0] === 'short-sale';
+            const sale = `${symbol(w.symbol)} ${short ? 'bought back' : 'sold'} ${date(w.sold)}`;
             const near = `${short ? 'sold short' : 'replaced'} ${
               date(w.replacedOn)
             } in ${w.replacementAccount} (${quantity(w.replacementQty)} shares)`;
             const basis = w.adjustedBasis ? html`, basis now <${Amt} v=${w.adjustedBasis} />` : '';
             const outcome = w.review
-              ? html`<${StatePill} tone="warn" why=${REVIEW_WHY[w.rule]}>review</${StatePill}>`
+              ? html`<span style=${{ display: 'inline-flex', gap: '4px' }}>${
+                w.rules.map((/** @type {string} */ r) =>
+                  html`<${StatePill} tone="warn" why=${REVIEW_WHY[r]}>review</${StatePill}>`
+                )
+              }</span>`
               : html`
                 <span
                   class="small"><span class="pill warn">W</span> <${Amt} v=${w
@@ -347,6 +355,11 @@ function Retirement({ p }) {
                       : '—'}${c.note ? html`<div class="small dim">${c.note}</div>` : null}</td>
                     <td>${c.over
                       ? html`<${StatePill} tone="warn" why="Over the limit.">over</${StatePill}>`
+                      : c.rothOver
+                      ? html`
+                        <${StatePill} tone="warn"
+                          why="Over what the MAGI typed allows in Roth IRAs.">over</${StatePill}>
+                      `
                       : null}</td>
                   </tr>
                 `

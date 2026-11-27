@@ -37,7 +37,9 @@ Not started, in progress, filed, accepted or rejected.
 
 ## Due date
 
-Left blank, the federal date comes from Settings › Tax Tables; type a state's or a locality's.
+The day the return is due, needed for an original return. A federal return's is the tax tables'
+date (Settings › Tax Tables) in the year after, moved past a weekend or a legal holiday: **default**
+fills it in. A state's or a locality's is typed. An amended return has none of its own.
 
 ## Extension filed {#extension-filed-on}
 
@@ -45,7 +47,9 @@ The day an extension was filed.
 
 ## Extended to {#extended-due}
 
-The new due date.
+The new due date, needed once an extension is filed. A federal extension runs to Oct 15 of the
+year after, moved past a weekend or a legal holiday as the due date is: **default** fills it in.
+A state's or a locality's is typed.
 
 ## Date filed {#filed-on}
 

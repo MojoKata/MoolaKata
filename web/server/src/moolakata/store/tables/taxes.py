@@ -32,6 +32,9 @@ TaxBook = record(
     # (S8.17, S8.18): theirs to split, counted once typed.
     Column("carryoverShareShort", Cents),
     Column("carryoverShareLong", Cents),
+    # The return's modified AGI, typed from it, which Roth IRA contributions are read against
+    # (S8.6); none until typed.
+    Column("magi", Cents),
     CheckConstraint("\"bitcoinFees\" IN ('sale', 'not-taxed')", name="bitcoin_fees"),
     Index("ix_TaxBook_owner", "ownerId", "year"),
     seen=Seen.rule("tax-book", "TbShr", creates="anyone"),

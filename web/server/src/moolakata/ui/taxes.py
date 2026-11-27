@@ -175,8 +175,6 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
             "not-married",
             "Two filers file together only if married on the last day of the year.",
         )
-    if body.bitcoinFees not in ("sale", "not-taxed"):
-        raise refuse("bitcoinFees", "choice-invalid", "A sale, or not taxed.")
     _one_a_year(s, c.id, body.year, "filers")
     b = TaxBook(
         id=book_id,
@@ -185,6 +183,7 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
         bitcoinFees=body.bitcoinFees,
         fromLastYear=body.fromLastYear,
         copyPending=body.fromLastYear,
+        magi=body.magi,
     )
     s.add(b)
     s.flush()
@@ -268,13 +267,11 @@ def accept(book_id: str, request: Request, c: Caller = Depends(caller)):
         book = s.scalars(
             scoping.unscoped(select(TaxBook.year).where(TaxBook.id == book_id), "its year")
         ).first()
-        if book is not None and f.acceptedAt is None:
+        if f.acceptedAt is None:
             _one_a_year(s, c.id, book, "bookId", but=book_id)
         f.acceptedAt = f.acceptedAt or clock.now()
         s.flush()
-        b = s.get(TaxBook, book_id)  # theirs now, as a filer's
-        if b is None:
-            raise Problem(404, "not-found", "Not found")
+        b = s.get(TaxBook, book_id)  # theirs now, as a filer's: their filer row is live
         _from_last_year(s, b, clock.now())
         s.flush()
         return _row(s, b, access.perms(s, TaxBook, b.id, c.id) or access.OWNER)
@@ -322,15 +319,6 @@ class AccountRef(Model):
     # Its change in this book (TaxBookAccount), a record of the save: added or left out.
     rowId: str | None = None
     rowVersion: int = 0
-
-
-class Payment(Model):
-    id: str | None = None
-    quarter: int
-    dueDate: dt.date | None = None
-    amount: Money
-    paidOn: dt.date | None = None
-    transactionId: str | None = None
 
 
 class PaymentView(Model):
@@ -464,6 +452,7 @@ class BookDetail(BookRow):
     # A filer's share of last year's joint return's capital-loss carryover (S8.18), typed.
     carryoverShareShort: Money | None
     carryoverShareLong: Money | None
+    magi: Money | None  # the return's modified AGI, typed (S8.6)
     dependents: list[DependentOut]
     form8615: list[Form8615Out]  # dependent children past the year's threshold
     claimedElsewhere: list[str]  # the book's filers claimed on another book of the year
@@ -475,6 +464,8 @@ class BookDetail(BookRow):
     received: list[DocumentOut]  # received documents not on the expected list
     lastYear: list[LastYear]
     federalDue: dt.date
+    # What a federal filing's *Extended to* offers as its default (R3.11, S8.15.3).
+    federalExtendedDue: dt.date
 
 
 def _dependent(d: dependents.Dependent) -> DependentOut:
@@ -620,6 +611,7 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
         fromLastYear=b.fromLastYear,
         carryoverShareShort=b.carryoverShareShort,
         carryoverShareLong=b.carryoverShareLong,
+        magi=b.magi,
         dependents=[_dependent(d) for d in deps],
         form8615=[
             Form8615Out(**f.__dict__) for f in dependents.form_8615(s, b, deps, cnt.accounts)
@@ -653,6 +645,7 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
             for f, figures, ly in books.carried_from_last_year(s, b)
         ],
         federalDue=books.federal_due(s, b.year),
+        federalExtendedDue=books.federal_extended_due(b.year),
     )
 
 
@@ -815,27 +808,6 @@ def _own_dependent(s, c: Caller, dep_id: str) -> tuple[TaxBookDependent, TaxBook
 # ---- Filings (S8.15) ----
 
 
-class FilingIn(Model):
-    jurisdiction: str = "federal"
-    place: str | None = None
-    form: str = "Form 1040"
-    amendsId: str | None = None
-    filingStatus: str | None = None
-    preparedBy: str | None = None
-    sentBy: str | None = None
-    progress: str = "not started"
-    dueDate: dt.date | None = None
-    extensionFiledOn: dt.date | None = None
-    extendedDue: dt.date | None = None
-    filedOn: dt.date | None = None
-    confirmation: str | None = None
-    resultKind: str | None = None
-    resultAmount: Money | None = None
-    resultTransactionId: str | None = None
-    payments: list[Payment] = Field(default_factory=list)
-    carried: Carried = Field(default_factory=Carried)
-
-
 STATUSES = (
     "Single",
     "Married filing jointly",
@@ -845,12 +817,8 @@ STATUSES = (
 )
 
 
-def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
+def _filing_values(s, c: Caller, b: TaxBook, body: FilingRecord) -> dict:
     e: list[FieldError] = []
-    if body.jurisdiction not in ("federal", "state", "local"):
-        e.append(
-            FieldError("jurisdiction", "jurisdiction-invalid", "Federal, a state, a locality.")
-        )
     if body.jurisdiction != "federal" and not (body.place or "").strip():
         e.append(FieldError("place", "place-missing", "Which state or locality."))
     if not body.form.strip():
@@ -865,37 +833,33 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         e.append(FieldError("resultKind", "result-invalid", "A refund, an amount owed, nothing."))
     if body.progress in ("filed", "accepted") and not body.filedOn:
         e.append(FieldError("filedOn", "filed-on-missing", "The day it was filed."))
-    carried = getattr(body, "carried", None)
-    bases = (carried.basis8606 if carried is not None else None) or {}
+    # An extension is judged by its new due date, which is typed, never read from a blank
+    # (R3.11, S8.15.3): a federal filing's field offers the default.
+    if body.extensionFiledOn and not body.extendedDue:
+        e.append(FieldError("extendedDue", "extended-due-missing", "The new due date."))
+    # An original return's due date is typed, never read from a blank (R3.11, S8.15.3): a
+    # federal filing's field offers the tax tables' date as its default. An amended return
+    # has none of its own.
+    if not body.amendsId and body.dueDate is None:
+        e.append(FieldError("dueDate", "due-date-missing", "The due date."))
+    bases = body.carried.basis8606 or {}
     on = {f.userId for f in books.filers(s, b)}
     for u, v in bases.items():
         if u not in on:
             e.append(FieldError("carried.basis8606", "filer-unknown", "One of the book's filers."))
         elif v < 0:
             e.append(FieldError("carried.basis8606", "amount-invalid", "Zero or more."))
-    for i, p in enumerate(getattr(body, "payments", [])):
-        if not 1 <= p.quarter <= 4:
-            e.append(FieldError(f"payments.{i}.quarter", "quarter-invalid", "1 to 4."))
-        if p.amount < 0:
-            e.append(FieldError(f"payments.{i}.amount", "amount-invalid", "Zero or more."))
     if e:
         raise Problem(422, e[0].code, e[0].message, e)
     if body.amendsId:
         amended = s.get(Filing, body.amendsId)
         if amended is None or amended.deleted or amended.bookId != b.id:
             raise refuse("amendsId", "filing-unknown", "One of this book's filings.")
-    for t_id in [
-        body.resultTransactionId,
-        *[p.transactionId for p in getattr(body, "payments", [])],
-    ]:
-        if t_id:
-            t = s.get(Transaction, t_id)
-            if t is None or t.deleted:
-                raise refuse("resultTransactionId", "not-found", "No such transaction.")
-            access.account(s, c.id, t.accountId)
-    due = body.dueDate
-    if due is None and body.jurisdiction == "federal" and not body.amendsId:
-        due = books.federal_due(s, b.year)
+    if body.resultTransactionId:
+        t = s.get(Transaction, body.resultTransactionId)
+        if t is None or t.deleted:
+            raise refuse("resultTransactionId", "not-found", "No such transaction.")
+        access.account(s, c.id, t.accountId)
     return {
         "jurisdiction": body.jurisdiction,
         "place": (body.place or "").strip() or None if body.jurisdiction != "federal" else None,
@@ -905,7 +869,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingIn) -> dict:
         "preparedBy": (body.preparedBy or "").strip() or None,
         "sentBy": body.sentBy or None,
         "progress": body.progress,
-        "dueDate": due,
+        "dueDate": body.dueDate,
         "extensionFiledOn": body.extensionFiledOn,
         "extendedDue": body.extendedDue,
         "filedOn": body.filedOn,
@@ -1173,6 +1137,9 @@ class BookRecord(Model):
     # (S8.17, S8.18): typed, the Summary counts it.
     carryoverShareShort: Money | None = None
     carryoverShareLong: Money | None = None
+    # The return's modified AGI, typed from it, which its Roth IRA contributions are read
+    # against (S8.6): none until typed.
+    magi: Money | None = None
 
 
 class DependentRecord(DependentIn):
@@ -1203,12 +1170,13 @@ def _book_current(ctx, b: TaxBook) -> dict:
     ]
     return {"year": b.year, "filers": filers, "fromLastYear": b.fromLastYear,
             "bitcoinFees": b.bitcoinFees, "carryoverShareShort": b.carryoverShareShort,
-            "carryoverShareLong": b.carryoverShareLong}  # fmt: skip
+            "carryoverShareLong": b.carryoverShareLong, "magi": b.magi}  # fmt: skip
 
 
 def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
     """How the book reads bitcoin network fees on transfers between the owner's accounts
-    (S8.19): a sale, the default, or not taxed, as a preparer may read them."""
+    (S8.19): a sale, the default, or not taxed, as a preparer may read them; a joint
+    carryover's share (S8.18); and the return's modified AGI (S8.6)."""
     current = _book_current(ctx, b)
     for fixed in ("year", "filers", "fromLastYear"):
         if getattr(body, fixed) != current[fixed]:
@@ -1219,6 +1187,7 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
         if v is not None and v < 0:
             raise refuse(share, "amount-invalid", "A loss carried over, as a positive amount.")
         setattr(b, share, v)
+    b.magi = body.magi
     b.updatedAt = clock.now()
 
 

@@ -38,6 +38,29 @@ FIGURES = [
     Figure("hsaFamily", "HSA, family", "money", "Retirement", "IRS"),
     Figure("hsaCatchUp", "HSA catch-up (55+)", "money", "Retirement", "IRS"),
     Figure("rmdAge", "RMD starting age", "number", "Retirement", "IRS"),
+    # Where a Roth IRA contribution phases out, by the return's filing status: the modified
+    # AGI it starts at and the one it ends at (S8.6).
+    Figure(
+        "rothPhaseOutSingle",
+        "Roth IRA phase-out (single, head of household)",
+        "numbers",
+        "Retirement",
+        "IRS",
+    ),
+    Figure(
+        "rothPhaseOutJoint",
+        "Roth IRA phase-out (joint, qualifying surviving spouse)",
+        "numbers",
+        "Retirement",
+        "IRS",
+    ),
+    Figure(
+        "rothPhaseOutSeparate",
+        "Roth IRA phase-out (married filing separately)",
+        "numbers",
+        "Retirement",
+        "IRS",
+    ),
     Figure("giftExclusion", "Annual gift exclusion", "money", "Gifts and giving", "IRS"),
     Figure("rothFrom529", "529 to Roth IRA, lifetime", "money", "Gifts and giving", "IRS"),
     Figure("qcdLimit", "QCD limit", "money", "Gifts and giving", "IRS"),
@@ -129,6 +152,33 @@ _PAST = (
     (2023, 6500, 1000, 22500, 7500, 7500, 3850, 7750, 73, 17000, 0, 100000, 2500, [4, 15]),
     (2024, 7000, 1000, 23000, 7500, 7500, 4150, 8300, 73, 18000, 35000, 105000, 2600, [4, 15]),
 )
+# The Roth IRA phase-out's modified AGI by year, as the IRS published it: single and head of
+# household, then married filing jointly and qualifying surviving spouse. Married filing
+# separately is $0 to $10,000 every year (IRC §408A(c)(3)).
+_ROTH = {
+    2016: ([117000, 132000], [184000, 194000]),
+    2017: ([118000, 133000], [186000, 196000]),
+    2018: ([120000, 135000], [189000, 199000]),
+    2019: ([122000, 137000], [193000, 203000]),
+    2020: ([124000, 139000], [196000, 206000]),
+    2021: ([125000, 140000], [198000, 208000]),
+    2022: ([129000, 144000], [204000, 214000]),
+    2023: ([138000, 153000], [218000, 228000]),
+    2024: ([146000, 161000], [230000, 240000]),
+    2025: ([150000, 165000], [236000, 246000]),
+    2026: ([153000, 168000], [242000, 252000]),
+}
+
+
+def _roth(year: int) -> dict:
+    single, joint = _ROTH[year]
+    return {
+        "rothPhaseOutSingle": single,
+        "rothPhaseOutJoint": joint,
+        "rothPhaseOutSeparate": [0, 10000],
+    }
+
+
 _KEYS = (
     "iraLimit",
     "iraCatchUp",
@@ -152,10 +202,12 @@ SHIPPED: dict[int, dict] = {
             **dict(zip(_KEYS, row[1:], strict=True)),
             "collectablesRate": 28,
             "hsaCatchUp": 1000,
+            **_roth(row[0]),
         }
         for row in _PAST
     },
     2025: {
+        **_roth(2025),
         "iraLimit": 7000,
         "iraCatchUp": 1000,
         "k401Deferral": 23500,
@@ -179,6 +231,7 @@ SHIPPED: dict[int, dict] = {
         **_BTC,
     },
     2026: {
+        **_roth(2026),
         "iraLimit": 7500,
         "iraCatchUp": 1100,
         "k401Deferral": 24500,
@@ -269,6 +322,19 @@ def _month_day(value) -> list[int]:
     return [int(month), int(day)]
 
 
+def _phase_out(value) -> list:
+    """A Roth IRA phase-out (S8.6): two amounts, zero or more, where it starts and where it
+    ends, the end above the start."""
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or not all(_finite(v) and v >= 0 for v in value)
+        or value[0] >= value[1]
+    ):
+        raise Invalid("two amounts, where it starts and where it ends, the end above the start")
+    return value
+
+
 def check(key: str, value) -> object:
     f = BY_KEY.get(key)
     if f is None:
@@ -276,6 +342,8 @@ def check(key: str, value) -> object:
     if f.kind == "numbers":
         if key == "federalDue":
             return _month_day(value)
+        if key.startswith("rothPhaseOut"):
+            return _phase_out(value)
         if not isinstance(value, list) or not value or not all(_finite(v) for v in value):
             raise Invalid("numbers separated by commas")
         if len(value) != len(_BTC.get(key, value)):

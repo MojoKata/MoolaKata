@@ -616,7 +616,9 @@ def reviews(c, b):
     return [w for w in read_panels(c, b)["washes"] if w["review"]]
 
 
-def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(jane):
+def test_a_stock_sold_at_a_loss_with_an_option_bought_or_written_on_it_is_flagged(jane):
+    """S3.8.5.4: a loss on stock with an option on it bought or written within 30 days either
+    side is flagged for the preparer."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     for symbol in ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "HHH"):
@@ -628,64 +630,114 @@ def test_a_stock_sold_at_a_loss_with_a_call_bought_on_it_is_flagged(jane):
     for symbol in ("AAA", "BBB", "CCC", "DDD", "GGG"):
         opt(jane, brk["id"], "buy-to-open", "2026-03-10", "1.00", underlying=symbol,
             contracts="2")  # fmt: skip
-    # A loss with a call bought on it: flagged.
+    # A loss with a call bought on it, and one with a put written on it: flagged.
     trade(jane, brk["id"], "2026-03-05", "sell", "10", "90", "DDD")
-    # A loss with a put written on it, one with a call bought on another stock, one with the
-    # shares bought back (a wash sale, not a review): not flagged.
     trade(jane, brk["id"], "2026-03-06", "sell", "10", "90", "EEE")
     opt(jane, brk["id"], "sell-to-open", "2026-03-10", "1.00", underlying="EEE", right="put")
+    # One with a call bought on another stock, one with the shares bought back (a wash sale,
+    # not a review): not flagged.
     trade(jane, brk["id"], "2026-03-07", "sell", "10", "90", "FFF")
     trade(jane, brk["id"], "2026-03-08", "sell", "10", "90", "HHH")
     trade(jane, brk["id"], "2026-03-20", "buy", "10", "91", "HHH")
     p = read_panels(jane, book(jane))
     assert [w["symbol"] for w in p["washes"] if not w["review"]] == ["HHH"]
-    (w,) = [w for w in p["washes"] if w["review"]]
+    (w, written) = [w for w in p["washes"] if w["review"]]
     assert w == {
         "sold": "2026-03-05", "symbol": "DDD", "account": "Brokerage", "loss": "100.00",
         "disallowed": "0.00", "replacedOn": "2026-03-10", "replacementAccount": "Brokerage",
-        "replacementQty": "2.0", "adjustedBasis": None, "review": True, "rule": "option",
+        "replacementQty": "2.0", "adjustedBasis": None, "review": True, "rules": ["option"],
     }  # fmt: skip
+    assert (written["symbol"], written["replacedOn"], written["rules"]) == (
+        "EEE",
+        "2026-03-10",
+        ["option"],
+    )
+    issues = [i["text"] for i in p["issues"] if i["kind"] == "possible-wash-sale"]
+    assert issues[0] == (
+        "Possible wash sale: DDD sold at a loss of $100.00 on Mar 5 in Brokerage, near an "
+        "option on it bought or written: for the preparer to decide"
+    )
 
 
+@pytest.mark.parametrize("action", ["buy-to-open", "sell-to-open"])
 @pytest.mark.parametrize(
     ("bought", "flagged"),
     [("2026-02-03", False), ("2026-02-04", True), ("2026-04-05", True), ("2026-04-06", False)],
 )
-def test_an_option_bought_flags_a_loss_within_30_days_either_side(jane, bought, flagged):
+def test_an_option_opened_flags_a_loss_within_30_days_either_side(jane, action, bought, flagged):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(jane, brk["id"], "2026-01-05", "buy", "10", "100", "DDD")
     trade(jane, brk["id"], "2026-03-06", "sell", "10", "90", "DDD")
-    opt(jane, brk["id"], "buy-to-open", bought, "1.00", underlying="DDD")
+    opt(jane, brk["id"], action, bought, "1.00", underlying="DDD")
     assert len(reviews(jane, book(jane))) == int(flagged)
+
+
+@pytest.mark.parametrize(
+    ("action", "underlying", "right", "day", "flagged"),
+    [
+        (None, None, None, None, False),  # its own opening, 28 days before: never its match
+        ("buy-to-open", "XYZ", "call", "2026-03-09", True),  # the same option, bought again
+        ("sell-to-open", "XYZ", "put", "2026-04-01", True),  # another on it, written: day 30
+        ("buy-to-open", "XYZ", "put", "2026-04-02", False),  # 31 days after
+        ("buy-to-open", "ABC", "call", "2026-03-09", False),  # an option on another stock
+        ("buy-to-close", "XYZ", "call", "2026-03-02", False),  # a close opens nothing
+    ],
+)
+def test_an_options_loss_with_an_option_on_its_stock_opened_is_flagged(
+    jane, action, underlying, right, day, flagged
+):
+    """S3.8.5.2: a loss on an option itself, with the same option, or another on the same
+    underlying, bought or written to open within 30 days either side, is flagged; the trade
+    that opened the option sold is never its own match (S3.8.2)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    opt(jane, brk["id"], "buy-to-open", "2026-02-02", "5.00", underlying="XYZ")
+    opt(jane, brk["id"], "sell-to-close", "2026-03-02", "2.00", underlying="XYZ")
+    if action == "buy-to-close":
+        # A put written long before, closed the day of the loss.
+        opt(jane, brk["id"], "sell-to-open", "2026-01-05", "1.00", underlying="XYZ", right=right)
+        opt(jane, brk["id"], action, day, "0.50", underlying="XYZ", right=right)
+    elif action:
+        opt(jane, brk["id"], action, day, "1.00", underlying=underlying, right=right)
+    got = [(w["symbol"], w["replacedOn"], w["rules"]) for w in reviews(jane, book(jane))
+           if w["symbol"] == "XYZ 18DEC26 500 C"]  # fmt: skip
+    assert got == ([("XYZ 18DEC26 500 C", day, ["option-loss"])] if flagged else [])
 
 
 @pytest.mark.parametrize("kind", ["buy", "reinvest", "sell"])
 def test_an_options_loss_with_its_stock_bought_is_flagged(jane, kind):
+    """S3.8.5.6: an option's loss with its stock bought within 30 days either side is
+    flagged; whether stock replaces an option is unsettled."""
     brk = new_account(jane, name="Brokerage", type="brokerage")
     add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
     trade(jane, brk["id"], "2026-01-05", "buy", "20", "100", "XYZ")
+    trade(jane, brk["id"], "2026-01-05", "buy", "20", "100", "PQR")
     opt(jane, brk["id"], "buy-to-open", "2026-02-02", "5.00", underlying="XYZ")
     opt(jane, brk["id"], "sell-to-close", "2026-03-02", "2.00", underlying="XYZ")
-    # Written and closed at a loss too.
-    opt(jane, brk["id"], "sell-to-open", "2026-02-02", "1.00", underlying="XYZ", right="put")
-    opt(jane, brk["id"], "buy-to-close", "2026-03-03", "1.50", underlying="XYZ", right="put")
-    if kind == "sell":
-        # Its stock sold, and another stock bought: nothing of its stock bought.
-        trade(jane, brk["id"], "2026-03-20", "sell", "7", "100", "XYZ")
-        trade(jane, brk["id"], "2026-03-20", "buy", "7", "100", "ABC")
-    else:
-        add(jane, brk["id"], "-700.00", "2026-03-20", kind=kind, symbol="XYZ", quantity="7",
-            price="100")  # fmt: skip
-    got = [(w["symbol"], w["loss"], w["replacedOn"], w["replacementQty"])
-           for w in reviews(jane, book(jane))]  # fmt: skip
+    # Written and closed at a loss too, on another stock: no option on the other's.
+    opt(jane, brk["id"], "sell-to-open", "2026-02-02", "1.00", underlying="PQR", right="put")
+    opt(jane, brk["id"], "buy-to-close", "2026-03-03", "1.50", underlying="PQR", right="put")
+    for symbol in ("XYZ", "PQR"):
+        if kind == "sell":
+            # Its stock sold, and another stock bought: nothing of its stock bought.
+            trade(jane, brk["id"], "2026-03-20", "sell", "7", "100", symbol)
+            trade(jane, brk["id"], "2026-03-20", "buy", "7", "100", "ABC")
+        else:
+            add(jane, brk["id"], "-700.00", "2026-03-20", kind=kind, symbol=symbol,
+                quantity="7", price="100")  # fmt: skip
+    p = read_panels(jane, book(jane))
+    got = [(w["symbol"], w["loss"], w["replacedOn"], w["replacementQty"], w["rules"])
+           for w in p["washes"] if w["review"]]  # fmt: skip
     if kind == "sell":
         assert got == []
     else:
         assert got == [
-            ("XYZ 18DEC26 500 C", "300.00", "2026-03-20", "7.0"),
-            ("XYZ 18DEC26 500 P", "50.00", "2026-03-20", "7.0"),
+            ("XYZ 18DEC26 500 C", "300.00", "2026-03-20", "7.0", ["stock-bought"]),
+            ("PQR 18DEC26 500 P", "50.00", "2026-03-20", "7.0", ["stock-bought"]),
         ]
+        said = [i["text"] for i in p["issues"] if i["kind"] == "possible-wash-sale"]
+        assert said[0].endswith("near its stock bought: for the preparer to decide")
 
 
 def test_an_imported_option_with_no_contract_is_flagged_for_nothing(server, jane):
@@ -823,6 +875,7 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
     monkeypatch.setattr(panels, "differs_from_filed", lambda s, book, rows: "Differs.")
     monkeypatch.setattr(panels.books, "carryover", lambda s, book: (D(0), D(0), True))
     replay = SimpleNamespace(
+        positions=dict,  # no option open
         problems=[
             SimpleNamespace(kind="sale-without-lot", instrumentId="i1", date=dt.date(2026, 5, 1)),
             # The year before's, and another kind of problem: not this book's to list.
@@ -832,16 +885,25 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
         open=[
             # Moved in without its day bought, its basis missing too: listed once, for the day.
             SimpleNamespace(
-                acquiredMissing=True, basis=None, instrumentId="i2", acquiredOn=dt.date(2025, 3, 4)
+                acquiredMissing=True,
+                standIn=False,
+                basis=None,
+                instrumentId="i2",
+                acquiredOn=dt.date(2025, 3, 4),
             ),
             SimpleNamespace(
                 acquiredMissing=False,
+                standIn=False,
                 basis=D(100),
                 instrumentId="i2",
                 acquiredOn=dt.date(2025, 3, 4),
             ),
             SimpleNamespace(
-                acquiredMissing=False, basis=None, instrumentId="i1", acquiredOn=dt.date(2025, 3, 4)
+                acquiredMissing=False,
+                standIn=False,
+                basis=None,
+                instrumentId="i1",
+                acquiredOn=dt.date(2025, 3, 4),
             ),
         ],
     )
@@ -950,6 +1012,23 @@ def short_sale(c, acct, opened, assigned, strike="50"):
     assert r.status_code == 201, r.text
 
 
+def test_a_call_assigned_on_shares_held_is_never_its_own_sales_match(jane):
+    """S3.8.2, S3.8.5.4: the call whose assignment sold the shares is the sale itself; another
+    call written on them within 30 days is an option on the stock."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-01-05", "buy", "100", "60", "XYZ")
+    o = opt(jane, brk["id"], "sell-to-open", "2026-08-03", "1.00", underlying="XYZ", strike="50")
+    r = jane.post(f"/ui/api/accounts/{brk['id']}/options/{o['instrumentId']}/settle",
+                  json={"how": "assign", "date": "2026-08-21", "contracts": "1"})  # fmt: skip
+    assert r.status_code == 201, r.text
+    b = book(jane)
+    assert reviews(jane, b) == []
+    opt(jane, brk["id"], "sell-to-open", "2026-09-01", "1.00", underlying="XYZ", strike="55")
+    got = [(w["replacedOn"], w["rules"]) for w in reviews(jane, b)]
+    assert got == [("2026-09-01", ["option"])]
+
+
 def test_a_short_sales_loss_is_no_wash_sale_and_its_cover_was_bought_back(jane):
     # Short 100 at 50 (5,100 in), covered at 60: a 900 loss. The shares bought 11 days later
     # are a plain lot, never its replacement; and its own short sale, 4 days before, is no
@@ -992,15 +1071,32 @@ def test_a_short_sales_loss_with_another_short_sale_within_30_days_is_flagged(
     short_sale(jane, brk["id"], opened, assigned, strike="55")
     # Covers the first, the oldest: 900 lost.
     trade(jane, brk["id"], "2026-08-25", "buy", "100", "60", "XYZ")
-    got = reviews(jane, book(jane))
-    if not flagged:
+    b = book(jane)
+    got = reviews(jane, b)
+    # The call written for the other short sale is an option on the stock, written within 30
+    # days of the cover only when opened after it (S3.8.5.4); the first's own call never is.
+    # One sale, one possible wash sale naming every case, with the first case's match.
+    rules = (["short-sale"] if flagged else []) + (["option"] if opened == "2026-09-01" else [])
+    if not rules:
         assert got == []
         return
-    assert got == [{
+    (w,) = got
+    assert w["rules"] == rules
+    if len(rules) == 2:
+        (said,) = [i["text"] for i in read_panels(jane, b)["issues"]
+                   if i["kind"] == "possible-wash-sale"]  # fmt: skip
+        assert said.endswith(
+            "near another short sale of it, and an option on it bought or written: for the "
+            "preparer to decide"
+        )
+    if not flagged:
+        assert (w["replacedOn"], w["replacementQty"]) == (opened, "1.0")
+        return
+    assert w == {
         "sold": "2026-08-25", "symbol": "XYZ", "account": "Brokerage", "loss": "900.00",
         "disallowed": "0.00", "replacedOn": assigned, "replacementAccount": "Brokerage",
-        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-sale",
-    }]  # fmt: skip
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rules": rules,
+    }  # fmt: skip
 
 
 def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
@@ -1021,8 +1117,11 @@ def test_a_spouses_short_sale_flags_the_loss_too(server, jane):
         book_ = s.get(TaxBook, b)
         assert panels.form_8949(s, book_)[1] == []
         _, washes = panels.form_8949(s, book_, [s.get(Account, theirs["id"])])
-    assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rule) for w in washes] == [
-        ("XYZ", dt.date(2026, 9, 10), "John's", "short-sale")
+    # The short sale John's call made is another short sale near it (S3.8.5.1), and the call,
+    # written 22 days before the cover, an option on the stock (S3.8.5.4): one sale, one
+    # possible wash sale naming both, with the first case's match.
+    assert [(w.symbol, w.replacedOn, w.replacementAccount, w.rules) for w in washes] == [
+        ("XYZ", dt.date(2026, 9, 10), "John's", ("short-sale", "option")),
     ]
 
 
@@ -1065,10 +1164,14 @@ def test_a_short_sales_review_names_the_nearest_other_and_only_a_loss_is_flagged
     insts = {"XYZ": SimpleNamespace(symbol="XYZ")}
     got = panels._short_reviews(None, rows, shorts, [], insts)
     assert [
-        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rule) for w in got
-    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), "short-sale")]
+        (w.loss, w.replacedOn, w.replacementAccount, w.replacementQty, w.rules) for w in got
+    ] == [(D("900.00"), dt.date(2026, 8, 20), "Two", D(50), ("short-sale",))]
     # With no loss to check, a spouse's accounts are never read.
     assert panels._short_reviews(None, rows[1:], shorts, [A1], insts) == []
+    # With one, a spouse's bank account holds no short sale: its ledger is never read.
+    bank = SimpleNamespace(id="a3", name="Bank", type="checking")
+    got = panels._short_reviews(None, rows, shorts, [bank], insts)
+    assert [w.replacementAccount for w in got] == ["Two"]
 
 
 def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, jane):
@@ -1091,12 +1194,13 @@ def test_shares_bought_to_close_a_short_replace_no_loss_and_are_flagged(server, 
     trade(jane, shorted["id"], "2026-08-25", "buy", "120", "62", "XYZ")
     with server.db.read(unscoped="test") as s:
         assert [w.quantity for w in s.query(WashSale).all()] == [20], "only what stays long"
-    got = [w for w in reviews(jane, book(jane)) if w["rule"] == "short-cover"]
+    got = [w for w in reviews(jane, book(jane)) if "short-cover" in w["rules"]]
     assert got == [{
         # The loss left once the 20 shares' part of it is disallowed: 1,000 less 200.
         "sold": "2026-08-20", "symbol": "XYZ", "account": "Held", "loss": "800.00",
         "disallowed": "0.00", "replacedOn": "2026-08-25", "replacementAccount": "Short",
-        "replacementQty": "100.0", "adjustedBasis": None, "review": True, "rule": "short-cover",
+        "replacementQty": "100.0", "adjustedBasis": None, "review": True,
+        "rules": ["short-cover"],
     }]  # fmt: skip
 
 

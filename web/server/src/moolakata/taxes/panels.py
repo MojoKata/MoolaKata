@@ -5,13 +5,13 @@ and their sources only: MoolaKata never computes the tax."""
 
 import datetime as dt
 from collections import defaultdict
-from dataclasses import dataclass
-from decimal import Decimal
+from dataclasses import dataclass, field
+from decimal import ROUND_CEILING, Decimal
 
-from sqlalchemy import false, select
+from sqlalchemy import and_, false, not_, or_, select
 from sqlalchemy.orm import Session
 
-from .. import assets, education, gifts, giving, loans, people
+from .. import assets, clock, education, gifts, giving, loans, options, people
 from ..ledger import lots
 from ..ledger import types as atypes
 from ..money import grouped
@@ -101,10 +101,16 @@ class Wash:
     replacementQty: Decimal
     adjustedBasis: Decimal | None  # the replacement lot's basis with the loss added
     review: bool = False  # for the preparer to decide, never adjusted (S3.8.5)
-    # A review's rule: "option", an option on the same underlying (S3.8.5.2–4),
-    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1), or
-    # "short-cover", a loss with shares bought near it to close a short sale (S3.8.5.5).
-    rule: str | None = None
+    # A review's rules, every S3.8.5 case it may fall under, in the list's order:
+    # "short-sale", a short sale's loss with another short sale near it (S3.8.5.1);
+    # "option-loss", an option's loss with an option on its underlying opened (S3.8.5.2);
+    # "through-option", a stock's loss with its shares bought through an option (S3.8.5.3);
+    # "option", one with an option on it opened (S3.8.5.4); "short-cover", a loss with shares
+    # bought near it to close a short sale (S3.8.5.5); "stock-bought", an option's loss with
+    # its stock bought (S3.8.5.6). The details are of the first's match.
+    rules: tuple[str, ...] = ()
+    # The 8949 row a review is of, so the cases of one sale make one review.
+    row: tuple | None = field(default=None, compare=False, repr=False)
 
 
 # Digital assets' basis reporting on Form 1099-DA: brokers report the gross proceeds of sales
@@ -214,11 +220,36 @@ def form_8949(s: Session, book: TaxBook, spouse_accounts: list[Account] | None =
     if book.bitcoinFees == "not-taxed":
         rows = [r for r in rows if not _own_transfer_fee(s, r.saleId)]
     washes_ = _stored_washes(s, book, losses, {a.id for a in counted})
-    washes_ += _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
-    washes_ += _short_reviews(s, rows, shorts, spouse_accounts or [], insts)
-    washes_ += _cover_reviews(rows, covers, insts)
+    washes_ += _one_per_sale(
+        _option_reviews(s, rows, counted + (spouse_accounts or []), insts)
+        + _short_reviews(s, rows, shorts, spouse_accounts or [], insts)
+        + _cover_reviews(rows, covers, insts)
+    )
     rows += _items(s, counted, first, last)
     return rows, washes_
+
+
+# S3.8.5's cases in its order, which a review names them in.
+CASES = ("short-sale", "option-loss", "through-option", "option", "short-cover", "stock-bought")
+
+
+def _row_key(r: Row) -> tuple:
+    return (r.saleId, r.accountId, r.instrumentId, r.acquired, r.sold, r.quantity)
+
+
+def _one_per_sale(reviews: list[Wash]) -> list[Wash]:
+    """A sale more than one case flags is one possible wash sale naming every case it may fall
+    under (S3.8.5), with the details of the first case's match."""
+    by_row: dict[tuple, list[Wash]] = {}
+    for w in reviews:
+        by_row.setdefault(w.row, []).append(w)
+    out = []
+    for found in by_row.values():
+        found.sort(key=lambda w: CASES.index(w.rules[0]))
+        first = found[0]
+        first.rules = tuple(dict.fromkeys(r for w in found for r in w.rules))
+        out.append(first)
+    return out
 
 
 def _own_transfer_fee(s: Session, sale_id: str | None) -> bool:
@@ -289,9 +320,16 @@ def _stored_washes(
     return out
 
 
+# An option bought or written to open one (S3.8.5.2, S3.8.5.4).
+_OPENS = ("buy-to-open", "sell-to-open")
+
+
 def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts) -> list[Wash]:
-    """A loss sale of a stock with an option on it bought within 30 days, or an option's loss
-    with its stock bought: flagged for the preparer (S3.8, S8.3)."""
+    """Possible wash sales an option makes, flagged for the preparer, never adjusted (S3.8.5),
+    each with its rule: a stock's loss with its shares bought back through an option
+    ("through-option", S3.8.5.3) or an option on it opened ("option", S3.8.5.4); an option's
+    loss with an option on the same underlying opened ("option-loss", S3.8.5.2) or its stock
+    bought ("stock-bought", S3.8.5.6)."""
     from .. import options as opts
 
     ids_ = {a.id: a for a in accounts}
@@ -299,6 +337,14 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
 
     def first(near, *where) -> Transaction | None:
         return s.scalars(select(Transaction).where(*near, *where)).first()
+
+    def options_on(underlying_ids: list[str]) -> list[str]:
+        return [
+            oc.instrumentId
+            for oc in s.scalars(
+                select(OptionContract).where(OptionContract.underlyingId.in_(underlying_ids))
+            )
+        ]
 
     # The rows are the sales of the accounts given, each of an instrument in `insts`.
     for r in rows:
@@ -311,33 +357,75 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
             Transaction.date >= r.sold - dt.timedelta(days=WASH_DAYS),
             Transaction.date <= r.sold + dt.timedelta(days=WASH_DAYS),
         )
+        hit, rule = None, None
         if inst.instrumentClass == "option":
-            # Its stock bought; an option with no contract (a file's, unread) has none.
+            # An option with no contract (a file's, unread) has no underlying to look for.
             c = opts.contract_of(s, inst.id)
-            targets = [c.underlyingId] if c else []
-            hit = first(
-                near,
-                Transaction.instrumentId.in_(targets),
-                Transaction.kind.in_(("buy", "reinvest")),
-            )
-        else:
-            on_it = [
-                oc.instrumentId
-                for oc in s.scalars(
-                    select(OptionContract).where(OptionContract.underlyingId == inst.id)
-                )
-            ]
-            # An option on it bought, or the stock bought back through an option: a put
-            # assigned, a call exercised.
-            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
-            hit = first(
-                near, Transaction.instrumentId.in_(on_it), Transaction.kind == "buy-to-open"
-            ) or first(
-                near,
+            stock = [c.underlyingId] if c else []
+            # The trade that opened the option sold is never its own match, as the shares of
+            # a lot sold never replace it (S3.8.2).
+            own = first(
+                (Transaction.deleted == false(),),
+                Transaction.accountId == r.accountId,
                 Transaction.instrumentId == inst.id,
-                Transaction.kind == "buy",
-                Transaction.optionTransactionId.in_(ends),
+                Transaction.date == r.acquired,
+                Transaction.kind.in_(_OPENS),
             )
+            hit = first(
+                near,
+                Transaction.instrumentId.in_(options_on(stock)),
+                Transaction.kind.in_(_OPENS),
+                *((Transaction.id != own.id,) if own is not None else ()),
+            )
+            rule = "option-loss"
+            if hit is None:
+                hit, rule = (
+                    first(
+                        near,
+                        Transaction.instrumentId.in_(stock),
+                        Transaction.kind.in_(("buy", "reinvest")),
+                    ),
+                    "stock-bought",
+                )
+        else:
+            # The stock bought back through an option: a put assigned, a call exercised.
+            ends = select(Transaction.id).where(Transaction.kind.in_(("assign", "exercise")))
+            hit, rule = (
+                first(
+                    near,
+                    Transaction.instrumentId == inst.id,
+                    Transaction.kind == "buy",
+                    Transaction.optionTransactionId.in_(ends),
+                ),
+                "through-option",
+            )
+            if hit is None:
+                # An option on it bought or written; the option whose end made this sale, or
+                # opened the short sale it closes, is the trade itself, never its match
+                # (S3.8.2): a call assigned, a put exercised.
+                made = Transaction.id == r.saleId
+                if r.short:
+                    made = or_(
+                        made, and_(Transaction.date == r.acquired, Transaction.kind == "sell")
+                    )
+                ends_ = select(Transaction.optionTransactionId).where(
+                    Transaction.accountId == r.accountId, Transaction.instrumentId == inst.id, made
+                )
+                own = select(Transaction.instrumentId).where(Transaction.id.in_(ends_))
+                hit, rule = (
+                    first(
+                        near,
+                        Transaction.instrumentId.in_(options_on([inst.id])),
+                        Transaction.kind.in_(_OPENS),
+                        not_(
+                            and_(
+                                Transaction.accountId == r.accountId,
+                                Transaction.instrumentId.in_(own),
+                            )
+                        ),
+                    ),
+                    "option",
+                )
         if hit is not None:
             out.append(
                 Wash(
@@ -351,7 +439,8 @@ def _option_reviews(s: Session, rows: list[Row], accounts: list[Account], insts)
                     abs(hit.quantity or ZERO),
                     None,
                     review=True,
-                    rule="option",
+                    rules=(rule,),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -387,7 +476,8 @@ def _short_reviews(
                     qty,
                     None,
                     review=True,
-                    rule="short-sale",
+                    rules=("short-sale",),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -421,7 +511,8 @@ def _cover_reviews(rows: list[Row], covers: list, insts) -> list[Wash]:
                     qty,
                     None,
                     review=True,
-                    rule="short-cover",
+                    rules=("short-cover",),
+                    row=_row_key(r),
                 )
             )
     return out
@@ -583,8 +674,9 @@ def income(s: Session, book: TaxBook) -> Income:
             elif t.kind == "return-of-capital":
                 # 1099-DIV box 3: off the basis, not a dividend on Schedule B.
                 divs["return-of-capital"] += abs(t.amount)
-            elif t.kind in ("dividend", "reinvest"):
-                # A reinvested dividend is a dividend too, ordinary unless typed.
+            else:
+                # A dividend, the query's last kinds: a reinvested one is a dividend too,
+                # ordinary unless typed.
                 amount = t.amount if t.kind == "dividend" else -t.amount
                 divs[t.dividendType or "ordinary"] += amount
                 by_payer[payer] += amount
@@ -617,6 +709,10 @@ class Contribution:
     personTotal: Decimal = ZERO
     group: str = ""
     ownerId: str = ""
+    # A Roth IRA's: the most the return's MAGI allows its owner to put in Roth IRAs, and what
+    # they put in theirs (S8.6); None while the MAGI or the filing status isn't known.
+    rothAllowed: Decimal | None = None
+    rothTotal: Decimal = ZERO
 
 
 @dataclass
@@ -687,6 +783,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     figures = taxtables.figures(s, y)
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
+    phase_out = _phase_out(s, book, figures)
     moved: dict[frozenset, Movement] = {}
     taken_from: dict[str, Decimal] = {}  # distributions by account id
     # Form 8606 line 1, each owner's: the nondeductible parts of their own contributions to a
@@ -746,7 +843,8 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit += Decimal(str(figures["iraCatchUp"]))
                 note = "with the catch-up at 50 and over"
             if a.type == "roth-ira":
-                note = (note + "; " if note else "") + "Roth eligibility depends on MAGI"
+                said, allowed = _roth_reading(book, phase_out, limit)
+                note = (note + "; " if note else "") + said
         elif a.type in ("401k", "403b", "457b"):
             limit = Decimal(str(figures["k401Deferral"]))
             if age and 60 <= age <= 63:
@@ -755,9 +853,9 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
             elif age and age >= 50:
                 limit += Decimal(str(figures["k401CatchUp"]))
                 note = "with the catch-up at 50 and over"
-        elif a.type == "hsa":
-            # Employee and employer money both count against an HSA's limit, which its
-            # coverage sets, with $1,000 more at 55 (S8.6).
+        else:
+            # An HSA, the last of the retirement types: employee and employer money both count
+            # against its limit, which its coverage sets, with $1,000 more at 55 (S8.6).
             if a.hsaCoverage == "self":
                 limit, note = Decimal(str(figures["hsaSelf"])), "self-only coverage"
             else:
@@ -768,19 +866,20 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 note += "; with the catch-up at 55 and over"
             if employer:
                 note += f"; {grouped(employer)} of it from the employer"
-        if counted or limit:
-            contributions.append(
-                Contribution(
-                    a.name,
-                    atypes.LABELS[a.type],
-                    owner.displayName,
-                    counted,
-                    limit,
-                    note,
-                    group=LIMIT_GROUPS[a.type],
-                    ownerId=owner.id,
-                )
+        # Every retirement type has a limit, so each account is listed, nothing put in or not.
+        contributions.append(
+            Contribution(
+                a.name,
+                atypes.LABELS[a.type],
+                owner.displayName,
+                counted,
+                limit,
+                note,
+                group=LIMIT_GROUPS[a.type],
+                ownerId=owner.id,
+                rothAllowed=allowed if a.type == "roth-ira" else None,
             )
+        )
         if taken:
             distributions.append((a.name, taken))
             taken_from[a.id] = taken
@@ -804,8 +903,14 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     totals: dict[tuple[str, str], Decimal] = defaultdict(lambda: ZERO)
     for c in contributions:
         totals[(c.ownerId, c.group)] += c.contributed
+    roths: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
+        if c.rothAllowed is not None:
+            roths[c.ownerId] += c.contributed
+    for c in contributions:
+        if c.rothAllowed is not None:
+            c.rothTotal = roths[c.ownerId]
     # The 8606 basis is a person's own (S8.6, S8.17): each filer's as their return carried it,
     # a joint return's each filer's apart.
     carried: dict[str, Decimal] = {}
@@ -823,6 +928,71 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     for b in bases:
         _pro_rata(s, b, [a for a in iras if a.ownerId == b.ownerId], conversions, taken_from, y)
     return Retirement(contributions, distributions, rmds, bases, conversions, rollovers)
+
+
+# The Roth IRA phase-out a return's filing status reads (S8.6): single and head of household
+# share one, as do a joint return and a qualifying surviving spouse's.
+_PHASE_OUTS = {
+    "Single": "rothPhaseOutSingle",
+    "Head of household": "rothPhaseOutSingle",
+    "Married filing jointly": "rothPhaseOutJoint",
+    "Qualifying surviving spouse": "rothPhaseOutJoint",
+    "Married filing separately": "rothPhaseOutSeparate",
+}
+
+
+def _phase_out(s: Session, book: TaxBook, figures: dict) -> tuple[Decimal, Decimal] | None:
+    """Where the year's Roth IRA phase-out starts and ends for the book's return: a joint
+    book's is a joint return's; one filer's, their federal return's status as typed, and none
+    while it isn't (R3.11)."""
+    if len(books.filers(s, book)) == 2:
+        key = "rothPhaseOutJoint"
+    else:
+        typed = [
+            f.filingStatus
+            for f in books.filings(s, book)
+            if f.jurisdiction == "federal" and not f.amendsId and f.filingStatus
+        ]
+        if not typed:
+            return None
+        key = _PHASE_OUTS[typed[0]]
+    start, end = figures[key]
+    return Decimal(str(start)), Decimal(str(end))
+
+
+def roth_allowed(limit: Decimal, magi: Decimal, start: Decimal, end: Decimal) -> Decimal:
+    """The most a Roth IRA may take at a modified AGI (S8.6, IRS Pub. 590-A, worksheet 2-2):
+    the whole limit below the phase-out, none from its end, and in it the limit cut in
+    proportion, raised to the next $10, and to $200 when less."""
+    if magi < start:
+        return limit
+    if magi >= end:
+        return ZERO
+    cut = limit * (end - magi) / (end - start)
+    return max((cut / 10).to_integral_value(rounding=ROUND_CEILING) * 10, Decimal(200))
+
+
+def _roth_reading(
+    book: TaxBook, phase_out: tuple[Decimal, Decimal] | None, limit: Decimal
+) -> tuple[str, Decimal | None]:
+    """A Roth IRA's eligibility at the MAGI typed on the book (S8.6), said, and the most it
+    allows; it waits, saying for what, while the MAGI or the filing status isn't known."""
+    if book.magi is None:
+        return "Roth eligibility waits: type the return's MAGI", None
+    if phase_out is None:
+        return "Roth eligibility waits: choose the federal filing's status", None
+    start, end = phase_out
+    at = f"at the MAGI typed (${grouped(book.magi)})"
+    allowed = roth_allowed(limit, book.magi, start, end)
+    if allowed == limit:
+        return f"Roth eligible {at}", allowed
+    if not allowed:
+        return f"not eligible for a Roth IRA {at}: the phase-out ends at ${end:,.0f}", allowed
+    return (
+        f"partly eligible for a Roth IRA {at}: at most ${grouped(allowed)}, the phase-out "
+        f"running ${start:,.0f} to ${end:,.0f}",
+        allowed,
+    )
 
 
 def _marks(s: Session, t: Transaction) -> list[tuple[Decimal, bool | None]]:
@@ -1184,8 +1354,31 @@ class Issue:
     text: str
     link: str | None = None
 
+    def __post_init__(self) -> None:
+        # A contract it names reads as people are shown it (S2.1), whichever line wrote it.
+        self.text = options.shown(self.text)
 
-def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
+
+# What a possible wash sale left for review is near (S3.8.5), by its rule.
+_NEAR = {
+    "option": "an option on it bought or written",
+    "option-loss": "an option on the same underlying opened",
+    "through-option": "shares of it bought through an option",
+    "stock-bought": "its stock bought",
+    "short-sale": "another short sale of it",
+    "short-cover": "shares bought to close a short sale of it",
+}
+
+
+def _and(words: list[str]) -> str:
+    """Words in a sentence: "a", "a, and b", "a, b, and c"."""
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + ", and " + words[-1]
+
+
+def issues(s: Session, book: TaxBook, rows: list[Row], washes: list[Wash] = ()) -> list[Issue]:
+    """What to look at before the return is prepared (S8.4)."""
+    from .. import options
+
     out = []
     if changed := changed_after_filing(s, book):
         out.append(Issue("changed-after-filing", changed))
@@ -1202,11 +1395,28 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
     counted = books.counted(s, book)
     for a in counted.leftOut:
         out.append(Issue("left-out", f"{a.name} is left out of this tax book."))
+    first, last = _span(book.year)
+    # Lots a statement's holdings stood in for (R3.2): crypto first, as S8.4 names it.
+    unknown: list[tuple[bool, Issue]] = []
     for a in _taxable(counted.accounts):
         if not atypes.investing(a.type):
             continue
         led = repo.load(s, a)
         rp = led.replay()
+        # An option whose expiry fell in the year, still open: no gain or loss reaches Form
+        # 8949 until its end is recorded (S3.6).
+        for iid in rp.positions():
+            c = options.contract_of(s, iid)
+            if c is not None and first <= c.expiry <= last and c.expiry < clock.today():
+                inst = s.get(Instrument, iid)
+                out.append(
+                    Issue(
+                        "option-unresolved",
+                        f"{a.name}: {inst.symbol} expired on {c.expiry:%b %-d} with no end "
+                        "recorded: expired, assigned or exercised",
+                        "/ui/positions/open",
+                    )
+                )
         for p in rp.problems:
             inst = s.get(Instrument, p.instrumentId)
             if p.kind == "sale-without-lot" and p.date.year == book.year:
@@ -1218,7 +1428,18 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                     )
                 )
         for lot in rp.open:
-            if lot.acquiredMissing:
+            if lot.standIn:
+                inst = s.get(Instrument, lot.instrumentId)
+                text = (
+                    f"{a.name}: {_qty(lot.quantity)} {inst.symbol} held on "
+                    f"{lot.acquiredOn:%b %-d, %Y}, as a statement reported it: when it was "
+                    "bought, and its basis, aren't known"
+                )
+                link = f"/ui/accounts/{a.id}/holdings"
+                unknown.append(
+                    (inst.instrumentClass == "crypto", Issue("acquired-unknown", text, link))
+                )
+            elif lot.acquiredMissing:
                 inst = s.get(Instrument, lot.instrumentId)
                 out.append(
                     Issue(
@@ -1237,6 +1458,19 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                         f"/ui/accounts/{a.id}/holdings",
                     )
                 )
+    out += [i for crypto, i in unknown if crypto] + [i for crypto, i in unknown if not crypto]
+    # The flags left for the preparer (S3.8.5), counted on Wash sales too (S8.3).
+    for w in washes:
+        if w.review:
+            out.append(
+                Issue(
+                    "possible-wash-sale",
+                    f"Possible wash sale: {w.symbol} sold at a loss of ${grouped(w.loss)} on "
+                    f"{w.sold:%b %-d} in {w.account}, near {_and([_NEAR[r] for r in w.rules])}: "
+                    "for the preparer to decide",
+                    "/ui/taxes/gains",
+                )
+            )
     for r in rows:
         if r.acquiredMissing:
             out.append(
@@ -1282,7 +1516,6 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
         )
     # Transfers between users' accounts carry a gift's basis over (S8.4).
     ids = {a.id: a for a in counted.accounts}
-    first, last = _span(book.year)
     for t in s.scalars(
         select(Transaction).where(
             Transaction.accountId.in_(list(ids)),

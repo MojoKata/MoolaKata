@@ -7,7 +7,7 @@ import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { api } from '../api/client.js';
 import { useList, useSubmit } from '../app/hooks.js';
-import { money } from '../kit/format.js';
+import { money, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { Dialog } from '../kit/dialog.js';
 import { useDialogGuide } from './help.js';
@@ -51,7 +51,13 @@ function cashOf(/** @type {OptionTxn} */ r) {
   }
 }
 
-/** @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p */
+/**
+ * `start` fills the dialog in: a position's **Close…** gives its contract itself
+ * (`instrumentId`, whose `symbol` names the dialog), its closing action and its contracts; the
+ * server trades that contract as it is, an adjusted one too (S3.2, S3.10.2), so its terms
+ * aren't asked. Typed by hand, the terms make a standard contract.
+ * @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p
+ */
 export function OptionTrade({ close, accountId, start }) {
   const fmt = useFormats();
   useDialogGuide('dialog-option-trade');
@@ -67,10 +73,9 @@ export function OptionTrade({ close, accountId, start }) {
       accountId: first || null,
       date: fmt.today(),
       kind: start?.action || 'sell-to-open',
-      symbol: start?.underlying || '',
-      right: start?.right || 'put',
-      strike: start?.strike || null,
-      expiry: start?.expiry || null,
+      ...(start?.instrumentId
+        ? { instrumentId: start.instrumentId, symbol: null, right: null }
+        : { symbol: '', right: 'put', strike: null, expiry: null }),
       quantity: start?.contracts || '1',
       price: null,
       fees: FEES,
@@ -83,8 +88,8 @@ export function OptionTrade({ close, accountId, start }) {
     rec.set('amount', cash);
   };
   return html`
-    <${DraftDialog} f=${f} title="Record an Option Trade" close=${close} what="This trade"
-      label="Record" done="Option trade recorded" before=${before}
+    <${DraftDialog} f=${f} title=${start?.symbol ? `Close ${symbol(start.symbol)}` : 'Add Trade'}
+      close=${close} what="This trade" label="Record" done="Trade recorded" before=${before}
       disabled=${!rec?.get('accountId')}>
       ${rec
         ? html`
@@ -96,13 +101,15 @@ export function OptionTrade({ close, accountId, start }) {
               options=${list.map((a) => [a.id, a.name])} />
             <${RecField} rec=${rec} name="date" label="Date" type="date" />
           </div>
-          <div class="row">
-            <${RecField} rec=${rec} name="symbol" label="Underlying" />
-            <${RecField} rec=${rec} name="right" label="Call or put" id="right"
-              options=${[['call', 'Call'], ['put', 'Put']]} />
-            <${RecField} rec=${rec} name="strike" label="Strike" />
-            <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
-          </div>
+          ${start?.instrumentId ? null : html`
+            <div class="row">
+              <${RecField} rec=${rec} name="symbol" label="Underlying" />
+              <${RecField} rec=${rec} name="right" label="Call or put" id="right"
+                options=${[['call', 'Call'], ['put', 'Put']]} />
+              <${RecField} rec=${rec} name="strike" label="Strike" />
+              <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
+            </div>
+          `}
           <div class="row">
             <${RecField} rec=${rec} name="quantity" label="Contracts" />
             <${RecField} rec=${rec} name="price" label="Premium" />
@@ -139,12 +146,12 @@ export function Settle({ close, row }) {
       date: f.date,
       contracts: clean(f.contracts),
     });
-    toast(`${row.symbol}: recorded`);
+    toast(`${symbol(row.symbol)}: recorded`);
     close(true);
   });
   const e = save.error;
   return html`
-    <${Dialog} title=${`${row.symbol}: What Happened?`} close=${close} onSubmit=${() =>
+    <${Dialog} title=${`${symbol(row.symbol)}: What Happened?`} close=${close} onSubmit=${() =>
       save.run().catch(() => {})}
       footer=${html`<button class="btn primary" disabled=${save.busy}>Record</button>`}>
       <div class="field" data-help="how" id="x-how"><label>It was</label>
@@ -185,8 +192,8 @@ export function Mark({ close, row }) {
   }, [row.instrumentId, day]);
   const rec = f.draft?.records[0];
   return html`
-    <${DraftDialog} f=${f} title=${`Mark ${row.symbol}`} close=${close} what="This mark"
-      done=${`${row.symbol}: marked`}>
+    <${DraftDialog} f=${f} title=${`Mark ${symbol(row.symbol)}`} close=${close} what="This mark"
+      done=${`${symbol(row.symbol)}: marked`}>
       <div class="row">
         <${Field} label="On" id="mark-date" error=${rec?.error('date')}>
           <${TypedInput} kind="date" value=${day} onInput=${setDay} />

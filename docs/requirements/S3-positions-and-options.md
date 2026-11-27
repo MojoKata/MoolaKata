@@ -9,10 +9,10 @@
 2. **Option transactions:** *buy to open*, *sell to open*, *buy to close*, *sell to close*,
    **expire** (worthless), **assigned** and **exercised**. Each carries contracts, premium per
    share, fees and commission. A trade's fees are typed, 0 for none, and a blank is refused
-   (R3.11): an option trade starts at $0.65, which **default** puts back; a stock trade at 0. A
+   (R3.11): a trade of options starts at $0.65, which **default** puts back; a stock trade at 0. A
    file's trade without fees had none. A trade to close takes at most the contracts the
    account holds on that side at the end of its day.
-   1. **From a broker's file**: an OFX file's option trades (`BUYOPT`, `SELLOPT`) are the four
+   1. **From a broker's file**: an OFX file's trades of options (`BUYOPT`, `SELLOPT`) are the four
       trades by their `OPTBUYTYPE` and `OPTSELLTYPE`, and its `CLOSUREOPT` is the option's
       end by its `OPTACTION`. A contract is named by its OCC ticker (its root padded,
       unpadded, or with `O:` before it), or by the underlying, right, strike and expiry its
@@ -115,7 +115,7 @@
    instrument within 30 days either side is flagged, its disallowed loss computed and added to
    the replacement lot's basis. This covers the user's own accounts, IRAs included, and the
    accounts of the user's spouse on the date of the sale (S10.10.4). Options on the same
-   underlying are flagged for review, not decided (S8.3).
+   underlying are flagged for review, not decided (S8.4).
    1. The match is the same instrument, a stock or fund (ETFs and mutual funds included),
       bought or reinvested within 30 days before or after a sale at a loss in a taxable
       account. Whether a different instrument is substantially identical is the preparer's
@@ -142,22 +142,33 @@
       deleted one that no longer does, takes effect at once.
    5. **Flagged for review, never adjusted**: where the rules are unsettled or depend on
       facts MoolaKata can't see, a possible wash sale is listed among the tax book's issues
-      (S8.3) with the trades involved, and no basis is changed:
+      (S8.4) with the trades involved, and no basis is changed:
       1. a loss on a **short sale** closed with shares bought within 30 days of another
          short sale of the same stock, or of opening one;
       2. a loss on an **option itself** (a call or put closed or expired at a loss) with the
-         same option, or one on the same underlying, opened within 30 days either side;
+         same option, or one on the same underlying, opened (bought or written) within 30 days
+         either side; the trade that opened the option sold is never its own match;
       3. a loss on stock whose **replacement came through an option**: a put assigned to the
          user, or a call they exercised, within 30 days either side of the loss sale;
       4. a loss on stock with an **option on it bought or sold** within 30 days either side;
+         the option whose assignment or exercise made the sale, or opened the short sale it
+         closes, is the trade itself, never its match;
       5. a loss on stock with **shares of it bought to close a short sale** (S3.4) within 30
          days either side: those shares are never taken as its replacement; what the buy
-         leaves long is, as any purchase.
+         leaves long is, as any purchase;
+      6. a loss on an **option** with **its stock bought** within 30 days either side: whether
+         stock replaces an option is unsettled.
 
-      The issue names the rule it may fall under and says the preparer decides.
+      A sale more than one case flags is one possible wash sale: its issue names every case
+      it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;
-   unrealized now; and **per trade** for options (open date, close date, premium in and out,
-   P/L, return on capital required).
+   unrealized now, each lot's with a basis (its shares at the position's price less its basis)
+   to its own term, and a lot whose day bought is missing (S3.1) under **unknown term**, a
+   column shown only when there is one; a lot without its basis has no gain to count, never 0:
+   it is left out, and a line under the table names those instruments with how many such lots,
+   grouped as the table is (*Left out, no cost basis: AAPL (1 lot)* by instrument, *Joint: AAPL
+   (1 lot); IRA: AAPL (1 lot)* by account); and **per trade** for options (open date, close
+   date, premium in and out, P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
       is open, through an adjustment of its contract (S3.10.4), which sells nothing: it goes
       on under the adjusted contract with its opening day and premium, noted *adjusted* with

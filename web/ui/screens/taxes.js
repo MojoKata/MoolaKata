@@ -297,7 +297,7 @@ function Summary({ b, done }) {
           ? html`<${CarryoverShare} b=${b} done=${done} />`
           : null}${b.lastYear.length
           ? null
-          : html`<${Empty}>Nothing carried forward</${Empty}>`}</div>
+          : html`<${Empty}>Nothing carried forward</${Empty}>`}<${BookMagi} b=${b} done=${done} /></div>
     </div>
     <${Dependents} b=${b} done=${done} />
   `;
@@ -705,6 +705,7 @@ function CarryoverShare({ b, done }) {
       bitcoinFees: b.bitcoinFees,
       carryoverShareShort: b.carryoverShareShort,
       carryoverShareLong: b.carryoverShareLong,
+      magi: b.magi,
     });
     return Promise.resolve();
   }, [b.id, b.version]);
@@ -726,6 +727,38 @@ function CarryoverShare({ b, done }) {
           </div>
         `
         : null}
+    </${DraftForm}>
+  `;
+}
+
+/**
+ * This year's return's modified AGI, typed from it (S8.6): the Retirement panel reads each Roth
+ * IRA contribution against the year's phase-out by it. None until typed.
+ * @param {{ b: any, done: () => void }} p
+ */
+function BookMagi({ b, done }) {
+  const f = useDraft((draft) => {
+    draft.load(BookRec, {
+      id: b.id,
+      version: b.version,
+      year: b.year,
+      filers: b.filers.map((/** @type {any} */ x) => x.id),
+      fromLastYear: b.fromLastYear,
+      bitcoinFees: b.bitcoinFees,
+      carryoverShareShort: b.carryoverShareShort,
+      carryoverShareLong: b.carryoverShareLong,
+      magi: b.magi,
+    });
+    return Promise.resolve();
+  }, [b.id, b.version]);
+  const rec = /** @type {BookRec | undefined} */ (f.draft?.records[0]);
+  return html`
+    <h4 style=${{ margin: '12px 0 4px' }} data-help="magi">This Year's MAGI</h4>
+    <${DraftForm} f=${f} what="The MAGI" read=${whyRead(b)} saved=${() => {
+      toast('Saved');
+      done();
+    }}>
+      ${rec ? html`<${RecField} rec=${rec} name="magi" label="Modified AGI" id="magi" />` : null}
     </${DraftForm}>
   `;
 }
@@ -964,11 +997,15 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
             }</div>`}
           <div class="row">
             <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
-              placeholder=${where === 'federal' ? 'from the tax tables' : undefined} />
+              reset=${where === 'federal' && !rec.get('amendsId') && b.federalDue
+                ? { value: b.federalDue, label: date(b.federalDue) }
+                : undefined} />
             <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
               id="extension-filed-on" type="date" />
             <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"
-              type="date" />
+              type="date" reset=${where === 'federal' && b.federalExtendedDue
+                ? { value: b.federalExtendedDue, label: date(b.federalExtendedDue) }
+                : undefined} />
             <${RecField} rec=${rec} name="filedOn" label="Date filed" id="filed-on"
               type="date" />
           </div>

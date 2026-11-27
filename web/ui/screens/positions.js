@@ -3,7 +3,7 @@
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { useApi, useList } from '../app/hooks.js';
-import { date, quantity } from '../kit/format.js';
+import { date, quantity, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useGuide } from '../components/help.js';
@@ -92,7 +92,7 @@ export default function Positions({ tab }) {
             <div class="value">${v.summary.expiringSoon.length}</div>
             <div class="delta">${v.summary.expiringSoon.map((/** @type {any} */ x) =>
               html`
-                <span class=${'pill ' + (x.inTheMoney ? 'warn' : '')}>${x.symbol}</span>
+                <span class=${'pill ' + (x.inTheMoney ? 'warn' : '')}>${symbol(x.symbol)}</span>
               `
             )}</div>
           </div>
@@ -106,8 +106,8 @@ export default function Positions({ tab }) {
       <button class="btn" onClick=${() =>
         openDialog(CorporateAction, {}).then((x) => x && res.reload())}>Corporate Action…</button>
       <button class="btn primary" onClick=${() =>
-        openDialog(OptionTrade, {}).then((x) => x && res.reload())}><${Icon} name="plus" /> Record
-        an Option Trade</button>
+        openDialog(OptionTrade, {}).then((x) => x && res.reload())}><${Icon} name="plus" /> Add
+        Trade</button>
     </div>
     <${Tabs} tabs=${TABS} current=${current} base="/ui/positions" />
     ${res.error
@@ -168,12 +168,12 @@ function Open({ rows, reload }) {
             return html`
               <tr>
                 <td><input
-                  type="checkbox" aria-label=${'Select ' + r.symbol}
+                  type="checkbox" aria-label=${'Select ' + symbol(r.symbol)}
                   checked=${picked.includes(key)} onChange=${() => pick(key)} /></td>
                 <td><button type="button" class="linklike" aria-expanded=${shown === key
                   ? 'true'
                   : 'false'} onClick=${() => setShown(shown === key ? null : key)}
-                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${r.symbol}</button>${r
+                  style=${{ color: 'var(--fg)', fontWeight: 600 }}>${symbol(r.symbol)}</button>${r
                       .daysToExpiry != null
                     ? html`${' '}<span class=${'pill ' + (r.daysToExpiry <= 7 ? 'warn' : '')}>${
                       r.daysToExpiry < 0 ? 'expired' : `${r.daysToExpiry}d`
@@ -188,7 +188,7 @@ function Open({ rows, reload }) {
                       .unknownSymbol
                     ? html`<div class="small" style=${{
                       color: 'var(--ask)',
-                    }}>No price source knows ${r.symbol}</div>`
+                    }}>No price source knows ${symbol(r.symbol)}</div>`
                     : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td><span class=${'pill ' + (r.side === 'short' ? 'warn' : '')}>${r.side === 'short'
@@ -247,6 +247,13 @@ function Open({ rows, reload }) {
                                       class="toolbar mt"><span class="dim">Expires ${date(
                                         r.expiry,
                                       )}</span><span class="spacer"></span><button class="btn sm"
+                                        onClick=${(/** @type {Event} */ ev) => {
+                                          ev.stopPropagation();
+                                          openDialog(OptionTrade, {
+                                            accountId: r.accountId,
+                                            start: closing(r),
+                                          }).then((x) => x && reload());
+                                        }}>Close…</button><button class="btn sm"
                                                                         onClick=${(
                                                                           /** @type {Event} */ ev,
                                                                         ) => {
@@ -300,7 +307,9 @@ function Closed({ rows }) {
           <tbody>${rows.map((r) =>
             html`
               <tr>
-                <td><b>${r.symbol}</b> <span class="small dim">${quantity(r.quantity)}</span></td>
+                <td><b>${symbol(r.symbol)}</b> <span class="small dim">${quantity(
+                  r.quantity,
+                )}</span></td>
                 <td class="small dim">${r.accountName}</td>
                 <td class="small dim">${date(r.opened)}</td>
                 <td class="small dim">${date(r.closed)}</td>
@@ -366,15 +375,15 @@ function Trades() {
           <tbody>${rows.map((r) =>
             html`
               <tr>
-                <td><b>${r.symbol}</b> <span class=${'pill ' +
+                <td><b>${symbol(r.symbol)}</b> <span class=${'pill ' +
                   (r.side === 'short' ? 'warn' : '')}>${r
                     .side === 'short'
                   ? 'Short'
                   : 'Long'}</span> <span class="small dim">×${quantity(r.contracts)}</span>${r
                     .adjustedFrom
-                  ? html`<div class="small dim">adjusted ${
-                    date(r.adjustedOn)
-                  } from ${r.adjustedFrom}</div>`
+                  ? html`<div class="small dim">adjusted ${date(r.adjustedOn)} from ${
+                    symbol(r.adjustedFrom)
+                  }</div>`
                   : null}</td>
                 <td class="small dim">${r.accountName}</td>
                 <td class="small dim">${date(r.opened)}</td>
@@ -403,6 +412,29 @@ function Trades() {
   `;
 }
 
+/** Why a gain has no term (S3.1), and how to give it one. */
+const UNKNOWN_TERM =
+  'Lots whose day bought is missing, so their term isn’t known: type each lot’s day bought on the shares moved in.';
+
+/** How to count a lot left out of the unrealized gains (S3.9). */
+const NO_BASIS = 'Their gain isn’t known: add each lot’s cost basis on the shares moved in.';
+
+/**
+ * The trade that closes an open option (S3.2): its contract itself, which an adjusted one
+ * (its own root, S3.10.2) needs; buy to close a short one, sell to close a long one; all its
+ * contracts.
+ * @param {any} r
+ */
+function closing(r) {
+  return {
+    symbol: r.symbol,
+    instrumentId: r.instrumentId,
+    action: r.side === 'short' ? 'buy-to-close' : 'sell-to-close',
+    // As a person types it: "2", not the API's "2.0".
+    contracts: String(dec(r.quantity).abs()).replace(/\.0*$|(\.\d*?)0+$/, '$1'),
+  };
+}
+
 function Gains() {
   const fmt = useFormats();
   const now = fmt.thisYear();
@@ -410,44 +442,75 @@ function Gains() {
   const [year, setYear] = useState('');
   const res = useApi('/positions/gains', { by, year: year || undefined }, ['import', 'prices']);
   const v = /** @type {any} */ (res.data);
-  /** @param {any[]} rows @param {string} title */
-  const table = (rows, title) =>
-    html`<div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{
-      padding: '8px 8px 0',
-    }}>${title}</h3>${
-      rows.length
-        ? html`
-          <div class="table-wrap">
-            <table class="t">
-              <caption class="sr-only">${title}</caption>
-              <thead>
-                <tr>
-                  <th></th>
-                  <th class="num">Short Term</th>
-                  <th class="num">Long Term</th>
-                  <th class="num">Total</th>
-                </tr>
-              </thead>
-              <tbody>${rows.map((g) =>
-                html`
+  /** @param {any[]} rows @param {string} title @param {any} [after] */
+  const table = (rows, title, after = null) => {
+    // A lot whose day bought is missing has no term (S3.1): its own column, only then (S3.9).
+    const unknown = rows.some((g) => g.unknownTerm != null);
+    return html`
+      <div class="card"
+        style=${{ padding: '4px 8px' }}><h3 style=${{
+          padding: '8px 8px 0',
+        }}>${title}</h3>${rows.length
+          ? html`
+            <div class="table-wrap">
+              <table class="t">
+                <caption class="sr-only">${title}</caption>
+                <thead>
                   <tr>
-                    <td>${g.label}</td>
-                    <td class="num">
-                      <${Amt} v=${g.shortTerm} signed />
-                    </td>
-                    <td class="num">
-                      <${Amt} v=${g.longTerm} signed />
-                    </td>
-                    <td class="num"><b><${Amt}
-                                v=${g.total} signed /></b></td>
+                    <th></th>
+                    <th class="num">Short Term</th>
+                    <th class="num">Long Term</th>
+                    ${unknown
+                      ? html`<th class="num" data-tip=${UNKNOWN_TERM} aria-description=${UNKNOWN_TERM}>
+                        Unknown Term</th>`
+                      : null}
+                    <th class="num">Total</th>
                   </tr>
-                `
-              )}</tbody>
-            </table>
-          </div>
-        `
-        : html`<p class="small dim">None.</p>`
-    }</div>`;
+                </thead>
+                <tbody>${rows.map((g) =>
+                  html`
+                    <tr>
+                      <td>${g.label}</td>
+                      <td class="num">
+                        <${Amt} v=${g.shortTerm} signed />
+                      </td>
+                      <td class="num">
+                        <${Amt} v=${g.longTerm} signed />
+                      </td>
+                      ${unknown
+                        ? html`<td class="num">${
+                          g.unknownTerm != null ? html`<${Amt} v=${g.unknownTerm} signed />` : ''
+                        }</td>`
+                        : null}
+                      <td class="num"><b><${Amt}
+                                  v=${g.total} signed /></b></td>
+                    </tr>
+                  `
+                )}</tbody>
+              </table>
+            </div>
+          `
+          : html`<p class="small dim">None.</p>`}${after}</div>
+    `;
+  };
+  // Lots without a cost basis have no gain to count (S3.9): named under the table, grouped
+  // as it is: "MSFT (2 lots)" by instrument, "IRA: MSFT (1 lot); Joint: …" by account.
+  const lotsOf = (/** @type {any} */ x) =>
+    `${symbol(x.symbol)} (${x.lots} lot${x.lots === 1 ? '' : 's'})`;
+  /** @type {Map<string, string[]>} */
+  const byAccount = new Map();
+  for (const x of v?.leftOut || []) {
+    const k = x.accountName ?? '';
+    byAccount.set(k, [...(byAccount.get(k) || []), lotsOf(x)]);
+  }
+  const named = [...byAccount].map(([acct, xs]) => (acct ? `${acct}: ` : '') + xs.join(', '))
+    .join('; ');
+  const leftOut = named
+    ? html`
+      <p class="small dim" style=${{ padding: '0 8px' }} data-tip=${NO_BASIS}
+        aria-description=${NO_BASIS}>Left out, no cost basis: ${named}</p>
+    `
+    : null;
   return html`
     <div
       class="toolbar"><${Chips} label="By" value=${by} onChange=${setBy} options=${[
@@ -462,10 +525,13 @@ function Gains() {
         ...[now - 2, now - 1, now].map((y) => [String(y), String(y)]),
       ]} /></div>
     ${res.error ? html`<${Failed} error=${res.error} />` : !v ? html`<${Loading} />` : html`
-      <div class="grid g2">${table(v.realized, 'Realized')}${table(
-        v.unrealized,
-        by === 'instrument' ? 'Unrealized, by instrument' : 'Unrealized, by account',
-      )}</div>
+      <div class=${v.unrealized.some((/** @type {any} */ g) => g.unknownTerm != null)
+        ? 'grid' // a fourth figure's column needs the width: one table above the other
+        : 'grid g2'}>${table(v.realized, 'Realized')}${table(
+          v.unrealized,
+          by === 'instrument' ? 'Unrealized, by instrument' : 'Unrealized, by account',
+          leftOut,
+        )}</div>
     `}
   `;
 }

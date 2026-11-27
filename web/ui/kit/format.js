@@ -213,3 +213,24 @@ export function fromCents(c) {
   const s = (neg ? -c : c).toString().padStart(3, '0');
   return (neg ? '-' : '') + s.slice(0, -2) + '.' + s.slice(-2);
 }
+
+// An option's symbol as stored (S2.1): its root, its expiry as DDMMMYY, its strike, C or P.
+const OPTION = new RegExp(
+  `(^|\\s)(\\S+) (\\d\\d)(${MONTHS.join('|').toUpperCase()})(\\d\\d) (\\d+(?:\\.\\d+)?) ([CP])` +
+    '(?=$|[\\s,.;:)])',
+  'g',
+);
+
+/**
+ * An instrument's symbol as shown (S2.1): an option's, stored `AAPL 18DEC26 250 C`, reads
+ * `AAPL 18 Dec 26 250 C`; any other symbol as it is. Text naming a contract (a sale's
+ * description) reads its symbol so too.
+ * @param {string | null | undefined} s
+ */
+export function symbol(s) {
+  return String(s ?? '').replace(
+    OPTION,
+    (_, at, root, dd, mon, yy, strike, right) =>
+      `${at}${root} ${dd} ${mon[0]}${mon.slice(1).toLowerCase()} ${yy} ${strike} ${right}`,
+  );
+}

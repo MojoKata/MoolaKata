@@ -10,7 +10,18 @@ from pydantic import Field
 from sqlalchemy import false, func, or_, select, type_coerce
 from sqlalchemy.orm import Session
 
-from .. import access, activity, categories, clock, ids, loans, reimbursements, tags, washes
+from .. import (
+    access,
+    activity,
+    categories,
+    clock,
+    ids,
+    loans,
+    options,
+    reimbursements,
+    tags,
+    washes,
+)
 from ..access import Perms
 from ..errors import FieldError, Problem, refuse, refuse_all
 from ..ledger import lots
@@ -454,7 +465,11 @@ def _check(
         )
     elif kind_sent and kind in OPTION_KINDS:
         errors.append(
-            FieldError("kind", "option-kind", "Record an option trade from the account's Holdings.")
+            FieldError(
+                "kind",
+                "option-kind",
+                "Add the trade from the account's Holdings or Positions: Add Trade.",
+            )
         )
     if kind_sent:
         if (kind in INSTRUMENT_KINDS or kind == "foreign-tax") and not investing:
@@ -670,7 +685,8 @@ def _picks_dropped(ctx, held: dict[str, Decimal], gone: set[str], t: Transaction
     method = METHOD_WORDS[sale.lotMethod or account.lotMethod]
     ctx.ask(
         "picks-dropped",
-        f"The sale of {abs(sale.quantity).normalize():f} {inst.symbol} on {when} picks lots of"
+        f"The sale of {abs(sale.quantity).normalize():f} {options.shown(inst.symbol)} on {when} "
+        "picks lots of"
         f" this trade: its picks go, and it takes its lots {method}.",
     )
     for p in dropped:
@@ -927,9 +943,9 @@ def _made_by(s: Session, end: Transaction, what: str) -> str:
     inst = s.get(Instrument, end.instrumentId)
     word = "assignment" if end.kind == "assign" else "exercise"
     when = f"{end.date:%b} {end.date.day}, {end.date.year}"
-    return f"This trade came with the {word} of {inst.symbol} on {when}: {what} that" + (
-        ", and this goes with it." if what == "delete" else "."
-    )
+    contract = options.shown(inst.symbol)
+    end_ = ", and this goes with it." if what == "delete" else "."
+    return f"This trade came with the {word} of {contract} on {when}: {what} that{end_}"
 
 
 def delete_txn(s: Session, c: Caller, t: Transaction, a: Account) -> None:
@@ -1264,8 +1280,6 @@ def _deductible_fits(s: Session, t: Transaction, parts: list[Split]) -> None:
 
 
 def _txn_create(ctx, record_id: str, body: TxnRecord) -> None:
-    from .. import options
-
     if body.kind in options.ACTIONS:
         from .options import make_trade
 

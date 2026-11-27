@@ -2282,6 +2282,11 @@
             "title": "Federaldue",
             "type": "string"
           },
+          "federalExtendedDue": {
+            "format": "date",
+            "title": "Federalextendeddue",
+            "type": "string"
+          },
           "filers": {
             "items": {
               "$ref": "#/components/schemas/Filer"
@@ -2329,6 +2334,21 @@
             "title": "Leftout",
             "type": "array"
           },
+          "magi": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Magi"
+          },
           "received": {
             "items": {
               "$ref": "#/components/schemas/DocumentOut"
@@ -2356,6 +2376,7 @@
           "fromLastYear",
           "carryoverShareShort",
           "carryoverShareLong",
+          "magi",
           "dependents",
           "form8615",
           "claimedElsewhere",
@@ -2366,7 +2387,8 @@
           "expected",
           "received",
           "lastYear",
-          "federalDue"
+          "federalDue",
+          "federalExtendedDue"
         ],
         "title": "BookDetail",
         "type": "object"
@@ -2430,6 +2452,22 @@
             "default": true,
             "title": "Fromlastyear",
             "type": "boolean"
+          },
+          "magi": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Magi"
           },
           "year": {
             "title": "Year",
@@ -7771,6 +7809,21 @@
             "format": "money",
             "title": "Total",
             "type": "number"
+          },
+          "unknownTerm": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknownterm"
           }
         },
         "required": [
@@ -7789,6 +7842,13 @@
           "by": {
             "title": "By",
             "type": "string"
+          },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/NoBasis"
+            },
+            "title": "Leftout",
+            "type": "array"
           },
           "realized": {
             "items": {
@@ -7820,7 +7880,8 @@
           "by",
           "year",
           "realized",
-          "unrealized"
+          "unrealized",
+          "leftOut"
         ],
         "title": "GainsView",
         "type": "object"
@@ -14463,6 +14524,53 @@
         "title": "NextDate",
         "type": "object"
       },
+      "NoBasis": {
+        "additionalProperties": false,
+        "description": "An instrument with lots open whose cost basis is missing: left out of the unrealized\ngains, and named under them as the table groups them (S3.9): by instrument, or within each\naccount (`accountId` and `accountName` then, None by instrument).",
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
+          },
+          "accountName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountname"
+          },
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "lots": {
+            "title": "Lots",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrumentId",
+          "symbol",
+          "lots"
+        ],
+        "title": "NoBasis",
+        "type": "object"
+      },
       "OccasionOut": {
         "additionalProperties": false,
         "properties": {
@@ -19494,6 +19602,7 @@
               "draw-invalid",
               "driver-fixed",
               "driver-invalid",
+              "due-date-missing",
               "duration-invalid",
               "duration-missing",
               "ein-invalid",
@@ -19506,6 +19615,7 @@
               "expense-fixed",
               "expired",
               "expiry-required",
+              "extended-due-missing",
               "fees-invalid",
               "figure-corrected",
               "figure-fixed",
@@ -19554,7 +19664,6 @@
               "invalid-setting",
               "item-fixed",
               "items-missing",
-              "jurisdiction-invalid",
               "kept-by-invalid",
               "key-exists",
               "key-invalid",
@@ -20039,6 +20148,7 @@
                   "draw-invalid",
                   "driver-fixed",
                   "driver-invalid",
+                  "due-date-missing",
                   "duration-invalid",
                   "duration-missing",
                   "ein-invalid",
@@ -20051,6 +20161,7 @@
                   "expense-fixed",
                   "expired",
                   "expiry-required",
+                  "extended-due-missing",
                   "fees-invalid",
                   "figure-corrected",
                   "figure-fixed",
@@ -20099,7 +20210,6 @@
                   "invalid-setting",
                   "item-fixed",
                   "items-missing",
-                  "jurisdiction-invalid",
                   "kept-by-invalid",
                   "key-exists",
                   "key-invalid",
@@ -28949,16 +29059,12 @@
             "title": "Review",
             "type": "boolean"
           },
-          "rule": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rule"
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules",
+            "type": "array"
           },
           "sold": {
             "format": "date",
@@ -28981,7 +29087,7 @@
           "replacementQty",
           "adjustedBasis",
           "review",
-          "rule"
+          "rules"
         ],
         "title": "WashOut",
         "type": "object"
@@ -30727,6 +30833,26 @@
             "format": "money",
             "title": "Persontotal",
             "type": "number"
+          },
+          "rothAllowed": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rothallowed"
+          },
+          "rothOver": {
+            "default": false,
+            "title": "Rothover",
+            "type": "boolean"
           }
         },
         "required": [

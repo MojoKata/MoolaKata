@@ -5,7 +5,7 @@ import { html } from '../app/html.js';
 import { dev } from '../app/config.js';
 import { api } from '../api/client.js';
 import { useApi, useSubmit } from '../app/hooks.js';
-import { ago, date } from '../kit/format.js';
+import { ago, date, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { useTitle } from '../components/frame.js';
 import { useDialogGuide, useGuide } from '../components/help.js';
@@ -504,7 +504,7 @@ function Prices() {
                 <tbody>${v.unknown.map((/** @type {any} */ u) =>
                   html`
                     <tr>
-                      <td><b>${u.symbol}</b></td>
+                      <td><b>${symbol(u.symbol)}</b></td>
                       <td class="small dim">${u.instrumentClass}</td>
                       <td class="small dim">${fmt.moment(u.missedAt)}</td>
                     </tr>

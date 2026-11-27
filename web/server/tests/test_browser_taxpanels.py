@@ -247,7 +247,8 @@ def build(h) -> World:
                     payments=[{"quarter": q, "dueDate": due, "amount": "1000"}
                               for q, due in ((1, f"{y}-04-15"), (2, f"{y}-06-15"))]))  # fmt: skip
     made(make(c, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40",
-              progress="accepted", filedOn=f"{y + 1}-04-10", sentBy="paper", resultKind="refund",
+              dueDate=f"{y + 1}-04-15", progress="accepted", filedOn=f"{y + 1}-04-10",
+              sentBy="paper", resultKind="refund",
               resultAmount="120", payments=[{"quarter": 1, "amount": "300"}]))  # fmt: skip
     made(make(c, "Filng", bookId=b["id"], jurisdiction="local", place="TP City",
               form="City return", dueDate=f"{y + 1}-04-18", resultKind="none"))  # fmt: skip
@@ -358,8 +359,14 @@ def test_form_8949_shows_each_sale_by_box_with_its_code(browser, world):
         "XYZ bought back Apr 5, 2021 TP broker · sold short Apr 25, 2021 in TP broker (100 shares) "
         "review"
     ) in washes
-    pill = page.locator(f'{_card("Wash Sales")} .list-item:has-text("XYZ") .pill')
-    assert "another short sale of it within 30 days" in (pill.get_attribute("data-tip") or "")
+    # The other short sale's call, written 5 days after the cover, is an option on the stock
+    # too (S3.8.5.4): a review of its own.
+    pills = page.locator(f'{_card("Wash Sales")} .list-item:has-text("XYZ") .pill').all()
+    tips = sorted(p.get_attribute("data-tip") or "" for p in pills)
+    assert tips == [
+        "A short sale closed at a loss, with another short sale of it within 30 days.",
+        "An option on it bought or written within 30 days.",
+    ]
     assert problems == []
     page.close()
 
@@ -416,7 +423,7 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
     ira = rows["TP IRA"]
     assert ira.startswith("TP IRA Traditional IRA Admin $7,000.00 $8,000.00")
     assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over")
-    assert "Roth eligibility depends on MAGI" in rows["TP Roth"]
+    assert "Roth eligibility waits: type the return's MAGI" in rows["TP Roth"]
     # Over its limit: a pill, "over", whose tooltip says so.
     over = table.filter(has=page.locator(".pill.warn", has_text="over"))
     assert {r.split("\n")[0] for r in over.all_inner_texts()} >= {"TP IRA", "TP Roth"}
@@ -653,7 +660,8 @@ def test_the_filings_tab_shows_each_returns_progress_and_result(browser, world):
     utah = next(v for k, v in cards.items() if k.startswith("Utah"))
     assert "Accepted" in utah and "overdue" not in utah
     assert (
-        "Due — Filed Apr 10, 2022" in utah and "· paper Result Refund $120.00 Documents —" in utah
+        "Due Apr 15, 2022 Filed Apr 10, 2022" in utah
+        and "· paper Result Refund $120.00 Documents —" in utah
     )
     assert utah.endswith("Estimated payments: Q1 $300")
     city = next(v for k, v in cards.items() if k.startswith("TP City"))

@@ -157,7 +157,7 @@ def test_a_year_runs_from_its_first_day_to_its_last():
 # ---------- retirement: limits, notes and what counts against them (S8.6) ----------
 
 CATCH_50 = "with the catch-up at 50 and over"
-ROTH = "Roth eligibility depends on MAGI"
+ROTH = "Roth eligibility waits: type the return's MAGI"
 
 
 @pytest.mark.parametrize(
@@ -221,6 +221,117 @@ def test_the_hsa_catch_up_is_the_years_figure_as_corrected(db):
         b = _book(s, u, year=2024)
     [c] = _retirement(db, b).contributions
     assert c.limit == D("5400"), "2024's self-only 4,150 and the corrected 1,250"
+
+
+@pytest.mark.parametrize(
+    "magi, allowed",
+    [
+        ("100000", "7500"),
+        ("153000", "7500"),  # the phase-out's start: the whole limit
+        ("160000", "4000"),  # 7,500 × 8,000 / 15,000
+        ("160001", "4000"),  # 3,999.50, raised to the next $10
+        ("167950", "200"),  # 25, raised to the next $10, and to $200
+        ("168000", "0"),  # the phase-out's end: none
+        ("-5000", "7500"),  # a loss on the return
+    ],
+)
+def test_a_roth_ira_takes_what_the_magi_allows_in_the_phase_out(magi, allowed):
+    """S8.6, IRS Pub. 590-A worksheet 2-2: 2026's single phase-out, $153,000 to $168,000."""
+    got = panels.roth_allowed(D("7500"), D(magi), D("153000"), D("168000"))
+    assert got == D(allowed)
+
+
+@pytest.mark.parametrize(
+    "status, magi, roth, note, allowed, over",
+    [
+        (None, None, "1000", "Roth eligibility waits: type the return's MAGI", None, False),
+        (None, "90000", "1000", "Roth eligibility waits: choose the federal filing's status",
+         None, False),
+        ("Single", "90000", "7500", "Roth eligible at the MAGI typed ($90,000.00)", "7500",
+         False),
+        ("Head of household", "160000", "4500", "partly eligible for a Roth IRA at the MAGI "
+         "typed ($160,000.00): at most $4,000.00, the phase-out running $153,000 to $168,000",
+         "4000", True),
+        ("Married filing separately", "9000", "1000", "partly eligible for a Roth IRA at the "
+         "MAGI typed ($9,000.00): at most $750.00, the phase-out running $0 to $10,000", "750",
+         True),
+        ("Qualifying surviving spouse", "250000", "100", "partly eligible for a Roth IRA at the "
+         "MAGI typed ($250,000.00): at most $1,500.00, the phase-out running $242,000 to "
+         "$252,000", "1500", False),
+        ("Single", "170000", "100", "not eligible for a Roth IRA at the MAGI typed "
+         "($170,000.00): the phase-out ends at $168,000", "0", True),
+    ],
+)  # fmt: skip
+def test_a_roth_contribution_is_read_against_the_magi_by_the_filing_status(
+    db, status, magi, roth, note, allowed, over
+):
+    """S8.6: the MAGI typed on the book and the federal return's filing status pick the
+    year's phase-out; either unknown, the reading waits, saying for what (R3.11). What the
+    owner put in their Roth IRAs is held against what the MAGI allows."""
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", YEAR - 40)
+        r = _acct(s, u, "Roth", "roth-ira")
+        _txn(s, r, d(2026, 3, 1), "deposit", roth)
+        b = _book(s, u)
+        b.magi = None if magi is None else D(magi)
+        if status:
+            s.add(Filing(id=ids.new_id("Filng"), bookId=b.id, jurisdiction="federal",
+                         form="Form 1040", filingStatus=status))  # fmt: skip
+        s.flush()
+    [c] = _retirement(db, b).contributions
+    got = (c.note, c.rothAllowed, c.rothTotal > c.rothAllowed if c.rothAllowed is not None
+           else False)  # fmt: skip
+    assert got == (note, None if allowed is None else D(allowed), over)
+
+
+def test_a_backdoor_roth_is_its_steps_and_its_conversion_no_roth_contribution(db):
+    """S8.6's backdoor steps, each on its row: the non-deductible contribution to the
+    traditional IRA, counted against the IRA limit and in the Form 8606 basis; the conversion,
+    listed apart with its taxed part; and nothing held against the Roth phase-out, which the
+    MAGI passes."""
+    with db.tx(unscoped="test") as s:
+        u = _user(s, "Ann", YEAR - 40)
+        ira, roth = _acct(s, u, "IRA", "ira"), _acct(s, u, "Roth", "roth-ira")
+        put = _txn(s, ira, d(2026, 1, 5), "deposit", "7500")
+        put.deductible = False
+        _transfer(s, ira, roth, d(2026, 1, 12), "7500")
+        b = _book(s, u)
+        b.magi = D("400000")
+        s.add(Filing(id=ids.new_id("Filng"), bookId=b.id, jurisdiction="federal",
+                     form="Form 1040", filingStatus="Single", carried="{}"))  # fmt: skip
+        s.flush()
+    r = _retirement(db, b)
+    c = {x.account: x for x in r.contributions}
+    assert (c["IRA"].contributed, c["IRA"].personTotal) == (D(7500), D(7500))
+    assert (c["Roth"].contributed, c["Roth"].rothAllowed, c["Roth"].rothTotal) == (0, 0, 0)
+    [conv] = r.conversions
+    assert (conv.fromAccount, conv.toAccount, conv.amount) == ("IRA", "Roth", D(7500))
+    [basis] = r.bases
+    assert basis.nondeductible == D(7500)
+
+
+def test_a_joint_books_roth_iras_read_the_joint_phase_out_each_owner_apart(db):
+    """S8.6: a joint return's MAGI against the joint phase-out, whatever status is typed; each
+    owner's Roth IRAs held against what it allows them, never the other's."""
+    with db.tx(unscoped="test") as s:
+        ann, bob = _user(s, "Ann", YEAR - 40), _user(s, "Bob", YEAR - 40)
+        a1, a2 = _acct(s, ann, "Ann Roth 1", "roth-ira"), _acct(s, ann, "Ann Roth 2", "roth-ira")
+        bb = _acct(s, bob, "Bob Roth", "roth-ira")
+        _acct(s, ann, "Ann IRA", "ira")
+        _txn(s, a1, d(2026, 3, 1), "deposit", "2000")
+        _txn(s, a2, d(2026, 4, 1), "deposit", "2000")
+        _txn(s, bb, d(2026, 3, 1), "deposit", "3500")
+        b = _book(s, ann, bob)
+        b.magi = D("246000")
+        s.flush()
+    got = {c.account: (c.rothAllowed, c.rothTotal) for c in _retirement(db, b).contributions}
+    # 7,500 × 6,000 / 10,000 = 4,500 each, of 2026's joint $242,000 to $252,000.
+    assert got == {
+        "Ann Roth 1": (D("4500"), D("4000")),
+        "Ann Roth 2": (D("4500"), D("4000")),
+        "Bob Roth": (D("4500"), D("3500")),
+        "Ann IRA": (None, D(0)),
+    }
 
 
 def test_what_counts_is_the_contribution_years_and_the_owners_alone_but_in_an_hsa(db):

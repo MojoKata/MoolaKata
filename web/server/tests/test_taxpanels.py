@@ -103,6 +103,25 @@ def test_8949_rows_terms_boxes_and_a_wash_sale(jane):
     assert pdf.content.startswith(b"%PDF-1.4") and pdf.content.rstrip().endswith(b"%%EOF")
 
 
+@pytest.mark.parametrize("reading", ["sale", "not-taxed"])
+def test_the_pdf_says_how_the_book_reads_network_fees(jane, reading):
+    """S8.2, S8.19: the preparer's summary says what it covers, the book's reading of bitcoin
+    network fees among it, as the CSV and the Summary panel do."""
+    import re
+
+    from test_tax_exports_rules import pages_of
+
+    from moolakata.taxes import exports
+
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    b = make(jane, "TaxBk", year=2026, filers=[me], bitcoinFees=reading).json()["id"]
+    data = jane.get(f"/ui/api/tax-books/{b}/exports/summary.pdf").content
+    lines = [re.search(rb"Td \((.*)\) Tj", o)[1] for o in pages_of(data)[0][1:-1]]
+    text = b" ".join(x.strip() for x in lines).replace(b"\\(", b"(").replace(b"\\)", b")")
+    about = text.split(b"About this summary ", 1)[1].split(b"Capital gains", 1)[0]
+    assert exports.covers(reading).encode("cp1252") in about
+
+
 def test_collectables_and_personal_use_losses(jane):
     coll = new_account(jane, name="Collectables", type="collectables")
     cars = new_account(jane, name="Cars", type="vehicle")
@@ -258,6 +277,40 @@ def test_an_ira_limit_holds_across_a_persons_accounts(jane):
     assert first["across"] == "IRAs"
 
 
+def test_a_book_reading_bitcoin_fees_as_not_taxed_keeps_every_other_sale(jane):
+    """S8.19: only a network fee on a transfer between the owner's own accounts leaves Form
+    8949 with *not taxed*; a sale of shares stays."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    trade(jane, brk["id"], "2026-01-05", "buy", "10", "100")
+    trade(jane, brk["id"], "2026-03-05", "sell", "10", "120")
+    me = jane.get("/ui/api/session").json()["user"]["id"]
+    b = make(jane, "TaxBk", year=2026, filers=[me], bitcoinFees="not-taxed").json()["id"]
+    assert [r["description"] for r in panels(jane, b)["rows"]] == ["10 VTI"]
+
+
+def test_a_roth_contribution_is_flagged_past_what_the_typed_magi_allows(jane):
+    """S8.6: the MAGI typed on the book, with the federal return's filing status, reads each
+    Roth IRA contribution against the year's phase-out; above what it allows, it is flagged."""
+    roth = new_account(jane, name="Roth", type="roth-ira")
+    add(jane, roth["id"], "3000.00", "2026-02-01", kind="deposit")
+    b = book(jane)
+    d = jane.get(f"/ui/api/tax-books/{b}").json()
+    assert d["magi"] is None
+    assert make(jane, "Filng", bookId=b, form="Form 1040", filingStatus="Single").status_code == 200
+    d = saved(change(jane, "TaxBk", d, magi="160000"))
+    assert jane.get(f"/ui/api/tax-books/{b}").json()["magi"] == "160000.00"
+    [c] = panels(jane, b)["retirement"]["contributions"]
+    # 8,600 (with the catch-up) × 8,000 / 15,000 = 4,586.67, raised to the next $10.
+    assert (c["rothAllowed"], c["rothOver"]) == ("4590.00", False)
+    assert c["note"].endswith(
+        "partly eligible for a Roth IRA at the MAGI typed ($160,000.00): at most $4,590.00, "
+        "the phase-out running $153,000 to $168,000"
+    )
+    saved(change(jane, "TaxBk", d, magi="166000"))
+    [c] = panels(jane, b)["retirement"]["contributions"]
+    assert (c["rothAllowed"], c["rothOver"], c["over"]) == ("1150.00", True, False)
+
+
 def test_a_split_counts_toward_its_tag_as_a_whole_transaction_would(jane):
     # A split part takes its transaction's sign: $60 of a $100 pharmacy run is $60 of
     # medical, not $-60, and the rest counts nowhere.
@@ -310,6 +363,55 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(jane):
     assert w["review"] and w["disallowed"] == "0.00", w
     [loss] = [r for r in p["rows"] if r["description"] == "100 MSFT"]
     assert loss["code"] == "" and loss["gain"] == "-5000.00"
+
+
+def test_a_possible_wash_sale_is_an_issue_linking_to_the_wash_sales(jane):
+    """S3.8.5, S8.4: each flag left for review is listed in the Issues, and stays on Wash sales
+    (S8.3), where its trades are."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-08-03", "buy", "100", "500", "MSFT")
+    trade(jane, brk["id"], "2026-09-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
+    saved(option_trade(jane, brk["id"], "2026-08-20", "buy-to-open", "MSFT", "call", "455",
+                       "2027-01-15", "1", "4.00"))  # fmt: skip
+    p = panels(jane, book(jane))
+    [w] = p["washes"]
+    assert w["review"] and w["symbol"] == "MSFT"
+    got = [(i["text"], i["link"]) for i in p["issues"] if i["kind"] == "possible-wash-sale"]
+    assert got == [
+        (
+            "Possible wash sale: MSFT sold at a loss of $5,000.00 on Sep 1 in Brokerage, "
+            "near an option on it bought or written: for the preparer to decide",
+            "/ui/taxes/gains",
+        )
+    ]
+
+
+def test_an_option_expired_in_the_year_with_no_end_recorded_is_an_issue(jane):
+    """S8.4, S3.6: an option whose expiry falls in the book's year, still open, has no gain or
+    loss on Form 8949 until its end is recorded; one expiring later isn't listed."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "10000.00", "2026-01-02", kind="deposit")
+    saved(option_trade(jane, brk["id"], "2026-10-01", "buy-to-open", "MSFT", "put", "400",
+                       "2026-11-20", "1", "3.00"))  # fmt: skip
+    saved(option_trade(jane, brk["id"], "2026-10-01", "buy-to-open", "AAPL", "call", "250",
+                       "2027-01-15", "1", "2.00"))  # fmt: skip
+    from moolakata import options
+
+    held = jane.get("/ui/api/positions", params={"kind": "options"}).json()["open"]
+    [put] = [x["symbol"] for x in held if x["symbol"].startswith("MSFT")]
+    # Named as people are shown it (S2.1).
+    assert options.shown(put) == "MSFT 20 Nov 26 400 P"
+    got = [(i["text"], i["link"]) for i in panels(jane, book(jane))["issues"]
+           if i["kind"] == "option-unresolved"]  # fmt: skip
+    assert got == [
+        (
+            f"Brokerage: {options.shown(put)} expired on Nov 20 with no end recorded: expired, "
+            "assigned or "
+            "exercised",
+            "/ui/positions/open",
+        )
+    ]
 
 
 def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(jane):

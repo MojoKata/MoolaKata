@@ -35,7 +35,11 @@ last year's capital-loss carryover.
 A loss sale with the same instrument bought within 30 days either side, in any of the filers'
 accounts (IRAs included) or a spouse's: the disallowed loss, and the replacement lot with its basis
 raised by it. None is found when no loss sale was replaced within 30 days. Whether another
-instrument is substantially identical is the preparer's call: an option on the same underlying is
-marked *review*. So is a short sale's loss with another short sale of the stock within 30 days of
-its close, and a loss with shares of the stock bought within 30 days to close a short sale: the
-rules for short sales are unsettled, so nothing is disallowed.
+instrument is substantially identical is the preparer's call, so these are marked *review*, each
+within 30 days either side, and nothing is disallowed: a stock's loss with an option on it bought or
+written, or with its shares bought back through an option (a put assigned, a call exercised); an
+option's loss with the same option, or another on the stock, bought or written to open, or with the
+stock bought; a short sale's loss with another short sale of the stock; and a loss with shares of
+the stock bought to close a short sale. The trade a sale is part of (the option that opened the
+position sold, or whose assignment made the sale) is never its own match. A sale more than one of
+these flags is one review, with a pill for each, and is listed in the Issues too.

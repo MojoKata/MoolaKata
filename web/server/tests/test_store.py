@@ -1512,6 +1512,45 @@ def test_0072_gives_every_instrument_no_price_miss(tmp_path):
     engine.dispose()
 
 
+def test_0073_gives_every_tax_book_no_magi(tmp_path):
+    """S8.6: `TaxBook.magi` starts empty on every book, its rows and its other figures kept;
+    a Roth IRA contribution is read against it once typed."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    book = ids.new_id("TaxBk")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0072")
+        conn.commit()
+        person, user = ids.new_id("Persn"), ids.new_id("User")
+        conn.exec_driver_sql(
+            'INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+            "VALUES (?, 'Jane', 'female', ?, ?)",
+            (person, made, made),
+        )
+        conn.exec_driver_sql(
+            'INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+            "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+            (user, person, made, made),
+        )
+        conn.exec_driver_sql(
+            'INSERT INTO "TaxBook" (id, "ownerId", year, "carryoverShareLong", "createdAt", '
+            '"updatedAt") VALUES (?, ?, 2026, 210000, ?, ?)',
+            (book, user, made, made),
+        )
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        got = conn.exec_driver_sql(
+            'SELECT id, year, "carryoverShareLong", magi FROM "TaxBook"'
+        ).one()
+        assert tuple(got) == (book, 2026, 210000, None)
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

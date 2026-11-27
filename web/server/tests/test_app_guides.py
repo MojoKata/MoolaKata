@@ -150,7 +150,7 @@ def dialogs(page) -> list[tuple[str, str, str]]:
         ("/ui/gifts/people", "Add a Gift Plan", "dialog-person"),
         ("/ui/gifts/gifts", "Add a Gift", "dialog-gift"),
         ("/ui/giving/donations", "Record a Donation", "dialog-donation"),
-        ("/ui/positions/open", "Record an Option Trade", "dialog-option-trade"),
+        ("/ui/positions/open", "Add Trade", "dialog-option-trade"),
         ("/ui/positions/open", "Corporate Action…", "dialog-corporate-action"),
         ("/ui/giving/organisations", "Add an Organisation", "dialog-organisation"),
         ("/ui/taxes/summary", "New Tax Book", "dialog-tax-book"),

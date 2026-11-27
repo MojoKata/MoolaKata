@@ -34,7 +34,7 @@
       positions are kept, dated, once per day: the same file again adds nothing, and figures
       that differ replace the ones kept. They are the holdings of an account kept by snapshots
       (R3.2), one with no trades of its own (nothing that makes or takes away a lot: a buy, a
-      sale, a reinvestment, shares moved in or out, an option trade; income, fees and splits on
+      sale, a reinvestment, shares moved in or out, a trade of options; income, fees and splits on
       a holding don't count), however it is kept current; and the statement price of an
       instrument no price source fetches (S4);
    3. **statement import**: a **PDF statement**, read from its text layer, or a **photo or

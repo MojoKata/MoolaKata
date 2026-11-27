@@ -1,10 +1,12 @@
-# Record an Option Trade
+# Add Trade
 
 ## Trade {#action}
 
 **Buy to open** a long call or put; **sell to open** writes one, a short position: a negative lot
 whose credit is its basis, realized at close or expiry; **buy to close** and **sell to close** end them. Expiry, assignment and exercise are
-recorded on their own.
+recorded on their own. An open option's **Close…** starts the dialog on that contract itself,
+an adjusted one with its own root too, so its underlying, strike and expiry aren't asked, and
+with the trade that closes it: buy to close a short one, sell to close a long one.
 
 ## Account
 

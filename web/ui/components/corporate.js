@@ -9,7 +9,7 @@ import { api } from '../api/client.js';
 import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { useDialogGuide } from './help.js';
 import { Field, Select } from '../kit/fields.js';
-import { money } from '../kit/format.js';
+import { money, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { holdings } from '../app/holdings.js';
 
@@ -101,7 +101,7 @@ export function CorporateAction({ close, accountId }) {
               p,
             ) => [
               key(p),
-              `${p.symbol} in ${p.accountName}${
+              `${symbol(p.symbol)} in ${p.accountName}${
                 p.optionsOnly ? ' (its options)' : p.side === 'short' ? ' (short)' : ''
               }`,
             ])} />

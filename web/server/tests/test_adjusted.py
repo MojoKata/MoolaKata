@@ -114,6 +114,42 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(jane):
     assert qty == 300 and D(str(cost)) == D("96000") - D("600")
 
 
+def test_an_adjusted_contract_is_closed_by_naming_it_and_terms_still_make_a_standard_one(jane):
+    """S3.2, S3.10.2: a position's Close… names its contract, so a trade closes an adjusted
+    one (its own root and deliverable) that no underlying, right, strike and expiry make; a
+    trade typed by its terms still makes the standard contract; a contract named must be an
+    option."""
+    a = new_account(jane, type="brokerage")["id"]
+    opt(jane, a, "sell-to-open", "2026-09-01", "3.00", contracts="2", fees="0")
+    [cn] = jane.get("/ui/api/options/adjustable").json()["items"][0]["contracts"]
+    r = jane.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": "480",
+         "deliverable": [{"symbol": "MSFT", "shares": "150"}]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [row] = jane.get("/ui/api/positions").json()["open"]
+    assert row["symbol"] == "MSFT1 20NOV26 480 P"
+
+    def close(**contract):
+        return create(jane, "Txn", accountId=a, date="2026-10-10", kind="buy-to-close",
+                      quantity="1", price="1.00", fees="0", amount="-100.00",
+                      **contract)  # fmt: skip
+
+    # By its terms: the standard MSFT put, which the account doesn't hold.
+    r = close(symbol="MSFT", right="put", strike="480", expiry="2026-11-20")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-to-close", r.text
+    # Named: the adjusted contract itself, whatever else is sent.
+    t = saved(close(instrumentId=row["instrumentId"]))
+    assert (t["instrumentId"], t["kind"], t["amount"]) == (row["instrumentId"], "buy-to-close",
+                                                            "-100.00")  # fmt: skip
+    assert held(jane) == {"MSFT1 20NOV26 480 P": (-1, -300, "2026-09-01")}
+    found = jane.get("/ui/api/instruments", params={"q": "MSFT"}).json()["items"]
+    msft = next(i for i in found if i["symbol"] == "MSFT")["id"]
+    r = close(instrumentId=msft)
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+        ("instrumentId", "not-an-option")]  # fmt: skip
+
+
 def test_occ_tickers_are_read_with_their_root():
     assert parse_occ("O:XYZ1270115C00060000") == ("XYZ1", dt.date(2027, 1, 15), "call", D("60"))
     assert parse_occ("MSFT  261120P00480000") == ("MSFT", dt.date(2026, 11, 20), "put", D("480"))
@@ -642,3 +678,52 @@ def test_an_option_trade_open_through_its_adjustment_is_worth_its_adjusted_contr
     assert (row["symbol"], row["contracts"], row["closed"], row["premiumOut"]) == (
         "MSFT 20NOV26 240 C", "2.0", None, "300.00")  # fmt: skip
     assert (row["adjustedFrom"], row["adjustedOn"]) == ("MSFT 20NOV26 480 C", "2026-10-01")
+
+
+def test_a_deliverables_weights_are_its_owners_prices_never_another_users(server, jane):
+    """S4.10, S3.10.5: an adjusted contract's parts are weighed by the account owner's own
+    trades in them (no stored close), never by another user's newer one; an owner without a
+    price for every part weighs them by their shares."""
+    import json
+
+    from test_prices import Rows
+
+    from moolakata.options import deliverable
+
+    jane_id = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        admin = r.owner
+        a, b, put = r.inst("PARTA"), r.inst("PARTB"), r.inst("PARTA 20NOV26 50 P", "option")
+        mine = r.account()
+        r.txn(mine, a, dt.date(2026, 10, 1), price=D(10))
+        r.txn(mine, b, dt.date(2026, 10, 1), price=D(30))
+        r.owner = jane_id  # jane's trade of B is the newest anywhere
+        r.txn(r.account(), b, dt.date(2026, 10, 8), price=D(5))
+        parts = [{"instrumentId": a.id, "shares": 100}, {"instrumentId": b.id, "shares": 50}]
+        c = r.add(OptionContract(id=ids.new_id("OptCt"), instrumentId=put.id,
+                                 underlyingId=a.id, right="put", strike=D(50),
+                                 expiry=dt.date(2026, 11, 20),
+                                 deliverable=json.dumps(parts)))  # fmt: skip
+        day = dt.date(2026, 10, 9)
+        weights = {who: [w for _, _, w in deliverable(s, c, day, who)] for who in (admin, jane_id)}
+    assert weights[admin] == [D("0.4"), D("0.6")], "100 at $10 and 50 at $30, the admin's own"
+    assert weights[jane_id] == [D(100) / 150, D(50) / 150], "only B priced: by the shares"
+
+
+@pytest.mark.parametrize("first", ["480", "240"])
+def test_a_split_adjusts_each_contract_once_when_one_becomes_another_held(jane, first):
+    """S3.10.1: a 2:1 split makes the 480 put a 240 put, one already held: each contract open
+    on the split's day is adjusted once, whichever was opened first, so the 240 put's own
+    contracts become 120 puts and the 480 put's 240 puts, each with its own basis and day."""
+    a = new_account(jane, type="brokerage")["id"]
+    second = "240" if first == "480" else "480"
+    premium = {"480": "6.40", "240": "3.00"}
+    opened = {first: "2026-09-01", second: "2026-09-02"}
+    for k in (first, second):
+        saved(opt(jane, a, "sell-to-open", opened[k], premium[k], strike=k, fees="0"))
+    _split_msft(jane, a)
+    assert held(jane) == {
+        "MSFT 20NOV26 240 P": (-2, -640, opened["480"]),
+        "MSFT 20NOV26 120 P": (-2, -300, opened["240"]),
+    }

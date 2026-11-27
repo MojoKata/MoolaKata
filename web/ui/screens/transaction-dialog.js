@@ -16,7 +16,7 @@ import { NewRuleDialog } from '../components/rules.js';
 import { Field, NumberInput, Seg, Switch, SwitchRow, TypedInput } from '../kit/fields.js';
 import { Reads, useReadWhy } from '../components/reads.js';
 import { Icon } from '../kit/icon.js';
-import { date as fmtDate, money } from '../kit/format.js';
+import { date as fmtDate, money, symbol } from '../kit/format.js';
 import { useFormats } from '../kit/formats.js';
 import { CategoryField, useCategories } from '../components/categories.js';
 import { BY_TYPE } from '../account-types/index.js';
@@ -185,7 +185,7 @@ const SOURCE_SAID = /** @type {{ [k: string]: string }} */ ({
 });
 
 /** What a transaction is called in its row. @param {any} t */
-const payeeOf = (t) => t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind);
+const payeeOf = (t) => symbol(t.payee || (t.symbol ? `${t.kind} ${t.symbol}` : t.kind));
 
 /**
  * What a transaction holds beyond its row, as one line of the parts that have a value: its

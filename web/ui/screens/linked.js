@@ -7,7 +7,7 @@ import { useLocation } from 'preact-iso';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
 import { useApi, useList, useSubmit } from '../app/hooks.js';
-import { ago, date, initials, quantity } from '../kit/format.js';
+import { ago, date, initials, quantity, symbol } from '../kit/format.js';
 import { session } from '../store/session.js';
 import { collapsed, helpOpen, privacy } from '../store/prefs.js';
 import { HelpCorner, HelpPane, useDialogGuide, useGuide } from '../components/help.js';
@@ -494,7 +494,7 @@ function Holdings({ aid }) {
           <tbody>${h.holdings.map((/** @type {any} */ x) =>
             html`
               <tr>
-                <td><b>${x.symbol}</b><div class="small dim">${x.name || ''}</div></td>
+                <td><b>${symbol(x.symbol)}</b><div class="small dim">${x.name || ''}</div></td>
                 <td
                   class="num">${quantity(x.quantity)}</td>
                 <td class="num">${x.value ? html`<${Amt} v=${x.value} />` : '—'}</td>
@@ -662,7 +662,7 @@ function Portfolio({ pid }) {
               ) =>
                 html`
                   <tr>
-                    <td><b>${x.symbol}</b><div class="small dim">${x.name || ''}</div></td>
+                    <td><b>${symbol(x.symbol)}</b><div class="small dim">${x.name || ''}</div></td>
                     <td
                       class="num">${x.value ? html`<${Amt} v=${x.value} />` : '—'}</td>
                     <td class="num">${x

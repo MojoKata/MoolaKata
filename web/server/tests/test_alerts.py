@@ -207,7 +207,7 @@ def test_an_option_expiring_within_a_week_and_a_pledge_due(server, frozen):
     org = make(c, "Orgzn", name="Food Bank", deductible=True, pledge="50.00", pledgeEvery="month")
     assert org.status_code == 200, org.text
     titles = sorted(a.title for a in alerts.evaluate(server))
-    assert titles == ["MSFT 16OCT26 480 P expires in 3 days"], titles
+    assert titles == ["MSFT 16 Oct 26 480 P expires in 3 days"], titles
     at(days=13)  # Oct 26: the month's pledge is due; the option has expired
     assert "pledge-due" in [a.kind for a in alerts.evaluate(server)]
     from moolakata.store.entities.alerts import Alert

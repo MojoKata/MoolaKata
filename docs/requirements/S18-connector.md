@@ -420,7 +420,7 @@ ask it for anything. People give it its words on **its page**, which it serves i
          fee. A memorandum that moves nothing is written as nothing.
       4. **Positions** by kind (shares, funds, bonds, options, a short one below zero), with
          Schwab's market value, and the account's cash.
-      5. **What it can't write whole** (an option trade that says neither opening nor
+      5. **What it can't write whole** (a trade of options that says neither opening nor
          closing, an option removed for a reason not given, a kind with no OFX form, such as a
          future) is left out of the file and named in the Connection's message, never
          dropped unsaid; the statement's cash check then shows what is missing. Its sign-in lasts seven days, so the Connection asks for a sign-in every

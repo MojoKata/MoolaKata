@@ -57,6 +57,12 @@ Your part of the joint return's short-term capital-loss carryover.
 
 Your part of the joint return's long-term capital-loss carryover.
 
+## Modified AGI {#magi}
+
+This year's return's modified adjusted gross income, as its preparer works it out for a Roth IRA.
+The Retirement panel reads each Roth IRA contribution against the year's phase-out at it. Blank,
+nothing is read against it.
+
 ## Dependents
 
 The people the filers claim this year, each with how they're claimed, the months they lived with

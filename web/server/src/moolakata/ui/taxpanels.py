@@ -45,7 +45,9 @@ class WashOut(Model):
     replacementQty: Quantity
     adjustedBasis: Money | None
     review: bool
-    rule: str | None  # a review's: "option", "short-sale" or "short-cover" (S3.8.5)
+    # A review's, every S3.8.5 case it may fall under, in the list's order: "short-sale",
+    # "option-loss", "through-option", "option", "short-cover", "stock-bought".
+    rules: list[str]
 
 
 class BoxTotal(Model):
@@ -95,6 +97,10 @@ class ContributionOut(Model):
     across: str | None
     over: bool
     note: str
+    # A Roth IRA's: the most the return's MAGI allows its owner in Roth IRAs, once the MAGI and
+    # the filing status are known, and whether what they put in theirs passes it (S8.6).
+    rothAllowed: Money | None = None
+    rothOver: bool = False
 
 
 class RmdOut(Model):
@@ -311,7 +317,7 @@ def _build(s, b) -> Panels:
     return Panels(
         year=b.year,
         rows=[RowOut(**{k: getattr(r, k) for k in RowOut.model_fields}) for r in rows],
-        washes=[WashOut(**w.__dict__) for w in washes],
+        washes=[WashOut(**{k: getattr(w, k) for k in WashOut.model_fields}) for w in washes],
         scheduleD=ScheduleDOut(
             boxes=[
                 BoxTotal(box=k, proceeds=v[0], basis=v[1], adjustment=v[2], gain=v[3])
@@ -349,6 +355,8 @@ def _build(s, b) -> Panels:
                     else None,
                     over=c.limit is not None and c.personTotal > c.limit,
                     note=c.note,
+                    rothAllowed=c.rothAllowed,
+                    rothOver=c.rothAllowed is not None and c.rothTotal > c.rothAllowed,
                 )
                 for c in ret.contributions
             ],
@@ -420,7 +428,7 @@ def _build(s, b) -> Panels:
             ResidenceOut(**{**r.__dict__, "livedIn": [LivedInOut(**x.__dict__) for x in r.livedIn]})
             for r in panels.residences(s, b)
         ],
-        issues=[IssueOut(**i.__dict__) for i in panels.issues(s, b, rows)],
+        issues=[IssueOut(**i.__dict__) for i in panels.issues(s, b, rows, washes)],
         leftOut=[a.name for a in books.counted(s, b).leftOut],
         txfLeftOut=TxfLeftOut(**exports.txf_left_out(rows)),
         covers=exports.covers(b.bitcoinFees),
@@ -490,7 +498,7 @@ def export_pdf(book_id: str, request: Request, c: Caller = Depends(caller)):
                     f"{clock.today():%B %-d, %Y}.",
                     "MoolaKata gathers figures and their sources. It does not compute the tax, "
                     "choose a filing status, or file.",
-                    exports.COVERS,
+                    exports.covers(b.bitcoinFees),
                     *(f"Left out of this book: {x}" for x in p.leftOut),
                 ],
             ),

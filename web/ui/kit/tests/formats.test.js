@@ -2,7 +2,7 @@
 // What depends on the person (S17.3.10.2): the format functions take the time zone or bitcoin
 // unit as an argument, and `formatsFor` binds them, with the defaults for what is not given.
 import { equal } from './assert.js';
-import { bitcoin, day, moment, thisYear, today } from '../format.js';
+import { bitcoin, day, moment, symbol, thisYear, today } from '../format.js';
 import { formatsFor } from '../formats.js';
 
 // 2026-01-01 03:30 UTC: still Dec 31 in Chicago, already Jan 1 in Tokyo.
@@ -50,4 +50,18 @@ Deno.test('formatsFor binds the zone and unit given, and defaults what is not', 
   // Anything but sats reads as BTC; a blank zone is the default.
   const odd = formatsFor({ timezone: '', bitcoinUnit: /** @type {any} */ ('mbtc') });
   equal([odd.timezone, odd.bitcoinUnit], ['UTC', 'btc']);
+});
+
+Deno.test('an option symbol reads its expiry as day, month and year; others as they are', () => {
+  equal(symbol('AAPL 18DEC26 250 C'), 'AAPL 18 Dec 26 250 C');
+  equal(symbol('MSFT1 20NOV26 2.5 P'), 'MSFT1 20 Nov 26 2.5 P');
+  equal(symbol('1 SPY 15JAN27 535 P'), '1 SPY 15 Jan 27 535 P');
+  equal(
+    symbol('Short AAPL 18DEC26 250 C, AAPL 18DEC26 260 C'),
+    'Short AAPL 18 Dec 26 250 C, AAPL 18 Dec 26 260 C',
+  );
+  for (const s of ['AAPL', 'BRK.B', 'BTC', 'VTI 18DEC26', 'X 18DEC26 250 Q', 'X 18DXC26 250 C']) {
+    equal(symbol(s), s);
+  }
+  equal([symbol(null), symbol(undefined)], ['', '']);
 });

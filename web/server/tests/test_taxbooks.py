@@ -628,3 +628,39 @@ def test_a_tax_documents_file_goes_with_the_book_to_its_helpers(server, couple):
     assert dave.get(f"/ui/api/receipts/{up['id']}/file").status_code == 200
     assert erin.get(f"/ui/api/receipts/{up['id']}/file").status_code == 200
     assert mallory.get(f"/ui/api/receipts/{up['id']}/file").status_code == 404
+
+
+def test_an_extension_filed_needs_its_new_due_date(couple):
+    """R3.11: with *Extension filed* set, a blank *Extended to* is refused, never read as six
+    months on (S8.15.3); a federal filing's field offers Oct 15 as its default, moved past a
+    weekend or a legal holiday."""
+    jane, _, a_id, _ = couple
+    last = book(jane, 2025, [a_id])
+    f = make(jane, "Filng", bookId=last["id"], form="Form 1040").parent()["filings"][0]
+    bad = change(jane, "Filng", f, extensionFiledOn="2026-04-14")
+    assert bad.status_code == 422
+    err = bad.json()["errors"][0]
+    assert (err["field"], err["code"], err["message"]) == (
+        "extendedDue",
+        "extended-due-missing",
+        "The new due date.",
+    )
+    d = jane.get(f"/ui/api/tax-books/{last['id']}").json()
+    assert d["federalExtendedDue"] == "2026-10-15"
+    saved(change(jane, "Filng", f, extensionFiledOn="2026-04-14", extendedDue="2026-10-15"))
+    f = jane.get(f"/ui/api/tax-books/{last['id']}").json()["filings"][0]
+    assert not f["overdue"] and f["extendedDue"] == "2026-10-15"
+    # A state's new due date is typed too: none is offered.
+    state = make(jane, "Filng", bookId=last["id"], jurisdiction="state", place="Utah",
+                 form="TC-40", extensionFiledOn="2026-04-14")  # fmt: skip
+    assert state.json()["errors"][0]["field"] == "extendedDue"
+
+
+def test_a_deleted_books_invitation_is_not_found(couple):
+    """S8.14.1: a book deleted before its named filer accepts is gone for them too."""
+    jane, john, a_id, b_id = couple
+    b = book(jane, 2026, [a_id, b_id])
+    d = jane.get(f"/ui/api/tax-books/{b['id']}").json()
+    assert remove(jane, "TaxBk", d).status_code == 200
+    r = john.post(f"/ui/api/tax-books/{b['id']}/accept")
+    assert (r.status_code, r.json()["code"]) == (404, "not-found")

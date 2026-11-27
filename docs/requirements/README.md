@@ -249,7 +249,8 @@ The rulings the rest of the requirements apply.
 20. **Words not used:** *Wallet* for anything but a self-custody crypto wallet. *Asset* on
     its own for a security: the UI says holding or instrument, and keeps *asset* for
     *physical asset* (term 17). *Trade* as an entity: a trade is a pair of
-    transactions on a position.
+    transactions on a position. An **option trade** (S3.9.1) is a position's run from its
+    first contract opened to none open: a view of its transactions, not a stored record.
 21. **MoolaKata Connector (the connector):** the second service that holds institutions'
     credentials in a vault MoolaKata can't open, fetches with its drivers, and pushes what they
     fetch into MoolaKata's import (S18). It is **paired** with one MoolaKata server.

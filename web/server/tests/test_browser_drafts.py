@@ -1705,9 +1705,9 @@ def test_an_option_trade_is_saved_as_a_transaction_with_its_contract(browser, ho
     h = household
     acct = h.extra["brokerage"]["id"]
     page, problems = signed_in(
-        browser, h, f"/ui/accounts/{acct}/holdings", 'button:has-text("Record an option")'
+        browser, h, f"/ui/accounts/{acct}/holdings", 'button:has-text("Add Trade")'
     )
-    page.click('button:has-text("Record an option")')
+    page.click('button:has-text("Add Trade")')
     wait(page, "#f-underlying", problems)
     page.fill("#f-underlying", "MSFT")
     page.fill("#f-strike", "480")

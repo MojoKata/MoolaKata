@@ -25,17 +25,27 @@ router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["options"])
 def make_trade(ctx, record_id: str, body) -> Transaction:
     """An option trade (S3.2) as a transaction's draft makes it: its kind the trade, `symbol`
     the underlying, `quantity` the contracts and `price` the premium a share, with the
-    contract's right, strike, expiry and multiplier; its amount the cash the trade comes to."""
+    contract's right, strike, expiry and multiplier; its amount the cash the trade comes to.
+    With `instrumentId`, the trade is in that contract as it is, its terms not asked: a
+    position's Close… names it so, which reaches an adjusted contract (its own root and
+    deliverable, S3.10.2) that no underlying, right, strike and expiry make."""
     s, c = ctx.s, ctx.caller
     e: list[FieldError] = []
-    if body.right not in ("call", "put"):
-        e.append(FieldError("right", "right-invalid", "A call or a put."))
-    # The underlying is found or made in capitals (repo.instrument): msft is MSFT.
-    underlying = (body.symbol or "").strip()
-    if not underlying or len(underlying) > 12:
-        e.append(FieldError("symbol", "symbol-invalid", "The underlying's symbol: MSFT."))
-    if body.strike is None or body.strike <= 0:
-        e.append(FieldError("strike", "strike-invalid", "More than zero."))
+    given = None
+    if body.instrumentId is not None:
+        inst = s.get(Instrument, body.instrumentId)
+        given = options.contract_of(s, inst.id) if inst is not None and not inst.deleted else None
+        if given is None:
+            raise refuse("instrumentId", "not-an-option", "That isn't an option.")
+    else:
+        if body.right not in ("call", "put"):
+            e.append(FieldError("right", "right-invalid", "A call or a put."))
+        # The underlying is found or made in capitals (repo.instrument): msft is MSFT.
+        underlying = (body.symbol or "").strip()
+        if not underlying or len(underlying) > 12:
+            e.append(FieldError("symbol", "symbol-invalid", "The underlying's symbol: MSFT."))
+        if body.strike is None or body.strike <= 0:
+            e.append(FieldError("strike", "strike-invalid", "More than zero."))
     contracts = body.quantity
     if contracts is None or contracts <= 0 or contracts != contracts.to_integral_value():
         e.append(FieldError("quantity", "contracts-invalid", "A whole number of contracts."))
@@ -45,23 +55,27 @@ def make_trade(ctx, record_id: str, body) -> Transaction:
     fees = body.fees
     if fees is None or fees < 0:
         e.append(FieldError("fees", "fees-invalid", "Zero or more."))
-    if body.expiry is None:
+    expiry = given.expiry if given is not None else body.expiry
+    if expiry is None:
         e.append(FieldError("expiry", "expiry-required", "The day it expires."))
-    elif body.kind.endswith("to-open") and body.expiry < body.date:
+    elif body.kind.endswith("to-open") and expiry < body.date:
         e.append(FieldError("expiry", "expired", "It expired before the trade."))
     # None is a trade that names no multiplier: 100. A 0 typed is refused, never read as 100
     # (R3.11).
     multiplier = 100 if body.multiplier is None else body.multiplier
-    if not 1 <= multiplier <= 10000:
+    if given is None and not 1 <= multiplier <= 10000:
         e.append(FieldError("multiplier", "multiplier-invalid", "Shares a contract: 100."))
     refuse_all(e)
     # The save asked for write on the account before this ran (`save.may_create`).
     a, _ = access.account(s, c.id, body.accountId)
     if not atypes.investing(a.type):
         raise refuse("kind", "kind-not-for-account", "Options belong in an investing account.")
-    inst, contract = options.contract(
-        s, underlying, body.right, body.strike, body.expiry, multiplier
-    )
+    if given is not None:
+        contract = given
+    else:
+        inst, contract = options.contract(
+            s, underlying, body.right, body.strike, body.expiry, multiplier
+        )
     if body.kind.endswith("to-close"):
         # What the account held of it at the end of the close's day: a close dated before its
         # open has nothing to close.

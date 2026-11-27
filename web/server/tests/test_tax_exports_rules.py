@@ -1024,6 +1024,10 @@ def test_the_federal_due_date_is_the_next_years_april_15_or_the_next_business_da
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
     assert books.federal_due(st.s, 2027) == next_business_day(dt.date(2028, 4, 15))
     assert books.federal_due(st.s, 2027) != dt.date(2028, 4, 15)  # a Saturday
+    # A year after the latest shipped takes the latest's month and day in its own year after
+    # (S16.11): Apr 15, 2028 is a Saturday and Emancipation Day is observed on Monday the 17th.
+    assert books.federal_due(st.s, 2027) == dt.date(2028, 4, 18)
+    assert books.federal_due(st.s, 2030) == dt.date(2031, 4, 15)
 
 
 def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(st):
@@ -1033,6 +1037,83 @@ def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(s
     st.put(TaxFigure(id=ids.new_id("TaxFg"), year=2025, key="federalDue", value="[5, 1]"))
     assert books.federal_due(st.s, 2025) == dt.date(2026, 5, 1)  # a Friday
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
+
+
+def test_a_trade_made_a_bank_transaction_can_move_gains_and_a_bank_one_never(st):
+    """S8.15: a transaction whose instrument is taken off was a trade, so its change is
+    checked against a closed year; one that never had one is a bank transaction's."""
+    from moolakata.taxes import closed
+
+    a = st.account(type="brokerage")
+    t = st.txn(a, dt.date(2026, 3, 2), "-100", kind="buy", instrument=st.instrument().id)
+    bank = st.txn(a, dt.date(2026, 3, 3), "50")
+    t.instrumentId, bank.amount = None, D(60)
+    assert closed._moves_gains(st.s, t, "Transaction") is True
+    assert closed._moves_gains(st.s, bank, "Transaction") is False
+
+
+def test_a_relationship_of_someone_who_signs_in_nowhere_moves_no_ones_books(st):
+    """S8.15: a person who isn't a user owns no account, so a change of theirs reaches no
+    household's figures."""
+    from moolakata.store.entities.education import Person
+    from moolakata.taxes import closed
+
+    kid = st.put(Person(id=ids.new_id("Persn"), name="Lisa", sex="female", birthYear=2015))
+    assert closed._households(st.s, {("person", kid.id)}) == (set(), set())
+
+
+def test_a_closed_book_is_moved_by_an_account_it_added_from_another_household(st):
+    """S8.14.2, S8.15: a book counts an account it added whole, whoever owns it, so a write to
+    that owner's accounts may move the closed year; another owner's never."""
+    from moolakata.taxes import closed
+
+    b = st.book(2025)
+    st.put(Filing(id=ids.new_id("Filng"), bookId=b.id, jurisdiction="federal", form="1040",
+                  progress="filed", carried="{}"))  # fmt: skip
+    custodial = st.account("bart", type="brokerage", name="Bart's")
+    st.share(custodial, "jane")
+    st.counts(b, custodial, by="jane")
+    assert closed._affected(st.s, {st.u["bart"]}, set()) == [b]
+    assert closed._affected(st.s, {st.u["dave"]}, set()) == []
+
+
+def test_a_new_book_copies_an_account_both_last_years_books_changed_once(st):
+    """S8.14.4: after filing separately, an account each of last year's books added or left
+    out is copied once, as the first filer's book had it."""
+    from moolakata.ui.taxes import _from_last_year
+
+    acct = st.account(type="brokerage", name="Shared brokerage")
+    st.counts(st.book(2025, owner="jane"), acct, counted=False)
+    st.counts(st.book(2025, owner="john"), acct, counted=True, by="john")
+    b = st.book(2026, filers={"jane": True, "john": True}, fromLastYear=True, copyPending=True)
+    _from_last_year(st.s, b, T)
+    rows = [o for o in books.overrides(st.s, b) if o.accountId == acct.id]
+    assert [(o.counted, o.addedById) for o in rows] == [(False, None)]
+
+
+def test_a_stand_in_lot_is_an_issue_crypto_first(st):
+    """S8.4, R3.2: what a statement's holdings stood in for has no day bought or basis known:
+    each such lot is listed once, crypto first, never as a bare missing basis."""
+    from moolakata.store.entities.accounts import Holding
+    from moolakata.taxes import panels
+
+    b = st.book()
+    brk = st.account(type="brokerage", name="Brokerage")
+    ex = st.account(type="crypto-exchange", name="Exchange")
+    vti = st.instrument("VTI")
+    btc = st.put(Instrument(id=ids.new_id("Instr"), symbol="BTC", instrumentClass="crypto"))
+    st.put(Holding(id=ids.new_id("Hold"), accountId=brk.id, instrumentId=vti.id,
+                   asOf=dt.date(2026, 1, 31), quantity=D(10)))  # fmt: skip
+    st.put(Holding(id=ids.new_id("Hold"), accountId=ex.id, instrumentId=btc.id,
+                   asOf=dt.date(2026, 2, 28), quantity=D("0.5")))  # fmt: skip
+    got = [(i.kind, i.text, i.link) for i in panels.issues(st.s, b, [])]
+    said = "as a statement reported it: when it was bought, and its basis, aren't known"
+    assert got == [
+        ("acquired-unknown", f"Exchange: 0.5 BTC held on Feb 28, 2026, {said}",
+         f"/ui/accounts/{ex.id}/holdings"),
+        ("acquired-unknown", f"Brokerage: 10 VTI held on Jan 31, 2026, {said}",
+         f"/ui/accounts/{brk.id}/holdings"),
+    ]  # fmt: skip
 
 
 def test_a_joint_carryover_share_adds_to_a_separate_returns_carryover(st):

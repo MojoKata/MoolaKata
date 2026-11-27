@@ -96,8 +96,63 @@ def test_gains_by_month_account_and_term(jane):
             "shortTerm": "50.00",
             "longTerm": "0.00",
             "total": "50.00",
+            "unknownTerm": None,
         }
     ]
+
+
+def test_gains_by_account_and_instrument_leave_out_other_years_and_sales_without_a_basis(jane):
+    """S3.9: one year's realized gains by account or by instrument: a sale of another year is
+    left out, and so is one with no basis (no gain to count, never 0)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100")
+    trade(jane, brk, "2025-06-02", "sell", "5", "130")  # 2025
+    trade(jane, brk, "2026-02-02", "sell", "5", "120")  # +100
+    trade(jane, ira, "2026-01-05", "buy", "4", "50", "AAPL")
+    trade(jane, ira, "2026-03-02", "sell", "4", "40", "AAPL")  # -40
+    add(jane, brk, "0.00", "2026-04-01", kind="transfer-in", symbol="MSFT", quantity="3")
+    trade(jane, brk, "2026-05-01", "sell", "3", "300", "MSFT")  # no basis: no gain
+    for by, want in (("account", {"Brokerage": "100.00", "IRA": "-40.00"}),
+                     ("instrument", {"VTI": "100.00", "AAPL": "-40.00"})):  # fmt: skip
+        g = jane.get("/ui/api/positions/gains", params={"by": by, "year": 2026}).json()
+        assert {x["label"]: x["total"] for x in g["realized"]} == want
+    # Shares moved in are no option trade.
+    assert jane.get("/ui/api/positions/option-trades").json()["items"] == []
+
+
+def test_unrealized_gains_split_by_lot_into_short_long_and_unknown_term(jane):
+    """S3.9, S3.1: each lot's unrealized gain (its shares at the position's price less its
+    basis) goes to its own term; a lot whose day bought is missing to *unknown term*, which
+    is there only for a group with such a lot."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2024-01-05", "buy", "10", "100")  # long: +500 at 150
+    trade(jane, brk, "2026-08-03", "buy", "1", "120")  # short: +30
+    add(jane, brk, "0.00", "2026-08-20", kind="transfer-in", symbol="VTI", quantity="5",
+        costBasis="400")  # fmt: skip  # unknown: +350
+    trade(jane, brk, "2026-09-01", "buy", "1", "150")  # short: 0; its price values them all
+    trade(jane, ira, "2026-09-02", "buy", "2", "75", "AAPL")
+    trade(jane, ira, "2026-09-03", "buy", "2", "80", "AAPL")  # short: +10
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    by = {x["label"]: x for x in g["unrealized"]}
+    assert (by["Brokerage"]["shortTerm"], by["Brokerage"]["longTerm"],
+            by["Brokerage"]["unknownTerm"], by["Brokerage"]["total"]) == (
+        "30.00", "500.00", "350.00", "880.00")  # fmt: skip
+    assert (by["IRA"]["shortTerm"], by["IRA"]["longTerm"], by["IRA"]["unknownTerm"]) == (
+        "10.00", "0.00", None)  # fmt: skip
+    assert all(x["unknownTerm"] is None for x in g["realized"])
+
+
+def test_a_lots_unrealized_share_rounds_and_the_last_lot_takes_what_is_left(jane):
+    """Three lots of a position at a price that splits into thirds of a cent: each lot's part
+    is to the cent, and the parts come to the position's whole gain."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2024-01-05", "buy", "1", "3.33")
+    trade(jane, brk, "2025-01-06", "buy", "1", "3.33")
+    trade(jane, brk, "2026-09-01", "buy", "1", "3.3333")  # 3 at it: $10.00, $3.3333 each
+    [row] = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()["unrealized"]
+    assert (row["longTerm"], row["shortTerm"], row["total"]) == ("0.00", "0.01", "0.01")
 
 
 def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, jane):
@@ -289,7 +344,9 @@ def test_an_open_position_says_its_prices_day_and_whether_it_is_stale(server, ja
 def test_a_spin_off_recorded_after_the_shares_were_sold_moves_their_basis(server, jane):
     """S2.4.1, S2.8: XYZ spun off NEWCO on Mar 2 and was all sold in May; recorded in October,
     the spin-off is checked and sized by what was held on Mar 2, and the May sale's basis is
-    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked."""
+    what the spin-off left it. The dialog lists XYZ on Mar 2, not today; a day is asked. A
+    checking account holds nothing to offer."""
+    new_account(jane, name="Checking", type="checking")
     a = new_account(jane, name="Brokerage", type="brokerage")["id"]
     trade(jane, a, "2026-01-05", "buy", "100", "100", "XYZ")
     trade(jane, a, "2026-05-01", "sell", "100", "120", "XYZ")
@@ -479,6 +536,38 @@ def test_shares_moved_in_with_no_basis_have_no_cost_average_or_gain(jane):
     assert (row["cost"], row["averageCost"], row["value"], row["unrealized"],
             row["unrealizedPct"]) == (None, None, "3000.00", None, None)  # fmt: skip
     assert jane.get("/ui/api/positions").json()["summary"]["unrealized"] == "0.00"
+
+
+def test_unrealized_gains_count_each_lot_with_a_basis_and_name_those_without(jane):
+    """S3.9: the Gains tab counts every lot with a basis in its term's column; a lot without one
+    has no gain to count, never 0, and is named under the table with how many lots, grouped as
+    the table is (by instrument, or each account's); an instrument with no lot that has one
+    makes no row."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2026-06-01", "buy", "10", "200", "MSFT")  # short: +500 at 250
+    add(jane, brk, "0.00", "2026-09-12", kind="transfer-in", symbol="MSFT", quantity="5")
+    add(jane, ira, "0.00", "2026-09-12", kind="transfer-in", symbol="MSFT", quantity="2")
+    trade(jane, brk, "2026-09-20", "buy", "1", "250", "MSFT")  # short: 0; the price
+    add(jane, ira, "0.00", "2026-09-13", kind="transfer-in", symbol="AAPL", quantity="3")
+    trade(jane, ira, "2026-09-21", "buy", "1", "100", "AAPL")
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    assert [(x["label"], x["shortTerm"], x["longTerm"], x["unknownTerm"], x["total"])
+            for x in g["unrealized"]] == [
+        ("Brokerage", "500.00", "0.00", None, "500.00"),
+        ("IRA", "0.00", "0.00", None, "0.00")]  # fmt: skip
+    assert [(x["accountName"], x["symbol"], x["lots"]) for x in g["leftOut"]] == [
+        ("Brokerage", "MSFT", 1), ("IRA", "AAPL", 1), ("IRA", "MSFT", 1)]  # fmt: skip
+    g = jane.get("/ui/api/positions/gains", params={"by": "instrument"}).json()
+    assert [(x["accountName"], x["symbol"], x["lots"]) for x in g["leftOut"]] == [
+        (None, "AAPL", 1), (None, "MSFT", 2)]  # fmt: skip
+    # Only the lot without a basis: no row, still named.
+    jane2 = new_account(jane, name="Gifted", type="brokerage")["id"]
+    add(jane, jane2, "0.00", "2026-09-14", kind="transfer-in", symbol="NVDA", quantity="4")
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    assert "Gifted" not in [x["label"] for x in g["unrealized"]]
+    assert ("Gifted", "NVDA", 1) in [(x["accountName"], x["symbol"], x["lots"])
+                                     for x in g["leftOut"]]  # fmt: skip
 
 
 def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(jane):
