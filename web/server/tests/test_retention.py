@@ -328,24 +328,31 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     )
 
 
-def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
+@pytest.mark.parametrize("other_deleted", [True, False])
+def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen, other_deleted):
     # S14.10.5: a file is removed once no live receipt needs it; a deleted one doesn't count.
+    # Two users' uploads of the same bytes are two receipts over one file: the other's,
+    # deleted, lets the file go; live, it keeps it.
     from moolakata.receipts import retention
     from moolakata.store.entities.receipts import Receipt
 
     make_user(server, "jane")
-    c = sign_in(server, "jane")
-    first = upload(c, png((9, 8, 7))).json()["id"]
-    second = upload(c, png((9, 8, 7))).json()["id"]
+    make_user(server, "john")
+    first = upload(sign_in(server, "jane"), png((9, 8, 7))).json()["id"]
+    second = upload(sign_in(server, "john"), png((9, 8, 7))).json()["id"]
+    assert first != second
     with server.db.tx(unscoped="test") as s:
         a, b = s.get(Receipt, first), s.get(Receipt, second)
         assert a.fileId == b.fileId, "one file for the same bytes"
-        b.mark_deleted(None)
+        if other_deleted:
+            b.mark_deleted(None)
         path = retention.file_path(server.config.receipts_dir, a.fileId)
-        assert path.exists()
+        size = path.stat().st_size
         files = retention.mark_pruned(s, [a], a.ownerId)
-    assert retention.remove_pruned(server, files) > 0
-    assert not path.exists()
+    assert retention.remove_pruned(server, files) == (size if other_deleted else 0)
+    assert path.exists() is not other_deleted
+    with server.db.read(unscoped="test") as s:
+        assert (s.get(Receipt, second).filePrunedAt is None) is not other_deleted
 
 
 def _reauth(server):
