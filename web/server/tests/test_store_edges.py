@@ -11,7 +11,7 @@ from test_store import new_user
 
 from moolakata.config import RefuseStart
 from moolakata.keys import files, master
-from moolakata.store import copies, maintenance
+from moolakata.store import copies, copy, maintenance
 
 # ---------- the copies on the host (S15.7) ----------
 
@@ -638,3 +638,19 @@ def test_the_data_versions_triggers_are_made_again_from_their_declarations(db):
         assert before
         data_version.sync(conn, metadata)
         assert sorted(data_version.drop_all_sql(conn)) == sorted(before)
+
+
+def test_a_copy_that_fails_its_integrity_check_is_refused(tmp_path, monkeypatch):
+    class Conn:
+        def execute(self, sql):
+            return self
+
+        def fetchall(self):
+            return [("*** in database main *** Page 2: btree corrupt",)]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(copy, "connect", lambda path, key: Conn())
+    with pytest.raises(RuntimeError, match=r"the copy moolakata.db failed its integrity check"):
+        copy.verify(tmp_path / "moolakata.db", None)
