@@ -140,17 +140,47 @@ def held(s: Session) -> set[str]:
     }
 
 
-def held_seen(s: Session, viewer: str) -> set[str]:
-    """What an open lot holds in the accounts the viewer can see, as `held` reads one."""
+def priced_seen(s: Session, viewer: str) -> set[str]:
+    """What the refresh prices for the accounts the viewer can see, as `priced` reads them:
+    their open lots, an open option's underlying or deliverable parts and a spot metal's
+    spot; and the benchmarks, which are everyone's (S4.2.3)."""
     from .. import access
+    from ..assets import METAL_SYMBOLS
     from ..store.repos import ledger as repo
 
-    return {
-        lot.instrumentId
-        for a, _ in access.accounts(s, viewer)
-        for lot in repo.load(s, a).replay().open
-        if lot.quantity
+    accounts = [a for a, _ in access.accounts(s, viewer)]
+    out = {
+        lot.instrumentId for a in accounts for lot in repo.load(s, a).replay().open if lot.quantity
     }
+    for c in s.scalars(
+        select(OptionContract).where(
+            OptionContract.instrumentId.in_(out), OptionContract.deleted == false()
+        )
+    ):
+        out.update(_parts(c))
+    metals = s.scalars(
+        select(Item.metal).where(
+            Item.accountId.in_([a.id for a in accounts]),
+            Item.valuation == "spot",
+            Item.deleted == false(),
+        )
+    ).all()
+    symbols = [METAL_SYMBOLS[m] for m in set(metals)] + list(BENCHMARKS)
+    out.update(
+        s.scalars(
+            select(Instrument.id).where(
+                Instrument.symbol.in_(symbols), Instrument.deleted == false()
+            )
+        )
+    )
+    return out
+
+
+def _parts(c: OptionContract) -> list[str]:
+    """What an option needs priced: its underlying, or an adjusted contract's deliverable
+    parts."""
+    parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
+    return parts or [c.underlyingId]
 
 
 def _held_by(s: Session, viewer: str) -> dict[str, list[str]]:
@@ -209,8 +239,7 @@ def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
         )
     ):
         day = firsts[c.instrumentId]
-        parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
-        for iid in parts or [c.underlyingId]:
+        for iid in _parts(c):
             firsts[iid] = min(day, firsts.get(iid, day))
     # Metals valued at spot (S1.10.2): their metal's spot, from the first one acquired.
     from ..assets import METAL_SYMBOLS

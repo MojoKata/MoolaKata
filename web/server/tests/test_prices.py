@@ -1077,9 +1077,9 @@ def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, mond
     assert view["unknown"] == [
         {"instrumentId": i.id, "symbol": i.symbol, "instrumentClass": "equity",
          "missedAt": when.isoformat().replace("+00:00", "Z")}
-        for i, when in ((flaky, earlier), (ghost, MONDAY), (vtix, MONDAY))
+        for i, when in ((flaky, earlier), (ghost, MONDAY), (und, MONDAY), (vtix, MONDAY))
     ]  # fmt: skip
-    assert view["unknownElsewhere"] == 1, "UND, an option's underlying no account holds"
+    assert view["unknownElsewhere"] == 0, "SOLD, no longer held, cleared"
     rows = admin.get(f"/ui/api/accounts/{acct.id}/holdings").json()["holdings"]
     shown = {x["symbol"]: x["unknownSymbol"] for x in rows}
     assert shown == {"VTIX": True, "GHOST": True, "FLAKY": True, "KNOWN": False,
@@ -1097,8 +1097,11 @@ def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, mond
 
 def test_settings_prices_names_only_the_unknown_symbols_in_accounts_the_admin_sees(server, monday):
     """S4.2.3, R1.6: what an account holds is its viewers' to know, so Settings › Prices names
-    an unknown symbol only to an admin who sees an account holding it, their own or one shared
-    with them, and counts the rest, never naming them. One held in both is named, not counted."""
+    an unknown symbol only to an admin who sees an account it is priced for, their own or one
+    shared with them, and counts the rest, never naming them. One held in both is named, not
+    counted. What an account's holdings need priced is theirs too: an open option's underlying
+    or deliverable parts, a spot metal's spot. A benchmark is everyone's, so named to every
+    admin; one no longer held, until the next refresh clears it, is no one's to name."""
     from moolakata.sharing import new_share
 
     john = make_user(server, "john").id
@@ -1108,21 +1111,31 @@ def test_settings_prices_names_only_the_unknown_symbols_in_accounts_the_admin_se
         mine, johns = r.account(), r.add(Account(id=ids.new_id("Acct"), ownerId=john, name="J",
                                                  type="brokerage"))  # fmt: skip
         own, both, vtix, other = (r.inst(k) for k in ("OWNX", "BOTHX", "VTIX", "OTHX"))
-        for acct, i in ((mine, own), (mine, both), (johns, both), (johns, vtix), (johns, other)):
+        und, part, sold, spy = (r.inst(k) for k in ("UNDX", "PARTX", "SOLDX", "SPY"))
+        mopt, jopt = r.inst("UNDX1C", "option"), r.inst("PRT1C", "option")
+        xag = r.inst("XAG", "metal")
+        r.contract(mopt, und, _d(12, 18))
+        r.contract(jopt, und, _d(12, 18), parts=[part])
+        r.item(johns, "silver", _d(10, 1))
+        for acct, i in ((mine, own), (mine, both), (johns, both), (johns, vtix), (johns, other),
+                        (mine, mopt), (johns, jopt)):  # fmt: skip
             r.txn(acct, i, _d(10, 1))
-        for i in (own, both, vtix, other):
+        for i in (own, both, vtix, other, und, part, sold, spy, xag):
             i.priceMissedAt = MONDAY
 
     def seen(login, password="a long user passphrase"):
         v = sign_in(server, login, password).get("/ui/api/price-sources").json()
         return [u["symbol"] for u in v["unknown"]], v["unknownElsewhere"]
 
-    assert seen("admin", ADMIN_PW) == (["BOTHX", "OWNX"], 2)
-    assert seen("ann") == ([], 4), "an admin who sees no account holding them: all counted"
+    assert seen("admin", ADMIN_PW) == (["BOTHX", "OWNX", "SPY", "UNDX"], 5)
+    assert seen("ann") == (["SPY"], 8), "an admin who sees no account: only the benchmark named"
     with server.db.tx(unscoped="test") as s:
         s.add(new_share("account", johns.id, "read", user_id=r.owner, by=john))
-    assert seen("admin", ADMIN_PW) == (["BOTHX", "OTHX", "OWNX", "VTIX"], 0)
-    assert seen("ann") == ([], 4)
+    assert seen("admin", ADMIN_PW) == (
+        ["BOTHX", "OTHX", "OWNX", "PARTX", "SPY", "UNDX", "VTIX", "XAG"],
+        1,
+    ), "SOLDX, held nowhere, still counted"
+    assert seen("ann") == (["SPY"], 8)
 
 
 def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_later_run(

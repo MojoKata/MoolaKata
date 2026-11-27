@@ -21,9 +21,10 @@
    3. **Settings › Prices** lists the enabled sources, each with its classes, its key
       (*set*, with when and by whom; a key is a secret, S14.4), its order of preference per
       class, its last run and its last error, and below them **Symbols No Source Knows**
-      (S4.2.2): each symbol held in an account the admin can see, its class and since when,
-      and how many more are held only in accounts they can't see, counted and never named
-      (R1.6). **Add a source** picks from every source MoolaKata ships. A source that needs a
+      (S4.2.2): each symbol priced for an account the admin can see (what it holds, an open
+      option's underlying or deliverable parts, a spot metal's spot) or as a benchmark, its
+      class and since when, and how many more there are, counted and never named (R1.6).
+      **Add a source** picks from every source MoolaKata ships. A source that needs a
       key can't be enabled without one. A new server enables no source (R3.5): the welcome
       offers the ones that need no key, each off until the admin turns it on (S12.14.1). Until
       a source that fetches is enabled, nothing is priced: the header's price status reads

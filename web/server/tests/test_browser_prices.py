@@ -18,7 +18,8 @@ VTIX = {"instrumentId": "Instr_vtix", "symbol": "VTIX", "instrumentClass": "equi
     [
         ([VTIX], 3, ["VTIX"], "and 3 more in accounts you don't see"),
         ([VTIX], 0, ["VTIX"], None),
-        ([], 1, [], "and 1 more in accounts you don't see"),
+        ([], 1, [], "1 in accounts you don't see"),
+        ([], 2, [], "2 in accounts you don't see"),
         ([], 0, None, None),
     ],
 )

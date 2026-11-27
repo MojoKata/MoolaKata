@@ -74,7 +74,7 @@ class SourcesView(Model):
     available: list[SourceKind]
     sources: list[SourceRow]
     unknown: list[UnknownSymbol]
-    # Those held in no account the viewer sees: counted, never named (S4.2.3, R1.6).
+    # Those priced for no account the viewer sees: counted, never named (S4.2.3, R1.6).
     unknownElsewhere: int
     refreshTime: str
     refreshZone: str
@@ -140,8 +140,8 @@ def _view(s, dev: bool, viewer: str) -> SourcesView:
         .order_by(Instrument.symbol)
     ).all()
     # What an account holds is for those who see it (R1.6): a symbol is named only where the
-    # viewer sees an account holding it.
-    seen = pricing.held_seen(s, viewer)
+    # viewer sees an account it is priced for, or it is a benchmark.
+    seen = pricing.priced_seen(s, viewer)
     return SourcesView(
         available=[_kind(c) for c in _shipped(dev)],
         sources=[_row(s, r) for r in rows if r.name in SOURCES],

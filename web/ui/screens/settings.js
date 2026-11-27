@@ -514,7 +514,9 @@ function Prices() {
             </div>
           `
           : null}${v.unknownElsewhere
-          ? html`<p class="small dim">and ${v.unknownElsewhere} more in accounts you don't see</p>`
+          ? v.unknown.length
+            ? html`<p class="small dim">and ${v.unknownElsewhere} more in accounts you don't see</p>`
+            : html`<p class="small dim">${v.unknownElsewhere} in accounts you don't see</p>`
           : null}
       `
       : null
