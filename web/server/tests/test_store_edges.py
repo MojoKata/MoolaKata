@@ -508,3 +508,39 @@ def test_a_run_stopped_among_the_copies_redoes_none_already_done(
     done = journaled.run(keyed_config, master_key)
     assert calls == [second.name]
     assert done["copies"] == {first.name: "left", second.name: "left"}
+
+
+# ---------- the column types (S14.9, R1.9) ----------
+
+
+@pytest.mark.parametrize(
+    "kind, value, error",
+    [
+        ("Cents", 1.5, "money is never a float"),
+        ("Dec", 1.5, "quantities are never floats"),
+        ("Dec", "0.0000000000000000001", "has more than 18 places"),
+        ("UtcTimestamp", "2026-10-01T00:00:00Z", "timestamps must be timezone-aware"),
+        ("UtcTimestamp", dt.datetime(2026, 10, 1), "timestamps must be timezone-aware"),
+        ("Day", dt.datetime(2026, 10, 1, tzinfo=dt.UTC), "dates are datetime.date"),
+        ("Day", "2026-10-01", "dates are datetime.date"),
+    ],
+)
+def test_a_column_refuses_a_value_of_the_wrong_kind(kind, value, error):
+    """R1.9, S14.9: money and quantities are never floats, a quantity holds 18 places at
+    most, a moment knows its time zone and a day is a date."""
+    from moolakata.store import types
+
+    with pytest.raises((TypeError, ValueError), match=error):
+        getattr(types, kind)().process_bind_param(value, None)
+
+
+def test_the_stores_clock_is_the_servers():
+    from moolakata import clock
+    from moolakata.store import types
+
+    at = dt.datetime(2026, 10, 1, tzinfo=dt.UTC)
+    clock.fix(at)
+    try:
+        assert types.utcnow() == at
+    finally:
+        clock.fix(None)
