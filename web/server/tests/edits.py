@@ -56,13 +56,22 @@ def new_id(prefix: str) -> str:
     return made_at(prefix, clock.now())
 
 
+def loan_parts(c) -> dict[str, str]:
+    """The shipped categories a new loan's split parts start in, as its dialog fills them in
+    (S1.9.7.1)."""
+    from moolakata.loans import BUDGET_PARTS
+
+    by_key = {x["builtIn"]: x["id"] for x in c.get("/ui/api/categories").json()["items"]}
+    return {f: by_key[k] for f, k in BUDGET_PARTS.items()}
+
+
 def terms(c, account_id: str, **values):
-    """A loan's terms set as the account's dialogs set them (S1.9): made when it has none,
-    else changed."""
+    """A loan's terms set as the account's dialogs set them (S1.9): made when it has none, its
+    split's categories the shipped ones as the dialog fills them in, else changed."""
     have = c.get(f"/ui/api/accounts/{account_id}/loan").json()["terms"]
     if have is None:
         op = {"op": "create", "entity": "Loan", "id": new_id("Loan"),
-              "fields": {"accountId": account_id, **values}}  # fmt: skip
+              "fields": {"accountId": account_id, **loan_parts(c), **values}}  # fmt: skip
         return _save(c, op, False)
     return change(c, "Loan", have, **values)
 

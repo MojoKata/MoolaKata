@@ -391,6 +391,28 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
     assert v["spent"] == "1900.00" and v["saved"] == "298.65"
 
 
+def test_a_split_loan_payment_counts_each_part_in_the_category_the_loan_names(server, frozen):
+    """S1.9.7.1: the loan names each part's category: here its escrow under Housing and its
+    principal in a savings category of the household's, interest where it starts."""
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
+    named = {
+        "escrowCategoryId": cat["Housing › Property tax"],
+        "principalCategoryId": cat["Savings › Emergency fund"],
+    }
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
+                rate="6", escrowTax="300", escrowInsurance="100", **named))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "2198.65", from_account=acct["id"]))
+    emergency = cat["Savings › Emergency fund"]
+    v = plan(c, b, "2026-10-01", [{"categoryId": emergency, "amount": "300.00"}])
+    assert v["spent"] == "1900.00" and v["saved"] == "298.65"
+    assert row(v, "Savings › Emergency fund")["actual"] == "298.65"
+    assert sorted((u["label"], u["spent"]) for u in v["unplanned"]) == [
+        ("Housing › Property tax", "400.00"),
+        ("Loan payments › Interest", "1500.00"),
+    ]
+
+
 def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Car", type="auto-loan", institution="Ally")

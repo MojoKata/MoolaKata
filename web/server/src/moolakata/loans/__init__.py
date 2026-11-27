@@ -51,6 +51,15 @@ PARTS = {
     "pmi": "loans.pmi",
     "fees": "loans.fees",
 }
+# The categories a loan names for a split payment's parts in budgets (S1.9.7.1), each with
+# the shipped one it starts in: the escrow's two parts count in one.
+BUDGET_PARTS = {
+    "interestCategoryId": "loans.interest",
+    "escrowCategoryId": "loans.escrow",
+    "pmiCategoryId": "loans.pmi",
+    "feesCategoryId": "loans.fees",
+    "principalCategoryId": "loans.principal",
+}
 
 
 def is_loan(account_type: str) -> bool:

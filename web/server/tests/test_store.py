@@ -11,6 +11,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Column, ForeignKey, MetaData, Table, Text, select, text
 
 from moolakata import ids, settings
+from moolakata import loans as L
 from moolakata.config import RefuseStart
 from moolakata.keys import master
 from moolakata.keys import secrets as sealing
@@ -1594,6 +1595,59 @@ def test_0074_keeps_every_sign_up_request_and_lets_its_hash_go(tmp_path):
         assert tuple(got) == (req, "erin", "h", "confirming")
         q('UPDATE "SignupRequest" SET "passwordHash" = NULL, status = \'rejected\'')
         assert q('SELECT "passwordHash" FROM "SignupRequest"').scalar_one() is None
+    engine.dispose()
+
+
+def test_0075_names_each_loans_parts_in_the_shipped_categories_they_counted_in(tmp_path):
+    """S1.9.7: each loan's split parts take the shipped Loan payments categories they counted
+    in, whether it counts split or whole; one counting whole in no category named takes Loan
+    payments, which that blank meant, and one naming its own keeps it."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    shipped = {k: ids.new_id("Cat") for k in ("loans", *L.BUDGET_PARTS.values())}
+    own = ids.new_id("Cat")
+    loans = {how: ids.new_id("Loan") for how in ("split", "whole", "own")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0074")
+        conn.commit()
+        q = conn.exec_driver_sql
+        user = _jane_at(conn, made)
+        for key, cid in shipped.items():
+            kind = "savings" if key == "loans.principal" else "expense"
+            q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, ?, ?, ?)", (cid, key, kind, key, made, made))  # fmt: skip
+        # A deleted twin of a shipped one is passed over for the live one.
+        q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt", '
+          "\"deletedAt\") VALUES (?, 'old', 'expense', 'loans.escrow', ?, ?, ?)",
+          (ids.new_id("Cat"), made, made, made))  # fmt: skip
+        q('INSERT INTO "Category" (id, name, kind, "createdAt", "updatedAt") '
+          "VALUES (?, 'Car', 'expense', ?, ?)", (own, made, made))  # fmt: skip
+        for how, lid in loans.items():
+            acct = ids.new_id("Acct")
+            q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, 'mortgage', ?, ?)", (acct, user, how, made, made))  # fmt: skip
+            q('INSERT INTO "Loan" (id, "accountId", principal, "startDate", "termMonths", rate, '
+              '"budgetCounting", "budgetCategoryId", "createdAt", "updatedAt") '
+              "VALUES (?, ?, 100000, '2026-01-01', 360, '6', ?, ?, ?, ?)",
+              (lid, acct, "split" if how == "split" else "whole", own if how == "own" else None,
+               made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        parts = ", ".join(f'"{f}"' for f in L.BUDGET_PARTS)
+        rows = conn.exec_driver_sql(f'SELECT id, "budgetCategoryId", {parts} FROM "Loan"')
+        got = {r[0]: tuple(r[1:]) for r in rows}
+        named = tuple(shipped[k] for k in L.BUDGET_PARTS.values())
+        assert got == {
+            loans["split"]: (None, *named),
+            loans["whole"]: (shipped["loans"], *named),
+            loans["own"]: (own, *named),
+        }
+        assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
     engine.dispose()
 
 

@@ -710,6 +710,57 @@ def test_the_terms_form_refuses_what_a_loan_cant_be(browser, household, new_loan
     page.close()
 
 
+def test_a_split_names_each_parts_category_and_whole_refuses_a_blank(browser, household, new_loan):
+    """S1.9.7.1: a mortgage's terms name a category for each part of a split payment, the
+    shipped ones to start; counted whole, a blank category is refused at Save and **default**
+    fills in Loan payments (R3.11); back to split, the parts are as they were."""
+    h = household
+    a = fixed(new_loan, "Parts mortgage")
+    by_path = {x["path"]: x["id"] for x in h.c.get("/ui/api/categories").json()["items"]}
+    form = 'form.draft-form:has-text("Loan Terms")'
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}/settings", form)
+    wait(page, "#f-escrow-category", problems)
+    shown = {
+        f: page.locator(f"#f-{f}-category").input_value()
+        for f in ("interest", "escrow", "pmi", "fees", "principal")
+    }
+    assert shown == {
+        "interest": by_path["Loan payments › Interest"],
+        "escrow": by_path["Loan payments › Escrow"],
+        "pmi": by_path["Loan payments › PMI"],
+        "fees": by_path["Loan payments › Fees"],
+        "principal": by_path["Loan payments › Principal"],
+    }
+    # Principal is offered savings categories alone.
+    offered = page.locator("#f-principal-category option").all_inner_texts()
+    assert "Food › Groceries" not in offered and "Savings › Emergency fund" in offered
+    page.select_option("#f-escrow-category", by_path["Housing › Property tax"])
+    page.click(f"{form} button.primary:enabled")
+    wait(page, '.toast:has-text("Saved")', problems)
+    t = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["terms"]
+    assert t["escrowCategoryId"] == by_path["Housing › Property tax"]
+    # Whole, its category starts blank and is refused so at Save.
+    page.select_option("#f-in-budgets", "whole")
+    assert page.locator("#f-escrow-category").count() == 0
+    assert page.locator("#f-budget-category").input_value() == ""
+    page.click(f"{form} button.primary:enabled")
+    wait(page, "#f-budget-category-err", problems)
+    said = page.locator("#f-budget-category-err").inner_text()
+    assert said in ("The category the whole payment counts in.", "Required.")
+    page.get_by_role("button", name="Use the default: Loan payments").click()
+    assert page.locator("#f-budget-category").input_value() == by_path["Loan payments"]
+    page.click(f"{form} button.primary:enabled")
+    wait(page, '.toast:has-text("Saved")', problems)
+    t = h.c.get(f"/ui/api/accounts/{a['id']}/loan").json()["terms"]
+    assert (t["budgetCounting"], t["budgetCategoryId"]) == ("whole", by_path["Loan payments"])
+    assert t["escrowCategoryId"] == by_path["Housing › Property tax"], "kept while whole"
+    page.select_option("#f-in-budgets", "split")
+    escrow = page.locator("#f-escrow-category")
+    until(page, lambda: escrow.input_value() == by_path["Housing › Property tax"], what="escrow")
+    assert [p for p in problems if not p.startswith("422 for")] == []
+    page.close()
+
+
 def test_resets_and_recasts_are_typed_in_the_terms(browser, household, new_loan):
     h = household
     a = fixed(new_loan, "Resets mortgage")

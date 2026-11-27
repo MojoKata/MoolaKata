@@ -110,8 +110,8 @@
       (S12.11.5).
 10. **Retention and file pruning**: records are never removed, but for the exceptions of
     `schema.md` §4.4: not records, soft-deleted records (`schema.md` §4) or Activity, so every
-    figure can be looked back on as it was (R3.10). What can be removed, by hand, is the **files** of receipts and statements whose
-    retention has run out: **file pruning**. Backups are pruned on their own, shorter
+    figure can be looked back on as it was (R3.10). What can be removed, by hand, is the
+    **files** of receipts and statements whose retention has run out: **file pruning**. Backups are pruned on their own, shorter
     schedule (S14.6), and price history is kept for ever (S4.6).
     1. **Retention periods**:
        1. **A category** has **Keep receipts for** a number of years, counted from when the

@@ -1516,6 +1516,22 @@ function itemsTab(a) {
     <div class="list-item"><span class="grow dim">VIN</span>…4S3BW</div>
     <div class="list-item"><span class="grow dim">Notes</span>New tyres 2025-10. Kept in the garage.</div></div>`;
 }
+// A split loan payment's parts, each in the category the loan names for it (S1.9.7.1):
+// escrow and PMI a mortgage's alone; each blank refused, its shipped one the default.
+function loanParts(a) {
+  const spent = ['Loan payments › Interest', 'Loan payments › Escrow', 'Loan payments › PMI', 'Loan payments › Fees', 'Housing › Property tax', 'Housing › Insurance', 'Transportation'];
+  const saved = ['Loan payments › Principal', 'Savings › Emergency fund', 'Savings › House fund'];
+  const part = (label, opts, cur, shipped) => field(label, withReset(sel(['Choose a category', ...opts, 'New category…'], cur), shipped, shipped));
+  const parts = [
+    ['Interest', spent, 'Loan payments › Interest', 'Loan payments › Interest'],
+    ...(a.type === 'mortgage' ? [['Escrow', spent, 'Housing › Property tax', 'Loan payments › Escrow'], ['PMI', spent, 'Loan payments › PMI', 'Loan payments › PMI']] : []),
+    ['Fees', spent, 'Loan payments › Fees', 'Loan payments › Fees'],
+    ['Principal', saved, a.type === 'mortgage' ? 'Savings › House fund' : 'Loan payments › Principal', 'Loan payments › Principal'],
+  ].map(([l, o, c, d]) => part(l, o, c, d));
+  const rows = [];
+  for (let i = 0; i < parts.length; i += 2) rows.push(`<div class="row">${parts.slice(i, i + 2).join('')}</div>`);
+  return rows.join('');
+}
 function acctSettings(a) {
   const wallet = a.type === 'crypto-wallet', exch = a.type === 'crypto-exchange';
   // A physical holding is kept current on its Items tab: its Settings has no card for it.
@@ -1526,7 +1542,7 @@ function acctSettings(a) {
     ${['investing', 'retirement', 'crypto'].includes(a.group) ? field('Lot method', sel(['FIFO', 'LIFO', 'HIFO', 'Specific identification', 'Average cost'], 'FIFO')) : ''}
     ${['savings', 'money-market'].includes(a.type) ? field('Withdrawals allowed a month', inp(a.id === 'sav' ? '6' : '', 'no limit')) : ''}
     ${a.type === 'hsa' ? field('Coverage', sel(['Not set', 'Self-only', 'Family'], 'Family')) : ''}
-    ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('In budgets', sel(['Split by the schedule', 'The whole payment in one category'], 'Split by the schedule')) : ''}
+    ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('In budgets', sel(['Split by the schedule', 'The whole payment in one category'], 'Split by the schedule')) + loanParts(a) : ''}
     ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('Payments', sel(['Automatic: recorded here', 'Recorded here', 'Assumed as scheduled'], 'Automatic: recorded here')) : ''}
     ${field('Closed on', inp('', 'open'))}
     <div class="list-item"><span class="grow">Count in my totals</span>${sw(true)}</div>
@@ -3052,7 +3068,12 @@ const GUIDES = {
     <h2 ${hid('Closed on')}>Closed on</h2><p>The day the account closed; empty while it is open. A closed account counts in your figures up to that day, budgets and returns included, and stays for history and taxes. <b>Delete Account</b> is for one made by mistake: its transactions leave every past figure too.</p>
     <h2 ${hid('Coverage')}>Coverage</h2><p>For an HSA: self-only or family. The year’s contribution limit is the one it says, $1,000 more at 55; unset, contributions are held against the family limit and the Retirement panel asks for it.</p>
     <h2 ${hid('Withdrawals allowed a month')}>Withdrawals allowed a month</h2><p>For a savings or money-market account: the bank’s limit on transfers out, empty for none. Budgets sum the moves back into one transfer and warn before going past it.</p>
-    <h2 id="h-in-budgets">In budgets</h2><p>For a loan: how its payments count in budgets, at the bank account they come from. <b>Split by the schedule</b> puts interest, escrow, and PMI and fees each in its category and principal in a savings category, all under <i>Loan payments</i>, so a plan line on <i>Loan payments</i> counts the whole payment. <b>The whole payment</b> counts it all in one category.</p>
+    <h2 id="h-in-budgets">In budgets</h2><p>For a loan: how its payments count in budgets, at the bank account they come from. <b>Split by the schedule</b> puts each part of a payment in the category the loan names for it below: interest, escrow, PMI and fees as spending, principal as saved. A new loan starts with the shipped ones under <i>Loan payments</i>, so a plan line on <i>Loan payments</i> counts the whole payment until one is changed. <b>The whole payment</b> counts it all in one category; the parts’ categories are kept for a return to the split. Only a mortgage has escrow and PMI: any other loan keeps them in the shipped ones.</p>
+    <h2 ${hid('Interest')}>Interest</h2><p>For a loan counted split: the category a payment’s interest counts in, <i>Loan payments › Interest</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Escrow')}>Escrow</h2><p>For a mortgage counted split: the category a payment’s escrow counts in, its property tax and insurance together: <i>Loan payments › Escrow</i> to start with, or <i>Housing › Property tax</i> for a household that budgets them there. It can’t be left blank: <b>default</b> fills in <i>Loan payments › Escrow</i>.</p>
+    <h2 ${hid('PMI')}>PMI</h2><p>For a mortgage counted split: the category a payment’s private mortgage insurance counts in, <i>Loan payments › PMI</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Fees')}>Fees</h2><p>For a loan counted split: the category a payment’s fees count in, <i>Loan payments › Fees</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Principal')}>Principal</h2><p>For a loan counted split: the savings category a payment’s principal counts in as saved, an overpayment with it: <i>Loan payments › Principal</i> to start with, or a savings category of your own. Only a savings category can hold it, and it can’t be left blank: <b>default</b> fills in <i>Loan payments › Principal</i>.</p>
     <h2 ${hid('Payments')}>Payments</h2><p>For a loan: how a payment day with no payment recorded reads. <b>Recorded here</b>: every payment is recorded in MoolaKata from the first one, so one not recorded 15 days after its day is missed; the Overview says how many and what is overdue, and the balance stays what it was. The days before the first payment recorded count as paid as scheduled. <b>Assumed as scheduled</b>: the payments are made elsewhere, so a day with none recorded counts as paid as the schedule says. <b>Automatic</b> is recorded here once the loan has a payment recorded or a connection keeping it, and assumed until then; it names which applies.</p>
     <h2 ${hid('Keys, descriptor or addresses')}>Keys, descriptor or addresses</h2><p>Bitcoin only; other coins come later. Public data only: an <code>xpub</code> (legacy, 1…), <code>ypub</code> (nested segwit, 3…) or <code>zpub</code> (native segwit, bc1q…); an <b>output descriptor</b> as Sparrow exports it, for taproot (<code>tr(…)</code>) or multisig (<code>wsh(sortedmulti(2, …))</code>); or addresses, one a line. MoolaKata derives a key’s receive and change addresses itself, and reads balances through the explorer or your own node set in Settings › Bitcoin. Nothing is read until an admin has saved Settings › Bitcoin; until then the wallet says so.</p><blockquote>Never enter a seed phrase or private key. The form refuses anything that looks like one, and MoolaKata never stores it.</blockquote>
     <h2 ${hid('Gap limit')}>Gap limit</h2><p>How many unused addresses past the last used one are watched on each chain. 20 suits most wallets; raise it for one that skipped addresses. <b>Addresses</b> lists those watched.</p>

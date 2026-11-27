@@ -249,6 +249,7 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
             startDate="2026-11-01",
             budgetCounting="whole",
             budgetCategoryId=pet["id"],
+            interestCategoryId=pet["id"],
         ).status_code
         == 200
     )
@@ -271,6 +272,7 @@ def test_a_merge_moves_everything_that_named_the_category(people, server):
         assert s.get(BudgetMove, between["id"]).deleted, "a move within one category moves nothing"
         loan = s.scalars(select(Loan).where(Loan.accountId == loan_acct["id"])).one()
         assert loan.budgetCategoryId == pets["id"]
+        assert loan.interestCategoryId == pets["id"], "a split's part moves too (S1.9.7.1)"
         lines = s.scalars(
             select(BudgetLine).where(BudgetLine.budgetId == b["id"], BudgetLine.deleted.is_(False))
         ).all()

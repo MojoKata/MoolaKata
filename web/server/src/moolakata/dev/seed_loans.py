@@ -9,7 +9,7 @@ from decimal import Decimal as D
 
 from sqlalchemy import select
 
-from .. import clock, ids, loans, sharing
+from .. import categories, clock, ids, loans, sharing
 from ..store.entities.accounts import (
     Account,
     Anchor,
@@ -51,6 +51,7 @@ def seed_loans(s, people: dict) -> None:
         resets="[]",
         recasts="[]",
         originalValue=D(350000),
+        **categories.loan_parts(s),
     )
     s.add(terms)
     s.flush()
@@ -164,5 +165,6 @@ def seed_loans(s, people: dict) -> None:
             method="daily",
             resets="[]",
             recasts="[]",
+            **categories.loan_parts(s),
         )
     )

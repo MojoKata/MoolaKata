@@ -3672,6 +3672,17 @@
           "allowed": {
             "$ref": "#/components/schemas/Allowed"
           },
+          "builtIn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Builtin"
+          },
           "createdById": {
             "anyOf": [
               {
@@ -3769,6 +3780,7 @@
           "path",
           "keepReceiptsYears",
           "shipped",
+          "builtIn",
           "serverNamed",
           "createdById",
           "createdByName",
@@ -12525,6 +12537,18 @@
             "default": null,
             "title": "Drawmonths"
           },
+          "escrowCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Escrowcategoryid"
+          },
           "escrowInsurance": {
             "anyOf": [
               {
@@ -12556,6 +12580,30 @@
             ],
             "default": null,
             "title": "Escrowtax"
+          },
+          "feesCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Feescategoryid"
+          },
+          "interestCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Interestcategoryid"
           },
           "method": {
             "default": "amortized",
@@ -12622,6 +12670,18 @@
             "default": null,
             "title": "Pmi"
           },
+          "pmiCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pmicategoryid"
+          },
           "points": {
             "anyOf": [
               {
@@ -12670,6 +12730,18 @@
             "format": "money",
             "title": "Principal",
             "type": "number"
+          },
+          "principalCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Principalcategoryid"
           },
           "rate": {
             "examples": [
@@ -19540,7 +19612,9 @@
               "cash-missing",
               "category-in-use",
               "category-kept",
+              "category-missing",
               "category-not-for-split",
+              "category-not-savings",
               "category-twice",
               "category-unknown",
               "certificate-changed",
@@ -20086,7 +20160,9 @@
                   "cash-missing",
                   "category-in-use",
                   "category-kept",
+                  "category-missing",
                   "category-not-for-split",
+                  "category-not-savings",
                   "category-twice",
                   "category-unknown",
                   "certificate-changed",
@@ -26242,6 +26318,17 @@
             ],
             "title": "Drawmonths"
           },
+          "escrowCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escrowcategoryid"
+          },
           "escrowInsurance": {
             "anyOf": [
               {
@@ -26272,9 +26359,31 @@
             ],
             "title": "Escrowtax"
           },
+          "feesCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feescategoryid"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "interestCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interestcategoryid"
           },
           "method": {
             "title": "Method",
@@ -26336,6 +26445,17 @@
             ],
             "title": "Pmi"
           },
+          "pmiCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pmicategoryid"
+          },
           "points": {
             "anyOf": [
               {
@@ -26381,6 +26501,17 @@
             "format": "money",
             "title": "Principal",
             "type": "number"
+          },
+          "principalCategoryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Principalcategoryid"
           },
           "rate": {
             "examples": [
@@ -26449,6 +26580,11 @@
           "securedById",
           "budgetCounting",
           "budgetCategoryId",
+          "interestCategoryId",
+          "escrowCategoryId",
+          "pmiCategoryId",
+          "feesCategoryId",
+          "principalCategoryId",
           "paymentsMode",
           "computedPayment",
           "id",
