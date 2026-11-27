@@ -250,7 +250,7 @@ def test_deleted_or_valueless_statements_and_deleted_trades_price_nothing(server
         _statement(s, a, x, sep(6), "2", None)
         _trade(s, a, x, sep(7), "999", deleted=True)
         _statement(s, a, y, sep(6), "1", "70")
-    assert _prices(server, owner, [x], sep(10)) == {x: P(D(100), sep(1), "trade")}
+    assert _prices(server, owner, [x], sep(10)) == {x: P(D(100), sep(1), "trade", True)}
 
 
 def _every(s, account: str, interval: str) -> None:
@@ -331,6 +331,27 @@ def test_a_trade_on_the_day_asked_prices_it(server):
     assert _prices(server, owner, [x], sep(4))[x] == P(D(120), sep(4), "trade")
 
 
+def test_a_trades_price_carries_its_day_and_is_stale_as_a_close_is(server):
+    """S4.7: a price taken from the owner's last trade carries the trade's day and is stale by
+    the rule a fetched close is, by its class and the day asked: a stock's after two trading
+    days, a coin's after two days."""
+    owner = make_user(server, "jane").id
+    friday = d(2026, 10, 9)
+    with server.db.tx(unscoped="test") as s:
+        a, x, c = _account(s, owner), _instrument(s, "VTI", "etf"), _instrument(s, "ZZC", "crypto")
+        _trade(s, a, x, friday, "100")
+        _trade(s, a, c, friday, "5")
+
+    def stale(iid, day):
+        p = _prices(server, owner, [iid], day)[iid]
+        assert (p.source, p.asOf) == ("trade", friday)
+        return p.stale
+
+    assert [stale(x, d(2026, 10, n)) for n in (13, 14)] == [False, True]  # two trading days
+    assert [stale(c, d(2026, 10, n)) for n in (11, 12)] == [False, True]  # two days
+    assert stale(x, TODAY) is True
+
+
 def test_tiers_stop_at_last_and_fetch_no_statement_or_trade_once_a_close_stands(server):
     """`_tiers`: an instrument's points go no later than `last`; a fixed instrument's one point
     is in the first tier; and statements and trades are read only for an instrument with no
@@ -351,7 +372,7 @@ def test_tiers_stop_at_last_and_fetch_no_statement_or_trade_once_a_close_stands(
     assert got[x] == [
         [],
         [P(D(50), sep(2), "statement")],
-        [P(D(60), sep(3), "trade")],
+        [P(D(60), sep(3), "trade", True)],
     ]
     assert got[y] == [[P(D(100), sep(5), "close")], [], []]
     assert got[cash] == [[P(D(1), dt.date.min, "fixed")], [], []]

@@ -245,12 +245,12 @@ def test_staleness():
     """S4.5, S4.7, each on its bound: an option's close after one trading day, a stock's after
     two, a coin's after two days (a typed price's 90 days: the header's test below)."""
     friday = dt.date(2026, 10, 9)
-    assert not pricing.is_stale("option", friday, dt.date(2026, 10, 12))
-    assert pricing.is_stale("option", friday, dt.date(2026, 10, 13))
-    assert not pricing.is_stale("etf", friday, dt.date(2026, 10, 13))
-    assert pricing.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
-    assert not pricing.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
-    assert pricing.is_stale("crypto", friday, dt.date(2026, 10, 12))
+    assert not valuation.is_stale("option", friday, dt.date(2026, 10, 12))
+    assert valuation.is_stale("option", friday, dt.date(2026, 10, 13))
+    assert not valuation.is_stale("etf", friday, dt.date(2026, 10, 13))
+    assert valuation.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
+    assert not valuation.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
+    assert valuation.is_stale("crypto", friday, dt.date(2026, 10, 12))
 
 
 def test_price_sources_in_settings(admin_client, server):
@@ -1092,6 +1092,72 @@ def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, mond
         s.get(PriceSource, src.id).enabled = False
     pricing.refresh(server)
     assert missed() == {}, "no source to ask: nothing known either way"
+
+
+def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_later_run(
+    server, monday
+):
+    """S4.4, S13.4: a source whose limits would hold the refresh past LONGEST_WAIT is set aside
+    for the rest of it, what it would price tried with the next source; the refresh asks to
+    run again once the limits allow, and that run picks up what was left. A source set aside
+    before any call has not run."""
+    import threading
+
+    from moolakata.store.repos import secrets as secret_repo
+    from moolakata.tasks import ProviderLimits, TaskContext
+
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        keyed = r.source("keyed-test", {"etf": 1})
+        secret_repo.put(s, server.keys.secrets, "PriceSource", keyed.id, "apiKey", "k", None)
+        acct = r.account()
+        etfs = [r.inst(f"E{k}", "etf") for k in range(3)]
+        for e in etfs:
+            r.txn(acct, e, _d(10, 1))
+    ANSWERS.update({f"E{k}": [(D0, D(10 + k))] for k in range(5)})  # up to date once asked
+    asked = []
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {
+        "stored": 2,
+        "unpriced": 0,
+        "unknown": 0,
+    }  # two calls an hour
+    assert len(CALLS) == 2 and asked == [pytest.approx(3600, abs=5)]
+    CALLS.clear()
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {
+        "stored": 1,
+        "unpriced": 0,
+        "unknown": 0,
+    }  # the one left
+    [(_, left, _, _)] = CALLS
+    assert left.symbol in {"E0", "E1", "E2"} and len(asked) == 1
+    with server.db.read(unscoped="test") as s:
+        assert set(pricing.stored_closes(s, [e.id for e in etfs], D0)) == {e.id for e in etfs}
+    # Its window already full when the refresh starts: set aside at once, never run, not asked
+    # again for what comes after, and the next source prices them.
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        rec = r.source("recorder-test", {"etf": 2})
+        acct = r.account()
+        late = [r.inst(f"E{k}", "etf") for k in (3, 4)]
+        for e in late:
+            r.txn(acct, e, _d(10, 1))
+        s.get(PriceSource, keyed.id).lastRunAt = None
+    CALLS.clear()
+    limits = ProviderLimits()
+    limits.set("keyed-test", Keyed.limits)
+    assert [limits.delay("keyed-test") for _ in range(2)] == [0, 0]
+    ctx = TaskContext("prices", threading.Event(), limits, again=asked.append)
+    assert pricing.refresh(server, ctx) == {"stored": 2, "unpriced": 0, "unknown": 0}
+    assert sorted(CALLS, key=repr) == sorted(
+        [("recorder-test", Ref(e.id, e.symbol, "etf"), _d(9, 24), D0) for e in late], key=repr
+    )
+    assert len(asked) == 2
+    with server.db.read(unscoped="test") as s:
+        rows = {x.id: x for x in s.scalars(select(PriceSource))}
+    assert (rows[keyed.id].lastRunAt, rows[keyed.id].lastError) == (None, None)
+    assert rows[rec.id].lastOkAt == MONDAY
 
 
 def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, caplog):

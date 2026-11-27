@@ -54,13 +54,15 @@
    transaction and at most five years back. SPY, VT and BND are loaded as the benchmarks
    (S5.2.1), held or not, once a source that serves them is enabled. **Refresh prices** does the same on demand. Requests are spread to
    stay inside each source's limits (Tiingo's 50 an hour means a few hours for a large
-   household). A source that fails falls back to the next one
+   household): a refresh that would wait more than five minutes on a source's limits sets that
+   source aside for the rest of it, tries the next one for that class, and runs again once the
+   limits allow, picking up what was left. A source that fails falls back to the next one
    for that class; Settings shows the last error, and a failure lasting past the alert
    threshold raises an alert (S12.11). Intraday quotes are not fetched.
 5. **Option marks**: the day's close from the source that serves options, else manual or
    intrinsic value (S3.7). Other option sources come later ([F#558](https://github.com/MojoKata/MoolaKata/issues/558)). A close older than the last trading day is marked stale.
-   An option is named by its OCC ticker (`O:MSFT261120P00480000`: underlying, expiry, put or
-   call, and the strike in thousandths).
+   An option is named by its OCC ticker, as S2.1 has it (`MSFT  261120P00480000`: the root
+   padded to six characters, expiry, put or call, and the strike in thousandths).
    1. **CBOE** is asked for each underlying's chain once a day, after the close, and every
       held contract on it is marked from that one answer: at the middle of its bid and ask,
       rounded to the cent, or at its last trade when it has no two-sided quote. The mark is
@@ -68,17 +70,20 @@
    2. **Index options** are in their index's chain (`_SPX`), where weeklies and PM-settled
       contracts carry their own root: an SPX contract is looked for as SPX and then SPXW,
       and likewise NDX and NDXP, RUT and RUTW, VIX and VIXW.
-   3. **Massive** is asked for one contract at a time, with its history. A typed mark is a price on the
-   option's instrument, entered from the open position (**Type a mark**). Intrinsic value is
-   the underlying's latest close past the strike, never below zero. The Open tab labels a
-   mark that is typed or intrinsic. Greeks
-   are out of scope ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
+   3. **Massive** is asked for one contract at a time, with its history, by its OCC ticker in
+      Massive's own form: `O:` before it and the root unpadded (`O:MSFT261120P00480000`).
+   4. **Without a close**, from any source: a typed mark, a price on the option's instrument
+      entered from the open position (**Type a Mark**); failing that, its intrinsic value, the
+      underlying's latest close past the strike, never below zero. The Open tab labels a mark
+      that is typed or intrinsic. Greeks are out of scope
+      ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
 6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
    price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.
 7. **Every price carries its source and `as_of`.** The UI shows *delayed* or *as of 4:00 PM*
    on every value derived from it. A price older than a threshold (2 trading days for a
-   stock) is marked stale.
+   stock) is marked stale, and so is one taken from a trade (S4.10), dated by its trade, by
+   the same threshold.
 8. **US dollars only**: every account, holding, price and total is in USD. Prices are fetched
    in USD, including crypto and metals spot. An instrument that trades only in another
    currency is priced by hand.

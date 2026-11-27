@@ -22,33 +22,12 @@ from ..store.entities.assets import Item
 from ..store.entities.prices import Price, PriceSource
 from ..store.repos import secrets as secret_repo
 from ..store.tables import prices as prices_table
-from ..tasks import Stopping, TaskContext
+from ..tasks import Later, Stopping, TaskContext
 from .base import SOURCES, NotListed, Ref, SourceError, TickerSource
 
 log = logging.getLogger("moolakata.prices")
 BENCHMARKS = ("SPY", "VT", "BND")
 BACKFILL_DAYS = 5 * 366
-STALE_DAYS = {"crypto": 2}
-
-
-def trading_days_between(a: dt.date, b: dt.date) -> int:
-    """Weekdays after a up to b: close enough to the US market's trading days to mark a
-    price stale (S4.7)."""
-    n, day = 0, a
-    while day < b:
-        day += dt.timedelta(days=1)
-        if day.weekday() < 5:
-            n += 1
-    return n
-
-
-def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
-    """A fetched close's staleness by its class (S4.7). Only a fetching source stores closes; a
-    typed price is a TypedPrice, stale after 90 days (`valuation.TYPED_STALE_DAYS`)."""
-    if cls in STALE_DAYS:
-        return (today - as_of).days > STALE_DAYS[cls]
-    # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
-    return trading_days_between(as_of, today) > (1 if cls == "option" else 2)
 
 
 def stored_closes(
@@ -74,7 +53,7 @@ def stored_closes(
             p.close,
             p.date,
             "close",
-            is_stale(cls, p.date, min(day, today)),
+            valuation.is_stale(cls, p.date, min(day, today)),
         )
         for p, cls in rows
     }
@@ -331,6 +310,9 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
     # A source tried either answers ("ok") or fails, and then has its "error".
     runs: dict[str, dict] = {r.id: {"ok": False, "used": False} for r in sources}
     built: dict[str, TickerSource] = {}
+    # Sources whose limits would hold the refresh too long, with the seconds until they allow
+    # a call: set aside for the rest of it, and a run once they allow picks up (S4.4).
+    later: dict[str, float] = {}
     stored = missing = 0
     # Instruments no source knows (S4.2.2), and those a failure leaves unknown either way.
     misses: set[str] = set()
@@ -379,15 +361,20 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         # symbol, or knew no close of it.
         known, unknown = False, True
         for src in candidates:
+            if src.id in later:
+                continue
             run = runs[src.id]
-            run["used"] = True
             try:
                 if src.id not in built:
                     built[src.id] = build(server, src, ctx)
                 closes = built[src.id].history(ref, start, end)
             except Stopping:
                 raise
+            except Later as e:
+                later[src.id] = e.seconds
+                continue
             except Exception as e:
+                run["used"] = True
                 # A bad answer fails that source for this instrument, never the refresh (S4.4).
                 if not isinstance(e, SourceError):
                     log.warning("%s failed for %s: %r", src.name, inst.symbol, e)
@@ -396,7 +383,7 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
                 )
                 unknown = unknown and isinstance(e, NotListed)
                 continue
-            run["ok"] = True
+            run["used"] = run["ok"] = True
             known, unknown = bool(closes), unknown and not closes
             if per_share:
                 closes = [(d, (c / per_share).quantize(Decimal("0.01"))) for d, c in closes]
@@ -435,6 +422,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             .execution_options(synchronize_session=False)
         )
     server.events.publish("prices", {"asOf": now.isoformat(), "stored": stored})
+    if later and ctx:
+        ctx.again(min(later.values()))
     used = [r for r in runs.values() if r["used"]]
     if used and not any(r["ok"] for r in used):
         raise SourceError(next(r["error"] for r in used if r["error"]))
