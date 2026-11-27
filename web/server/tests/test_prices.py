@@ -1077,8 +1077,9 @@ def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, mond
     assert view["unknown"] == [
         {"instrumentId": i.id, "symbol": i.symbol, "instrumentClass": "equity",
          "missedAt": when.isoformat().replace("+00:00", "Z")}
-        for i, when in ((flaky, earlier), (ghost, MONDAY), (und, MONDAY), (vtix, MONDAY))
+        for i, when in ((flaky, earlier), (ghost, MONDAY), (vtix, MONDAY))
     ]  # fmt: skip
+    assert view["unknownElsewhere"] == 1, "UND, an option's underlying no account holds"
     rows = admin.get(f"/ui/api/accounts/{acct.id}/holdings").json()["holdings"]
     shown = {x["symbol"]: x["unknownSymbol"] for x in rows}
     assert shown == {"VTIX": True, "GHOST": True, "FLAKY": True, "KNOWN": False,
@@ -1092,6 +1093,36 @@ def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, mond
         s.get(PriceSource, src.id).enabled = False
     pricing.refresh(server)
     assert missed() == {}, "no source to ask: nothing known either way"
+
+
+def test_settings_prices_names_only_the_unknown_symbols_in_accounts_the_admin_sees(server, monday):
+    """S4.2.3, R1.6: what an account holds is its viewers' to know, so Settings › Prices names
+    an unknown symbol only to an admin who sees an account holding it, their own or one shared
+    with them, and counts the rest, never naming them. One held in both is named, not counted."""
+    from moolakata.sharing import new_share
+
+    john = make_user(server, "john").id
+    make_user(server, "ann", admin=True)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        mine, johns = r.account(), r.add(Account(id=ids.new_id("Acct"), ownerId=john, name="J",
+                                                 type="brokerage"))  # fmt: skip
+        own, both, vtix, other = (r.inst(k) for k in ("OWNX", "BOTHX", "VTIX", "OTHX"))
+        for acct, i in ((mine, own), (mine, both), (johns, both), (johns, vtix), (johns, other)):
+            r.txn(acct, i, _d(10, 1))
+        for i in (own, both, vtix, other):
+            i.priceMissedAt = MONDAY
+
+    def seen(login, password="a long user passphrase"):
+        v = sign_in(server, login, password).get("/ui/api/price-sources").json()
+        return [u["symbol"] for u in v["unknown"]], v["unknownElsewhere"]
+
+    assert seen("admin", ADMIN_PW) == (["BOTHX", "OWNX"], 2)
+    assert seen("ann") == ([], 4), "an admin who sees no account holding them: all counted"
+    with server.db.tx(unscoped="test") as s:
+        s.add(new_share("account", johns.id, "read", user_id=r.owner, by=john))
+    assert seen("admin", ADMIN_PW) == (["BOTHX", "OTHX", "OWNX", "VTIX"], 0)
+    assert seen("ann") == ([], 4)
 
 
 def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_later_run(

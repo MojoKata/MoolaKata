@@ -4214,6 +4214,7 @@
  * @property {Array<SourceKind>} available
  * @property {Array<SourceRow>} sources
  * @property {Array<UnknownSymbol>} unknown
+ * @property {number} unknownElsewhere
  * @property {string} refreshTime
  * @property {string} refreshZone
  */

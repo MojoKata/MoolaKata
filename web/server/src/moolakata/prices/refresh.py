@@ -140,6 +140,19 @@ def held(s: Session) -> set[str]:
     }
 
 
+def held_seen(s: Session, viewer: str) -> set[str]:
+    """What an open lot holds in the accounts the viewer can see, as `held` reads one."""
+    from .. import access
+    from ..store.repos import ledger as repo
+
+    return {
+        lot.instrumentId
+        for a, _ in access.accounts(s, viewer)
+        for lot in repo.load(s, a).replay().open
+        if lot.quantity
+    }
+
+
 def _held_by(s: Session, viewer: str) -> dict[str, list[str]]:
     """What the accounts the viewer can see hold, but cash, by each account's owner: whose
     prices value it (S4.10)."""

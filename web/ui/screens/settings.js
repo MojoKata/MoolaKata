@@ -486,30 +486,36 @@ function Prices() {
       `
       : html`<${Empty}>No sources yet</${Empty}>`
   }${
-    v.unknown.length
+    v.unknown.length || v.unknownElsewhere
       ? html`
         <h3 class="mt" data-help="unknown-symbols">Symbols No Source Knows</h3>
-        <div class="table-wrap">
-          <table class="t">
-            <caption class="sr-only">Symbols no price source knows</caption>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Class</th>
-                <th>Since</th>
-              </tr>
-            </thead>
-            <tbody>${v.unknown.map((/** @type {any} */ u) =>
-              html`
-                <tr>
-                  <td><b>${u.symbol}</b></td>
-                  <td class="small dim">${u.instrumentClass}</td>
-                  <td class="small dim">${fmt.moment(u.missedAt)}</td>
-                </tr>
-              `
-            )}</tbody>
-          </table>
-        </div>
+        ${v.unknown.length
+          ? html`
+            <div class="table-wrap">
+              <table class="t">
+                <caption class="sr-only">Symbols no price source knows</caption>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Class</th>
+                    <th>Since</th>
+                  </tr>
+                </thead>
+                <tbody>${v.unknown.map((/** @type {any} */ u) =>
+                  html`
+                    <tr>
+                      <td><b>${u.symbol}</b></td>
+                      <td class="small dim">${u.instrumentClass}</td>
+                      <td class="small dim">${fmt.moment(u.missedAt)}</td>
+                    </tr>
+                  `
+                )}</tbody>
+              </table>
+            </div>
+          `
+          : null}${v.unknownElsewhere
+          ? html`<p class="small dim">and ${v.unknownElsewhere} more in accounts you don't see</p>`
+          : null}
       `
       : null
   }

@@ -16,7 +16,8 @@ trade.
 
 Held symbols that every enabled source serving their kind was asked for at the last daily refresh,
 and none knew: a typing mistake, or a fund the sources don't list. Each leaves the list once a
-source gives it a price, or once nobody holds it.
+source gives it a price, or once nobody holds it. Only symbols in accounts you can see are named;
+the rest are counted.
 
 ## Add a Source
 

@@ -74,6 +74,8 @@ class SourcesView(Model):
     available: list[SourceKind]
     sources: list[SourceRow]
     unknown: list[UnknownSymbol]
+    # Those held in no account the viewer sees: counted, never named (S4.2.3, R1.6).
+    unknownElsewhere: int
     refreshTime: str
     refreshZone: str
 
@@ -126,18 +128,20 @@ def _row(s, src: PriceSource) -> SourceRow:
     )
 
 
-def _view(s, dev: bool) -> SourcesView:
+def _view(s, dev: bool, viewer: str) -> SourcesView:
     from .. import settings
 
     rows = s.scalars(
         select(PriceSource).where(PriceSource.deleted == false()).order_by(PriceSource.createdAt)
     ).all()
-    # Instruments are the household's (schema.md §7): a symbol no source knows is no one's.
     missed = s.scalars(
         select(Instrument)
         .where(Instrument.priceMissedAt.is_not(None), Instrument.deleted == false())
         .order_by(Instrument.symbol)
-    )
+    ).all()
+    # What an account holds is for those who see it (R1.6): a symbol is named only where the
+    # viewer sees an account holding it.
+    seen = pricing.held_seen(s, viewer)
     return SourcesView(
         available=[_kind(c) for c in _shipped(dev)],
         sources=[_row(s, r) for r in rows if r.name in SOURCES],
@@ -149,7 +153,9 @@ def _view(s, dev: bool) -> SourcesView:
                 missedAt=i.priceMissedAt,
             )
             for i in missed
+            if i.id in seen
         ],
+        unknownElsewhere=sum(i.id not in seen for i in missed),
         refreshTime=settings.get(s, "priceRefreshTime"),
         refreshZone=settings.get(s, "priceRefreshZone"),
     )
@@ -212,7 +218,7 @@ def refresh_prices(request: Request, c: Caller = Depends(caller)):
 def list_sources(request: Request, c: Caller = Depends(admin)):
     srv = server(request)
     with srv.db.read(user=c.id) as s:
-        return _view(s, srv.config.dev)
+        return _view(s, srv.config.dev, c.id)
 
 
 def _add(s, srv, c: Caller, name: str, source_id: str) -> PriceSource:
