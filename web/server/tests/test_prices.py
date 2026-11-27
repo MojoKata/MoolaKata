@@ -997,7 +997,7 @@ def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_l
         etfs = [r.inst(f"E{k}", "etf") for k in range(3)]
         for e in etfs:
             r.txn(acct, e, _d(10, 1))
-    ANSWERS.update({f"E{k}": [(D0, D(10 + k))] for k in range(4)})  # up to date once asked
+    ANSWERS.update({f"E{k}": [(D0, D(10 + k))] for k in range(5)})  # up to date once asked
     asked = []
     ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
     assert pricing.refresh(server, ctx) == {"stored": 2, "unpriced": 0}  # two calls an hour
@@ -1009,22 +1009,25 @@ def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_l
     assert left.symbol in {"E0", "E1", "E2"} and len(asked) == 1
     with server.db.read(unscoped="test") as s:
         assert set(pricing.stored_closes(s, [e.id for e in etfs], D0)) == {e.id for e in etfs}
-    # Its window already full when the refresh starts: set aside at once, never run, and the
-    # next source prices it.
+    # Its window already full when the refresh starts: set aside at once, never run, not asked
+    # again for what comes after, and the next source prices them.
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
         rec = r.source("recorder-test", {"etf": 2})
-        e3 = r.inst("E3", "etf")
-        r.txn(r.account(), e3, _d(10, 1))
+        acct = r.account()
+        late = [r.inst(f"E{k}", "etf") for k in (3, 4)]
+        for e in late:
+            r.txn(acct, e, _d(10, 1))
         s.get(PriceSource, keyed.id).lastRunAt = None
     CALLS.clear()
     limits = ProviderLimits()
     limits.set("keyed-test", Keyed.limits)
     assert [limits.delay("keyed-test") for _ in range(2)] == [0, 0]
     ctx = TaskContext("prices", threading.Event(), limits, again=asked.append)
-    assert pricing.refresh(server, ctx) == {"stored": 1, "unpriced": 0}
-    [call] = CALLS
-    assert call == ("recorder-test", Ref(e3.id, "E3", "etf"), _d(9, 24), D0)
+    assert pricing.refresh(server, ctx) == {"stored": 2, "unpriced": 0}
+    assert sorted(CALLS, key=repr) == sorted(
+        [("recorder-test", Ref(e.id, e.symbol, "etf"), _d(9, 24), D0) for e in late], key=repr
+    )
     assert len(asked) == 2
     with server.db.read(unscoped="test") as s:
         rows = {x.id: x for x in s.scalars(select(PriceSource))}
