@@ -360,6 +360,42 @@ def test_a_federal_due_date_is_a_month_and_a_day(value):
     assert taxtables.check("federalDue", [4.0, 30]) == [4, 30]
 
 
+@pytest.mark.parametrize("value", [[150000], [165000, 150000], [150000, 150000], [-1, 10],
+                                   [0, float("inf")], [float("nan"), 1], [True, 5], 150000,
+                                   [1, 2, 3]])  # fmt: skip
+def test_a_roth_phase_out_is_two_amounts_the_end_above_the_start(value):
+    """S16.11, S8.6: a corrected Roth IRA phase-out starts at zero or more and ends above it."""
+    from moolakata.projections import taxtables
+
+    for key in ("rothPhaseOutSingle", "rothPhaseOutJoint", "rothPhaseOutSeparate"):
+        with pytest.raises(taxtables.Invalid, match="two amounts, where it starts and where"):
+            taxtables.check(key, value)
+        assert taxtables.check(key, [0, 10000]) == [0, 10000]
+
+
+@pytest.mark.parametrize(
+    "year, single, joint",
+    [
+        (2016, [117000, 132000], [184000, 194000]),
+        (2024, [146000, 161000], [230000, 240000]),
+        (2025, [150000, 165000], [236000, 246000]),
+        (2026, [153000, 168000], [242000, 252000]),
+        (2030, [153000, 168000], [242000, 252000]),  # after the latest: the latest's
+    ],
+)
+def test_every_year_ships_its_roth_phase_outs(year, single, joint):
+    """S16.11, S8.6: the IRS's Roth IRA phase-outs by filing status, every year a book may
+    cover; married filing separately's is $0 to $10,000 each year."""
+    from moolakata.projections import taxtables
+
+    f = {**taxtables.SHIPPED[taxtables._year(year)]}
+    assert (f["rothPhaseOutSingle"], f["rothPhaseOutJoint"]) == (single, joint)
+    assert f["rothPhaseOutSeparate"] == [0, 10000]
+    assert {"rothPhaseOutSingle", "rothPhaseOutJoint", "rothPhaseOutSeparate"} <= {
+        x.key for x in taxtables.of_year(year)
+    }
+
+
 @pytest.mark.parametrize("key", ["iraLimit", "collectablesRate", "rmdAge", "btcArk2030"])
 def test_no_figure_is_nan_or_infinite(key):
     """R3.11: a correction is a number, never NaN or an infinity, whatever its kind."""

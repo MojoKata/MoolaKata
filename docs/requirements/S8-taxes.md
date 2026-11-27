@@ -44,7 +44,12 @@ produces worksheets and exports. It never files, and says so (R1.16).
    exchange's file brings them as its *Staking Income* and *Rewards Income* lines.
 6. **Retirement**: contributions per account against the year's limits (with catch-up by
    age), Roth eligibility by MAGI as the user enters it, backdoor-Roth steps (non-deductible
-   contribution, conversion, Form 8606 figures), distributions, and RMDs due. Each movement of
+   contribution, conversion, Form 8606 figures), distributions, and RMDs due. The MAGI is the
+   tax book's, typed from its return; each Roth IRA contribution is read against the year's
+   phase-out for the federal return's filing status (a joint book's is joint; S16.11):
+   eligible, partly, with the most it allows (the limit cut in proportion, raised to the next
+   $10, and to $200 when less), or not, and flagged past it. It waits, saying for what, while
+   the MAGI or the status isn't typed (R3.11). Each movement of
    money into or out of a retirement account is one thing, told once: a **contribution** (the
    owner's, or the employer's), a **rollover** (between accounts of the same tax treatment, a
    trustee-to-trustee move too), a **conversion** (pre-tax to Roth) or a **distribution**. A

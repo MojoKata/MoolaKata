@@ -6,7 +6,7 @@ and their sources only: MoolaKata never computes the tax."""
 import datetime as dt
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
@@ -617,6 +617,10 @@ class Contribution:
     personTotal: Decimal = ZERO
     group: str = ""
     ownerId: str = ""
+    # A Roth IRA's: the most the return's MAGI allows its owner to put in Roth IRAs, and what
+    # they put in theirs (S8.6); None while the MAGI or the filing status isn't known.
+    rothAllowed: Decimal | None = None
+    rothTotal: Decimal = ZERO
 
 
 @dataclass
@@ -687,6 +691,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     figures = taxtables.figures(s, y)
     accounts = [a for a in books.counted(s, book).accounts if atypes.retirement(a.type)]
     contributions, distributions, rmds = [], [], []
+    phase_out = _phase_out(s, book, figures)
     moved: dict[frozenset, Movement] = {}
     taken_from: dict[str, Decimal] = {}  # distributions by account id
     # Form 8606 line 1, each owner's: the nondeductible parts of their own contributions to a
@@ -746,7 +751,8 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                 limit += Decimal(str(figures["iraCatchUp"]))
                 note = "with the catch-up at 50 and over"
             if a.type == "roth-ira":
-                note = (note + "; " if note else "") + "Roth eligibility depends on MAGI"
+                said, allowed = _roth_reading(book, phase_out, limit)
+                note = (note + "; " if note else "") + said
         elif a.type in ("401k", "403b", "457b"):
             limit = Decimal(str(figures["k401Deferral"]))
             if age and 60 <= age <= 63:
@@ -779,6 +785,7 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
                     note,
                     group=LIMIT_GROUPS[a.type],
                     ownerId=owner.id,
+                    rothAllowed=allowed if a.type == "roth-ira" else None,
                 )
             )
         if taken:
@@ -804,8 +811,14 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     totals: dict[tuple[str, str], Decimal] = defaultdict(lambda: ZERO)
     for c in contributions:
         totals[(c.ownerId, c.group)] += c.contributed
+    roths: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for c in contributions:
         c.personTotal = totals[(c.ownerId, c.group)]
+        if c.rothAllowed is not None:
+            roths[c.ownerId] += c.contributed
+    for c in contributions:
+        if c.rothAllowed is not None:
+            c.rothTotal = roths[c.ownerId]
     # The 8606 basis is a person's own (S8.6, S8.17): each filer's as their return carried it,
     # a joint return's each filer's apart.
     carried: dict[str, Decimal] = {}
@@ -823,6 +836,71 @@ def retirement(s: Session, book: TaxBook) -> Retirement:
     for b in bases:
         _pro_rata(s, b, [a for a in iras if a.ownerId == b.ownerId], conversions, taken_from, y)
     return Retirement(contributions, distributions, rmds, bases, conversions, rollovers)
+
+
+# The Roth IRA phase-out a return's filing status reads (S8.6): single and head of household
+# share one, as do a joint return and a qualifying surviving spouse's.
+_PHASE_OUTS = {
+    "Single": "rothPhaseOutSingle",
+    "Head of household": "rothPhaseOutSingle",
+    "Married filing jointly": "rothPhaseOutJoint",
+    "Qualifying surviving spouse": "rothPhaseOutJoint",
+    "Married filing separately": "rothPhaseOutSeparate",
+}
+
+
+def _phase_out(s: Session, book: TaxBook, figures: dict) -> tuple[Decimal, Decimal] | None:
+    """Where the year's Roth IRA phase-out starts and ends for the book's return: a joint
+    book's is a joint return's; one filer's, their federal return's status as typed, and none
+    while it isn't (R3.11)."""
+    if len(books.filers(s, book)) == 2:
+        key = "rothPhaseOutJoint"
+    else:
+        typed = [
+            f.filingStatus
+            for f in books.filings(s, book)
+            if f.jurisdiction == "federal" and not f.amendsId and f.filingStatus
+        ]
+        if not typed:
+            return None
+        key = _PHASE_OUTS[typed[0]]
+    start, end = figures[key]
+    return Decimal(str(start)), Decimal(str(end))
+
+
+def roth_allowed(limit: Decimal, magi: Decimal, start: Decimal, end: Decimal) -> Decimal:
+    """The most a Roth IRA may take at a modified AGI (S8.6, IRS Pub. 590-A, worksheet 2-2):
+    the whole limit below the phase-out, none from its end, and in it the limit cut in
+    proportion, raised to the next $10, and to $200 when less."""
+    if magi < start:
+        return limit
+    if magi >= end:
+        return ZERO
+    cut = limit * (end - magi) / (end - start)
+    return max((cut / 10).to_integral_value(rounding=ROUND_CEILING) * 10, Decimal(200))
+
+
+def _roth_reading(
+    book: TaxBook, phase_out: tuple[Decimal, Decimal] | None, limit: Decimal
+) -> tuple[str, Decimal | None]:
+    """A Roth IRA's eligibility at the MAGI typed on the book (S8.6), said, and the most it
+    allows; it waits, saying for what, while the MAGI or the filing status isn't known."""
+    if book.magi is None:
+        return "Roth eligibility waits: type the return's MAGI", None
+    if phase_out is None:
+        return "Roth eligibility waits: choose the federal filing's status", None
+    start, end = phase_out
+    at = f"at the MAGI typed (${grouped(book.magi)})"
+    allowed = roth_allowed(limit, book.magi, start, end)
+    if allowed == limit:
+        return f"Roth eligible {at}", allowed
+    if not allowed:
+        return f"not eligible for a Roth IRA {at}: the phase-out ends at ${end:,.0f}", allowed
+    return (
+        f"partly eligible for a Roth IRA {at}: at most ${grouped(allowed)}, the phase-out "
+        f"running ${start:,.0f} to ${end:,.0f}",
+        allowed,
+    )
 
 
 def _marks(s: Session, t: Transaction) -> list[tuple[Decimal, bool | None]]:

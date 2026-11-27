@@ -95,6 +95,10 @@ class ContributionOut(Model):
     across: str | None
     over: bool
     note: str
+    # A Roth IRA's: the most the return's MAGI allows its owner in Roth IRAs, once the MAGI and
+    # the filing status are known, and whether what they put in theirs passes it (S8.6).
+    rothAllowed: Money | None = None
+    rothOver: bool = False
 
 
 class RmdOut(Model):
@@ -349,6 +353,8 @@ def _build(s, b) -> Panels:
                     else None,
                     over=c.limit is not None and c.personTotal > c.limit,
                     note=c.note,
+                    rothAllowed=c.rothAllowed,
+                    rothOver=c.rothAllowed is not None and c.rothTotal > c.rothAllowed,
                 )
                 for c in ret.contributions
             ],

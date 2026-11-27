@@ -52,6 +52,7 @@ export const FIELDS = {
     bitcoinFees: {"type": "choice", "choices": ["sale", "not-taxed"]},
     carryoverShareShort: {"type": "money", "nullable": true},
     carryoverShareLong: {"type": "money", "nullable": true},
+    magi: {"type": "money", "nullable": true},
   },
   BudgetAccountRecord: {
     budgetId: {"type": "ref", "prefix": "Bdgt"},

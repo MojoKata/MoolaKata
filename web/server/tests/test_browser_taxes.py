@@ -10,6 +10,8 @@ import pytest
 from browser import made, months_back, signed_in, wait
 from edits import make, remove
 
+from moolakata.projections import taxtables
+
 pytestmark = pytest.mark.browser
 
 
@@ -194,3 +196,44 @@ def test_an_extension_filed_asks_for_its_new_due_date_and_offers_the_federal_one
         page.close()
     finally:
         made(remove(h.c, "TaxBk", h.c.get(f"/ui/api/tax-books/{book['id']}").json()))
+
+
+def test_the_magi_typed_on_the_summary_reads_a_roth_contribution(browser, household):
+    """S8.6: the MAGI typed on the Summary, with the federal filing's status, says how much of
+    a Roth IRA contribution the year's phase-out allows, and marks one past it."""
+    h = household
+    year = int(months_back(0)[:4]) - 5
+    me = h.c.get("/ui/api/session").json()["user"]["id"]
+    roth = made(make(h.c, "Acct", name="MAGI Roth", type="roth-ira"))
+    made(make(h.c, "Txn", accountId=roth["id"], date=f"{year}-03-03", kind="deposit",
+              amount="6000.00"))  # fmt: skip
+    book = made(make(h.c, "TaxBk", year=year, filers=[me]))
+    try:
+        made(make(h.c, "Filng", bookId=book["id"], form="Form 1040", filingStatus="Single"))
+        start, end = taxtables.SHIPPED[year]["rothPhaseOutSingle"]
+        magi = (start + end) // 2
+        page, problems = signed_in(browser, h, "/ui/taxes/summary", "#f-tax-book")
+        page.select_option("#f-tax-book", book["id"])
+        wait(page, "#f-magi", problems)
+        page.locator("#f-magi").fill(str(magi))
+        page.locator("form:has(#f-magi) button.primary").click()
+        wait(page, '.toast:has-text("Saved")', problems)
+        assert Decimal(str(h.c.get(f"/ui/api/tax-books/{book['id']}").json()["magi"])) == magi
+        [c] = [
+            x
+            for x in h.c.get(f"/ui/api/tax-books/{book['id']}/panels").json()["retirement"][
+                "contributions"
+            ]
+            if x["account"] == "MAGI Roth"
+        ]
+        assert c["rothOver"] and "partly eligible for a Roth IRA" in c["note"], c
+        page.goto(h.base + "/ui/taxes/retirement")
+        row = 'table:has(caption:text("Contributions")) tr:has-text("MAGI Roth")'
+        wait(page, row, problems)
+        text = " ".join(page.locator(row).inner_text().split())
+        assert c["note"] in text and text.endswith("over"), text
+        assert problems == []
+        page.close()
+    finally:
+        made(remove(h.c, "TaxBk", h.c.get(f"/ui/api/tax-books/{book['id']}").json()))
+        made(remove(h.c, "Acct", h.c.get(f"/ui/api/accounts/{roth['id']}").json(), confirm=True))

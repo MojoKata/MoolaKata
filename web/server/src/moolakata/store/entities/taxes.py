@@ -16,6 +16,7 @@ class TaxBook(Record):
     copyPending: bool = False  # the copy from last year, waiting for every filer
     carryoverShareShort: Decimal | None = None  # a joint carryover's share, typed (S8.18)
     carryoverShareLong: Decimal | None = None
+    magi: Decimal | None = None  # the return's modified AGI, typed, for Roth IRAs (S8.6)
 
     @property
     def name(self) -> str:

@@ -14,8 +14,20 @@ out.
 What went into each retirement account for the year, against its limit from the tax tables, with the
 catch-up by age. A rollover or a conversion is no contribution: money moved from another retirement
 account, matched as a transfer, is listed below instead. An HSA counts its employer's money too, and
-its limit is its coverage's (set on the account), $1,000 more at 55. Roth eligibility depends on
-MAGI, which is the preparer's to check.
+its limit is its coverage's (set on the account), $1,000 more at 55.
+
+A Roth IRA's contributions are read against the year's phase-out (Settings › Tax Tables) at the
+MAGI typed on the Summary, by the federal filing's status (a joint book's is joint): eligible,
+partly, with the most the MAGI allows (the limit cut in proportion, raised to the next $10, and to
+$200 when less), or not. Past what it allows, the row is marked **over**. Until the MAGI and the
+status are typed, it says which it waits for. A separate return's range is $0 to $10,000; one filed
+by someone who didn't live with their spouse during the year takes the single range instead,
+which MoolaKata can't tell.
+
+A backdoor Roth is its steps, each on its row: the contribution to a traditional IRA, marked
+**Not deductible**, which counts against the IRA limit and adds to the Form 8606 basis; and its
+conversion, under Roth Conversions with its taxed part. A conversion is no Roth contribution, so
+the phase-out doesn't hold it.
 
 ## Distributions
 

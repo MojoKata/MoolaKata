@@ -405,6 +405,7 @@
  * @property {boolean} fromLastYear
  * @property {(import('../kit/dec.js').Dec | null)} carryoverShareShort
  * @property {(import('../kit/dec.js').Dec | null)} carryoverShareLong
+ * @property {(import('../kit/dec.js').Dec | null)} magi
  * @property {Array<DependentOut>} dependents
  * @property {Array<Form8615Out>} form8615
  * @property {Array<string>} claimedElsewhere
@@ -429,6 +430,7 @@
  * @property {("sale" | "not-taxed")} [bitcoinFees]
  * @property {(import('../kit/dec.js').Dec | null)} [carryoverShareShort]
  * @property {(import('../kit/dec.js').Dec | null)} [carryoverShareLong]
+ * @property {(import('../kit/dec.js').Dec | null)} [magi]
  */
 
 /**
@@ -5250,6 +5252,8 @@
  * @property {(string | null)} across
  * @property {boolean} over
  * @property {string} note
+ * @property {(import('../kit/dec.js').Dec | null)} [rothAllowed]
+ * @property {boolean} [rothOver]
  */
 
 /**

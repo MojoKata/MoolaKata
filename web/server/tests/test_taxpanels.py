@@ -258,6 +258,29 @@ def test_an_ira_limit_holds_across_a_persons_accounts(jane):
     assert first["across"] == "IRAs"
 
 
+def test_a_roth_contribution_is_flagged_past_what_the_typed_magi_allows(jane):
+    """S8.6: the MAGI typed on the book, with the federal return's filing status, reads each
+    Roth IRA contribution against the year's phase-out; above what it allows, it is flagged."""
+    roth = new_account(jane, name="Roth", type="roth-ira")
+    add(jane, roth["id"], "3000.00", "2026-02-01", kind="deposit")
+    b = book(jane)
+    d = jane.get(f"/ui/api/tax-books/{b}").json()
+    assert d["magi"] is None
+    assert make(jane, "Filng", bookId=b, form="Form 1040", filingStatus="Single").status_code == 200
+    d = saved(change(jane, "TaxBk", d, magi="160000"))
+    assert jane.get(f"/ui/api/tax-books/{b}").json()["magi"] == "160000.00"
+    [c] = panels(jane, b)["retirement"]["contributions"]
+    # 8,600 (with the catch-up) × 8,000 / 15,000 = 4,586.67, raised to the next $10.
+    assert (c["rothAllowed"], c["rothOver"]) == ("4590.00", False)
+    assert c["note"].endswith(
+        "partly eligible for a Roth IRA at the MAGI typed ($160,000.00): at most $4,590.00, "
+        "the phase-out running $153,000 to $168,000"
+    )
+    saved(change(jane, "TaxBk", d, magi="166000"))
+    [c] = panels(jane, b)["retirement"]["contributions"]
+    assert (c["rothAllowed"], c["rothOver"], c["over"]) == ("1150.00", True, False)
+
+
 def test_a_split_counts_toward_its_tag_as_a_whole_transaction_would(jane):
     # A split part takes its transaction's sign: $60 of a $100 pharmacy run is $60 of
     # medical, not $-60, and the rest counts nowhere.

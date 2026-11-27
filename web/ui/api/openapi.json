@@ -2334,6 +2334,21 @@
             "title": "Leftout",
             "type": "array"
           },
+          "magi": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Magi"
+          },
           "received": {
             "items": {
               "$ref": "#/components/schemas/DocumentOut"
@@ -2361,6 +2376,7 @@
           "fromLastYear",
           "carryoverShareShort",
           "carryoverShareLong",
+          "magi",
           "dependents",
           "form8615",
           "claimedElsewhere",
@@ -2436,6 +2452,22 @@
             "default": true,
             "title": "Fromlastyear",
             "type": "boolean"
+          },
+          "magi": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Magi"
           },
           "year": {
             "title": "Year",
@@ -30735,6 +30767,26 @@
             "format": "money",
             "title": "Persontotal",
             "type": "number"
+          },
+          "rothAllowed": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rothallowed"
+          },
+          "rothOver": {
+            "default": false,
+            "title": "Rothover",
+            "type": "boolean"
           }
         },
         "required": [

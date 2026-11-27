@@ -58,7 +58,8 @@ Backups, and Connector (18), which follows Linked servers; 15 is not a section:
     (S9.8.7). On a host without Landlock, the section says that reading runs without its file
     sandbox here, which admins are alerted to as well (S9.8.4.2).
 11. **Tax tables**: per year, for every year a tax book may cover (S8.14), shipped and
-    correctable: contribution limits and thresholds, the annual gift exclusion, the 529-to-Roth
+    correctable: contribution limits and thresholds, the Roth IRA phase-outs by filing status
+    (where each starts and ends, S8.6), the annual gift exclusion, the 529-to-Roth
     lifetime limit, the QCD limit, the collectables rate, the unearned income above which Form
     8615 applies (S8.14.5.3), the federal return's due date (a month and a day of the year
     after, before IRC §7503's moves, S8.15.3), the shipped college-cost averages (S6.2.2), the

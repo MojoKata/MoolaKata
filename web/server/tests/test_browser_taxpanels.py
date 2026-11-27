@@ -416,7 +416,7 @@ def test_the_retirement_panel_shows_limits_distributions_and_moves(browser, worl
     ira = rows["TP IRA"]
     assert ira.startswith("TP IRA Traditional IRA Admin $7,000.00 $8,000.00")
     assert ira.endswith("across their IRAs $7,000 with the catch-up at 50 and over over")
-    assert "Roth eligibility depends on MAGI" in rows["TP Roth"]
+    assert "Roth eligibility waits: type the return's MAGI" in rows["TP Roth"]
     # Over its limit: a pill, "over", whose tooltip says so.
     over = table.filter(has=page.locator(".pill.warn", has_text="over"))
     assert {r.split("\n")[0] for r in over.all_inner_texts()} >= {"TP IRA", "TP Roth"}

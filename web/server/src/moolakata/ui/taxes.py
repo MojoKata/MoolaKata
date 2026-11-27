@@ -185,6 +185,7 @@ def _make_book(s, c: Caller, body, book_id: str) -> tuple[TaxBook, list[str]]:
         bitcoinFees=body.bitcoinFees,
         fromLastYear=body.fromLastYear,
         copyPending=body.fromLastYear,
+        magi=body.magi,
     )
     s.add(b)
     s.flush()
@@ -464,6 +465,7 @@ class BookDetail(BookRow):
     # A filer's share of last year's joint return's capital-loss carryover (S8.18), typed.
     carryoverShareShort: Money | None
     carryoverShareLong: Money | None
+    magi: Money | None  # the return's modified AGI, typed (S8.6)
     dependents: list[DependentOut]
     form8615: list[Form8615Out]  # dependent children past the year's threshold
     claimedElsewhere: list[str]  # the book's filers claimed on another book of the year
@@ -622,6 +624,7 @@ def _detail(s, c: Caller, b: TaxBook, held: Perms) -> BookDetail:
         fromLastYear=b.fromLastYear,
         carryoverShareShort=b.carryoverShareShort,
         carryoverShareLong=b.carryoverShareLong,
+        magi=b.magi,
         dependents=[_dependent(d) for d in deps],
         form8615=[
             Form8615Out(**f.__dict__) for f in dependents.form_8615(s, b, deps, cnt.accounts)
@@ -1180,6 +1183,9 @@ class BookRecord(Model):
     # (S8.17, S8.18): typed, the Summary counts it.
     carryoverShareShort: Money | None = None
     carryoverShareLong: Money | None = None
+    # The return's modified AGI, typed from it, which its Roth IRA contributions are read
+    # against (S8.6): none until typed.
+    magi: Money | None = None
 
 
 class DependentRecord(DependentIn):
@@ -1210,12 +1216,13 @@ def _book_current(ctx, b: TaxBook) -> dict:
     ]
     return {"year": b.year, "filers": filers, "fromLastYear": b.fromLastYear,
             "bitcoinFees": b.bitcoinFees, "carryoverShareShort": b.carryoverShareShort,
-            "carryoverShareLong": b.carryoverShareLong}  # fmt: skip
+            "carryoverShareLong": b.carryoverShareLong, "magi": b.magi}  # fmt: skip
 
 
 def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
     """How the book reads bitcoin network fees on transfers between the owner's accounts
-    (S8.19): a sale, the default, or not taxed, as a preparer may read them."""
+    (S8.19): a sale, the default, or not taxed, as a preparer may read them; a joint
+    carryover's share (S8.18); and the return's modified AGI (S8.6)."""
     current = _book_current(ctx, b)
     for fixed in ("year", "filers", "fromLastYear"):
         if getattr(body, fixed) != current[fixed]:
@@ -1226,6 +1233,7 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
         if v is not None and v < 0:
             raise refuse(share, "amount-invalid", "A loss carried over, as a positive amount.")
         setattr(b, share, v)
+    b.magi = body.magi
     b.updatedAt = clock.now()
 
 
