@@ -52,8 +52,10 @@ function cashOf(/** @type {OptionTxn} */ r) {
 }
 
 /**
- * `start` fills the dialog in: a position's **Close…** gives its contract, its closing action and
- * its contracts, with `symbol` the contract's, which names the dialog (S3.2).
+ * `start` fills the dialog in: a position's **Close…** gives its contract itself
+ * (`instrumentId`, whose `symbol` names the dialog), its closing action and its contracts; the
+ * server trades that contract as it is, an adjusted one too (S3.2, S3.10.2), so its terms
+ * aren't asked. Typed by hand, the terms make a standard contract.
  * @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p
  */
 export function OptionTrade({ close, accountId, start }) {
@@ -71,10 +73,9 @@ export function OptionTrade({ close, accountId, start }) {
       accountId: first || null,
       date: fmt.today(),
       kind: start?.action || 'sell-to-open',
-      symbol: start?.underlying || '',
-      right: start?.right || 'put',
-      strike: start?.strike || null,
-      expiry: start?.expiry || null,
+      ...(start?.instrumentId
+        ? { instrumentId: start.instrumentId, symbol: null, right: null }
+        : { symbol: '', right: 'put', strike: null, expiry: null }),
       quantity: start?.contracts || '1',
       price: null,
       fees: FEES,
@@ -100,13 +101,15 @@ export function OptionTrade({ close, accountId, start }) {
               options=${list.map((a) => [a.id, a.name])} />
             <${RecField} rec=${rec} name="date" label="Date" type="date" />
           </div>
-          <div class="row">
-            <${RecField} rec=${rec} name="symbol" label="Underlying" />
-            <${RecField} rec=${rec} name="right" label="Call or put" id="right"
-              options=${[['call', 'Call'], ['put', 'Put']]} />
-            <${RecField} rec=${rec} name="strike" label="Strike" />
-            <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
-          </div>
+          ${start?.instrumentId ? null : html`
+            <div class="row">
+              <${RecField} rec=${rec} name="symbol" label="Underlying" />
+              <${RecField} rec=${rec} name="right" label="Call or put" id="right"
+                options=${[['call', 'Call'], ['put', 'Put']]} />
+              <${RecField} rec=${rec} name="strike" label="Strike" />
+              <${RecField} rec=${rec} name="expiry" label="Expiry" type="date" />
+            </div>
+          `}
           <div class="row">
             <${RecField} rec=${rec} name="quantity" label="Contracts" />
             <${RecField} rec=${rec} name="price" label="Premium" />

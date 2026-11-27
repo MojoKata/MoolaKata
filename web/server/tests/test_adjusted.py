@@ -102,9 +102,6 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(jane):
     assert r.json() == {"contracts": 1, "accounts": 1}
     pos = held(jane)
     assert pos == {"MSFT1 20NOV26 480 P": (-2, -600, "2026-09-01")}
-    # Its own root, which the trade dialog can't name: its Close… is off (S3.10.2).
-    [adjusted] = jane.get("/ui/api/positions").json()["open"]
-    assert (adjusted["root"], adjusted["right"], adjusted["strike"]) == ("MSFT1", "put", "480.0")
     # Assigned: it buys its deliverable, 150 shares a contract, at the strike on 100.
     row = next(r for r in jane.get("/ui/api/positions").json()["open"])
     r = jane.post(
@@ -115,6 +112,42 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(jane):
     after = held(jane)
     qty, cost, _ = after["MSFT"]
     assert qty == 300 and D(str(cost)) == D("96000") - D("600")
+
+
+def test_an_adjusted_contract_is_closed_by_naming_it_and_terms_still_make_a_standard_one(jane):
+    """S3.2, S3.10.2: a position's Close… names its contract, so a trade closes an adjusted
+    one (its own root and deliverable) that no underlying, right, strike and expiry make; a
+    trade typed by its terms still makes the standard contract; a contract named must be an
+    option."""
+    a = new_account(jane, type="brokerage")["id"]
+    opt(jane, a, "sell-to-open", "2026-09-01", "3.00", contracts="2", fees="0")
+    [cn] = jane.get("/ui/api/options/adjustable").json()["items"][0]["contracts"]
+    r = jane.post("/ui/api/options/adjust", json={"date": "2026-10-05", "contracts": [
+        {"instrumentId": cn["instrumentId"], "root": "MSFT1", "strike": "480",
+         "deliverable": [{"symbol": "MSFT", "shares": "150"}]}]})  # fmt: skip
+    assert r.status_code == 200, r.text
+    [row] = jane.get("/ui/api/positions").json()["open"]
+    assert row["symbol"] == "MSFT1 20NOV26 480 P"
+
+    def close(**contract):
+        return create(jane, "Txn", accountId=a, date="2026-10-10", kind="buy-to-close",
+                      quantity="1", price="1.00", fees="0", amount="-100.00",
+                      **contract)  # fmt: skip
+
+    # By its terms: the standard MSFT put, which the account doesn't hold.
+    r = close(symbol="MSFT", right="put", strike="480", expiry="2026-11-20")
+    assert r.status_code == 422 and r.json()["errors"][0]["code"] == "nothing-to-close", r.text
+    # Named: the adjusted contract itself, whatever else is sent.
+    t = saved(close(instrumentId=row["instrumentId"]))
+    assert (t["instrumentId"], t["kind"], t["amount"]) == (row["instrumentId"], "buy-to-close",
+                                                            "-100.00")  # fmt: skip
+    assert held(jane) == {"MSFT1 20NOV26 480 P": (-1, -300, "2026-09-01")}
+    found = jane.get("/ui/api/instruments", params={"q": "MSFT"}).json()["items"]
+    msft = next(i for i in found if i["symbol"] == "MSFT")["id"]
+    r = close(instrumentId=msft)
+    assert r.status_code == 422, r.text
+    assert [(e["field"], e["code"]) for e in r.json()["errors"]] == [
+        ("instrumentId", "not-an-option")]  # fmt: skip
 
 
 def test_occ_tickers_are_read_with_their_root():

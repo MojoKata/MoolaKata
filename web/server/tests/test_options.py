@@ -125,8 +125,6 @@ def test_a_short_put_assigned_folds_the_credit_into_the_stock_basis(jane):
     brk = new_account(jane, name="Brokerage", type="brokerage")
     opt(jane, brk["id"], "sell-to-open", "2026-09-02", "6.40", contracts="1", fees="0")
     put = _held(jane, brk["id"], "MSFT 20NOV26 480 P")
-    # Its contract, which its Close… starts the trade dialog on (S3.2).
-    assert (put["right"], put["strike"], put["root"]) == ("put", "480.0", None)
     r = jane.post(
         f"/ui/api/accounts/{brk['id']}/options/{put['instrumentId']}/settle",
         json={"how": "assign", "date": "2026-11-20", "contracts": "1"},

@@ -269,21 +269,32 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     page.close()
 
 
-def test_an_open_options_close_starts_the_trade_on_its_contract(browser, household):
-    # S3.2: a short put's Close… opens the trade dialog named for its contract, on its account,
-    # buying to close all its contracts; recorded, the position is closed.
+@pytest.mark.parametrize("adjusted", [False, True])
+def test_an_open_options_close_trades_that_contract_itself(browser, household, adjusted):
+    # S3.2, S3.10.2: a short put's Close… opens the trade dialog named for its contract, on its
+    # account, buying to close all its contracts, its terms not asked; an adjusted one (its own
+    # root) closes so too. Recorded, the position is closed.
     h = household
-    acct = brokerage(h, "Closing desk")
-    option(h, acct, OPENED, "sell-to-open", "ZCL", "put", "40", contracts="2", premium="1.00")
-    page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZCL")
-    row(page, "ZCL").locator("button.linklike").first.click()
+    sym = "ZCA" if adjusted else "ZCL"
+    acct = brokerage(h, f"Closing {sym}")
+    option(h, acct, OPENED, "sell-to-open", sym, "put", "40", contracts="2", premium="1.00")
+    if adjusted:
+        groups = h.c.get("/ui/api/options/adjustable").json()["items"]
+        [cn] = next(g for g in groups if g["underlying"] == sym)["contracts"]
+        r = h.c.post("/ui/api/options/adjust", json={"date": CLOSED, "contracts": [
+            {"instrumentId": cn["instrumentId"], "root": f"{sym}1", "strike": "40",
+             "deliverable": [{"symbol": sym, "shares": "150"}]}]})  # fmt: skip
+        assert r.status_code == 200, r.text
+    shown_as = rf"{sym}{'1' if adjusted else ''} \d\d [A-Z][a-z]{{2}} \d\d 40 P"
+    page, problems = signed_in(browser, h, "/ui/positions/open", f"text={sym}")
+    row(page, re.compile(shown_as)).locator("button.linklike").first.click()
     page.get_by_role("button", name="Close…").click()
     wait(page, "#f-premium", problems)
     title = page.locator(".dialog h2, .dialog h3").first.inner_text()
-    assert re.fullmatch(r"Close ZCL \d\d [A-Z][a-z]{2} \d\d 40 P", title), title
+    assert re.fullmatch(rf"Close {shown_as}", title), title
     assert page.get_by_role("radio", name="Buy to close").is_checked()
-    assert (page.input_value("#f-underlying"), page.input_value("#f-strike"),
-            page.input_value("#f-contracts")) == ("ZCL", "40", "2")  # fmt: skip
+    assert page.locator("#f-underlying, #f-strike, #f-expiry").count() == 0
+    assert page.input_value("#f-contracts") == "2"
     page.fill("#f-premium", "0.30")
     page.click(".dialog footer button.primary")
     wait(page, ".dialog", problems, state="detached")

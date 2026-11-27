@@ -15109,28 +15109,6 @@
             "title": "Realized",
             "type": "number"
           },
-          "right": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Right"
-          },
-          "root": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Root"
-          },
           "side": {
             "title": "Side",
             "type": "string"
@@ -15138,21 +15116,6 @@
           "stale": {
             "title": "Stale",
             "type": "boolean"
-          },
-          "strike": {
-            "anyOf": [
-              {
-                "examples": [
-                  12.5
-                ],
-                "format": "decimal",
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Strike"
           },
           "symbol": {
             "title": "Symbol",
