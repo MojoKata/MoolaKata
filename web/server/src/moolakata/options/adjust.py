@@ -144,14 +144,18 @@ def with_split(s: Session, user_id: str, account, split: Transaction) -> int:
     if not ratio or ratio < 2 or ratio != ratio.to_integral_value():
         return 0
     done = 0
-    for c in open_contracts(s, account, split.instrumentId, split.date):
+    # The lowest strike first: a contract becomes one of a lower strike, which may be one held
+    # already, and that one's own contracts move on before these arrive, so none is adjusted
+    # twice. Each is still held at its turn: only its own turn takes it.
+    contracts = open_contracts(s, account, split.instrumentId, split.date)
+    for c in sorted(contracts, key=lambda c: c.strike):
         if not splits_whole(c):
             continue
         old = s.get(Instrument, c.instrumentId)
         # Its root and deliverable stay: only the strike changes.
         new, _ = adjusted_contract(s, c, None, adjusted_strike(c.strike, ratio))
-        if carry(s, user_id, account, old, new, ratio, split.date, split):
-            done += 1
+        carry(s, user_id, account, old, new, ratio, split.date, split)
+        done += 1
     return done
 
 

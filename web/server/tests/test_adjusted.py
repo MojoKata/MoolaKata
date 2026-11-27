@@ -673,3 +673,21 @@ def test_a_deliverables_weights_are_its_owners_prices_never_another_users(server
         weights = {who: [w for _, _, w in deliverable(s, c, day, who)] for who in (admin, jane_id)}
     assert weights[admin] == [D("0.4"), D("0.6")], "100 at $10 and 50 at $30, the admin's own"
     assert weights[jane_id] == [D(100) / 150, D(50) / 150], "only B priced: by the shares"
+
+
+@pytest.mark.parametrize("first", ["480", "240"])
+def test_a_split_adjusts_each_contract_once_when_one_becomes_another_held(jane, first):
+    """S3.10.1: a 2:1 split makes the 480 put a 240 put, one already held: each contract open
+    on the split's day is adjusted once, whichever was opened first, so the 240 put's own
+    contracts become 120 puts and the 480 put's 240 puts, each with its own basis and day."""
+    a = new_account(jane, type="brokerage")["id"]
+    second = "240" if first == "480" else "480"
+    premium = {"480": "6.40", "240": "3.00"}
+    opened = {first: "2026-09-01", second: "2026-09-02"}
+    for k in (first, second):
+        saved(opt(jane, a, "sell-to-open", opened[k], premium[k], strike=k, fees="0"))
+    _split_msft(jane, a)
+    assert held(jane) == {
+        "MSFT 20NOV26 240 P": (-2, -640, opened["480"]),
+        "MSFT 20NOV26 120 P": (-2, -300, opened["240"]),
+    }
