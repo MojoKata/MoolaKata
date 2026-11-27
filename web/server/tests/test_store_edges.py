@@ -354,3 +354,157 @@ def test_a_rotation_says_what_each_copy_will_meet(store, keyed_config, master_ke
         aside_ring.name: "left",
     }
     store2.db.dispose()
+
+
+# ---------- the re-encryption's journal (S15.7.2) ----------
+
+
+def test_a_journal_that_cant_be_read_refuses_the_start(keyed_config):
+    from moolakata.store import reencrypt as journaled
+
+    (keyed_config.data_dir / journaled.JOURNAL).write_text("{")
+    with pytest.raises(RefuseStart, match="cannot be read: set it aside and start again"):
+        journaled.journal(keyed_config)
+    _journal(keyed_config, {})
+    assert journaled.started_at(keyed_config).isoformat() == "2026-10-01T00:00:00+00:00"
+    (keyed_config.data_dir / journaled.JOURNAL).write_text(json.dumps({"steps": {}}))
+    assert journaled.started_at(keyed_config) is None
+    (keyed_config.data_dir / journaled.JOURNAL).unlink()
+    assert journaled.started_at(keyed_config) is None
+
+
+def test_a_run_that_lost_its_old_keyring_or_its_new_one_stops_and_names_the_backup(
+    store, keyed_config, master_key
+):
+    """S15.7.2: a keyring already under the journal's new data key needs `keyring.old` to go on;
+    a journal that names a new data key whose keyring is gone never makes another."""
+    from moolakata.store import reencrypt as journaled
+
+    store.db.dispose()
+    ring = master.read_keyring(keyed_config.keyring_path)
+    _journal(keyed_config, {"backup": "moolakata-20261001-000000", "next": ring.data_key_id})
+    with pytest.raises(RefuseStart, match=r"keyring.old is missing: set reencrypt.json aside and "
+                       "restore the backup moolakata-20261001-000000"):  # fmt: skip
+        journaled.run(keyed_config, master_key)
+    _journal(keyed_config, {"backup": None, "next": "dk-another"})
+    with pytest.raises(RefuseStart, match=r"new keyring keyring.next is missing.*made before it"):
+        journaled.run(keyed_config, master_key)
+
+
+def test_a_run_given_another_phrase_is_refused(store, keyed_config, master_key):
+    from moolakata.store import reencrypt as journaled
+
+    store.db.dispose()
+    journaled.schedule(keyed_config, {}, None, "settings")
+    with pytest.raises(master.WrongPhrase, match="not this server's key"):
+        journaled.run(keyed_config, os.urandom(16))
+    assert journaled.pending(keyed_config)
+
+
+def test_a_pending_runs_old_keyring_stays_and_its_phrase_carries_it(keyed_config, master_key):
+    """S15.7.2: `keyring.old` stays while a run is pending; a `keyring.next` under this phrase
+    lets it carry the run."""
+    from moolakata.store import reencrypt as journaled
+
+    journaled.schedule(keyed_config, {}, None, "settings")
+    old = keyed_config.data_dir / journaled.OLD
+    shutil.copy2(keyed_config.keyring_path, old)
+    journaled.tidy(keyed_config)
+    assert old.exists()
+    shutil.copy2(keyed_config.keyring_path, journaled.next_keyring(keyed_config))
+    journaled.check_phrase(keyed_config, master_key)
+
+
+def test_a_new_server_with_no_database_only_changes_its_key(keyed_config, master_key):
+    """S15.7.2: before the welcome made the database there is nothing to back up or rewrite."""
+    from moolakata.store import reencrypt as journaled
+
+    before = master.read_keyring(keyed_config.keyring_path).data_key_id
+    done = journaled.at_once(keyed_config, master_key, {}, "host")
+    assert done["backup"] is None and done["secretsSetAside"] == []
+    assert master.read_keyring(keyed_config.keyring_path).data_key_id != before
+
+
+def test_a_database_under_neither_key_stops_the_run(store, keyed_config, master_key, monkeypatch):
+    """S15.7.2: a database already re-keyed takes no backup; one that opens under neither
+    key stops the run and says so."""
+    from moolakata.store import reencrypt as journaled
+
+    store.db.dispose()
+    journaled.schedule(keyed_config, {}, None, "settings")
+    monkeypatch.setattr(journaled, "_opens_db", lambda config, key: False)
+    with pytest.raises(RefuseStart, match="opens under neither data key"):
+        journaled.run(keyed_config, master_key)
+    assert journaled.journal(keyed_config)["steps"]["backup"] is None
+
+
+def test_a_rotation_whose_keyring_kept_the_old_phrase_says_so(store, keyed_config, master_key):
+    """S15.7.2: the run re-encrypts under the phrase given, and its report says the rotation
+    didn't finish."""
+    from moolakata.store import reencrypt as journaled
+
+    store.db.dispose()
+    _journal(keyed_config, {"backup": None}, why="rotation", to=master.key_id(os.urandom(16)))
+    done = journaled.at_once(keyed_config, master_key, {}, "rotation")
+    assert done["rotationUnfinished"] == master.fingerprint(master_key)
+
+
+def test_each_copy_is_rewritten_left_or_named_by_what_its_keyring_holds(
+    store, keyed_config, master_key
+):
+    """S15.7.2: a copy under this phrase with an earlier data key is rewritten; one under
+    another phrase, or with a keyring that can't be read, is left and says why."""
+    from moolakata.store import reencrypt as journaled
+
+    older = keyed_config.data_dir / "pre-upgrade"
+    older.mkdir()
+    earlier, other = master.new_data_key(), os.urandom(16)
+    made = {}
+    for name, ring in (
+        ("0001", master.wrap(master_key, earlier, master.now(), master.now(), ())),
+        ("0002", master.wrap(other, earlier, master.now(), master.now(), ())),
+    ):
+        db = older / f"moolakata-before-{name}-t.db"
+        _tiny(db, master.DataKeys.derive(earlier).sqlcipher_key)
+        master.write_keyring(db.with_suffix(".keyring"), ring)
+        made[name] = db.name
+    unread = keyed_config.backup_dir / "moolakata-20260102-000000"
+    unread.mkdir(parents=True)
+    (unread / "keyring").write_text("not a keyring")
+    choices = {made["0001"]: "reencrypt", made["0002"]: "reencrypt", unread.name: "reencrypt"}
+    store.db.dispose()
+    _journal(keyed_config, {"backup": None}, copies=choices)
+    done = journaled.at_once(keyed_config, master_key, choices, "host")
+    assert {k: done["copies"][k] for k in choices} == {
+        made["0001"]: "re-encrypted",
+        made["0002"]: f"left: needs the phrase of {master.fingerprint(other)}",
+        unread.name: "left: its keyring cannot be read",
+    }
+
+
+def test_a_run_stopped_among_the_copies_redoes_none_already_done(
+    store, keyed_config, master_key, monkeypatch
+):
+    """S15.7.2: each copy's outcome is journaled as it is reached; a resumed run starts at the
+    next one."""
+    from moolakata.store import reencrypt as journaled
+
+    first = _folder_copy(keyed_config, "moolakata-20261001-000000")
+    second = _folder_copy(keyed_config, "moolakata-20261002-000000")
+    store.db.dispose()
+    real, calls = journaled._copy, []
+
+    def once(c, *a):
+        calls.append(c.name)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return real(c, *a)
+
+    monkeypatch.setattr(journaled, "_copy", once)
+    _journal(keyed_config, {"backup": None}, copies={first.name: "leave", second.name: "leave"})
+    with pytest.raises(KeyboardInterrupt):
+        journaled.run(keyed_config, master_key)
+    calls.clear()
+    done = journaled.run(keyed_config, master_key)
+    assert calls == [second.name]
+    assert done["copies"] == {first.name: "left", second.name: "left"}
