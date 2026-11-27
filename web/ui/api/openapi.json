@@ -14526,8 +14526,30 @@
       },
       "NoBasis": {
         "additionalProperties": false,
-        "description": "An instrument with lots open whose cost basis is missing: left out of the unrealized\ngains, and named under them (S3.9).",
+        "description": "An instrument with lots open whose cost basis is missing: left out of the unrealized\ngains, and named under them as the table groups them (S3.9): by instrument, or within each\naccount (`accountId` and `accountName` then, None by instrument).",
         "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
+          },
+          "accountName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountname"
+          },
           "instrumentId": {
             "title": "Instrumentid",
             "type": "string"

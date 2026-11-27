@@ -165,9 +165,10 @@
    unrealized now, each lot's with a basis (its shares at the position's price less its basis)
    to its own term, and a lot whose day bought is missing (S3.1) under **unknown term**, a
    column shown only when there is one; a lot without its basis has no gain to count, never 0:
-   it is left out, and a line under the table names those instruments with how many such lots
-   (*Left out, no cost basis: AAPL (1 lot)*); and **per trade** for options (open date, close date, premium in and out,
-   P/L, return on capital required).
+   it is left out, and a line under the table names those instruments with how many such lots,
+   grouped as the table is (*Left out, no cost basis: AAPL (1 lot)* by instrument, *Joint: AAPL
+   (1 lot); IRA: AAPL (1 lot)* by account); and **per trade** for options (open date, close
+   date, premium in and out, P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
       is open, through an adjustment of its contract (S3.10.4), which sells nothing: it goes
       on under the adjusted contract with its opening day and premium, noted *adjusted* with

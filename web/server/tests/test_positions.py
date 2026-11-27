@@ -540,8 +540,9 @@ def test_shares_moved_in_with_no_basis_have_no_cost_average_or_gain(jane):
 
 def test_unrealized_gains_count_each_lot_with_a_basis_and_name_those_without(jane):
     """S3.9: the Gains tab counts every lot with a basis in its term's column; a lot without one
-    has no gain to count, never 0, and is named under the table by its instrument, with how
-    many lots; an instrument with no lot that has one makes no row."""
+    has no gain to count, never 0, and is named under the table with how many lots, grouped as
+    the table is (by instrument, or each account's); an instrument with no lot that has one
+    makes no row."""
     brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
     ira = new_account(jane, name="IRA", type="ira")["id"]
     trade(jane, brk, "2026-06-01", "buy", "10", "200", "MSFT")  # short: +500 at 250
@@ -555,13 +556,18 @@ def test_unrealized_gains_count_each_lot_with_a_basis_and_name_those_without(jan
             for x in g["unrealized"]] == [
         ("Brokerage", "500.00", "0.00", None, "500.00"),
         ("IRA", "0.00", "0.00", None, "0.00")]  # fmt: skip
-    assert [(x["symbol"], x["lots"]) for x in g["leftOut"]] == [("AAPL", 1), ("MSFT", 2)]
+    assert [(x["accountName"], x["symbol"], x["lots"]) for x in g["leftOut"]] == [
+        ("Brokerage", "MSFT", 1), ("IRA", "AAPL", 1), ("IRA", "MSFT", 1)]  # fmt: skip
+    g = jane.get("/ui/api/positions/gains", params={"by": "instrument"}).json()
+    assert [(x["accountName"], x["symbol"], x["lots"]) for x in g["leftOut"]] == [
+        (None, "AAPL", 1), (None, "MSFT", 2)]  # fmt: skip
     # Only the lot without a basis: no row, still named.
     jane2 = new_account(jane, name="Gifted", type="brokerage")["id"]
     add(jane, jane2, "0.00", "2026-09-14", kind="transfer-in", symbol="NVDA", quantity="4")
     g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
     assert "Gifted" not in [x["label"] for x in g["unrealized"]]
-    assert ("NVDA", 1) in [(x["symbol"], x["lots"]) for x in g["leftOut"]]
+    assert ("Gifted", "NVDA", 1) in [(x["accountName"], x["symbol"], x["lots"])
+                                     for x in g["leftOut"]]  # fmt: skip
 
 
 def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(jane):

@@ -2390,11 +2390,14 @@
 
 /**
  * An instrument with lots open whose cost basis is missing: left out of the unrealized
- * gains, and named under them (S3.9).
+ * gains, and named under them as the table groups them (S3.9): by instrument, or within each
+ * account (`accountId` and `accountName` then, None by instrument).
  * @typedef {Object} NoBasis
  * @property {string} instrumentId
  * @property {string} symbol
  * @property {number} lots
+ * @property {(string | null)} [accountId]
+ * @property {(string | null)} [accountName]
  */
 
 /**

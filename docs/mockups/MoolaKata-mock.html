@@ -1690,7 +1690,7 @@ function gainsTab() {
   };
   // A lot without its cost basis has no gain to count: left out, and named under the table.
   const noBasis = 'Their gain isn’t known: add each lot’s cost basis on the shares moved in.';
-  const leftOut = `<p class="small dim" style="padding:0 8px" data-tip="${noBasis}" aria-description="${noBasis}">Left out, no cost basis: ETH (1 lot)</p>`;
+  const leftOut = `<p class="small dim" style="padding:0 8px" data-tip="${noBasis}" aria-description="${noBasis}">Left out, no cost basis: Coinbase: ETH (1 lot)</p>`;
   return `<div class="toolbar">${filterChips('gby', ['Year', 'Month', 'Account', 'Instrument', 'Term'], 'Year')}</div><div class="grid${un.some((r) => r[3] != null) ? '' : ' g2'}">${tbl('Realized', rows)}${tbl('Unrealized, by Account', un, leftOut)}</div>`;
 }
 

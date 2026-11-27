@@ -493,13 +493,22 @@ function Gains() {
           : html`<p class="small dim">None.</p>`}${after}</div>
     `;
   };
-  // Lots without a cost basis have no gain to count (S3.9): named under the table.
-  const leftOut = v?.leftOut?.length
+  // Lots without a cost basis have no gain to count (S3.9): named under the table, grouped
+  // as it is: "MSFT (2 lots)" by instrument, "IRA: MSFT (1 lot); Joint: …" by account.
+  const lotsOf = (/** @type {any} */ x) =>
+    `${symbol(x.symbol)} (${x.lots} lot${x.lots === 1 ? '' : 's'})`;
+  /** @type {Map<string, string[]>} */
+  const byAccount = new Map();
+  for (const x of v?.leftOut || []) {
+    const k = x.accountName ?? '';
+    byAccount.set(k, [...(byAccount.get(k) || []), lotsOf(x)]);
+  }
+  const named = [...byAccount].map(([acct, xs]) => (acct ? `${acct}: ` : '') + xs.join(', '))
+    .join('; ');
+  const leftOut = named
     ? html`
       <p class="small dim" style=${{ padding: '0 8px' }} data-tip=${NO_BASIS}
-        aria-description=${NO_BASIS}>Left out, no cost basis: ${v.leftOut.map((
-          /** @type {any} */ x,
-        ) => `${symbol(x.symbol)} (${x.lots} lot${x.lots === 1 ? '' : 's'})`).join(', ')}</p>
+        aria-description=${NO_BASIS}>Left out, no cost basis: ${named}</p>
     `
     : null;
   return html`

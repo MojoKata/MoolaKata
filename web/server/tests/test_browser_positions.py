@@ -463,17 +463,26 @@ def test_an_unrealized_gain_without_its_term_has_its_own_column_and_why(browser,
 
 def test_a_lot_without_its_basis_is_named_under_the_unrealized_gains(browser, household):
     # S3.9: shares moved in without their basis beside a lot bought: the bought lot counts, the
-    # other is left out and named under the table, its tooltip saying to add the basis.
+    # other is left out and named under the table as it groups them (each account's, or the
+    # instrument's), its tooltip saying to add the basis.
     h = household
     acct = brokerage(h, "Basis missing")
+    other = brokerage(h, "Basis other")
     trade(h, acct, OPENED, "buy", "ZNB", 2, 50)
     moved_in(h, acct, OPENED, "ZNB", 3)
+    moved_in(h, other, OPENED, "ZNB", 1)
     trade(h, acct, CLOSED, "buy", "ZNB", 1, 60)
     page, problems = signed_in(browser, h, "/ui/positions/gains", "text=Realized")
     page.locator('.chips[aria-label="By"]').get_by_role("button", name="Account").click()
     line = page.locator('main p:has-text("Left out, no cost basis:")')
-    wait(page, 'main p:has-text("ZNB (1 lot)")', problems)
+    wait(page, 'main p:has-text("Basis missing: ZNB (1 lot)")', problems)
+    assert "Basis other: ZNB (1 lot)" in line.inner_text()
     assert "add each lot’s cost basis" in line.get_attribute("data-tip")
+    page.locator('.chips[aria-label="By"]').get_by_role("button", name="Instrument").click()
+    wait(page, 'main p:has-text("ZNB (2 lots)")', problems)
+    assert "Basis missing:" not in line.inner_text()
+    page.locator('.chips[aria-label="By"]').get_by_role("button", name="Account").click()
+    wait(page, 'main p:has-text("Basis missing: ZNB (1 lot)")', problems)
     unrealized = page.locator("main .card", has=page.locator('h3:has-text("Unrealized")'))
     cells = unrealized.locator("tbody tr", has_text="Basis missing").locator("td")
     assert cells.last.inner_text().strip() == "+$20.00", "2 bought at $50, now $60"
