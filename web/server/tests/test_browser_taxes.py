@@ -182,6 +182,9 @@ def test_an_extension_filed_asks_for_its_new_due_date_and_offers_the_federal_one
         page.locator("h3 .row-tool").first.click()
         dialog = page.locator(".dialog")
         wait(page, ".dialog #f-extension-filed-on", problems)
+        # Its due date offers the tax tables' date, which it holds: the link is off (R3.11).
+        default = dialog.get_by_role("button", name=re.compile(r"^Use the default: Apr 1[5-9]"))
+        assert default.count() == 1 and default.is_disabled()
         dialog.locator("#f-extension-filed-on").fill(f"{year + 1}-04-14")
         dialog.locator("footer button.primary").click()
         wait(page, '.dialog .err:has-text("The new due date.")', problems)

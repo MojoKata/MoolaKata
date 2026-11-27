@@ -212,16 +212,27 @@ TRADES = ("buy", "sell", "reinvest", "transfer-in", "transfer-out", "reward", "b
           "sell-to-open", "buy-to-close", "sell-to-close")  # fmt: skip
 
 
-def _filled(entity: str, fields: dict) -> dict:
+def _filled(entity: str, fields: dict, c=None) -> dict:
     if entity == "Txn" and fields.get("kind") in TRADES and "fees" not in fields:
         return {**fields, "fees": "0"}
+    if (
+        entity == "Filng"
+        and c is not None
+        and "dueDate" not in fields
+        and not fields.get("amendsId")
+        and fields.get("jurisdiction", "federal") == "federal"
+    ):
+        # An original federal return's due date as its field's **default** fills it in
+        # (R3.11): the book's federal due date. Others are typed by the test.
+        book = c.get(f"/ui/api/tax-books/{fields['bookId']}").json()
+        return {**fields, "dueDate": book["federalDue"]}
     return fields
 
 
 def create(c, entity: str, confirm: bool = False, **fields):
     """A record made as a form's draft makes it: an id made the browser's way, through the
     save; the save's answer."""
-    fields = _filled(entity, fields)
+    fields = _filled(entity, fields, c)
     op = {"op": "create", "entity": entity, "id": new_id(entity), "fields": fields}
     return _save(c, op, confirm)
 
@@ -376,7 +387,7 @@ def make(c, entity: str, confirm: bool = False, **fields) -> Made:
     (`payments`), a gift plan's new person and occasions."""
     first = new_id(entity)
     before, after, read = [], [], None
-    fields = _filled(entity, fields)
+    fields = _filled(entity, fields, c)
     if entity in ("Txn", "Rule") and "tags" in fields:
         fields["tagIds"] = [tag(c, name) for name in fields.pop("tags") or []]
     if entity == "Txn":

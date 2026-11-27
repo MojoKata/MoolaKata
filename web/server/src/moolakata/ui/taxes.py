@@ -837,6 +837,11 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingRecord) -> dict:
     # (R3.11, S8.15.3): a federal filing's field offers the default.
     if body.extensionFiledOn and not body.extendedDue:
         e.append(FieldError("extendedDue", "extended-due-missing", "The new due date."))
+    # An original return's due date is typed, never read from a blank (R3.11, S8.15.3): a
+    # federal filing's field offers the tax tables' date as its default. An amended return
+    # has none of its own.
+    if not body.amendsId and body.dueDate is None:
+        e.append(FieldError("dueDate", "due-date-missing", "The due date."))
     bases = body.carried.basis8606 or {}
     on = {f.userId for f in books.filers(s, b)}
     for u, v in bases.items():
@@ -855,9 +860,6 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingRecord) -> dict:
         if t is None or t.deleted:
             raise refuse("resultTransactionId", "not-found", "No such transaction.")
         access.account(s, c.id, t.accountId)
-    due = body.dueDate
-    if due is None and body.jurisdiction == "federal" and not body.amendsId:
-        due = books.federal_due(s, b.year)
     return {
         "jurisdiction": body.jurisdiction,
         "place": (body.place or "").strip() or None if body.jurisdiction != "federal" else None,
@@ -867,7 +869,7 @@ def _filing_values(s, c: Caller, b: TaxBook, body: FilingRecord) -> dict:
         "preparedBy": (body.preparedBy or "").strip() or None,
         "sentBy": body.sentBy or None,
         "progress": body.progress,
-        "dueDate": due,
+        "dueDate": body.dueDate,
         "extensionFiledOn": body.extensionFiledOn,
         "extendedDue": body.extendedDue,
         "filedOn": body.filedOn,

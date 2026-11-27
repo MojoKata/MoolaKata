@@ -137,6 +137,30 @@ def _unknown(prefix: str) -> dict:
     return {"id": new_id(prefix), "version": 1}
 
 
+@pytest.mark.parametrize(
+    "where",
+    [{}, {"jurisdiction": "state", "place": "Utah"}, {"jurisdiction": "local", "place": "NYC"}],
+    ids=["federal", "state", "local"],
+)
+def test_an_original_return_needs_its_due_date(jane, where):
+    """R3.11, S8.15.3: a blank due date is refused, never read as the tax tables' date; a
+    federal filing's field offers that date as its default."""
+    b = _book(jane)
+    body = {"bookId": b["id"], "form": "1040", "dueDate": None, **where}
+    _said(make(jane, "Filng", **body), "dueDate", "due-date-missing", "The due date.")
+    assert jane.get(f"/ui/api/tax-books/{b['id']}").json()["federalDue"] == "2026-04-15"
+
+
+def test_an_amended_return_keeps_no_due_date(jane):
+    b = _book(jane)
+    r = make(jane, "Filng", bookId=b["id"], form="1040", dueDate="2026-04-15")
+    (f,) = r.parent()["filings"]
+    r = make(jane, "Filng", bookId=b["id"], form="1040-X", amendsId=f["id"])
+    assert r.status_code == 200, r.text
+    amended = [x for x in r.parent()["filings"] if x["id"] != f["id"]]
+    assert amended[0]["dueDate"] is None
+
+
 def test_a_book_has_one_filer_or_two(jane):
     filers = [_me(jane), new_id("User"), new_id("User")]
     _said(make(jane, "TaxBk", year=2025, filers=filers), "filers", "filers-invalid",
@@ -228,7 +252,15 @@ def test_a_payment_stays_with_its_filing(jane):
                payments=[{"quarter": 1, "amount": "100"}])  # fmt: skip
     (f,) = one.parent()["filings"]
     (p,) = f["payments"]
-    two = make(jane, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40")
+    two = make(
+        jane,
+        "Filng",
+        bookId=b["id"],
+        jurisdiction="state",
+        place="Utah",
+        form="TC-40",
+        dueDate="2026-04-15",
+    )
     other = next(x for x in two.parent()["filings"] if x["id"] != f["id"])
     record = {"id": p["id"], "version": p["version"]}
     _said(change(jane, "EstPy", record, filingId=other["id"]), "filingId", "payment-fixed",

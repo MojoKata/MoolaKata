@@ -997,7 +997,9 @@ function FilingDialog({ close, b, f: filing, fromRow }) {
             }</div>`}
           <div class="row">
             <${RecField} rec=${rec} name="dueDate" label="Due date" id="due-date" type="date"
-              placeholder=${where === 'federal' ? 'from the tax tables' : undefined} />
+              reset=${where === 'federal' && !rec.get('amendsId') && b.federalDue
+                ? { value: b.federalDue, label: date(b.federalDue) }
+                : undefined} />
             <${RecField} rec=${rec} name="extensionFiledOn" label="Extension filed"
               id="extension-filed-on" type="date" />
             <${RecField} rec=${rec} name="extendedDue" label="Extended to" id="extended-due"

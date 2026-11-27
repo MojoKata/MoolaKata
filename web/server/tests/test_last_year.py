@@ -198,7 +198,7 @@ def test_a_joint_return_carries_each_filers_8606_basis_and_no_one_elses(server, 
     make_user(server, "bart")
     bart = sign_in(server, "bart").get("/ui/api/session").json()["user"]["id"]
     r = make(c, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40",
-             carried={"basis8606": {bart: "10"}})  # fmt: skip
+             dueDate="2026-04-15", carried={"basis8606": {bart: "10"}})  # fmt: skip
     assert r.status_code == 422, r.text
     assert (r.json()["errors"][0]["field"], r.json()["errors"][0]["code"]) == (
         "carried.basis8606", "filer-unknown")  # fmt: skip

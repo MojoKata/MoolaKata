@@ -247,7 +247,8 @@ def build(h) -> World:
                     payments=[{"quarter": q, "dueDate": due, "amount": "1000"}
                               for q, due in ((1, f"{y}-04-15"), (2, f"{y}-06-15"))]))  # fmt: skip
     made(make(c, "Filng", bookId=b["id"], jurisdiction="state", place="Utah", form="TC-40",
-              progress="accepted", filedOn=f"{y + 1}-04-10", sentBy="paper", resultKind="refund",
+              dueDate=f"{y + 1}-04-15", progress="accepted", filedOn=f"{y + 1}-04-10",
+              sentBy="paper", resultKind="refund",
               resultAmount="120", payments=[{"quarter": 1, "amount": "300"}]))  # fmt: skip
     made(make(c, "Filng", bookId=b["id"], jurisdiction="local", place="TP City",
               form="City return", dueDate=f"{y + 1}-04-18", resultKind="none"))  # fmt: skip
@@ -659,7 +660,8 @@ def test_the_filings_tab_shows_each_returns_progress_and_result(browser, world):
     utah = next(v for k, v in cards.items() if k.startswith("Utah"))
     assert "Accepted" in utah and "overdue" not in utah
     assert (
-        "Due — Filed Apr 10, 2022" in utah and "· paper Result Refund $120.00 Documents —" in utah
+        "Due Apr 15, 2022 Filed Apr 10, 2022" in utah
+        and "· paper Result Refund $120.00 Documents —" in utah
     )
     assert utah.endswith("Estimated payments: Q1 $300")
     city = next(v for k, v in cards.items() if k.startswith("TP City"))
