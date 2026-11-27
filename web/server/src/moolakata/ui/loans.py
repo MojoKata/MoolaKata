@@ -1085,7 +1085,6 @@ def _payoff_update(ctx, p: PayoffPlan, body: PayoffRecord) -> None:
     _check_plan(body.inputs)
     p.name = _check_name(body.name)
     p.inputs = exactjson.unmark(body.inputs.model_dump_json())
-    p.updatedAt = clock.now()
 
 
 def _payoff_read(ctx, record_id: str) -> SavedPlan:

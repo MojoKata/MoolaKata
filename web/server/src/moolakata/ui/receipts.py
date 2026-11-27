@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
 
-from .. import access, activity, clock, exactjson, ids, parsing, receipts, settings, tags
+from .. import access, activity, exactjson, ids, parsing, receipts, settings, tags
 from ..access import Perms
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
@@ -463,7 +463,6 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
     tags.owned(ctx.s, ctx.caller.id, body.tagIds)
     tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
     r.keep = body.keep
-    r.updatedAt = clock.now()
 
 
 def _receipt_delete(ctx, r: Receipt) -> None:

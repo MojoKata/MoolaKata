@@ -323,6 +323,7 @@ def _source_update(ctx, src: PriceSource, body: SourceRecord) -> None:
         src.preference = exactjson.dumps({k: int(v) for k, v in body.preference.items()})
         fields.append("preference")
     if fields:
+        # A key alone changes a secret's row, not the source's: its version moves with it.
         src.updatedAt = clock.now()
         activity.record(s, "prices.source-changed", actor=c.id, for_admins=True,
                         detail={"source": src.name, "fields": fields})  # fmt: skip

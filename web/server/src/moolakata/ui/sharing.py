@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import create_model
 from sqlalchemy import false, select
 
-from .. import access, activity, clock, sharing
+from .. import access, activity, sharing
 from ..errors import Problem, refuse
 from ..store import scoping
 from ..store.entities.sharing import SHARE_ENTITIES, CountedAccount, ItemShare
@@ -428,7 +428,6 @@ def _share_kind(kind: str, entity: type[ItemShare]) -> None:
         if body.allow != was["allow"]:
             row.accessClassId = sharing.class_of(body.allow)
             _given(ctx, row, "changed", body.allow)
-        row.updatedAt = clock.now()
         _told(ctx, kind, row.targetId, grantee)
 
     def delete(ctx, row: ItemShare) -> None:

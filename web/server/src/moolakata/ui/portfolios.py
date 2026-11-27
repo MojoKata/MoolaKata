@@ -227,6 +227,7 @@ def _portfolio_update(ctx, p: Portfolio, body: PortfolioRecord) -> None:
         if not held.configurable:
             raise refuse("accountIds", "owner-only", "Only the owner chooses the accounts.", 403)
         _set_members(s, p, body.accountIds, c.id)
+        # Its accounts are rows of their own: set by hand, its version moves with them.
         p.updatedAt = clock.now()
         fields.append("accounts")
     if fields:

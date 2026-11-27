@@ -866,6 +866,7 @@ def _values(body: LineIn) -> dict:
 
 def _planned(ctx, b: Budget) -> None:
     """The budget changed, and Activity says so once for the whole save."""
+    # Its lines are rows of their own: set by hand, its version moves with them.
     b.updatedAt = clock.now()
     srv, by = server(ctx.request), ctx.caller.id
 
@@ -1090,6 +1091,7 @@ def _move(s, c: Caller, b: Budget, body: MoveIn, move_id: str) -> BudgetMove:
         createdById=c.id,
     )
     s.add(mv)
+    # A move is a row of its own: set by hand, the budget's version moves with it.
     b.updatedAt = clock.now()
     activity.record(
         s, "budget.moved", actor=c.id, subject_kind="budget", subject_id=b.id, owner=b.ownerId
@@ -1664,7 +1666,7 @@ def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = 
             r = BudgetReview(id=ids.new_id("BdgRv"), budgetId=b.id, month=m, reviewedById=c.id)
             s.add(r)
         else:
-            r.reviewedById, r.updatedAt = c.id, clock.now()
+            r.reviewedById = c.id
         with scoping.as_server(s, "a reviewed month's figures, kept for each who reads it") as srv:
             # Each one's figures as they are given them, so none passes on another's account
             # (S7.1.1); each is theirs alone.
@@ -1679,7 +1681,7 @@ def mark_reviewed(budget_id: str, body: ReviewIn, request: Request, c: Caller = 
                 )
             ):
                 if row.userId in figures:
-                    row.figures, row.updatedAt = figures.pop(row.userId), clock.now()
+                    row.figures = figures.pop(row.userId)
                 else:  # no longer shared with them
                     row.deletedAt, row.deletedById = clock.now(), c.id
             for uid, kept in figures.items():
@@ -2048,6 +2050,7 @@ def _overlap(a: budgets.Span, b: budgets.Span) -> bool:
 
 
 def _ba_changed(ctx, b: Budget) -> None:
+    # Its accounts are rows of their own: set by hand, its version moves with them.
     b.updatedAt = clock.now()
     activity.record(ctx.s, "budget.updated", actor=ctx.caller.id, subject_kind="budget",
                     subject_id=b.id, owner=b.ownerId, detail={"fields": ["accounts"]})  # fmt: skip

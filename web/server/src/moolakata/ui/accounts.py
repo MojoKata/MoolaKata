@@ -985,7 +985,6 @@ def _recon_update(ctx, r: Reconciliation, body: ReconciliationRecord) -> None:
     if body.accountId != r.accountId:
         raise refuse("accountId", "reconciliation-fixed", "It stays with its account.")
     r.statementDate, r.statementBalance = body.statementDate, body.statementBalance
-    r.updatedAt = clock.now()
     ctx.s.flush()
     if body.finished:
         _finish(ctx, r)

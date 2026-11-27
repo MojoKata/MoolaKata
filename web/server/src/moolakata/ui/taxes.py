@@ -1028,7 +1028,6 @@ def _filing_update(ctx, f: Filing, body: FilingRecord) -> None:
     was = f.jurisdiction == "federal" and f.amendsId is not None
     for k, v in _filing_values(s, c, b, body).items():
         setattr(f, k, v)
-    f.updatedAt = clock.now()
     if not was:
         _amending(s, c, b, f)
 
@@ -1188,7 +1187,6 @@ def _book_update(ctx, b: TaxBook, body: BookRecord) -> None:
             raise refuse(share, "amount-invalid", "A loss carried over, as a positive amount.")
         setattr(b, share, v)
     b.magi = body.magi
-    b.updatedAt = clock.now()
 
 
 def _book_delete(ctx, b: TaxBook) -> None:
@@ -1228,7 +1226,6 @@ def _dep_update(ctx, d: TaxBookDependent, body: DependentRecord) -> None:
     _, b, _ = _own_dependent(s, c, d.id)
     for k, v in _dependent_values(s, c, b, body, d.id).items():
         setattr(d, k, v)
-    d.updatedAt = clock.now()
     dependents.set_accounts(s, d, list(body.accountIds), clock.now())
 
 
@@ -1260,7 +1257,6 @@ def _doc_update(ctx, d: TaxDocument, body: DocumentRecord) -> None:
     _, b, _ = _own_doc(s, c, d.id)
     for k, v in _doc_values(s, c, b, body, d.receiptId).items():
         setattr(d, k, v)
-    d.updatedAt = clock.now()
 
 
 def _doc_read(ctx, record_id: str) -> DocumentOut:

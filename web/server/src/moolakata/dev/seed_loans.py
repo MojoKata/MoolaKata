@@ -107,7 +107,6 @@ def seed_loans(s, people: dict) -> None:
             source="typed",
         )
     )
-    home.updatedAt = clock.now()
     for name, inputs, since in (
         ("Extra $300 a month", {"monthly": "300"}, loans.add_months(start, 6)),
         (
