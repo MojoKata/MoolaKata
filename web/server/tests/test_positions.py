@@ -96,8 +96,43 @@ def test_gains_by_month_account_and_term(jane):
             "shortTerm": "50.00",
             "longTerm": "0.00",
             "total": "50.00",
+            "unknownTerm": None,
         }
     ]
+
+
+def test_unrealized_gains_split_by_lot_into_short_long_and_unknown_term(jane):
+    """S3.9, S3.1: each lot's unrealized gain (its shares at the position's price less its
+    basis) goes to its own term; a lot whose day bought is missing to *unknown term*, which
+    is there only for a group with such a lot."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2024-01-05", "buy", "10", "100")  # long: +500 at 150
+    trade(jane, brk, "2026-08-03", "buy", "1", "120")  # short: +30
+    add(jane, brk, "0.00", "2026-08-20", kind="transfer-in", symbol="VTI", quantity="5",
+        costBasis="400")  # fmt: skip  # unknown: +350
+    trade(jane, brk, "2026-09-01", "buy", "1", "150")  # short: 0; its price values them all
+    trade(jane, ira, "2026-09-02", "buy", "2", "75", "AAPL")
+    trade(jane, ira, "2026-09-03", "buy", "2", "80", "AAPL")  # short: +10
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    by = {x["label"]: x for x in g["unrealized"]}
+    assert (by["Brokerage"]["shortTerm"], by["Brokerage"]["longTerm"],
+            by["Brokerage"]["unknownTerm"], by["Brokerage"]["total"]) == (
+        "30.00", "500.00", "350.00", "880.00")  # fmt: skip
+    assert (by["IRA"]["shortTerm"], by["IRA"]["longTerm"], by["IRA"]["unknownTerm"]) == (
+        "10.00", "0.00", None)  # fmt: skip
+    assert all(x["unknownTerm"] is None for x in g["realized"])
+
+
+def test_a_lots_unrealized_share_rounds_and_the_last_lot_takes_what_is_left(jane):
+    """Three lots of a position at a price that splits into thirds of a cent: each lot's part
+    is to the cent, and the parts come to the position's whole gain."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    trade(jane, brk, "2024-01-05", "buy", "1", "3.33")
+    trade(jane, brk, "2025-01-06", "buy", "1", "3.33")
+    trade(jane, brk, "2026-09-01", "buy", "1", "3.3333")  # 3 at it: $10.00, $3.3333 each
+    [row] = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()["unrealized"]
+    assert (row["longTerm"], row["shortTerm"], row["total"]) == ("0.00", "0.01", "0.01")
 
 
 def test_a_wash_sale_moves_the_loss_into_the_replacement_lot(server, jane):

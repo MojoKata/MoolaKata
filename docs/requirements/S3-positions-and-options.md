@@ -156,7 +156,9 @@
 
       The issue names the rule it may fall under and says the preparer decides.
 9. **Gain/loss views**: realized by year, month, account, instrument and short- or long-term;
-   unrealized now; and **per trade** for options (open date, close date, premium in and out,
+   unrealized now, each lot's (its shares at the position's price less its basis) to its own
+   term, and a lot whose day bought is missing (S3.1) under **unknown term**, a column shown
+   only when there is one; and **per trade** for options (open date, close date, premium in and out,
    P/L, return on capital required).
    1. An option trade runs from the first contract opened in an account to the moment none
       is open, through an adjustment of its contract (S3.10.4), which sells nothing: it goes

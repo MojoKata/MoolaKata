@@ -394,6 +394,28 @@ def test_gains_are_grouped_as_chosen(browser, household, by, label, unrealized):
     page.close()
 
 
+def test_an_unrealized_gain_without_its_term_has_its_own_column_and_why(browser, household):
+    # S3.9, S3.1: shares moved in with their basis but not their day bought: their gain goes
+    # under Unknown Term, whose header says why and how to type the day; the lot bought
+    # beside them stays short term.
+    h = household
+    acct = brokerage(h, "Term unknown")
+    saved(create(h.c, "Txn", accountId=acct, date=OPENED, kind="transfer-in", symbol="ZUT",
+                 quantity="5", costBasis="400", amount="0"))  # fmt: skip
+    trade(h, acct, CLOSED, "buy", "ZUT", 1, 100)
+    page, problems = signed_in(browser, h, "/ui/positions/gains", "text=Realized")
+    page.locator('.chips[aria-label="By"]').get_by_role("button", name="Account").click()
+    unrealized = page.locator("main .card", has=page.locator('h3:has-text("Unrealized")'))
+    head = unrealized.locator('th:text-is("Unknown Term")')
+    wait(page, 'main .card th:text-is("Unknown Term")', problems)
+    assert "day bought is missing" in head.get_attribute("data-tip")
+    cells = unrealized.locator("tbody tr", has_text="Term unknown").locator("td")
+    assert [x.strip() for x in cells.all_inner_texts()[1:]] == [
+        "$0.00", "$0.00", "+$100.00", "+$100.00"]  # fmt: skip
+    assert problems == []
+    page.close()
+
+
 # ---------- Strategies ----------
 
 

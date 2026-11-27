@@ -403,6 +403,10 @@ function Trades() {
   `;
 }
 
+/** Why a gain has no term (S3.1), and how to give it one. */
+const UNKNOWN_TERM =
+  'Lots whose day bought is missing, so their term isn’t known: type each lot’s day bought on the shares moved in.';
+
 function Gains() {
   const fmt = useFormats();
   const now = fmt.thisYear();
@@ -411,8 +415,10 @@ function Gains() {
   const res = useApi('/positions/gains', { by, year: year || undefined }, ['import', 'prices']);
   const v = /** @type {any} */ (res.data);
   /** @param {any[]} rows @param {string} title */
-  const table = (rows, title) =>
-    html`<div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{
+  const table = (rows, title) => {
+    // A lot whose day bought is missing has no term (S3.1): its own column, only then (S3.9).
+    const unknown = rows.some((g) => g.unknownTerm != null);
+    return html`<div class="card" style=${{ padding: '4px 8px' }}><h3 style=${{
       padding: '8px 8px 0',
     }}>${title}</h3>${
       rows.length
@@ -425,6 +431,10 @@ function Gains() {
                   <th></th>
                   <th class="num">Short Term</th>
                   <th class="num">Long Term</th>
+                  ${unknown
+                    ? html`<th class="num" data-tip=${UNKNOWN_TERM} aria-description=${UNKNOWN_TERM}>
+                        Unknown Term</th>`
+                    : null}
                   <th class="num">Total</th>
                 </tr>
               </thead>
@@ -438,6 +448,11 @@ function Gains() {
                     <td class="num">
                       <${Amt} v=${g.longTerm} signed />
                     </td>
+                    ${unknown
+                      ? html`<td class="num">${
+                        g.unknownTerm != null ? html`<${Amt} v=${g.unknownTerm} signed />` : ''
+                      }</td>`
+                      : null}
                     <td class="num"><b><${Amt}
                                 v=${g.total} signed /></b></td>
                   </tr>
@@ -448,6 +463,7 @@ function Gains() {
         `
         : html`<p class="small dim">None.</p>`
     }</div>`;
+  };
   return html`
     <div
       class="toolbar"><${Chips} label="By" value=${by} onChange=${setBy} options=${[
@@ -462,10 +478,12 @@ function Gains() {
         ...[now - 2, now - 1, now].map((y) => [String(y), String(y)]),
       ]} /></div>
     ${res.error ? html`<${Failed} error=${res.error} />` : !v ? html`<${Loading} />` : html`
-      <div class="grid g2">${table(v.realized, 'Realized')}${table(
-        v.unrealized,
-        by === 'instrument' ? 'Unrealized, by instrument' : 'Unrealized, by account',
-      )}</div>
+      <div class=${v.unrealized.some((/** @type {any} */ g) => g.unknownTerm != null)
+        ? 'grid' // a fourth figure's column needs the width: one table above the other
+        : 'grid g2'}>${table(v.realized, 'Realized')}${table(
+          v.unrealized,
+          by === 'instrument' ? 'Unrealized, by instrument' : 'Unrealized, by account',
+        )}</div>
     `}
   `;
 }

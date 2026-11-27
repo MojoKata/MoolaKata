@@ -7771,6 +7771,21 @@
             "format": "money",
             "title": "Total",
             "type": "number"
+          },
+          "unknownTerm": {
+            "anyOf": [
+              {
+                "examples": [
+                  1234.5
+                ],
+                "format": "money",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknownterm"
           }
         },
         "required": [
