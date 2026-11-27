@@ -1039,6 +1039,20 @@ def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(s
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
 
 
+def test_a_new_book_copies_an_account_both_last_years_books_changed_once(st):
+    """S8.14.4: after filing separately, an account each of last year's books added or left
+    out is copied once, as the first filer's book had it."""
+    from moolakata.ui.taxes import _from_last_year
+
+    acct = st.account(type="brokerage", name="Shared brokerage")
+    st.counts(st.book(2025, owner="jane"), acct, counted=False)
+    st.counts(st.book(2025, owner="john"), acct, counted=True, by="john")
+    b = st.book(2026, filers={"jane": True, "john": True}, fromLastYear=True, copyPending=True)
+    _from_last_year(st.s, b, T)
+    rows = [o for o in books.overrides(st.s, b) if o.accountId == acct.id]
+    assert [(o.counted, o.addedById) for o in rows] == [(False, None)]
+
+
 def test_a_stand_in_lot_is_an_issue_crypto_first(st):
     """S8.4, R3.2: what a statement's holdings stood in for has no day bought or basis known:
     each such lot is listed once, crypto first, never as a bare missing basis."""

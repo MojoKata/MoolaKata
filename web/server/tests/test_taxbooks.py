@@ -654,3 +654,13 @@ def test_an_extension_filed_needs_its_new_due_date(couple):
     state = make(jane, "Filng", bookId=last["id"], jurisdiction="state", place="Utah",
                  form="TC-40", extensionFiledOn="2026-04-14")  # fmt: skip
     assert state.json()["errors"][0]["field"] == "extendedDue"
+
+
+def test_a_deleted_books_invitation_is_not_found(couple):
+    """S8.14.1: a book deleted before its named filer accepts is gone for them too."""
+    jane, john, a_id, b_id = couple
+    b = book(jane, 2026, [a_id, b_id])
+    d = jane.get(f"/ui/api/tax-books/{b['id']}").json()
+    assert remove(jane, "TaxBk", d).status_code == 200
+    r = john.post(f"/ui/api/tax-books/{b['id']}/accept")
+    assert (r.status_code, r.json()["code"]) == (404, "not-found")
