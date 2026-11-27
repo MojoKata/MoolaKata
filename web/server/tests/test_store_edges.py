@@ -568,3 +568,13 @@ def test_a_table_seen_without_a_view_has_no_select():
 
     with pytest.raises(ValueError, match=r"TaskRun is .*: it has no view"):
         access_views.select_sql(metadata.tables["TaskRun"])
+
+
+def test_live_with_the_deleted_reads_every_row():
+    from sqlalchemy import select
+
+    from moolakata.store.db import live
+    from moolakata.store.entities.users import User
+    from moolakata.store.tables import users
+
+    assert str(live(User, users.User, include_deleted=True)) == str(select(User))
