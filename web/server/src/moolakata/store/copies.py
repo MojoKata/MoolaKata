@@ -3,8 +3,8 @@ made before a migration (`pre-upgrade/`), the folders a restore set aside
 (`before-restore-*/`), and a new keyring a re-encryption left unexplained, set aside beside the
 keyring (`keyring.next.set-aside-*`: a data key nothing was written under). Each carries its
 own keyring, so it opens with the phrase of its day for as long as it exists, and so a
-rotation can re-wrap it and a re-encryption rewrite it. The host's own snapshots and backups
-are copies too, which nothing here can see."""
+re-encryption, which every rotation brings (S15.7.1), can rewrite it. The host's own
+snapshots and backups are copies too, which nothing here can see."""
 
 import contextlib
 import datetime as dt
@@ -17,7 +17,6 @@ from pathlib import Path
 from ..config import Config
 from ..keys import master
 from . import copy
-from .db import WrongKey
 
 BACKUP_PREFIX = "moolakata-"
 PRE_UPGRADE = "pre-upgrade"
@@ -158,12 +157,6 @@ def remove(c: Copy) -> None:
         shutil.rmtree(c.path)
 
 
-def _write_ring(c: Copy, ring: master.Keyring, data_key: bytes) -> None:
-    master.write_keyring(c.keyring, ring)
-    if c.kind == "backup":
-        _refresh_manifest(c, ring, data_key)
-
-
 def _refresh_manifest(c: Copy, ring: master.Keyring, data_key: bytes) -> None:
     """A backup's manifest names its files' hashes and its master key, signed under its data
     key: kept true after a re-wrap or a rewrite (S14.6)."""
@@ -189,34 +182,6 @@ def _refresh_manifest(c: Copy, ring: master.Keyring, data_key: bytes) -> None:
     write_manifest(p, m, data_key)
 
 
-def rewrap(c: Copy, data_key: bytes, new_master: bytes, at: dt.datetime) -> None:
-    """Re-wrap a copy's keyring under a new master key, with the data key it holds known
-    (S15.7.1): the data key the server holds, or one unwrapped with the old phrase."""
-    assert c.ring is not None
-    _write_ring(c, master.rotated(c.ring, data_key, new_master, at), data_key)
-
-
-def data_key_of(c: Copy, master_key: bytes) -> bytes:
-    """A copy's data key, unwrapped with the phrase its keyring was wrapped under."""
-    assert c.ring is not None
-    return master.unwrap(master_key, c.ring)
-
-
-def reencrypt(c: Copy, master_key: bytes, new_data_key: bytes) -> None:
-    """Rewrite a copy's database under a new data key (S15.7.2), and its keyring: for a copy
-    whose keyring opens with this phrase. A restore leaves the receipt files where they are
-    (S15.6.8), so no copy holds any to rewrite."""
-    old = data_key_of(c, master_key)
-    old_keys, new_keys = master.DataKeys.derive(old), master.DataKeys.derive(new_data_key)
-    if c.db_path.exists():
-        copy.rekey(c.db_path, old_keys.sqlcipher_key, new_keys.sqlcipher_key)
-    assert c.ring is not None
-    ring = master.wrap(
-        master_key, new_data_key, c.ring.master_created, master.now(), c.ring.previous
-    )
-    _write_ring(c, ring, new_data_key)
-
-
 def reencrypt_with(c: Copy, old_data_key: bytes, new_data_key: bytes, master_key: bytes) -> None:
     """Rewrite a copy that holds the data key a re-encryption replaced under the new one, and
     wrap its keyring under this phrase (S15.7.2), whatever phrase it was under before. Its new
@@ -240,85 +205,6 @@ def reencrypt_with(c: Copy, old_data_key: bytes, new_data_key: bytes, master_key
     os.replace(aside, c.keyring)
     if c.kind == "backup":
         _refresh_manifest(c, ring, new_data_key)
-
-
-def can_open(c: Copy, master_key: bytes) -> bool:
-    """Whether the phrase opens this copy's database (its keyring and the file agree)."""
-    try:
-        keys = master.DataKeys.derive(data_key_of(c, master_key))
-        copy.verify(c.db_path, keys.sqlcipher_key) if c.db_path.exists() else None
-        return True
-    except ValueError, WrongKey, Exception:
-        return False
-
-
-def apply_rotation(
-    config: Config,
-    choices: dict[str, str],
-    current: master.Unlocked,
-    new_master: bytes,
-    at: dt.datetime,
-    old_master: bytes | None = None,
-) -> dict[str, str]:
-    """Each copy's choice at a rotation (S15.7.1): `rewrap`, `delete` or `leave`. A copy can
-    be re-wrapped with the data key the server holds when it holds that very key, or with
-    the old phrase when it was given; otherwise it is left and the outcome says why."""
-    out = {}
-    for c in copies(config):
-        choice = choices.get(c.name, "leave")
-        if choice == "delete":
-            remove(c)
-            out[c.name] = "deleted"
-        elif choice == "rewrap":
-            how = opens_with(c, current)
-            if how == "current":
-                rewrap(c, current.data_key, new_master, at)
-                out[c.name] = "rewrapped"
-            elif how in ("phrase", "previous") and old_master is not None and c.ring is not None:
-                try:
-                    rewrap(c, master.unwrap(old_master, c.ring), new_master, at)
-                    out[c.name] = "rewrapped"
-                except ValueError:
-                    out[c.name] = _needs(c)
-            elif c.ring is None:
-                out[c.name] = "left: its keyring cannot be read"
-            else:
-                out[c.name] = _needs(c)
-        else:
-            out[c.name] = "left"
-    return out
-
-
-def _needs(c: Copy) -> str:
-    assert c.ring is not None
-    return f"left: needs the phrase of {master.fingerprint(c.ring.master_id)}"
-
-
-def apply_reencryption(
-    config: Config, choices: dict[str, str], master_key: bytes, new_data_key: bytes
-) -> dict[str, str]:
-    """Each copy's choice at a re-encryption (S15.7.2): `reencrypt`, `delete` or `leave`. Only
-    a copy whose keyring opens with this phrase can be rewritten."""
-    out = {}
-    mid = master.key_id(master_key)
-    for c in copies(config):
-        choice = choices.get(c.name, "leave")
-        if choice == "delete":
-            remove(c)
-            out[c.name] = "deleted"
-        elif choice == "reencrypt":
-            if c.ring is None:
-                out[c.name] = "left: its keyring cannot be read"
-            elif c.ring.master_id != mid:
-                out[c.name] = _needs(c)
-            elif c.ring.data_key_id == master.data_key_id(new_data_key):
-                out[c.name] = "already under the new data key"
-            else:
-                reencrypt(c, master_key, new_data_key)
-                out[c.name] = "re-encrypted"
-        else:
-            out[c.name] = "left"
-    return out
 
 
 def forget_previous(config: Config, fingerprint: str) -> bool:

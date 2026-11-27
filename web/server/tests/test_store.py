@@ -929,8 +929,8 @@ def test_restore_refuses_a_changed_backup_or_one_from_a_newer_release(
 def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     store, keyed_config, master_key
 ):
-    """S15.7: every copy carries its keyring; a rotation re-wraps it, a re-encryption rewrites
-    it, Settings removes it; each says how it opens."""
+    """S15.7: every copy carries its keyring; a rotation's re-encryption rewrites it, Settings
+    removes it; each says how it opens."""
     from moolakata.store import copies
 
     with store.db.tx(unscoped="test") as s:
@@ -1004,6 +1004,19 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     copies.remove(found["moolakata-before-0009-t.db"])
     assert [c.kind for c in copies.copies(keyed_config)] == ["backup", "backup"]
     assert not (older / "moolakata-before-0009-t.keyring").exists()
+
+
+def test_a_rotation_offers_a_copy_no_rewrap_without_reencrypting(store, keyed_config, master_key):
+    """S15.7.1: a rotation always re-encrypts, so a copy's choice is to be re-encrypted,
+    deleted or left; a re-wrap under the new phrase alone is refused before anything changes."""
+    from moolakata.store import reencrypt as journaled
+
+    b = maintenance.backup(keyed_config, store)
+    before = keyed_config.keyring_path.read_bytes()
+    with pytest.raises(ValueError, match="each copy: reencrypt, delete or leave"):
+        maintenance.rotate_running(keyed_config, store, os.urandom(16), {b.name: "rewrap"})
+    assert keyed_config.keyring_path.read_bytes() == before
+    assert not journaled.pending(keyed_config)
 
 
 def test_a_pending_reencryption_under_another_phrase_is_refused_by_name(
