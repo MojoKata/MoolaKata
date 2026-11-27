@@ -165,6 +165,24 @@ def test_legs_opened_together_are_proposed_grouped_rolled_and_undone(jane):
     assert jane.get("/ui/api/positions/strategies").json()["strategies"] == []
 
 
+def test_two_strategies_opened_the_same_day_each_keep_their_figures_at_open(jane):
+    """S3.5.5: two spreads opened on one day in one account, each grouped: each one's capital
+    at risk at open is its own, from what was held at the end of that day."""
+    a = new_account(jane, type="brokerage")["id"]
+    for strike, premium in (("540", "2.00"), ("530", "1.20"), ("440", "1.50"), ("420", "0.50")):
+        side = "sell-to-open" if strike in ("540", "440") else "buy-to-open"
+        saved(option(jane, a, side, "2026-10-02", premium, strike=strike, fees="0"))
+    rows = jane.get("/ui/api/positions").json()["open"]
+    ids_ = {r["symbol"].split()[2]: r["instrumentId"] for r in rows}
+    for pair in (("540", "530"), ("440", "420")):
+        saved(create(jane, "Strat", accountId=a, legs=[{"instrumentId": ids_[k]} for k in pair]))
+    got = sorted(
+        (x["maxLoss"], x["capitalAtRiskAtOpen"])
+        for x in jane.get("/ui/api/positions/strategies").json()["strategies"]
+    )
+    assert got == [(920, 920), (1900, 1900)]
+
+
 def test_a_short_call_against_shares_is_proposed_as_a_covered_call(jane):
     a = new_account(jane, type="brokerage")["id"]
     r = make(

@@ -334,11 +334,10 @@ def _adjusted(s: Session, account_id: str) -> dict[str, tuple[str, Decimal]]:
     out = {}
     for into in pairs:
         # A pair's halves are made and deleted together, the old instrument's named by the new
-        # one's transferId; an adjustment typed by hand, an all-cash merger and a merger's old
-        # half have no other.
-        if into.transferId:
-            old = s.get(Transaction, into.transferId)
-            out[old.instrumentId] = (into.instrumentId, into.splitRatio)
+        # one's transferId, and only the new one has a ratio: an all-cash merger and a merger's
+        # old half have none, and none of these kinds is typed by hand (S2.4.1).
+        old = s.get(Transaction, into.transferId)
+        out[old.instrumentId] = (into.instrumentId, into.splitRatio)
     return out
 
 
