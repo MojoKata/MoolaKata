@@ -536,8 +536,32 @@ def test_shares_moved_in_with_no_basis_have_no_cost_average_or_gain(jane):
     assert (row["cost"], row["averageCost"], row["value"], row["unrealized"],
             row["unrealizedPct"]) == (None, None, "3000.00", None, None)  # fmt: skip
     assert jane.get("/ui/api/positions").json()["summary"]["unrealized"] == "0.00"
-    # No gain to split by lot or term: the Gains tab leaves it out, never counts it as 0.
-    assert jane.get("/ui/api/positions/gains").json()["unrealized"] == []
+
+
+def test_unrealized_gains_count_each_lot_with_a_basis_and_name_those_without(jane):
+    """S3.9: the Gains tab counts every lot with a basis in its term's column; a lot without one
+    has no gain to count, never 0, and is named under the table by its instrument, with how
+    many lots; an instrument with no lot that has one makes no row."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2026-06-01", "buy", "10", "200", "MSFT")  # short: +500 at 250
+    add(jane, brk, "0.00", "2026-09-12", kind="transfer-in", symbol="MSFT", quantity="5")
+    add(jane, ira, "0.00", "2026-09-12", kind="transfer-in", symbol="MSFT", quantity="2")
+    trade(jane, brk, "2026-09-20", "buy", "1", "250", "MSFT")  # short: 0; the price
+    add(jane, ira, "0.00", "2026-09-13", kind="transfer-in", symbol="AAPL", quantity="3")
+    trade(jane, ira, "2026-09-21", "buy", "1", "100", "AAPL")
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    assert [(x["label"], x["shortTerm"], x["longTerm"], x["unknownTerm"], x["total"])
+            for x in g["unrealized"]] == [
+        ("Brokerage", "500.00", "0.00", None, "500.00"),
+        ("IRA", "0.00", "0.00", None, "0.00")]  # fmt: skip
+    assert [(x["symbol"], x["lots"]) for x in g["leftOut"]] == [("AAPL", 1), ("MSFT", 2)]
+    # Only the lot without a basis: no row, still named.
+    jane2 = new_account(jane, name="Gifted", type="brokerage")["id"]
+    add(jane, jane2, "0.00", "2026-09-14", kind="transfer-in", symbol="NVDA", quantity="4")
+    g = jane.get("/ui/api/positions/gains", params={"by": "account"}).json()
+    assert "Gifted" not in [x["label"] for x in g["unrealized"]]
+    assert ("NVDA", 1) in [(x["symbol"], x["lots"]) for x in g["leftOut"]]
 
 
 def test_positions_of_a_kind_are_its_open_and_closed_rows_alone(jane):

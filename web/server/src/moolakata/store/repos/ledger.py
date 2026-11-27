@@ -488,7 +488,7 @@ def _option(s: Session, account: Account, sec, result) -> Instrument | None:
     """An option the file names by its OCC ticker, made a contract (S3.2). A root ending in a
     digit is an adjusted contract (S3.10.3): linked to the adjusted contract already here, or,
     when the account still holds the contract it adjusts, named in a warning to adjust it."""
-    from ...options import adjust, contract, contract_of, symbol
+    from ...options import adjust, contract, contract_of, shown, symbol
 
     for text in (sec.symbol, sec.name, sec.key):
         occ = adjust.parse_occ(text or "")
@@ -515,8 +515,8 @@ def _option(s: Session, account: Account, sec, result) -> Instrument | None:
         under = s.get(Instrument, c.underlyingId)
         if under is not None and under.symbol == base:
             result.warnings.append(
-                f"{name} looks like an adjustment of {s.get(Instrument, iid).symbol}: adjust it "
-                "on Positions › Strategies, from the OCC's memo, so its lots carry over"
+                f"{name} looks like an adjustment of {shown(s.get(Instrument, iid).symbol)}: "
+                "adjust it on Positions › Strategies, from the OCC's memo, so its lots carry over"
             )
             break
     return None
@@ -629,13 +629,15 @@ def _apply_import(
             continue
         added.append(_add_row(s, account, user_id, imp, row, inst))
     s.flush()
+    from ...options import shown
+
     for row in ends:
         leg = legs.get(id(row))
         if leg is not None and leg.fitId in before:
             # Its stock trade came in with an earlier file, so settling would make it twice.
             result.warnings.append(
-                f"{instruments[row.security].symbol} on {row.date:%b %-d, %Y}: its stock trade "
-                "was imported before. Delete that trade, then settle the option on Positions."
+                f"{shown(instruments[row.security].symbol)} on {row.date:%b %-d, %Y}: its stock "
+                "trade was imported before. Delete that trade, then settle the option on Positions."
             )
             continue
         added += _settle(s, account, user_id, imp, row, instruments, leg, result)

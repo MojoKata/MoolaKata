@@ -234,10 +234,8 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     # S3.2: the dialog from Positions, the trade chosen, the cash paid said as it is typed.
     h = household
     acct = brokerage(h, "Desk")
-    page, problems = signed_in(
-        browser, h, "/ui/positions/open", 'button:has-text("Record an Option Trade")'
-    )
-    page.click('button:has-text("Record an Option Trade")')
+    page, problems = signed_in(browser, h, "/ui/positions/open", 'button:has-text("Add Trade")')
+    page.click('button:has-text("Add Trade")')
     wait(page, "#f-underlying", problems)
     page.select_option("#f-account", label="Desk")
     page.get_by_role("radio", name="Buy to open").click()
@@ -268,6 +266,30 @@ def test_an_option_trade_recorded_from_positions_says_what_it_comes_to(browser, 
     assert t["symbol"].startswith("ZDK ") and t["symbol"].endswith(" 45 C")
     # The one refusal: the fees cleared.
     assert [p for p in problems if not p.startswith("422 for")] == []
+    page.close()
+
+
+def test_an_open_options_close_starts_the_trade_on_its_contract(browser, household):
+    # S3.2: a short put's Close… opens the trade dialog named for its contract, on its account,
+    # buying to close all its contracts; recorded, the position is closed.
+    h = household
+    acct = brokerage(h, "Closing desk")
+    option(h, acct, OPENED, "sell-to-open", "ZCL", "put", "40", contracts="2", premium="1.00")
+    page, problems = signed_in(browser, h, "/ui/positions/open", "text=ZCL")
+    row(page, "ZCL").locator("button.linklike").first.click()
+    page.get_by_role("button", name="Close…").click()
+    wait(page, "#f-premium", problems)
+    title = page.locator(".dialog h2, .dialog h3").first.inner_text()
+    assert re.fullmatch(r"Close ZCL \d\d [A-Z][a-z]{2} \d\d 40 P", title), title
+    assert page.get_by_role("radio", name="Buy to close").is_checked()
+    assert (page.input_value("#f-underlying"), page.input_value("#f-strike"),
+            page.input_value("#f-contracts")) == ("ZCL", "40", "2")  # fmt: skip
+    page.fill("#f-premium", "0.30")
+    page.click(".dialog footer button.primary")
+    wait(page, ".dialog", problems, state="detached")
+    toast(page, "Trade recorded", problems)
+    assert open_rows(h, acct) == []
+    assert problems == []
     page.close()
 
 
@@ -424,6 +446,26 @@ def test_an_unrealized_gain_without_its_term_has_its_own_column_and_why(browser,
     cells = unrealized.locator("tbody tr", has_text="Term unknown").locator("td")
     assert [x.strip() for x in cells.all_inner_texts()[1:]] == [
         "$0.00", "$0.00", "+$100.00", "+$100.00"]  # fmt: skip
+    assert problems == []
+    page.close()
+
+
+def test_a_lot_without_its_basis_is_named_under_the_unrealized_gains(browser, household):
+    # S3.9: shares moved in without their basis beside a lot bought: the bought lot counts, the
+    # other is left out and named under the table, its tooltip saying to add the basis.
+    h = household
+    acct = brokerage(h, "Basis missing")
+    trade(h, acct, OPENED, "buy", "ZNB", 2, 50)
+    moved_in(h, acct, OPENED, "ZNB", 3)
+    trade(h, acct, CLOSED, "buy", "ZNB", 1, 60)
+    page, problems = signed_in(browser, h, "/ui/positions/gains", "text=Realized")
+    page.locator('.chips[aria-label="By"]').get_by_role("button", name="Account").click()
+    line = page.locator('main p:has-text("Left out, no cost basis:")')
+    wait(page, 'main p:has-text("ZNB (1 lot)")', problems)
+    assert "add each lot’s cost basis" in line.get_attribute("data-tip")
+    unrealized = page.locator("main .card", has=page.locator('h3:has-text("Unrealized")'))
+    cells = unrealized.locator("tbody tr", has_text="Basis missing").locator("td")
+    assert cells.last.inner_text().strip() == "+$20.00", "2 bought at $50, now $60"
     assert problems == []
     page.close()
 

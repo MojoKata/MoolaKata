@@ -51,7 +51,11 @@ function cashOf(/** @type {OptionTxn} */ r) {
   }
 }
 
-/** @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p */
+/**
+ * `start` fills the dialog in: a position's **Close…** gives its contract, its closing action and
+ * its contracts, with `symbol` the contract's, which names the dialog (S3.2).
+ * @param {{ close: (v?: any) => void, accountId?: string, start?: any }} p
+ */
 export function OptionTrade({ close, accountId, start }) {
   const fmt = useFormats();
   useDialogGuide('dialog-option-trade');
@@ -83,8 +87,8 @@ export function OptionTrade({ close, accountId, start }) {
     rec.set('amount', cash);
   };
   return html`
-    <${DraftDialog} f=${f} title="Record an Option Trade" close=${close} what="This trade"
-      label="Record" done="Option trade recorded" before=${before}
+    <${DraftDialog} f=${f} title=${start?.symbol ? `Close ${symbol(start.symbol)}` : 'Add Trade'}
+      close=${close} what="This trade" label="Record" done="Trade recorded" before=${before}
       disabled=${!rec?.get('accountId')}>
       ${rec
         ? html`

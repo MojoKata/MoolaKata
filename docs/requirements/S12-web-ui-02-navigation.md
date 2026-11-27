@@ -57,8 +57,9 @@
    4. **Portfolios**: the user's portfolios and those shared with them; a portfolio page with
       the charts of S5.2, its holdings, and its *Projections*;
    5. **Positions**: open and closed positions across accounts, with stocks, options and
-      crypto as filters, and P/L per S3.9. **Record trade** opens the trade dialog, which has
-      an option leg builder;
+      crypto as filters, and P/L per S3.9. **Add trade** opens the trade dialog, which has
+      an option leg builder; an open option's **Close…** opens it on that contract, named
+      for it, with the trade that closes it (S3.2);
    6. **Budgets**: the list of budgets, the active one first and then the scenarios, with
       **New budget** (its method and options, and **Estimate from history**, S7.1); for one
       budget, the month view with its reserves and moves (`?month=YYYY-MM` in its address

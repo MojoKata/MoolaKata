@@ -7843,6 +7843,13 @@
             "title": "By",
             "type": "string"
           },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/NoBasis"
+            },
+            "title": "Leftout",
+            "type": "array"
+          },
           "realized": {
             "items": {
               "$ref": "#/components/schemas/GainGroup"
@@ -7873,7 +7880,8 @@
           "by",
           "year",
           "realized",
-          "unrealized"
+          "unrealized",
+          "leftOut"
         ],
         "title": "GainsView",
         "type": "object"
@@ -14516,6 +14524,31 @@
         "title": "NextDate",
         "type": "object"
       },
+      "NoBasis": {
+        "additionalProperties": false,
+        "description": "An instrument with lots open whose cost basis is missing: left out of the unrealized\ngains, and named under them (S3.9).",
+        "properties": {
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "lots": {
+            "title": "Lots",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrumentId",
+          "symbol",
+          "lots"
+        ],
+        "title": "NoBasis",
+        "type": "object"
+      },
       "OccasionOut": {
         "additionalProperties": false,
         "properties": {
@@ -15076,6 +15109,28 @@
             "title": "Realized",
             "type": "number"
           },
+          "right": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root"
+          },
           "side": {
             "title": "Side",
             "type": "string"
@@ -15083,6 +15138,21 @@
           "stale": {
             "title": "Stale",
             "type": "boolean"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "examples": [
+                  12.5
+                ],
+                "format": "decimal",
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strike"
           },
           "symbol": {
             "title": "Symbol",

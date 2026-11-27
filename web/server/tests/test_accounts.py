@@ -932,7 +932,7 @@ TXN_REFUSED_WORDS = {
     "kind-invalid": "Choose a kind of transaction.",
     "note-required": "Say why the balance is adjusted.",
     "corporate-kind": "Record it as a corporate action on Positions.",
-    "option-kind": "Record an option trade from the account's Holdings.",
+    "option-kind": "Add the trade from the account's Holdings or Positions: Add Trade.",
     "kind-not-for-account": "Trades belong in an investing account.",
     "amount-sign": "Foreign tax paid is money out: a negative amount.",
     "category-unknown": "Choose a category.",

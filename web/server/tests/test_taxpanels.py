@@ -396,13 +396,18 @@ def test_an_option_expired_in_the_year_with_no_end_recorded_is_an_issue(jane):
                        "2026-11-20", "1", "3.00"))  # fmt: skip
     saved(option_trade(jane, brk["id"], "2026-10-01", "buy-to-open", "AAPL", "call", "250",
                        "2027-01-15", "1", "2.00"))  # fmt: skip
+    from moolakata import options
+
     held = jane.get("/ui/api/positions", params={"kind": "options"}).json()["open"]
     [put] = [x["symbol"] for x in held if x["symbol"].startswith("MSFT")]
+    # Named as people are shown it (S2.1).
+    assert options.shown(put) == "MSFT 20 Nov 26 400 P"
     got = [(i["text"], i["link"]) for i in panels(jane, book(jane))["issues"]
            if i["kind"] == "option-unresolved"]  # fmt: skip
     assert got == [
         (
-            f"Brokerage: {put} expired on Nov 20 with no end recorded: expired, assigned or "
+            f"Brokerage: {options.shown(put)} expired on Nov 20 with no end recorded: expired, "
+            "assigned or "
             "exercised",
             "/ui/positions/open",
         )

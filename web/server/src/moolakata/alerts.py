@@ -703,7 +703,7 @@ def options_expired(s: Session, server) -> Iterable[Cause]:
             yield Cause(
                 key=f"option-expired:{a.id}:{iid}",
                 kind="option-expired",
-                title=f"{inst.symbol} expired: what happened?",
+                title=f"{options.shown(inst.symbol)} expired: what happened?",
                 about=f"in {a.name}; expired, assigned or exercised",
                 user_id=a.ownerId,
                 link="/ui/positions/open",
@@ -738,7 +738,7 @@ def options_expiring(s: Session, server) -> Iterable[Cause]:
             yield Cause(
                 key=f"option-expiring:{a.id}:{iid}",
                 kind="option-expiring",
-                title=f"{inst.symbol} expires {when}",
+                title=f"{options.shown(inst.symbol)} expires {when}",
                 about=f"{abs(qty).normalize():f} {'short' if qty < 0 else 'long'} in {a.name}",
                 user_id=a.ownerId,
                 link="/ui/positions/open",

@@ -102,6 +102,9 @@ def test_an_adjustment_from_the_memo_changes_root_and_deliverable(jane):
     assert r.json() == {"contracts": 1, "accounts": 1}
     pos = held(jane)
     assert pos == {"MSFT1 20NOV26 480 P": (-2, -600, "2026-09-01")}
+    # Its own root, which the trade dialog can't name: its Close… is off (S3.10.2).
+    [adjusted] = jane.get("/ui/api/positions").json()["open"]
+    assert (adjusted["root"], adjusted["right"], adjusted["strike"]) == ("MSFT1", "put", "480.0")
     # Assigned: it buys its deliverable, 150 shares a contract, at the strike on 100.
     row = next(r for r in jane.get("/ui/api/positions").json()["open"])
     r = jane.post(

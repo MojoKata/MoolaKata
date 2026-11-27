@@ -23,7 +23,9 @@ Each group's short- and long-term gains and losses.
 ## Unrealized
 
 What open positions would realize if sold at the latest close, by account (or by instrument),
-each lot's gain under its own term.
+each lot's gain under its own term. A lot without its cost basis has no gain to count: it is left
+out, and the line under the table names its instrument and how many such lots it has. Add the
+lot's basis on the shares moved in to count it.
 
 ## Unknown Term
 

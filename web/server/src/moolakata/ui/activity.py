@@ -114,7 +114,7 @@ TEXT = {
     "person.joined": "{actor} joined a linked server's user to a person here",
     "relationship.saved": "{actor} saved a relationship",
     "relationship.confirmed": "{actor} confirmed a marriage",
-    "option.traded": "{actor} recorded an option trade in {subject}",
+    "option.traded": "{actor} recorded a trade in {subject}",
     "strategy.grouped": "{actor} grouped legs as a strategy in {subject}",
     "option.adjusted": "{actor} adjusted options in {subject} after a corporate action",
     "token.created": "{actor} made an access token, {name}",
