@@ -271,9 +271,9 @@ A test fails when:
 
 ## 6. Ended records
 
-Records are never removed (requirements S14.10). When a record ended decides when the files
-attached to it (receipts, statements) expire under their retention, and so when file pruning
-may remove them. When a record ended is worked out, never stored, so it follows the records
+Records are never removed, but for the exceptions of §4.4 (requirements S14.10). When a
+record ended decides when the files attached to it (receipts, statements) expire under their
+retention, and so when file pruning may remove them. When a record ended is worked out, never stored, so it follows the records
 as they change.
 
 1. **`endedAt`**: for each table a file can be attached to (`Transaction`, `Account`,

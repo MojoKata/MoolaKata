@@ -28,7 +28,7 @@
       own; one that does neither reads nothing ([`schema.md`](schema.md) §7).
    5. **Soft deletes**: records are never removed. Deleting one sets its `deletedAt` and
       `deletedById` (its `deleted` is generated from `deletedAt`), and each table's view works out whether a record is
-      deleted through the records it belongs to. [`schema.md`](schema.md) (S1) sets the
+      deleted through the records it belongs to. [`schema.md`](schema.md) §4 sets the
       fields, the views and the few exceptions.
 2. **Receipts** are files beside it (S9.2), and so are the linked copies (`links/`, S11.9.1)
    and what a link sends and receives on its way: each owned by the server's account, mode
@@ -110,9 +110,9 @@
    5. **"Today" for a user** follows their time zone: the year a tax year screen opens on,
       when an occasion's lead time starts, and the hour their daily summary email goes out
       (S12.11.5).
-10. **Retention and file pruning**: records are never removed: not records, soft-deleted
-    records (`schema.md` §4) or Activity, so every figure can be looked back on as it was
-    (R3.10). What can be removed, by hand, is the **files** of receipts and statements whose
+10. **Retention and file pruning**: records are never removed, but for the exceptions of
+    `schema.md` §4.4: not records, soft-deleted records (`schema.md` §4) or Activity, so every
+    figure can be looked back on as it was (R3.10). What can be removed, by hand, is the **files** of receipts and statements whose
     retention has run out: **file pruning**. Backups are pruned on their own, shorter
     schedule (S14.6), and price history is kept for ever (S4.6).
     1. **Retention periods**:
