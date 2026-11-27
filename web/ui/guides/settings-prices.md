@@ -12,6 +12,13 @@ order is used, and the next one when it fails. Every price shows its source and 
 Until a source is added, prices are off: holdings are valued from the brokers' files and the last
 trade.
 
+## Symbols No Source Knows {#unknown-symbols}
+
+Held symbols that every enabled source serving their kind was asked for at the last daily refresh,
+and none knew: a typing mistake, or a fund the sources don't list. Each leaves the list once a
+source gives it a price, or once nobody holds it. Only symbols in accounts you can see, and the
+benchmarks, are named; the rest are counted.
+
 ## Add a Source
 
 Every source MoolaKata ships. One that needs a key can't be enabled until its key is set.

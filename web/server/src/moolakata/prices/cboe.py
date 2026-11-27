@@ -14,7 +14,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from .. import clock
-from .base import Ref, SourceError, TickerSource, register
+from .base import NotListed, Ref, SourceError, TickerSource, register
 
 BASE = "https://cdn-api.cboe.com/api/global/delayed_quotes"
 API = f"{BASE}/options"
@@ -100,7 +100,7 @@ class Cboe(TickerSource):
         except Exception as e:
             raise SourceError(f"{self.label} could not be reached ({type(e).__name__})") from None
         if r.status_code in (403, 404):
-            raise SourceError(f"{self.label} doesn't list {symbol}")
+            raise NotListed(f"{self.label} doesn't list {symbol}")
         if r.status_code >= 400:
             raise SourceError(f"{self.label} answered HTTP {r.status_code}")
         import json

@@ -61,7 +61,8 @@
    every few minutes (S15.4.7), an hourly prune that removes expired sessions and one-time
    tokens (`schema.md` §4.4.1), and a daily look at the self-signed certificate (S13.3). Recurring transactions are found when they are shown (S7.5).
    Each records its last run and error, which Settings shows. They run in a thread pool with
-   per-provider rate limits and never block a request.
+   per-provider rate limits and never block a request; a task never waits more than five
+   minutes on a provider's limits, but ends and runs again once they allow (S4.4).
 5. **Outbound calls** go through one httpx client with an **egress guard**: only the hosts of
    enabled price sources, the bitcoin explorer or node, the SMTP server, links, and this
    server's own link address, read behind a proxy for the certificate it presents (S11.1.3),

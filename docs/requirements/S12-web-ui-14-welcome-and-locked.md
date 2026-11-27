@@ -9,8 +9,11 @@
        words numbered, with the fingerprint, to write on paper. **I've written them down** asks
        for three of them by number; wrong ones are refused with "check your sheet", and
        **Back** shows the same words again. Right, the key is made and the server unlocked,
-       and **Set up the admin account** follows (S10.1.2), then the Dashboard. A reload, or
-       another browser, shows a new phrase; only the one confirmed is kept.
+       and **Set up the admin account** follows (S10.1.2). Last, **Price Sources** lists the
+       sources that need no key (CBOE delayed quotes, Coinbase), each off with a switch and the
+       hosts it calls; **Continue** adds the ones turned on and opens the Dashboard. One left
+       off waits in Settings › Prices (S4.2.3, R3.5). A reload, or another browser, shows a new
+       phrase; only the one confirmed is kept.
     2. **The locked screen**, while the server has a keyring but no key: every address under
        `/ui` shows it: the server has started and holds no key, with a field for the 12 words
        of the recovery phrase and **Unlock**, and a line naming the host command that does the

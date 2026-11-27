@@ -51,6 +51,7 @@ class OpenRow(Model):
     priceSource: str | None  # close, manual, intrinsic, statement, trade
     priceAsOf: dt.date | None  # shown on hover (S12.5)
     stale: bool  # its price older than S4.7's threshold, or a statement's next overdue (S4.3)
+    unknownSymbol: bool  # no enabled price source knows its symbol (S4.2.2)
     unrealized: Money | None
     unrealizedPct: Ratio | None
     realized: Money  # all its closes so far
@@ -211,6 +212,7 @@ def gather(s, c: Caller, classes: tuple[str, ...] | None = None):
                     priceSource=p.price.source if p.price else None,
                     priceAsOf=p.price.asOf if p.price else None,
                     stale=bool(p.price and p.price.stale),
+                    unknownSymbol=inst.priceMissedAt is not None,
                     unrealized=gain,
                     unrealizedPct=round(float(gain / abs(cost) * 100), 2)
                     if gain is not None and cost

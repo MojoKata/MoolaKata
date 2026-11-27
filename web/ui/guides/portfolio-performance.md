@@ -16,7 +16,8 @@ day's growth chained together. Use it to compare with a benchmark or a fund.
 ## Money-weighted return (IRR) {#money-weighted-return}
 
 Your own return, a year (annualised), for your timing: it counts when your money went in, so money
-added before a rise earns more of it. It differs from the time-weighted return when you added or took money out.
+added before a rise earns more of it. It differs from the time-weighted return when you added or
+took money out.
 
 ## Contributed
 
@@ -35,7 +36,8 @@ How far back the chart goes.
 ## Benchmark
 
 The same money put into the benchmark on the same days: VT (world stocks), SPY (US large companies)
-or a 60/40 mix of VT and BND, rebalanced daily.
+or a 60/40 mix of VT and BND, rebalanced daily. Its prices load once a price source that serves them
+is enabled in Settings › Prices; until then the chart says it has none yet.
 
 ## Returns by Period
 

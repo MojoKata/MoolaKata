@@ -18,10 +18,23 @@ from . import clock
 log = logging.getLogger("moolakata.tasks")
 
 TICK_SECONDS = 15
+# The longest a task waits on a provider's limits: past it, the call ends with `Later`, so an
+# hourly window never holds a worker for most of an hour (S13.4).
+LONGEST_WAIT = 300.0
 
 
 class Stopping(Exception):
     """Raised inside a task when the server is stopping."""
+
+
+class Later(Exception):
+    """Raised inside a task when a provider's limits would hold it past LONGEST_WAIT: how many
+    seconds until they allow a call."""
+
+    def __init__(self, provider: str, seconds: float) -> None:
+        super().__init__(provider, seconds)
+        self.provider = provider
+        self.seconds = seconds
 
 
 @dataclass
@@ -69,6 +82,7 @@ class Task:
     last: TaskRun | None = None
     running: bool = False
     requested: bool = False
+    again_at: dt.datetime | None = None  # a run asked for by one that ended early
     waiting: list = field(default_factory=list)  # called when the next run ends
 
 
@@ -77,6 +91,8 @@ class TaskContext:
     name: str
     stop: threading.Event
     limits: ProviderLimits
+    # Asks for another run in so many seconds, for a run that ends before its work is done.
+    again: Callable[[float], None] = lambda seconds: None
 
     def check(self) -> None:
         if self.stop.is_set():
@@ -130,6 +146,8 @@ class ProviderLimits:
             wait = self.delay(provider)
             if wait <= 0:
                 return
+            if wait > LONGEST_WAIT:
+                raise Later(provider, wait)
             if stop.wait(min(wait, 60)):
                 raise Stopping
 
@@ -171,6 +189,8 @@ class Tasks:
                 if t.schedule
                 else None
             )
+            if t.again_at is not None:
+                nxt = min(t.again_at, nxt) if nxt else t.again_at
             out[t.name] = {
                 "running": t.running,
                 "lastRun": t.last.started if t.last else None,
@@ -199,9 +219,16 @@ class Tasks:
     def _launch(self, task: Task) -> None:
         task.running = True
         task.requested = False
+        task.again_at = None
         waiting, task.waiting = task.waiting, []
         run = TaskRun(started=self._now())
-        ctx = TaskContext(task.name, self._stop, self.limits)
+
+        def again(seconds: float) -> None:
+            with self._lock:
+                when = self._now() + dt.timedelta(seconds=seconds)
+                task.again_at = min(task.again_at or when, when)
+
+        ctx = TaskContext(task.name, self._stop, self.limits, again)
 
         def body() -> None:
             try:
@@ -237,7 +264,7 @@ class Tasks:
             for task in self._tasks.values():
                 if task.running:
                     continue
-                due = task.requested
+                due = task.requested or (task.again_at is not None and task.again_at <= now)
                 if not due and task.schedule is not None:
                     last = task.last.started if task.last else None
                     due = task.schedule.next_due(last, self._started) <= now

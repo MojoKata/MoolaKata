@@ -13,7 +13,16 @@ from moolakata.dev.waits import eventually_async, turn
 from moolakata.events import Broker
 from moolakata.jobs import Jobs
 from moolakata.ratelimit import SignInGuard, Window
-from moolakata.tasks import Daily, Every, ProviderLimits, TaskError, Tasks
+from moolakata.tasks import (
+    LONGEST_WAIT,
+    Daily,
+    Every,
+    Later,
+    ProviderLimits,
+    Stopping,
+    TaskError,
+    Tasks,
+)
 from moolakata.ui.conventions import Model, Money, Paging
 from moolakata.ui.stream import stream
 
@@ -47,6 +56,56 @@ def test_provider_limits_spread_calls():
     assert limits.delay("tiingo") == 0
     clock[0] = 130
     assert limits.delay("tiingo") == pytest.approx(3600 - 130)
+
+
+def test_a_wait_past_the_longest_ends_the_call_with_how_long_it_would_be():
+    """S13.4: a provider's limits that would hold a task past LONGEST_WAIT end the call at once
+    with the wait (Later); a wait up to it is waited out, and a stop ends it."""
+    limits = ProviderLimits(clock=lambda: 0.0)
+    limits.set("tiingo", [(1, LONGEST_WAIT + 1)])
+    limits.set("massive", [(1, LONGEST_WAIT)])
+    stop = threading.Event()
+    limits.acquire("tiingo", stop)
+    limits.acquire("massive", stop)  # each one's first call, at once
+    with pytest.raises(Later) as later:
+        limits.acquire("tiingo", stop)
+    assert (later.value.provider, later.value.seconds) == ("tiingo", LONGEST_WAIT + 1)
+    stop.set()
+    with pytest.raises(Stopping):
+        limits.acquire("massive", stop)  # waited for, not ended: the stop ends it
+
+
+def test_a_task_asks_to_run_again_and_a_tick_starts_it_once_due():
+    """S13.4: a task that ends early asks to run again in so many seconds: no worker is held
+    meanwhile, its next run says when (ahead of its schedule's), and a tick once that is due
+    starts it."""
+    start = dt.datetime(2026, 10, 12, 22, tzinfo=UTC)
+    now = [start]
+    ended = threading.Semaphore(0)
+    tasks = Tasks(record=lambda name, run: ended.release(), now=lambda: now[0])
+    runs = []
+
+    def body(ctx):
+        runs.append(now[0])
+        if len(runs) == 1:
+            ctx.again(600)
+
+    tasks.register("prices", body, Every(86400, first_after=86400))
+    try:
+        tasks.run_now("prices")
+        tasks.tick()
+        assert ended.acquire(timeout=10)
+        assert tasks.status()["prices"]["nextRun"] == start + dt.timedelta(seconds=600)
+        now[0] = start + dt.timedelta(seconds=599)
+        tasks.tick()
+        assert tasks.status()["prices"]["running"] is False and len(runs) == 1
+        now[0] = start + dt.timedelta(seconds=600)
+        tasks.tick()
+        assert ended.acquire(timeout=10)
+        assert runs == [start, now[0]]
+        assert tasks.status()["prices"]["nextRun"] == now[0] + dt.timedelta(days=1)
+    finally:
+        tasks.stop()
 
 
 def test_a_second_refresh_shares_the_providers_windows_until_its_limits_change():
@@ -89,6 +148,27 @@ def test_tasks_record_runs_and_keep_error_text_out_unless_safe():
     tasks.stop()
     assert recorded["leaky"].error == "ValueError"
     assert recorded["safe"].error == "TaskError: Tiingo answered 401"
+
+
+def test_a_run_whose_record_fails_still_ends_and_says_so_to_those_waiting(caplog):
+    """S13.4: recording a run that fails is logged, and the run still ends: the task is free
+    again and what waited on the run hears of it."""
+
+    def record(name, run):
+        raise OSError("disk full")
+
+    tasks = Tasks(record=record)
+    tasks.register("backups", lambda ctx: None, None)
+    heard = threading.Event()
+    try:
+        with caplog.at_level("ERROR", logger="moolakata.tasks"):
+            tasks.run_now("backups", lambda run: heard.set())
+            tasks.tick()
+            assert heard.wait(10)
+        assert tasks.status()["backups"]["running"] is False
+        assert [r.getMessage() for r in caplog.records] == ["recording task backups failed"]
+    finally:
+        tasks.stop()
 
 
 def test_egress_guard():

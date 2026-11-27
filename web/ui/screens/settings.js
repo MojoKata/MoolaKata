@@ -31,6 +31,7 @@ import { LinksSection } from '../components/links.js';
 import { ConnectorSection } from '../components/connector.js';
 import { withReauth } from '../components/reauth.js';
 import { StorageSection } from '../components/storage.js';
+import { SrcRec } from '../components/price-sources.js';
 import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-form.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
@@ -484,6 +485,41 @@ function Prices() {
         </div>
       `
       : html`<${Empty}>No sources yet</${Empty}>`
+  }${
+    v.unknown.length || v.unknownElsewhere
+      ? html`
+        <h3 class="mt" data-help="unknown-symbols">Symbols No Source Knows</h3>
+        ${v.unknown.length
+          ? html`
+            <div class="table-wrap">
+              <table class="t">
+                <caption class="sr-only">Symbols no price source knows</caption>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Class</th>
+                    <th>Since</th>
+                  </tr>
+                </thead>
+                <tbody>${v.unknown.map((/** @type {any} */ u) =>
+                  html`
+                    <tr>
+                      <td><b>${u.symbol}</b></td>
+                      <td class="small dim">${u.instrumentClass}</td>
+                      <td class="small dim">${fmt.moment(u.missedAt)}</td>
+                    </tr>
+                  `
+                )}</tbody>
+              </table>
+            </div>
+          `
+          : null}${v.unknownElsewhere
+          ? v.unknown.length
+            ? html`<p class="small dim">and ${v.unknownElsewhere} more in accounts you don't see</p>`
+            : html`<p class="small dim">${v.unknownElsewhere} in accounts you don't see</p>`
+          : null}
+      `
+      : null
   }
     <${DraftForm} f=${fd} class="draft-form mt" where="Settings › Prices"
       what="The refresh time" saved=${() => {
@@ -500,14 +536,6 @@ function Prices() {
       (e) => toast(e.message),
     )}><${Icon} name="refresh" /> Refresh Prices</button></div>
   </div>`;
-}
-
-/** A price source (S4.2), as a draft adds, changes or removes it. */
-class SrcRec extends Rec {
-  /** @override */
-  static prefix = 'Src';
-  /** @override */
-  static fields = FIELDS.SourceRecord;
 }
 
 /** @param {{ close: (v?: any) => void, sources: any }} p */

@@ -9,13 +9,27 @@
    1. **What a source declares**: its name, the instrument classes it serves, whether it
       needs an **API key** (and where to get a free one), its rate limits, and the terms it
       was written against, with the date.
-   2. **What it does**: `quotes(instruments) → {instrument: (price, as_of)}`, `history(
-      instrument, start, end) → daily closes`, and, where it can, `lookup(symbol)` to check a
-      symbol before it is used.
+   2. **What it does**: `quotes(instruments) → {instrument: (price, as_of)}` and `history(
+      instrument, start, end) → daily closes`, or an answer that it doesn't list the symbol.
+      A symbol is checked by the daily refresh (S4.4), with whichever sources the server has:
+      a held instrument with no stored close that every enabled source serving its class was
+      asked for, and either didn't list or knew no close of, is recorded as one no price source
+      knows. Its holding and its position say *No price source knows VTIX*, and Settings ›
+      Prices lists it. Its first close clears it, as does a refresh that finds it no longer
+      held or has no source to ask; a source that fails leaves it as it was. An option's ticker
+      and a metal's proxy are MoolaKata's own and never recorded.
    3. **Settings › Prices** lists the enabled sources, each with its classes, its key
       (*set*, with when and by whom; a key is a secret, S14.4), its order of preference per
-      class, its last run and its last error. **Add a source** picks from every source
-      MoolaKata ships. A source that needs a key can't be enabled without one.
+      class, its last run and its last error, and below them **Symbols No Source Knows**
+      (S4.2.2): each symbol priced for an account the admin can see (what it holds, an open
+      option's underlying or deliverable parts, a spot metal's spot) or as a benchmark, its
+      class and since when, and how many more there are, counted and never named (R1.6).
+      **Add a source** picks from every source MoolaKata ships. A source that needs a
+      key can't be enabled without one. A new server enables no source (R3.5): the welcome
+      offers the ones that need no key, each off until the admin turns it on (S12.14.1). Until
+      a source that fetches is enabled, nothing is priced: the header's price status reads
+      *No Price Source*, its tip saying an admin adds one in Settings › Prices, and for an
+      admin it links there (S12.5); a benchmark chart says it has no prices yet (S5.2.1).
 3. **Starting sources**, chosen for being free and daily. Their terms change, so each is
    checked again when a release ships.
 
@@ -39,16 +53,18 @@
    the underlying of an open option, or an adjusted contract's deliverable parts, whether or
    not the account holds it, from the option's first trade, so its expiry has a close to decide
    it, S3.6), and backfills history when an instrument is first held, from a week before its first
-   transaction and at most five years back. SPY, VT and BND are always loaded, as the
-   benchmarks (S5.2.1). **Refresh prices** does the same on demand. Requests are spread to
+   transaction and at most five years back. SPY, VT and BND are loaded as the benchmarks
+   (S5.2.1), held or not, once a source that serves them is enabled. **Refresh prices** does the same on demand. Requests are spread to
    stay inside each source's limits (Tiingo's 50 an hour means a few hours for a large
-   household). A source that fails falls back to the next one
+   household): a refresh that would wait more than five minutes on a source's limits sets that
+   source aside for the rest of it, tries the next one for that class, and runs again once the
+   limits allow, picking up what was left. A source that fails falls back to the next one
    for that class; Settings shows the last error, and a failure lasting past the alert
    threshold raises an alert (S12.11). Intraday quotes are not fetched.
 5. **Option marks**: the day's close from the source that serves options, else manual or
    intrinsic value (S3.7). Other option sources come later ([F#558](https://github.com/MojoKata/MoolaKata/issues/558)). A close older than the last trading day is marked stale.
-   An option is named by its OCC ticker (`O:MSFT261120P00480000`: underlying, expiry, put or
-   call, and the strike in thousandths).
+   An option is named by its OCC ticker, as S2.1 has it (`MSFT  261120P00480000`: the root
+   padded to six characters, expiry, put or call, and the strike in thousandths).
    1. **CBOE** is asked for each underlying's chain once a day, after the close, and every
       held contract on it is marked from that one answer: at the middle of its bid and ask,
       rounded to the cent, or at its last trade when it has no two-sided quote. The mark is
@@ -56,17 +72,20 @@
    2. **Index options** are in their index's chain (`_SPX`), where weeklies and PM-settled
       contracts carry their own root: an SPX contract is looked for as SPX and then SPXW,
       and likewise NDX and NDXP, RUT and RUTW, VIX and VIXW.
-   3. **Massive** is asked for one contract at a time, with its history. A typed mark is a price on the
-   option's instrument, entered from the open position (**Type a mark**). Intrinsic value is
-   the underlying's latest close past the strike, never below zero. The Open tab labels a
-   mark that is typed or intrinsic. Greeks
-   are out of scope ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
+   3. **Massive** is asked for one contract at a time, with its history, by its OCC ticker in
+      Massive's own form: `O:` before it and the root unpadded (`O:MSFT261120P00480000`).
+   4. **Without a close**, from any source: a typed mark, a price on the option's instrument
+      entered from the open position (**Type a Mark**); failing that, its intrinsic value, the
+      underlying's latest close past the strike, never below zero. The Open tab labels a mark
+      that is typed or intrinsic. Greeks are out of scope
+      ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
 6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
    price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.
 7. **Every price carries its source and `as_of`.** The UI shows *delayed* or *as of 4:00 PM*
    on every value derived from it. A price older than a threshold (2 trading days for a
-   stock) is marked stale.
+   stock) is marked stale, and so is one taken from a trade (S4.10), dated by its trade, by
+   the same threshold.
 8. **US dollars only**: every account, holding, price and total is in USD. Prices are fetched
    in USD, including crypto and metals spot. An instrument that trades only in another
    currency is priced by hand.

@@ -170,6 +170,7 @@ class HoldingRow(Model):
     priceAsOf: dt.date | None
     priceSource: str | None
     stale: bool  # the price is past its source's threshold (S4.3, S4.7)
+    unknownSymbol: bool  # no enabled price source knows its symbol (S4.2.2)
     value: Money | None
     gain: Money | None
     lots: list[LotRow]
@@ -664,6 +665,7 @@ def account_holdings(account_id: str, request: Request, c: Caller = Depends(call
                     priceAsOf=p.price.asOf if p.price else None,
                     priceSource=p.price.source if p.price else None,
                     stale=bool(p.price and p.price.stale),
+                    unknownSymbol=inst.priceMissedAt is not None,
                     value=p.value,
                     gain=p.gain,
                     lots=[

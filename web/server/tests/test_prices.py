@@ -3,7 +3,7 @@ import json
 from decimal import Decimal as D
 
 import pytest
-from conftest import make_user, sign_in
+from conftest import ADMIN_PW, make_user, sign_in
 from edits import change, create, make, remove, saved
 from sqlalchemy import func, select
 
@@ -16,7 +16,7 @@ from moolakata.prices.coinbase import Coinbase
 from moolakata.prices.stub import Stub, walk
 from moolakata.prices.tiingo import Tiingo
 from moolakata.store.entities.accounts import Account
-from moolakata.store.entities.prices import Price, PriceSource
+from moolakata.store.entities.prices import Price, PriceSource, TypedPrice
 from moolakata.store.repos import ledger as repo
 
 TODAY = dt.date.today()
@@ -243,22 +243,23 @@ def test_only_what_is_held_is_priced(server):
 
 def test_staleness():
     """S4.5, S4.7, each on its bound: an option's close after one trading day, a stock's after
-    two, a coin's after two days, a typed price after 90 days."""
+    two, a coin's after two days (a typed price's 90 days: the header's test below)."""
     friday = dt.date(2026, 10, 9)
-    assert not pricing.is_stale("option", friday, dt.date(2026, 10, 12))
-    assert pricing.is_stale("option", friday, dt.date(2026, 10, 13))
-    assert not pricing.is_stale("etf", friday, dt.date(2026, 10, 13))
-    assert pricing.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
-    assert not pricing.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
-    assert pricing.is_stale("crypto", friday, dt.date(2026, 10, 12))
-    assert not pricing.typed_stale(friday, friday + dt.timedelta(days=90))
-    assert pricing.typed_stale(friday, friday + dt.timedelta(days=91))
+    assert not valuation.is_stale("option", friday, dt.date(2026, 10, 12))
+    assert valuation.is_stale("option", friday, dt.date(2026, 10, 13))
+    assert not valuation.is_stale("etf", friday, dt.date(2026, 10, 13))
+    assert valuation.is_stale("etf", friday, dt.date(2026, 10, 14))  # three days
+    assert not valuation.is_stale("crypto", friday, dt.date(2026, 10, 11))  # two days
+    assert valuation.is_stale("crypto", friday, dt.date(2026, 10, 12))
 
 
 def test_price_sources_in_settings(admin_client, server):
     view = admin_client.get("/ui/api/price-sources").json()
     names = {s["name"] for s in view["available"]}
     assert {"tiingo", "coinbase", "manual"} <= names and "stub" not in names
+    hosts = {s["name"]: s["hosts"] for s in view["available"]}  # shown at the welcome (S12.14.1)
+    assert (hosts["cboe"], hosts["coinbase"], hosts["manual"]) == (
+        ["cdn-api.cboe.com"], ["api.exchange.coinbase.com"], [])  # fmt: skip
     assert view["refreshTime"] == "18:00"
     r = make(admin_client, "Src", name="tiingo")
     assert r.status_code == 200
@@ -601,13 +602,13 @@ class Rows:
         return self.add(Instrument(id=ids.new_id("Instr"), symbol=symbol, instrumentClass=cls,
                                    deletedAt=MONDAY if deleted else None))  # fmt: skip
 
-    def txn(self, acct, inst, day, kind="buy", deleted=False):
+    def txn(self, acct, inst, day, kind="buy", deleted=False, price=D(10)):
         from moolakata.store.entities.accounts import Lot, Transaction
 
         buy = kind == "buy"
         t = self.add(Transaction(id=ids.new_id("Txn"), accountId=acct.id, date=day, kind=kind,
                                  amount=D("-10.00") if buy else D("1.00"), instrumentId=inst.id,
-                                 quantity=D(1) if buy else None, price=D(10) if buy else None,
+                                 quantity=D(1) if buy else None, price=price if buy else None,
                                  deletedAt=MONDAY if deleted else None))  # fmt: skip
         if buy:
             self.add(Lot(id=ids.new_id("Lot"), accountId=acct.id, instrumentId=inst.id,
@@ -823,19 +824,20 @@ def test_what_is_priced_and_from_when(server, monday):
         got = pricing.priced(s)
         assert {i.id: day for i, day in got} == want and len(got) == len(want)
         assert pricing.held(s) == held
-        by = pricing._held_by(s, r.owner)
-        assert sorted(by) == sorted(held - {mm.id, cash.id})
+        assert pricing._held_by(s, r.owner) == {r.owner: sorted(held - {mm.id, cash.id})}
 
 
 def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monday):
     """S12.5, S4.10: the viewer's held instruments, by their latest close or a price the viewer
     typed on its day or after it; one with no price at all is stale too."""
+    pricing.install()
     with server.db.tx(unscoped="test") as s:
         r = Rows(s)
         owner, acct = r.owner, r.account()
         r.source("stub", lastOkAt=MONDAY - dt.timedelta(hours=2))
         r.source("recorder-test", lastOkAt=MONDAY - dt.timedelta(hours=1))
         r.source("idle-test")
+        r.source("manual")  # fetches nothing: no price source for the header (S4.2.3)
 
     def status(dev=True):
         with server.db.read(unscoped="test") as s:
@@ -853,7 +855,7 @@ def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monda
     write(lambda r: r.txn(acct, e, _d(9, 1)), lambda r: r.price(e, _d(10, 9)))
     assert status()["stale"] is False
     [f] = write(lambda r: r.inst("F"))
-    write(lambda r: r.txn(acct, f, _d(9, 1)))
+    write(lambda r: r.txn(acct, f, _d(9, 1), price=None))
     assert status()["stale"] is True  # no price at all
     write(lambda r: r.typed(f, D0))
     assert status()["stale"] is False
@@ -864,8 +866,69 @@ def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monda
     write(lambda r: r.typed(g, _d(9, 30)))
     assert status()["stale"] is False  # typed on the close's day: the typed price
     [h] = write(lambda r: r.inst("H"))
-    write(lambda r: r.txn(acct, h, _d(7, 1)), lambda r: r.typed(h, _d(7, 3)))
-    assert status()["stale"] is True  # typed over 90 days ago
+    write(lambda r: r.txn(acct, h, _d(7, 1)), lambda r: r.typed(h, D0 - dt.timedelta(days=90)))
+    assert status()["stale"] is False  # typed 90 days ago: not yet stale
+    write(lambda r: r.typed(h, D0 - dt.timedelta(days=91)))
+    with server.db.tx(unscoped="test") as s:
+        for t in s.scalars(select(TypedPrice).where(TypedPrice.instrumentId == h.id)):
+            if t.date == D0 - dt.timedelta(days=90):
+                t.mark_deleted(owner)
+    assert status()["stale"] is True  # typed 91 days ago
+
+
+def test_the_header_judges_each_holding_by_the_price_that_values_it(server, monday):
+    """S12.5, S4.3, S3.7, S4.10: a holding valued from a statement is stale only once that
+    value is; an option at intrinsic value only once its underlying's close is; a shared
+    account's holding by the prices its owner typed, never the viewer's."""
+    from moolakata.sharing import new_share
+
+    pricing.install()
+    john = make_user(server, "john").id
+
+    def status():
+        with server.db.read(unscoped="test") as s:
+            return pricing.status(s, True, owner)["stale"]
+
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        owner, acct = r.owner, r.account()
+        trust = r.inst("TRUST1", "other")
+        r.holding(acct, trust, _d(10, 1))  # last week's statement, no close
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        under, opt = r.inst("U1"), r.inst("U1P", "option")
+        r.contract(opt, under, _d(12, 18))
+        r.txn(acct, opt, _d(10, 1))
+        r.price(under, _d(10, 9))  # Friday's close: the option's intrinsic value is fresh
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Price).where(Price.instrumentId == under.id)).one().date = _d(10, 1)
+    assert status() is True  # the underlying's close is old, and so its intrinsic value
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(Price).where(Price.instrumentId == under.id)).one().date = _d(10, 9)
+        r = Rows(s)
+        johns = r.add(Account(id=ids.new_id("Acct"), ownerId=john, name="J", type="brokerage"))
+        s.add(new_share("account", johns.id, "read", user_id=owner, by=john))
+        shared = r.inst("SH1")
+        r.txn(johns, shared, _d(9, 1))
+        s.add(TypedPrice(id=ids.new_id("TyPrc"), userId=john, instrumentId=shared.id,
+                         date=_d(10, 9), close=D(12)))  # fmt: skip
+        r.typed(shared, _d(6, 1))  # the viewer's own, old: it values nothing of John's
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(TypedPrice).where(TypedPrice.userId == john)).one().date = _d(6, 2)
+        Rows(s).typed(shared, D0)  # the viewer's own, fresh: still nothing of John's
+    assert status() is True  # John's typed price, his account's, is over 90 days old
+    with server.db.tx(unscoped="test") as s:
+        s.scalars(select(TypedPrice).where(TypedPrice.userId == john)).one().date = _d(10, 9)
+    assert status() is False
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        # A statement's value once its next yearly statement is overdue, in an account
+        # expecting none.
+        r.holding(r.account(), r.inst("TRUST2", "other"), _d(6, 1, 2025))
+    assert status() is True
 
 
 def test_a_source_is_built_with_its_key_its_client_and_its_tasks_limits(server, monday):
@@ -948,7 +1011,7 @@ def test_a_refresh_asks_each_source_for_what_is_missing_and_stores_it(server, mo
         "SPY": [(_d(10, 9), D(580))],
     })  # fmt: skip
     ctx = TaskContext("prices", threading.Event(), ProviderLimits())
-    assert pricing.refresh(server, ctx) == {"stored": 6, "unpriced": 2}
+    assert pricing.refresh(server, ctx) == {"stored": 6, "unpriced": 2, "unknown": 2}
     week = dt.timedelta(days=7)
     backfill = D0 - dt.timedelta(days=pricing.BACKFILL_DAYS)
     assert sorted(CALLS, key=repr) == sorted([
@@ -977,6 +1040,176 @@ def test_a_refresh_asks_each_source_for_what_is_missing_and_stores_it(server, mo
             MONDAY, MONDAY, None)  # fmt: skip
 
 
+def test_a_symbol_no_source_knows_is_recorded_until_its_first_close(server, monday):
+    """S4.2.2: a held instrument every source serving its class says it doesn't list, or knows
+    no close of, is recorded at the refresh: its holding and its position say so, and Settings ›
+    Prices lists it. Its first close clears it, as do its being sold and a refresh with no
+    source to ask; a source's failure leaves it as it was, and a miss keeps the day the misses
+    began. An option's ticker and a metal's proxy are MoolaKata's own, never recorded."""
+    from moolakata.prices.base import NotListed
+    from moolakata.store.entities.accounts import Instrument
+
+    admin = sign_in(server, "admin", ADMIN_PW)
+    earlier = MONDAY - dt.timedelta(days=3)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        src = r.source("recorder-test")
+        acct = r.account()
+        vtix, ghost, flaky, known, und = (r.inst(k) for k in ("VTIX", "GHOST", "FLAKY", "KNOWN",
+                                                              "UND"))  # fmt: skip
+        sold, opt, xau = r.inst("SOLD"), r.inst("UND1P", "option"), r.inst("XAU", "metal")
+        r.contract(opt, und, _d(12, 18))
+        for i in (vtix, ghost, flaky, known, opt, xau):
+            r.txn(acct, i, _d(10, 1))
+        r.price(known, _d(10, 9))
+        flaky.priceMissedAt = sold.priceMissedAt = earlier  # an earlier refresh's
+    ANSWERS.update({"VTIX": NotListed("Recorder doesn't list VTIX"),
+                    "FLAKY": SourceError("Recorder answered HTTP 500")})  # fmt: skip
+
+    def missed():
+        with server.db.read(unscoped="test") as s:
+            return {i.symbol: i.priceMissedAt for i in s.scalars(select(Instrument))
+                    if i.priceMissedAt}  # fmt: skip
+
+    assert pricing.refresh(server)["unknown"] == 3
+    assert missed() == {"VTIX": MONDAY, "GHOST": MONDAY, "UND": MONDAY, "FLAKY": earlier}
+    view = admin.get("/ui/api/price-sources").json()
+    assert view["unknown"] == [
+        {"instrumentId": i.id, "symbol": i.symbol, "instrumentClass": "equity",
+         "missedAt": when.isoformat().replace("+00:00", "Z")}
+        for i, when in ((flaky, earlier), (ghost, MONDAY), (und, MONDAY), (vtix, MONDAY))
+    ]  # fmt: skip
+    assert view["unknownElsewhere"] == 0, "SOLD, no longer held, cleared"
+    rows = admin.get(f"/ui/api/accounts/{acct.id}/holdings").json()["holdings"]
+    shown = {x["symbol"]: x["unknownSymbol"] for x in rows}
+    assert shown == {"VTIX": True, "GHOST": True, "FLAKY": True, "KNOWN": False,
+                     "UND1P": False, "XAU": False}  # fmt: skip
+    rows = admin.get("/ui/api/positions").json()["open"]
+    assert {x["symbol"]: x["unknownSymbol"] for x in rows} == shown
+    ANSWERS.update({"VTIX": [(_d(10, 9), D(30))], "FLAKY": []})
+    pricing.refresh(server)
+    assert missed() == {"GHOST": MONDAY, "UND": MONDAY, "FLAKY": earlier}, "VTIX has a close"
+    with server.db.tx(unscoped="test") as s:
+        s.get(PriceSource, src.id).enabled = False
+    pricing.refresh(server)
+    assert missed() == {}, "no source to ask: nothing known either way"
+
+
+def test_settings_prices_names_only_the_unknown_symbols_in_accounts_the_admin_sees(server, monday):
+    """S4.2.3, R1.6: what an account holds is its viewers' to know, so Settings › Prices names
+    an unknown symbol only to an admin who sees an account it is priced for, their own or one
+    shared with them, and counts the rest, never naming them. One held in both is named, not
+    counted. What an account's holdings need priced is theirs too: an open option's underlying
+    or deliverable parts, a spot metal's spot. A benchmark is everyone's, so named to every
+    admin; one no longer held, until the next refresh clears it, is no one's to name."""
+    from moolakata.sharing import new_share
+
+    john = make_user(server, "john").id
+    make_user(server, "ann", admin=True)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        mine, johns = r.account(), r.add(Account(id=ids.new_id("Acct"), ownerId=john, name="J",
+                                                 type="brokerage"))  # fmt: skip
+        own, both, vtix, other = (r.inst(k) for k in ("OWNX", "BOTHX", "VTIX", "OTHX"))
+        und, part, sold, spy = (r.inst(k) for k in ("UNDX", "PARTX", "SOLDX", "SPY"))
+        mopt, jopt = r.inst("UNDX1C", "option"), r.inst("PRT1C", "option")
+        xag = r.inst("XAG", "metal")
+        r.contract(mopt, und, _d(12, 18))
+        r.contract(jopt, und, _d(12, 18), parts=[part])
+        r.item(johns, "silver", _d(10, 1))
+        for acct, i in ((mine, own), (mine, both), (johns, both), (johns, vtix), (johns, other),
+                        (mine, mopt), (johns, jopt)):  # fmt: skip
+            r.txn(acct, i, _d(10, 1))
+        for i in (own, both, vtix, other, und, part, sold, spy, xag):
+            i.priceMissedAt = MONDAY
+
+    def seen(login, password="a long user passphrase"):
+        v = sign_in(server, login, password).get("/ui/api/price-sources").json()
+        return [u["symbol"] for u in v["unknown"]], v["unknownElsewhere"]
+
+    assert seen("admin", ADMIN_PW) == (["BOTHX", "OWNX", "SPY", "UNDX"], 5)
+    assert seen("ann") == (["SPY"], 8), "an admin who sees no account: only the benchmark named"
+    with server.db.tx(unscoped="test") as s:
+        s.add(new_share("account", johns.id, "read", user_id=r.owner, by=john))
+    assert seen("admin", ADMIN_PW) == (
+        ["BOTHX", "OTHX", "OWNX", "PARTX", "SPY", "UNDX", "VTIX", "XAG"],
+        1,
+    ), "SOLDX, held nowhere, still counted"
+    assert seen("ann") == (["SPY"], 8)
+
+
+def test_a_source_whose_limits_would_hold_the_refresh_long_is_set_aside_till_a_later_run(
+    server, monday
+):
+    """S4.4, S13.4: a source whose limits would hold the refresh past LONGEST_WAIT is set aside
+    for the rest of it, what it would price tried with the next source; the refresh asks to
+    run again once the limits allow, and that run picks up what was left. A source set aside
+    before any call has not run."""
+    import threading
+
+    from moolakata.store.repos import secrets as secret_repo
+    from moolakata.tasks import ProviderLimits, TaskContext
+
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        keyed = r.source("keyed-test", {"etf": 1})
+        secret_repo.put(s, server.keys.secrets, "PriceSource", keyed.id, "apiKey", "k", None)
+        acct = r.account()
+        etfs = [r.inst(f"E{k}", "etf") for k in range(3)]
+        for e in etfs:
+            r.txn(acct, e, _d(10, 1))
+    ANSWERS.update({f"E{k}": [(D0, D(10 + k))] for k in range(5)})  # up to date once asked
+    asked = []
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {
+        "stored": 2,
+        "unpriced": 0,
+        "unknown": 0,
+    }  # two calls an hour
+    assert len(CALLS) == 2 and asked == [pytest.approx(3600, abs=5)]
+    with server.db.read(unscoped="test") as s:
+        from moolakata.store.entities.accounts import Instrument
+
+        assert not any(s.get(Instrument, e.id).priceMissedAt for e in etfs), (
+            "a symbol its source was set aside before asking about is no unknown symbol"
+        )
+    CALLS.clear()
+    ctx = TaskContext("prices", threading.Event(), ProviderLimits(), again=asked.append)
+    assert pricing.refresh(server, ctx) == {
+        "stored": 1,
+        "unpriced": 0,
+        "unknown": 0,
+    }  # the one left
+    [(_, left, _, _)] = CALLS
+    assert left.symbol in {"E0", "E1", "E2"} and len(asked) == 1
+    with server.db.read(unscoped="test") as s:
+        assert set(pricing.stored_closes(s, [e.id for e in etfs], D0)) == {e.id for e in etfs}
+    # Its window already full when the refresh starts: set aside at once, never run, not asked
+    # again for what comes after, and the next source prices them.
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        rec = r.source("recorder-test", {"etf": 2})
+        acct = r.account()
+        late = [r.inst(f"E{k}", "etf") for k in (3, 4)]
+        for e in late:
+            r.txn(acct, e, _d(10, 1))
+        s.get(PriceSource, keyed.id).lastRunAt = None
+    CALLS.clear()
+    limits = ProviderLimits()
+    limits.set("keyed-test", Keyed.limits)
+    assert [limits.delay("keyed-test") for _ in range(2)] == [0, 0]
+    ctx = TaskContext("prices", threading.Event(), limits, again=asked.append)
+    assert pricing.refresh(server, ctx) == {"stored": 2, "unpriced": 0, "unknown": 0}
+    assert sorted(CALLS, key=repr) == sorted(
+        [("recorder-test", Ref(e.id, e.symbol, "etf"), _d(9, 24), D0) for e in late], key=repr
+    )
+    assert len(asked) == 2
+    with server.db.read(unscoped="test") as s:
+        rows = {x.id: x for x in s.scalars(select(PriceSource))}
+    assert (rows[keyed.id].lastRunAt, rows[keyed.id].lastError) == (None, None)
+    assert rows[rec.id].lastOkAt == MONDAY
+
+
 def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, caplog):
     """S4.4: each failure falls back to the next source; one that answers once is ok, with no
     error kept; an answer a source couldn't read is logged, a source's own failure isn't; a
@@ -994,7 +1227,7 @@ def test_a_source_that_fails_for_one_instrument_is_still_ok(server, monday, capl
             r.txn(acct, r.inst(symbol, "etf"), _d(10, 1))
     ANSWERS.update({"VTI": [(_d(10, 9), D(250))], "VTX": SourceError("Recorder answered 500")})
     with caplog.at_level("WARNING", logger="moolakata.prices"):
-        assert pricing.refresh(server) == {"stored": 1, "unpriced": 0}
+        assert pricing.refresh(server) == {"stored": 1, "unpriced": 0, "unknown": 0}
     assert sorted(x.getMessage() for x in caplog.records if x.name == "moolakata.prices") == [
         f"garbled-test failed for {symbol}: ValueError('unexpected token at line 1')"
         for symbol in ("VTI", "VTX")

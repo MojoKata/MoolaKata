@@ -29,7 +29,8 @@ What you paid for what you hold, fees included.
 
 ## Stale
 
-A price older than it should be: two trading days for a stock, or 90 days for a typed price.
+A price older than it should be: two trading days for a stock's close or last trade, or 90 days for
+a typed price.
 
 ## Options · capital at risk {#capital-at-risk}
 

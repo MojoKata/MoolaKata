@@ -207,6 +207,10 @@ Instrument = record(
     Column("name", Text),
     Column("instrumentClass", Text, nullable=False),
     Column("cusip", Text),
+    # Since when the refreshes have found that every enabled source serving its class, asked
+    # for it, answered without a price, while none was stored (S4.2.2); cleared by its first
+    # close.
+    Column("priceMissedAt", UtcTimestamp),
     _in("instrumentClass", INSTRUMENT_CLASSES, "instrument_class"),
     seen=Seen.household(creates="code"),  # as files and typed trades name them
 )

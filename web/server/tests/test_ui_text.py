@@ -208,6 +208,7 @@ AROUND_VALUES = {
     ("screens/linked.js", "by a newer MoolaKata"),  # a state: items this one can't show
     ("screens/projections.js", "when school starts in"),  # an education answer worked out
     ("screens/settings.js", "the database ("),  # what the key encrypts, counted
+    ("screens/settings.js", "more in accounts you don't see"),  # symbols counted, not named
     ("screens/signin.js", "has an account here"),  # the answer to Send
     ("screens/signin.js", "can ask for an account"),  # the answer to Ask for an Account
     ("screens/users.js", "This turns off two-step sign-in"),  # Turn It Off's consequence

@@ -24,6 +24,27 @@ from .store.entities.prices import TypedPrice
 
 ZERO = Decimal(0)
 TYPED_STALE_DAYS = 90  # a typed price (S4.7)
+STALE_DAYS = {"crypto": 2}
+
+
+def trading_days_between(a: dt.date, b: dt.date) -> int:
+    """Weekdays after a up to b: close enough to the US market's trading days to mark a
+    price stale (S4.7)."""
+    n, day = 0, a
+    while day < b:
+        day += dt.timedelta(days=1)
+        if day.weekday() < 5:
+            n += 1
+    return n
+
+
+def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
+    """A market price's staleness by its class (S4.7): a fetched close's, and a trade's that
+    stands in for one. A typed price is stale by `TYPED_STALE_DAYS`."""
+    if cls in STALE_DAYS:
+        return (today - as_of).days > STALE_DAYS[cls]
+    # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
+    return trading_days_between(as_of, today) > (1 if cls == "option" else 2)
 
 
 @dataclass(frozen=True)
@@ -138,7 +159,10 @@ def _tiers(
                     Transaction.date <= last,
                 )
             ):
-                out[txn.instrumentId][2].append(Price(txn.price, txn.date, "trade"))
+                # A trade's price is as old as the trade, and stale as a close would be (S4.7).
+                cls = insts[txn.instrumentId].instrumentClass
+                stale = is_stale(cls, txn.date, on)
+                out[txn.instrumentId][2].append(Price(txn.price, txn.date, "trade", stale))
     for tiers in out.values():
         for tier in tiers:
             # A typed price stands on its day, after the close of that day (S4.10).
@@ -271,7 +295,10 @@ def _positions(s: Session, ledger, day: dt.date | None) -> list[Position]:
 
 def intrinsic(s: Session, instrument_id: str, day: dt.date | None, owner: str) -> Price | None:
     """An option's value at the underlying's close, when no close or typed mark is known:
-    what exercising it would be worth, labelled as such (S3.7)."""
+    what exercising it would be worth, labelled as such (S3.7), and stale when a price it
+    rests on is."""
+    import json
+
     from . import options
 
     c = options.contract_of(s, instrument_id)
@@ -282,7 +309,9 @@ def intrinsic(s: Session, instrument_id: str, day: dt.date | None, owner: str) -
         return None
     price, asof = under
     worth = price - c.strike if c.right == "call" else c.strike - price
-    return Price(max(worth, ZERO), asof, "intrinsic")
+    parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
+    stale = any(p.stale for p in prices(s, parts or [c.underlyingId], day, owner=owner).values())
+    return Price(max(worth, ZERO), asof, "intrinsic", stale)
 
 
 def multipliers(s: Session, instrument_ids: list[str]) -> dict[str, int]:

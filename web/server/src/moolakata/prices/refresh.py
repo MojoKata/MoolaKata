@@ -12,7 +12,7 @@ import logging
 import math
 from decimal import Decimal
 
-from sqlalchemy import and_, false, func, insert, select
+from sqlalchemy import and_, false, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from .. import clock, ids, options, valuation
@@ -22,38 +22,12 @@ from ..store.entities.assets import Item
 from ..store.entities.prices import Price, PriceSource
 from ..store.repos import secrets as secret_repo
 from ..store.tables import prices as prices_table
-from ..tasks import Stopping, TaskContext
-from .base import SOURCES, Ref, SourceError, TickerSource
+from ..tasks import Later, Stopping, TaskContext
+from .base import SOURCES, NotListed, Ref, SourceError, TickerSource
 
 log = logging.getLogger("moolakata.prices")
 BENCHMARKS = ("SPY", "VT", "BND")
 BACKFILL_DAYS = 5 * 366
-STALE_DAYS = {"crypto": 2}
-
-
-def trading_days_between(a: dt.date, b: dt.date) -> int:
-    """Weekdays after a up to b: close enough to the US market's trading days to mark a
-    price stale (S4.7)."""
-    n, day = 0, a
-    while day < b:
-        day += dt.timedelta(days=1)
-        if day.weekday() < 5:
-            n += 1
-    return n
-
-
-def typed_stale(as_of: dt.date, today: dt.date) -> bool:
-    """A typed price is stale after 90 days (S4.7)."""
-    return (today - as_of).days > valuation.TYPED_STALE_DAYS
-
-
-def is_stale(cls: str, as_of: dt.date, today: dt.date) -> bool:
-    """A fetched close's staleness by its class (S4.7). Only a fetching source stores closes; a
-    typed price is a TypedPrice, stale by `typed_stale`."""
-    if cls in STALE_DAYS:
-        return (today - as_of).days > STALE_DAYS[cls]
-    # An option's close older than the last trading day (S4.5); a stock's after two (S4.7).
-    return trading_days_between(as_of, today) > (1 if cls == "option" else 2)
 
 
 def stored_closes(
@@ -79,7 +53,7 @@ def stored_closes(
             p.close,
             p.date,
             "close",
-            is_stale(cls, p.date, min(day, today)),
+            valuation.is_stale(cls, p.date, min(day, today)),
         )
         for p, cls in rows
     }
@@ -166,24 +140,71 @@ def held(s: Session) -> set[str]:
     }
 
 
-def _held_by(s: Session, viewer: str) -> list[str]:
-    """What the accounts the viewer can see hold, but cash."""
+def priced_seen(s: Session, viewer: str) -> set[str]:
+    """What the refresh prices for the accounts the viewer can see, as `priced` reads them:
+    their open lots, an open option's underlying or deliverable parts and a spot metal's
+    spot; and the benchmarks, which are everyone's (S4.2.3)."""
+    from .. import access
+    from ..assets import METAL_SYMBOLS
+    from ..store.repos import ledger as repo
+
+    accounts = [a for a, _ in access.accounts(s, viewer)]
+    out = {
+        lot.instrumentId for a in accounts for lot in repo.load(s, a).replay().open if lot.quantity
+    }
+    for c in s.scalars(
+        select(OptionContract).where(
+            OptionContract.instrumentId.in_(out), OptionContract.deleted == false()
+        )
+    ):
+        out.update(_parts(c))
+    metals = s.scalars(
+        select(Item.metal).where(
+            Item.accountId.in_([a.id for a in accounts]),
+            Item.valuation == "spot",
+            Item.deleted == false(),
+        )
+    ).all()
+    symbols = [METAL_SYMBOLS[m] for m in set(metals)] + list(BENCHMARKS)
+    out.update(
+        s.scalars(
+            select(Instrument.id).where(
+                Instrument.symbol.in_(symbols), Instrument.deleted == false()
+            )
+        )
+    )
+    return out
+
+
+def _parts(c: OptionContract) -> list[str]:
+    """What an option needs priced: its underlying, or an adjusted contract's deliverable
+    parts."""
+    parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
+    return parts or [c.underlyingId]
+
+
+def _held_by(s: Session, viewer: str) -> dict[str, list[str]]:
+    """What the accounts the viewer can see hold, but cash, by each account's owner: whose
+    prices value it (S4.10)."""
     from .. import access
     from ..store.repos import ledger as repo
 
-    ids = {
-        lot.instrumentId
-        for a, _ in access.accounts(s, viewer)
-        for lot in repo.load(s, a).replay().open
-        if lot.quantity
-    }
-    if not ids:
-        return []
-    return [
-        i.id
-        for i in s.scalars(select(Instrument).where(Instrument.id.in_(ids)))
-        if i.instrumentClass not in ("cash", "money-market")
-    ]
+    by: dict[str, set[str]] = {}
+    for a, _ in access.accounts(s, viewer):
+        held = {lot.instrumentId for lot in repo.load(s, a).replay().open if lot.quantity}
+        if held:
+            by.setdefault(a.ownerId, set()).update(held)
+    if not by:
+        return {}
+    cash = set(
+        s.scalars(
+            select(Instrument.id).where(
+                Instrument.id.in_(set().union(*by.values())),
+                Instrument.instrumentClass.in_(("cash", "money-market")),
+            )
+        )
+    )
+    return {owner: sorted(ids - cash) for owner, ids in by.items() if ids - cash}
 
 
 def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
@@ -218,8 +239,7 @@ def priced(s: Session) -> list[tuple[Instrument, dt.date]]:
         )
     ):
         day = firsts[c.instrumentId]
-        parts = [x["instrumentId"] for x in json.loads(c.deliverable)] if c.deliverable else []
-        for iid in parts or [c.underlyingId]:
+        for iid in _parts(c):
             firsts[iid] = min(day, firsts.get(iid, day))
     # Metals valued at spot (S1.10.2): their metal's spot, from the first one acquired.
     from ..assets import METAL_SYMBOLS
@@ -332,7 +352,13 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
     # A source tried either answers ("ok") or fails, and then has its "error".
     runs: dict[str, dict] = {r.id: {"ok": False, "used": False} for r in sources}
     built: dict[str, TickerSource] = {}
+    # Sources whose limits would hold the refresh too long, with the seconds until they allow
+    # a call: set aside for the rest of it, and a run once they allow picks up (S4.4).
+    later: dict[str, float] = {}
     stored = missing = 0
+    # Instruments no source knows (S4.2.2), and those a failure leaves unknown either way.
+    misses: set[str] = set()
+    unsure: set[str] = set()
     for inst, first in wanted:
         if ctx:
             ctx.check()
@@ -373,30 +399,48 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
         if not candidates:
             missing += 1
             continue
+        # Whether a source gave a close; whether every one asked said it doesn't know the
+        # symbol, or knew no close of it.
+        known, unknown = False, True
         for src in candidates:
+            if src.id in later:
+                # Not asked: whether it knows the symbol is still unknown (S4.2.2).
+                unknown = False
+                continue
             run = runs[src.id]
-            run["used"] = True
             try:
                 if src.id not in built:
                     built[src.id] = build(server, src, ctx)
                 closes = built[src.id].history(ref, start, end)
             except Stopping:
                 raise
+            except Later as e:
+                later[src.id] = e.seconds
+                unknown = False
+                continue
             except Exception as e:
+                run["used"] = True
                 # A bad answer fails that source for this instrument, never the refresh (S4.4).
                 if not isinstance(e, SourceError):
                     log.warning("%s failed for %s: %r", src.name, inst.symbol, e)
                 run["error"] = (
                     str(e) if isinstance(e, SourceError) else "an answer it couldn't read"
                 )
+                unknown = unknown and isinstance(e, NotListed)
                 continue
-            run["ok"] = True
+            run["used"] = run["ok"] = True
+            known, unknown = bool(closes), unknown and not closes
             if per_share:
                 closes = [(d, (c / per_share).quantize(Decimal("0.01"))) for d, c in closes]
             # Closes have no access view: named or not, the reason changes nothing written.
             with server.db.tx(unscoped="prices.refresh: refresh") as s:  # pragma: no mutate
                 stored += store(s, inst.id, closes, src.name)
             break
+        # A symbol someone typed that no source knows (S4.2.2): an option's ticker and a metal's
+        # proxy are MoolaKata's own, and one with a close stored, then or before, is known.
+        if inst.instrumentClass == "option" or per_share is not None or known or inst.id in last:
+            continue
+        (misses if unknown else unsure).add(inst.id)
     now = clock.now()
     with server.db.tx(unscoped="prices.refresh: refresh") as s:
         for src in s.scalars(select(PriceSource).where(PriceSource.id.in_(list(runs)))):
@@ -407,27 +451,46 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
             if run["ok"]:
                 src.lastOkAt = now
             src.lastError = run["error"] if not run["ok"] else None
+        # A miss is kept from the first refresh of a run of them: cleared by a close, by its
+        # being no longer held, or by a refresh with no source to ask; one a failure left
+        # unknown keeps what it had.
+        s.execute(
+            update(Instrument)
+            .where(Instrument.id.in_(misses), Instrument.priceMissedAt.is_(None))
+            .values(priceMissedAt=now)
+            .execution_options(synchronize_session=False)
+        )
+        s.execute(
+            update(Instrument)
+            .where(Instrument.priceMissedAt.is_not(None), Instrument.id.not_in(misses | unsure))
+            .values(priceMissedAt=None)
+            .execution_options(synchronize_session=False)
+        )
     server.events.publish("prices", {"asOf": now.isoformat(), "stored": stored})
+    if later and ctx:
+        ctx.again(min(later.values()))
     used = [r for r in runs.values() if r["used"]]
     if used and not any(r["ok"] for r in used):
         raise SourceError(next(r["error"] for r in used if r["error"]))
-    return {"stored": stored, "unpriced": missing}
+    return {"stored": stored, "unpriced": missing, "unknown": len(misses)}
 
 
 def status(s: Session, dev: bool, viewer: str) -> dict:
-    """The header's last refresh and whether held prices are stale (S12.5): what the viewer's
-    accounts hold, with the prices they typed (S4.10). Held prices only: the benchmarks every
-    server watches leave a new server, which holds nothing, with nothing to be stale."""
+    """The header's last refresh, how many enabled sources fetch prices (none: the header says
+    so, S4.2.3), and whether held prices are stale (S12.5): each holding the
+    viewer can see judged by the price that values it for its account's owner (S4.10), stale by
+    that price's own rule (S4.3, S4.7), an option at intrinsic value by its underlying's (S3.7).
+    Held prices only: the benchmarks every server watches leave a new server, which holds
+    nothing, with nothing to be stale."""
     rows = enabled(s, dev)
     last = max((r.lastOkAt for r in rows if r.lastOkAt), default=None)
-    ids = _held_by(s, viewer)
     today = clock.today()
-    # Each held instrument's latest price, as (its day, whether stale): a close, or a price
-    # the viewer typed on its day or after.
-    latest = {i: (p.asOf, p.stale) for i, p in stored_closes(s, ids, today).items()}
-    for t in valuation.typed(s, viewer, ids, None, today):
-        if t.instrumentId not in latest or t.date >= latest[t.instrumentId][0]:
-            latest[t.instrumentId] = (t.date, typed_stale(t.date, today))
-    # One held with no price at all is stale too.
-    stale = len(latest) < len(ids) or any(old for _, old in latest.values())
-    return {"lastRefresh": last, "stale": stale, "sources": len(rows)}
+    stale = False
+    for owner, held_ids in _held_by(s, viewer).items():
+        found = valuation.prices(s, held_ids, today, owner=owner)
+        for iid in held_ids:
+            p = found.get(iid) or valuation.intrinsic(s, iid, today, owner)
+            # One held with no price at all is stale too.
+            stale = stale or p is None or p.stale
+    fetching = sum(1 for r in rows if SOURCES[r.name].fetches)
+    return {"lastRefresh": last, "stale": stale, "sources": fetching}

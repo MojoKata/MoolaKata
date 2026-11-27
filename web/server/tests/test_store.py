@@ -1481,6 +1481,37 @@ def test_0071_names_each_keyed_wallets_bitcoin_node_wallet_at_random(tmp_path):
     engine.dispose()
 
 
+def test_0072_gives_every_instrument_no_price_miss(tmp_path):
+    """S4.2.2: `Instrument.priceMissedAt` starts empty on every instrument, its rows and its
+    unique symbol kept; the next refresh records each one no source knows."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    vti = ids.new_id("Instr")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0071")
+        conn.commit()
+        conn.exec_driver_sql(
+            'INSERT INTO "Instrument" (id, symbol, "instrumentClass", cusip, "createdAt", '
+            "\"updatedAt\") VALUES (?, 'VTI', 'etf', '922908769', ?, ?)",
+            (vti, made, made),
+        )
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = q('SELECT id, symbol, cusip, "priceMissedAt" FROM "Instrument"').one()
+        assert tuple(got) == (vti, "VTI", "922908769", None)
+        with pytest.raises(Exception, match="UNIQUE"):
+            q('INSERT INTO "Instrument" (id, symbol, "instrumentClass", "createdAt", '
+              "\"updatedAt\") VALUES (?, 'VTI', 'equity', ?, ?)",
+              (ids.new_id("Instr"), made, made))  # fmt: skip
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

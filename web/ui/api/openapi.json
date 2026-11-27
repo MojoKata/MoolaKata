@@ -9513,6 +9513,10 @@
             "title": "Symbol",
             "type": "string"
           },
+          "unknownSymbol": {
+            "title": "Unknownsymbol",
+            "type": "boolean"
+          },
           "value": {
             "anyOf": [
               {
@@ -9540,6 +9544,7 @@
           "priceAsOf",
           "priceSource",
           "stale",
+          "unknownSymbol",
           "value",
           "gain",
           "lots"
@@ -15056,6 +15061,10 @@
             ],
             "title": "Underlyingsymbol"
           },
+          "unknownSymbol": {
+            "title": "Unknownsymbol",
+            "type": "boolean"
+          },
           "unrealized": {
             "anyOf": [
               {
@@ -15117,6 +15126,7 @@
           "priceSource",
           "priceAsOf",
           "stale",
+          "unknownSymbol",
           "unrealized",
           "unrealizedPct",
           "realized",
@@ -24617,6 +24627,13 @@
             "title": "Fetches",
             "type": "boolean"
           },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hosts",
+            "type": "array"
+          },
           "keyUrl": {
             "anyOf": [
               {
@@ -24666,7 +24683,8 @@
           "terms",
           "termsChecked",
           "attribution",
-          "fetches"
+          "fetches",
+          "hosts"
         ],
         "title": "SourceKind",
         "type": "object"
@@ -24743,6 +24761,13 @@
           "fetches": {
             "title": "Fetches",
             "type": "boolean"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hosts",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -24854,6 +24879,7 @@
           "termsChecked",
           "attribution",
           "fetches",
+          "hosts",
           "id",
           "enabled",
           "preference",
@@ -24890,11 +24916,24 @@
             },
             "title": "Sources",
             "type": "array"
+          },
+          "unknown": {
+            "items": {
+              "$ref": "#/components/schemas/UnknownSymbol"
+            },
+            "title": "Unknown",
+            "type": "array"
+          },
+          "unknownElsewhere": {
+            "title": "Unknownelsewhere",
+            "type": "integer"
           }
         },
         "required": [
           "available",
           "sources",
+          "unknown",
+          "unknownElsewhere",
           "refreshTime",
           "refreshZone"
         ],
@@ -27753,6 +27792,37 @@
           "who": "own"
         },
         "x-entity": "TyPrc"
+      },
+      "UnknownSymbol": {
+        "additionalProperties": false,
+        "description": "A held instrument no enabled source knew at the last refresh (S4.2.2).",
+        "properties": {
+          "instrumentClass": {
+            "title": "Instrumentclass",
+            "type": "string"
+          },
+          "instrumentId": {
+            "title": "Instrumentid",
+            "type": "string"
+          },
+          "missedAt": {
+            "format": "date-time",
+            "title": "Missedat",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrumentId",
+          "symbol",
+          "instrumentClass",
+          "missedAt"
+        ],
+        "title": "UnknownSymbol",
+        "type": "object"
       },
       "Unlock": {
         "additionalProperties": false,

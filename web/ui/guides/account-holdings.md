@@ -16,8 +16,14 @@ statement value, a price the account's owner typed, or their last trade when not
 
 ## Stale
 
-A price past its age: a close more than two trading days old, a price typed over 90 days ago, or a
-statement value whose next statement is overdue. Import the newer statement, or type a price.
+A price past its age: a close, or a last trade standing in for one, more than two trading days
+old, a price typed over 90 days ago, or a statement value whose next statement is overdue. Import the newer statement, or type a price.
+
+## No price source knows it
+
+The last daily refresh asked every price source that serves the holding's kind, and none knew its
+symbol: it is valued from a statement, a typed price or its last trade. Check the symbol on its
+trades; a fund a source doesn't list may need another source in Settings › Prices.
 
 ## Cost Basis
 

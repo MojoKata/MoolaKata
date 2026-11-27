@@ -1598,6 +1598,7 @@
  * @property {(string | null)} priceAsOf
  * @property {(string | null)} priceSource
  * @property {boolean} stale
+ * @property {boolean} unknownSymbol
  * @property {(import('../kit/dec.js').Dec | null)} value
  * @property {(import('../kit/dec.js').Dec | null)} gain
  * @property {Array<LotRow>} lots
@@ -2466,6 +2467,7 @@
  * @property {(string | null)} priceSource
  * @property {(string | null)} priceAsOf
  * @property {boolean} stale
+ * @property {boolean} unknownSymbol
  * @property {(import('../kit/dec.js').Dec | null)} unrealized
  * @property {(import('../kit/dec.js').Dec | null)} unrealizedPct
  * @property {import('../kit/dec.js').Dec} realized
@@ -4172,6 +4174,7 @@
  * @property {(string | null)} termsChecked
  * @property {(string | null)} attribution
  * @property {boolean} fetches
+ * @property {Array<string>} hosts
  */
 
 /**
@@ -4195,6 +4198,7 @@
  * @property {(string | null)} termsChecked
  * @property {(string | null)} attribution
  * @property {boolean} fetches
+ * @property {Array<string>} hosts
  * @property {string} id
  * @property {boolean} enabled
  * @property {Object<string, number>} preference
@@ -4209,6 +4213,8 @@
  * @typedef {Object} SourcesView
  * @property {Array<SourceKind>} available
  * @property {Array<SourceRow>} sources
+ * @property {Array<UnknownSymbol>} unknown
+ * @property {number} unknownElsewhere
  * @property {string} refreshTime
  * @property {string} refreshZone
  */
@@ -4696,6 +4702,15 @@
  * @property {string} instrumentId
  * @property {string} date
  * @property {import('../kit/dec.js').Dec} close
+ */
+
+/**
+ * A held instrument no enabled source knew at the last refresh (S4.2.2).
+ * @typedef {Object} UnknownSymbol
+ * @property {string} instrumentId
+ * @property {string} symbol
+ * @property {string} instrumentClass
+ * @property {string} missedAt
  */
 
 /**

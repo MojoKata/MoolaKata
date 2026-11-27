@@ -14,6 +14,7 @@ from moolakata import clock
 from moolakata.prices.base import SOURCES, Quote, Ref, SourceError, TickerSource, register
 from moolakata.prices.cboe import Cboe, mark, split_occ
 from moolakata.prices.coinbase import Coinbase
+from moolakata.prices.manual import Manual
 from moolakata.prices.massive import Massive
 from moolakata.prices.stub import Stub, _seed, walk
 from moolakata.prices.tiingo import Tiingo
@@ -92,7 +93,7 @@ def test_quotes_are_each_instruments_latest_close_in_ten_days():
     finally:
         clock.fix(None)
     assert got == {"A": Quote(D(11), d(2026, 10, 12))}
-    assert Plain(None, None).lookup("VTI") is None  # a source that can't check a symbol
+    assert not hasattr(Plain(None, None), "lookup")  # S4.2.2: the refresh finds unknown symbols
 
 
 def test_massive_reads_its_daily_bars_and_needs_its_key():
@@ -109,7 +110,7 @@ def test_massive_reads_its_daily_bars_and_needs_its_key():
                                                    d(2026, 1, 2))  # fmt: skip
 
 
-def test_tiingo_skips_a_day_without_a_close_and_checks_a_symbol():
+def test_tiingo_skips_a_day_without_a_close():
     rows = [{"date": "2026-10-13T00:00:00.000Z", "close": 101.5},
             {"date": "2026-10-12T00:00:00.000Z", "close": None}]  # fmt: skip
     src = Tiingo(Client((200, rows)), "k")
@@ -118,9 +119,6 @@ def test_tiingo_skips_a_day_without_a_close_and_checks_a_symbol():
     ]
     assert Tiingo(Client((200, [])), "k").history(Ref("i", "VTI", "etf"), d(2026, 10, 12),
                                                    d(2026, 10, 13)) == []  # fmt: skip
-    found = Tiingo(Client((200, {"ticker": "vti", "name": "Vanguard Total"})), "k")
-    assert found.lookup("vti") == {"symbol": "VTI", "name": "Vanguard Total"}
-    assert Tiingo(Client((404, {})), "k").lookup("NOPE") is None
 
 
 def test_cboe_names_what_it_cant_read():
@@ -264,12 +262,6 @@ def test_tiingo_asks_by_lowercase_symbol_with_its_key_and_reads_past_a_missing_c
     ]
     headers = {"Authorization": "Token k1", "Content-Type": "application/json"}
     assert src.client.kws == [{"headers": headers}]
-    # A symbol is checked the same way; one the answer doesn't name keeps the one asked for.
-    src = Tiingo(Client((200, {"name": "Vanguard Total"})), "k1")
-    assert src.lookup("Vti") == {"symbol": "VTI", "name": "Vanguard Total"}
-    assert src.client.urls == ["https://api.tiingo.com/tiingo/daily/vti"]
-    assert src.client.kws == [{"headers": headers}]
-    assert Tiingo(Client((200, {"ticker": "voo"})), "k").lookup("vti")["symbol"] == "VOO"
 
 
 def test_cboe_reads_an_occ_ticker_of_one_letter():
@@ -414,3 +406,13 @@ def test_the_stub_has_closes_for_market_days_before_today_and_every_day_for_coin
     occ = "O:VTI261120C00300000"
     opt = src.history(Ref("i", occ, "option"), d(2026, 10, 9), d(2026, 10, 9))
     assert opt == [(d(2026, 10, 9), (walk(occ, d(2026, 10, 9)) / 60).quantize(D("0.01")))]
+
+
+def test_the_manual_source_asks_no_one_and_has_no_history():
+    """S4.3: a manual price is typed or read from a statement: the source calls out to no host,
+    needs no key, isn't fetched, and its history and quotes are empty whatever is asked."""
+    assert (Manual.fetches, Manual.needs_key, Manual.hosts) == (False, False, ())
+    m = Manual(None, None)
+    ref = Ref("Instr_1", "BOND1", "bond")
+    assert m.history(ref, dt.date(2021, 1, 1), dt.date(2026, 10, 9)) == []
+    assert m.quotes([ref]) == {}

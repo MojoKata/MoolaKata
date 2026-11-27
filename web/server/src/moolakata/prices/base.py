@@ -18,6 +18,11 @@ class SourceError(TaskError):
     """A source's failure, worded so Settings can show it (no keys, names or amounts)."""
 
 
+class NotListed(SourceError):
+    """A source's answer that it doesn't know a symbol: the next source for the class is asked,
+    and one no source knows is recorded so (S4.2.2)."""
+
+
 @dataclass(frozen=True)
 class Quote:
     price: Decimal
@@ -71,10 +76,6 @@ class TickerSource(ABC):
                 day, price = closes[-1]
                 out[ref.id] = Quote(price, day)
         return out
-
-    def lookup(self, symbol: str) -> dict | None:
-        """Check a symbol before it is used, where the source can."""
-        return None
 
     def get_json(self, url: str, **kw):
         if self.client is None:

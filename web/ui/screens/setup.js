@@ -1,24 +1,32 @@
-// The first admin's account, the welcome's last step once the key is made: name, sex, email
-// address and password, then signed in as `admin` (requirements S10.1.2). An admin made before
-// the welcome, with the published password, reaches the same form at its first sign-in.
+// The first admin's account, once the key is made: name, sex, email address and password,
+// then signed in as `admin` (requirements S10.1.2), and the welcome's last step, the price
+// sources that need no key, each off until the admin turns it on (S12.14.1, R3.5). An admin
+// made before the welcome, with the published password, reaches the same form at its first
+// sign-in.
 import { useState } from 'preact/hooks';
 import { html } from '../app/html.js';
 import { api } from '../api/client.js';
-import { useSubmit } from '../app/hooks.js';
+import { useApi, useSubmit } from '../app/hooks.js';
 import { ended, session, setSession } from '../store/session.js';
 import { AuthCard } from '../components/auth.js';
-import { errAt, Field, FormError, Input, Select } from '../kit/fields.js';
+import { saveNow } from '../components/draft-form.js';
+import { SrcRec } from '../components/price-sources.js';
+import { errAt, Field, FormError, Input, Select, SwitchRow } from '../kit/fields.js';
+import { Failed, Loading } from '../kit/bits.js';
+
+const WIDE = { width: '100%', justifyContent: 'center' };
 
 export default function Setup() {
   const [displayName, setName] = useState('');
   const [sex, setSex] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // The first admin, signed in: the session is taken once the price sources are chosen.
+  const [made, setMade] = useState(/** @type {any} */ (null));
   const first = !session.value; // no session: the welcome's first admin
   const save = useSubmit(async () => {
     if (first) {
-      setSession(await api.post('/welcome/admin', { displayName, sex, email, password }));
-      ended.value = '';
+      setMade(await api.post('/welcome/admin', { displayName, sex, email, password }));
       return;
     }
     setSession(
@@ -30,6 +38,12 @@ export default function Setup() {
       }),
     );
   });
+  if (made) {
+    return html`<${PriceSources} done=${() => {
+      setSession(made);
+      ended.value = '';
+    }} />`;
+  }
   return html`
     <${AuthCard} title="Set Up the Admin Account" guide="setup"
       sub=${first
@@ -67,5 +81,41 @@ export default function Setup() {
                   disabled=${save.busy}>Save and Continue</button>
                 </form>
                 </${AuthCard}>
+  `;
+}
+
+/** The price sources that need no key, each off with a switch and the hosts it calls; the
+ * ones turned on are added in one save (S12.14.1). Skipped, they wait in Settings › Prices.
+ * @param {{ done: () => void }} p */
+function PriceSources({ done }) {
+  const res = useApi('/price-sources');
+  const [on, setOn] = useState(/** @type {string[]} */ ([]));
+  const go = useSubmit(async () => {
+    if (on.length) await saveNow((d) => on.forEach((name) => void d.add(SrcRec, { name })));
+    done();
+  });
+  const v = /** @type {any} */ (res.data);
+  const keyless = v
+    ? v.available.filter((/** @type {any} */ s) => s.fetches && !s.needsKey && s.hosts.length)
+    : [];
+  return html`
+    <${AuthCard} title="Price Sources" guide="setup-prices">
+      ${res.error
+        ? html`<${Failed} error=${res.error} />`
+        : !v
+        ? html`<${Loading} />`
+        : keyless.map((
+          /** @type {any} */ s,
+        ) =>
+          html`
+            <${SwitchRow} label=${s.label} hint=${s.hosts.join(', ')} on=${on.includes(s.name)}
+              onChange=${(/** @type {boolean} */ x) =>
+                setOn(x ? [...on, s.name] : on.filter((n) => n !== s.name))} />
+          `
+        )}
+      <${FormError} error=${go.error} />
+      <button type="button" class="btn primary mt" style=${WIDE} disabled=${go.busy || !v}
+        onClick=${() => go.run().catch(() => {})}>Continue</button>
+      </${AuthCard}>
   `;
 }
