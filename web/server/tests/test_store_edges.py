@@ -654,3 +654,61 @@ def test_a_copy_that_fails_its_integrity_check_is_refused(tmp_path, monkeypatch)
     monkeypatch.setattr(copy, "connect", lambda path, key: Conn())
     with pytest.raises(RuntimeError, match=r"the copy moolakata.db failed its integrity check"):
         copy.verify(tmp_path / "moolakata.db", None)
+
+
+# ---------- migrations (S14.1.3) ----------
+
+
+def test_a_migration_that_leaves_a_broken_reference_is_refused(tmp_path, monkeypatch):
+    """S14.1.3: the copy is made first (with no keyring to carry, none beside it), and a
+    migration that leaves a reference to nothing refuses the start, naming the copy's way
+    back."""
+    from moolakata.store import migrate
+    from moolakata.store.db import make_engine
+
+    def broken(cfg, target):
+        conn = cfg.attributes["connection"]
+        conn.exec_driver_sql("CREATE TABLE p (id TEXT PRIMARY KEY)")
+        conn.exec_driver_sql("CREATE TABLE c (pid TEXT REFERENCES p (id))")
+        conn.exec_driver_sql("INSERT INTO c VALUES ('gone')")
+
+    path = tmp_path / "moolakata.db"
+    engine = make_engine(path, None)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(f'CREATE TABLE "{migrate.VERSION_TABLE}" (version_num TEXT)')
+        conn.exec_driver_sql(
+            f"INSERT INTO \"{migrate.VERSION_TABLE}\" VALUES ('{sorted(migrate.known())[-2]}')"
+        )
+    monkeypatch.setattr(migrate.command, "upgrade", broken)
+    copies_dir = tmp_path / "pre-upgrade"
+    with pytest.raises(RefuseStart, match="left 1 broken references; restore the copy"):
+        migrate.upgrade(engine, path, None, copies_dir, None)
+    engine.dispose()
+    (made,) = copies_dir.glob("moolakata-before-*.db")
+    assert not made.with_suffix(".keyring").exists()
+
+
+def test_a_revision_is_generated_with_the_next_number(monkeypatch):
+    """`python -m moolakata.store.migrate revise <message>`: the next revision, numbered on from
+    the last, from the tables' difference with a database at head."""
+    import runpy
+    import sys
+
+    from alembic import command
+
+    from moolakata.store import migrate
+
+    made = []
+    monkeypatch.setattr(command, "upgrade", lambda cfg, target: None)
+    monkeypatch.setattr(command, "revision", lambda cfg, **kw: made.append(kw))
+    migrate.revise("the next change")
+    number = f"{len(migrate.known()) + 1:04d}"
+    assert made == [{"message": "the next change", "autogenerate": True, "rev_id": number}]
+    monkeypatch.setattr(sys, "argv", ["migrate", "revise", "by name"])
+    with pytest.warns(RuntimeWarning, match="found in sys.modules"):
+        runpy.run_module("moolakata.store.migrate", run_name="__main__")
+    assert made[-1]["message"] == "by name"
+    monkeypatch.setattr(sys, "argv", ["migrate"])
+    with pytest.raises(SystemExit) as e, pytest.warns(RuntimeWarning):
+        runpy.run_module("moolakata.store.migrate", run_name="__main__")
+    assert e.value.code == 2
