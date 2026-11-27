@@ -11,7 +11,7 @@ from decimal import Decimal
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
-from .. import assets, education, gifts, giving, loans, people
+from .. import assets, clock, education, gifts, giving, loans, people
 from ..ledger import lots
 from ..ledger import types as atypes
 from ..money import grouped
@@ -1185,7 +1185,18 @@ class Issue:
     link: str | None = None
 
 
-def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
+# What a possible wash sale left for review is near (S3.8.5), by its rule.
+_NEAR = {
+    "option": "an option on it",
+    "short-sale": "another short sale of it",
+    "short-cover": "shares bought to close a short sale of it",
+}
+
+
+def issues(s: Session, book: TaxBook, rows: list[Row], washes: list[Wash] = ()) -> list[Issue]:
+    """What to look at before the return is prepared (S8.4)."""
+    from .. import options
+
     out = []
     if changed := changed_after_filing(s, book):
         out.append(Issue("changed-after-filing", changed))
@@ -1202,11 +1213,28 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
     counted = books.counted(s, book)
     for a in counted.leftOut:
         out.append(Issue("left-out", f"{a.name} is left out of this tax book."))
+    first, last = _span(book.year)
+    # Lots a statement's holdings stood in for (R3.2): crypto first, as S8.4 names it.
+    unknown: list[tuple[bool, Issue]] = []
     for a in _taxable(counted.accounts):
         if not atypes.investing(a.type):
             continue
         led = repo.load(s, a)
         rp = led.replay()
+        # An option whose expiry fell in the year, still open: no gain or loss reaches Form
+        # 8949 until its end is recorded (S3.6).
+        for iid in rp.positions():
+            c = options.contract_of(s, iid)
+            if c is not None and first <= c.expiry <= last and c.expiry < clock.today():
+                inst = s.get(Instrument, iid)
+                out.append(
+                    Issue(
+                        "option-unresolved",
+                        f"{a.name}: {inst.symbol} expired on {c.expiry:%b %-d} with no end "
+                        "recorded: expired, assigned or exercised",
+                        "/ui/positions/open",
+                    )
+                )
         for p in rp.problems:
             inst = s.get(Instrument, p.instrumentId)
             if p.kind == "sale-without-lot" and p.date.year == book.year:
@@ -1218,7 +1246,18 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                     )
                 )
         for lot in rp.open:
-            if lot.acquiredMissing:
+            if lot.standIn:
+                inst = s.get(Instrument, lot.instrumentId)
+                text = (
+                    f"{a.name}: {_qty(lot.quantity)} {inst.symbol} held on "
+                    f"{lot.acquiredOn:%b %-d, %Y}, as a statement reported it: when it was "
+                    "bought, and its basis, aren't known"
+                )
+                link = f"/ui/accounts/{a.id}/holdings"
+                unknown.append(
+                    (inst.instrumentClass == "crypto", Issue("acquired-unknown", text, link))
+                )
+            elif lot.acquiredMissing:
                 inst = s.get(Instrument, lot.instrumentId)
                 out.append(
                     Issue(
@@ -1237,6 +1276,19 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
                         f"/ui/accounts/{a.id}/holdings",
                     )
                 )
+    out += [i for crypto, i in unknown if crypto] + [i for crypto, i in unknown if not crypto]
+    # The flags left for the preparer (S3.8.5), counted on Wash sales too (S8.3).
+    for w in washes:
+        if w.review:
+            out.append(
+                Issue(
+                    "possible-wash-sale",
+                    f"Possible wash sale: {w.symbol} sold at a loss of ${grouped(w.loss)} on "
+                    f"{w.sold:%b %-d} in {w.account}, near {_NEAR[w.rule or 'option']}: for "
+                    "the preparer to decide",
+                    "/ui/taxes/gains",
+                )
+            )
     for r in rows:
         if r.acquiredMissing:
             out.append(
@@ -1282,7 +1334,6 @@ def issues(s: Session, book: TaxBook, rows: list[Row]) -> list[Issue]:
         )
     # Transfers between users' accounts carry a gift's basis over (S8.4).
     ids = {a.id: a for a in counted.accounts}
-    first, last = _span(book.year)
     for t in s.scalars(
         select(Transaction).where(
             Transaction.accountId.in_(list(ids)),

@@ -1039,6 +1039,31 @@ def test_the_federal_due_date_is_the_books_own_years_with_an_admins_correction(s
     assert books.federal_due(st.s, 2026) == dt.date(2027, 4, 15)
 
 
+def test_a_stand_in_lot_is_an_issue_crypto_first(st):
+    """S8.4, R3.2: what a statement's holdings stood in for has no day bought or basis known:
+    each such lot is listed once, crypto first, never as a bare missing basis."""
+    from moolakata.store.entities.accounts import Holding
+    from moolakata.taxes import panels
+
+    b = st.book()
+    brk = st.account(type="brokerage", name="Brokerage")
+    ex = st.account(type="crypto-exchange", name="Exchange")
+    vti = st.instrument("VTI")
+    btc = st.put(Instrument(id=ids.new_id("Instr"), symbol="BTC", instrumentClass="crypto"))
+    st.put(Holding(id=ids.new_id("Hold"), accountId=brk.id, instrumentId=vti.id,
+                   asOf=dt.date(2026, 1, 31), quantity=D(10)))  # fmt: skip
+    st.put(Holding(id=ids.new_id("Hold"), accountId=ex.id, instrumentId=btc.id,
+                   asOf=dt.date(2026, 2, 28), quantity=D("0.5")))  # fmt: skip
+    got = [(i.kind, i.text, i.link) for i in panels.issues(st.s, b, [])]
+    said = "as a statement reported it: when it was bought, and its basis, aren't known"
+    assert got == [
+        ("acquired-unknown", f"Exchange: 0.5 BTC held on Feb 28, 2026, {said}",
+         f"/ui/accounts/{ex.id}/holdings"),
+        ("acquired-unknown", f"Brokerage: 10 VTI held on Jan 31, 2026, {said}",
+         f"/ui/accounts/{brk.id}/holdings"),
+    ]  # fmt: skip
+
+
 def test_a_joint_carryover_share_adds_to_a_separate_returns_carryover(st):
     """Joint after a separate return and a joint one: the separate return's carryover and the
     share typed of the joint one, added (made in that order, so the share comes last)."""

@@ -29,7 +29,7 @@ produces worksheets and exports. It never files, and says so (R1.16).
    rows counts them by why beside the TXF export (*TXF leaves out 4 sales (3 digital assets,
    1 collectable): enter them from the CSV.*).
 3. **Wash sales** found (S3.8), with the disallowed amounts and the replacement lots, and
-   the flags left for review.
+   the flags left for review, each also listed in the Issues (S8.4).
 4. **Missing or doubtful data**: lots without a basis, sales without a matching lot, options
    with an unresolved expiry, transfers between users' accounts (a gift's carry-over basis),
    crypto without a known acquisition, possible wash sales the rules leave to the

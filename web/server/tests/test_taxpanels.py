@@ -312,6 +312,50 @@ def test_shares_from_an_assigned_put_are_flagged_never_a_replacement(jane):
     assert loss["code"] == "" and loss["gain"] == "-5000.00"
 
 
+def test_a_possible_wash_sale_is_an_issue_linking_to_the_wash_sales(jane):
+    """S3.8.5, S8.4: each flag left for review is listed in the Issues, and stays on Wash sales
+    (S8.3), where its trades are."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "100000.00", "2026-01-02", kind="deposit")
+    trade(jane, brk["id"], "2026-08-03", "buy", "100", "500", "MSFT")
+    trade(jane, brk["id"], "2026-09-01", "sell", "100", "450", "MSFT")  # a 5,000 loss
+    saved(option_trade(jane, brk["id"], "2026-08-20", "buy-to-open", "MSFT", "call", "455",
+                       "2027-01-15", "1", "4.00"))  # fmt: skip
+    p = panels(jane, book(jane))
+    [w] = p["washes"]
+    assert w["review"] and w["symbol"] == "MSFT"
+    got = [(i["text"], i["link"]) for i in p["issues"] if i["kind"] == "possible-wash-sale"]
+    assert got == [
+        (
+            "Possible wash sale: MSFT sold at a loss of $5,000.00 on Sep 1 in Brokerage, "
+            "near an option on it: for the preparer to decide",
+            "/ui/taxes/gains",
+        )
+    ]
+
+
+def test_an_option_expired_in_the_year_with_no_end_recorded_is_an_issue(jane):
+    """S8.4, S3.6: an option whose expiry falls in the book's year, still open, has no gain or
+    loss on Form 8949 until its end is recorded; one expiring later isn't listed."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")
+    add(jane, brk["id"], "10000.00", "2026-01-02", kind="deposit")
+    saved(option_trade(jane, brk["id"], "2026-10-01", "buy-to-open", "MSFT", "put", "400",
+                       "2026-11-20", "1", "3.00"))  # fmt: skip
+    saved(option_trade(jane, brk["id"], "2026-10-01", "buy-to-open", "AAPL", "call", "250",
+                       "2027-01-15", "1", "2.00"))  # fmt: skip
+    held = jane.get("/ui/api/positions", params={"kind": "options"}).json()["open"]
+    [put] = [x["symbol"] for x in held if x["symbol"].startswith("MSFT")]
+    got = [(i["text"], i["link"]) for i in panels(jane, book(jane))["issues"]
+           if i["kind"] == "option-unresolved"]  # fmt: skip
+    assert got == [
+        (
+            f"Brokerage: {put} expired on Nov 20 with no end recorded: expired, assigned or "
+            "exercised",
+            "/ui/positions/open",
+        )
+    ]
+
+
 def test_a_fund_typed_by_its_symbol_is_a_fund_for_its_box(jane):
     # S2.1: a fund bought in 2011 has no reported basis (funds from 2012), so its
     # sale goes in box E; a share bought the same day, in D.

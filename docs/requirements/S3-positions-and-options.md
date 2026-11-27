@@ -115,7 +115,7 @@
    instrument within 30 days either side is flagged, its disallowed loss computed and added to
    the replacement lot's basis. This covers the user's own accounts, IRAs included, and the
    accounts of the user's spouse on the date of the sale (S10.10.4). Options on the same
-   underlying are flagged for review, not decided (S8.3).
+   underlying are flagged for review, not decided (S8.4).
    1. The match is the same instrument, a stock or fund (ETFs and mutual funds included),
       bought or reinvested within 30 days before or after a sale at a loss in a taxable
       account. Whether a different instrument is substantially identical is the preparer's
@@ -142,7 +142,7 @@
       deleted one that no longer does, takes effect at once.
    5. **Flagged for review, never adjusted**: where the rules are unsettled or depend on
       facts MoolaKata can't see, a possible wash sale is listed among the tax book's issues
-      (S8.3) with the trades involved, and no basis is changed:
+      (S8.4) with the trades involved, and no basis is changed:
       1. a loss on a **short sale** closed with shares bought within 30 days of another
          short sale of the same stock, or of opening one;
       2. a loss on an **option itself** (a call or put closed or expired at a loss) with the

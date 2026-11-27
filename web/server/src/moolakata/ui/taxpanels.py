@@ -420,7 +420,7 @@ def _build(s, b) -> Panels:
             ResidenceOut(**{**r.__dict__, "livedIn": [LivedInOut(**x.__dict__) for x in r.livedIn]})
             for r in panels.residences(s, b)
         ],
-        issues=[IssueOut(**i.__dict__) for i in panels.issues(s, b, rows)],
+        issues=[IssueOut(**i.__dict__) for i in panels.issues(s, b, rows, washes)],
         leftOut=[a.name for a in books.counted(s, b).leftOut],
         txfLeftOut=TxfLeftOut(**exports.txf_left_out(rows)),
         covers=exports.covers(b.bitcoinFees),

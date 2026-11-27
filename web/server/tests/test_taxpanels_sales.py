@@ -823,6 +823,7 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
     monkeypatch.setattr(panels, "differs_from_filed", lambda s, book, rows: "Differs.")
     monkeypatch.setattr(panels.books, "carryover", lambda s, book: (D(0), D(0), True))
     replay = SimpleNamespace(
+        positions=dict,  # no option open
         problems=[
             SimpleNamespace(kind="sale-without-lot", instrumentId="i1", date=dt.date(2026, 5, 1)),
             # The year before's, and another kind of problem: not this book's to list.
@@ -832,16 +833,25 @@ def test_each_doubtful_thing_is_listed_with_its_kind_words_and_link(quiet, monke
         open=[
             # Moved in without its day bought, its basis missing too: listed once, for the day.
             SimpleNamespace(
-                acquiredMissing=True, basis=None, instrumentId="i2", acquiredOn=dt.date(2025, 3, 4)
+                acquiredMissing=True,
+                standIn=False,
+                basis=None,
+                instrumentId="i2",
+                acquiredOn=dt.date(2025, 3, 4),
             ),
             SimpleNamespace(
                 acquiredMissing=False,
+                standIn=False,
                 basis=D(100),
                 instrumentId="i2",
                 acquiredOn=dt.date(2025, 3, 4),
             ),
             SimpleNamespace(
-                acquiredMissing=False, basis=None, instrumentId="i1", acquiredOn=dt.date(2025, 3, 4)
+                acquiredMissing=False,
+                standIn=False,
+                basis=None,
+                instrumentId="i1",
+                acquiredOn=dt.date(2025, 3, 4),
             ),
         ],
     )
