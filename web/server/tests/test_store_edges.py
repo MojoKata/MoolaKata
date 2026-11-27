@@ -560,3 +560,11 @@ def test_a_table_cannot_belong_to_itself():
               info={"softDelete": True})  # fmt: skip
     with pytest.raises(ValueError, match=r"Node.parentId: a table cannot belong to itself"):
         views.parents(t)
+
+
+def test_a_table_seen_without_a_view_has_no_select():
+    from moolakata.store import access_views
+    from moolakata.store.tables import metadata
+
+    with pytest.raises(ValueError, match=r"TaskRun is .*: it has no view"):
+        access_views.select_sql(metadata.tables["TaskRun"])
