@@ -642,3 +642,34 @@ def test_an_option_trade_open_through_its_adjustment_is_worth_its_adjusted_contr
     assert (row["symbol"], row["contracts"], row["closed"], row["premiumOut"]) == (
         "MSFT 20NOV26 240 C", "2.0", None, "300.00")  # fmt: skip
     assert (row["adjustedFrom"], row["adjustedOn"]) == ("MSFT 20NOV26 480 C", "2026-10-01")
+
+
+def test_a_deliverables_weights_are_its_owners_prices_never_another_users(server, jane):
+    """S4.10, S3.10.5: an adjusted contract's parts are weighed by the account owner's own
+    trades in them (no stored close), never by another user's newer one; an owner without a
+    price for every part weighs them by their shares."""
+    import json
+
+    from test_prices import Rows
+
+    from moolakata.options import deliverable
+
+    jane_id = _uid(server)
+    with server.db.tx(unscoped="test") as s:
+        r = Rows(s)
+        admin = r.owner
+        a, b, put = r.inst("PARTA"), r.inst("PARTB"), r.inst("PARTA 20NOV26 50 P", "option")
+        mine = r.account()
+        r.txn(mine, a, dt.date(2026, 10, 1), price=D(10))
+        r.txn(mine, b, dt.date(2026, 10, 1), price=D(30))
+        r.owner = jane_id  # jane's trade of B is the newest anywhere
+        r.txn(r.account(), b, dt.date(2026, 10, 8), price=D(5))
+        parts = [{"instrumentId": a.id, "shares": 100}, {"instrumentId": b.id, "shares": 50}]
+        c = r.add(OptionContract(id=ids.new_id("OptCt"), instrumentId=put.id,
+                                 underlyingId=a.id, right="put", strike=D(50),
+                                 expiry=dt.date(2026, 11, 20),
+                                 deliverable=json.dumps(parts)))  # fmt: skip
+        day = dt.date(2026, 10, 9)
+        weights = {who: [w for _, _, w in deliverable(s, c, day, who)] for who in (admin, jane_id)}
+    assert weights[admin] == [D("0.4"), D("0.6")], "100 at $10 and 50 at $30, the admin's own"
+    assert weights[jane_id] == [D(100) / 150, D(50) / 150], "only B priced: by the shares"
