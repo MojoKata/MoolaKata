@@ -122,7 +122,11 @@ function Performance({ p }) {
             color: '--fg-muted',
             points: s.points.map((/** @type {any} */ x) => [x.date, x.contributions]),
           },
-        ]} />`
+        ]} />${
+          s.points.length && s.points.every((/** @type {any} */ x) => x.benchmark == null)
+            ? html`<${Empty}>No prices for the benchmark yet</${Empty}>`
+            : null
+        }`
         : html`<${Loading} lines=${4} />`}</div>
     <div class="card mt"><h3>Returns by Period</h3>
       ${!rows ? html`<${Loading} />` : html`

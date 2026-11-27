@@ -22,7 +22,12 @@
       (*set*, with when and by whom; a key is a secret, S14.4), its order of preference per
       class, its last run and its last error, and below them **Symbols No Source Knows**
       (S4.2.2): each symbol, its class and since when. **Add a source** picks from every source
-      MoolaKata ships. A source that needs a key can't be enabled without one.
+      MoolaKata ships. A source that needs a key can't be enabled without one. A new server
+      enables no source (R3.5): the welcome offers the ones that need no key, each off until
+      the admin turns it on (S12.14.1). Until a source that fetches is enabled, nothing is
+      priced: the header's price status reads *No Price Source*, its tip saying an admin adds
+      one in Settings › Prices, and for an admin it links there (S12.5); a benchmark chart says
+      it has no prices yet (S5.2.1).
 3. **Starting sources**, chosen for being free and daily. Their terms change, so each is
    checked again when a release ships.
 
@@ -46,8 +51,8 @@
    the underlying of an open option, or an adjusted contract's deliverable parts, whether or
    not the account holds it, from the option's first trade, so its expiry has a close to decide
    it, S3.6), and backfills history when an instrument is first held, from a week before its first
-   transaction and at most five years back. SPY, VT and BND are always loaded, as the
-   benchmarks (S5.2.1). **Refresh prices** does the same on demand. Requests are spread to
+   transaction and at most five years back. SPY, VT and BND are loaded as the benchmarks
+   (S5.2.1), held or not, once a source that serves them is enabled. **Refresh prices** does the same on demand. Requests are spread to
    stay inside each source's limits (Tiingo's 50 an hour means a few hours for a large
    household). A source that fails falls back to the next one
    for that class; Settings shows the last error, and a failure lasting past the alert

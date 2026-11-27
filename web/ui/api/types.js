@@ -4174,6 +4174,7 @@
  * @property {(string | null)} termsChecked
  * @property {(string | null)} attribution
  * @property {boolean} fetches
+ * @property {Array<string>} hosts
  */
 
 /**
@@ -4197,6 +4198,7 @@
  * @property {(string | null)} termsChecked
  * @property {(string | null)} attribution
  * @property {boolean} fetches
+ * @property {Array<string>} hosts
  * @property {string} id
  * @property {boolean} enabled
  * @property {Object<string, number>} preference

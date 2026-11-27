@@ -257,6 +257,9 @@ def test_price_sources_in_settings(admin_client, server):
     view = admin_client.get("/ui/api/price-sources").json()
     names = {s["name"] for s in view["available"]}
     assert {"tiingo", "coinbase", "manual"} <= names and "stub" not in names
+    hosts = {s["name"]: s["hosts"] for s in view["available"]}  # shown at the welcome (S12.14.1)
+    assert (hosts["cboe"], hosts["coinbase"], hosts["manual"]) == (
+        ["cdn-api.cboe.com"], ["api.exchange.coinbase.com"], [])  # fmt: skip
     assert view["refreshTime"] == "18:00"
     r = make(admin_client, "Src", name="tiingo")
     assert r.status_code == 200
@@ -834,6 +837,7 @@ def test_the_headers_prices_are_stale_when_one_the_viewer_holds_is(server, monda
         r.source("stub", lastOkAt=MONDAY - dt.timedelta(hours=2))
         r.source("recorder-test", lastOkAt=MONDAY - dt.timedelta(hours=1))
         r.source("idle-test")
+        r.source("manual")  # fetches nothing: no price source for the header (S4.2.3)
 
     def status(dev=True):
         with server.db.read(unscoped="test") as s:

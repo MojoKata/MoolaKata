@@ -442,7 +442,8 @@ def refresh(server, ctx: TaskContext | None = None) -> dict:
 
 
 def status(s: Session, dev: bool, viewer: str) -> dict:
-    """The header's last refresh and whether held prices are stale (S12.5): each holding the
+    """The header's last refresh, how many enabled sources fetch prices (none: the header says
+    so, S4.2.3), and whether held prices are stale (S12.5): each holding the
     viewer can see judged by the price that values it for its account's owner (S4.10), stale by
     that price's own rule (S4.3, S4.7), an option at intrinsic value by its underlying's (S3.7).
     Held prices only: the benchmarks every server watches leave a new server, which holds
@@ -457,4 +458,5 @@ def status(s: Session, dev: bool, viewer: str) -> dict:
             p = found.get(iid) or valuation.intrinsic(s, iid, today, owner)
             # One held with no price at all is stale too.
             stale = stale or p is None or p.stale
-    return {"lastRefresh": last, "stale": stale, "sources": len(rows)}
+    fetching = sum(1 for r in rows if SOURCES[r.name].fetches)
+    return {"lastRefresh": last, "stale": stale, "sources": fetching}

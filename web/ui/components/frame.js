@@ -80,6 +80,15 @@ function HouseholdAvatar({ house }) {
 function PriceStatus() {
   const s = useApiLite('/prices/status', ['prices']);
   if (!s) return null;
+  // A new server enables no source (S4.2.3, R3.5): said so, with the way to one for admins.
+  if (!s.sources) {
+    return html`<div class="price-status" data-tip="An admin adds one in Settings › Prices">
+      <span class="dot stale" aria-hidden="true"></span>${
+      session.value?.user.admin
+        ? html`<a class="txt" href="/ui/settings/prices">No Price Source</a>`
+        : html`<span class="txt">No Price Source</span>`
+    }</div>`;
+  }
   const when = s.lastRefresh ? ago(s.lastRefresh) : 'no prices yet';
   return html`<div class="price-status" data-tip=${
     s.stale

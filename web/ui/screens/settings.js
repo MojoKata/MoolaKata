@@ -31,6 +31,7 @@ import { LinksSection } from '../components/links.js';
 import { ConnectorSection } from '../components/connector.js';
 import { withReauth } from '../components/reauth.js';
 import { StorageSection } from '../components/storage.js';
+import { SrcRec } from '../components/price-sources.js';
 import { DraftDialog, DraftForm, saveNow, useDraft } from '../components/draft-form.js';
 import { Record as Rec } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
@@ -527,14 +528,6 @@ function Prices() {
       (e) => toast(e.message),
     )}><${Icon} name="refresh" /> Refresh Prices</button></div>
   </div>`;
-}
-
-/** A price source (S4.2), as a draft adds, changes or removes it. */
-class SrcRec extends Rec {
-  /** @override */
-  static prefix = 'Src';
-  /** @override */
-  static fields = FIELDS.SourceRecord;
 }
 
 /** @param {{ close: (v?: any) => void, sources: any }} p */

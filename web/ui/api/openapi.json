@@ -24627,6 +24627,13 @@
             "title": "Fetches",
             "type": "boolean"
           },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hosts",
+            "type": "array"
+          },
           "keyUrl": {
             "anyOf": [
               {
@@ -24676,7 +24683,8 @@
           "terms",
           "termsChecked",
           "attribution",
-          "fetches"
+          "fetches",
+          "hosts"
         ],
         "title": "SourceKind",
         "type": "object"
@@ -24753,6 +24761,13 @@
           "fetches": {
             "title": "Fetches",
             "type": "boolean"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hosts",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -24864,6 +24879,7 @@
           "termsChecked",
           "attribution",
           "fetches",
+          "hosts",
           "id",
           "enabled",
           "preference",

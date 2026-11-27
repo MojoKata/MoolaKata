@@ -1,34 +1,34 @@
 # Terms
 
-The acronyms the guides use (requirements S12.7.7). Each heading is an acronym and what it
-stands for; the paragraph under it, a sentence or two of plain text, says what it means; a last
-line that is only a link names the official document, where there is one. A guide's acronym
-shows them on hover, and on keyboard focus of its first use under each heading, which is
-underlined. Kept in alphabetical order; a test fails when a guide uses an acronym missing here.
+The acronyms the guides use (requirements S12.7.7). Each heading is an acronym and what it stands
+for; the paragraph under it, a sentence or two of plain text, says what it means; a last line that
+is only a link names the official document, where there is one. A guide's acronym shows them on
+hover, and on keyboard focus of its first use under each heading, which is underlined. Kept in
+alphabetical order; a test fails when a guide uses an acronym missing here.
 
 ## AGI: Adjusted Gross Income
 
-Your total income less certain adjustments, such as deductible IRA and HSA contributions. It is
-on the first page of Form 1040, and many deductions, credits and limits are measured against it.
+Your total income less certain adjustments, such as deductible IRA and HSA contributions. It is on
+the first page of Form 1040, and many deductions, credits and limits are measured against it.
 
 [IRS: Definition of adjusted gross income](https://www.irs.gov/e-file-providers/definition-of-adjusted-gross-income)
 
 ## API: Application Programming Interface
 
-The requests a program accepts from other programs, as its buttons are for people. A key or
-token decides what another program may ask for.
+The requests a program accepts from other programs, as its buttons are for people. A key or token
+decides what another program may ask for.
 
 ## APR: Annual Percentage Rate
 
-A loan's or card's yearly cost of borrowing, as a percentage. A loan's includes some fees on top
-of the interest rate; a card charges interest from it, usually daily.
+A loan's or card's yearly cost of borrowing, as a percentage. A loan's includes some fees on top of
+the interest rate; a card charges interest from it, usually daily.
 
 [CFPB: A mortgage interest rate and an APR](https://www.consumerfinance.gov/ask-cfpb/what-is-the-difference-between-a-mortgage-interest-rate-and-an-apr-en-135/)
 
 ## BIP39: Bitcoin Improvement Proposal 39
 
-A standard list of 2,048 short words for recovery phrases. Each word carries 11 bits, and the
-last word also carries a short checksum that catches most mistyped words.
+A standard list of 2,048 short words for recovery phrases. Each word carries 11 bits, and the last
+word also carries a short checksum that catches most mistyped words.
 
 [BIP-0039](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
 
@@ -36,10 +36,17 @@ last word also carries a short checksum that catches most mistyped words.
 
 Bitcoin's ticker symbol. One BTC is 100,000,000 satoshis, or sats.
 
+## CBOE: Chicago Board Options Exchange
+
+The US exchange where most listed options trade. The delayed quotes on its website, 15 minutes
+behind, are one of the free price sources.
+
+[Cboe: Delayed quotes](https://www.cboe.com/delayed_quotes/)
+
 ## CD: Certificate of Deposit
 
-Money deposited at a bank for a fixed term at a fixed rate. Taking it out before it matures
-usually costs a penalty, often a few months' interest.
+Money deposited at a bank for a fixed term at a fixed rate. Taking it out before it matures usually
+costs a penalty, often a few months' interest.
 
 [Investor.gov: Certificates of deposit](https://www.investor.gov/introduction-investing/investing-basics/investment-products/certificates-deposit-cds)
 
@@ -59,8 +66,8 @@ contribution the year you make it, then recommend grants from it to charities ov
 
 ## EIN: Employer Identification Number
 
-The nine-digit number the IRS gives a business or a charity, written 12-3456789. It identifies
-an organisation on tax forms as a Social Security number does a person.
+The nine-digit number the IRS gives a business or a charity, written 12-3456789. It identifies an
+organisation on tax forms as a Social Security number does a person.
 
 [IRS: Employer identification number](https://www.irs.gov/businesses/employer-identification-number)
 
@@ -113,17 +120,17 @@ taxed, and withdrawals for medical costs are tax-free.
 
 ## HTTPS: Hypertext Transfer Protocol Secure
 
-How a browser talks to a web server over an encrypted connection. The server proves who it is with
-a certificate, which browsers trust when an authority they know signed it, and warn about when it
+How a browser talks to a web server over an encrypted connection. The server proves who it is with a
+certificate, which browsers trust when an authority they know signed it, and warn about when it
 signed itself.
 
 [MDN: HTTPS](https://developer.mozilla.org/en-US/docs/Glossary/HTTPS)
 
 ## IRA: Individual Retirement Account
 
-A retirement account you open yourself, outside an employer's plan; the IRS calls it an
-individual retirement arrangement. A traditional IRA's contributions may be deductible and its
-withdrawals are taxed; a Roth IRA's are taxed going in and come out tax-free in retirement.
+A retirement account you open yourself, outside an employer's plan; the IRS calls it an individual
+retirement arrangement. A traditional IRA's contributions may be deductible and its withdrawals are
+taxed; a Roth IRA's are taxed going in and come out tax-free in retirement.
 
 [IRS Publication 590-A](https://www.irs.gov/publications/p590a)
 
@@ -136,53 +143,52 @@ sales, are cited for the rules MoolaKata follows.
 
 ## IRR: Internal Rate of Return
 
-The yearly rate that makes your deposits, withdrawals and ending value balance out. It measures
-how your money did, counting when you added it or took it out.
+The yearly rate that makes your deposits, withdrawals and ending value balance out. It measures how
+your money did, counting when you added it or took it out.
 
 ## IRS: Internal Revenue Service
 
-The US federal tax agency. Its forms, limits and tables are the ones MoolaKata's tax figures
-follow.
+The US federal tax agency. Its forms, limits and tables are the ones MoolaKata's tax figures follow.
 
 [irs.gov](https://www.irs.gov/)
 
 ## LAN: Local Area Network
 
-The network in your home or office: the devices behind your router, which reach each other but
-can't be reached from the internet.
+The network in your home or office: the devices behind your router, which reach each other but can't
+be reached from the internet.
 
 ## LIFO: Last In, First Out
 
-Sells the newest shares first. Shares bought lately are often held under a year, so their gains
-are short-term.
+Sells the newest shares first. Shares bought lately are often held under a year, so their gains are
+short-term.
 
 [IRS Publication 550](https://www.irs.gov/publications/p550)
 
 ## MAGI: Modified Adjusted Gross Income
 
-AGI with certain deductions and exclusions added back; each rule that uses it says which. It
-decides who may contribute to a Roth IRA and who may deduct a traditional IRA contribution.
+AGI with certain deductions and exclusions added back; each rule that uses it says which. It decides
+who may contribute to a Roth IRA and who may deduct a traditional IRA contribution.
 
 [IRS Publication 590-A](https://www.irs.gov/publications/p590a)
 
 ## MCP: Model Context Protocol
 
-An open standard that lets an AI assistant use outside tools and data. MoolaKata's MCP endpoint
-lets an assistant read what its token allows.
+An open standard that lets an AI assistant use outside tools and data. MoolaKata's MCP endpoint lets
+an assistant read what its token allows.
 
 [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ## MS: Mint State
 
-A grade for a coin that never circulated, from MS-60 to a flawless MS-70 on the 70-point
-Sheldon scale. Dealers commonly call MS-65 Gem Uncirculated.
+A grade for a coin that never circulated, from MS-60 to a flawless MS-70 on the 70-point Sheldon
+scale. Dealers commonly call MS-65 Gem Uncirculated.
 
 [PCGS: Grading Mint State coins](https://www.pcgs.com/news/a-quick-reference-guide-to-grading-mint-state-coins)
 
 ## NAV: Net Asset Value
 
-A fund's value per share: what it holds less what it owes, divided by its shares. Mutual funds
-are bought and sold at the NAV struck after each day's close.
+A fund's value per share: what it holds less what it owes, divided by its shares. Mutual funds are
+bought and sold at the NAV struck after each day's close.
 
 [Investor.gov: Net asset value](https://www.investor.gov/introduction-investing/investing-basics/glossary/net-asset-value-nav)
 
@@ -195,8 +201,8 @@ special dividend, it adjusts the open contracts and says how in an information m
 
 ## OCR: Optical Character Recognition
 
-Reading the text in a photo or a scanned page, so a receipt's date, total and merchant can be
-filled in for you.
+Reading the text in a photo or a scanned page, so a receipt's date, total and merchant can be filled
+in for you.
 
 ## OFX: Open Financial Exchange
 
@@ -207,8 +213,8 @@ transaction carries an id of its own, so importing the same file again adds only
 
 ## ORG: Organisation
 
-The name that identifies a bank or broker to OFX servers, sent with its FID when signing in.
-Both come from the OFX directory.
+The name that identifies a bank or broker to OFX servers, sent with its FID when signing in. Both
+come from the OFX directory.
 
 [OFX specification (Financial Data Exchange)](https://financialdataexchange.org/about-fdx/ofx-work-group/)
 
@@ -222,15 +228,15 @@ moves a coin's value.
 ## PMI: Private Mortgage Insurance
 
 Insurance a lender usually requires when a conventional mortgage is more than 80% of the home's
-value. It protects the lender, and ends when the balance is scheduled to reach 78% of the
-original value, or from 80% if you ask.
+value. It protects the lender, and ends when the balance is scheduled to reach 78% of the original
+value, or from 80% if you ask.
 
 [CFPB: When can I remove PMI?](https://www.consumerfinance.gov/ask-cfpb/when-can-i-remove-private-mortgage-insurance-pmi-from-my-loan-en-202/)
 
 ## QCD: Qualified Charitable Distribution
 
-A gift paid straight from an IRA to a charity, allowed from age 70½. It counts toward that
-year's RMD and is left out of your income.
+A gift paid straight from an IRA to a charity, allowed from age 70½. It counts toward that year's
+RMD and is left out of your income.
 
 [IRS Publication 590-B](https://www.irs.gov/publications/p590b)
 
@@ -247,8 +253,8 @@ syntax is much like Python's and Perl's, without back-references or look-arounds
 
 ## RMD: Required Minimum Distribution
 
-The least you must withdraw each year from traditional IRAs and most workplace plans, from age
-73 (75 if born in 1960 or later). It is last year-end's balance divided by an IRS life-expectancy
+The least you must withdraw each year from traditional IRAs and most workplace plans, from age 73
+(75 if born in 1960 or later). It is last year-end's balance divided by an IRS life-expectancy
 factor.
 
 [IRS: Required minimum distribution FAQs](https://www.irs.gov/retirement-plans/retirement-plan-and-ira-required-minimum-distributions-faqs)
@@ -256,8 +262,8 @@ factor.
 ## RPC: Remote Procedure Call
 
 A way for one program to ask another, over the network, to run a command for it. A Bitcoin node
-takes requests this way, with a user and password of its own: Bitcoin Core, or a fork that keeps
-its RPC, such as Bitcoin Knots.
+takes requests this way, with a user and password of its own: Bitcoin Core, or a fork that keeps its
+RPC, such as Bitcoin Knots.
 
 [Bitcoin Core: JSON-RPC interface](https://github.com/bitcoin/bitcoin/blob/master/doc/JSON-RPC-interface.md)
 
@@ -270,22 +276,22 @@ Matching fingerprints mean the same certificate or file.
 
 ## SMTP: Simple Mail Transfer Protocol
 
-How email is sent between servers. MoolaKata hands its mail to your provider's SMTP server,
-which delivers it.
+How email is sent between servers. MoolaKata hands its mail to your provider's SMTP server, which
+delivers it.
 
 [RFC 5321](https://www.rfc-editor.org/rfc/rfc5321)
 
 ## TLS: Transport Layer Security
 
-The encryption behind https: it keeps a connection private and proves, with a certificate,
-which server you reached.
+The encryption behind https: it keeps a connection private and proves, with a certificate, which
+server you reached.
 
 [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446)
 
 ## TOTP: Time-based One-Time Password
 
-A code, usually six digits, that an authenticator app works out from a shared key and the time,
-new every 30 seconds.
+A code, usually six digits, that an authenticator app works out from a shared key and the time, new
+every 30 seconds.
 
 [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238)
 
@@ -295,8 +301,8 @@ A plain-text file of tax figures that TurboTax, H&R Block and other tax programs
 
 ## UTC: Coordinated Universal Time
 
-The world's reference clock, with no time zones or daylight saving. Midnight UTC is 7 or 8 in
-the evening before, US Eastern time.
+The world's reference clock, with no time zones or daylight saving. Midnight UTC is 7 or 8 in the
+evening before, US Eastern time.
 
 ## VIN: Vehicle Identification Number
 
@@ -307,5 +313,5 @@ decodes to its maker, model and year.
 
 ## WIF: Wallet Import Format
 
-A way of writing one bitcoin private key as text, starting with 5, K or L, so a wallet can
-import it.
+A way of writing one bitcoin private key as text, starting with 5, K or L, so a wallet can import
+it.

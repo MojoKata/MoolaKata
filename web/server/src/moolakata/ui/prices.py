@@ -42,6 +42,7 @@ class SourceKind(Model):
     termsChecked: dt.date | None
     attribution: str | None
     fetches: bool
+    hosts: list[str]  # what it calls, shown where it is turned on (S12.14.1, R3.1)
 
 
 class SecretSet(Model):
@@ -97,6 +98,7 @@ def _kind(cls) -> SourceKind:
         termsChecked=cls.terms_checked,
         attribution=cls.attribution,
         fetches=cls.fetches,
+        hosts=list(cls.hosts),
     )
 
 

@@ -31,9 +31,32 @@ def test_demo_runs_in_its_sandbox(running, browser):
     page.close()
 
 
+def test_a_server_with_no_price_source_says_so_in_its_header(running, browser):
+    """S4.2.3, S12.5: a new server enables no source (R3.5); the header reads No Price Source,
+    its tip saying where one is added, and for an admin it links to Settings › Prices."""
+    page, problems = open_page(browser, running + "/ui/")
+    r = page.request.post(
+        running + "/ui/api/welcome/admin",
+        data={"displayName": "Pat Tester", "sex": "female", "email": "pat@home.lan",
+              "password": "a long admin passphrase"},
+        headers={"Origin": running},
+    )  # fmt: skip
+    assert r.ok, r.text()
+    page.goto(running + "/ui/")
+    status = page.locator(".price-status")
+    link = status.get_by_role("link", name="No Price Source")
+    link.wait_for(timeout=30000)
+    assert status.get_attribute("data-tip") == "An admin adds one in Settings › Prices"
+    link.click()
+    page.get_by_text("No sources yet").wait_for()
+    assert problems == []
+    page.close()
+
+
 def test_the_welcome_makes_the_key_and_the_first_admin(tmp_path, browser):
     """A new server, no keyring: the welcome in the browser shows a phrase, takes three of its
-    words back, and sets up the first admin, who lands on the Dashboard (S12.14.1, S10.1.2)."""
+    words back, and sets up the first admin; last, the price sources that need no key, each
+    off until turned on, and the admin lands on the Dashboard (S12.14.1, S10.1.2, R3.5)."""
     import re
 
     base, proc, _ = start(tmp_path, keyed=False)
@@ -60,7 +83,18 @@ def test_the_welcome_makes_the_key_and_the_first_admin(tmp_path, browser):
         page.locator("#f-email-address").fill("pat@home.lan")
         page.locator("#f-password").fill("a long admin passphrase")
         page.get_by_role("button", name="Save and Continue").click()
+        page.get_by_role("heading", name="Price Sources").wait_for(timeout=30000)
+        cboe, coinbase = (page.get_by_role("switch", name=n) for n in ("CBOE delayed quotes",
+                                                                       "Coinbase"))  # fmt: skip
+        assert [cboe.get_attribute("aria-checked"), coinbase.get_attribute("aria-checked")] == [
+            "false", "false"]  # fmt: skip
+        page.get_by_text("api.exchange.coinbase.com").wait_for()
+        coinbase.click()
+        page.get_by_role("button", name="Continue").click()
         page.get_by_role("heading", name="Dashboard").first.wait_for(timeout=30000)
+        view = page.evaluate("fetch('/ui/api/price-sources').then((r) => r.json())")
+        added = view["sources"]
+        assert [(s["name"], s["enabled"]) for s in added] == [("coinbase", True)]
         assert problems == []
         page.close()
     finally:
