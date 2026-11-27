@@ -101,6 +101,26 @@ def test_gains_by_month_account_and_term(jane):
     ]
 
 
+def test_gains_by_account_and_instrument_leave_out_other_years_and_sales_without_a_basis(jane):
+    """S3.9: one year's realized gains by account or by instrument: a sale of another year is
+    left out, and so is one with no basis (no gain to count, never 0)."""
+    brk = new_account(jane, name="Brokerage", type="brokerage")["id"]
+    ira = new_account(jane, name="IRA", type="ira")["id"]
+    trade(jane, brk, "2025-01-06", "buy", "10", "100")
+    trade(jane, brk, "2025-06-02", "sell", "5", "130")  # 2025
+    trade(jane, brk, "2026-02-02", "sell", "5", "120")  # +100
+    trade(jane, ira, "2026-01-05", "buy", "4", "50", "AAPL")
+    trade(jane, ira, "2026-03-02", "sell", "4", "40", "AAPL")  # -40
+    add(jane, brk, "0.00", "2026-04-01", kind="transfer-in", symbol="MSFT", quantity="3")
+    trade(jane, brk, "2026-05-01", "sell", "3", "300", "MSFT")  # no basis: no gain
+    for by, want in (("account", {"Brokerage": "100.00", "IRA": "-40.00"}),
+                     ("instrument", {"VTI": "100.00", "AAPL": "-40.00"})):  # fmt: skip
+        g = jane.get("/ui/api/positions/gains", params={"by": by, "year": 2026}).json()
+        assert {x["label"]: x["total"] for x in g["realized"]} == want
+    # Shares moved in are no option trade.
+    assert jane.get("/ui/api/positions/option-trades").json()["items"] == []
+
+
 def test_unrealized_gains_split_by_lot_into_short_long_and_unknown_term(jane):
     """S3.9, S3.1: each lot's unrealized gain (its shares at the position's price less its
     basis) goes to its own term; a lot whose day bought is missing to *unknown term*, which
