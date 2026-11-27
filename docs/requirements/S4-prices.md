@@ -59,11 +59,12 @@
       contracts carry their own root: an SPX contract is looked for as SPX and then SPXW,
       and likewise NDX and NDXP, RUT and RUTW, VIX and VIXW.
    3. **Massive** is asked for one contract at a time, with its history, by its OCC ticker in
-      Massive's own form: `O:` before it and the root unpadded (`O:MSFT261120P00480000`). A typed mark is a price on the
-   option's instrument, entered from the open position (**Type a mark**). Intrinsic value is
-   the underlying's latest close past the strike, never below zero. The Open tab labels a
-   mark that is typed or intrinsic. Greeks
-   are out of scope ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
+      Massive's own form: `O:` before it and the root unpadded (`O:MSFT261120P00480000`).
+   4. **Without a close**, from any source: a typed mark, a price on the option's instrument
+      entered from the open position (**Type a Mark**); failing that, its intrinsic value, the
+      underlying's latest close past the strike, never below zero. The Open tab labels a mark
+      that is typed or intrinsic. Greeks are out of scope
+      ([NO#588](https://github.com/MojoKata/MoolaKata/issues/588)).
 6. **Stored prices** are kept: daily closes for ever, each from a source that fetches (a
    price typed is the typer's own, S4.10, never a stored close).
    Charts read stored prices only, never a price source during a request.
