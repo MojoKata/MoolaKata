@@ -396,3 +396,117 @@ def test_an_ofx_file_of_no_statement_or_of_several_is_refused():
     twice = bank.replace(block, block + block.replace(b"<TRNUID>1", b"<TRNUID>2"))
     with pytest.raises(ReadError, match="several accounts"):
         ofx.read(twice)
+
+
+# ---------- importers.parsed: an option's ticker, and what crosses the reader's pipe ----------
+
+
+@pytest.mark.parametrize(
+    ("text", "ticker"),
+    [
+        ("O:AAPL  250117C00150000", "AAPL250117C00150000"),
+        ("aapl 01/17/25 $150 c", "AAPL250117C00150000"),
+        ("-AAPL250117C150", "AAPL250117C00150000"),
+        ("-MSFT261218P482.5", "MSFT261218P00482500"),
+        ("AAPL251317C00150000", None),  # month 13
+        ("AAPL 02/30/2025 150.00 C", None),
+        ("-AAPL250230C150", None),
+        ("AAPL", None),
+        (None, None),
+    ],
+)
+def test_an_option_is_named_by_its_occ_ticker_however_written(text, ticker):
+    """S3.2: the OCC ticker, a statement's dated form and the short form; a day that isn't
+    one, or anything else, is no option."""
+    from moolakata.importers.parsed import occ_symbol
+
+    assert occ_symbol(text) == ticker
+
+
+def _parsed(**kw) -> dict:
+    from moolakata.importers.parsed import ParsedFile, Position, Row, Security, to_json
+
+    p = ParsedFile(
+        format="ofx",
+        rows=[
+            Row(
+                date=dt.date(2026, 9, 1),
+                kind="buy",
+                amount=D("-10.00"),
+                security="X",
+                quantity=D(1),
+                price=D(10),
+            )
+        ],
+        securities={"X": Security("X", "VTI", "Total market", "etf", "922908769", None)},
+        positions=[Position("X", dt.date(2026, 9, 30), D(1), D("10.50"))],
+        balances=[(dt.date(2026, 9, 30), D("5.00"))],
+        institution="Example",
+        accountKind="investment",
+    )
+    p.cover()
+    return to_json(p) | kw
+
+
+def test_a_parsed_file_crosses_the_pipe_whole():
+    from moolakata.importers.parsed import from_json
+
+    p = from_json(_parsed())
+    assert (p.coveredFrom, p.coveredTo) == (dt.date(2026, 9, 1), dt.date(2026, 9, 1))
+    assert p.rows[0].price == D(10) and p.securities["X"].cusip == "922908769"
+    assert p.positions[0].marketValue == D("10.50") and p.balances == [(dt.date(2026, 9, 30), D(5))]
+
+
+ROW = {"date": "2026-09-01", "kind": "buy", "amount": "-10.00"}
+SEC = {"key": "X", "instrumentClass": "etf"}
+
+
+@pytest.mark.parametrize(
+    ("change", "what"),
+    [
+        ({"rows": "none"}, "a parsed file"),
+        ({"format": "pdf"}, "a parsed file"),
+        ({"rows": ["x"]}, "a row"),
+        ({"rows": [ROW | {"date": 20260901}]}, "a date"),
+        ({"rows": [ROW | {"date": "2026-13-01"}]}, "a date"),
+        ({"rows": [ROW | {"kind": None}]}, "a text field"),
+        ({"rows": [ROW | {"kind": "k" * 31}]}, "a text field"),
+        ({"rows": [ROW | {"amount": 10}]}, "a number"),
+        ({"rows": [ROW | {"amount": "1" * 41}]}, "a number"),
+        ({"rows": [ROW | {"amount": "ten"}]}, "a number"),
+        ({"rows": [ROW | {"amount": "NaN"}]}, "a number"),
+        ({"rows": [ROW | {"amount": "Infinity"}]}, "a number"),
+        ({"securities": ["X"]}, "the securities"),
+        ({"securities": {"X": "VTI"}}, "a security"),
+        ({"securities": {"X": SEC | {"multiplier": 0}}}, "a count"),
+        ({"securities": {"X": SEC | {"multiplier": True}}}, "a count"),
+        ({"securities": {"X": SEC | {"multiplier": 10_001}}}, "a count"),
+        ({"positions": ["x"]}, "a position"),
+        ({"balances": [["2026-09-30"]]}, "a balance"),
+        ({"balances": ["2026-09-30"]}, "a balance"),
+    ],
+)
+def test_what_the_reader_answers_is_refused_unless_its_every_field_is_well_formed(change, what):
+    """S9.8.4.2: a parsed file from the reader's worker is checked field by field; a field of
+    the wrong shape, a number not finite, or a count out of range refuses it whole."""
+    from moolakata.importers.parsed import Malformed, from_json
+
+    with pytest.raises(Malformed) as e:
+        from_json(_parsed(**change))
+    assert str(e.value) == what
+
+
+def test_a_parsed_file_that_isnt_one_is_refused():
+    from moolakata.importers.parsed import Malformed, from_json
+
+    for bad in (None, [], {"format": "ofx"}):
+        with pytest.raises(Malformed, match="a parsed file"):
+            from_json(bad)
+    assert from_json(_parsed(securities=None, positions=None, balances=None)).positions == []
+    assert from_json(_parsed(coveredFrom=None)).coveredFrom is None, "a file of no dates"
+    assert (
+        from_json(_parsed(rows=[ROW], securities={"X": SEC | {"multiplier": 100}}))
+        .securities["X"]
+        .multiplier
+        == 100
+    )
