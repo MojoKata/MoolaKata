@@ -117,6 +117,15 @@ def test_a_fidelity_statement_and_its_core_position():
         Decimal("-250.00"),
     )
     assert [(p.symbol, p.cash) for p in b.positions] == [("FXAIX", False), ("SPAXX", True)]
+    # The 500 of the fund's name is part of its name, never its quantity.
+    fxaix = b.positions[0]
+    assert (fxaix.label, fxaix.quantity, fxaix.price, fxaix.value, fxaix.cost) == (
+        "FXAIX FIDELITY 500 INDEX FUND",
+        Decimal("210.000"),
+        Decimal("230.00"),
+        Decimal("48300.00"),
+        None,
+    )
     assert [(a.kind, a.amount) for a in b.activity] == [
         ("deposit", Decimal("500.00")),
         ("withdrawal", Decimal("-250.00")),
@@ -279,3 +288,52 @@ def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
     assert listed == [{"institution": "Empower", "kind": "brokerage", "start": "employer match"}]
     assert c.post("/ui/api/statement-layouts/ignored/forget", json=listed[0]).status_code == 204
     assert c.get("/ui/api/statement-layouts/ignored").json()["items"] == []
+
+
+# ---------- the parser's edges ----------
+
+PLAIN = """Example Brokerage
+Ending Value $10,000.00
+Holdings
+
+922908769 VANGUARD TOTAL STOCK MARKET 10.0000 2,500.00
+Bond Fund 12.000 1,200.00
+Money market 1,234.56
+Vanguard Target
+Retirement 2045 Fund 12.345 50.00 617.25
+ 1,234.56 2,000.00
+Activity
+09/03 MISC ADJUSTMENT 5.00
+09/04 WIRE FEE 25.00
+09/05 DEPOSIT
+02/30 NO SUCH DAY 9.00
+09/09 Withdrawal to bank 100.00
+"""
+
+
+def test_a_statement_read_without_its_period_takes_its_activitys_and_its_rows_edges():
+    """S1.3.3.8: a position named by its CUSIP, one of quantity and value, a cash line of its
+    value alone, a name broken over two lines; a figure with no name is no position; an activity
+    line of no amount or no day is no line, and one of no known words reads by its sign. With no
+    period printed, the activity's first and last days are its period."""
+    b = brokerage.parse(PLAIN.splitlines(), TODAY)
+    got = [(p.label, p.symbol, p.cusip, p.quantity, p.price, p.value, p.cash) for p in b.positions]
+    assert got == [
+        ("922908769 VANGUARD TOTAL STOCK MARKET", None, "922908769", Decimal("10.0000"), None,
+         Decimal("2500.00"), False),
+        ("Bond Fund", None, None, Decimal("12.000"), None, Decimal("1200.00"), False),
+        ("Money market", None, None, Decimal("1234.56"), Decimal(1), Decimal("1234.56"), True),
+        ("Vanguard Target Retirement 2045 Fund", None, None, Decimal("12.345"), Decimal("50.00"),
+         Decimal("617.25"), False),
+    ]  # fmt: skip
+    assert [(a.date.day, a.kind, a.amount) for a in b.activity] == [
+        (3, "deposit", Decimal("5.00")),
+        (4, "fee", Decimal("-25.00")),
+        (9, "withdrawal", Decimal("-100.00")),
+    ]
+    assert (b.periodStart, b.periodEnd) == (dt.date(2026, 9, 3), dt.date(2026, 9, 9))
+    assert brokerage.totals(b) == {
+        "deposits": Decimal("5.00"),
+        "withdrawals": Decimal("-100.00"),
+        "income": Decimal(0),
+    }, "a fee is none of them"
