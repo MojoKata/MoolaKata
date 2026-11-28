@@ -337,6 +337,21 @@ def test_a_statement_of_two_accounts_splits_where_each_begins():
     assert [r.amount for r in savings.rows] == [Decimal("1500.00"), Decimal("2.10")]
     assert savings.difference == 0
     assert statements.split(UMB.splitlines()) == [], "one account, no header: no parts"
+    # An account's header again after another's: its lines go back to its own part.
+    back = statements.split(
+        [
+            "Checking Account Number XXXX4821",
+            "a",
+            "Savings Account Number XXXX9030",
+            "b",
+            "Account Number XXXX4821 (continued)",
+            "c",
+        ]
+    )
+    assert [(p.last4, p.lines[1:]) for p in back] == [
+        ("4821", ["a", "Account Number XXXX4821 (continued)", "c"]),
+        ("9030", ["b"]),
+    ]
 
 
 def test_a_kept_statement_is_named_by_its_period():
@@ -463,3 +478,89 @@ def test_a_statement_a_write_sharer_keeps_is_the_accounts_owners(server):
     assert detach(jane, rid, acct["id"]).status_code == 200
     assert drop(jane, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 200
     assert jane.get(f"/ui/api/receipts/{rid}").status_code == 404
+
+
+# ---------- the parser's edges ----------
+
+
+def test_a_line_dated_by_its_months_name_and_one_whose_day_isnt_a_day():
+    """S1.3.3.1: a line led by `Sep 3` or `09/03/26` is a transaction; one led by a word that
+    isn't a month, or by a day that doesn't exist (`02/30`), is no line."""
+    st = parse(
+        "Statement Period: 09/01/26 - 09/30/26\n"
+        "Beginning Balance $100.00\n"
+        "Deposits\n"
+        "\n"
+        "Sep 3 PAYROLL 50.00\n"
+        "09/04/26 REFUND 5.00\n"
+        "Tuesday 5 NOT A LINE 7.00\n"
+        "02/30 NO SUCH DAY 9.00\n"
+        "Ending Balance $155.00"
+    )
+    assert [(r.date, r.amount) for r in st.rows] == [
+        (dt.date(2026, 9, 3), Decimal("50.00")),
+        (dt.date(2026, 9, 4), Decimal("5.00")),
+    ]
+    assert st.difference == 0
+
+
+def test_a_statement_without_its_balances_has_no_difference():
+    st = parse("09/03 COFFEE 4.50-")
+    assert (st.opening, st.closing, st.difference) == (None, None, None)
+    assert (st.periodStart, st.periodEnd) == (dt.date(2026, 9, 3), dt.date(2026, 9, 3))
+
+
+def test_a_running_balance_gives_the_sign_only_when_it_moves_by_the_amount():
+    """S1.3.3.1: with no opening balance the first line's balance is the start; a balance that
+    moves by the line's amount gives its sign; one that doesn't leaves the line to its section,
+    and a balance label without an amount is passed for the next one."""
+    st = parse(
+        "Beginning Balance (see page 2)\n"
+        "Withdrawals\n"
+        "09/02 GROCER 40.00 960.00\n"
+        "09/03 REFUND 10.00 970.00\n"
+        "09/04 MISPRINT 5.00 900.00\n"
+        "Ending Balance $900.00"
+    )
+    assert st.opening is None and st.closing == Decimal("900.00")
+    assert [(r.amount, r.confidence) for r in st.rows] == [
+        (Decimal("-40.00"), 88),
+        (Decimal("10.00"), 97),
+        (Decimal("-5.00"), 88),
+    ]
+
+
+def test_a_period_written_with_months_names_and_one_that_isnt_a_period():
+    """`September 1, 2026 - September 30, 2026` is a period; a range whose end isn't a day,
+    and dates that aren't, are none."""
+    st = parse("Statement Period: September 1, 2026 - September 30, 2026")
+    assert (st.periodStart, st.periodEnd) == (dt.date(2026, 9, 1), dt.date(2026, 9, 30))
+    # A label without a colon: the word before a date never swallows it.
+    for line in ("For the period 09/01/2026 to 09/30/2026", "Statement period 09/01/26 - 09/30/26"):
+        assert statements._period([line]) == (dt.date(2026, 9, 1), dt.date(2026, 9, 30)), line
+    assert statements._period(["Statement Period: Feb 1 - Feb 30, 2026"]) == (None, None)
+    assert statements._period(["Statement Period: 13/45/2026 - 14/50/2026"]) == (None, None)
+    assert statements._period(["Billing period: Foo 1 - Bar 9, 2026"]) == (None, None)
+
+
+def test_a_card_statements_running_balance_is_turned_to_the_accounts_side():
+    st = parse(
+        "Previous Balance $100.00\n09/03 GROCER 40.00 140.00\nNew Balance $140.00", card=True
+    )
+    [r] = st.rows
+    assert (r.amount, r.balance) == (Decimal("-40.00"), Decimal("-140.00"))
+    assert (st.opening, st.closing) == (Decimal("-100.00"), Decimal("-140.00"))
+
+
+def test_a_kept_statement_is_named_by_the_dates_it_holds_and_across_years():
+    lines = ["UMB Bank, n.a.", "Activity from 12/01/25 through 01/05/26"]
+    start, end, _ = statements.period_and_institution(lines)
+    assert (start, end) == (dt.date(2025, 12, 1), dt.date(2026, 1, 5))
+    assert statements.name("UMB", start, end) == "UMB statement, Dec 1, 2025 – Jan 5, 2026"
+    assert statements.period_and_institution(["Activity on 12/01/25"])[:2] == (None, None)
+
+
+def test_an_amount_with_no_digits_is_none():
+    assert statements.parse_amount("$.") is None
+    assert statements.parse_amount("12.00 CR") == Decimal("12.00")
+    assert statements.parse_amount("12.00 DR") == Decimal("-12.00")
