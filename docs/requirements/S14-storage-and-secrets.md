@@ -35,7 +35,8 @@
    places, enough for wei), through a small SQLAlchemy column type. JSON carries both as exact
    numbers (S13.8.2). Python uses `decimal.Decimal` with a context of 34 digits and rounds
    `HALF_EVEN` except where a section says otherwise (a tax rule; a loan's interest, S1.9.2;
-   an adjusted option's strike, S3.10.1). No amount passes through a float.
+   an adjusted option's strike, S3.10.1; a budget's proposed amounts, S7.1.5). No amount
+   passes through a float.
 4. **Secrets** (price-source keys, the bitcoin node's credentials, the SMTP password, the
    link private key, two-step sign-in seeds, a seed being set up) are encrypted each on its
    own with AES-256-GCM under a data key of their own, wrapped under the **secrets key**,
