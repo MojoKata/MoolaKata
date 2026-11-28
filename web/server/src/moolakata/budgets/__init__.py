@@ -365,8 +365,8 @@ def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
     seen = loans_seen[loan_account.id]
     row = seen["row"]
     if row is not None and row.budgetCounting == "whole":
-        if row.budgetCategoryId:
-            out[row.budgetCategoryId] += t.amount
+        # Whole names its category: a blank is refused at the save (R3.11).
+        out[row.budgetCategoryId] += t.amount
         return
     p = seen["payments"].get(o.id)
     if p is None:
