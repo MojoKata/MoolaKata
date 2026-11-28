@@ -563,9 +563,8 @@ def imports_left_out(s: Session, server) -> Iterable[Cause]:
         )
     ).all()
     for imp, a in rows:
+        # Rows are left out only of a loan with terms, which keeps them and its type for good.
         start = repo.loan_start(s, a)
-        if start is None:
-            continue
         kept = repo.left_out_of(s, [imp.id])
         owner = s.get(User, a.ownerId)
         made = imp.createdAt.astimezone(ZoneInfo(timezones.zone_for(owner.timeZone)))
