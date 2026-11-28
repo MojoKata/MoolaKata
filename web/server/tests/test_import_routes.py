@@ -412,3 +412,21 @@ def test_forgetting_an_ignored_line_of_an_institution_with_none_changes_nothing(
     r = jane.post("/ui/api/statement-layouts/ignored/forget", json=body)
     assert r.status_code == 204
     assert jane.get("/ui/api/statement-layouts/ignored").json()["items"] == []
+
+
+def test_rows_added_from_those_left_out_take_the_importers_rules(server):
+    """S2.7.3, S1.9.3: a row Add Them adds is categorised by the rules of who adds it, as a row
+    the import added would have been."""
+    from edits import make, saved, terms
+    from test_loans_routes import BEFORE, _kept, _mortgage_and_checking, loan_ofx
+    from test_rules import cats
+
+    c, _, loan = _mortgage_and_checking(server)
+    category = cats(c)["Food › Groceries"]
+    assert make(c, "Rule", payeeMatch="servicer", categoryId=category).status_code == 200
+    imp = upload(c, loan["id"], "home.ofx", loan_ofx(*BEFORE))["result"]["importId"]
+    saved(terms(c, loan["id"], startDate="2025-12-01"))
+    rows = [x["id"] for x in _kept(c, imp)]
+    assert c.post(f"/ui/api/imports/{imp}/left-out", json={"rows": rows}).json() == []
+    got = c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"]
+    assert [x["categoryId"] for x in got] == [category, category]
