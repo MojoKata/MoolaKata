@@ -421,3 +421,45 @@ def test_a_statement_kept_without_reading_counts_as_arrived(server):
         json={"periodStart": "2026-09-01", "periodEnd": "2026-09-30"},
     )
     assert r.json()["code"] == "statement-kept-already"
+
+
+def test_a_statement_a_write_sharer_keeps_is_the_accounts_owners(server):
+    """S9.6: a statement kept on an account is its owner's, the importer named as who attached
+    it; seen by whoever reads the account, and gone with a share that ends."""
+    from conftest import make_user, sign_in
+    from edits import detach, drop, share
+    from sqlalchemy import select
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    from moolakata.store.entities.receipts import ReceiptLink
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    acct = new_account(jane, institution="UMB Bank")
+    people = jane.get(f"/ui/api/shares/account/{acct['id']}").json()["users"]
+    ids = {u["displayName"]: u["id"] for u in people}
+    assert share(jane, "account", acct["id"], users={ids["John"]: "write"}).status_code == 200
+    found = _import(john, acct["id"], text_pdf(UMB.splitlines()), keep=True)["result"]
+    r = john.post(
+        f"/ui/api/imports/{found['uploadId']}/keep",
+        json={"periodStart": "2026-09-01", "periodEnd": "2026-09-30"},
+    )
+    assert r.status_code == 200, r.text
+    rid = r.json()["result"]["receiptId"]
+    mine = jane.get(f"/ui/api/receipts/{rid}").json()
+    assert mine["access"]["mine"] and mine["ownerName"] == "Jane"
+    with server.db.read(unscoped="test") as s:
+        [ln] = s.scalars(select(ReceiptLink).where(ReceiptLink.receiptId == rid)).all()
+        assert ln.linkedById == ids["John"], "the importer is named as who attached it"
+    held = john.get(f"/ui/api/receipts/{rid}").json()["access"]
+    assert held["writable"] and not held["mine"]
+    # The share ended, the statement goes with it.
+    assert share(jane, "account", acct["id"], users={ids["John"]: "none"}).status_code == 200
+    assert john.get(f"/ui/api/receipts/{rid}").status_code == 404
+    assert rid not in {x["id"] for x in john.get("/ui/api/receipts").json()["items"]}
+    # Its owner deletes it, once it is taken off the account.
+    assert detach(jane, rid, acct["id"]).status_code == 200
+    assert drop(jane, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 200
+    assert jane.get(f"/ui/api/receipts/{rid}").status_code == 404

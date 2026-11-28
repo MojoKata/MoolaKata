@@ -42,7 +42,10 @@
    owner and those who see the giving plan it counts in, one kept on a physical-asset item, a
    loan, a 529 expense or an account (a statement) by whoever can read that account, and a tax
    document's file by whoever can read the tax book (its filers, the helpers it is shared with
-   at write, its read shares; S8.14.3, S10.3.1), changed by whoever can write it. An unattached receipt is its owner's alone. Attaching a receipt needs write on
+   at write, its read shares; S8.14.3, S10.3.1), changed by whoever can write it. A statement
+   kept on an account (S1.3.3, S18.8) is the account's owner's, whoever imported it, with the
+   importer named as who attached it: it is seen by whoever can read the account, goes with a
+   share that ends, and is deleted by the account's owner. An unattached receipt is its owner's alone. Attaching a receipt needs write on
    it: its owner, or someone with write on what it is attached to; a read share shows it and
    attaches it nowhere (S10.3.1). Receipts cross a link only when the owner ticks **Include
    receipts** on that share, and then only as encrypted files in the other side's linked copy

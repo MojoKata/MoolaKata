@@ -748,10 +748,8 @@ def save_brokerage(
     if bad is not None:
         raise refuse("rows", "row-not-cash", "Trades aren't added here: enter them as trades.")
     cash = next((p for p in body.positions if p.cash and p.marketValue is not None), None)
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
@@ -829,7 +827,7 @@ def save_brokerage(
                 cash=p.cash,
             )
         r = _keep_file(
-            s, srv, c, ready, held, [account.id], b.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, owners, b.institution, body.periodStart, body.periodEnd
         )
         key = (account.institution or b.institution or "").strip()
         if key and (body.remember or body.forget):
@@ -963,20 +961,41 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
     return applied
 
 
-def _keep_file(
-    s, srv, c: Caller, ready, held: Held, account_ids: list[str], institution, start, end
-):
-    """The file kept once as a receipt, named by its period, on each account it filled."""
+def _owners(srv, c: Caller, account_ids: list[str]) -> dict[str, list[str]]:
+    """The accounts a statement fills, by their owners: a statement kept on an account is its
+    owner's, whoever imports it, so it goes with a share that ends (S9.6)."""
+    out: dict[str, list[str]] = {}
+    with srv.db.read(user=c.id) as s:
+        for a in dict.fromkeys(account_ids):
+            account, _ = access.account(s, c.id, a, "write")
+            out.setdefault(account.ownerId, []).append(account.id)
+    return out
+
+
+@contextlib.contextmanager
+def _prepared(srv, held: Held, owners: dict[str, list[str]]):
+    """The file made ready as each owner's receipt, before the transaction that records it."""
+    with contextlib.ExitStack() as stack:
+        name = held.fileName or "statement.pdf"
+        yield {o: stack.enter_context(receipts.prepared(srv, o, name, held.data)) for o in owners}
+
+
+def _keep_file(s, srv, c: Caller, ready, held: Held, owners, institution, start, end):
+    """The file kept once per owner as a receipt, named by its period, on each of their accounts
+    it filled; the importer is who attached it (S9.6). The first owner's is answered."""
     from ..receipts import reading
 
-    stored = receipts.record(s, srv, c.id, ready)
-    r = stored.receipt
-    r.date = end
-    r.payee = statements.name(institution, start, end)
-    reading.kept_unread(s, r, held.lines, held.method)
-    for a in account_ids:
-        receipts.attach_account(s, c.id, r, a)
-    return r
+    kept = []
+    for owner, account_ids in owners.items():
+        r = receipts.record(s, srv, owner, ready[owner]).receipt
+        # Attached first: an importer who isn't its owner writes it through the account.
+        for a in account_ids:
+            receipts.attach_account(s, c.id, r, a)
+        r.date = end
+        r.payee = statements.name(institution, start, end)
+        reading.kept_unread(s, r, held.lines, held.method)
+        kept.append(r)
+    return kept[0]
 
 
 def _done(srv, c: Caller, result: dict, accounts: list[str]) -> JobOut:
@@ -1006,16 +1025,14 @@ def save_statement(
         present = _marked(body.rows, _present(s, held.accountId))
     kept = _checked(body, present)
     st = held.statement
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
         applied = _apply(s, c, held, account, st, body, kept)
         r = _keep_file(
-            s, srv, c, ready, held, [account.id], st.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, owners, st.institution, body.periodStart, body.periodEnd
         )
     with _held_lock:
         _held.pop(upload_id, None)
@@ -1055,14 +1072,8 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
         return _done(srv, c, {"part": body.part, "remaining": left}, [])
     saved = [(i, d) for i, d in sorted(held.decisions.items()) if not d.leftOut]
     results, accounts = [], []
-    with (
-        (
-            receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data)
-            if saved
-            else contextlib.nullcontext()
-        ) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [d.accountId for _, d in saved])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         for i, d in saved:
@@ -1081,7 +1092,7 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
                 c,
                 ready,
                 held,
-                list(dict.fromkeys(accounts)),
+                owners,
                 held.parts[saved[0][0]].institution,
                 min(starts),
                 max(ends),
@@ -1168,10 +1179,8 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     if body.periodEnd < body.periodStart:
         raise refuse("periodEnd", "period-backwards", "The period ends before it starts.")
     digest = hashlib.sha256(held.data).hexdigest()
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
         twice = s.scalars(
             select(Import).where(
@@ -1189,7 +1198,7 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
             c,
             ready,
             held,
-            [account.id],
+            owners,
             account.institution or inst,
             body.periodStart,
             body.periodEnd,
