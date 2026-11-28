@@ -714,7 +714,8 @@ export function CountInput({ value, onInput, max, noun, ...rest }) {
  *   reset?: { value: string, label: string }, [k: string]: any }} p
  */
 export function Select({ value, onChange, options, readonly, clear, reset, ...rest }) {
-  if (reset && !useReading(readonly)) {
+  const reading = useReading(readonly);
+  if (reset && !reading) {
     const words = [{
       text: 'default',
       value: reset.value,
@@ -729,7 +730,7 @@ export function Select({ value, onChange, options, readonly, clear, reset, ...re
       clear ? inner : html`<span class="value-in sel">${inner}</span>`
     }${fillWords(words, String(value ?? ''), onChange)}</span>`;
   }
-  if (useReading(readonly)) {
+  if (reading) {
     const v = String(value ?? '');
     const chosen = options.map((o) => (Array.isArray(o) ? o : [o, o])).find(([x]) => x === v);
     // A blank reads as blank, whatever its option says ("None", "Choose…").
