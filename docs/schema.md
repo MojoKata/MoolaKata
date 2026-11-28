@@ -54,17 +54,18 @@ answers keep the API's camelCase fields.
   who writes the table:
   - **Locked** are the tables written only within a person's save: what a person edits
     through a draft (requirements S12.15, S13.8.11), what the server works out with it, and
-    what a person's own action writes, such as a sign-up or an admin's approval of it: every
-    table with an `id` not named below. The version is the lock: a save names the version it
-    was read at (`If-Match`, requirements S13.8.6), and one made against an older version is
-    refused as stale.
+    what a person's own action writes, such as an access token they make: every table with
+    an `id` not named below. The version is the lock: a save names the version it was read at
+    (`If-Match`, requirements S13.8.6), and one made against an older version is refused as
+    stale.
   - **Counted** are the tables the server writes in the background, outside a person's save
     (a scheduled task, a sync, a worker, a refresh), whatever else writes them too: `Activity`,
     `Alert`, `AlertState`, `Anchor`, `Connection`, `Connector`, `Holding`, `HoldingCheck`,
     `Import`, `Link`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`, `OneTimeToken`, `Price`,
     `PriceSource`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`, `Setting`,
-    `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version only counts their saves, each one adding 1 in the
-    database, and locks nothing: a write is never refused for it.
+    `SignupRequest`, `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version
+    only counts their saves, each one adding 1 in the database, and locks nothing: a write is
+    never refused for it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
   an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,
   with the table's prefix. The server accepts it only in exactly this form, with the prefix of

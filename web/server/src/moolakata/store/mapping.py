@@ -101,7 +101,7 @@ def map_all() -> None:
     _counted(Session, users.Session)
     _counted(OneTimeToken, users.OneTimeToken)
     _counted(RecoveryCode, users.RecoveryCode)
-    _versioned(SignupRequest, users.SignupRequest)
+    _counted(SignupRequest, users.SignupRequest)  # the hourly prune's lapsed links (S10.1.4)
     _counted(Alert, alerts.Alert)
     _counted(AlertState, alerts.AlertState)
     for entity, table in (

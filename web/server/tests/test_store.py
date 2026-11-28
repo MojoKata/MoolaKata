@@ -273,6 +273,17 @@ def _a_setting(s):
     return row, "value", ('"b"', "null")
 
 
+def _a_signup_request(s):
+    from moolakata.store.entities.users import SignupRequest
+
+    req = SignupRequest(
+        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
+        passwordHash="h", sex="male", confirmTokenHash="t",
+        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+    )  # fmt: skip
+    return req, "passwordHash", (None, "h2")
+
+
 BACKGROUND = {
     "Lot": _a_lot,
     "Holding": _a_holding,
@@ -295,6 +306,8 @@ BACKGROUND = {
     "Connection": _a_connection,
     # The bitcoin sync's certificate offer (S1.6.2).
     "Setting": _a_setting,
+    # The hourly prune clears a lapsed request's password hash (S10.1.4).
+    "SignupRequest": _a_signup_request,
 }
 
 
@@ -400,30 +413,6 @@ def test_a_stale_answer_to_a_transfer_match_is_still_refused(server, admin_clien
     )  # fmt: skip
     assert r.status_code == 412, r.text
     assert (r.json()["code"], r.json()["version"]) == ("stale-version", 2)
-
-
-def test_a_signup_request_written_only_by_a_persons_action_is_locked(db):
-    """schema.md §2: no background task writes a sign-up request, only the sign-up, its
-    confirmation and an admin's decision, each a person's own action: a write from a copy read
-    before another save is refused for its version."""
-    from sqlalchemy.orm.exc import StaleDataError
-
-    from moolakata.store import mapping
-    from moolakata.store.entities.users import SignupRequest
-
-    req = SignupRequest(
-        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
-        passwordHash="h", sex="male", confirmTokenHash="t",
-        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
-    )  # fmt: skip
-    with db.tx(unscoped="test") as s:
-        s.add(req)
-    assert SignupRequest not in mapping.COUNTED
-    with db.tx(unscoped="test") as s:
-        s.get(SignupRequest, req.id).status = "waiting"
-    with pytest.raises(StaleDataError), db.tx(unscoped="test") as s:
-        s.add(req)  # the copy read at version 1
-        req.status = "rejected"
 
 
 def _a_link(s) -> str:
