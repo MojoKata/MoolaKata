@@ -781,6 +781,9 @@ function Dated({ rec, name, label, what, add, none }) {
   `;
 }
 
+/** The tooltip of the Documents card's upload button. */
+const ADD_DOCUMENT = 'Upload and attach a loan document';
+
 /**
  * A loan's documents other than its statements (S9.3): a closing disclosure, a note. Each is a
  * receipt kept on the loan's account, uploaded or attached from the inbox here, and detached
@@ -856,11 +859,12 @@ export function LoanDocuments({ a }) {
         : html`<${Empty}>No documents yet</${Empty}>`}
       <div class="toolbar mt">
         ${why
-          ? html`<${Action} class="btn sm" why=${why}><${Icon} name="upload" /> Upload</${Action}>`
+          ? html`
+            <${Action} class="btn sm" why=${why}><${Icon} name="upload" /> Add Document</${Action}>
+          `
           : html`
-            <label class="btn sm" for="f-loan-files"><${Icon} name="upload" /> ${busy
-              ? 'Uploading…'
-              : 'Upload'}</label><input
+            <label class="btn sm" for="f-loan-files" data-tip=${ADD_DOCUMENT}><${Icon}
+              name="upload" /> ${busy ? 'Uploading…' : 'Add Document'}</label><input
               id="f-loan-files" class="sr-only" type="file" multiple
               accept=${ACCEPT} data-help="documents" onChange=${(/** @type {any} */ e) => {
                 send(e.currentTarget.files);
