@@ -14,7 +14,8 @@ import { DraftDialog, RecField, useDraft } from './draft-form.js';
 import { FIELDS } from '../api/fields.js';
 import { TagsField } from './tags.js';
 import { confirmAction } from '../kit/confirm.js';
-import { Action, Attention, Empty } from '../kit/state.js';
+import { Action, Attention, Empty, StatePill } from '../kit/state.js';
+import { Switch } from '../kit/fields.js';
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic';
 const KIND = /** @type {Record<string, string>} */ ({
@@ -98,6 +99,25 @@ export function ReceiptCard({ r, onOpen }) {
           : html`<span class="pill warn">inbox</span>`}</div>
       </div>
     </button>
+  `;
+}
+
+/**
+ * Keep (S14.10.1.3): how long the file is kept, and what sets it, in its tooltip; a warning by
+ * it only while the file expires within 90 days or has expired, and Keep is off (S14.10.3).
+ * @param {{ r: any, rec: any }} p
+ */
+function KeepRow({ r, rec }) {
+  const on = !!rec.get('keep');
+  const tip = on ? 'Kept for ever' : r.keptWhy;
+  return html`
+    <div class="list-item"><span class="grow"><span tabindex="0" data-tip=${tip}
+      aria-description=${tip}>Keep</span>${!on && r.keptWarn
+        ? html`
+          <${StatePill} tone="warn" why=${tip}>${r.keptWarn}</${StatePill}>
+        `
+        : null}</span><${Switch} on=${on} label="Keep" why=${whyRead(r)}
+      onChange=${(/** @type {boolean} */ v) => rec.set('keep', v)} /></div>
   `;
 }
 
@@ -241,13 +261,7 @@ export function ReceiptDialog({ close, id }) {
                       toast(e.message)
                     )}><${Icon} name="refresh" /> Read Again</${Action}>
               `}</div>
-          ${r.filePrunedAt ? null : html`
-            <${RecField} rec=${rec} name="keep" label="Keep" hint=${rec.get('keep')
-              ? 'Kept for ever, whatever its retention.'
-              : html`${r.keptSoon ? html`<b>${r.kept}</b>` : r.kept}${
-                r.keptWhy ? ` · ${r.keptWhy}` : ''
-              }`} disabled=${!canEdit} />
-          `}
+          ${r.filePrunedAt ? null : html`<${KeepRow} r=${r} rec=${rec} />`}
           <p class="small dim">${KIND[r.mediaType]} · ${(r.size / 1024).toFixed(
             0,
           )} KB · uploaded ${fmt.day(r.uploadedAt)}${!r.access.mine ? ` by ${r.ownerName}` : ''}</p>

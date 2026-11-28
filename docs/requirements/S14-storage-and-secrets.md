@@ -35,7 +35,8 @@
    places, enough for wei), through a small SQLAlchemy column type. JSON carries both as exact
    numbers (S13.8.2). Python uses `decimal.Decimal` with a context of 34 digits and rounds
    `HALF_EVEN` except where a section says otherwise (a tax rule; a loan's interest, S1.9.2;
-   an adjusted option's strike, S3.10.1). No amount passes through a float.
+   an adjusted option's strike, S3.10.1; a budget's proposed amounts, S7.1.5). No amount
+   passes through a float.
 4. **Secrets** (price-source keys, the bitcoin node's credentials, the SMTP password, the
    link private key, two-step sign-in seeds, a seed being set up) are encrypted each on its
    own with AES-256-GCM under a data key of their own, wrapped under the **secrets key**,
@@ -136,9 +137,15 @@
        nothing. Expiry is worked out, never stored, so a changed
        period moves every date at once. A deleted receipt keeps no file (S9.7): one that no live
        receipt names has no expiry, and is pruned as a deleted receipt's (S14.10.4).
-    3. **Shown on each file**: *Kept until Mar 2031*, in bold within 90 days of it;
-       *Kept while the lot is open* while a record it is attached to hasn't ended; or
-       *Kept for ever*. An expired file shows *Expired Mar 2031, prunable*.
+    3. **Shown on each file**: the tooltip of the receipt's **Keep** says how long its file is
+       kept without Keep, and what sets it: *Kept until Oct 2029: Groceries keeps receipts 3
+       years*; *Kept while the lot is open* while a record it is attached to hasn't ended; a
+       loan's document *Kept while the loan is open, then Statements' 7 years*, and once it is
+       paid off *Kept until Jun 2036: Statements keeps a loan's documents 7 years after it is
+       paid off*; *Kept for ever* with Keep on or no period. A warning pill by Keep shows only
+       while it applies and Keep is off: *Expires Dec 2026* within 90 days of the expiry,
+       *Expired, prunable* once expired. The Receipts list and Settings › Storage show *Kept
+       until Mar 2031* and *Expired Mar 2031, prunable* as they are.
     4. **Files are never pruned on their own.** An admin prunes them in **Settings ›
        Storage**: the size of the database and of the receipts directory, a **pie** of
        expired, expiring later, kept for ever and **deleted receipts** (the files only deleted

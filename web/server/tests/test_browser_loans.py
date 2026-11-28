@@ -777,6 +777,9 @@ def test_a_loans_documents_are_uploaded_attached_and_detached_on_its_overview(
     card = '.card:has(> h3:text-is("Documents"))'
     page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", card)
     wait(page, f'{card} :text("No documents yet")', problems)
+    add = page.locator(f'{card} label[for="f-loan-files"]')
+    assert add.inner_text().strip() == "Add Document"
+    assert add.get_attribute("data-tip") == "Upload and attach a loan document"
     page.set_input_files("#f-loan-files", files=[{"name": "closing.pdf", **pdf}])
     wait(page, f'{card} button:has-text("closing.pdf")', problems)
     assert docs() == ["closing.pdf"]

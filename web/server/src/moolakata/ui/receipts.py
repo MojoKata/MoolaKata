@@ -112,7 +112,11 @@ class ReceiptDetail(ReceiptRow):
     keptState: str  # forever, open, until, expired, pruned
     keptUntil: dt.date | None
     keptSoon: bool  # within 90 days
-    keptWhy: str | None  # Groceries keeps receipts 3 years
+    # Keep's tooltip, as the file would be kept without Keep (S14.10.3): Kept until Oct 2029:
+    # Groceries keeps receipts 3 years. None once the file is pruned.
+    keptWhy: str | None
+    # The warning by Keep while it applies, without Keep: Expires Dec 2026, Expired, prunable.
+    keptWarn: str | None
 
 
 def _own(s, ln, user_id: str | None) -> dict:
@@ -271,8 +275,10 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
     # The file's own date, over every link; its reason named only from a link this reader
     # reads (S9.7).
     with scoping.as_server(s, "how long a receipt's file is kept") as srv:
-        rt = retention.retention(retention.Context(srv), srv.get(Receipt, r.id))
-    named = rt.link is None or access.perms(s, ReceiptLink, rt.link, user_id) is not None
+        ctx, own = retention.Context(srv), srv.get(Receipt, r.id)
+        rt = retention.retention(ctx, own)
+        free = retention.retention(ctx, own, ignore_keep=True)
+    named = free.link is None or access.perms(s, ReceiptLink, free.link, user_id) is not None
     return ReceiptDetail(
         **base.model_dump(),
         matches=[
@@ -299,16 +305,39 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
         keptState=rt.state,
         keptUntil=rt.until,
         keptSoon=rt.soon,
-        keptWhy=(
-            None
-            if not rt.years
-            else "Kept for something not shared with you"
-            if not named
-            else f"{rt.category} keeps "
-            + ("statements" if rt.category == "Statements" else "receipts")
-            + f" {rt.years} year{'s' if rt.years != 1 else ''}"
+        keptWhy=kept_why(free, named),
+        keptWarn=(
+            "Expired, prunable"
+            if free.state == "expired"
+            else f"Expires {free.until:%b %Y}"
+            if free.state == "until" and free.soon
+            else None
         ),
     )
+
+
+def _years(n: int) -> str:
+    return f"{n} year{'s' if n != 1 else ''}"
+
+
+def kept_why(rt: retention.Retention, named: bool) -> str | None:
+    """Keep's tooltip (S14.10.3): how long the file is kept without Keep, and what sets it;
+    only that it is kept, when what sets it isn't shared with the reader (S9.7)."""
+    if rt.state == "pruned":
+        return None
+    if rt.years and not named:
+        return "Kept for something not shared with you"
+    if rt.state == "open" and rt.document and rt.years:
+        return f"{rt.label}, then Statements' {_years(rt.years)}"
+    if rt.state not in ("until", "expired") or not rt.years:
+        return rt.label
+    head = f"Kept until {rt.until:%b %Y}" if rt.state == "until" else f"Expired {rt.until:%b %Y}"
+    if rt.document:
+        return (
+            f"{head}: Statements keeps a loan's documents {_years(rt.years)} after it is paid off"
+        )
+    what = "statements" if rt.category == "Statements" else "receipts"
+    return f"{head}: {rt.category} keeps {what} {_years(rt.years)}"
 
 
 @router.get("/receipts", response_model=list[ReceiptRow])

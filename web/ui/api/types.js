@@ -3599,6 +3599,7 @@
  * @property {(string | null)} keptUntil
  * @property {boolean} keptSoon
  * @property {(string | null)} keptWhy
+ * @property {(string | null)} keptWarn
  */
 
 /**

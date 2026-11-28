@@ -1005,6 +1005,37 @@ def test_a_receipt_is_attached_and_detached_with_save(browser, household):
     page.close()
 
 
+def test_keep_says_how_long_the_file_is_kept_and_warns_only_while_it_expires(browser, household):
+    """S14.10.3, R3.12: Keep's tooltip says how long the file is kept and why; a warning pill
+    by it only while the file expires within 90 days, and Keep is off: on, it is kept for
+    ever."""
+    import json
+
+    h = household
+    r = h.extra["receipt"]
+    card = 'button[aria-label="Receipt Blue Bottle"]'
+    why = "Kept until Dec 2026: Dining keeps receipts 2 years"
+
+    def soon(route):
+        out = route.fetch()
+        body = {**out.json(), "keptWhy": why, "keptWarn": "Expires Dec 2026", "keep": False}
+        route.fulfill(response=out, body=json.dumps(body))
+
+    page, problems = signed_in(browser, h, "/ui/receipts", card)
+    page.route(f"**/ui/api/receipts/{r['id']}", soon)
+    page.click(card)
+    keep = page.locator('.dialog span[tabindex="0"]:text-is("Keep")')
+    wait(page, '.dialog .pill.warn:has-text("Expires Dec 2026")', problems)
+    assert keep.get_attribute("data-tip") == why
+    assert page.locator(".dialog .pill.warn").get_attribute("data-tip") == why
+    assert page.locator(".dialog :text('keeps receipts')").count() == 0, "no hint line"
+    page.click("#f-keep")
+    wait(page, ".dialog .pill.warn", problems, state="detached")
+    assert keep.get_attribute("data-tip") == "Kept for ever"
+    assert problems == []
+    page.close()
+
+
 def test_a_receipt_whose_file_was_pruned_has_no_read_again(browser, household):
     """S14.10.5, S9.8.6: a pruned file never comes back, so its receipt has nothing to read
     again; the button is left out, not shown off (the file's note says why)."""

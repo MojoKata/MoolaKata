@@ -52,8 +52,9 @@
       category with such bills is proposed as a monthly line of a twelfth of the year, with
       the bills' yearly total as its reserve target ($595 a month toward $3,540); without
       reserves, or for income, as a yearly line of the year's total ($7,140 a year). Income
-      is never proposed as a reserve (S7.10). Each
-      proposed line is kept, changed or dropped before the plan is saved.
+      is never proposed as a reserve (S7.10). Proposed amounts, and the bills a detail names,
+      are whole dollars, rounded half up. Each proposed line is kept, changed or dropped before
+      the plan is saved.
    6. **Where money comes from**, worked out from the budget's accounts, with nothing to set
       while their history is clear: each card's **paid from** account, learned from its paired
       payments (S1.7) and changed only where the history is mixed; for each account reserves
@@ -76,8 +77,9 @@
    who sees it, in every budget (S7.12.6). No item owns a category, and none is shared.
    1. **Savings** is money put away rather than spent: a transfer into an account the budget
       doesn't count (S7.3.2), or a loan's principal (S1.9.7). A plan line in a savings
-      category can name an active projection (S6.7) and shows its monthly contribution beside
-      the plan (*Retirement: $500 planned, your plan assumes $650*).
+      category can name an active projection (S6.7) and shows its monthly contribution, in
+      whole dollars rounded half up, beside the plan (*Retirement: $500 planned, your plan
+      assumes $650*).
    2. **Shipped with the rest**: *Cash* (expense: cash taken out and spent, S7.3.2),
       *Savings* (savings: *Emergency fund*, *Retirement*, *Investing*, *Education*), and
       *Loan payments* (*Interest*, *Escrow*, *PMI*, *Fees* as expenses, *Principal* as

@@ -21617,6 +21617,17 @@
             ],
             "title": "Keptuntil"
           },
+          "keptWarn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keptwarn"
+          },
           "keptWhy": {
             "anyOf": [
               {
@@ -21833,7 +21844,8 @@
           "keptState",
           "keptUntil",
           "keptSoon",
-          "keptWhy"
+          "keptWhy",
+          "keptWarn"
         ],
         "title": "ReceiptDetail",
         "type": "object"

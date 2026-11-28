@@ -245,7 +245,7 @@ def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, jane):
     assert seen["keptWhy"] == "Kept for something not shared with you"
     mine = jane.get(f"/ui/api/receipts/{rid}").json()
     assert len(mine["links"]) == 2 and mine["alsoKeptWith"] == 0
-    assert mine["keptWhy"] == "Jewellery keeps receipts 7 years"
+    assert mine["keptWhy"] == "Kept until Oct 2033: Jewellery keeps receipts 7 years"
     assert seen["keptUntil"] == mine["keptUntil"], "the file's own date, for whoever reads"
     # John, writing the joint account, keeps it with a transaction of his own as well.
     his = add(john, new_account(john, name="John's")["id"], "-42.18", "2026-10-02")

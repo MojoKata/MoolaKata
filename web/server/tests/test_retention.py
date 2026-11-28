@@ -57,6 +57,26 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     soon = receipt_on(c, newer["id"], png((4, 5, 6)))
     d = c.get(f"/ui/api/receipts/{soon}").json()
     assert (d["kept"], d["keptSoon"]) == ("Kept until May 2033", True)
+    # Keep's tooltip names what sets the date; the warning by it shows within 90 days, and once
+    # expired (S14.10.3).
+    assert (d["keptWhy"], d["keptWarn"]) == (
+        "Kept until May 2033: Health keeps receipts 3 years",
+        "Expires May 2033",
+    )
+    d = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (d["keptWhy"], d["keptWarn"]) == (
+        "Expired Oct 2032: Health keeps receipts 3 years",
+        "Expired, prunable",
+    )
+    # With Keep on the file is kept for ever; the tooltip and the warning say what it would be
+    # without, for the dialog to show once Keep is off.
+    saved(change(c, "Rcpt", c.get(f"/ui/api/receipts/{soon}").json(), keep=True))
+    d = c.get(f"/ui/api/receipts/{soon}").json()
+    assert (d["keptState"], d["keptWhy"], d["keptWarn"]) == (
+        "forever",
+        "Kept until May 2033: Health keeps receipts 3 years",
+        "Expires May 2033",
+    )
     # Uncategorised, attached to nothing, or Keep on: kept for ever.
     loose = add(c, acct["id"], "-5.00", "2020-01-01", payee="Shop")
     assert kept(c, receipt_on(c, loose["id"], png((7, 8, 9))))[0] == "forever"
@@ -173,7 +193,12 @@ def test_an_items_receipt_is_kept_for_ever_sold_or_not(server, frozen):
     path = f"/ui/api/items/{watch['id']}"
     saved(edit(c, "Item", path, receiptIds={"add": [rid], "remove": []}))
     d = c.get(f"/ui/api/receipts/{rid}").json()
-    assert (d["keptState"], d["kept"], d["keptWhy"]) == ("forever", "Kept for ever", None)
+    assert (d["keptState"], d["kept"], d["keptWhy"], d["keptWarn"]) == (
+        "forever",
+        "Kept for ever",
+        "Kept for ever",
+        None,
+    )
     saved(edit(c, "Item", path, soldOn="2021-02-03", proceeds="1500", saleFees="0"))
     assert kept(c, rid) == ("forever", "Kept for ever"), "sold long ago, still kept"
 
@@ -324,7 +349,7 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     assert (d["keptState"], d["kept"], d["keptWhy"]) == (
         "expired",
         "Expired Sep 2032, prunable",
-        "Statements keeps statements 5 years",
+        "Expired Sep 2032: Statements keeps statements 5 years",
     )
 
 
@@ -373,7 +398,9 @@ def test_a_loans_document_is_kept_until_it_is_paid_off_then_the_statements_perio
         r.date = dt.date(2027, 9, 30)
         receipts.attach_account(s, jane.id, r, loan["id"])
     assert save_settings(admin_client, {"keepStatementsYears": 5}).status_code == 200
-    assert kept(c, doc) == ("open", "Kept while the account is open")
+    assert kept(c, doc) == ("open", "Kept while the loan is open")
+    tip = c.get(f"/ui/api/receipts/{doc}").json()["keptWhy"]
+    assert tip == "Kept while the loan is open, then Statements' 5 years"
     assert kept(c, statement) == ("expired", "Expired Sep 2032, prunable")
     with server.db.tx(unscoped="test") as s:
         s.get(Account, loan["id"]).closedOn = dt.date(2031, 6, 30)
@@ -381,7 +408,7 @@ def test_a_loans_document_is_kept_until_it_is_paid_off_then_the_statements_perio
     assert (d["keptState"], d["kept"], d["keptWhy"]) == (
         "until",
         "Kept until Jun 2036",
-        "Statements keeps statements 5 years",
+        "Kept until Jun 2036: Statements keeps a loan's documents 5 years after it is paid off",
     )
 
 

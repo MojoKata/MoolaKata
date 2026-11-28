@@ -35,6 +35,7 @@ from sqlalchemy import false, select, true
 from sqlalchemy.orm import Session
 
 from .. import clock, settings
+from ..loans import is_loan
 from ..store import views
 from ..store.entities.accounts import Account, Category, Lot, Split, Transaction
 from ..store.entities.assets import Item
@@ -70,6 +71,9 @@ class Retention:
     category: str | None = None  # the category, or Statements, that sets the period
     years: int | None = None
     link: str | None = None  # the link whose record sets the period
+    # The record setting it is a loan's (an account's) document, not a statement (S9.3): kept
+    # while the loan is open, then the statements' period.
+    document: bool = False
 
     @property
     def label(self) -> str:
@@ -198,10 +202,12 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
     return _deleted(s, x, end), years, name
 
 
-def retention(ctx: Context, r: Receipt) -> Retention:
+def retention(ctx: Context, r: Receipt, ignore_keep: bool = False) -> Retention:
+    """When the file expires (S14.10.2); `ignore_keep`: as it would without Keep, which its
+    dialog shows beside the toggle (S14.10.3)."""
     if r.filePrunedAt is not None:
         return Retention("pruned")
-    if r.keep:
+    if r.keep and not ignore_keep:
         return Retention("forever")
     links = list(
         ctx.s.scalars(
@@ -213,18 +219,26 @@ def retention(ctx: Context, r: Receipt) -> Retention:
     found = [(_link(ctx, x, r), x.kind, x.id) for x in links]
     if any(years is None for (_, years, _), _, _ in found):
         return Retention("forever")
-    open_ = [kind for (end, _, _), kind, _ in found if end is None]
+    docs = {x.id: x for x in links if x.kind == "account" and not x.statement}
+    open_ = [(kind, by) for (end, _, _), kind, by in found if end is None]
     if open_:
-        return Retention("open", openWhat=OPEN_WHAT.get(open_[0]))
+        kind, by = open_[0]
+        if by not in docs:
+            return Retention("open", openWhat=OPEN_WHAT.get(kind))
+        a = ctx.s.get(Account, docs[by].itemId)
+        what = "the loan" if a is not None and is_loan(a.type) else "the account"
+        return Retention("open", openWhat=what, category="Statements", years=ctx.statements,
+                         link=by, document=True)  # fmt: skip
     end = max(e for (e, _, _), _, _ in found)
     (_, years, name), _, by = max(found, key=lambda f: f[0][1])
     if end == dt.date.min:
         end = r.createdAt.date()
     until = add_years(end, years)
+    doc = by in docs
     if until <= ctx.today:
-        return Retention("expired", until, category=name, years=years, link=by)
+        return Retention("expired", until, category=name, years=years, link=by, document=doc)
     soon = (until - ctx.today).days <= SOON_DAYS
-    return Retention("until", until, soon, category=name, years=years, link=by)
+    return Retention("until", until, soon, category=name, years=years, link=by, document=doc)
 
 
 # ---------- Settings › Storage (S14.10.4) ----------
