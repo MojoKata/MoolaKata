@@ -270,7 +270,7 @@ StatementLayout = record(
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("institution", Text, nullable=False),
     Column("layout", Text, nullable=False, server_default=text("'{}'")),
-    seen=Seen.per_user("ownerId"),
+    seen=Seen.rule(),
 )
 unique_live(StatementLayout, "ownerId", "institution")
 

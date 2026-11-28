@@ -564,3 +564,105 @@ def test_an_amount_with_no_digits_is_none():
     assert statements.parse_amount("$.") is None
     assert statements.parse_amount("12.00 CR") == Decimal("12.00")
     assert statements.parse_amount("12.00 DR") == Decimal("-12.00")
+
+
+# ---------- a write sharer's import (S1.3.3, S9.6) ----------
+
+
+def _shared(server, allow="write", owner="jane", sharer="john", **account):
+    """`owner`'s new account shared with `sharer` at `allow`: their clients, the account, and
+    each one's user id by name."""
+    from conftest import make_user, sign_in
+    from edits import share
+    from test_accounts import new_account
+
+    ids = {name: make_user(server, name).id for name in (owner, sharer)}
+    mine, theirs = sign_in(server, owner), sign_in(server, sharer)
+    acct = new_account(mine, **account)
+    them = ids[sharer]
+    assert share(mine, "account", acct["id"], users={them: allow}).status_code == 200
+    return mine, theirs, acct, ids
+
+
+def _layouts(server) -> dict:
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import StatementLayout
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(StatementLayout).where(StatementLayout.deleted.is_(False)))
+        return {(x.ownerId, x.institution): x.layout for x in rows}
+
+
+def test_a_write_sharer_saves_a_read_statement_and_teaches_the_owners_layout(server):
+    """S1.3.3.4: what an import learns of an institution is the account owner's, taught by
+    whoever imports into the owner's accounts; the statement is the owner's (S9.6). A read
+    sharer imports nothing."""
+    from test_reading import text_pdf
+
+    jane, john, acct, ids = _shared(server, institution="UMB Bank")
+    review = _import(john, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    body = _body(review, remember=["Online transfer"])
+    r = john.post(f"/ui/api/imports/{review['uploadId']}/statement", json=body)
+    assert r.status_code == 200, r.text
+    learned = _layouts(server)
+    assert list(learned) == [(ids["jane"], "UMB Bank")]
+    assert "online transfer" in learned[(ids["jane"], "UMB Bank")]
+    rc = jane.get(f"/ui/api/receipts/{r.json()['result']['receiptId']}").json()
+    assert rc["access"]["mine"], "the statement is the owner's"
+    # Jane's next statement reads with what John taught.
+    again = _import(jane, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    assert any(x.get("ignored") for x in again["rows"])
+
+
+def test_a_read_sharer_imports_nothing(server):
+    from test_reading import text_pdf
+
+    _, john, acct, _ = _shared(server, allow="read", institution="UMB Bank")
+    r = john.post(
+        f"/ui/api/accounts/{acct['id']}/imports",
+        files={"file": ("s.pdf", text_pdf(UMB.splitlines()), "application/pdf")},
+    )
+    assert r.status_code in (403, 404) and _layouts(server) == {}
+
+
+def test_a_statement_of_two_owners_accounts_is_kept_once_per_owner(server):
+    """S9.6: a combined statement filling Jane's checking and John's savings, which John shares
+    with her at write, is kept as Jane's receipt on her account and John's on his, each linked
+    by Jane, who imported it."""
+    from sqlalchemy import select
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    from moolakata.store.entities.receipts import Receipt, ReceiptLink
+
+    _, jane, savings, ids = _shared(
+        server,
+        owner="john",
+        sharer="jane",
+        name="Savings",
+        type="savings",
+        institution="UMB Bank",
+        mask="9030",
+    )
+    checking = new_account(jane, name="Free Checking", institution="UMB Bank", mask="4821")
+    review = _import(jane, checking["id"], text_pdf(COMBINED.splitlines()))["result"]
+    parts = review["parts"]
+    assert parts[1]["accountId"] == savings["id"], "his account, which she may write, by its number"
+    url = f"/ui/api/imports/{review['uploadId']}/statement"
+    r = jane.post(url, json=_body(parts[0], part=0, accountId=checking["id"]))
+    assert r.status_code == 200, r.text
+    r = jane.post(url, json=_body(parts[1], part=1, accountId=savings["id"]))
+    assert r.status_code == 200, r.text
+    with server.db.read(unscoped="test") as s:
+        kept = {
+            r.ownerId: {(ln.itemId, ln.linkedById) for ln in s.scalars(
+                select(ReceiptLink).where(ReceiptLink.receiptId == r.id))}
+            for r in s.scalars(select(Receipt))
+        }  # fmt: skip
+    assert kept == {
+        ids["jane"]: {(checking["id"], ids["jane"])},
+        ids["john"]: {(savings["id"], ids["jane"])},
+    }
+    rid = r.json()["result"]["receiptId"]
+    assert jane.get(f"/ui/api/receipts/{rid}").json()["access"]["mine"], "hers is answered"

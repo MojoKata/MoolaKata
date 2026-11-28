@@ -523,24 +523,36 @@ def _alert() -> str:
     return f"{own}\nUNION ALL\n{admins}"
 
 
-def _import_mapping() -> str:
-    """S1.3.2: the owner's; read by whoever imports into one of the owner's accounts, as the
-    import uses the account owner's mappings."""
+def _learned(table: str) -> str:
+    """What imports learn of an institution, the account owner's: the owner's alone to delete;
+    read and taught by whoever may write one of the owner's accounts, as an import into it uses
+    and teaches the owner's (S1.3.2, S1.3.3.4)."""
     owner = (
         f"SELECT {_cols('m.id', 'm."ownerId"', '1', '1', '0', '0', '1')}\n"
-        'FROM "ImportMappingEffective" AS m\n'
+        f'FROM "{table}Effective" AS m\n'
         'JOIN "AccessUser" AS u ON u."userId" = m."ownerId" AND u.local\n'
         'WHERE NOT m."effectiveDeleted"'
     )
     writers = (
-        f"SELECT DISTINCT {_cols('m.id', 'a."userId"', '0', '0', '0', '0', '0')}\n"
-        'FROM "ImportMappingEffective" AS m\n'
+        f"SELECT DISTINCT {_cols('m.id', 'a."userId"', '1', '0', '0', '0', '0')}\n"
+        f'FROM "{table}Effective" AS m\n'
         'JOIN "AccountEffective" AS t ON t."ownerId" = m."ownerId" AND NOT t."effectiveDeleted"\n'
         'JOIN "AccountAccess" AS a ON a."targetId" = t.id AND a.writable '
         'AND a."userId" <> m."ownerId"\n'
         'WHERE NOT m."effectiveDeleted"'
     )
-    return f"{owner}\nUNION ALL\n{writers}"
+    return _collapse(f"{owner}\nUNION ALL\n{writers}")
+
+
+def _import_mapping() -> str:
+    """S1.3.2: a CSV's column mapping, per institution, the account owner's."""
+    return _learned("ImportMapping")
+
+
+def _statement_layout() -> str:
+    """S1.3.3.4: what statement import learned of an institution's layout, the account
+    owner's."""
+    return _learned("StatementLayout")
 
 
 def _tax_book_filer() -> str:
@@ -761,6 +773,7 @@ WRITTEN: dict[str, Callable[[], str]] = {
     "WashSale": _wash_sale,
     "Alert": _alert,
     "ImportMapping": _import_mapping,
+    "StatementLayout": _statement_layout,
     "TaxBookFiler": _tax_book_filer,
     "Activity": _activity,
     "User": _user,

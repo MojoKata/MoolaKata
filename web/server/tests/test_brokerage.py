@@ -237,6 +237,31 @@ def test_a_brokerage_statement_is_checked_and_saved(server):
     assert checks["SWVXX"]["cash"]
 
 
+def test_a_write_sharer_saves_a_brokerage_statement_and_teaches_the_owners_layout(server):
+    """S1.3.3.4, S9.6: the lines John asks to ignore on Jane's brokerage statement are Jane's
+    for her institution, and the statement is hers."""
+    from test_reading import text_pdf
+    from test_statements import _import, _layouts, _shared
+
+    jane, john, acct, ids = _shared(
+        server, name="Individual Brokerage", type="brokerage", institution="Schwab"
+    )
+    review = _import(john, acct["id"], text_pdf(SCHWAB.splitlines()))["result"]
+    body = {
+        "periodStart": review["periodStart"],
+        "periodEnd": review["periodEnd"],
+        "endingValue": review["summary"]["ending"],
+        "remember": ["MoneyLink Transfer"],
+    }
+    r = john.post(f"/ui/api/imports/{review['uploadId']}/brokerage", json=body)
+    assert r.status_code == 200, r.text
+    learned = _layouts(server)
+    assert list(learned) == [(ids["jane"], "Schwab")]
+    assert "moneylink transfer" in learned[(ids["jane"], "Schwab")]
+    rc = jane.get(f"/ui/api/receipts/{r.json()['result']['receiptId']}").json()
+    assert rc["access"]["mine"]
+
+
 def test_a_plan_kept_by_snapshots_takes_the_positions_as_its_holdings(server):
     from conftest import make_user, sign_in
     from test_accounts import new_account

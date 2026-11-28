@@ -475,6 +475,28 @@ def test_a_split_in_a_brokers_file_is_imported(server):
     assert job["state"] == "done", job["error"]
 
 
+def test_a_write_sharers_csv_mapping_is_the_owners(server):
+    """S1.3.2: the column mapping John saves importing into Jane's account is Jane's for that
+    institution: her next file from it needs none."""
+    from test_statements import _shared
+
+    from moolakata.store.entities.accounts import ImportMapping
+
+    jane, john, a, ids = _shared(server, institution="Credit Union")
+    data = b"Date,Description,Amount\n2026-09-01,Pay,100.00\n"
+    result = upload(john, a["id"], "export.csv", data)["result"]
+    r = john.post(
+        f"/ui/api/imports/{result['uploadId']}/mapping", json={"mapping": result["mapping"]}
+    )
+    done = wait_job(john, r.json())
+    assert done["state"] == "done" and done["result"]["added"] == 1, done
+    with server.db.read(unscoped="test") as s:
+        maps = s.query(ImportMapping).all()
+        assert [(m.ownerId, m.institution) for m in maps] == [(ids["jane"], "Credit Union")]
+    more = data + b"2026-09-02,Shop,-10.00\n"
+    assert upload(jane, a["id"], "export2.csv", more)["result"]["added"] == 1
+
+
 def test_csv_import_asks_for_a_mapping_once(server):
     make_user(server, "jane")
     c = sign_in(server, "jane")
