@@ -339,11 +339,14 @@ The rulings the rest of the requirements apply.
     its units, syntax, limits and implications; what a dialog, a card or a section does) are in
     the guide (S12.7.4), under the heading of what they explain, never on the screen. The
     screen keeps labels, what a blank means (as the placeholder), values the person or the
-    server set (*Kept until Mar 1, 2033*, *Its header shows ••4417*), the page's state
-    (S12.19), and a warning of what an action will do, cut to its consequence (*No backup is
-    made first.*). A warning that matters as the person acts shows by its field only while it
-    applies: *A written acknowledgement is needed* once a single gift is $250 or more, *Marked
-    basis missing until you add it* while a lot moved in has no cost.
+    server set (*Due Apr 15, 2027*, *Its header shows ••4417*), the page's state (S12.19), and
+    a warning of what an action will do, cut to its consequence (*No backup is made first.*).
+    Words that explain a value in its situation (why it is so, here) are its field's tooltip,
+    never a line on the screen: Keep's on a receipt says how long its file is kept and what
+    sets it (S14.10.3). A warning that matters as the person acts shows by its field only while
+    it applies: *A written acknowledgement is needed* once a single gift is $250 or more,
+    *Marked basis missing until you add it* while a lot moved in has no cost, *Expires Dec
+    2026* by a receipt's Keep within 90 days of its file's expiry.
 13. **Text case.** Title Case for buttons, column, panel and card headers, page headings,
     dialog titles, tabs, the navigation, Settings sections, menu items and links that stand
     alone; Sentence case for field labels, switch and checkbox labels, a list's choices,

@@ -28,12 +28,21 @@ typed amount is.
 ## Keep
 
 Keeps the file for ever, whatever its retention: for a warranty, or a medical bill an HSA may repay
-later. Beside it, how long the file is kept otherwise: _Kept until Mar 2031_ (in bold within 90
-days), _Kept while the lot is open_ while what it is attached to hasn't ended, or _Kept for ever_.
-The date is the file's own, over everything it is kept with; the category that sets it is named
-only when that is shared with you, else _Kept for something not shared with you_.
-An expired file shows _Expired Mar 2031, prunable_, and an admin may prune it in Settings ›
-Storage; a pruned file's record keeps its amounts, dates and links.
+later. Its tooltip says how long the file is kept otherwise, and what sets it.
+
+A file is kept for as long as what it is attached to needs it, then the period its category sets
+(**Keep receipts for**, Settings › Storage; a subcategory without one takes its parent's). The
+date is counted from when what it is attached to ended: a transaction's date, a lot's last sale, a
+gift's occasion; over everything it is kept with, the latest end and the longest period win. A
+transfer, an uncategorised transaction or a category with no period keeps it for ever, as does
+being attached to nothing. A statement is kept for the statements' period after its own last day;
+a loan's other documents (a closing disclosure) are kept while the loan is open, then the
+statements' period from the day it is paid off. The category that sets the date is named only when
+it is shared with you, else _Kept for something not shared with you_.
+
+A warning shows by Keep only while it applies: _Expires Dec 2026_ within 90 days of the date, and
+_Expired, prunable_ once it has passed, when an admin may prune the file in Settings › Storage. A
+pruned file's record keeps its amounts, dates and links.
 
 ## Date {#receipt-date}
 
