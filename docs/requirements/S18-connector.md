@@ -369,7 +369,9 @@ ask it for anything. People give it its words on **its page**, which it serves i
       ```
 8. **What drivers send**: files MoolaKata already imports, posted for one account through the
    same import as an upload (S1.3): OFX or QFX, CSV with the account's saved mapping, or a PDF
-   statement. Imports are idempotent, so a repeated post adds nothing. A post counts against
+   statement. Imports are idempotent, so a repeated post adds nothing, and a loan's row dated
+   before the loan starts is left out, kept and alerted as an upload's is (S1.9.3); the post's
+   answer counts only what it added, matched and changed. A post counts against
    the upload limit of the Connection's owner (S13.7.5.3); refused for the limit, the connector
    keeps the file and posts it on a later run, so a backlog (a long history fetched at once)
    arrives over a few hours rather than failing. Each file is posted on its own: one MoolaKata

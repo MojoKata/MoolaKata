@@ -545,6 +545,69 @@ def accounts(s: Session, server) -> Iterable[Cause]:
 
 
 @check
+def imports_left_out(s: Session, server) -> Iterable[Cause]:
+    """For a loan's owner: the rows an import left out, dated before the loan starts, kept
+    until they are added or left out for good (S1.9.3). Moving the start opens the terms; once
+    it is on or before them, the loan's Overview adds them."""
+    import json
+
+    from .store.entities.accounts import Account, Import
+    from .store.repos import ledger as repo
+
+    rows = s.execute(
+        select(Import, Account)
+        .join(Account, Account.id == Import.accountId)
+        .where(
+            Import.deleted == false(),
+            Import.leftOut != "[]",
+            Account.deleted == false(),
+            Account.closedOn.is_(None),
+        )
+    ).all()
+    for imp, a in rows:
+        start = repo.loan_start(s, a)
+        if start is None:
+            continue
+        kept = json.loads(imp.leftOut)
+        owner = s.get(User, a.ownerId)
+        made = imp.createdAt.astimezone(ZoneInfo(timezones.zone_for(owner.timeZone)))
+        what = f"{len(kept)} row{'s' if len(kept) > 1 else ''} of the {made:%b %-d} import"
+        before = [x for x in kept if dt.date.fromisoformat(x["date"]) < start]
+        if before:
+            title = f"{a.name}: {what} left out, dated before the loan starts ({start:%b %-d, %Y})"
+            link, fix = f"/ui/accounts/{a.id}/settings", "Move the Start"
+        else:
+            title = f"{a.name}: {what} left out, on or after the loan's start now"
+            link, fix = f"/ui/accounts/{a.id}", "Add Them"
+        yield Cause(
+            key=f"left-out:{imp.id}",
+            kind="import-left-out",
+            title=title,
+            about=f"{imp.fileName} · added {imp.added}, matched {imp.matched}",
+            user_id=a.ownerId,
+            link=link,
+            fix=fix,
+            icon="alert",
+            since=imp.createdAt,
+        )
+
+
+def act(a: Alert) -> tuple[str | None, str | None]:
+    """The fix made from the alert itself, beside its link: its label and the API path it
+    deletes (S12.11.3). Leave Them Out lets an import's kept rows go (S1.9.3)."""
+    if a.kind == "import-left-out" and a.resolvedAt is None:
+        return "Leave Them Out", f"/imports/{a.causeKey.split(':', 1)[1]}/left-out"
+    return None, None
+
+
+def resolve(s: Session, key: str, resolution: str) -> None:
+    """The open alert of a cause a person just cleared, resolved at once rather than at the
+    next run of the checks (S12.11.2)."""
+    for a in s.scalars(select(Alert).where(Alert.causeKey == key, Alert.resolvedAt.is_(None))):
+        a.resolvedAt, a.resolution = clock.now(), resolution
+
+
+@check
 def statement_values(s: Session, server) -> Iterable[Cause]:
     """For each account's owner: a holding valued from a statement that is stale (S4.3), the
     statement after it overdue, until a newer statement, a price or a sale replaces it. While
@@ -987,6 +1050,7 @@ _KEYS = {
     "break_glass": {"keys:break-glass"},
     "accounts": {"statement", "mismatch"},
     "statement_values": {"statement-value"},
+    "imports_left_out": {"left-out"},
     "projections_behind": {"behind"},
     "cash_short": {"cash"},
     "bitcoin_certificate": {"bitcoin-certificate"},

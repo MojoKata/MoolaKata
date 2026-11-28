@@ -954,3 +954,35 @@ def test_a_payments_split_is_corrected_before_it_is_recorded(browser, household,
     assert got == sorted([principal - 10, interest + 10])
     assert problems == []
     page.close()
+
+
+def test_rows_an_import_left_out_are_shown_and_let_go(browser, household, new_loan):
+    """S1.9.3: a loan's rows an import left out, dated before it starts, are listed on its
+    Overview with why; Add Them is off until the start is on or before them, and Leave Them Out
+    lets them go."""
+    from test_accounts import wait_job
+    from test_loans_routes import loan_ofx
+
+    h = household
+    start = f"{months_back(1)}-01"
+    a = new_loan("Left-out mortgage", principal="300000", startDate=start, termMonths=360,
+                 rate="6")  # fmt: skip
+    first = months_back(2).replace("-", "")
+    r = h.c.post(
+        f"/ui/api/accounts/{a['id']}/imports",
+        files={"file": ("home.ofx", loan_ofx((f"{first}15", "500.00", "lo1")))},
+    )
+    assert r.status_code == 202, r.text
+    assert wait_job(h.c, r.json())["state"] == "done"
+    card = '.card:has(h3:text("Left Out of Imports"))'
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", card)
+    words = f"A loan's payment can't be dated before it starts ({day(start)})."
+    assert page.locator(f"{card} .pill.warn").get_attribute("aria-description") == words
+    add = page.locator(card).get_by_role("button", name="Add Them")
+    assert add.get_attribute("data-tip") == "Dated before the loan starts: move the start first"
+    page.locator(card).get_by_role("button", name="Leave Them Out").click()
+    wait(page, card, problems, state="detached")
+    [imp] = h.c.get(f"/ui/api/accounts/{a['id']}/imports").json()["items"]
+    assert imp["leftOut"] == []
+    assert problems == []
+    page.close()

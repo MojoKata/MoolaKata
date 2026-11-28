@@ -95,6 +95,7 @@ class Import(Record):
     added: int = 0
     matched: int = 0
     changed: int = 0
+    leftOut: str = "[]"
 
 
 @dataclass(kw_only=True, eq=False)

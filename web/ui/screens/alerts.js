@@ -35,6 +35,12 @@ export default function Alerts() {
       toast('Dismissed for you');
       res.reload();
     }, (e) => toast(e.message));
+  // A fix made from the alert itself, beside its link (Leave Them Out, S1.9.3).
+  const act = (/** @type {any} */ a) =>
+    api.del(a.actPath).then(() => {
+      toast('Done');
+      res.reload();
+    }, (e) => toast(e.message));
   const row = (/** @type {any} */ a) =>
     html`
       <div class="list-item" style=${{ alignItems: 'flex-start' }}>
@@ -49,6 +55,10 @@ export default function Alerts() {
           ? html`<span class="pill ok">resolved</span>`
           : html`${
             a.link ? html`<a class="btn sm" href=${a.link}>${a.fix || 'See It'}</a>` : null
+          }${
+            a.act
+              ? html`<button type="button" class="btn sm" onClick=${() => act(a)}>${a.act}</button>`
+              : null
           }<button type="button" class="btn sm" onClick=${() => dismiss(a)}>Dismiss</button>`}
       </div>
     `;

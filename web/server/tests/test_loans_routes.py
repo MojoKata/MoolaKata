@@ -1271,3 +1271,138 @@ def test_the_split_offered_for_a_payment_dated_before_the_loan_starts_is_refused
     words = "A loan's payment can't be dated before it starts (Jan 1, 2026)."
     assert _refused_at(r) == (422, [("date", "date-before-loan", words)])
     assert c.get(path, params={"date": "2026-01-01", "amount": "500.00"}).status_code == 200
+
+
+# ui.imports.add_left_out / leave_them_out, store.repos.ledger._apply_import, alerts
+
+
+def loan_ofx(*rows: tuple[str, str, str]) -> bytes:
+    """A servicer's OFX file of the given (day, amount, id) rows."""
+    lines = "".join(
+        f"<STMTTRN><TRNTYPE>OTHER<DTPOSTED>{day}<TRNAMT>{amount}<FITID>{fit}<NAME>SERVICER"
+        "</STMTTRN>\n"
+        for day, amount, fit in rows
+    )
+    return (
+        "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nSECURITY:NONE\nENCODING:USASCII\n"
+        "CHARSET:1252\nCOMPRESSION:NONE\nOLDFILEUID:NONE\nNEWFILEUID:NONE\n\n"
+        "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS>"
+        "<DTSERVER>20260201<LANGUAGE>ENG</SONRS></SIGNONMSGSRSV1><BANKMSGSRSV1><STMTTRNRS>"
+        "<TRNUID>1<STATUS><CODE>0<SEVERITY>INFO</STATUS><STMTRS><CURDEF>USD<BANKACCTFROM>"
+        "<BANKID>1<ACCTID>77<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST>"
+        f"<DTSTART>20251201<DTEND>20260131\n{lines}</BANKTRANLIST><LEDGERBAL><BALAMT>0\n"
+        "<DTASOF>20260131</LEDGERBAL></STMTRS></STMTTRNRS>"
+        "</BANKMSGSRSV1></OFX>\n"
+    ).encode()
+
+
+BEFORE = (("20251215", "500.00", "p1"), ("20251220", "-25.00", "d1"))
+
+
+def test_a_loan_import_leaves_out_and_keeps_rows_dated_before_the_start(server, frozen):
+    """S1.9.3: an import's payment or draw dated before the loan starts is left out, as the
+    transaction save refuses it, and kept on the import with why; its result and the account's
+    imports name them; the same file again keeps them once; a row on the start day and one of
+    nothing before it are added."""
+    from test_accounts import upload
+
+    c, _, loan = _mortgage_and_checking(server)
+    data = loan_ofx(*BEFORE, ("20260101", "1798.65", "p2"), ("20251201", "0.00", "z"))
+    done = upload(c, loan["id"], "home.ofx", data)["result"]
+    words = "A loan's {} can't be dated before it starts (Jan 1, 2026)."
+    assert done["added"] == 2
+    assert [(x["date"], x["amount"], x["reason"]) for x in done["leftOut"]] == [
+        ("2025-12-15", "500.00", words.format("payment")),
+        ("2025-12-20", "-25.00", words.format("draw")),
+    ]
+    got = c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"]
+    assert sorted(x["date"] for x in got) == ["2025-12-01", "2026-01-01"]
+    [row] = c.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
+    assert [(x["date"], x["payee"], x["fits"]) for x in row["leftOut"]] == [
+        ("2025-12-15", "SERVICER", False),
+        ("2025-12-20", "SERVICER", False),
+    ]
+    again = upload(c, loan["id"], "home.ofx", data)["result"]
+    assert (again["added"], again["matched"], again["leftOut"]) == (0, 4, []), "kept once"
+
+
+def _left_out_alert(server, c) -> dict | None:
+    from moolakata import alerts
+
+    alerts.evaluate(server)
+    found = [a for a in c.get("/ui/api/alerts").json()["open"] if a["kind"] == "import-left-out"]
+    return found[0] if found else None
+
+
+def test_rows_left_out_alert_the_owner_until_the_start_moves_and_they_are_added(server, frozen):
+    """S1.9.3, S12.11: the owner is alerted to rows left out, with Move the Start (the terms)
+    and Leave Them Out; adding one still before the start is refused at its row in the save's
+    words; once the start is moved on or before them they are added, checked again, and the
+    alert ends. A read share sees them and can't add them."""
+    from test_accounts import upload
+
+    c, _, loan = _mortgage_and_checking(server)
+    job = upload(c, loan["id"], "home.ofx", loan_ofx(*BEFORE))
+    assert job["state"] == "done", job["error"]
+    imp = job["result"]["importId"]
+    a = _left_out_alert(server, c)
+    assert a["title"] == (
+        "Home: 2 rows of the Oct 13 import left out, dated before the loan starts (Jan 1, 2026)"
+    )
+    assert (a["link"], a["fix"]) == (f"/ui/accounts/{loan['id']}/settings", "Move the Start")
+    assert (a["act"], a["actPath"]) == ("Leave Them Out", f"/imports/{imp}/left-out")
+    path = f"/ui/api/imports/{imp}/left-out"
+    r = c.post(path, json={"rows": [0]})
+    words = "A loan's payment can't be dated before it starts (Jan 1, 2026)."
+    assert _refused_at(r) == (422, [("rows.0", "date-before-loan", words)])
+    for body, field, code in (({"rows": []}, "rows", "rows-missing"),
+                              ({"rows": [2]}, "rows.0", "row-unknown"),
+                              ({"rows": [0, 0]}, "rows.1", "row-unknown")):  # fmt: skip
+        assert _refused_at(c.post(path, json=body))[1][0][:2] == (field, code)
+    # A read share sees the rows kept, and neither adds nor lets them go.
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    ids_ = {u["displayName"]: u["id"] for u in c.get(
+        f"/ui/api/shares/account/{loan['id']}").json()["users"]}  # fmt: skip
+    assert share(c, "account", loan["id"], users={ids_["John"]: "read"}).status_code == 200
+    [row] = john.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
+    assert len(row["leftOut"]) == 2
+    assert john.post(path, json={"rows": [1]}).status_code == 403
+    assert john.delete(path).status_code == 403
+    # The start moved before the draw only: the payment still waits.
+    saved(terms(c, loan["id"], startDate="2025-12-16"))
+    [row] = c.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
+    assert [x["fits"] for x in row["leftOut"]] == [False, True]
+    r = c.post(path, json={"rows": [1, 0]})
+    words = "A loan's payment can't be dated before it starts (Dec 16, 2025)."
+    assert _refused_at(r) == (422, [("rows.1", "date-before-loan", words)])
+    row = c.post(path, json={"rows": [1]}).json()
+    assert [x["date"] for x in row["leftOut"]] == ["2025-12-15"] and row["added"] == 1
+    saved(terms(c, loan["id"], startDate="2025-12-01"))
+    a = _left_out_alert(server, c)
+    assert (
+        a["title"] == "Home: 1 row of the Oct 13 import left out, on or after the loan's start now"
+    )
+    assert (a["link"], a["fix"]) == (f"/ui/accounts/{loan['id']}", "Add Them")
+    assert c.post(path, json={"rows": [0]}).json()["leftOut"] == []
+    got = c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"]
+    assert sorted(x["date"] for x in got) == ["2025-12-15", "2025-12-20"]
+    assert _left_out_alert(server, c) is None
+    resolved = c.get("/ui/api/alerts").json()["resolved"]
+    assert [x["resolution"] for x in resolved] == ["the rows were added"]
+
+
+def test_leave_them_out_lets_the_rows_go_and_ends_the_alert(server, frozen):
+    """S1.9.3: Leave Them Out drops the rows kept, never added, and the alert ends at once."""
+    from test_accounts import upload
+
+    c, _, loan = _mortgage_and_checking(server)
+    imp = upload(c, loan["id"], "home.ofx", loan_ofx(*BEFORE))["result"]["importId"]
+    a = _left_out_alert(server, c)
+    r = c.delete("/ui/api" + a["actPath"])
+    assert r.status_code == 200 and r.json()["leftOut"] == []
+    resolved = c.get("/ui/api/alerts").json()["resolved"]
+    assert [x["resolution"] for x in resolved] == ["the rows were left out"]
+    assert _left_out_alert(server, c) is None
+    assert c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"] == []
+    assert c.delete(f"/ui/api/imports/{imp}x/left-out").status_code == 404

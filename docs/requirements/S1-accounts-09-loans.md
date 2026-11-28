@@ -31,7 +31,15 @@
       with no split of its own is split by the schedule whenever the loan's figures are
       worked out, never counted wholly as principal. A row of 0.00 is no payment. A payment
       or draw is dated on or after the loan's start: one dated before it is refused at its
-      date, and a start moved past one at the start, naming its day. The user can
+      date, and a start moved past one at the start, naming its day. An import (an upload, a
+      statement, or the connector's file, S1.3, S18.8) leaves such a row out and keeps it on
+      the import with why, named in the import's result and the account's imports, and on the
+      loan's Overview under **Left Out of Imports**, seen by whoever reads the loan. Its owner
+      is alerted (S12.11): **Move the Start** opens the terms; once the start is on or before
+      the rows, **Add Them** adds them, each checked again against the start (one still before
+      it is refused at its row in the same words) and gone from what is kept; **Leave Them
+      Out** lets them go, never added, and the alert ends. Both need write on the loan. A row
+      kept already is matched by the same file again, never kept twice. The user can
       correct a split from the servicer's statement. Principal beyond the schedule is
       recorded as an **overpayment**. Bank transactions of the last 90 days within 2% of the
       payment, not yet a transfer and not filed under another category, are offered on the

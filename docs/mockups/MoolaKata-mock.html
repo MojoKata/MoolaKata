@@ -1005,6 +1005,7 @@ const ALERTS = [
   { id: 'a4', for: 'jane', open: true, icon: 'gift', title: 'Lisa’s birthday in 9 days', about: '1 idea, nothing bought', since: 'Oct 6, 07:00', go: 'gifts', fix: 'Plan a gift' },
   { id: 'a5', for: 'jane', open: true, icon: 'alert', title: 'MSFT 16 Oct 480 P expires in 6 days', about: 'Options Account · out of the money', since: 'Oct 9, 07:00', go: 'positions', fix: 'See the position' },
   { id: 'a13', for: 'jane', open: true, icon: 'bank', title: 'Joint Household dips below $0 on the 28th', about: 'before Acme payroll lands on Nov 1 · the recurring payments from it', since: 'Oct 11, 07:00', go: 'budgets', fix: 'See the budget' },
+  { id: 'a15', for: 'jane', open: true, icon: 'alert', title: 'Mortgage: 2 rows of the Oct 3 import left out, dated before the loan starts (Mar 1, 2023)', about: 'rocket-history.ofx · added 31, matched 0', since: 'Oct 3, 09:14', go: 'account/mort', fix: 'Move the Start', act: 'Leave Them Out' },
   { id: 'a8', for: 'jane', open: true, icon: 'grad', title: 'Lisa’s college is behind its plan', about: 'below the band of the baseline set Sep 1, 2025', since: 'Oct 1, 07:00', go: 'account/529', fix: 'See the goal' },
   { id: 'a12', for: 'admins', open: true, icon: 'lock', title: 'Reading runs without its file sandbox', about: 'this host doesn’t offer Landlock (Linux 5.13 or later, and a container that allows it), so a file that exploits a reader could reach the data directory', since: 'Oct 12, 03:00', go: 'settings', fix: 'Receipts settings', only: 'noLandlock' },
   { id: 'a10', for: 'admins', open: true, icon: 'lock', title: 'Time to rotate the master key', about: 'it is over 12 months old: Rotate, in Settings › Key Storage', since: 'Oct 2, 07:00', go: 'settings', fix: 'Key storage' },
@@ -1403,7 +1404,19 @@ function loanDetails(a) {
     <div class="mt"><button class="btn sm" data-act="dlg" data-v="loanPayment">${icon('plus')} Record a Payment</button></div>
     ${a.id === 'mort' ? `<div class="card mt"><h3>Looks like a Payment</h3>
       <div class="list-item"><div class="grow">ROCKET MORTGAGE<div class="small dim">Joint Household · Nov 2 · pair with the payment of Nov 1</div></div>${money(2876.97)}<button class="btn sm" data-act="toast" data-v="Paired with the payment already recorded">Pair</button></div></div>` : ''}
+    ${a.id === 'mort' && !state.leftOutGone ? loanLeftOut(a) : ''}
     ${loanDocuments(a)}`;
+}
+// The rows an import left out, dated before the loan starts (S1.9.3): kept until the start is
+// moved on or before them and they are added, or left out for good; the fixes need write.
+function loanLeftOut(a) {
+  const ro = a.owner !== state.user && a.sharedWith !== 'write';
+  const off = (label, why) => `<button class="btn sm" aria-disabled="true" data-tip="${why}">${label}</button>`;
+  const why = 'Shared with you to read';
+  const before = statePill('before the start', 'A loan’s payment can’t be dated before it starts (Mar 1, 2023).', 'warn');
+  return `<div class="card mt"><h3>Left Out of Imports</h3><div class="small dim">rocket-history.ofx · imported Oct 3</div>
+    ${[['ROCKET MORTGAGE', 'Feb 1, 2023', 2876.97], ['ROCKET MORTGAGE', 'Feb 15, 2023', 150]].map((r) => `<div class="list-item"><div class="grow">${r[0]}<div class="small dim">${r[1]}</div></div>${money(r[2])}${before}</div>`).join('')}
+    <div class="toolbar mt">${ro ? off('Move the Start', why) : '<button class="btn sm" data-act="toast" data-v="Opens the loan’s terms in Settings">Move the Start</button>'}${off('Add Them', ro ? why : 'Dated before the loan starts: move the start first')}${ro ? off('Leave Them Out', why) : '<button class="btn sm" data-act="leaveout">Leave Them Out</button>'}</div></div>`;
 }
 // A loan's documents other than its statements (S9.3): uploaded or attached from the inbox,
 // detached again; kept until the loan is paid off, then the statements' period (S14.10.1.2).
@@ -1961,7 +1974,7 @@ function filingCard(f, i) {
 SCREENS.alerts = () => {
   state.alertsUnseen[state.user] = 0; setTimeout(() => { const b = $('#alerts-badge'); if (b) b.remove(); });
   const list = alertsFor(state.user), open = list.filter((a) => a.open), done = list.filter((a) => !a.open);
-  const row = (a) => `<div class="list-item" style="align-items:flex-start"><div class="tile t-${a.open ? 'liability' : 'other'}">${icon(a.icon)}</div><div class="grow"><span class="row-name">${a.title}</span><div class="row-more">${a.about} · opened ${a.since}${a.resolved ? ` · resolved ${a.resolved}` : ''}</div></div>${a.open ? `<button class="btn sm" data-go="${a.go}">${a.fix}</button><button class="btn sm" data-act="dismiss" data-v="${a.id}">Dismiss</button>` : '<span class="pill ok">resolved</span>'}</div>`;
+  const row = (a) => `<div class="list-item" style="align-items:flex-start"><div class="tile t-${a.open ? 'liability' : 'other'}">${icon(a.icon)}</div><div class="grow"><span class="row-name">${a.title}</span><div class="row-more">${a.about} · opened ${a.since}${a.resolved ? ` · resolved ${a.resolved}` : ''}</div></div>${a.open ? `<button class="btn sm" data-go="${a.go}">${a.fix}</button>${a.act ? `<button class="btn sm" data-act="leaveout" data-v="${a.id}">${a.act}</button>` : ''}<button class="btn sm" data-act="dismiss" data-v="${a.id}">Dismiss</button>` : '<span class="pill ok">resolved</span>'}</div>`;
   return `<div class="card"><h3>Open</h3>${open.length ? open.map(row).join('') : empty('Nothing needs you')}</div>
   <div class="card mt"><h3>Resolved</h3>${done.length ? done.map(row).join('') : empty('None in the last 90 days')}</div>
   <p class="small dim">Emails: ${state.user === 'jane' ? 'each alert' : 'daily summary'} · change it in <a data-go="profile">Profile</a>.</p>`;
@@ -3129,6 +3142,7 @@ const GUIDES = {
     <h2 ${hid('Points for')}>Points for</h2><p><b>Buying the home</b>: the points show in Taxes in the year paid, as on Form 1098. <b>A refinance</b>: they are deducted over the loan, so Taxes shows each year’s share, spread evenly over its payments, and what’s left in the year it’s paid off.</p>
     <h2>Record a Payment</h2><p>A payment on the loan, split into principal, interest, escrow, PMI and fees by the schedule. Bank transactions that look like the payment are offered to link instead. When the From account already holds the payment, it is paired with it, not recorded again.</p>
     <h2>Looks like a Payment</h2><p>Bank transactions of the last 90 days within 2% of the payment that aren’t a transfer yet or filed under another category. <b>Link</b> makes one the transfer into this loan; <b>Pair</b> joins one to a payment already recorded here with <i>From account: None</i>, recording nothing new. A transaction a few days from a payment of another amount isn’t offered: it is most likely that payment.</p>
+    <h2>Left Out of Imports</h2><p>A payment or draw an import brought dated before the loan’s start date is left out, since a loan has none before it starts, and kept here with the file it came in. <b>Move the Start</b> opens the terms: once the start date is on or before the rows, <b>Add Them</b> adds them, each checked again against the start. <b>Leave Them Out</b> lets them go for good. Both need write on the loan; the alert for them ends once they are added or left out.</p>
     <h2 ${hid('Paid on')}>Paid on</h2><p>The day the servicer received it, on or after the day the loan started: an earlier one is refused. A payment dated ahead counts on its day.</p>
     <h2 ${hid('Amount')}>Amount</h2><p>What was paid, escrow included. Anything beyond the scheduled payment goes to principal as an overpayment.</p>
     <h2 ${hid('From account')}>From account</h2><p>The bank account it came from: its half of the transfer is recorded as well.</p>
@@ -3611,9 +3625,9 @@ const GUIDES = {
     <h2 id="h-cant-show">Can’t show yet</h2><p>This household’s copy is shown by their own MoolaKata release, run on this server. Until it can run, the window says why: an admin hasn’t allowed downloads for this link yet (Settings › Linked Servers), it is still downloading, or it was published more than 12 months ago. The copy keeps what it has, and once it can run it catches up.</p>
     <h2>Not arrived</h2><p>A receipt or document still on its way: asked for again at the next exchange, and opened once it has come.</p>`,
   alerts: `<h1>Alerts</h1><p>What needs you. Activity records what happened; an alert asks for something to be done.</p><div class="shot">screenshot · alerts</div>
-    <h2>Open</h2><p>One alert per cause, newest first. It resolves by itself when the cause clears, such as a sync succeeding again. An admin who owns what failed, such as their own Connection, sees it once, as its owner. <b>Dismiss</b> hides it for you only.</p>
+    <h2>Open</h2><p>One alert per cause, newest first. It resolves by itself when the cause clears, such as a sync succeeding again. An admin who owns what failed, such as their own Connection, sees it once, as its owner. <b>Dismiss</b> hides it for you only. A loan’s rows an import left out, dated before the loan starts, have <b>Move the Start</b>, which opens the loan’s terms, and <b>Leave Them Out</b>, which lets them go and ends the alert at once; once the start is on or before them, <b>Add Them</b> goes to the loan’s Overview.</p>
     <h2>Resolved</h2><p>Alerts whose cause cleared, kept 90 days.</p>
-    <h2>What raises one</h2><p>For admins: a sync source failing for more than 48 hours (set in Settings › Alerts), a failed backup, a linked server’s share waiting for its access key, the MoolaKata Connector locked or not heard from for 15 minutes, the yearly check of the recovery phrase, and the receipt reader running without its file sandbox on a host that doesn’t offer Landlock. For an account’s owner: their own sync failing, a statement overdue, a balance that has disagreed with the institution’s for a week (a loan’s with its servicer’s), and a holding still valued from an older statement while newer ones arrive. For everyone: an occasion coming up, an option about to expire, a pledge due.</p>
+    <h2>What raises one</h2><p>For admins: a sync source failing for more than 48 hours (set in Settings › Alerts), a failed backup, a linked server’s share waiting for its access key, the MoolaKata Connector locked or not heard from for 15 minutes, the yearly check of the recovery phrase, and the receipt reader running without its file sandbox on a host that doesn’t offer Landlock. For an account’s owner: their own sync failing, a statement overdue, a balance that has disagreed with the institution’s for a week (a loan’s with its servicer’s), and a holding still valued from an older statement while newer ones arrive, and a loan’s rows an import left out for being dated before the loan starts. For everyone: an occasion coming up, an option about to expire, a pledge due.</p>
     <h2>The badge</h2><p>Counts the open alerts you haven’t seen. New ones arrive without a reload.</p>
     <h2>Emails</h2><p>Each alert, a daily summary, or none: your choice in Profile. They never show amounts.</p>`,
   profile: `<h1>Profile</h1><p>Your name, email, password and two-step sign-in, and the facts the tax screens need. <b>Sign Out</b>, at the top right, ends your session in this browser.</p>
@@ -4096,6 +4110,8 @@ document.addEventListener('click', (e) => {
     case 'gogoal': state.tabs['acct-529'] = 'Goal'; go('account/529'); break;
     case 'showshared': state.showShared = !state.showShared; render(); break;
     case 'dismiss': state.dismissed.push(v + state.user); render(); toast('Dismissed for you'); break;
+    // Leave Them Out (S1.9.3): the rows an import kept go, and their alert ends.
+    case 'leaveout': state.dismissed.push('a15' + state.user); state.leftOutGone = true; render(); toast('Left out · the alert ends'); break;
     case 'mupload': simulateUpload(); break;
     case 'as': state.user = v; state.signedOut = false; if (!USERS[v].admin && ['users', 'settings'].includes(route().screen)) go('dashboard'); render(); toast(`Signed in as ${USERS[v].name}`); break;
     case 'range': state.range = v; render(); break;

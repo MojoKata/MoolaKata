@@ -287,6 +287,9 @@ Import = record(
     Column("added", Integer, nullable=False, server_default=text("0")),
     Column("matched", Integer, nullable=False, server_default=text("0")),
     Column("changed", Integer, nullable=False, server_default=text("0")),
+    # A loan's rows it left out, dated before the loan starts, each with why (S1.9.3): a JSON
+    # list, kept until they are added or left out for good.
+    Column("leftOut", Text, nullable=False, server_default=text("'[]'")),
     # kept: a statement kept without reading (S1.3.3.6), its period recorded, nothing added.
     _in("format", ("ofx", "csv", "statement", "kept"), "format"),
     Index("ix_Import_accountId", "accountId"),

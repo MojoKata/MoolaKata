@@ -380,6 +380,72 @@ export function LoanSummary({ a, reload }) {
           openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type It</${Action}></div>
     </div>
     ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
+    <${LeftOut} a=${a} again=${again} />
+  `;
+}
+
+/**
+ * The rows an import left out, dated before the loan starts (S1.9.3): kept until the start is
+ * moved on or before them and they are added, or left out for good. Seen by whoever reads the
+ * loan; its fixes need write on it.
+ * @param {{ a: any, again: () => void }} p
+ */
+function LeftOut({ a, again }) {
+  const res = useList(`/accounts/${a.id}/imports`, {}, ['import']);
+  const kept = (/** @type {any[]} */ (res.data) || []).filter((i) => i.leftOut.length);
+  const act = useSubmit(async (/** @type {any} */ i, /** @type {boolean} */ add) => {
+    const path = `/imports/${i.id}/left-out`;
+    if (add) {
+      const rows = i.leftOut.flatMap((/** @type {any} */ x, /** @type {number} */ n) =>
+        x.fits ? [n] : []
+      );
+      await api.post(path, { rows });
+      toast(`${rows.length === 1 ? '1 row' : rows.length + ' rows'} added`);
+    } else {
+      await api.del(path);
+      toast('Left out');
+    }
+    res.reload();
+    again();
+  });
+  if (!kept.length) return null;
+  const why = whyRead(a);
+  return html`
+    <div class="card"><h3>Left Out of Imports</h3>
+      ${kept.map((i) =>
+        html`<div class="small dim">${i.fileName} · imported ${date(i.createdAt.slice(0, 10))}</div>
+        ${
+          i.leftOut.map((/** @type {any} */ x) =>
+            html`<div class="list-item"><div class="grow">${x.payee || 'Row'}<div
+            class="small dim">${date(x.date)}${
+              x.fits ? ' · on or after the start now' : ''
+            }</div></div>
+            <${Amt} v=${x.amount} />${
+              x.fits
+                ? null
+                : html`<${StatePill} tone="warn" why=${x.reason}>before the start</${StatePill}>`
+            }</div>`
+          )
+        }
+        <div class="toolbar mt">${
+          why
+            ? html`<${Action} class="btn sm" why=${why}>Move the Start</${Action}>`
+            : html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Move the Start</a>`
+        }<${Action}
+            class="btn sm" why=${
+          why || (i.leftOut.some((/** @type {any} */ x) =>
+              x.fits
+            )
+            ? null
+            : 'Dated before the loan starts: move the start first')
+        } disabled=${act.busy}
+            onClick=${() =>
+          act.run(i, true).catch((e) => toast(e.message))}>Add Them</${Action}><${Action}
+            class="btn sm" why=${why} disabled=${act.busy}
+            onClick=${() =>
+          act.run(i, false).catch((e) => toast(e.message))}>Leave Them Out</${Action}></div>`
+      )}
+    </div>
   `;
 }
 

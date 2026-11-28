@@ -37,6 +37,14 @@ payment, recorded with *From account: None*, **Pair** makes the two one transfer
 nothing new; a transaction a few days from a payment of another amount isn't offered, as it is most
 likely that payment.
 
+## Left Out of Imports
+
+A payment or draw an import brought dated before the loan's start date is left out, since a loan
+has none before it starts, and kept here with the file it came in. **Move the Start** opens the
+terms: once the start date is on or before the rows, **Add Them** adds them, each checked again
+against the start. **Leave Them Out** lets them go for good. Both need write on the loan; the alert
+for them ends once they are added or left out.
+
 ## Documents {#documents}
 
 The loan's documents other than its statements: a closing disclosure, the note, a payoff letter.

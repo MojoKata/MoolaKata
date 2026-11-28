@@ -1893,6 +1893,34 @@ def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
     engine.dispose()
 
 
+def test_0077_gives_every_import_made_before_no_rows_left_out(tmp_path):
+    """S1.9.3: the imports made so far left no loan's rows out; the column is a list."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    imp, acct = ids.new_id("Imprt"), ids.new_id("Acct")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0076")
+        conn.commit()
+        q = conn.exec_driver_sql
+        uid = _jane_at(conn, made)
+        q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+          "VALUES (?, ?, 'Home', 'mortgage', ?, ?)", (acct, uid, made, made))  # fmt: skip
+        q('INSERT INTO "Import" (id, "accountId", "userId", format, "fileName", "fileHash", '
+          'added, "createdAt", "updatedAt") VALUES (?, ?, ?, \'ofx\', \'h.ofx\', \'h\', 3, ?, ?)',
+          (imp, acct, uid, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        got = conn.exec_driver_sql('SELECT added, "leftOut" FROM "Import"').all()
+        assert [tuple(r) for r in got] == [(3, "[]")]
+        assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

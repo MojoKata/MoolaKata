@@ -27,7 +27,8 @@
       the same amount within S1.7's days, the closest, and none when two are as close. Rows the owner deleted are
       matched too, and stay deleted: no file, nor the connector's overlapping downloads, brings
       one back. An id a file repeats is another row, kept beside the first and flagged with it
-      as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with
+      as a duplicate suspect (S1.11.5). A loan's payment or draw dated before the loan starts
+      is left out and kept on the import, as S1.9.3 says. An OFX file holds one account's statement: one with
       several is refused, asking for one account at a time. A broker's file's positions are a
       **holdings check** on the statement's day (its as-of, whatever day their prices are from),
       as a statement's are (S1.3.3.8.2): the lots change only through transactions. Every file's

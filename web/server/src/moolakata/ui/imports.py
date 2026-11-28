@@ -82,6 +82,17 @@ class JobOut(Model):
     error: dict | None
 
 
+class LeftOutRow(Model):
+    """A loan's row the import left out, dated before the loan starts (S1.9.3)."""
+
+    date: dt.date
+    kind: str
+    amount: Money
+    payee: str | None
+    reason: str  # why it was left out
+    fits: bool  # on or after the loan's start as it is now: it can be added
+
+
 class ImportRow(Model):
     id: str
     format: str
@@ -91,6 +102,8 @@ class ImportRow(Model):
     added: int
     matched: int
     changed: int
+    # Kept until they are added or left out for good, in the order the file has them.
+    leftOut: list[LeftOutRow]
     userName: str
     createdAt: dt.datetime
 
@@ -210,6 +223,7 @@ def _run(
                 "coveredFrom": applied.coveredFrom.isoformat() if applied.coveredFrom else None,
                 "coveredTo": applied.coveredTo.isoformat() if applied.coveredTo else None,
                 "warnings": applied.warnings,
+                "leftOut": applied.leftOut,
                 "accountId": account_id,
             },
         )
@@ -862,6 +876,7 @@ def save_brokerage(
             "coveredFrom": body.periodStart.isoformat(),
             "coveredTo": body.periodEnd.isoformat(),
             "warnings": applied.warnings,
+            "leftOut": applied.leftOut,
             "accountId": held.accountId,
             "receiptId": r.id,
             "snapshot": snapshot,
@@ -1049,6 +1064,7 @@ def save_statement(
             "coveredFrom": body.periodStart.isoformat(),
             "coveredTo": body.periodEnd.isoformat(),
             "warnings": applied.warnings,
+            "leftOut": applied.leftOut,
             "accountId": held.accountId,
             "receiptId": r.id,
         },
@@ -1081,7 +1097,14 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
             kept = _checked(d, _marked(d.rows, _present(s, account.id)))
             applied = _apply(s, c, held, account, held.parts[i], d, kept)
             accounts.append(account.id)
-            results.append({"part": i, "accountId": account.id, "added": applied.added})
+            results.append(
+                {
+                    "part": i,
+                    "accountId": account.id,
+                    "added": applied.added,
+                    "leftOut": applied.leftOut,
+                }
+            )
         r = None
         if saved:
             ends = [d.periodEnd for _, d in saved]
@@ -1332,18 +1355,88 @@ def list_imports(account_id: str, request: Request, c: Caller = Depends(caller))
             .where(Import.accountId == a.id, Import.deleted == false())
             .order_by(Import.createdAt.desc())
         ).all()
-        return [
-            ImportRow(
-                id=i.id,
-                format=i.format,
-                fileName=i.fileName,
-                coveredFrom=i.coveredFrom,
-                coveredTo=i.coveredTo,
-                added=i.added,
-                matched=i.matched,
-                changed=i.changed,
-                userName=names.get(i.userId, ""),
-                createdAt=i.createdAt,
+        start = repo.loan_start(s, a)
+        return [_import_row(i, names, start) for i in rows]
+
+
+def _import_row(i: Import, names: dict, start: dt.date | None) -> ImportRow:
+    return ImportRow(
+        id=i.id,
+        format=i.format,
+        fileName=i.fileName,
+        coveredFrom=i.coveredFrom,
+        coveredTo=i.coveredTo,
+        added=i.added,
+        matched=i.matched,
+        changed=i.changed,
+        leftOut=[
+            LeftOutRow(
+                date=x["date"],
+                kind=x["kind"],
+                amount=Decimal(x["amount"]),
+                payee=x["payee"],
+                reason=x["reason"],
+                fits=start is None or dt.date.fromisoformat(x["date"]) >= start,
             )
-            for i in rows
-        ]
+            for x in json.loads(i.leftOut)
+        ],
+        userName=names.get(i.userId, ""),
+        createdAt=i.createdAt,
+    )
+
+
+class LeftOutIn(Model):
+    # The places of the rows to add among those the import left out.
+    rows: list[int] = Field(max_length=1000)
+
+
+def _kept_import(s, c: Caller, import_id: str) -> tuple[Import, Account]:
+    """An import and its account, which the caller may change: the rows it left out are added
+    or let go by who may change the account (S1.9.3)."""
+    imp = s.get(Import, import_id)
+    if imp is None or imp.deleted:
+        raise Problem(404, "not-found", "Not found")
+    account, _ = access.account(s, c.id, imp.accountId, "write")
+    return imp, account
+
+
+def _row_of(s, imp: Import) -> ImportRow:
+    names = {u.id: u.displayName for u in s.scalars(select(User))}
+    return _import_row(imp, names, repo.loan_start(s, s.get(Account, imp.accountId)))
+
+
+@router.post("/imports/{import_id}/left-out", response_model=ImportRow)
+def add_left_out(import_id: str, body: LeftOutIn, request: Request, c: Caller = Depends(caller)):
+    """Rows a loan's import left out, added once the loan's start was moved on or before each
+    (S1.9.3); one still before it is refused at its place, in the transaction save's words.
+    With none left, its alert ends."""
+    from .. import alerts
+
+    if not body.rows:
+        raise refuse("rows", "rows-missing", "The rows to add.")
+    srv = server(request)
+    with srv.db.tx(user=c.id) as s:
+        imp, account = _kept_import(s, c, import_id)
+        repo.add_left_out(s, account, c.id, imp, body.rows)
+        s.refresh(imp)
+        if imp.leftOut == "[]":
+            alerts.resolve(s, f"left-out:{imp.id}", "the rows were added")
+        out = _row_of(s, imp)
+    srv.events.publish("import", {"accountId": account.id}, users=[c.id])
+    return out
+
+
+@router.delete("/imports/{import_id}/left-out", response_model=ImportRow)
+def leave_them_out(import_id: str, request: Request, c: Caller = Depends(caller)):
+    """Leave Them Out: the rows a loan's import kept are let go, never added, and its alert
+    ends (S1.9.3)."""
+    from .. import alerts
+
+    srv = server(request)
+    with srv.db.tx(user=c.id) as s:
+        imp, account = _kept_import(s, c, import_id)
+        imp.leftOut = "[]"
+        alerts.resolve(s, f"left-out:{imp.id}", "the rows were left out")
+        out = _row_of(s, imp)
+    srv.events.publish("import", {"accountId": account.id}, users=[c.id])
+    return out

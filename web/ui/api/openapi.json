@@ -1271,6 +1271,28 @@
             "title": "About",
             "type": "string"
           },
+          "act": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Act"
+          },
+          "actPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actpath"
+          },
           "fix": {
             "anyOf": [
               {
@@ -1353,6 +1375,8 @@
           "about",
           "link",
           "fix",
+          "act",
+          "actPath",
           "icon",
           "openedAt",
           "resolvedAt",
@@ -9944,6 +9968,13 @@
             "title": "Id",
             "type": "string"
           },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutRow"
+            },
+            "title": "Leftout",
+            "type": "array"
+          },
           "matched": {
             "title": "Matched",
             "type": "integer"
@@ -9962,6 +9993,7 @@
           "added",
           "matched",
           "changed",
+          "leftOut",
           "userName",
           "createdAt"
         ],
@@ -11799,6 +11831,76 @@
           "transfers"
         ],
         "title": "LeftOut",
+        "type": "object"
+      },
+      "LeftOutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "rows": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 1000,
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "LeftOutIn",
+        "type": "object"
+      },
+      "LeftOutRow": {
+        "additionalProperties": false,
+        "description": "A loan's row the import left out, dated before the loan starts (S1.9.3).",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "fits": {
+            "title": "Fits",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "amount",
+          "payee",
+          "reason",
+          "fits"
+        ],
+        "title": "LeftOutRow",
         "type": "object"
       },
       "LegIn": {
@@ -19949,6 +20051,8 @@
               "right-invalid",
               "root-invalid",
               "row-not-cash",
+              "row-unknown",
+              "rows-missing",
               "rule-sets-nothing",
               "same-person",
               "save-refused",
@@ -20497,6 +20601,8 @@
                   "right-invalid",
                   "root-invalid",
                   "row-not-cash",
+                  "row-unknown",
+                  "rows-missing",
                   "rule-sets-nothing",
                   "same-person",
                   "save-refused",
@@ -35010,6 +35116,92 @@
         "summary": "List Holidays",
         "tags": [
           "gifts"
+        ]
+      }
+    },
+    "/ui/api/imports/{import_id}/left-out": {
+      "delete": {
+        "description": "Leave Them Out: the rows a loan's import kept are let go, never added, and its alert\nends (S1.9.3).",
+        "operationId": "leave_them_out_ui_api_imports__import_id__left_out_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Leave Them Out",
+        "tags": [
+          "imports"
+        ]
+      },
+      "post": {
+        "description": "Rows a loan's import left out, added once the loan's start was moved on or before each\n(S1.9.3); one still before it is refused at its place, in the transaction save's words.\nWith none left, its alert ends.",
+        "operationId": "add_left_out_ui_api_imports__import_id__left_out_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeftOutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Add Left Out",
+        "tags": [
+          "imports"
         ]
       }
     },
