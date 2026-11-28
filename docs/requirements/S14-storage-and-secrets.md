@@ -124,7 +124,9 @@
        2. **Statements** have one period, in Settings › Storage (S16.17), empty (for ever)
           by default. A statement ends with its own period, so it expires that many years
           after its last day; one without a date ends with its account's last transaction
-          once the account is closed.
+          once the account is closed. A loan's other documents (a closing disclosure, S9.3)
+          are kept while the loan is open, and end when it is paid off (closed): they take
+          the statements' period from then.
        3. **A file** (a receipt or a statement) has a **Keep** toggle that keeps it for ever.
     2. **When a file expires**: at the latest end of the records it is attached to, plus the
        longest of their periods. It never expires when Keep is on, when any of those records

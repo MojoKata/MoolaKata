@@ -5231,6 +5231,7 @@
  * @property {(import('../kit/dec.js').Dec | null)} amount
  * @property {(string | null)} payee
  * @property {string} label
+ * @property {boolean} [statement]
  * @property {(Access | null)} [access]
  */
 

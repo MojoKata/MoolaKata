@@ -2,7 +2,7 @@
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { canAdd, Record, whyNotAdd } from '../app/draft.js';
+import { canAdd, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
@@ -20,6 +20,7 @@ import { toast } from '../kit/toast.js';
 import { CategoryField, useCategories } from './categories.js';
 import { dec, num } from '../kit/dec.js';
 import { Action, StatePill } from '../kit/state.js';
+import { ACCEPT, ReceiptDialog, ReceiptLinkRec, uploadAll } from './receipt.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -776,6 +777,105 @@ function Dated({ rec, name, label, what, add, none }) {
                 </div>
         `
       )}
+    </div>
+  `;
+}
+
+/**
+ * A loan's documents other than its statements (S9.3): a closing disclosure, a note. Each is a
+ * receipt kept on the loan's account, uploaded or attached from the inbox here, and detached
+ * again; kept until the loan is paid off, then the statements' period (S14.10.1.2).
+ * @param {{ a: any }} p
+ */
+export function LoanDocuments({ a }) {
+  const docs = useList(`/accounts/${a.id}/documents`, {}, ['receipt']);
+  const inbox = useList('/receipts', { show: 'inbox' }, ['receipt']);
+  const [busy, setBusy] = useState(false);
+  const why = whyRead(a);
+  const rows = /** @type {any[]} */ (docs.data) || [];
+  const free = /** @type {any[]} */ (inbox.data) || [];
+  /** Each receipt kept on the loan, saved at once. @param {string[]} ids */
+  const keep = async (ids) => {
+    await saveNow((draft) => {
+      for (const id of ids) {
+        draft.add(ReceiptLinkRec, { receiptId: id, kind: 'account', itemId: a.id });
+      }
+    });
+    docs.reload();
+    inbox.reload();
+  };
+  const failed = (/** @type {any} */ e) => toast(e.message);
+  const send = async (/** @type {FileList} */ files) => {
+    setBusy(true);
+    try {
+      const made = await uploadAll(files);
+      await keep(made.map((r) => r.id));
+      toast(made.length === 1 ? 'Document kept' : `${made.length} documents kept`);
+    } catch (e) {
+      failed(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const detach = async (/** @type {any} */ r) => {
+    const ln = r.links.find((/** @type {any} */ l) =>
+      l.kind === 'account' && l.itemId === a.id && !l.statement
+    );
+    if (!ln) return;
+    await saveNow((draft) => {
+      const x = draft.load(ReceiptLinkRec, {
+        id: ln.id,
+        version: ln.version,
+        receiptId: r.id,
+        kind: 'account',
+        itemId: a.id,
+      });
+      draft.remove(x);
+    }).then(() => {
+      toast('Document detached');
+      docs.reload();
+      inbox.reload();
+    }, failed);
+  };
+  return html`
+    <div class="card mt"><h3 data-help="documents">Documents</h3>
+      ${docs.error
+        ? html`<${Failed} error=${docs.error} retry=${docs.reload} />`
+        : !docs.data
+        ? html`<${Loading} lines=${2} />`
+        : rows.length
+        ? rows.map((r) =>
+          html`
+            <div class="list-item"><span class="grow"><button type="button" class="link-btn"
+              onClick=${() => openDialog(ReceiptDialog, { id: r.id }).then(docs.reload)}><${Icon}
+              name="clip" /> ${r.fileName}</button></span><${Action}
+              class="icon-btn" why=${why} aria-label=${'Detach ' + r.fileName}
+              onClick=${() => detach(r)}><${Icon} name="x" /></${Action}></div>
+          `
+        )
+        : html`<${Empty}>No documents yet</${Empty}>`}
+      <div class="toolbar mt">
+        ${why
+          ? html`<${Action} class="btn sm" why=${why}><${Icon} name="upload" /> Upload</${Action}>`
+          : html`
+            <label class="btn sm" for="f-loan-files"><${Icon} name="upload" /> ${busy
+              ? 'Uploading…'
+              : 'Upload'}</label><input
+              id="f-loan-files" class="sr-only" type="file" multiple
+              accept=${ACCEPT} data-help="documents" onChange=${(/** @type {any} */ e) => {
+                send(e.currentTarget.files);
+                e.currentTarget.value = '';
+              }} />
+          `}
+        <${Select} id="f-attach-document" aria-label="Attach from the inbox"
+          data-help="documents" disabled=${!!why || !free.length}
+          value="" options=${[
+            ['', free.length ? 'Attach from the inbox…' : 'The inbox is empty'],
+            ...free.map((r) => [r.id, r.fileName]),
+          ]} onChange=${(/** @type {string} */ v) => {
+            if (v) keep([v]).then(() => toast('Document kept'), failed);
+          }} />
+      </div>
     </div>
   `;
 }

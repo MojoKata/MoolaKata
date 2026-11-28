@@ -761,6 +761,37 @@ def test_a_split_names_each_parts_category_and_whole_refuses_a_blank(browser, ho
     page.close()
 
 
+def test_a_loans_documents_are_uploaded_attached_and_detached_on_its_overview(
+    browser, household, new_loan
+):
+    """S9.3: the loan's Overview keeps its documents other than its statements: one uploaded
+    there, one attached from the inbox, each detached again back to the inbox."""
+    h = household
+    a = fixed(new_loan, "Documents mortgage")
+    docs = lambda: [  # noqa: E731
+        x["fileName"] for x in h.c.get(f"/ui/api/accounts/{a['id']}/documents").json()["items"]
+    ]
+    pdf = {"mimeType": "application/pdf", "buffer": b"%PDF-1.4 a note"}
+    r = h.c.post("/ui/api/receipts", files={"file": ("note.pdf", b"%PDF-1.4 the note", "a/b")})
+    assert r.status_code == 201, r.text
+    card = '.card:has(> h3:text-is("Documents"))'
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", card)
+    wait(page, f'{card} :text("No documents yet")', problems)
+    page.set_input_files("#f-loan-files", files=[{"name": "closing.pdf", **pdf}])
+    wait(page, f'{card} button:has-text("closing.pdf")', problems)
+    assert docs() == ["closing.pdf"]
+    page.select_option("#f-attach-document", label="note.pdf")
+    wait(page, f'{card} button:has-text("note.pdf")', problems)
+    assert docs() == ["closing.pdf", "note.pdf"]
+    page.get_by_role("button", name="Detach closing.pdf").click()
+    wait(page, f'{card} button:has-text("closing.pdf")', problems, state="detached")
+    assert docs() == ["note.pdf"]
+    inbox = h.c.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
+    assert "closing.pdf" in {x["fileName"] for x in inbox}
+    assert problems == []
+    page.close()
+
+
 def test_resets_and_recasts_are_typed_in_the_terms(browser, household, new_loan):
     h = household
     a = fixed(new_loan, "Resets mortgage")

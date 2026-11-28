@@ -11,6 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
+from sqlalchemy import false, select
 
 from .. import access, activity, clock, exactjson, ids, parsing, receipts, settings, tags
 from ..access import Perms
@@ -47,6 +48,7 @@ class LinkOut(Model):
     amount: Money | None
     payee: str | None
     label: str  # how it is named in the receipt's dialog
+    statement: bool = False  # on an account: one of its statements, else another document
     # The link's own, from ReceiptLinkAccess: detaching it is deleting it. None for a link
     # not yet saved, or one named to a reader who doesn't read it.
     access: Access | None = None
@@ -161,8 +163,13 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
                         accountName=a.name,
                         date=None,
                         amount=None,
-                        payee="Statement",
-                        label=f"The statement of {a.name}",
+                        payee="Statement" if ln.statement else "Document",
+                        label=(
+                            f"The statement of {a.name}"
+                            if ln.statement
+                            else f"A document of {a.name}"
+                        ),
+                        statement=ln.statement,
                     )
                 )
             continue
@@ -618,6 +625,31 @@ def receipt_thumbnail(receipt_id: str, request: Request, c: Caller = Depends(cal
         media_type="image/webp",
         headers={"Cache-Control": "private, max-age=86400", "Content-Security-Policy": "sandbox"},
     )
+
+
+@router.get("/accounts/{account_id}/documents", response_model=list[ReceiptRow])
+def account_documents(account_id: str, request: Request, c: Caller = Depends(caller)):
+    """The documents kept on an account other than its statements (a loan's closing
+    disclosure, S9.3), oldest kept first: seen by those who see the account (R1.6)."""
+    with server(request).db.read(user=c.id) as s:
+        access.account(s, c.id, account_id)
+        found = s.scalars(
+            select(ReceiptLink)
+            .where(
+                ReceiptLink.kind == "account",
+                ReceiptLink.itemId == account_id,
+                ReceiptLink.statement == false(),
+                ReceiptLink.deleted == false(),
+            )
+            .order_by(ReceiptLink.createdAt, ReceiptLink.id)
+        )
+        out = []
+        for ln in found:
+            r = s.get(Receipt, ln.receiptId)
+            if r is None or r.deleted:
+                continue
+            out.append(row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id))
+        return out
 
 
 @router.get("/transactions/{transaction_id}/receipts", response_model=list[ReceiptRow])

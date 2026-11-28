@@ -1651,6 +1651,40 @@ def test_0075_names_each_loans_parts_in_the_shipped_categories_they_counted_in(t
     engine.dispose()
 
 
+def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
+    """S9.3, S14.10.1.2: the links made so far on an account are statements, which an import or
+    the connector made; a link to anything else is none, and can't be marked one."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    rid, acct, txn = ids.new_id("Rcpt"), ids.new_id("Acct"), ids.new_id("Txn")
+    links = {"account": ids.new_id("RcLnk"), "transaction": ids.new_id("RcLnk")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0075")
+        conn.commit()
+        q = conn.exec_driver_sql
+        uid = _jane_at(conn, made)
+        q('INSERT INTO "Receipt" (id, "ownerId", "fileName", "mediaType", size, sha256, '
+          '"fileId", "createdAt", "updatedAt") VALUES (?, ?, \'r.pdf\', '
+          "'application/pdf', 3, 'h', 'f', ?, ?)", (rid, uid, made, made))  # fmt: skip
+        for kind, lid in links.items():
+            q('INSERT INTO "ReceiptLink" (id, "receiptId", kind, "itemId", "createdAt", '
+              '"updatedAt") VALUES (?, ?, ?, ?, ?, ?)',
+              (lid, rid, kind, acct if kind == "account" else txn, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = dict(q('SELECT kind, statement FROM "ReceiptLink"').all())
+        assert got == {"account": 1, "transaction": 0}
+        with pytest.raises(Exception, match="CHECK"):
+            q('UPDATE "ReceiptLink" SET statement = 1 WHERE id = ?', (links["transaction"],))
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

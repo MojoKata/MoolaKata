@@ -444,6 +444,7 @@ def attach_account(s: Session, user_id: str, r: Receipt, account_id: str) -> Non
                 itemId=account_id,
                 createdAt=clock.now(),
                 linkedById=user_id,
+                statement=True,
             )
         )
         s.flush()

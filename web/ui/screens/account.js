@@ -6,6 +6,7 @@ import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
 import {
   AnchorRec,
+  LoanDocuments,
   LoanRec,
   LoanSummary,
   newTerms,
@@ -147,6 +148,7 @@ function Overview({ a, reload }) {
         ? html`
           <div>
             <${LoanSummary} a=${a} reload=${reload} />
+            <${LoanDocuments} a=${a} />
           </div>
         `
         : BY_TYPE[a.type]?.physical

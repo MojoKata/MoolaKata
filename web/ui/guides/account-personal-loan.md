@@ -32,6 +32,14 @@ payment, recorded with *From account: None*, **Pair** makes the two one transfer
 nothing new; a transaction a few days from a payment of another amount isn't offered, as it is most
 likely that payment.
 
+## Documents {#documents}
+
+The loan's documents other than its statements: a closing disclosure, the note, a payoff letter.
+**Upload** keeps new files with the loan, and **Attach from the inbox** keeps a receipt already
+uploaded; × detaches one, back to the inbox. Each is kept while the loan is open, and from the day
+it is paid off (closed) for as long as statements are kept (Settings › Storage). Statements come by
+an import or the connector, and are listed with the account's receipts.
+
 @@ settings
 
 ## Loan Terms

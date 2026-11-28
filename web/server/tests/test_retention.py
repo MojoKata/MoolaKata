@@ -328,6 +328,39 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     )
 
 
+def test_a_loans_document_is_kept_until_it_is_paid_off_then_the_statements_period(
+    server, frozen, admin_client
+):
+    """S14.10.1.2, S9.3: a loan's closing disclosure is kept while the loan is open, whatever
+    its own date, and from the day it is paid off (closed) for the statements' period; a
+    statement beside it still ends with its own date."""
+    from moolakata import receipts
+    from moolakata.store.entities.accounts import Account
+
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Mortgage", type="mortgage")
+    doc = upload(c, png((70, 71, 72))).json()["id"]
+    statement = upload(c, png((73, 74, 75))).json()["id"]
+    assert make(c, "RcLnk", receiptId=doc, kind="account", itemId=loan["id"]).status_code == 200
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, doc).date = dt.date(2020, 5, 1)
+        r = s.get(Receipt, statement)
+        r.date = dt.date(2027, 9, 30)
+        receipts.attach_account(s, jane.id, r, loan["id"])
+    assert save_settings(admin_client, {"keepStatementsYears": 5}).status_code == 200
+    assert kept(c, doc) == ("open", "Kept while the account is open")
+    assert kept(c, statement) == ("expired", "Expired Sep 2032, prunable")
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, loan["id"]).closedOn = dt.date(2031, 6, 30)
+    d = c.get(f"/ui/api/receipts/{doc}").json()
+    assert (d["keptState"], d["kept"], d["keptWhy"]) == (
+        "until",
+        "Kept until Jun 2036",
+        "Statements keeps statements 5 years",
+    )
+
+
 @pytest.mark.parametrize("other_deleted", [True, False])
 def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen, other_deleted):
     # S14.10.5: a file is removed once no live receipt needs it; a deleted one doesn't count.

@@ -30737,6 +30737,11 @@
             ],
             "title": "Payee"
           },
+          "statement": {
+            "default": false,
+            "title": "Statement",
+            "type": "boolean"
+          },
           "transactionId": {
             "anyOf": [
               {
@@ -31393,6 +31398,68 @@
         "summary": "List Contributions",
         "tags": [
           "education"
+        ]
+      }
+    },
+    "/ui/api/accounts/{account_id}/documents": {
+      "get": {
+        "description": "The documents kept on an account other than its statements (a loan's closing\ndisclosure, S9.3), oldest kept first: seen by those who see the account (R1.6).",
+        "operationId": "account_documents_ui_api_accounts__account_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReceiptRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Account Documents",
+        "tags": [
+          "receipts"
         ]
       }
     },

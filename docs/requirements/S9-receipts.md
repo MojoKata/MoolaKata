@@ -16,8 +16,9 @@
    associated data (S11.9.6.2, S11.9.6.3); a re-encryption (S15.7.2) writes each one again under the new key.
 3. **Links**: a receipt can be attached to any number of transactions, tax items (a donation,
    a medical expense) or tax documents (a 1099), physical-asset items (a purchase receipt,
-   an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
-   529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
+   an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement:
+   a loan's statements come by an import or the connector, its other documents are uploaded or
+   attached, and detached, on the **Documents** card of its Overview), 529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
    one suggests matching transactions by amount and date. A receipt kept with anything is out
    of the inbox, and its dialog names each thing it is kept with that its reader can see,
    and counts the rest, never naming them (*Also kept with 2 things not shared with you*);
