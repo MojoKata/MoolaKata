@@ -368,19 +368,15 @@ def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
         # Whole names its category: a blank is refused at the save (R3.11).
         out[row.budgetCategoryId] += t.amount
         return
-    p = seen["payments"].get(o.id)
-    if p is None:
-        return
+    # Every payment of the loan's is in its history, its parts adding up to it: a payment past
+    # the balance puts the excess in its fees (S1.9.3).
+    p = seen["payments"][o.id]
     for part, named in LOAN_PARTS.items():
         amount = getattr(p, part)
         # A loan with no terms yet names none: its parts count in the shipped ones.
         cat = getattr(row, named) if row is not None else tr.key(loans.BUDGET_PARTS[named])
         if amount and cat:
             out[cat] -= amount
-    # What the schedule didn't place (a payment larger than the loan's balance) counts whole.
-    rest = -t.amount - sum((getattr(p, part) for part in LOAN_PARTS), ZERO)
-    if rest and tr.key("loans"):
-        out[tr.key("loans")] -= rest
 
 
 def uncategorised(
