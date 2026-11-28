@@ -110,13 +110,14 @@ export function ReceiptCard({ r, onOpen }) {
 function KeepRow({ r, rec }) {
   const on = !!rec.get('keep');
   const tip = on ? 'Kept for ever' : r.keptWhy;
+  const warn = !on && r.keptWarn
+    ? html`<${StatePill} tone="warn" why=${tip}>${r.keptWarn}</${StatePill}>`
+    : null;
   return html`
     <div class="list-item"><span class="grow"><span tabindex="0" data-tip=${tip}
-      aria-description=${tip}>Keep</span>${!on && r.keptWarn
-        ? html`
-          <${StatePill} tone="warn" why=${tip}>${r.keptWarn}</${StatePill}>
-        `
-        : null}</span><${Switch} on=${on} label="Keep" why=${whyRead(r)}
+      aria-description=${tip}>Keep</span> ${warn}</span><${Switch} on=${on} label="Keep" why=${whyRead(
+        r,
+      )}
       onChange=${(/** @type {boolean} */ v) => rec.set('keep', v)} /></div>
   `;
 }
