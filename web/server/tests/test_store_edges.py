@@ -672,6 +672,31 @@ def test_a_select_inside_another_reads_what_the_user_may_see(db):
         assert s.scalar(select(func.count()).select_from(both)) == 2
 
 
+def test_a_pages_total_counts_only_what_the_reader_may_see(server):
+    """R1.6, S13.8.5: a list's total is counted over its query as a subquery, so it counts
+    only rows the reader sees, even for a query that filters nothing itself; the paged lists
+    (transactions, Activity) never count another's rows."""
+    from conftest import make_user, sign_in
+    from sqlalchemy import select
+    from test_accounts import add, new_account
+
+    from moolakata.store.entities.accounts import Account
+    from moolakata.ui.conventions import Paging
+
+    jane_id, _ = (make_user(server, n).id for n in ("jane", "bart"))
+    jane, bart = sign_in(server, "jane"), sign_in(server, "bart")
+    add(jane, new_account(jane)["id"], "-1.00")
+    theirs = new_account(bart)["id"]
+    for _ in range(3):
+        add(bart, theirs, "-2.00")
+    with server.db.read(user=jane_id) as s:
+        rows, total = Paging(offset=0, limit=50).query(s, select(Account))
+        assert (len(rows), total) == (1, 1)
+    for path in ("/ui/api/transactions", "/ui/api/activity"):
+        page = jane.get(path).json()
+        assert page["total"] == len(page["items"]), path
+
+
 def test_a_statement_read_as_the_server_in_a_users_session_selects_columns_only(db):
     """schema.md §7.6: what it reads is never a record that would join the user's session."""
     from sqlalchemy import select
