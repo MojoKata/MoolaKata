@@ -418,6 +418,22 @@ function LineState({ r, set, fresh }) {
 }
 
 /**
+ * A loan's line dated before the loan starts (S1.9.3), while it would be imported: saving
+ * leaves it out and keeps it with the import, which its tooltip says.
+ * @param {any} review @param {any} r
+ */
+function beforeLoan(review, r) {
+  if (!review.loanStart || !r.include || r.present || r.date >= review.loanStart) return null;
+  const why = `The loan starts ${
+    date(review.loanStart)
+  }: this line is left out and kept with the import until the start is moved or it is left out.`;
+  return html`
+    <div class="small">
+      <${StatePill} tone="warn" why=${why}>Before the loan starts</${StatePill}></div>
+  `;
+}
+
+/**
  * "Ignore future lines starting with:", beneath the row it asks about.
  * @param {{ r: any, set: (v: any) => void, cols: number }} p
  */
@@ -587,7 +603,7 @@ function StatementReview({ review, setReview, close, done, part = null }) {
               <td><input type="checkbox" checked=${r.include} disabled=${r.present}
                 aria-label=${'Import ' + r.description} data-help="include" onChange=${() =>
                   change(i, { include: !r.include, asking: null })} /></td>
-              <td class="dim">${date(r.date)}</td>
+              <td class="dim">${date(r.date)}${beforeLoan(review, r)}</td>
               <td><input class="in" value=${r
                 .description} aria-label="Description" data-help="description"
                           onInput=${(/** @type {any} */ e) =>

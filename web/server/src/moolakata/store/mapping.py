@@ -147,6 +147,7 @@ def map_all() -> None:
     # bitcoin sync (S1.6.2) and the hourly option expiry (S3.6) too, and transfer matches by
     # the sync's proposals.
     _counted(acc.Import, accounts.Import)
+    _counted(acc.ImportLeftOut, accounts.ImportLeftOut)
     _counted(acc.Transaction, accounts.Transaction)
     _counted(acc.Anchor, accounts.Anchor)
     _counted(acc.HoldingCheck, accounts.HoldingCheck)

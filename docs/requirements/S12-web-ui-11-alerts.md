@@ -35,8 +35,8 @@
           next statement isn't overdue, and a loan's rows an import left out for being dated
           before the loan starts (S1.9.3): *Mortgage: 2 rows of the Nov 3 import left out, dated
           before the loan starts (Mar 1, 2020)*, with **Move the Start** and **Leave Them Out**,
-          until they are added or left out; once the start is on or before them, *… left out,
-          on or after the loan's start now*, with **Add Them** on the loan's Overview;
+          until they are added or left out; once the start is on or before them, *Mortgage: 2
+          rows of the Nov 3 import can be added now*, with **Add Them** on the loan's Overview;
        3. **for each user**: a request to share a private person they created, which goes to
           its creator and to the admins (S10.10.3), an occasion entering its lead time
           (S7.7.3), an option expiring within a week, a pledge due (S7.9), an active projection

@@ -287,13 +287,27 @@ Import = record(
     Column("added", Integer, nullable=False, server_default=text("0")),
     Column("matched", Integer, nullable=False, server_default=text("0")),
     Column("changed", Integer, nullable=False, server_default=text("0")),
-    # A loan's rows it left out, dated before the loan starts, each with why (S1.9.3): a JSON
-    # list, kept until they are added or left out for good.
-    Column("leftOut", Text, nullable=False, server_default=text("'[]'")),
     # kept: a statement kept without reading (S1.3.3.6), its period recorded, nothing added.
     _in("format", ("ofx", "csv", "statement", "kept"), "format"),
     Index("ix_Import_accountId", "accountId"),
     seen=Seen.child("accountId"),
+)
+
+# A loan's row an import left out, dated before the loan starts (S1.9.3), with why: kept until
+# it is added, once the start is on or before it, or left out for good (deleted).
+ImportLeftOut = record(
+    "ImportLeftOut",
+    "ImpLO",
+    Column("importId", Text, ForeignKey("Import.id", ondelete="CASCADE"), nullable=False),
+    Column("date", Day, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("amount", Cents, nullable=False),
+    Column("payee", Text),
+    Column("memo", Text),
+    Column("fitId", Text),
+    Column("reason", Text, nullable=False),
+    Index("ix_ImportLeftOut_importId", "importId"),
+    seen=Seen.child("importId"),
 )
 
 # A corporate action on a holding (S2.4): a split, a symbol change, a spin-off or a merger, as

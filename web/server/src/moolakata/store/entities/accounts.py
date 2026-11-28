@@ -95,7 +95,21 @@ class Import(Record):
     added: int = 0
     matched: int = 0
     changed: int = 0
-    leftOut: str = "[]"
+
+
+@dataclass(kw_only=True, eq=False)
+class ImportLeftOut(Record):
+    """A loan's row an import left out, dated before the loan starts (S1.9.3)."""
+
+    id: str
+    importId: str
+    date: dt.date
+    kind: str
+    amount: Decimal
+    reason: str
+    payee: str | None = None
+    memo: str | None = None
+    fitId: str | None = None
 
 
 @dataclass(kw_only=True, eq=False)

@@ -594,7 +594,7 @@ def test_a_posted_loan_file_leaves_out_and_keeps_rows_before_the_loan_starts(ser
     before the loan starts is left out, kept on the import with why, and alerted to its owner."""
     from test_loans_routes import loan_ofx
 
-    from moolakata.store.entities.accounts import Loan
+    from moolakata.store.entities.accounts import ImportLeftOut, Loan
 
     jane = make_user(server, "jane").id
     cid = connection(server, jane)
@@ -611,9 +611,9 @@ def test_a_posted_loan_file_leaves_out_and_keeps_rows_before_the_loan_starts(ser
     assert r.json()["imported"] == {"added": 1, "matched": 0, "changed": 0}
     with server.db.read(unscoped="test") as s:
         imp = s.query(Import).filter_by(accountId=aid).one()
-        [kept] = json.loads(imp.leftOut)
-    assert (kept["date"], kept["amount"]) == ("2025-12-15", "500.00")
-    assert kept["reason"] == "A loan's payment can't be dated before it starts (Jan 1, 2026)."
+        [kept] = s.query(ImportLeftOut).filter_by(importId=imp.id).all()
+    assert (kept.date, kept.amount, kept.payee) == (dt.date(2025, 12, 15), 500, "SERVICER")
+    assert kept.reason == "A loan's payment can't be dated before it starts (Jan 1, 2026)."
     alerts.evaluate(server)
     c = sign_in(server, "jane")
     got = [a for a in c.get("/ui/api/alerts").json()["open"] if a["kind"] == "import-left-out"]

@@ -7,7 +7,7 @@ from decimal import Decimal as D
 
 import pytest
 from conftest import make_user, sign_in
-from edits import change, loan_payment, make, saved, share, terms
+from edits import change, loan_payment, make, remove, saved, share, terms
 from sqlalchemy import select
 from test_accounts import add, logged, new_account
 
@@ -1299,11 +1299,24 @@ def loan_ofx(*rows: tuple[str, str, str]) -> bytes:
 BEFORE = (("20251215", "500.00", "p1"), ("20251220", "-25.00", "d1"))
 
 
+def _kept(c, import_id: str) -> list[dict]:
+    r = c.get(f"/ui/api/imports/{import_id}/left-out")
+    assert r.status_code == 200, r.text
+    return r.json()["items"]
+
+
+def _leave_out(c, rows: list[dict]):
+    """Leave Them Out as the screen does it: the rows deleted in one save."""
+    ops = [{"op": "delete", "entity": "ImpLO", "id": x["id"], "version": x["version"]}
+           for x in rows]  # fmt: skip
+    return c.post("/ui/api/save", json={"ops": ops})
+
+
 def test_a_loan_import_leaves_out_and_keeps_rows_dated_before_the_start(server, frozen):
     """S1.9.3: an import's payment or draw dated before the loan starts is left out, as the
-    transaction save refuses it, and kept on the import with why; its result and the account's
-    imports name them; the same file again keeps them once; a row on the start day and one of
-    nothing before it are added."""
+    transaction save refuses it, and kept as records of its own with why; its result names them,
+    the account's imports count them, and its own route lists them; the same file again keeps
+    them once; a row on the start day and one of nothing before it are added."""
     from test_accounts import upload
 
     c, _, loan = _mortgage_and_checking(server)
@@ -1318,10 +1331,14 @@ def test_a_loan_import_leaves_out_and_keeps_rows_dated_before_the_start(server, 
     got = c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"]
     assert sorted(x["date"] for x in got) == ["2025-12-01", "2026-01-01"]
     [row] = c.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
-    assert [(x["date"], x["payee"], x["fits"]) for x in row["leftOut"]] == [
-        ("2025-12-15", "SERVICER", False),
-        ("2025-12-20", "SERVICER", False),
+    assert row["leftOut"] == 2
+    kept = _kept(c, row["id"])
+    assert [(x["date"], x["payee"], x["fits"], x["importId"]) for x in kept] == [
+        ("2025-12-15", "SERVICER", False, row["id"]),
+        ("2025-12-20", "SERVICER", False, row["id"]),
     ]
+    assert [x["id"] for x in kept] == [x["id"] for x in done["leftOut"]]
+    assert kept[0]["access"]["writable"] and kept[0]["access"]["deletable"]
     again = upload(c, loan["id"], "home.ofx", data)["result"]
     assert (again["added"], again["matched"], again["leftOut"]) == (0, 4, []), "kept once"
 
@@ -1337,8 +1354,9 @@ def _left_out_alert(server, c) -> dict | None:
 def test_rows_left_out_alert_the_owner_until_the_start_moves_and_they_are_added(server, frozen):
     """S1.9.3, S12.11: the owner is alerted to rows left out, with Move the Start (the terms)
     and Leave Them Out; adding one still before the start is refused at its row in the save's
-    words; once the start is moved on or before them they are added, checked again, and the
-    alert ends. A read share sees them and can't add them."""
+    words; once the start is moved on or before them the alert says they can be added, and Add
+    Them adds them, checked again, and ends it. A read share sees them and can't add or delete
+    them; a kept row is never made or changed by a save."""
     from test_accounts import upload
 
     c, _, loan = _mortgage_and_checking(server)
@@ -1351,40 +1369,47 @@ def test_rows_left_out_alert_the_owner_until_the_start_moves_and_they_are_added(
     )
     assert (a["link"], a["fix"]) == (f"/ui/accounts/{loan['id']}/settings", "Move the Start")
     assert (a["act"], a["actPath"]) == ("Leave Them Out", f"/imports/{imp}/left-out")
+    payment, draw = _kept(c, imp)
     path = f"/ui/api/imports/{imp}/left-out"
-    r = c.post(path, json={"rows": [0]})
+    r = c.post(path, json={"rows": [payment["id"]]})
     words = "A loan's payment can't be dated before it starts (Jan 1, 2026)."
     assert _refused_at(r) == (422, [("rows.0", "date-before-loan", words)])
+    twice = [draw["id"], draw["id"]]
     for body, field, code in (({"rows": []}, "rows", "rows-missing"),
-                              ({"rows": [2]}, "rows.0", "row-unknown"),
-                              ({"rows": [0, 0]}, "rows.1", "row-unknown")):  # fmt: skip
+                              ({"rows": ["ImpLO_x"]}, "rows.0", "row-unknown"),
+                              ({"rows": twice}, "rows.1", "row-unknown")):  # fmt: skip
         assert _refused_at(c.post(path, json=body))[1][0][:2] == (field, code)
+    # Made or changed by a save, a kept row is refused.
+    r = make(c, "ImpLO", importId=imp, date="2025-12-01", kind="deposit", amount="1.00",
+             reason="typed")  # fmt: skip
+    assert r.json()["errors"][0]["code"] == "left-out-kept"
+    r = change(c, "ImpLO", payment, reason="changed")
+    assert r.json()["errors"][0]["code"] == "left-out-unchanged"
     # A read share sees the rows kept, and neither adds nor lets them go.
     make_user(server, "john")
     john = sign_in(server, "john")
     ids_ = {u["displayName"]: u["id"] for u in c.get(
         f"/ui/api/shares/account/{loan['id']}").json()["users"]}  # fmt: skip
     assert share(c, "account", loan["id"], users={ids_["John"]: "read"}).status_code == 200
-    [row] = john.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
-    assert len(row["leftOut"]) == 2
-    assert john.post(path, json={"rows": [1]}).status_code == 403
-    assert john.delete(path).status_code == 403
+    seen = _kept(john, imp)
+    assert len(seen) == 2 and not seen[0]["access"]["writable"]
+    assert john.post(path, json={"rows": [draw["id"]]}).status_code == 403
+    assert _leave_out(john, seen).status_code == 403
     # The start moved before the draw only: the payment still waits.
     saved(terms(c, loan["id"], startDate="2025-12-16"))
-    [row] = c.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
-    assert [x["fits"] for x in row["leftOut"]] == [False, True]
-    r = c.post(path, json={"rows": [1, 0]})
+    assert [x["fits"] for x in _kept(c, imp)] == [False, True]
+    r = c.post(path, json={"rows": [draw["id"], payment["id"]]})
     words = "A loan's payment can't be dated before it starts (Dec 16, 2025)."
     assert _refused_at(r) == (422, [("rows.1", "date-before-loan", words)])
-    row = c.post(path, json={"rows": [1]}).json()
-    assert [x["date"] for x in row["leftOut"]] == ["2025-12-15"] and row["added"] == 1
+    left = c.post(path, json={"rows": [draw["id"]]}).json()
+    assert [x["id"] for x in left] == [payment["id"]]
+    [row] = c.get(f"/ui/api/accounts/{loan['id']}/imports").json()["items"]
+    assert (row["added"], row["leftOut"]) == (1, 1)
     saved(terms(c, loan["id"], startDate="2025-12-01"))
     a = _left_out_alert(server, c)
-    assert (
-        a["title"] == "Home: 1 row of the Oct 13 import left out, on or after the loan's start now"
-    )
+    assert a["title"] == "Home: 1 row of the Oct 13 import can be added now"
     assert (a["link"], a["fix"]) == (f"/ui/accounts/{loan['id']}", "Add Them")
-    assert c.post(path, json={"rows": [0]}).json()["leftOut"] == []
+    assert c.post(path, json={"rows": [payment["id"]]}).json() == []
     got = c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"]
     assert sorted(x["date"] for x in got) == ["2025-12-15", "2025-12-20"]
     assert _left_out_alert(server, c) is None
@@ -1393,16 +1418,27 @@ def test_rows_left_out_alert_the_owner_until_the_start_moves_and_they_are_added(
 
 
 def test_leave_them_out_lets_the_rows_go_and_ends_the_alert(server, frozen):
-    """S1.9.3: Leave Them Out drops the rows kept, never added, and the alert ends at once."""
+    """S1.9.3: Leave Them Out deletes the rows kept, never added, one by one or all in one
+    save, and the alert ends at once, also when a write sharer, who can't see the owner's
+    alert, leaves them out."""
     from test_accounts import upload
 
     c, _, loan = _mortgage_and_checking(server)
     imp = upload(c, loan["id"], "home.ofx", loan_ofx(*BEFORE))["result"]["importId"]
-    a = _left_out_alert(server, c)
-    r = c.delete("/ui/api" + a["actPath"])
-    assert r.status_code == 200 and r.json()["leftOut"] == []
+    assert _left_out_alert(server, c) is not None
+    payment, draw = _kept(c, imp)
+    assert remove(c, "ImpLO", payment).status_code == 200
+    assert [x["id"] for x in _kept(c, imp)] == [draw["id"]]
+    assert c.get("/ui/api/alerts").json()["resolved"] == [], "one row is still kept"
+    make_user(server, "john")
+    john = sign_in(server, "john")
+    ids_ = {u["displayName"]: u["id"] for u in c.get(
+        f"/ui/api/shares/account/{loan['id']}").json()["users"]}  # fmt: skip
+    assert share(c, "account", loan["id"], users={ids_["John"]: "write"}).status_code == 200
+    assert _leave_out(john, _kept(john, imp)).status_code == 200
+    assert _kept(c, imp) == []
     resolved = c.get("/ui/api/alerts").json()["resolved"]
     assert [x["resolution"] for x in resolved] == ["the rows were left out"]
     assert _left_out_alert(server, c) is None
     assert c.get(f"/ui/api/transactions?account={loan['id']}").json()["items"] == []
-    assert c.delete(f"/ui/api/imports/{imp}x/left-out").status_code == 404
+    assert c.get(f"/ui/api/imports/{imp}x/left-out").status_code == 404

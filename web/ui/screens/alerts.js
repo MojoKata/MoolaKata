@@ -11,6 +11,7 @@ import { useGuide } from '../components/help.js';
 import { Empty, Failed, Loading } from '../kit/bits.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
+import { leaveOut } from '../components/loan.js';
 
 const EMAILS = /** @type {Record<string, string>} */ ({
   each: 'each alert',
@@ -36,8 +37,10 @@ export default function Alerts() {
       res.reload();
     }, (e) => toast(e.message));
   // A fix made from the alert itself, beside its link (Leave Them Out, S1.9.3).
+  // A fix made from the alert itself: the records its path lists, deleted in one save (Leave
+  // Them Out, S1.9.3).
   const act = (/** @type {any} */ a) =>
-    api.del(a.actPath).then(() => {
+    leaveOut(a.actPath).then(() => {
       toast('Done');
       res.reload();
     }, (e) => toast(e.message));

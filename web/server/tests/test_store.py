@@ -1893,8 +1893,9 @@ def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
     engine.dispose()
 
 
-def test_0077_gives_every_import_made_before_no_rows_left_out(tmp_path):
-    """S1.9.3: the imports made so far left no loan's rows out; the column is a list."""
+def test_0077_keeps_a_loans_rows_an_import_left_out_beside_the_imports_made_before(tmp_path):
+    """S1.9.3: the imports made so far are as they were, keeping no rows left out; a row kept is
+    its import's, and goes with it."""
     from alembic import command
 
     engine = make_engine(tmp_path / "old.db", None)
@@ -1915,9 +1916,16 @@ def test_0077_gives_every_import_made_before_no_rows_left_out(tmp_path):
     assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
 
     with engine.connect() as conn:
-        got = conn.exec_driver_sql('SELECT added, "leftOut" FROM "Import"').all()
-        assert [tuple(r) for r in got] == [(3, "[]")]
-        assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+        q = conn.exec_driver_sql
+        assert [tuple(r) for r in q('SELECT id, added FROM "Import"').all()] == [(imp, 3)]
+        assert q('SELECT count(*) FROM "ImportLeftOut"').scalar_one() == 0
+        q('INSERT INTO "ImportLeftOut" (id, "importId", date, kind, amount, reason, "createdAt", '
+          '"updatedAt") VALUES (?, ?, \'2025-12-15\', \'deposit\', 50000, \'before\', ?, ?)',
+          (ids.new_id("ImpLO"), imp, made, made))  # fmt: skip
+        q("PRAGMA foreign_keys = ON")
+        q('DELETE FROM "Import"')
+        assert q('SELECT count(*) FROM "ImportLeftOut"').scalar_one() == 0, "with its import"
+        assert q("PRAGMA foreign_key_check").fetchall() == []
     engine.dispose()
 
 

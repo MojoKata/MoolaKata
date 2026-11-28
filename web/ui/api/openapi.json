@@ -9969,11 +9969,8 @@
             "type": "string"
           },
           "leftOut": {
-            "items": {
-              "$ref": "#/components/schemas/LeftOutRow"
-            },
             "title": "Leftout",
-            "type": "array"
+            "type": "integer"
           },
           "matched": {
             "title": "Matched",
@@ -11838,7 +11835,7 @@
         "properties": {
           "rows": {
             "items": {
-              "type": "integer"
+              "type": "string"
             },
             "maxItems": 1000,
             "title": "Rows",
@@ -11851,10 +11848,71 @@
         "title": "LeftOutIn",
         "type": "object"
       },
+      "LeftOutRecord": {
+        "additionalProperties": false,
+        "description": "A loan's row an import left out, dated before the loan starts (S1.9.3), as a draft takes\nit away (Leave Them Out): kept by its import, never made or changed here.",
+        "properties": {
+          "amount": {
+            "examples": [
+              1234.5
+            ],
+            "format": "money",
+            "title": "Amount",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "importId": {
+            "pattern": "^Imprt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Importid",
+            "type": "string",
+            "x-prefix": "Imprt"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Payee"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "importId",
+          "date",
+          "kind",
+          "amount",
+          "reason"
+        ],
+        "title": "LeftOutRecord",
+        "type": "object",
+        "x-creates": {
+          "needs": "writable",
+          "via": "importId"
+        },
+        "x-entity": "ImpLO"
+      },
       "LeftOutRow": {
         "additionalProperties": false,
-        "description": "A loan's row the import left out, dated before the loan starts (S1.9.3).",
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
           "amount": {
             "examples": [
               1234.5
@@ -11871,6 +11929,16 @@
           "fits": {
             "title": "Fits",
             "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "importId": {
+            "pattern": "^Imprt_[0-7][0123456789abcdefghjkmnpqrstvwxyz]{25}$",
+            "title": "Importid",
+            "type": "string",
+            "x-prefix": "Imprt"
           },
           "kind": {
             "title": "Kind",
@@ -11890,15 +11958,22 @@
           "reason": {
             "title": "Reason",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
+          "importId",
           "date",
           "kind",
           "amount",
-          "payee",
           "reason",
-          "fits"
+          "id",
+          "version",
+          "fits",
+          "access"
         ],
         "title": "LeftOutRow",
         "type": "object"
@@ -16649,6 +16724,37 @@
         "title": "Page[InstrumentOut]",
         "type": "object"
       },
+      "Page_LeftOutRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "Page[LeftOutRow]",
+        "type": "object"
+      },
       "Page_LeftOut_": {
         "properties": {
           "items": {
@@ -19850,6 +19956,8 @@
               "label-taken",
               "last-admin",
               "lead-invalid",
+              "left-out-kept",
+              "left-out-unchanged",
               "leg-grouped",
               "leg-not-held",
               "legs-differ",
@@ -20400,6 +20508,8 @@
                   "label-taken",
                   "last-admin",
                   "lead-invalid",
+                  "left-out-kept",
+                  "left-out-unchanged",
                   "leg-grouped",
                   "leg-not-held",
                   "legs-differ",
@@ -35120,9 +35230,9 @@
       }
     },
     "/ui/api/imports/{import_id}/left-out": {
-      "delete": {
-        "description": "Leave Them Out: the rows a loan's import kept are let go, never added, and its alert\nends (S1.9.3).",
-        "operationId": "leave_them_out_ui_api_imports__import_id__left_out_delete",
+      "get": {
+        "description": "The rows a loan's import left out, dated before the loan starts, each with why and\nwhether the start as it is now lets it be added (S1.9.3).",
+        "operationId": "left_out_ui_api_imports__import_id__left_out_get",
         "parameters": [
           {
             "in": "path",
@@ -35132,6 +35242,29 @@
               "title": "Import Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -35139,7 +35272,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportRow"
+                  "$ref": "#/components/schemas/Page_LeftOutRow_"
                 }
               }
             },
@@ -35152,13 +35285,13 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "summary": "Leave Them Out",
+        "summary": "Left Out",
         "tags": [
           "imports"
         ]
       },
       "post": {
-        "description": "Rows a loan's import left out, added once the loan's start was moved on or before each\n(S1.9.3); one still before it is refused at its place, in the transaction save's words.\nWith none left, its alert ends.",
+        "description": "Add Them: rows a loan's import left out, added once the loan's start was moved on or\nbefore each (S1.9.3); one still before it is refused at its place, in the transaction save's\nwords. The rows left are answered; with none left, its alert ends.",
         "operationId": "add_left_out_ui_api_imports__import_id__left_out_post",
         "parameters": [
           {
@@ -35186,7 +35319,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportRow"
+                  "items": {
+                    "$ref": "#/components/schemas/LeftOutRow"
+                  },
+                  "title": "Response Add Left Out Ui Api Imports  Import Id  Left Out Post",
+                  "type": "array"
                 }
               }
             },

@@ -24,6 +24,10 @@ As the statement shows it. The transactions must add up from the opening balance
 Untick a line that isn't a transaction (a subtotal, a daily balance). A line marked **duplicate**, already in the
 account, is ticked and can't be unticked: it counts towards the closing balance and isn't added again.
 
+On a loan's statement, a ticked line dated before the loan starts is marked **Before the loan
+starts**: saving leaves it out and keeps it with the import, to add once the loan's start date is
+moved on or before it, or to leave out for good, from the loan's Overview.
+
 ## Remember… {#remember}
 
 A line you untick offers **Remember…**: it asks to ignore future lines starting like it (its first

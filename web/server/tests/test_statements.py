@@ -666,3 +666,41 @@ def test_a_statement_of_two_owners_accounts_is_kept_once_per_owner(server):
     }
     rid = r.json()["result"]["receiptId"]
     assert jane.get(f"/ui/api/receipts/{rid}").json()["access"]["mine"], "hers is answered"
+
+
+MORTGAGE = """Rocket Mortgage
+Statement Period: 12/01/25 - 01/31/26
+Beginning Balance $300,000.00
+Payments
+12/15 PAYMENT THANK YOU 500.00
+01/05 PAYMENT THANK YOU 1,798.65
+Ending Balance $297,701.35
+"""
+
+
+def test_a_loans_statement_names_its_start_and_keeps_the_lines_before_it(server):
+    """S1.9.3: a loan's statement is read with the loan's start, so the check shows a line
+    dated before it as one that will be left out; saving adds the rest and keeps it."""
+    from conftest import make_user, sign_in
+    from edits import saved, terms
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage", institution="Rocket Mortgage")
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    review = _import(c, loan["id"], text_pdf(MORTGAGE.splitlines()))["result"]
+    assert review["loanStart"] == "2026-01-01"
+    assert [x["date"] for x in review["rows"]] == ["2025-12-15", "2026-01-05"]
+    r = c.post(
+        f"/ui/api/imports/{review['uploadId']}/statement",
+        json=_body(review, acceptDifference=True),
+    )
+    assert r.status_code == 200, r.text
+    done = r.json()["result"]
+    assert done["added"] == 1 and [x["date"] for x in done["leftOut"]] == ["2025-12-15"]
+    acct = new_account(c, name="Checking", institution="UMB Bank")
+    plain = _import(c, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    assert plain["loanStart"] is None, "no loan, no start"
