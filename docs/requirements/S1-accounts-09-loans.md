@@ -36,7 +36,7 @@
       with why, as a record of its import's: named in the import's result, counted in the
       account's imports, and listed on the loan's Overview under **Left Out of Imports**, seen
       by whoever reads the loan. Checking a loan's statement, a line dated before the start
-      shows **Before the loan starts** while it is ticked, its tooltip saying it will be left
+      shows **Before start** while it is ticked, its tooltip saying it will be left
       out and kept; saving is allowed. The owner is alerted (S12.11): **Move the Start** opens
       the terms; once the start is on or before the rows, **Add Them** adds them, each checked
       again against the start (one still before it is refused at its row in the same words)

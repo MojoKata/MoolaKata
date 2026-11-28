@@ -20,6 +20,7 @@ USERS = ("admin", "jane", "john", "dave", "erin")
 # A path parameter, and the table whose records fill it: one the caller reads.
 PARAMS = {
     "account_id": "Account",
+    "import_id": "Import",
     "budget_id": "Budget",
     "book_id": "TaxBook",
     "link_id": "Link",

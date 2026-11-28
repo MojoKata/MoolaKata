@@ -429,7 +429,7 @@ function beforeLoan(review, r) {
   }: this line is left out and kept with the import until the start is moved or it is left out.`;
   return html`
     <div class="small">
-      <${StatePill} tone="warn" why=${why}>Before the loan starts</${StatePill}></div>
+      <${StatePill} tone="warn" why=${why}>Before start</${StatePill}></div>
   `;
 }
 

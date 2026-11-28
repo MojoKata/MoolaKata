@@ -452,9 +452,7 @@ function KeptRows({ a, i, done }) {
       html`<div class="list-item"><div class="grow">${x.payee || 'Row'}<div
         class="small dim">${date(x.date)}${x.fits ? ' · on or after the start now' : ''}</div></div>
         <${Amt} v=${x.amount} />${
-        x.fits
-          ? null
-          : html`<${StatePill} tone="warn" why=${x.reason}>before the start</${StatePill}>`
+        x.fits ? null : html`<${StatePill} tone="warn" why=${x.reason}>Before start</${StatePill}>`
       }</div>`
     )}
     <div
