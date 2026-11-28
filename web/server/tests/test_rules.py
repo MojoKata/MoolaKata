@@ -653,3 +653,33 @@ def test_a_rule_changed_is_the_callers_own_and_live_even_read_unscoped(server):
             with pytest.raises(Problem) as e:
                 ui_rules._own(s, caller, other)
             assert (e.value.status, e.value.code) == (404, "not-found"), other
+
+
+def test_the_rules_skip_one_that_cant_be_kept_and_leave_what_they_never_touch(unscoped):
+    """S2.7: a rule kept before today's checks that no longer compiles matches nothing; a
+    holding's row, a transfer, a deleted transaction or (unless asked) a categorised one is
+    never changed; a blank payee is shown as it is."""
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Rule
+    from moolakata.store.repos.rules import Rules
+
+    s, uid = unscoped
+    for position, text in enumerate(("re:(", "Corner")):
+        s.add(Rule(id=ids.new_id("Rule"), ownerId=uid, position=position, payeeMatch=text,
+                   payee="Corner Bakery"))  # fmt: skip
+    s.flush()
+    rules = Rules(s, uid)
+    assert [r.payeeMatch for r, _ in rules.matched] == ["Corner"]
+    row = {"instrumentId": None, "transferId": None, "deleted": False, "categoryId": None}
+    for changed in ({"instrumentId": "Instr_x"}, {"transferId": "Txn_x"}, {"deleted": True},
+                    {"categoryId": "Cat_x"}):  # fmt: skip
+        assert rules.apply(SimpleNamespace(**{**row, **changed})) is False, changed
+    # A rule naming no category shows its payee and leaves the category as it is.
+    t = SimpleNamespace(**row, id="Txn_x", payeeRaw="CORNER 12", payee=None, amount=D("-5"),
+                        accountId="Acct_x")  # fmt: skip
+    assert rules.apply(t) is True and (t.payee, t.categoryId) == ("Corner Bakery", None)
+    assert (rules.rename(None), rules.rename(""), rules.rename("CORNER 12")) == (
+        None,
+        "",
+        "Corner Bakery",
+    )
