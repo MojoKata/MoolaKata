@@ -617,6 +617,35 @@ def test_only_an_unpaired_payment_on_this_loan_hides_a_debit_beside_it(server, f
     assert _offered(c, loan) == [(debit["id"], None)]
 
 
+def test_a_debit_more_than_2_percent_off_the_payment_is_not_offered(server, frozen):
+    # S1.9.3: a bank debit within 2% of the payment is offered to link; one further off isn't.
+    c, bank, loan = _mortgage_and_checking(server)
+    near = add(c, bank["id"], "-1830.00", "2026-10-01", payee="ROCKET MORTGAGE")
+    add(c, bank["id"], "-1840.00", "2026-10-08", payee="ROCKET MORTGAGE")
+    assert _offered(c, loan) == [(near["id"], None)]
+
+
+def test_a_loan_without_terms_offers_no_split_and_no_debit(server, frozen):
+    # S1.9.3: with no terms there is no schedule: the split is refused as such, no debit is
+    # offered, and a payment of nothing is refused at its amount.
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage")
+    split = f"/ui/api/accounts/{loan['id']}/loan/split"
+    r = c.get(split, params={"date": "2026-10-01", "amount": "100.00"})
+    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+        409,
+        "no-terms",
+        "Set the loan's terms first.",
+    )
+    r = c.get(split, params={"date": "2026-10-01", "amount": "0"})
+    assert r.status_code == 422
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("amount", "amount-invalid", "A payment is more than zero.")
+    ]
+    assert _offered(c, loan) == []
+
+
 def test_a_payment_of_a_dollar_on_this_loan_hides_a_debit_beside_it(server, frozen):
     # S1.9.3, S1.7: a payment of any amount above nothing, a dollar too, recorded on this loan
     # alone within days of the debit is most likely it: linking the debit would count it twice.
