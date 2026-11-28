@@ -76,13 +76,11 @@ class RawDates:
         for el in root.iter():
             if el.tag not in ("STMTTRN", "INVTRAN"):
                 continue
+            # ofxtools has checked each has its FITID and its date: a file without them is
+            # refused before this reads it.
             fitid = el.findtext("FITID")
-            if not fitid:
-                continue
             n = seen[fitid] = seen.get(fitid, 0) + 1
-            day = _raw(el.findtext("DTPOSTED") or el.findtext("DTTRADE"))
-            if day:
-                self.rows[(fitid, n)] = day
+            self.rows[(fitid, n)] = _raw(el.findtext("DTPOSTED") or el.findtext("DTTRADE"))
         self.taken: dict[str, int] = {}
 
     def row(self, fitid: str, converted) -> dt.date | None:
@@ -150,17 +148,13 @@ def _bank(st, out: ParsedFile, dates: RawDates) -> None:
                     memo=t.memo,
                 )
             )
-    if st.ledgerbal is not None:
-        out.balances.append(
-            (dates.at(".//LEDGERBAL/DTASOF", st.ledgerbal.dtasof), st.ledgerbal.balamt)
-        )
+    # ofxtools refuses a bank or card statement without its ledger balance.
+    out.balances.append((dates.at(".//LEDGERBAL/DTASOF", st.ledgerbal.dtasof), st.ledgerbal.balamt))
 
 
 def _securities(ofx, out: ParsedFile) -> None:
-    try:
-        seclist = ofx.seclistmsgsrsv1
-    except AttributeError:
-        return
+    # None when the file has no securities list; empty when it has one with nothing in it.
+    seclist = ofx.seclistmsgsrsv1
     if not seclist:
         return
     tickers = {

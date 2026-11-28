@@ -341,3 +341,58 @@ def test_an_ofx_date_not_written_as_a_date_falls_back_to_ofxtools():
 
     assert _raw("20260930200000[-5:EST]") == dt.date(2026, 9, 30)
     assert _raw("") is None and _raw("2026-09") is None
+
+
+def test_an_ofx_brokers_other_actions_and_securities():
+    """S1.3.1: shares moved in and out, a return of capital, an expense and margin interest as
+    fees, a long-term gain, interest and a 2-for-1 split; a journal between sub-accounts is no
+    row. A fund named a money market is one, an option without an OCC ticker keeps the file's,
+    and a file without its institution's name has none."""
+    p = ofx.read((FIX / "actions.ofx").read_bytes())
+    assert p.institution is None and p.accountNumber == "X7654321"
+    got = [(r.kind, r.amount, r.quantity, r.dividendType) for r in p.rows]
+    assert got == [
+        ("transfer-in", D(0), D(5), None),
+        ("transfer-out", D(0), D(2), None),
+        ("return-of-capital", D("12.00"), None, None),
+        ("fee", D("-3.00"), None, None),
+        ("fee", D("-4.00"), None, None),
+        ("capital-gain", D("40.00"), None, "capital-gain"),
+        ("interest", D("2.00"), None, None),
+        ("split", D(0), None, None),
+    ]
+    assert p.rows[-1].splitRatio == D(2)
+    assert p.securities["31617H102"].instrumentClass == "money-market"
+    opt = p.securities["OPT1"]
+    assert (opt.symbol, opt.instrumentClass, opt.multiplier) == ("XYZ OPTION", "option", 100)
+    assert p.positions == [] and p.balances == []
+
+
+def test_an_ofx_file_without_its_lists_reads_as_empty():
+    """S1.3.1: a bank statement with no transaction list is its balance alone; a broker's with
+    no transaction list, or no securities list, or an empty one, has none of them."""
+    bank = (FIX / "bank.ofx").read_bytes()
+    start, end = bank.index(b"<BANKTRANLIST>"), bank.index(b"</BANKTRANLIST>")
+    p = ofx.read(bank[:start] + bank[end + len(b"</BANKTRANLIST>") :])
+    assert p.rows == [] and p.balances == [(dt.date(2026, 9, 30), D("5629.09"))]
+    assert (p.coveredFrom, p.coveredTo) == (None, None)
+    broker = (FIX / "actions.ofx").read_bytes()
+    start, end = broker.index(b"<INVTRANLIST>"), broker.index(b"</INVTRANLIST>")
+    bare = broker[:start] + broker[end + len(b"</INVTRANLIST>") :]
+    seclist = bare[bare.index(b"<SECLISTMSGSRSV1>") : bare.index(b"</OFX>")]
+    p = ofx.read(bare.replace(seclist, b""))
+    assert (p.rows, p.securities, p.accountKind) == ([], {}, "investment")
+    empty = b"<SECLISTMSGSRSV1><SECLIST></SECLIST></SECLISTMSGSRSV1>\n"
+    assert ofx.read(bare.replace(seclist, empty)).securities == {}
+
+
+def test_an_ofx_file_of_no_statement_or_of_several_is_refused():
+    """S1.3.1: one account's statement at a time."""
+    bank = (FIX / "bank.ofx").read_bytes()
+    start, end = bank.index(b"<BANKMSGSRSV1>"), bank.index(b"</OFX>")
+    with pytest.raises(ReadError, match="holds no statement"):
+        ofx.read(bank[:start] + bank[end:])
+    block = bank[start + len(b"<BANKMSGSRSV1>") : bank.index(b"</BANKMSGSRSV1>")]
+    twice = bank.replace(block, block + block.replace(b"<TRNUID>1", b"<TRNUID>2"))
+    with pytest.raises(ReadError, match="several accounts"):
+        ofx.read(twice)
