@@ -710,7 +710,6 @@ def _gplan_update(ctx, p: GivingPlan, body: GivingPlanRecord) -> None:
         raise refuse("year", "plan-fixed", "A plan keeps its year.")
     for k, v in _plan_checked(body).items():
         setattr(p, k, v)
-    p.updatedAt = clock.now()
 
 
 def _gplan_read(ctx, record_id: str) -> PlanOut:
@@ -754,7 +753,6 @@ def _org_update(ctx, o: Organisation, body: OrganisationRecord) -> None:
     o.pledgeFrom = _pledge_from(o, values)
     for k, v in values.items():
         setattr(o, k, v)
-    o.updatedAt = clock.now()
 
 
 class DonationRecord(DonationIn):
@@ -810,7 +808,6 @@ def _donation_update(ctx, d: Donation, body: DonationRecord) -> None:
         receipts.keep_set(s, c.id, "donation", d.id, current["receiptIds"], body.receiptIds)
         if set(body.receiptIds) - set(current["receiptIds"]):
             d.acknowledged = True  # the acknowledgement's file: it has arrived
-    d.updatedAt = clock.now()
 
 
 save.register(

@@ -10,17 +10,14 @@
       constraints and indexes.
    2. **Entities** are plain dataclasses in `store/entities/` that import nothing from
       SQLAlchemy. `store/mapping.py` maps each one onto its table
-      (`registry.map_imperatively`), relationships included. Business logic lives in the
+      (`registry.map_imperatively`); what a record belongs to is read by queries. Business logic lives in the
       feature modules (`ledger/`, `loans/`, `giving/` and the others), and a test fails when
       their calculation code imports SQLAlchemy.
    3. **Revisions:** each change to the tables is a numbered Alembic revision, generated,
       reviewed by hand and committed, and a test fails when tables and revisions disagree. At
       the unlock the server copies the database (verified) into `pre-upgrade/` in the data
       directory, keeping the three newest copies, and then migrates it, one revision per
-      transaction. A committed revision is never changed: a change is a new revision. Until the
-      first release, the revisions may be folded into one baseline, keeping at least one
-      revision after it so a test can carry rows written at the baseline through the server's
-      own upgrade.
+      transaction. A committed revision is never changed: a change is a new revision.
    4. **Access:** each table has a repository module. A unit of work is `Database.tx()`
       (`BEGIN IMMEDIATE`) or `Database.read()` (`PRAGMA query_only`, which refuses any
       write). Foreign keys are on, with a 10-second busy timeout. A unit of work reads and
@@ -28,7 +25,7 @@
       own; one that does neither reads nothing ([`schema.md`](schema.md) §7).
    5. **Soft deletes**: records are never removed. Deleting one sets its `deletedAt` and
       `deletedById` (its `deleted` is generated from `deletedAt`), and each table's view works out whether a record is
-      deleted through the records it belongs to. [`schema.md`](schema.md) (S1) sets the
+      deleted through the records it belongs to. [`schema.md`](schema.md) §4 sets the
       fields, the views and the few exceptions.
 2. **Receipts** are files beside it (S9.2), and so are the linked copies (`links/`, S11.9.1)
    and what a link sends and receives on its way: each owned by the server's account, mode
@@ -37,7 +34,9 @@
 3. **Decimals**: money is stored as **integer cents**, and quantities and prices as **decimal text** validated to a fixed scale (18
    places, enough for wei), through a small SQLAlchemy column type. JSON carries both as exact
    numbers (S13.8.2). Python uses `decimal.Decimal` with a context of 34 digits and rounds
-   `HALF_EVEN` except where a tax rule says otherwise. No amount passes through a float.
+   `HALF_EVEN` except where a section says otherwise (a tax rule; a loan's interest, S1.9.2;
+   an adjusted option's strike, S3.10.1; a budget's proposed amounts, S7.1.5). No amount
+   passes through a float.
 4. **Secrets** (price-source keys, the bitcoin node's credentials, the SMTP password, the
    link private key, two-step sign-in seeds, a seed being set up) are encrypted each on its
    own with AES-256-GCM under a data key of their own, wrapped under the **secrets key**,
@@ -110,10 +109,10 @@
    5. **"Today" for a user** follows their time zone: the year a tax year screen opens on,
       when an occasion's lead time starts, and the hour their daily summary email goes out
       (S12.11.5).
-10. **Retention and file pruning**: records are never removed: not records, soft-deleted
-    records (`schema.md` §4) or Activity, so every figure can be looked back on as it was
-    (R3.10). What can be removed, by hand, is the **files** of receipts and statements whose
-    retention has run out: **file pruning**. Backups are pruned on their own, shorter
+10. **Retention and file pruning**: records are never removed, but for the exceptions of
+    `schema.md` §4.4: not records, soft-deleted records (`schema.md` §4) or Activity, so every
+    figure can be looked back on as it was (R3.10). What can be removed, by hand, is the
+    **files** of receipts and statements whose retention has run out: **file pruning**. Backups are pruned on their own, shorter
     schedule (S14.6), and price history is kept for ever (S4.6).
     1. **Retention periods**:
        1. **A category** has **Keep receipts for** a number of years, counted from when the
@@ -126,7 +125,9 @@
        2. **Statements** have one period, in Settings › Storage (S16.17), empty (for ever)
           by default. A statement ends with its own period, so it expires that many years
           after its last day; one without a date ends with its account's last transaction
-          once the account is closed.
+          once the account is closed. A loan's other documents (a closing disclosure, S9.3)
+          are kept while the loan is open, and end when it is paid off (closed): they take
+          the statements' period from then.
        3. **A file** (a receipt or a statement) has a **Keep** toggle that keeps it for ever.
     2. **When a file expires**: at the latest end of the records it is attached to, plus the
        longest of their periods. It never expires when Keep is on, when any of those records
@@ -136,9 +137,15 @@
        nothing. Expiry is worked out, never stored, so a changed
        period moves every date at once. A deleted receipt keeps no file (S9.7): one that no live
        receipt names has no expiry, and is pruned as a deleted receipt's (S14.10.4).
-    3. **Shown on each file**: *Kept until Mar 2031*, in bold within 90 days of it;
-       *Kept while the lot is open* while a record it is attached to hasn't ended; or
-       *Kept for ever*. An expired file shows *Expired Mar 2031, prunable*.
+    3. **Shown on each file**: the tooltip of the receipt's **Keep** says how long its file is
+       kept without Keep, and what sets it: *Kept until Oct 2029: Groceries keeps receipts 3
+       years*; *Kept while the lot is open* while a record it is attached to hasn't ended; a
+       loan's document *Kept while the loan is open, then Statements' 7 years*, and once it is
+       paid off *Kept until Jun 2036: Statements keeps a loan's documents 7 years after it is
+       paid off*; *Kept for ever* with Keep on or no period. A warning pill by Keep shows only
+       while it applies and Keep is off: *Expires Dec 2026* within 90 days of the expiry,
+       *Expired, prunable* once expired. The Receipts list and Settings › Storage show *Kept
+       until Mar 2031* and *Expired Mar 2031, prunable* as they are.
     4. **Files are never pruned on their own.** An admin prunes them in **Settings ›
        Storage**: the size of the database and of the receipts directory, a **pie** of
        expired, expiring later, kept for ever and **deleted receipts** (the files only deleted

@@ -58,6 +58,21 @@ def _waiting_for(s: Db, column, value: str) -> bool:
     )
 
 
+def prune(s: Db) -> int:
+    """The hourly prune: a request whose link lapsed unopened keeps no password hash, as an
+    expired token is removed (schema.md §4.4.1); the request stays as the record of it."""
+    lapsed = s.scalars(
+        select(SignupRequest).where(
+            SignupRequest.status == "confirming",
+            SignupRequest.confirmBy <= clock.now(),
+            SignupRequest.passwordHash.is_not(None),
+        )
+    ).all()
+    for req in lapsed:
+        req.passwordHash = None
+    return len(lapsed)
+
+
 def must_be_open(s: Db, dev: bool) -> list[str]:
     """Sign-up's domains, or 403 when it is closed."""
     on, domains = open_to(s, dev)
@@ -235,6 +250,8 @@ def approve(s: Db, svc: Services, by: User, request_id: str, group_ids: list[str
     if admins_group(s).id in group_ids:
         u.alertEmails = "each"
     req.status, req.decidedAt, req.decidedById, req.userId = "approved", t, by.id, u.id
+    # The hash is the user's now; the request keeps no copy (schema.md §4.4.1).
+    req.passwordHash = None
     activity.record(
         s,
         "signup.approved",
@@ -262,6 +279,7 @@ def approve(s: Db, svc: Services, by: User, request_id: str, group_ids: list[str
 def reject(s: Db, svc: Services, by: User, request_id: str) -> None:
     req = _waiting_request(s, request_id)
     req.status, req.decidedAt, req.decidedById = "rejected", clock.now(), by.id
+    req.passwordHash = None  # a rejected person's password is kept nowhere (schema.md §4.4.1)
     activity.record(
         s,
         "signup.rejected",

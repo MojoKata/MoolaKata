@@ -113,4 +113,3 @@ def seed_giving(s, people: dict) -> None:
     ):
         b.txn(fund, day, f"-{amount}.00", o.name, kind="withdrawal")
         give(day, "daf-grant", amount, o, dafAccountId=fund.id, granted=paid)
-    fund.updatedAt = clock.now()

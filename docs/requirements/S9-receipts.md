@@ -16,8 +16,9 @@
    associated data (S11.9.6.2, S11.9.6.3); a re-encryption (S15.7.2) writes each one again under the new key.
 3. **Links**: a receipt can be attached to any number of transactions, tax items (a donation,
    a medical expense) or tax documents (a 1099), physical-asset items (a purchase receipt,
-   an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement),
-   529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
+   an appraisal, a certificate, photos, S1.10), loans (a closing disclosure, a statement:
+   a loan's statements come by an import or the connector, its other documents are uploaded or
+   attached, and detached, on the **Documents** card of its Overview), 529 qualified expenses, gifts and donations, or to nothing yet (the **inbox**). Attaching
    one suggests matching transactions by amount and date. A receipt kept with anything is out
    of the inbox, and its dialog names each thing it is kept with that its reader can see,
    and counts the rest, never naming them (*Also kept with 2 things not shared with you*);
@@ -49,11 +50,12 @@
 7. **Retention**: a receipt is deleted only by its owner and only when nothing links to it. The
    file stays while any live receipt names its hash; a deleted receipt doesn't keep it from
    file pruning (S14.10.5). Backups leave the receipts directory out: the host backs it up with
-   the data directory (S14.6). Its file is kept for as long as its category says, shown on the
-   receipt as *Kept until…* or *Kept for ever*: the file's own date, over everything it is
-   kept with, its category named only to someone who can see what sets it (*Kept for
-   something not shared with you*, else). The receipt's **Keep** toggle holds it for ever
-   (S14.10).
+   the data directory (S14.6). Its file is kept for as long as its category says, which the
+   tooltip of the receipt's **Keep** toggle says (*Kept until Oct 2029: Groceries keeps
+   receipts 3 years*): the file's own date, over everything it is kept with, its category
+   named only to someone who can see what sets it (*Kept for something not shared with you*,
+   else). A warning pill by Keep shows only while the file expires within 90 days or has
+   expired. Keep holds the file for ever (S14.10).
 8. **Reading receipts (OCR)**: MoolaKata reads the date, total and merchant from each receipt
    **on the server, with RapidOCR**, and suggests the transaction it belongs to. Nothing
    leaves the server, and no external service, model download or GPU is involved.

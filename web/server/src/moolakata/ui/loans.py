@@ -68,9 +68,15 @@ class TermsIn(Model):
     pointsPaidOn: dt.date | None = None
     pointsPurpose: str | None = None
     securedById: str | None = None  # the property or vehicle it is secured by
-    # How its payments count in budgets (S1.9.7): split by the schedule, or whole.
+    # How its payments count in budgets (S1.9.7): split by the schedule, each part in the
+    # category named for it, or whole in `budgetCategoryId`. The parts' are kept while whole.
     budgetCounting: str = "split"
-    budgetCategoryId: str | None = None  # whole: the category; none is Loan payments
+    budgetCategoryId: str | None = None
+    interestCategoryId: str | None = None
+    escrowCategoryId: str | None = None
+    pmiCategoryId: str | None = None
+    feesCategoryId: str | None = None
+    principalCategoryId: str | None = None
     # A payment day with none recorded (S1.9.3): `recorded` here, so it is missed; `assumed`
     # as scheduled; none: Automatic.
     paymentsMode: str | None = None
@@ -107,6 +113,11 @@ class TermsOut(Model):
     securedById: str | None
     budgetCounting: str
     budgetCategoryId: str | None
+    interestCategoryId: str | None
+    escrowCategoryId: str | None
+    pmiCategoryId: str | None
+    feesCategoryId: str | None
+    principalCategoryId: str | None
     paymentsMode: str | None
     computedPayment: Money
     id: str
@@ -245,6 +256,7 @@ def _terms_out(s, row: Loan) -> TermsOut:
         securedById=row.securedById,
         budgetCounting=row.budgetCounting,
         budgetCategoryId=row.budgetCategoryId,
+        **{f: getattr(row, f) for f in loans.BUDGET_PARTS},
         paymentsMode=row.paymentsMode,
         computedPayment=loans.scheduled_payment(t),
         id=row.id,
@@ -351,6 +363,16 @@ def _equity(s, row: Loan, terms, owed, rows, today) -> Equity | None:
     )
 
 
+# A split payment's parts, as a refusal names each (S1.9.7.1).
+PART_NAMES = {
+    "interestCategoryId": "interest",
+    "escrowCategoryId": "escrow",
+    "pmiCategoryId": "PMI",
+    "feesCategoryId": "fees",
+    "principalCategoryId": "principal",
+}
+
+
 def _check(body: TermsIn, account_type: str) -> list[FieldError]:
     e = []
     # A HELOC opens with nothing drawn; any other loan borrowed something (S1.9.1, R3.11).
@@ -379,6 +401,19 @@ def _check(body: TermsIn, account_type: str) -> list[FieldError]:
                 "A category is named only when payments count whole.",
             )
         )
+    elif body.budgetCounting == "whole" and not body.budgetCategoryId:
+        # A blank is refused, never read as Loan payments (R3.11): the form offers that default.
+        e.append(
+            FieldError(
+                "budgetCategoryId", "category-missing", "The category the whole payment counts in."
+            )
+        )
+    if body.budgetCounting == "split":
+        e += [
+            FieldError(f, "category-missing", f"The category {what} counts in.")
+            for f, what in PART_NAMES.items()
+            if not getattr(body, f)
+        ]
     if body.paymentsMode is not None and body.paymentsMode not in loans.MODES:
         e.append(
             FieldError(
@@ -442,10 +477,16 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
         if it is None or it.deleted:
             raise refuse("securedById", "not-found", "No such item.")
         access.account(s, c.id, it.accountId, "read")
-    if body.budgetCategoryId:
-        cat = s.get(Category, body.budgetCategoryId)
+    for f in ("budgetCategoryId", *loans.BUDGET_PARTS):
+        cat_id = getattr(body, f)
+        if not cat_id:
+            continue
+        cat = s.get(Category, cat_id)
         if cat is None or cat.deleted or cat.kind == "transfer":
-            raise refuse("budgetCategoryId", "category-unknown", "Choose a category.")
+            raise refuse(f, "category-unknown", "Choose a category.")
+        # Principal is saved, not spent: it counts in a savings category (S1.9.7.1).
+        if f == "principalCategoryId" and cat.kind != "savings":
+            raise refuse(f, "category-not-savings", "Principal counts in a savings category.")
     return {
         "principal": body.principal,
         "startDate": body.startDate,
@@ -470,6 +511,7 @@ def _terms(s, c: Caller, a: Account, body: TermsIn) -> dict:
         "securedById": body.securedById,
         "budgetCounting": body.budgetCounting,
         "budgetCategoryId": body.budgetCategoryId,
+        **{f: getattr(body, f) for f in loans.BUDGET_PARTS},
         "paymentsMode": body.paymentsMode,
     }
 
@@ -1085,7 +1127,6 @@ def _payoff_update(ctx, p: PayoffPlan, body: PayoffRecord) -> None:
     _check_plan(body.inputs)
     p.name = _check_name(body.name)
     p.inputs = exactjson.unmark(body.inputs.model_dump_json())
-    p.updatedAt = clock.now()
 
 
 def _payoff_read(ctx, record_id: str) -> SavedPlan:

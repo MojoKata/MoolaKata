@@ -87,10 +87,15 @@
       left.
    7. **In budgets**, a payment counts at the bank account it came from (S7.3.3), as the loan
       says:
-      1. **Split** (the default): by the schedule's split, interest, escrow, and PMI and fees
+      1. **Split** (the default): by the schedule's split, interest, escrow, PMI and fees
          each in its category, and principal, an overpayment with it, in a savings category
-         (S7.2.1). The loan names the categories; by default they are the shipped *Loan
-         payments › Interest*, *Escrow*, *PMI and fees* and *Principal*, so a plan line on
-         the parent counts the whole payment. When the schedule is worked out again (a rate
-         reset, a recast, a corrected split), the budget's months follow it.
-      2. **Whole**: the full payment in the one category the loan names.
+         (S7.2.1). The loan names each part's category, in its terms under *In budgets*; a
+         new loan starts with the shipped *Loan payments › Interest*, *Escrow*, *PMI*,
+         *Fees* and *Principal*, so a plan line on the parent counts the whole payment until
+         one is changed. Escrow and PMI are offered for a mortgage; any other loan keeps them
+         in the shipped ones. A part left blank is refused at Save, offering its shipped one
+         as the default (R3.11). The parts' categories are kept while the loan counts whole.
+         When the schedule is worked out again (a rate reset, a recast, a corrected split),
+         the budget's months follow it.
+      2. **Whole**: the full payment in the one category the loan names. Left blank, it is
+         refused at Save, offering *Loan payments* as the default (R3.11).

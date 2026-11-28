@@ -372,7 +372,6 @@ def two_step_off(request: Request, c: Caller = Depends(caller)):
     with srv.db.tx(user=c.id) as s:
         u = s.get(User, c.id)
         twostep.turn_off(s, srv.services, u, u)
-        u.updatedAt = clock.now()
         s.flush()
         return profile(s, u)
 

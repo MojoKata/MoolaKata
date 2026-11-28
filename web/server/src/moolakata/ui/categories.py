@@ -43,6 +43,7 @@ class CategoryOut(Model):
     path: str
     keepReceiptsYears: int | None  # its own; none: its parent's, or for ever (S14.10.1.1)
     shipped: bool
+    builtIn: str | None  # a shipped one's key: what a new loan's split parts start in (S1.9.7.1)
     serverNamed: bool  # a shipped one the server counts in by its own rules: it stays
     createdById: str | None
     createdByName: str | None  # the maker's name, as the owner's on a budget's row
@@ -100,6 +101,7 @@ def _out(
         path=paths[cat.id],
         keepReceiptsYears=cat.keepReceiptsYears,
         shipped=cat.builtIn is not None,
+        builtIn=cat.builtIn,
         serverNamed=cats.server_named(cat),
         createdById=cat.createdById,
         createdByName=names.get(cat.createdById),

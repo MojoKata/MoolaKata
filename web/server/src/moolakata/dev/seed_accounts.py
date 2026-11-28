@@ -468,8 +468,6 @@ def seed_accounts(s, people: dict, today: dt.date | None = None) -> None:
         price("BND", start + dt.timedelta(days=1)),
     )
     s.flush()
-    for a in (checking, savings, card, brokerage, roth, k401, hsa, john_checking, john_ira):
-        a.updatedAt = clock.now()
 
 
 def seed_rules(s, people: dict) -> None:

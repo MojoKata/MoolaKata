@@ -182,7 +182,6 @@ def _plan_update(ctx, plan: EducationPlan, body: EducationPlanRecord) -> None:
     a, _ = _account(ctx.s, ctx.caller, plan.accountId, "write")
     for k, v in _plan_values(ctx, body, plan.beneficiaryId).items():
         setattr(plan, k, v)
-    plan.updatedAt = clock.now()
     _plan_changed(ctx, a)
 
 
@@ -387,7 +386,6 @@ def _contribution_update(ctx, t: Contribution, body: ContributionRecord) -> None
     if body.contributor != current["contributor"]:
         t.fromPersonId = _contributor(ctx.s, ctx.caller, body.contributor, a.ownerId)
     t.fiveYear = body.fiveYear
-    t.updatedAt = clock.now()
 
 
 def _contribution_read(ctx, record_id: str) -> ContributionOut:
@@ -519,7 +517,6 @@ def _expense_update(ctx, e: QualifiedExpense, body: ExpenseRecord) -> None:
         raise refuse("accountId", "expense-fixed", "An expense stays with its 529.")
     for k, v in _expense_values(body).items():
         setattr(e, k, v)
-    e.updatedAt = clock.now()
 
 
 def _expense_read(ctx, record_id: str) -> ExpenseOut:

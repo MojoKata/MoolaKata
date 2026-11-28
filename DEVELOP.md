@@ -74,6 +74,11 @@ tests. No Node.js. One Docker image for the server, for amd64 and arm64, on port
 one for the connector (S18). See requirements S17; [`docs/dependencies.md`](docs/dependencies.md)
 lists every library with its purpose, its risks and when to look at it again.
 
+The Alembic revisions start from one baseline, `0001`, folded from the revisions before it.
+Any later folding keeps at least one revision after the baseline, so
+`test_revisions_carry_a_database_from_0001_to_head` carries rows written at the baseline
+through the server's own upgrade (requirements S14.1.3).
+
 ## Development
 
 Clone with `--recurse-submodules` (or run `git submodule update --init coworker` in a

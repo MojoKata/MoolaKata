@@ -403,4 +403,3 @@ def settle(s: Session, book: TaxBook, by: str, how: str) -> None:
     now = clock.now()
     for change in unsettled(s, book):
         change.settled, change.settledAt, change.settledById = how, now, by
-        change.updatedAt = now

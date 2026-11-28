@@ -35,7 +35,8 @@
       2. **Deciding**: confirmed requests show under **Requests** in Users and Groups, with a
          count on its badge. **Approve** makes the user, in a group if one is chosen;
          **Reject** turns it down. An email tells the person either way, and Activity records
-         the request and the decision. The request stays as the record of it.
+         the request and the decision. The request stays as the record of it, keeping no
+         password once it is decided or its link lapses unopened (`schema.md` §4.4.1).
    5. **Password reset** by an emailed link from *Forgot password?*. A changed email address
       takes effect only when a link sent to the new address is opened. A reset link works
       once, for an hour, and a new request ends the one before; an email-change link works

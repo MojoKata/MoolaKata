@@ -1,8 +1,8 @@
 """Reads scoped to a user (docs/schema.md §7.6). A session opened for a user's request carries
 the user, and every ORM query in it reads only the records the user's access views give them:
 each table with a view gets `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND
-userId = :user)` beside whatever the query asks, for each such table it reads at its top
-level, joined or aliased. The server's own work opens a session
+userId = :user)` beside whatever the query asks, for each such table each select in it
+reads, joined or aliased, nested to any depth. The server's own work opens a session
 unscoped, naming why, so every way around the views can be found by its reason."""
 
 from collections.abc import Iterator
@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import Join, Select, Table, event, exists, inspect, or_, select
 from sqlalchemy.orm import ORMExecuteState, Session
+from sqlalchemy.sql import visitors
 
 from . import access_views
 from .tables import metadata
@@ -116,6 +117,33 @@ def unscoped(statement, why: str):
     return statement.execution_options(unscoped=why)
 
 
+def _nested(statement) -> bool:
+    """Whether a statement holds a select inside it: a compound's parts, a subquery in FROM,
+    WHERE or the column list. One walk, which stops at the first."""
+    return any(isinstance(e, Select) and e is not statement for e in visitors.iterate(statement))
+
+
+def _woven(statement, user_id: str):
+    """The statement with the user's access woven into each select in it, to any depth
+    (§7.6): each nested select takes its own criteria, then the outer as before."""
+
+    def replace(e):
+        if isinstance(e, Select) and e is not statement:
+            return _woven(e, user_id)
+        return None
+
+    out = visitors.replacement_traverse(statement, {}, replace) if _nested(statement) else statement
+    if isinstance(out, Select):
+        found = criteria(out, user_id)
+        if found:
+            out = out.where(*found)
+    return out
+
+
+def _guarded_anywhere(statement) -> bool:
+    return any(isinstance(e, Select) and criteria(e, "?") for e in visitors.iterate(statement))
+
+
 @event.listens_for(Session, "do_orm_execute")
 def _scope(state: ORMExecuteState) -> None:
     if not state.is_select or state.is_column_load:
@@ -128,7 +156,7 @@ def _scope(state: ORMExecuteState) -> None:
         return
     access = state.session.info.get(KEY)
     if access is None:
-        if isinstance(state.statement, Select) and criteria(state.statement, "?"):
+        if _guarded_anywhere(state.statement):
             raise Unscoped(
                 "a session reads for a user (db.read(user=…)) or names why it reads as the "
                 "server (db.read(unscoped=…))"
@@ -137,10 +165,7 @@ def _scope(state: ORMExecuteState) -> None:
     user_id = access.get("user")
     if user_id is None:
         return
-    if isinstance(state.statement, Select):
-        found = criteria(state.statement, user_id)
-        if found:
-            state.statement = state.statement.where(*found)
+    state.statement = _woven(state.statement, user_id)
 
 
 # ---- What a user's session writes (§7.6) ----

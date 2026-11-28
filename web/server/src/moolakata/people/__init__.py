@@ -195,7 +195,6 @@ def change(s: Session, p: Person, values: dict) -> None:
     """A person's own fields; a user's display name is their person's name (S10.10.1)."""
     for k, v in values.items():
         setattr(p, k, v)
-    p.updatedAt = clock.now()
     if "name" not in values:
         return
     with s.no_autoflush:  # one save of the user, with whatever else changed on it

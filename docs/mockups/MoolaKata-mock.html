@@ -1402,7 +1402,16 @@ function loanDetails(a) {
     <div class="list-item"><span class="grow dim">Statement balance</span>${money(Math.abs(a.bal))} on Oct 1 <span class="pill ok">${icon('check')} matches</span>&nbsp;<button class="btn sm" data-act="dlg" data-v="typeBalance">Type It</button></div>
     <div class="mt"><button class="btn sm" data-act="dlg" data-v="loanPayment">${icon('plus')} Record a Payment</button></div>
     ${a.id === 'mort' ? `<div class="card mt"><h3>Looks like a Payment</h3>
-      <div class="list-item"><div class="grow">ROCKET MORTGAGE<div class="small dim">Joint Household · Nov 2 · pair with the payment of Nov 1</div></div>${money(2876.97)}<button class="btn sm" data-act="toast" data-v="Paired with the payment already recorded">Pair</button></div></div>` : ''}`;
+      <div class="list-item"><div class="grow">ROCKET MORTGAGE<div class="small dim">Joint Household · Nov 2 · pair with the payment of Nov 1</div></div>${money(2876.97)}<button class="btn sm" data-act="toast" data-v="Paired with the payment already recorded">Pair</button></div></div>` : ''}
+    ${loanDocuments(a)}`;
+}
+// A loan's documents other than its statements (S9.3): uploaded or attached from the inbox,
+// detached again; kept until the loan is paid off, then the statements' period (S14.10.1.2).
+function loanDocuments(a) {
+  const docs = a.id === 'mort' ? ['Closing disclosure.pdf', 'Promissory note.pdf'] : [];
+  return `<div class="card mt"><h3>Documents</h3>
+    ${docs.length ? docs.map((n) => `<div class="list-item"><span class="grow"><button type="button" class="link-btn" data-act="dlg" data-v="receipt">${icon('clip')} ${n}</button></span><button type="button" class="icon-btn" aria-label="Detach ${n}" title="Detach" data-act="toast" data-v="Document detached">${icon('x')}</button></div>`).join('') : empty('No documents yet')}
+    <div class="toolbar mt"><button class="btn sm" data-act="toast" data-v="Document kept" data-tip="Upload and attach a loan document">${icon('upload')} Add Document</button><select class="in" aria-label="Attach from the inbox" data-help="documents" style="width:auto"><option>Attach from the inbox…</option><option>IMG_2310.jpg</option><option>Appraisal.pdf</option></select></div></div>`;
 }
 function physDetails(a) {
   const m = { metals: 'spot × fine weight · Oct 11 close', collect: 'latest valuation of each item', house: 'valuations · last 2026-09-20', subaru: '12% a year from $33,900, until a valuation' }[a.id] || 'valuations';
@@ -1516,6 +1525,22 @@ function itemsTab(a) {
     <div class="list-item"><span class="grow dim">VIN</span>…4S3BW</div>
     <div class="list-item"><span class="grow dim">Notes</span>New tyres 2025-10. Kept in the garage.</div></div>`;
 }
+// A split loan payment's parts, each in the category the loan names for it (S1.9.7.1):
+// escrow and PMI a mortgage's alone; each blank refused, its shipped one the default.
+function loanParts(a) {
+  const spent = ['Loan payments › Interest', 'Loan payments › Escrow', 'Loan payments › PMI', 'Loan payments › Fees', 'Housing › Property tax', 'Housing › Insurance', 'Transportation'];
+  const saved = ['Loan payments › Principal', 'Savings › Emergency fund', 'Savings › House fund'];
+  const part = (label, opts, cur, shipped) => field(label, withReset(sel(['Choose a category', ...opts, 'New category…'], cur), shipped, shipped));
+  const parts = [
+    ['Interest', spent, 'Loan payments › Interest', 'Loan payments › Interest'],
+    ...(a.type === 'mortgage' ? [['Escrow', spent, 'Housing › Property tax', 'Loan payments › Escrow'], ['PMI', spent, 'Loan payments › PMI', 'Loan payments › PMI']] : []),
+    ['Fees', spent, 'Loan payments › Fees', 'Loan payments › Fees'],
+    ['Principal', saved, a.type === 'mortgage' ? 'Savings › House fund' : 'Loan payments › Principal', 'Loan payments › Principal'],
+  ].map(([l, o, c, d]) => part(l, o, c, d));
+  const rows = [];
+  for (let i = 0; i < parts.length; i += 2) rows.push(`<div class="row">${parts.slice(i, i + 2).join('')}</div>`);
+  return rows.join('');
+}
 function acctSettings(a) {
   const wallet = a.type === 'crypto-wallet', exch = a.type === 'crypto-exchange';
   // A physical holding is kept current on its Items tab: its Settings has no card for it.
@@ -1526,7 +1551,7 @@ function acctSettings(a) {
     ${['investing', 'retirement', 'crypto'].includes(a.group) ? field('Lot method', sel(['FIFO', 'LIFO', 'HIFO', 'Specific identification', 'Average cost'], 'FIFO')) : ''}
     ${['savings', 'money-market'].includes(a.type) ? field('Withdrawals allowed a month', inp(a.id === 'sav' ? '6' : '', 'no limit')) : ''}
     ${a.type === 'hsa' ? field('Coverage', sel(['Not set', 'Self-only', 'Family'], 'Family')) : ''}
-    ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('In budgets', sel(['Split by the schedule', 'The whole payment in one category'], 'Split by the schedule')) : ''}
+    ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('In budgets', sel(['Split by the schedule', 'The whole payment in one category'], 'Split by the schedule')) + loanParts(a) : ''}
     ${['mortgage', 'heloc', 'auto-loan', 'student-loan', 'personal-loan', 'loan'].includes(a.type) ? field('Payments', sel(['Automatic: recorded here', 'Recorded here', 'Assumed as scheduled'], 'Automatic: recorded here')) : ''}
     ${field('Closed on', inp('', 'open'))}
     <div class="list-item"><span class="grow">Count in my totals</span>${sw(true)}</div>
@@ -2428,6 +2453,13 @@ DIALOGS.upload = () => ({ title: 'Add Receipts', body: `<div class="drop">${icon
   ${field('Payee', inp('Dr. Patel Family Dental'), fromReceipt(97))}
   ${field('Attach to', sel(['Dr. Patel Family Dental · −$240.00 · Oct 2 · Blue Cash Preferred', 'Leave in inbox', 'Tax item…'], 'Dr. Patel Family Dental · −$240.00 · Oct 2 · Blue Cash Preferred'))}`, ok: 'Upload' });
 // A receipt whose file was pruned (S14.10.5): its record kept, nothing left to show or read again.
+// Keep (S14.10.3): how long the file is kept and why in its tooltip; a warning pill by it only
+// while the file expires within 90 days.
+function keepRow(r) {
+  const tip = r.keepWhy ? `${r.kept}: ${r.keepWhy}` : (r.kept || 'Kept for ever');
+  const warn = r.soon ? `<span class="pill warn" tabindex="0" data-tip="${esc(tip)}">${r.kept.replace('Kept until', 'Expires')}</span>` : '';
+  return `<div class="list-item mt"><span class="grow"><span tabindex="0" data-tip="${esc(tip)}" aria-description="${esc(tip)}">Keep</span> ${warn}</span>${sw(false)}</div>`;
+}
 const PRUNED_RECEIPT = { name: 'kroger-0412.jpg', kind: 'JPG', d: '2023-04-12', amt: 42.18, payee: 'Kroger', link: 'Transaction', status: 'read', method: 'OCR', conf: { date: 95, total: 97, merchant: 94 }, pruned: true, kept: 'File pruned Oct 1, 2026', text: 'KROGER #412\n04/12/2023 18:05\nMILK 2%          3.49\nBREAD            2.99\nTOTAL           42.18' };
 DIALOGS.receiptPruned = () => DIALOGS.receipt({ r: PRUNED_RECEIPT });
 // A scanned receipt whose scanner's text layer misread the total (S9.8.2.1.1): both readings,
@@ -2443,7 +2475,7 @@ DIALOGS.receipt = (d) => {
   else if (r.status === 'failed') side = `<div class="notice bad">${icon('alert')}<div>${esc(r.reason)}</div></div>${field('Date', inp(r.d, '', 'date'))}${field('Amount', inp(''))}${field('Payee', inp(''))}<button class="btn sm" data-act="toast" data-v="Queued to read again">${icon('refresh')} Read Again</button>`;
   else side = `${r.disagree ? attention(`The text and the scan disagree: check the total. Text ${money(r.disagree[0])} · scan ${money(r.disagree[1])}<div class="toolbar" style="margin:8px 0 0">${r.disagree.map((v) => `<button class="btn sm" data-act="toast" data-v="Confirmed when you save">Use ${money(v)}</button>`).join('')}</div>`, '', 'warn', 'alert') : ''}${field('Date', inp(r.d, '', 'date'), hint('date'))}${field('Amount', inp(r.amt != null ? String(r.amt) : '', '', 'money'), hint('total'))}${field('Payee', inp(r.payee), hint('merchant'))}${r.card ? `<div class="small dim" style="margin:-6px 0 12px">Card ending ${r.card}</div>` : ''}${field('Notes', inp(''))}${field('Tags', tagBox(r.link && r.link.includes('Medical') ? ['medical', '2026'] : []))}
     ${r.link ? `<div class="list-item"><span class="grow small dim">Linked to: ${esc(r.link)}</span>${r.detach ? '<button class="btn sm" data-act="toast" data-v="Detached when you save: it then waits in the inbox">Detach</button>' : ''}</div>${r.also ? `<p class="small dim">Also kept with ${r.also} ${r.also === 1 ? 'thing' : 'things'} not shared with you.</p>` : ''}` : r.match ? `<div class="notice">${icon('clip')}<div><b>Attach to</b> ${esc(r.match)}?<div class="toolbar" style="margin:8px 0 0"><button class="btn sm primary" data-act="toast" data-v="Attached when you save">Attach</button>${(r.alts || []).map((a) => `<button class="btn sm" data-act="toast" data-v="Attached when you save">${esc(a.split(' · ')[0])}</button>`).join('')}</div></div></div>` : ''}
-    ${r.pruned ? '' : `<div class="list-item mt"><span class="grow">${r.soon ? `<b>${r.kept}</b>` : (r.kept || 'Kept for ever')}<div class="small dim">${r.keepWhy || (r.link ? 'Its category keeps receipts for ever' : 'Attached to nothing, so kept')}</div></span><label class="small" style="display:inline-flex;gap:6px;align-items:center">Keep ${sw(false)}</label></div>`}
+    ${r.pruned ? '' : keepRow(r)}
     <div class="toolbar mt"><span class="small dim">${r.method === 'OCR' ? 'Read with OCR' : 'Read from the PDF’s text layer'}</span><span class="spacer"></span>${r.pruned ? '' : `<button class="btn sm" data-act="toast" data-v="Queued to read again">${icon('refresh')} Read Again</button>`}</div>`;
   return { title: r.name, wide: true, body: `<div class="split" style="align-items:flex-start"><div style="flex:1 1 300px">${r.pruned ? attention(r.kept, '', 'info') : `<div style="min-height:300px;background:var(--bg-3);border-radius:8px;display:grid;place-items:center"><div class="paper ${r.status === 'reading' ? 'reading' : ''}" style="width:180px;height:240px;gap:10px;padding:18px"><i></i><i style="width:60%"></i><i></i><i style="width:40%"></i><i></i><i style="width:75%"></i><i></i></div></div>`}
     ${r.text ? `<details class="mt"><summary class="small">Text read from the receipt (searchable)</summary><div class="ocr-text mt">${esc(r.text)}</div></details>` : ''}</div>
@@ -3052,7 +3084,13 @@ const GUIDES = {
     <h2 ${hid('Closed on')}>Closed on</h2><p>The day the account closed; empty while it is open. A closed account counts in your figures up to that day, budgets and returns included, and stays for history and taxes. <b>Delete Account</b> is for one made by mistake: its transactions leave every past figure too.</p>
     <h2 ${hid('Coverage')}>Coverage</h2><p>For an HSA: self-only or family. The year’s contribution limit is the one it says, $1,000 more at 55; unset, contributions are held against the family limit and the Retirement panel asks for it.</p>
     <h2 ${hid('Withdrawals allowed a month')}>Withdrawals allowed a month</h2><p>For a savings or money-market account: the bank’s limit on transfers out, empty for none. Budgets sum the moves back into one transfer and warn before going past it.</p>
-    <h2 id="h-in-budgets">In budgets</h2><p>For a loan: how its payments count in budgets, at the bank account they come from. <b>Split by the schedule</b> puts interest, escrow, and PMI and fees each in its category and principal in a savings category, all under <i>Loan payments</i>, so a plan line on <i>Loan payments</i> counts the whole payment. <b>The whole payment</b> counts it all in one category.</p>
+    <h2 id="h-documents">Documents</h2><p>For a loan: its documents other than its statements, a closing disclosure, the note, a payoff letter. <b>Add Document</b> uploads files and keeps them with the loan, and <b>Attach from the inbox</b> keeps a receipt already uploaded; × detaches one, back to the inbox. Each is kept while the loan is open, and from the day it is paid off (closed) for as long as statements are kept (Settings › Storage). Statements come by an import or the connector, and are listed with the account’s receipts.</p>
+    <h2 id="h-in-budgets">In budgets</h2><p>For a loan: how its payments count in budgets, at the bank account they come from. <b>Split by the schedule</b> puts each part of a payment in the category the loan names for it below: interest, escrow, PMI and fees as spending, principal as saved. A new loan starts with the shipped ones under <i>Loan payments</i>, so a plan line on <i>Loan payments</i> counts the whole payment until one is changed. <b>The whole payment</b> counts it all in one category; the parts’ categories are kept for a return to the split. Only a mortgage has escrow and PMI: any other loan keeps them in the shipped ones.</p>
+    <h2 ${hid('Interest')}>Interest</h2><p>For a loan counted split: the category a payment’s interest counts in, <i>Loan payments › Interest</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Escrow')}>Escrow</h2><p>For a mortgage counted split: the category a payment’s escrow counts in, its property tax and insurance together: <i>Loan payments › Escrow</i> to start with, or <i>Housing › Property tax</i> for a household that budgets them there. It can’t be left blank: <b>default</b> fills in <i>Loan payments › Escrow</i>.</p>
+    <h2 ${hid('PMI')}>PMI</h2><p>For a mortgage counted split: the category a payment’s private mortgage insurance counts in, <i>Loan payments › PMI</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Fees')}>Fees</h2><p>For a loan counted split: the category a payment’s fees count in, <i>Loan payments › Fees</i> to start with. It can’t be left blank: <b>default</b> fills in that one.</p>
+    <h2 ${hid('Principal')}>Principal</h2><p>For a loan counted split: the savings category a payment’s principal counts in as saved, an overpayment with it: <i>Loan payments › Principal</i> to start with, or a savings category of your own. Only a savings category can hold it, and it can’t be left blank: <b>default</b> fills in <i>Loan payments › Principal</i>.</p>
     <h2 ${hid('Payments')}>Payments</h2><p>For a loan: how a payment day with no payment recorded reads. <b>Recorded here</b>: every payment is recorded in MoolaKata from the first one, so one not recorded 15 days after its day is missed; the Overview says how many and what is overdue, and the balance stays what it was. The days before the first payment recorded count as paid as scheduled. <b>Assumed as scheduled</b>: the payments are made elsewhere, so a day with none recorded counts as paid as the schedule says. <b>Automatic</b> is recorded here once the loan has a payment recorded or a connection keeping it, and assumed until then; it names which applies.</p>
     <h2 ${hid('Keys, descriptor or addresses')}>Keys, descriptor or addresses</h2><p>Bitcoin only; other coins come later. Public data only: an <code>xpub</code> (legacy, 1…), <code>ypub</code> (nested segwit, 3…) or <code>zpub</code> (native segwit, bc1q…); an <b>output descriptor</b> as Sparrow exports it, for taproot (<code>tr(…)</code>) or multisig (<code>wsh(sortedmulti(2, …))</code>); or addresses, one a line. MoolaKata derives a key’s receive and change addresses itself, and reads balances through the explorer or your own node set in Settings › Bitcoin. Nothing is read until an admin has saved Settings › Bitcoin; until then the wallet says so.</p><blockquote>Never enter a seed phrase or private key. The form refuses anything that looks like one, and MoolaKata never stores it.</blockquote>
     <h2 ${hid('Gap limit')}>Gap limit</h2><p>How many unused addresses past the last used one are watched on each chain. 20 suits most wallets; raise it for one that skipped addresses. <b>Addresses</b> lists those watched.</p>
@@ -3448,7 +3486,7 @@ const GUIDES = {
     <h2 id="h-text-scan-disagree">The text and the scan disagree</h2><p>A total read from a PDF’s text is checked against the picture of that page. When they differ (a scanner’s own text can misread a digit), both readings are shown and no transaction is offered until you confirm the amount: <b>Use</b> one of them, or type it, and save. It is then yours, as a typed amount is.</p>
     <h2 id="h-search">Search</h2><p>Searches the text read from every receipt, so <code>blue bottle</code> or <code>142.18</code> finds it.</p>
     <h2 id="h-notes">Notes</h2><p>Anything worth keeping with it.</p><h2 id="h-tags">Tags</h2><p>Your own labels, for finding receipts later. Type one and press Enter or a comma.</p>
-    <h2>Kept until</h2><p>When the file may be pruned: its category’s period after its record ended (a purchase’s once its lot is sold), in bold within 90 days. The category is named only when what sets it is shared with you, else <i>Kept for something not shared with you</i>. <b>Keep</b> holds it for ever, for a warranty or a medical bill an HSA may repay later.</p>`,
+    <h2 id="h-keep">Keep</h2><p>Keeps the file for ever, whatever its retention: for a warranty, or a medical bill an HSA may repay later. Its tooltip says how long the file is kept otherwise, and what sets it.</p><p>A file is kept for as long as what it is attached to needs it, then the period its category sets (<b>Keep receipts for</b>, Settings › Storage; a subcategory without one takes its parent’s), counted from when that ended: a transaction’s date, a lot’s last sale, a gift’s occasion. Over everything it is kept with, the latest end and the longest period win. A transfer, an uncategorised transaction or a category with no period keeps it for ever, as does being attached to nothing. A statement is kept for the statements’ period after its own last day; a loan’s other documents are kept while the loan is open, then the statements’ period from the day it is paid off. The category is named only when what sets it is shared with you, else <i>Kept for something not shared with you</i>.</p><p>A warning shows by Keep only while it applies: <i>Expires Dec 2026</i> within 90 days, <i>Expired, prunable</i> once past, when an admin may prune the file in Settings › Storage. The <b>Kept until</b> column of the list shows the same date for every receipt.</p>`,
   watchlist: `<h1>Watchlist</h1><p>Instruments you follow without holding them. Prices are delayed.</p>`,
   activity: `<h1>Activity</h1><p>What changed and who did it. Amounts are never shown here.</p>`,
   users: `<h1>Users and Groups</h1><p>Admins invite people, approve sign-ups, and make groups to share with. Admins see only the money shared with them.</p><div class="shot">screenshot · users</div>

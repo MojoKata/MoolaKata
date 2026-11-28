@@ -518,7 +518,6 @@ def _projection_update(ctx, p: Projection, body: ProjectionRecord) -> None:
         p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, c.id)))
         p.baselineAt = clock.now()
         fields.append("baseline")
-    p.updatedAt = clock.now()
     if fields:
         activity.record(s, "projection.updated", actor=c.id, subject_kind="projection",
                         subject_id=p.id, owner=p.ownerId, detail={"fields": fields})  # fmt: skip

@@ -6,7 +6,7 @@ and the day each was acquired carry over, so nothing is missing a basis and noth
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
-from .. import clock, ids
+from .. import ids
 from ..store.entities.accounts import Account, Instrument, Lot, Transaction, TransferMatch
 from ..store.repos import ledger as repo
 
@@ -132,14 +132,12 @@ def confirm(s: Session, user_id: str, m: TransferMatch) -> int:
         n += 1
     out.transferId, into.transferId = into.id, out.id
     m.state = "confirmed"
-    m.updatedAt = clock.now()
     s.flush()
     return n
 
 
 def reject(s: Session, m: TransferMatch) -> None:
     m.state = "rejected"
-    m.updatedAt = clock.now()
 
 
 def describe(s: Session, m: TransferMatch) -> dict:

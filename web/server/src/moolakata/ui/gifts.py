@@ -916,7 +916,6 @@ def _gift_update(ctx, g: Gift, body: GiftRecord) -> None:
     current = _gift_current(ctx, g)
     for k, v in _check_gift(s, c, body, before, current["people"]).items():
         setattr(g, k, v)
-    g.updatedAt = clock.now()
     _set_people(s, g, body.people, c.id)
     receipts.keep_set(s, c.id, "gift", g.id, current["receiptIds"], body.receiptIds)
     _linked(s, c, before, g.transactionId)

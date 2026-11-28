@@ -109,10 +109,10 @@ function parents(list, but) {
  * A record's category, chosen from the list, or made there with New category… (S12.2.6),
  * which opens New category over the dialog (S12.15.7): saved there, it is chosen here; left,
  * the choice stays as it was. Bare, inside a Field of a row (a split's part), it draws the
- * choice alone.
+ * choice alone. `reset` names the category its **default** word fills in (R3.11).
  * @param {{ rec: any, name: string, label: string, first?: [string, string] | null,
  *   id?: string, help?: string, bare?: boolean, hint?: any, kind?: string,
- *   disabled?: boolean, only?: (c: any) => boolean }} p
+ *   disabled?: boolean, only?: (c: any) => boolean, reset?: string | null }} p
  */
 export function CategoryField(p) {
   const { rec, name } = p;
@@ -136,8 +136,10 @@ export function CategoryField(p) {
       'data-help': p.help,
     }
     : {};
+  const fallback = p.reset ? cats.byId[p.reset] : null;
   const select = html`
     <${Select} value=${making ? NEW : value ?? ''} onChange=${pick} disabled=${p.disabled}
+      reset=${fallback ? { value: fallback.id, label: fallback.path } : undefined}
       options=${categoryOptions(
         p.only ? cats.list.filter(p.only) : cats.list,
         p.first === undefined ? ['', 'Uncategorised'] : p.first,

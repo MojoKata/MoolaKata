@@ -295,7 +295,8 @@ def test_points_on_the_first_payment_day_are_kept():
 
     start = dt.date(2026, 1, 1)
     body = ui.TermsIn(principal=D(1000), startDate=start, termMonths=12, rate=D(6), points=D(10),
-                      pointsPaidOn=L.add_months(start, 1), pointsPurpose="purchase")  # fmt: skip
+                      pointsPaidOn=L.add_months(start, 1), pointsPurpose="purchase",
+                      **dict.fromkeys(L.BUDGET_PARTS, "Cat_part"))  # fmt: skip
     assert ui._check(body, "mortgage") == []
 
 

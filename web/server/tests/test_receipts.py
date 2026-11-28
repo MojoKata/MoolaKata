@@ -12,6 +12,7 @@ from test_accounts import add, new_account
 
 from moolakata import receipts
 from moolakata.store import maintenance
+from moolakata.store.entities.receipts import Receipt
 
 
 def png(color=(200, 30, 30), size=(60, 90)) -> bytes:
@@ -244,7 +245,7 @@ def test_a_reader_sees_only_the_links_they_read_and_how_many_more(server, jane):
     assert seen["keptWhy"] == "Kept for something not shared with you"
     mine = jane.get(f"/ui/api/receipts/{rid}").json()
     assert len(mine["links"]) == 2 and mine["alsoKeptWith"] == 0
-    assert mine["keptWhy"] == "Jewellery keeps receipts 7 years"
+    assert mine["keptWhy"] == "Kept until Oct 2033: Jewellery keeps receipts 7 years"
     assert seen["keptUntil"] == mine["keptUntil"], "the file's own date, for whoever reads"
     # John, writing the joint account, keeps it with a transaction of his own as well.
     his = add(john, new_account(john, name="John's")["id"], "-42.18", "2026-10-02")
@@ -283,6 +284,39 @@ def test_a_slow_thumbnail_holds_no_one_elses_write(server, jane, monkeypatch):
         t.join(30)
     assert answers and answers[0].status_code == 201, answers
     assert answers[0].json()["hasThumbnail"] is False, "it keeps its icon"
+
+
+def test_a_loans_documents_are_kept_on_it_apart_from_its_statements(server):
+    """S9.3, R1.6: a document attached to a loan is kept on its account, not as a statement
+    (an import's or the connector's); the loan lists its documents alone, to those who see
+    the account, and a detached one goes back to the inbox."""
+    jane_id = make_user(server, "jane")
+    john_id = make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    loan = new_account(jane, name="Mortgage", type="mortgage")
+    doc = upload(jane, png((30, 31, 32)), "closing.png").json()["id"]
+    statement = upload(jane, png((33, 34, 35)), "statement.png").json()["id"]
+    saved(attach(jane, doc, loan["id"], kind="account"))
+    with server.db.tx(unscoped="test") as s:
+        receipts.attach_account(s, jane_id.id, s.get(Receipt, statement), loan["id"])
+    path = f"/ui/api/accounts/{loan['id']}/documents"
+    assert [r["id"] for r in jane.get(path).json()["items"]] == [doc]
+    links = {
+        rid: [(x["statement"], x["payee"], x["label"]) for x in jane.get(f"/ui/api/receipts/{rid}")
+              .json()["links"]]
+        for rid in (doc, statement)
+    }  # fmt: skip
+    assert links == {
+        doc: [(False, "Document", "A document of Mortgage")],
+        statement: [(True, "Statement", "The statement of Mortgage")],
+    }
+    assert john.get(path).status_code == 404, "not until the account is shared with him"
+    assert share(jane, "account", loan["id"], users={john_id.id: "read"}).status_code == 200
+    assert [r["id"] for r in john.get(path).json()["items"]] == [doc]
+    saved(detach(jane, doc, loan["id"]))
+    assert jane.get(path).json()["items"] == []
+    inbox = jane.get("/ui/api/receipts", params={"show": "inbox"}).json()["items"]
+    assert doc in {r["id"] for r in inbox}
 
 
 def test_the_receipts_guide_shares_a_receipt_through_everything_s9_6_names():

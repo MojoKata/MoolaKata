@@ -143,13 +143,44 @@ repaid over the rest of the term.
 ## In budgets {#in-budgets}
 
 How its payments count in budgets, at the bank account each comes from. **Split by the schedule**
-puts interest, escrow, PMI and fees each in its category and principal in a savings category, all
-under _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole
-payment** counts it all in one category.
+puts each part of a payment in the category the loan names for it below: interest, escrow, PMI and
+fees as spending, principal as saved. A new loan starts with the shipped ones under _Loan
+payments_, so a plan line on _Loan payments_ counts the whole payment until one is changed. **The
+whole payment** counts it all in one category; the parts' categories are kept for a return to the
+split.
 
 ## Counts in {#budget-category}
 
-The category the whole payment counts in: _Loan payments_ unless you choose another.
+The category the whole payment counts in. It can't be left blank: **default** fills in _Loan
+payments_.
+
+## Interest {#interest-category}
+
+The category a payment's interest counts in, _Loan payments › Interest_ to start with. It can't be
+left blank: **default** fills in that one.
+
+## Escrow {#escrow-category}
+
+The category a payment's escrow counts in, its property tax and insurance together: _Loan payments
+› Escrow_ to start with, or _Housing › Property tax_ for a household that budgets them there. It
+can't be left blank: **default** fills in _Loan payments › Escrow_.
+
+## PMI {#pmi-category}
+
+The category a payment's private mortgage insurance counts in, _Loan payments › PMI_ to start
+with. It can't be left blank: **default** fills in that one.
+
+## Fees {#fees-category}
+
+The category a payment's fees count in, _Loan payments › Fees_ to start with. It can't be left
+blank: **default** fills in that one.
+
+## Principal {#principal-category}
+
+The savings category a payment's principal counts in as saved, an overpayment with it:
+_Loan payments › Principal_ to start with, or a savings category of your own. Only a savings
+category can hold it, and it can't be left blank: **default** fills in _Loan payments ›
+Principal_.
 
 ## New category…
 

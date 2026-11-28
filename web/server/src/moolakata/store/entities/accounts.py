@@ -301,6 +301,12 @@ class Loan(Record):
     securedById: str | None = None
     budgetCounting: str = "split"
     budgetCategoryId: str | None = None
+    # The categories a split payment's parts count in (S1.9.7.1).
+    interestCategoryId: str | None = None
+    escrowCategoryId: str | None = None
+    pmiCategoryId: str | None = None
+    feesCategoryId: str | None = None
+    principalCategoryId: str | None = None
     paymentsMode: str | None = None  # None: Automatic (S1.9.3)
 
 

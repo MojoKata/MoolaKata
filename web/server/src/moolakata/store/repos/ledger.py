@@ -515,7 +515,8 @@ def _option(s: Session, account: Account, sec, result) -> Instrument | None:
         under = s.get(Instrument, c.underlyingId)
         if under is not None and under.symbol == base:
             result.warnings.append(
-                f"{name} looks like an adjustment of {shown(s.get(Instrument, iid).symbol)}: "
+                f"{shown(name)} looks like an adjustment of "
+                f"{shown(s.get(Instrument, iid).symbol)}: "
                 "adjust it on Positions › Strategies, from the OCC's memo, so its lots carry over"
             )
             break

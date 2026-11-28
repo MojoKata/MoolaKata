@@ -391,6 +391,69 @@ def test_a_matched_loan_payment_counts_at_the_bank_split_by_the_schedule(server,
     assert v["spent"] == "1900.00" and v["saved"] == "298.65"
 
 
+def test_a_split_loan_payment_counts_each_part_in_the_category_the_loan_names(server, frozen):
+    """S1.9.7.1: the loan names each part's category: here its escrow under Housing and its
+    principal in a savings category of the household's, interest where it starts."""
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Home", type="mortgage", institution="Rocket")
+    named = {
+        "escrowCategoryId": cat["Housing › Property tax"],
+        "principalCategoryId": cat["Savings › Emergency fund"],
+    }
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-09-01", termMonths=360,
+                rate="6", escrowTax="300", escrowInsurance="100", **named))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "2198.65", from_account=acct["id"]))
+    emergency = cat["Savings › Emergency fund"]
+    v = plan(c, b, "2026-10-01", [{"categoryId": emergency, "amount": "300.00"}])
+    assert v["spent"] == "1900.00" and v["saved"] == "298.65"
+    assert row(v, "Savings › Emergency fund")["actual"] == "298.65"
+    assert sorted((u["label"], u["spent"]) for u in v["unplanned"]) == [
+        ("Housing › Property tax", "400.00"),
+        ("Loan payments › Interest", "1500.00"),
+    ]
+
+
+def test_a_payment_to_a_loan_with_no_terms_counts_in_the_shipped_principal(server, frozen):
+    """S1.9.7.1: a loan whose terms aren't set yet names no categories, and a payment it holds
+    unsplit is all principal: each counts in the shipped *Loan payments › Principal*, as
+    saved."""
+    from edits import new_id
+
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Old mortgage", type="mortgage", institution="Rocket")
+
+    def pay(day, amount):
+        mine, half = new_id("Txn"), {"date": day, "kind": "transfer"}
+        ops = [{"op": "create", "entity": "Txn", "id": mine,
+                "fields": {**half, "accountId": acct["id"], "amount": f"-{amount}",
+                           "payee": "Rocket"}},
+               {"op": "create", "entity": "Txn", "id": new_id("Txn"),
+                "fields": {**half, "accountId": loan["id"], "amount": amount,
+                           "payee": "Payment", "transferWithId": mine}}]  # fmt: skip
+        r = c.post("/ui/api/save", json={"ops": ops})
+        assert r.status_code == 200, r.text
+
+    pay("2026-10-01", "500.00")
+    pay("2026-10-15", "250.00")
+    principal = cat["Loan payments › Principal"]
+    v = plan(c, b, "2026-10-01", [{"categoryId": principal, "amount": "800.00"}])
+    assert row(v, "Loan payments › Principal")["actual"] == "750.00"
+    assert v["saved"] == "750.00" and v["spent"] == "0.00"
+
+
+def test_a_payment_past_the_loans_balance_saves_only_what_was_owed(server, frozen):
+    """S1.9.7: a payment larger than what the loan owes saves its balance as principal, and the
+    rest counts as spent; a plan line on *Loan payments* counts it all."""
+    c, acct, cat, b = setup_budget(server)
+    loan = new_account(c, name="Small loan", type="personal-loan", institution="UMB")
+    saved(terms(c, loan["id"], principal="1000", startDate="2026-09-01", termMonths=12,
+                rate="0"))  # fmt: skip
+    saved(loan_payment(c, loan["id"], "2026-10-01", "1200.00", from_account=acct["id"]))
+    v = plan(c, b, "2026-10-01", [{"categoryId": cat["Loan payments"], "amount": "1200.00"}])
+    assert row(v, "Loan payments")["actual"] == "1200.00"
+    assert v["saved"] == "1000.00" and v["spent"] == "200.00"
+
+
 def test_a_loan_counted_whole_and_the_choice_checked(server, frozen):
     c, acct, cat, b = setup_budget(server)
     loan = new_account(c, name="Car", type="auto-loan", institution="Ally")

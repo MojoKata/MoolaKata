@@ -5,7 +5,7 @@ carries it."""
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import false, func, select
 
-from .. import activity, clock, tags
+from .. import activity, tags
 from ..errors import Problem, refuse
 from ..store import views
 from ..store.entities.accounts import Tag
@@ -100,7 +100,7 @@ def _update(ctx, t: Tag, body: TagRecord) -> None:
     if other is not None and other.id != t.id:
         raise refuse("name", "tag-taken", f"You have a tag {name}.", 409)
     if name != t.name:
-        t.name, t.updatedAt = name, clock.now()
+        t.name = name
         activity.record(ctx.s, "tag.renamed", actor=ctx.caller.id, owner=ctx.caller.id)
 
 

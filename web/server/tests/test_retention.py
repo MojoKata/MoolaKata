@@ -57,6 +57,26 @@ def test_a_file_expires_after_its_record_ended_and_its_categorys_period(server, 
     soon = receipt_on(c, newer["id"], png((4, 5, 6)))
     d = c.get(f"/ui/api/receipts/{soon}").json()
     assert (d["kept"], d["keptSoon"]) == ("Kept until May 2033", True)
+    # Keep's tooltip names what sets the date; the warning by it shows within 90 days, and once
+    # expired (S14.10.3).
+    assert (d["keptWhy"], d["keptWarn"]) == (
+        "Kept until May 2033: Health keeps receipts 3 years",
+        "Expires May 2033",
+    )
+    d = c.get(f"/ui/api/receipts/{rid}").json()
+    assert (d["keptWhy"], d["keptWarn"]) == (
+        "Expired Oct 2032: Health keeps receipts 3 years",
+        "Expired, prunable",
+    )
+    # With Keep on the file is kept for ever; the tooltip and the warning say what it would be
+    # without, for the dialog to show once Keep is off.
+    saved(change(c, "Rcpt", c.get(f"/ui/api/receipts/{soon}").json(), keep=True))
+    d = c.get(f"/ui/api/receipts/{soon}").json()
+    assert (d["keptState"], d["keptWhy"], d["keptWarn"]) == (
+        "forever",
+        "Kept until May 2033: Health keeps receipts 3 years",
+        "Expires May 2033",
+    )
     # Uncategorised, attached to nothing, or Keep on: kept for ever.
     loose = add(c, acct["id"], "-5.00", "2020-01-01", payee="Shop")
     assert kept(c, receipt_on(c, loose["id"], png((7, 8, 9))))[0] == "forever"
@@ -173,7 +193,12 @@ def test_an_items_receipt_is_kept_for_ever_sold_or_not(server, frozen):
     path = f"/ui/api/items/{watch['id']}"
     saved(edit(c, "Item", path, receiptIds={"add": [rid], "remove": []}))
     d = c.get(f"/ui/api/receipts/{rid}").json()
-    assert (d["keptState"], d["kept"], d["keptWhy"]) == ("forever", "Kept for ever", None)
+    assert (d["keptState"], d["kept"], d["keptWhy"], d["keptWarn"]) == (
+        "forever",
+        "Kept for ever",
+        "Kept for ever",
+        None,
+    )
     saved(edit(c, "Item", path, soldOn="2021-02-03", proceeds="1500", saleFees="0"))
     assert kept(c, rid) == ("forever", "Kept for ever"), "sold long ago, still kept"
 
@@ -324,28 +349,94 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     assert (d["keptState"], d["kept"], d["keptWhy"]) == (
         "expired",
         "Expired Sep 2032, prunable",
-        "Statements keeps statements 5 years",
+        "Expired Sep 2032: Statements keeps statements 5 years",
     )
 
 
-def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen):
+def test_a_pruned_file_that_cant_be_removed_is_left_as_an_orphan(
+    server, frozen, monkeypatch, caplog
+):
+    """S16.17: a removal that fails frees nothing and says so; the file stays, for Settings ›
+    Storage's orphans."""
+    from moolakata import filestore
+    from moolakata.receipts import retention
+
+    make_user(server, "jane")
+    rid = upload(sign_in(server, "jane"), png((40, 41, 42))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        r = s.get(Receipt, rid)
+        path = retention.file_path(server.config.receipts_dir, r.fileId)
+        files = retention.mark_pruned(s, [r], r.ownerId)
+
+    def refused(self, name):
+        raise PermissionError(name)
+
+    monkeypatch.setattr(filestore.FileStore, "remove", refused)
+    assert retention.remove_pruned(server, files) == 0
+    assert path.exists()
+    assert "left as an orphan" in caplog.text
+
+
+def test_a_loans_document_is_kept_until_it_is_paid_off_then_the_statements_period(
+    server, frozen, admin_client
+):
+    """S14.10.1.2, S9.3: a loan's closing disclosure is kept while the loan is open, whatever
+    its own date, and from the day it is paid off (closed) for the statements' period; a
+    statement beside it still ends with its own date."""
+    from moolakata import receipts
+    from moolakata.store.entities.accounts import Account
+
+    jane = make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Mortgage", type="mortgage")
+    doc = upload(c, png((70, 71, 72))).json()["id"]
+    statement = upload(c, png((73, 74, 75))).json()["id"]
+    assert make(c, "RcLnk", receiptId=doc, kind="account", itemId=loan["id"]).status_code == 200
+    with server.db.tx(unscoped="test") as s:
+        s.get(Receipt, doc).date = dt.date(2020, 5, 1)
+        r = s.get(Receipt, statement)
+        r.date = dt.date(2027, 9, 30)
+        receipts.attach_account(s, jane.id, r, loan["id"])
+    assert save_settings(admin_client, {"keepStatementsYears": 5}).status_code == 200
+    assert kept(c, doc) == ("open", "Kept while the loan is open")
+    tip = c.get(f"/ui/api/receipts/{doc}").json()["keptWhy"]
+    assert tip == "Kept while the loan is open, then Statements' 5 years"
+    assert kept(c, statement) == ("expired", "Expired Sep 2032, prunable")
+    with server.db.tx(unscoped="test") as s:
+        s.get(Account, loan["id"]).closedOn = dt.date(2031, 6, 30)
+    d = c.get(f"/ui/api/receipts/{doc}").json()
+    assert (d["keptState"], d["kept"], d["keptWhy"]) == (
+        "until",
+        "Kept until Jun 2036",
+        "Kept until Jun 2036: Statements keeps a loan's documents 5 years after it is paid off",
+    )
+
+
+@pytest.mark.parametrize("other_deleted", [True, False])
+def test_a_file_only_a_deleted_receipt_names_is_pruned(server, frozen, other_deleted):
     # S14.10.5: a file is removed once no live receipt needs it; a deleted one doesn't count.
+    # Two users' uploads of the same bytes are two receipts over one file: the other's,
+    # deleted, lets the file go; live, it keeps it.
     from moolakata.receipts import retention
     from moolakata.store.entities.receipts import Receipt
 
     make_user(server, "jane")
-    c = sign_in(server, "jane")
-    first = upload(c, png((9, 8, 7))).json()["id"]
-    second = upload(c, png((9, 8, 7))).json()["id"]
+    make_user(server, "john")
+    first = upload(sign_in(server, "jane"), png((9, 8, 7))).json()["id"]
+    second = upload(sign_in(server, "john"), png((9, 8, 7))).json()["id"]
+    assert first != second
     with server.db.tx(unscoped="test") as s:
         a, b = s.get(Receipt, first), s.get(Receipt, second)
         assert a.fileId == b.fileId, "one file for the same bytes"
-        b.mark_deleted(None)
+        if other_deleted:
+            b.mark_deleted(None)
         path = retention.file_path(server.config.receipts_dir, a.fileId)
-        assert path.exists()
+        size = path.stat().st_size
         files = retention.mark_pruned(s, [a], a.ownerId)
-    assert retention.remove_pruned(server, files) > 0
-    assert not path.exists()
+    assert retention.remove_pruned(server, files) == (size if other_deleted else 0)
+    assert path.exists() is not other_deleted
+    with server.db.read(unscoped="test") as s:
+        assert (s.get(Receipt, second).filePrunedAt is None) is not other_deleted
 
 
 def _reauth(server):

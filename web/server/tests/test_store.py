@@ -11,6 +11,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Column, ForeignKey, MetaData, Table, Text, select, text
 
 from moolakata import ids, settings
+from moolakata import loans as L
 from moolakata.config import RefuseStart
 from moolakata.keys import master
 from moolakata.keys import secrets as sealing
@@ -173,11 +174,147 @@ def _an_account_and_instrument(s) -> tuple[str, str]:
     return acct.id, inst.id
 
 
-@pytest.mark.parametrize("make", [_a_lot, _a_holding, _a_price], ids=["Lot", "Holding", "Price"])
+def _a_transaction(s):
+    from moolakata.store.entities.accounts import Transaction
+
+    acct, _ = _an_account_and_instrument(s)
+    txn = Transaction(
+        id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind="buy", amount=-100
+    )
+    return txn, "memo", ("expired", "synced")
+
+
+def _an_import(s):
+    from moolakata.store.entities.accounts import Account, Import
+
+    acct, _ = _an_account_and_instrument(s)
+    owner = s.get(Account, acct).ownerId
+    imp = Import(
+        id=ids.new_id("Imprt"), accountId=acct, userId=owner, format="ofx", fileName="a.ofx",
+        fileHash="h",
+    )  # fmt: skip
+    return imp, "added", (3, 4)
+
+
+def _an_anchor(s):
+    from moolakata.store.entities.accounts import Anchor
+
+    acct, _ = _an_account_and_instrument(s)
+    anchor = Anchor(
+        id=ids.new_id("Anchr"), accountId=acct, date=dt.date(2026, 3, 2), balance=100,
+        source="ofx",
+    )  # fmt: skip
+    return anchor, "balance", (110, 120)
+
+
+def _a_holding_check(s):
+    from moolakata.store.entities.accounts import HoldingCheck
+
+    acct, inst = _an_account_and_instrument(s)
+    check = HoldingCheck(
+        id=ids.new_id("HdChk"), accountId=acct, instrumentId=inst, asOf=dt.date(2026, 3, 2),
+        label="VTI", quantity=10,
+    )  # fmt: skip
+    return check, "quantity", (11, 12)
+
+
+def _a_transfer_match(s):
+    from moolakata.store.entities.accounts import Account, Transaction, TransferMatch
+
+    acct, _ = _an_account_and_instrument(s)
+    owner = s.get(Account, acct).ownerId
+    out, in_ = (
+        Transaction(id=ids.new_id("Txn"), accountId=acct, date=dt.date(2026, 3, 2), kind=k,
+                    amount=a)
+        for k, a in (("transfer-out", -1), ("transfer-in", 1))
+    )  # fmt: skip
+    s.add_all([out, in_])
+    s.flush()
+    match = TransferMatch(id=ids.new_id("XfrMt"), ownerId=owner, outId=out.id, inId=in_.id)
+    return match, "state", ("rejected", "confirmed")
+
+
+def _a_price_source(s):
+    from moolakata.store.entities.prices import PriceSource
+
+    src = PriceSource(id=ids.new_id("Src"), name="counted-test", enabled=True)
+    return src, "lastError", ("refused", "timed out")
+
+
+def _a_link_row(s):
+    from moolakata.store.entities.links import Link
+
+    return s.get(Link, _a_link(s)), "lastError", ("unreachable", "refused")
+
+
+def _a_connector(s):
+    from moolakata.store.entities.connector import Connector
+
+    return Connector(id=ids.new_id("Cnctr"), state="paired"), "connectorVersion", ("1.1", "1.2")
+
+
+def _a_connection(s):
+    from moolakata.store.entities.connector import Connection
+
+    connector, _, _ = _a_connector(s)
+    s.add(connector)
+    s.flush()
+    row = Connection(
+        id=ids.new_id("Conn"), ownerId=new_user(s).id, connectorId=connector.id,
+        driver="folder", label="Bank", state="ok",
+    )  # fmt: skip
+    return row, "state", ("failing", "needs-sign-in")
+
+
+def _a_setting(s):
+    from moolakata.store.entities.core import Setting
+
+    row = Setting(id=ids.new_id("Setng"), key="bitcoinNodeCertOffered", value='"a"')
+    return row, "value", ('"b"', "null")
+
+
+def _a_signup_request(s):
+    from moolakata.store.entities.users import SignupRequest
+
+    req = SignupRequest(
+        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
+        passwordHash="h", sex="male", confirmTokenHash="t",
+        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+    )  # fmt: skip
+    return req, "passwordHash", (None, "h2")
+
+
+BACKGROUND = {
+    "Lot": _a_lot,
+    "Holding": _a_holding,
+    "Price": _a_price,
+    # The connector's files (S18.8), the bitcoin sync (S1.6.2) and the hourly option expiry
+    # (S3.6).
+    "Transaction": _a_transaction,
+    # The connector's files.
+    "Import": _an_import,
+    "Anchor": _an_anchor,
+    "HoldingCheck": _a_holding_check,
+    # The bitcoin sync's proposals (S1.6.2).
+    "TransferMatch": _a_transfer_match,
+    # The price refresh (S16.7).
+    "PriceSource": _a_price_source,
+    # The hourly exchange (S11.4).
+    "Link": _a_link_row,
+    # The connector's reports (S18.5).
+    "Connector": _a_connector,
+    "Connection": _a_connection,
+    # The bitcoin sync's certificate offer (S1.6.2).
+    "Setting": _a_setting,
+    # The hourly prune clears a lapsed request's password hash (S10.1.4).
+    "SignupRequest": _a_signup_request,
+}
+
+
+@pytest.mark.parametrize("make", BACKGROUND.values(), ids=BACKGROUND.keys())
 def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, make):
     """schema.md §2: a table the server writes in the background, outside a person's save, is
-    counted: lots and holdings from the connector's files (S18.8), prices from their refresh
-    (S16.7). A write from a copy read before another save is never refused for its version,
+    counted. A write from a copy read before another save is never refused for its version,
     and both saves are counted."""
     from moolakata.store import mapping
 
@@ -195,28 +332,87 @@ def test_a_table_written_in_the_background_counts_a_save_from_an_old_copy(db, ma
     assert type(row) in mapping.COUNTED
 
 
-def test_a_signup_request_written_only_by_a_persons_action_is_locked(db):
-    """schema.md §2: no background task writes a sign-up request, only the sign-up, its
-    confirmation and an admin's decision, each a person's own action: a write from a copy read
-    before another save is refused for its version."""
-    from sqlalchemy.orm.exc import StaleDataError
+def _persons(s, owner: str, prefix: str):
+    """A record of a counted table that a person saves with a version, owned by `owner`, and
+    the field a background write changes on it."""
+    from moolakata.store.entities.accounts import Account, Anchor, Transaction
+    from moolakata.store.entities.connector import Connection, Connector
+    from moolakata.store.entities.core import Setting
+    from moolakata.store.entities.prices import PriceSource
 
-    from moolakata.store import mapping
-    from moolakata.store.entities.users import SignupRequest
-
-    req = SignupRequest(
-        id=ids.new_id("Sgnup"), displayName="Bart", username="bart", email="bart@example.org",
-        passwordHash="h", sex="male", confirmTokenHash="t",
-        confirmBy=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
+    if prefix == "Src":
+        return PriceSource(id=ids.new_id("Src"), name="tiingo", enabled=True), "lastError"
+    if prefix == "Setng":
+        return Setting(id=ids.new_id("Setng"), key="householdName", value='"Home"'), "value"
+    if prefix == "Conn":
+        connector = Connector(id=ids.new_id("Cnctr"), state="paired")
+        s.add(connector)
+        s.flush()
+        row = Connection(
+            id=ids.new_id("Conn"), ownerId=owner, connectorId=connector.id, driver="folder",
+            label="Bank", state="ok",
+        )  # fmt: skip
+        return row, "message"
+    acct = Account(id=ids.new_id("Acct"), ownerId=owner, name="Checking", type="checking")
+    s.add(acct)
+    s.flush()
+    if prefix == "Anchr":
+        row = Anchor(
+            id=ids.new_id("Anchr"), accountId=acct.id, date=dt.date(2026, 3, 2), balance=100,
+            source="typed",
+        )  # fmt: skip
+        return row, "note"
+    row = Transaction(
+        id=ids.new_id("Txn"), accountId=acct.id, date=dt.date(2026, 3, 2), kind="withdrawal",
+        amount=-100,
     )  # fmt: skip
-    with db.tx(unscoped="test") as s:
-        s.add(req)
-    assert SignupRequest not in mapping.COUNTED
-    with db.tx(unscoped="test") as s:
-        s.get(SignupRequest, req.id).status = "waiting"
-    with pytest.raises(StaleDataError), db.tx(unscoped="test") as s:
-        s.add(req)  # the copy read at version 1
-        req.status = "rejected"
+    return row, "memo"
+
+
+@pytest.mark.parametrize("prefix", ["Txn", "Anchr", "Src", "Conn", "Setng"])
+def test_a_persons_stale_save_of_a_counted_table_is_still_refused(server, admin_client, prefix):
+    """schema.md §2: a counted table's version locks nothing in the store, but a person's save
+    names the version its draft read (S13.8.6), and one older than a background write is
+    refused at the save, with the record as it is now. The other counted tables of #665
+    (imports, holding checks, links, the connector) have no save of a person's that names a
+    version; a transfer match's answer does (the next test)."""
+    from sqlalchemy import select
+
+    with server.db.tx(unscoped="test") as s:
+        owner = s.scalars(select(User.id).where(User.username == "admin")).one()
+        row, field_ = _persons(s, owner, prefix)
+        s.add(row)
+    with server.db.tx(unscoped="test") as s:
+        setattr(s.get(type(row), row.id), field_, '"Away"')  # the background write
+    op = {"op": "update", "entity": prefix, "id": row.id, "version": 1, "fields": {}}
+    r = admin_client.post("/ui/api/save", json={"ops": [op]})
+    assert r.status_code == 412, r.text
+    assert r.json()["code"] == "stale-version"
+    (current,) = r.json()["current"]
+    assert (current["id"], current["version"]) == (row.id, 2)
+
+
+def test_a_stale_answer_to_a_transfer_match_is_still_refused(server, admin_client):
+    """schema.md §2: a transfer match is counted, so the bitcoin sync's writes never fail on
+    it, but a person's answer names the version it read (S13.8.6) and a stale one is refused."""
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import Account, Transaction
+
+    with server.db.tx(unscoped="test") as s:
+        match, _, _ = _a_transfer_match(s)
+        admin = s.scalars(select(User.id).where(User.username == "admin")).one()
+        s.get(Account, s.get(Transaction, match.outId).accountId).ownerId = admin
+        match.ownerId = admin
+        s.add(match)
+    with server.db.tx(unscoped="test") as s:
+        s.get(type(match), match.id).state = "proposed"  # the sync proposes it again
+    r = admin_client.post(
+        f"/ui/api/transfers/bitcoin/{match.id}", json={"confirm": False},
+        headers={"If-Match": '"1"'},
+    )  # fmt: skip
+    assert r.status_code == 412, r.text
+    assert (r.json()["code"], r.json()["version"]) == ("stale-version", 2)
 
 
 def _a_link(s) -> str:
@@ -929,8 +1125,8 @@ def test_restore_refuses_a_changed_backup_or_one_from_a_newer_release(
 def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     store, keyed_config, master_key
 ):
-    """S15.7: every copy carries its keyring; a rotation re-wraps it, a re-encryption rewrites
-    it, Settings removes it; each says how it opens."""
+    """S15.7: every copy carries its keyring; a rotation's re-encryption rewrites it, Settings
+    removes it; each says how it opens."""
     from moolakata.store import copies
 
     with store.db.tx(unscoped="test") as s:
@@ -1004,6 +1200,19 @@ def test_the_copies_on_the_host_are_listed_rewrapped_reencrypted_and_removed(
     copies.remove(found["moolakata-before-0009-t.db"])
     assert [c.kind for c in copies.copies(keyed_config)] == ["backup", "backup"]
     assert not (older / "moolakata-before-0009-t.keyring").exists()
+
+
+def test_a_rotation_offers_a_copy_no_rewrap_without_reencrypting(store, keyed_config, master_key):
+    """S15.7.1: a rotation always re-encrypts, so a copy's choice is to be re-encrypted,
+    deleted or left; a re-wrap under the new phrase alone is refused before anything changes."""
+    from moolakata.store import reencrypt as journaled
+
+    b = maintenance.backup(keyed_config, store)
+    before = keyed_config.keyring_path.read_bytes()
+    with pytest.raises(ValueError, match="each copy: reencrypt, delete or leave"):
+        maintenance.rotate_running(keyed_config, store, os.urandom(16), {b.name: "rewrap"})
+    assert keyed_config.keyring_path.read_bytes() == before
+    assert not journaled.pending(keyed_config)
 
 
 def test_a_pending_reencryption_under_another_phrase_is_refused_by_name(
@@ -1548,6 +1757,139 @@ def test_0073_gives_every_tax_book_no_magi(tmp_path):
             'SELECT id, year, "carryoverShareLong", magi FROM "TaxBook"'
         ).one()
         assert tuple(got) == (book, 2026, 210000, None)
+    engine.dispose()
+
+
+def _jane_at(conn, made: str) -> str:
+    """A user written in an old revision's terms, for the rows that need an owner."""
+    person, user = ids.new_id("Persn"), ids.new_id("User")
+    conn.exec_driver_sql(
+        'INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+        "VALUES (?, 'Jane', 'female', ?, ?)",
+        (person, made, made),
+    )
+    conn.exec_driver_sql(
+        'INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+        "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+        (user, person, made, made),
+    )
+    return user
+
+
+def test_0074_keeps_every_sign_up_request_and_lets_its_hash_go(tmp_path):
+    """S10.1.4.2, schema.md §4.4.1: `SignupRequest.passwordHash` takes null, each request kept
+    as it was; a decided one is then written with none."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    req = ids.new_id("Sgnup")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0073")
+        conn.commit()
+        conn.exec_driver_sql(
+            'INSERT INTO "SignupRequest" (id, "displayName", username, email, "passwordHash", '
+            'sex, "confirmBy", "createdAt", "updatedAt") VALUES (?, \'Erin\', \'erin\', '
+            "'erin@shaw.family', 'h', 'female', ?, ?, ?)",
+            (req, made, made, made),
+        )
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = q('SELECT id, username, "passwordHash", status FROM "SignupRequest"').one()
+        assert tuple(got) == (req, "erin", "h", "confirming")
+        q('UPDATE "SignupRequest" SET "passwordHash" = NULL, status = \'rejected\'')
+        assert q('SELECT "passwordHash" FROM "SignupRequest"').scalar_one() is None
+    engine.dispose()
+
+
+def test_0075_names_each_loans_parts_in_the_shipped_categories_they_counted_in(tmp_path):
+    """S1.9.7: each loan's split parts take the shipped Loan payments categories they counted
+    in, whether it counts split or whole; one counting whole in no category named takes Loan
+    payments, which that blank meant, and one naming its own keeps it."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    shipped = {k: ids.new_id("Cat") for k in ("loans", *L.BUDGET_PARTS.values())}
+    own = ids.new_id("Cat")
+    loans = {how: ids.new_id("Loan") for how in ("split", "whole", "own")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0074")
+        conn.commit()
+        q = conn.exec_driver_sql
+        user = _jane_at(conn, made)
+        for key, cid in shipped.items():
+            kind = "savings" if key == "loans.principal" else "expense"
+            q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, ?, ?, ?)", (cid, key, kind, key, made, made))  # fmt: skip
+        # A deleted twin of a shipped one is passed over for the live one.
+        q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt", '
+          "\"deletedAt\") VALUES (?, 'old', 'expense', 'loans.escrow', ?, ?, ?)",
+          (ids.new_id("Cat"), made, made, made))  # fmt: skip
+        q('INSERT INTO "Category" (id, name, kind, "createdAt", "updatedAt") '
+          "VALUES (?, 'Car', 'expense', ?, ?)", (own, made, made))  # fmt: skip
+        for how, lid in loans.items():
+            acct = ids.new_id("Acct")
+            q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, 'mortgage', ?, ?)", (acct, user, how, made, made))  # fmt: skip
+            q('INSERT INTO "Loan" (id, "accountId", principal, "startDate", "termMonths", rate, '
+              '"budgetCounting", "budgetCategoryId", "createdAt", "updatedAt") '
+              "VALUES (?, ?, 100000, '2026-01-01', 360, '6', ?, ?, ?, ?)",
+              (lid, acct, "split" if how == "split" else "whole", own if how == "own" else None,
+               made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        parts = ", ".join(f'"{f}"' for f in L.BUDGET_PARTS)
+        rows = conn.exec_driver_sql(f'SELECT id, "budgetCategoryId", {parts} FROM "Loan"')
+        got = {r[0]: tuple(r[1:]) for r in rows}
+        named = tuple(shipped[k] for k in L.BUDGET_PARTS.values())
+        assert got == {
+            loans["split"]: (None, *named),
+            loans["whole"]: (shipped["loans"], *named),
+            loans["own"]: (own, *named),
+        }
+        assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
+def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
+    """S9.3, S14.10.1.2: the links made so far on an account are statements, which an import or
+    the connector made; a link to anything else is none, and can't be marked one."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    rid, acct, txn = ids.new_id("Rcpt"), ids.new_id("Acct"), ids.new_id("Txn")
+    links = {"account": ids.new_id("RcLnk"), "transaction": ids.new_id("RcLnk")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0075")
+        conn.commit()
+        q = conn.exec_driver_sql
+        uid = _jane_at(conn, made)
+        q('INSERT INTO "Receipt" (id, "ownerId", "fileName", "mediaType", size, sha256, '
+          '"fileId", "createdAt", "updatedAt") VALUES (?, ?, \'r.pdf\', '
+          "'application/pdf', 3, 'h', 'f', ?, ?)", (rid, uid, made, made))  # fmt: skip
+        for kind, lid in links.items():
+            q('INSERT INTO "ReceiptLink" (id, "receiptId", kind, "itemId", "createdAt", '
+              '"updatedAt") VALUES (?, ?, ?, ?, ?, ?)',
+              (lid, rid, kind, acct if kind == "account" else txn, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = dict(q('SELECT kind, statement FROM "ReceiptLink"').all())
+        assert got == {"account": 1, "transaction": 0}
+        with pytest.raises(Exception, match="CHECK"):
+            q('UPDATE "ReceiptLink" SET statement = 1 WHERE id = ?', (links["transaction"],))
     engine.dispose()
 
 

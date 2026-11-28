@@ -205,14 +205,15 @@ class Moved:
     otherDeleted: bool = False  # the other account was deleted since
 
 
-# A loan payment's parts, by the shipped category each counts in when split (S1.9.7).
+# A loan payment's parts, by the loan's field naming the category each counts in when split
+# (S1.9.7.1).
 LOAN_PARTS = {
-    "interest": "loans.interest",
-    "escrowTax": "loans.escrow",
-    "escrowInsurance": "loans.escrow",
-    "pmi": "loans.pmi",
-    "fees": "loans.fees",
-    "principal": "loans.principal",
+    "interest": "interestCategoryId",
+    "escrowTax": "escrowCategoryId",
+    "escrowInsurance": "escrowCategoryId",
+    "pmi": "pmiCategoryId",
+    "fees": "feesCategoryId",
+    "principal": "principalCategoryId",
 }
 
 
@@ -349,8 +350,9 @@ def other_halves(s: Session, transfer_ids: list[str]) -> dict[str, OtherHalf]:
 
 
 def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
-    """A payment to a loan, as the loan says: split by the schedule into its parts' categories,
-    or whole in one (S1.9.7). `t` is the bank's half, `other` the loan's."""
+    """A payment to a loan, as the loan says: split by the schedule, each part in the category
+    the loan names for it, or whole in the one it names (S1.9.7). `t` is the bank's half,
+    `other` the loan's."""
     from .. import loans
 
     o, loan_account = other
@@ -363,22 +365,18 @@ def _count_loan_payment(s, tr, out, t, other, loans_seen) -> None:
     seen = loans_seen[loan_account.id]
     row = seen["row"]
     if row is not None and row.budgetCounting == "whole":
-        cat = row.budgetCategoryId or tr.key("loans")
-        if cat:
-            out[cat] += t.amount
+        # Whole names its category: a blank is refused at the save (R3.11).
+        out[row.budgetCategoryId] += t.amount
         return
-    p = seen["payments"].get(o.id)
-    if p is None:
-        return
-    for part, key in LOAN_PARTS.items():
+    # Every payment of the loan's is in its history, its parts adding up to it: a payment past
+    # the balance puts the excess in its fees (S1.9.3).
+    p = seen["payments"][o.id]
+    for part, named in LOAN_PARTS.items():
         amount = getattr(p, part)
-        cat = tr.key(key)
+        # A loan with no terms yet names none: its parts count in the shipped ones.
+        cat = getattr(row, named) if row is not None else tr.key(loans.BUDGET_PARTS[named])
         if amount and cat:
             out[cat] -= amount
-    # What the schedule didn't place (a payment larger than the loan's balance) counts whole.
-    rest = -t.amount - sum((getattr(p, part) for part in LOAN_PARTS), ZERO)
-    if rest and tr.key("loans"):
-        out[tr.key("loans")] -= rest
 
 
 def uncategorised(

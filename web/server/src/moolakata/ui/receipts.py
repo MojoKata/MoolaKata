@@ -11,8 +11,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
+from sqlalchemy import false, select
 
-from .. import access, activity, clock, exactjson, ids, parsing, receipts, settings, tags
+from .. import access, activity, exactjson, ids, parsing, receipts, settings, tags
 from ..access import Perms
 from ..errors import Problem, new_error_id, refuse
 from ..keys.files import FileError
@@ -47,6 +48,7 @@ class LinkOut(Model):
     amount: Money | None
     payee: str | None
     label: str  # how it is named in the receipt's dialog
+    statement: bool = False  # on an account: one of its statements, else another document
     # The link's own, from ReceiptLinkAccess: detaching it is deleting it. None for a link
     # not yet saved, or one named to a reader who doesn't read it.
     access: Access | None = None
@@ -110,7 +112,11 @@ class ReceiptDetail(ReceiptRow):
     keptState: str  # forever, open, until, expired, pruned
     keptUntil: dt.date | None
     keptSoon: bool  # within 90 days
-    keptWhy: str | None  # Groceries keeps receipts 3 years
+    # Keep's tooltip, as the file would be kept without Keep (S14.10.3): Kept until Oct 2029:
+    # Groceries keeps receipts 3 years. None once the file is pruned.
+    keptWhy: str | None
+    # The warning by Keep while it applies, without Keep: Expires Dec 2026, Expired, prunable.
+    keptWarn: str | None
 
 
 def _own(s, ln, user_id: str | None) -> dict:
@@ -161,8 +167,13 @@ def _links(s, r: Receipt, user_id: str | None = None) -> list[LinkOut]:
                         accountName=a.name,
                         date=None,
                         amount=None,
-                        payee="Statement",
-                        label=f"The statement of {a.name}",
+                        payee="Statement" if ln.statement else "Document",
+                        label=(
+                            f"The statement of {a.name}"
+                            if ln.statement
+                            else f"A document of {a.name}"
+                        ),
+                        statement=ln.statement,
                     )
                 )
             continue
@@ -264,8 +275,10 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
     # The file's own date, over every link; its reason named only from a link this reader
     # reads (S9.7).
     with scoping.as_server(s, "how long a receipt's file is kept") as srv:
-        rt = retention.retention(retention.Context(srv), srv.get(Receipt, r.id))
-    named = rt.link is None or access.perms(s, ReceiptLink, rt.link, user_id) is not None
+        ctx, own = retention.Context(srv), srv.get(Receipt, r.id)
+        rt = retention.retention(ctx, own)
+        free = retention.retention(ctx, own, ignore_keep=True)
+    named = free.link is None or access.perms(s, ReceiptLink, free.link, user_id) is not None
     return ReceiptDetail(
         **base.model_dump(),
         matches=[
@@ -292,16 +305,39 @@ def detail(s, user_id: str, r: Receipt, held: Perms) -> ReceiptDetail:
         keptState=rt.state,
         keptUntil=rt.until,
         keptSoon=rt.soon,
-        keptWhy=(
-            None
-            if not rt.years
-            else "Kept for something not shared with you"
-            if not named
-            else f"{rt.category} keeps "
-            + ("statements" if rt.category == "Statements" else "receipts")
-            + f" {rt.years} year{'s' if rt.years != 1 else ''}"
+        keptWhy=kept_why(free, named),
+        keptWarn=(
+            "Expired, prunable"
+            if free.state == "expired"
+            else f"Expires {free.until:%b %Y}"
+            if free.state == "until" and free.soon
+            else None
         ),
     )
+
+
+def _years(n: int) -> str:
+    return f"{n} year{'s' if n != 1 else ''}"
+
+
+def kept_why(rt: retention.Retention, named: bool) -> str | None:
+    """Keep's tooltip (S14.10.3): how long the file is kept without Keep, and what sets it;
+    only that it is kept, when what sets it isn't shared with the reader (S9.7)."""
+    if rt.state == "pruned":
+        return None
+    if rt.years and not named:
+        return "Kept for something not shared with you"
+    if rt.state == "open" and rt.document and rt.years:
+        return f"{rt.label}, then Statements' {_years(rt.years)}"
+    if rt.state not in ("until", "expired") or not rt.years:
+        return rt.label
+    head = f"Kept until {rt.until:%b %Y}" if rt.state == "until" else f"Expired {rt.until:%b %Y}"
+    if rt.document:
+        return (
+            f"{head}: Statements keeps a loan's documents {_years(rt.years)} after it is paid off"
+        )
+    what = "statements" if rt.category == "Statements" else "receipts"
+    return f"{head}: {rt.category} keeps {what} {_years(rt.years)}"
 
 
 @router.get("/receipts", response_model=list[ReceiptRow])
@@ -463,7 +499,6 @@ def _receipt_update(ctx, r: Receipt, body: ReceiptRecord) -> None:
     tags.owned(ctx.s, ctx.caller.id, body.tagIds)
     tags.set_on(ctx.s, "receipt", r.id, ctx.caller.id, body.tagIds, ctx.caller.id)
     r.keep = body.keep
-    r.updatedAt = clock.now()
 
 
 def _receipt_delete(ctx, r: Receipt) -> None:
@@ -618,6 +653,31 @@ def receipt_thumbnail(receipt_id: str, request: Request, c: Caller = Depends(cal
         media_type="image/webp",
         headers={"Cache-Control": "private, max-age=86400", "Content-Security-Policy": "sandbox"},
     )
+
+
+@router.get("/accounts/{account_id}/documents", response_model=list[ReceiptRow])
+def account_documents(account_id: str, request: Request, c: Caller = Depends(caller)):
+    """The documents kept on an account other than its statements (a loan's closing
+    disclosure, S9.3), oldest kept first: seen by those who see the account (R1.6)."""
+    with server(request).db.read(user=c.id) as s:
+        access.account(s, c.id, account_id)
+        found = s.scalars(
+            select(ReceiptLink)
+            .where(
+                ReceiptLink.kind == "account",
+                ReceiptLink.itemId == account_id,
+                ReceiptLink.statement == false(),
+                ReceiptLink.deleted == false(),
+            )
+            .order_by(ReceiptLink.createdAt, ReceiptLink.id)
+        )
+        out = []
+        for ln in found:
+            r = s.get(Receipt, ln.receiptId)
+            if r is None or r.deleted:
+                continue
+            out.append(row(s, r, receipts.perms_for(s, c.id, r) or access.READ, c.id))
+        return out
 
 
 @router.get("/transactions/{transaction_id}/receipts", response_model=list[ReceiptRow])

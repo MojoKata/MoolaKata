@@ -39,8 +39,7 @@
        architecture, the **bundle** a linked server's worker runs (S11.10.1): the server's
        wheel with its pages, every dependency's wheel and the lock file, attested as the
        images are, so a worker is installed from GitHub alone. On a pull request that touches what goes into the images, it builds and
-       smoke-runs both and pushes nothing. A new package on ghcr.io starts private: after the
-       first release, an owner of MojoKata makes both public, once.
+       smoke-runs both and pushes nothing.
        1. **Tags and releases**: the maintainer who makes a release signs its tag with their
           own GPG key and pushes it. Once the published images check out, the same
           maintainer publishes the draft with its notes (`docs/RELEASE.md`; `web/release.sh`

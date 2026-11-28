@@ -383,7 +383,6 @@ def confirm_relationship(rel_id: str, request: Request, c: Caller = Depends(call
             raise Problem(409, "not-a-marriage", "Only a marriage is confirmed.")
         if not people.confirm(s, c.id, r):
             raise Problem(403, "not-yours-to-confirm", "Only the other spouse confirms this.")
-        r.updatedAt = clock.now()
         s.flush()
         _rewash(s, (r.relation, r.person1Id, r.person2Id))
         activity.record(s, "relationship.confirmed", actor=c.id, owner=c.id)
@@ -405,7 +404,6 @@ def _relationship_update(ctx, r: Relationship, body: RelationshipRecord) -> None
     _apply(s, c, r, body)
     changed = before != (r.relation, r.person1Id, r.person2Id) or dates != (r.fromDate, r.toDate)
     people.confirm(s, c.id, r, fresh=changed)
-    r.updatedAt = clock.now()
     s.flush()
     _rewash(s, before, (r.relation, r.person1Id, r.person2Id))
 

@@ -7,7 +7,6 @@ from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import false, select
 
-from .. import clock
 from ..auth import signup, twostep
 from ..auth import users as accounts
 from ..errors import Problem, refuse
@@ -134,7 +133,6 @@ def reset_two_step(user_id: str, request: Request, c: Caller = Depends(admin)):
     with srv.db.tx(user=c.id) as s:
         u = _user(s, user_id)
         twostep.turn_off(s, srv.services, u, c.user)
-        u.updatedAt = clock.now()
         s.flush()
         out = user_row(s, u)
     if u.id != c.id:

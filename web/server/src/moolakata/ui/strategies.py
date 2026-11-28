@@ -268,6 +268,7 @@ def roll(strategy_id: str, body: Rolled, request: Request, c: Caller = Depends(c
             s.add(declined)
             s.flush()
             s.add(StrategyLeg(strategyId=declined.id, instrumentId=iid, addedOn=today))
+        # Its legs are rows of their own: set by hand, its version moves with them.
         st.updatedAt = clock.now()
         s.flush()
         book = strat.Book(s, repo.load(s, a))

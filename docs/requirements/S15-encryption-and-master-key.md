@@ -265,7 +265,7 @@ replica holds only the right-hand side, and a backup can be made of the whole ho
       person who set up the server is not available.
    7. **Protect the host as well**: root access limited to the people who run the server,
       since root on the running, unlocked server reads everything (S15.3.7). Disk
-      encryption on the host is a good habit but no longer carries the key: nothing on the
+      encryption on the host is a good habit, but it carries no key: nothing on the
       disk opens without the phrase, so the data directory and the backup directory can be
       snapshotted, replicated and sent to a NAS or a cloud bucket as they are, as long as
       the recovery phrase never goes with them. **Know where every copy is**: the copies on

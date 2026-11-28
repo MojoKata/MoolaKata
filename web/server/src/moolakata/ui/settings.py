@@ -187,7 +187,6 @@ def _setting_apply(ctx, row: Setting, body: SettingRecord, new: bool) -> None:
         else:
             secret_repo.remove(s, *where)
         row.updatedById = c.id
-        row.updatedAt = clock.now()
         notes["secrets"].add(body.key)
         notes["changed"].append(body.key)
     else:

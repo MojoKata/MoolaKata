@@ -11,7 +11,7 @@ from edits import change, loan_payment, make, saved, share, terms
 from sqlalchemy import select
 from test_accounts import add, logged, new_account
 
-from moolakata import assets, clock, exactjson, ids
+from moolakata import assets, categories, clock, exactjson, ids
 from moolakata import loans as L
 from moolakata.errors import FieldError, Problem
 from moolakata.loans import payoff as P
@@ -269,9 +269,19 @@ def test_pmi_can_be_dropped_on_the_day_the_balance_reaches_its_share_of_the_valu
 # ui.loans._check
 
 
+# A split's parts named, for the checks that don't look them up (S1.9.7.1).
+NAMED = {f: "Cat_part" for f in L.BUDGET_PARTS}
+
+
 def _body(**kw) -> UL.TermsIn:
-    kw = {"principal": D(1000), "startDate": d(2026, 1, 1), "termMonths": 12, "rate": D(6), **kw}
+    kw = {"principal": D(1000), "startDate": d(2026, 1, 1), "termMonths": 12, "rate": D(6),
+          **NAMED, **kw}  # fmt: skip
     return UL.TermsIn(**kw)
+
+
+def _parts(s) -> dict:
+    """The shipped categories a split's parts start in, for the checks that look them up."""
+    return categories.loan_parts(s)
 
 
 def _refused(field, code, message) -> list[FieldError]:
@@ -316,10 +326,37 @@ def test_a_helocs_draw_period_is_none_up_to_a_month_short_of_the_term(draw, refu
 
 def test_budget_counting_is_split_or_whole_and_nothing_else():
     # S1.9.7: a payment counts in budgets split by the schedule, or whole.
-    assert UL._check(_body(budgetCounting="whole"), "auto-loan") == []
+    assert UL._check(_body(budgetCounting="whole", budgetCategoryId="Cat_x"), "auto-loan") == []
     assert UL._check(_body(budgetCounting="both"), "auto-loan") == _refused(
         "budgetCounting", "counting-invalid", "Split by the schedule, or whole."
     )
+
+
+def test_a_whole_payment_with_no_category_is_refused_never_read_as_loan_payments():
+    # S1.9.7.2, R3.11: the blank is refused at its field; the form offers the default.
+    assert UL._check(_body(budgetCounting="whole"), "auto-loan") == _refused(
+        "budgetCategoryId", "category-missing", "The category the whole payment counts in."
+    )
+
+
+def test_a_split_names_a_category_for_each_part_and_whole_keeps_them_as_they_are():
+    # S1.9.7.1, R3.11: split, each part's blank category is refused at its own field, in its
+    # words; counted whole, the parts' are kept as they are, blank or not.
+    blank = dict.fromkeys(L.BUDGET_PARTS)
+    assert UL._check(_body(**blank), "mortgage") == [
+        FieldError(f, "category-missing", f"The category {what} counts in.")
+        for f, what in [
+            ("interestCategoryId", "interest"),
+            ("escrowCategoryId", "escrow"),
+            ("pmiCategoryId", "PMI"),
+            ("feesCategoryId", "fees"),
+            ("principalCategoryId", "principal"),
+        ]
+    ]
+    for f in L.BUDGET_PARTS:
+        assert [e.field for e in UL._check(_body(**{f: None}), "mortgage")] == [f]
+    whole = _body(budgetCounting="whole", budgetCategoryId="Cat_x", **blank)
+    assert UL._check(whole, "mortgage") == []
 
 
 def test_the_payments_setting_is_automatic_recorded_or_assumed_and_nothing_else():
@@ -448,9 +485,38 @@ def test_a_whole_payment_counts_under_a_live_category_that_is_not_a_transfer(boo
         body = _body(budgetCounting="whole", budgetCategoryId=cat)
         assert _terms_refused(s, uid, body) == NO_CATEGORY, cat
     cat = _category(s).id
-    out = UL._terms(s, _caller(uid), _account(s, uid), _body(budgetCounting="whole",
-                                                             budgetCategoryId=cat))  # fmt: skip
+    body = _body(budgetCounting="whole", budgetCategoryId=cat, **_parts(s))
+    out = UL._terms(s, _caller(uid), _account(s, uid), body)
     assert out["budgetCategoryId"] == cat
+
+
+@pytest.mark.parametrize("field", list(L.BUDGET_PARTS))
+def test_each_parts_category_is_a_live_one_not_a_transfer(book, field):
+    # S1.9.7.1: a part's category is looked up as the whole payment's is, refused at its own
+    # field.
+    s, uid = book
+    gone = _category(s)
+    gone.mark_deleted(uid)
+    s.flush()
+    for cat in ("Cat_none", gone.id, _category(s, kind="transfer").id):
+        body = _body(**{**_parts(s), field: cat})
+        refusal = _problem(field, "category-unknown", "Choose a category.")
+        assert _terms_refused(s, uid, body) == refusal, cat
+
+
+def test_principal_counts_in_a_savings_category(book):
+    # S1.9.7.1: principal is saved, not spent: an expense category for it is refused at its
+    # field, a savings one of the household's kept, and an expense one for another part too.
+    s, uid = book
+    spent = _category(s).id
+    body = _body(**{**_parts(s), "principalCategoryId": spent})
+    assert _terms_refused(s, uid, body) == _problem(
+        "principalCategoryId", "category-not-savings", "Principal counts in a savings category."
+    )
+    mine = _category(s, name="House fund", kind="savings").id
+    body = _body(**{**_parts(s), "principalCategoryId": mine, "escrowCategoryId": spent})
+    out = UL._terms(s, _caller(uid), _account(s, uid), body)
+    assert (out["principalCategoryId"], out["escrowCategoryId"]) == (mine, spent)
 
 
 def test_a_split_payment_is_refused_a_budget_category(book):
@@ -463,7 +529,7 @@ def test_a_split_payment_is_refused_a_budget_category(book):
         "category-not-for-split",
         "A category is named only when payments count whole.",
     )
-    body = _body(budgetCounting="split", budgetCategoryId=None)
+    body = _body(budgetCounting="split", budgetCategoryId=None, **_parts(s))
     assert UL._terms(s, _caller(uid), _account(s, uid), body)["budgetCategoryId"] is None
 
 
@@ -471,7 +537,7 @@ def test_a_recast_is_kept_with_its_day_and_fee(book):
     # S1.9.1: the terms as saved read back on the screen, each recast with its day and fee.
     s, uid = book
     a = _account(s, uid)
-    body = _body(recasts=[{"date": d(2026, 6, 15), "fee": D("250.50")}])
+    body = _body(recasts=[{"date": d(2026, 6, 15), "fee": D("250.50")}], **_parts(s))
     s.add(Loan(id=ids.new_id("Loan"), accountId=a.id, **UL._terms(s, _caller(uid), a, body)))
     s.flush()
     assert [(r.date, r.fee) for r in UL.view(s, a).terms.recasts] == [(d(2026, 6, 15), D("250.50"))]
@@ -549,6 +615,35 @@ def test_only_an_unpaired_payment_on_this_loan_hides_a_debit_beside_it(server, f
         add(c, loan["id"], "0.00", "2026-10-02", payee="Statement")
     debit = add(c, bank["id"], "-1798.65", "2026-10-01", payee="ROCKET MORTGAGE")
     assert _offered(c, loan) == [(debit["id"], None)]
+
+
+def test_a_debit_more_than_2_percent_off_the_payment_is_not_offered(server, frozen):
+    # S1.9.3: a bank debit within 2% of the payment is offered to link; one further off isn't.
+    c, bank, loan = _mortgage_and_checking(server)
+    near = add(c, bank["id"], "-1830.00", "2026-10-01", payee="ROCKET MORTGAGE")
+    add(c, bank["id"], "-1840.00", "2026-10-08", payee="ROCKET MORTGAGE")
+    assert _offered(c, loan) == [(near["id"], None)]
+
+
+def test_a_loan_without_terms_offers_no_split_and_no_debit(server, frozen):
+    # S1.9.3: with no terms there is no schedule: the split is refused as such, no debit is
+    # offered, and a payment of nothing is refused at its amount.
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage")
+    split = f"/ui/api/accounts/{loan['id']}/loan/split"
+    r = c.get(split, params={"date": "2026-10-01", "amount": "100.00"})
+    assert (r.status_code, r.json()["code"], r.json()["detail"]) == (
+        409,
+        "no-terms",
+        "Set the loan's terms first.",
+    )
+    r = c.get(split, params={"date": "2026-10-01", "amount": "0"})
+    assert r.status_code == 422
+    assert [(e["field"], e["code"], e["message"]) for e in r.json()["errors"]] == [
+        ("amount", "amount-invalid", "A payment is more than zero.")
+    ]
+    assert _offered(c, loan) == []
 
 
 def test_a_payment_of_a_dollar_on_this_loan_hides_a_debit_beside_it(server, frozen):
@@ -1026,7 +1121,9 @@ def test_a_loans_terms_stay_with_their_loan_and_a_change_is_stamped(book):
         "accountId", "loan-fixed", words
     )
     UL._loan_update(
-        _ctx(s, uid), row, UL.LoanRecord(accountId=a.id, **_body(rate=D(5)).model_dump())
+        _ctx(s, uid),
+        row,
+        UL.LoanRecord(accountId=a.id, **_body(rate=D(5), **_parts(s)).model_dump()),
     )
     assert (row.accountId, row.rate, row.updatedAt) == (a.id, D(5), T0)
 

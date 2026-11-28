@@ -77,7 +77,8 @@ ReceiptTags = pairs(
 )
 
 # What a receipt is attached to (S9.3): transactions, an account (a statement kept as a
-# receipt, S1.3.3), a physical-asset item's photos and documents (S1.10.1), a 529's qualified
+# receipt, S1.3.3, or a loan's other document, `statement` telling them apart), a physical-asset
+# item's photos and documents (S1.10.1), a 529's qualified
 # expenses (S1.8.3), gifts (S7.8.1), donations' acknowledgements (S8.9), and other kinds as
 # they are built.
 ReceiptLink = record(
@@ -87,10 +88,15 @@ ReceiptLink = record(
     Column("kind", Text, nullable=False),
     Column("itemId", Text, nullable=False),
     Column("linkedById", Text, ForeignKey("User.id")),
+    # On an account: one of its statements, which an import or the connector keeps there, or
+    # another document (a loan's closing disclosure), kept until the account closes
+    # (S14.10.1.2).
+    Column("statement", Boolean, nullable=False, server_default=text("0")),
     CheckConstraint(
         "kind IN ('transaction', 'account', 'item', 'expense', 'gift', 'donation')",
         name="kind",
     ),
+    CheckConstraint("NOT statement OR kind = 'account'", name="statement"),
     Index("ix_ReceiptLink_item", "kind", "itemId"),
     seen=Seen.rule(
         creates=AllOf(

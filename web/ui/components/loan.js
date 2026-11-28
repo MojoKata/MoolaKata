@@ -2,7 +2,7 @@
 // Schedule tab, the payment dialog that splits a payment by the schedule, the servicer's
 // balance against the computed one, and the terms form shared by New account and Settings.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { canAdd, Record, whyNotAdd } from '../app/draft.js';
+import { canAdd, Record, whyNotAdd, whyRead } from '../app/draft.js';
 import { FIELDS } from '../api/fields.js';
 import { DraftDialog, RecField, saveNow, useDraft } from './draft-form.js';
 import { html } from '../app/html.js';
@@ -17,9 +17,10 @@ import { useDialogGuide } from './help.js';
 import { errAt, Field, FormError, Select, TypedInput } from '../kit/fields.js';
 import { Icon } from '../kit/icon.js';
 import { toast } from '../kit/toast.js';
-import { CategoryField } from './categories.js';
+import { CategoryField, useCategories } from './categories.js';
 import { dec, num } from '../kit/dec.js';
 import { Action, StatePill } from '../kit/state.js';
+import { ACCEPT, ReceiptDialog, ReceiptLinkRec, uploadAll } from './receipt.js';
 
 export const METHODS = /** @type {[string, string][]} */ ([
   ['amortized', 'Monthly amortization'],
@@ -44,6 +45,25 @@ const clean = (
 /** Whether a mortgage's points are typed. @param {LoanRec} r */
 const hasPoints = (r) => r.get('points') != null;
 
+/** Whether its payments count split by the schedule (S1.9.7.1). @param {LoanRec} r */
+const isSplit = (r) => r.get('budgetCounting') === 'split';
+
+/**
+ * A split payment's parts as budgets count them (S1.9.7.1): the loan's field naming each one's
+ * category, its label, the shipped category it starts in, and whether only a mortgage has it.
+ */
+const BUDGET_PARTS = /** @type {[string, string, string, boolean][]} */ ([
+  ['interestCategoryId', 'Interest', 'loans.interest', false],
+  ['escrowCategoryId', 'Escrow', 'loans.escrow', true],
+  ['pmiCategoryId', 'PMI', 'loans.pmi', true],
+  ['feesCategoryId', 'Fees', 'loans.fees', false],
+  ['principalCategoryId', 'Principal', 'loans.principal', false],
+]);
+
+/** The shipped categories by their key. @param {any[]} list @returns {{ [key: string]: string }} */
+const shippedOf = (list) =>
+  Object.fromEntries(list.filter((c) => c.builtIn).map((c) => [c.builtIn, c.id]));
+
 /** A loan's terms (S1.9), as the draft of New account or of its Settings edits them. */
 export class LoanRec extends Record {
   /** @override */
@@ -66,12 +86,22 @@ export class LoanRec extends Record {
     securedById: null,
     budgetCounting: 'split',
     budgetCategoryId: null,
+    interestCategoryId: null,
+    escrowCategoryId: null,
+    pmiCategoryId: null,
+    feesCategoryId: null,
+    principalCategoryId: null,
     paymentsMode: null,
   };
   /** @override */
   static rules = {
-    // A whole payment counts in the category chosen; split, by the schedule (S1.9.7).
-    budgetCategoryId: { when: (/** @type {LoanRec} */ r) => r.get('budgetCounting') === 'whole' },
+    // A whole payment counts in the category chosen; split, by the schedule, each part in
+    // the category named for it, kept while it counts whole (S1.9.7).
+    budgetCategoryId: {
+      when: (/** @type {LoanRec} */ r) => !isSplit(r),
+      requiredWhen: (/** @type {LoanRec} */ r) => !isSplit(r),
+    },
+    ...Object.fromEntries(BUDGET_PARTS.map(([f]) => [f, { requiredWhen: isSplit }])),
     // Points come whole: the day paid and what they paid for, once an amount is typed (S1.9.6).
     pointsPaidOn: { when: hasPoints, requiredWhen: hasPoints },
     pointsPurpose: {
@@ -85,15 +115,17 @@ export class LoanRec extends Record {
 
 /**
  * A new loan's terms, as its type usually has them: an auto loan over five years, simple
- * interest; a HELOC drawn for ten.
+ * interest; a HELOC drawn for ten; its split's parts in the shipped categories (S1.9.7.1).
  * @param {string} type @param {string} accountId
  */
-export function newTerms(type, accountId) {
+export async function newTerms(type, accountId) {
+  const shipped = shippedOf(/** @type {any[]} */ ((await api.get('/categories')).items));
   return {
     accountId,
     termMonths: type === 'auto-loan' ? 60 : 360,
     method: type === 'auto-loan' ? 'daily' : 'amortized',
     drawMonths: type === 'heloc' ? 120 : null,
+    ...Object.fromEntries(BUDGET_PARTS.map(([f, , key]) => [f, shipped[key] ?? null])),
   };
 }
 
@@ -162,16 +194,20 @@ export function TermsFields({ rec, type }) {
           spin=${true} min=${0} max=${Math.max(0, Number(rec.get('termMonths') || 600) - 1)} />
       `
       : null}
-    <${InBudgets} rec=${rec} />
+    <${InBudgets} rec=${rec} mortgage=${mortgage} />
   `;
 }
 
 /**
- * How the loan's payments count in budgets (S1.9.7): split by the schedule, or whole in one
- * category.
- * @param {{ rec: LoanRec }} p
+ * How the loan's payments count in budgets (S1.9.7): split by the schedule, each part in the
+ * category the loan names for it (escrow and PMI a mortgage's alone), or whole in one
+ * category. A blank is refused at Save, each offering its shipped one as its default (R3.11).
+ * @param {{ rec: LoanRec, mortgage: boolean }} p
  */
-function InBudgets({ rec }) {
+function InBudgets({ rec, mortgage }) {
+  const shipped = shippedOf(useCategories().list);
+  const spent = (/** @type {any} */ c) => c.kind !== 'transfer';
+  const parts = isSplit(rec) ? BUDGET_PARTS.filter(([, , , only]) => mortgage || !only) : [];
   return html`
     <div class="row">
       <${RecField} rec=${rec} name="budgetCounting" label="In budgets" id="in-budgets"
@@ -182,12 +218,34 @@ function InBudgets({ rec }) {
       ${rec.applies('budgetCategoryId')
         ? html`
           <${CategoryField} rec=${rec} name="budgetCategoryId" label="Counts in"
-            id="budget-category" first=${['', 'Loan payments']}
-            only=${(/** @type {any} */ c) => c.kind !== 'transfer'} />
+            id="budget-category" first=${['', 'Choose a category']} only=${spent}
+            reset=${shipped.loans} />
         `
         : null}
     </div>
+    ${pairs(parts).map((row) =>
+      html`
+        <div class="row">
+          ${row.map(([f, label, key]) =>
+            html`
+              <${CategoryField} rec=${rec} name=${f} label=${label}
+                id=${f.replace('CategoryId', '-category')} first=${['', 'Choose a category']}
+                only=${f === 'principalCategoryId'
+                  ? (/** @type {any} */ c) => c.kind === 'savings'
+                  : spent} reset=${shipped[key]} />
+            `
+          )}
+        </div>
+      `
+    )}
   `;
+}
+
+/** A list two to a row. @template T @param {T[]} xs @returns {T[][]} */
+function pairs(xs) {
+  const out = [];
+  for (let i = 0; i < xs.length; i += 2) out.push(xs.slice(i, i + 2));
+  return out;
 }
 
 /**
@@ -719,6 +777,109 @@ function Dated({ rec, name, label, what, add, none }) {
                 </div>
         `
       )}
+    </div>
+  `;
+}
+
+/** The tooltip of the Documents card's upload button. */
+const ADD_DOCUMENT = 'Upload and attach a loan document';
+
+/**
+ * A loan's documents other than its statements (S9.3): a closing disclosure, a note. Each is a
+ * receipt kept on the loan's account, uploaded or attached from the inbox here, and detached
+ * again; kept until the loan is paid off, then the statements' period (S14.10.1.2).
+ * @param {{ a: any }} p
+ */
+export function LoanDocuments({ a }) {
+  const docs = useList(`/accounts/${a.id}/documents`, {}, ['receipt']);
+  const inbox = useList('/receipts', { show: 'inbox' }, ['receipt']);
+  const [busy, setBusy] = useState(false);
+  const why = whyRead(a);
+  const rows = /** @type {any[]} */ (docs.data) || [];
+  const free = /** @type {any[]} */ (inbox.data) || [];
+  /** Each receipt kept on the loan, saved at once. @param {string[]} ids */
+  const keep = async (ids) => {
+    await saveNow((draft) => {
+      for (const id of ids) {
+        draft.add(ReceiptLinkRec, { receiptId: id, kind: 'account', itemId: a.id });
+      }
+    });
+    docs.reload();
+    inbox.reload();
+  };
+  const failed = (/** @type {any} */ e) => toast(e.message);
+  const send = async (/** @type {FileList} */ files) => {
+    setBusy(true);
+    try {
+      const made = await uploadAll(files);
+      await keep(made.map((r) => r.id));
+      toast(made.length === 1 ? 'Document kept' : `${made.length} documents kept`);
+    } catch (e) {
+      failed(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const detach = async (/** @type {any} */ r) => {
+    const ln = r.links.find((/** @type {any} */ l) =>
+      l.kind === 'account' && l.itemId === a.id && !l.statement
+    );
+    if (!ln) return;
+    await saveNow((draft) => {
+      const x = draft.load(ReceiptLinkRec, {
+        id: ln.id,
+        version: ln.version,
+        receiptId: r.id,
+        kind: 'account',
+        itemId: a.id,
+      });
+      draft.remove(x);
+    }).then(() => {
+      toast('Document detached');
+      docs.reload();
+      inbox.reload();
+    }, failed);
+  };
+  return html`
+    <div class="card mt"><h3 data-help="documents">Documents</h3>
+      ${docs.error
+        ? html`<${Failed} error=${docs.error} retry=${docs.reload} />`
+        : !docs.data
+        ? html`<${Loading} lines=${2} />`
+        : rows.length
+        ? rows.map((r) =>
+          html`
+            <div class="list-item"><span class="grow"><button type="button" class="link-btn"
+              onClick=${() => openDialog(ReceiptDialog, { id: r.id }).then(docs.reload)}><${Icon}
+              name="clip" /> ${r.fileName}</button></span><${Action}
+              class="icon-btn" why=${why} aria-label=${'Detach ' + r.fileName}
+              onClick=${() => detach(r)}><${Icon} name="x" /></${Action}></div>
+          `
+        )
+        : html`<${Empty}>No documents yet</${Empty}>`}
+      <div class="toolbar mt">
+        ${why
+          ? html`
+            <${Action} class="btn sm" why=${why}><${Icon} name="upload" /> Add Document</${Action}>
+          `
+          : html`
+            <label class="btn sm" for="f-loan-files" data-tip=${ADD_DOCUMENT}><${Icon}
+              name="upload" /> ${busy ? 'Uploading…' : 'Add Document'}</label><input
+              id="f-loan-files" class="sr-only" type="file" multiple
+              accept=${ACCEPT} data-help="documents" onChange=${(/** @type {any} */ e) => {
+                send(e.currentTarget.files);
+                e.currentTarget.value = '';
+              }} />
+          `}
+        <${Select} id="f-attach-document" aria-label="Attach from the inbox"
+          data-help="documents" disabled=${!!why || !free.length}
+          value="" options=${[
+            ['', free.length ? 'Attach from the inbox…' : 'The inbox is empty'],
+            ...free.map((r) => [r.id, r.fileName]),
+          ]} onChange=${(/** @type {string} */ v) => {
+            if (v) keep([v]).then(() => toast('Document kept'), failed);
+          }} />
+      </div>
     </div>
   `;
 }

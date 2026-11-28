@@ -54,16 +54,18 @@ answers keep the API's camelCase fields.
   who writes the table:
   - **Locked** are the tables written only within a person's save: what a person edits
     through a draft (requirements S12.15, S13.8.11), what the server works out with it, and
-    what a person's own action writes, such as a sign-up or an admin's approval of it: every
-    table with an `id` not named below. The version is the lock: a save names the version it
-    was read at (`If-Match`, requirements S13.8.6), and one made against an older version is
-    refused as stale.
+    what a person's own action writes, such as an access token they make: every table with
+    an `id` not named below. The version is the lock: a save names the version it was read at
+    (`If-Match`, requirements S13.8.6), and one made against an older version is refused as
+    stale.
   - **Counted** are the tables the server writes in the background, outside a person's save
     (a scheduled task, a sync, a worker, a refresh), whatever else writes them too: `Activity`,
-    `Alert`, `AlertState`, `Holding`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`,
-    `OneTimeToken`, `Price`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`,
-    `WalletAddress`, `WashSale`. The version only counts their saves, each one adding 1 in the
-    database, and locks nothing: a write is never refused for it.
+    `Alert`, `AlertState`, `Anchor`, `Connection`, `Connector`, `Holding`, `HoldingCheck`,
+    `Import`, `Link`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`, `OneTimeToken`, `Price`,
+    `PriceSource`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`, `Setting`,
+    `SignupRequest`, `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version
+    only counts their saves, each one adding 1 in the database, and locks nothing: a write is
+    never refused for it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
   an ID the browser makes the same way: the UUIDv7 from its clock and `crypto.getRandomValues`,
   with the table's prefix. The server accepts it only in exactly this form, with the prefix of
@@ -233,7 +235,8 @@ Records are never removed from the database: they are marked deleted. The except
 4. **Exceptions**, removed outright:
    1. **sessions and one-time tokens** (invitation, sign-up confirmation, reset, email
       change, a sign-in waiting for its two-step code), when used or expired, and two-step
-      recovery codes when used or replaced;
+      recovery codes when used or replaced; and a sign-up request's password hash (the field,
+      not the request) once the request is approved, rejected or its link lapses unopened;
    2. **a secret's old ciphertext** when the secret is replaced or removed, so an old API key
       or token can't be recovered from the database or a later backup;
    3. **linked copies**: another household's data, removed with the share or link it came
@@ -271,9 +274,9 @@ A test fails when:
 
 ## 6. Ended records
 
-Records are never removed (requirements S14.10). When a record ended decides when the files
-attached to it (receipts, statements) expire under their retention, and so when file pruning
-may remove them. When a record ended is worked out, never stored, so it follows the records
+Records are never removed, but for the exceptions of §4.4 (requirements S14.10). When a
+record ended decides when the files attached to it (receipts, statements) expire under their
+retention, and so when file pruning may remove them. When a record ended is worked out, never stored, so it follows the records
 as they change.
 
 1. **`endedAt`**: for each table a file can be attached to (`Transaction`, `Account`,
@@ -383,11 +386,15 @@ ever read for them.
    no migration's business.
 6. **Scoped sessions.** A session opened for a user's request names the user
    (`db.read(user=…)`, `db.tx(user=…)`), and every ORM query in it reads only what the user's
-   views give them: each table with a view that the query reads at its top level, joined
-   or aliased, gets `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId =
-   :user)` beside whatever the query asks (on the optional side of an outer join, or none
-   there); lists, a record fetched by its id and joined tables alike. A subquery only filters
-   and is left as written. Reloading a record already in the session is not scoped again.
+   views give them: each table with a view that a select reads, joined or aliased, gets
+   `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId = :user)` beside
+   whatever that select asks (on the optional side of an outer join, or none there); lists, a
+   record fetched by its id and joined tables alike. This holds for every select in the
+   statement, wherever it sits and to any depth: a union's, intersect's or except's parts, a
+   subquery in FROM, in WHERE (`IN`, `EXISTS`, a scalar subquery) and in the column list, so
+   nothing nested reads or counts a row the user can't. A session that names neither a user
+   nor why refuses a table with a view read anywhere in the statement. Reloading a record
+   already in the session is not scoped again.
    Code that needs the permissions joins the view itself.
    The server's own work opens a session unscoped, naming why (`db.tx(unscoped="…")`): a
    sweep, a job, sign-in, a link's pull. Inside a user's session, one statement may read as

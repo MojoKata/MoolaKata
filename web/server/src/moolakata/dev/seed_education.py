@@ -95,4 +95,3 @@ def seed_education(s, people: dict) -> None:
     p.active = True
     p.baseline = exactjson.dumps(projections.make_baseline(projections.compute(s, p, jane.id)))
     p.baselineAt = clock.now()
-    acct.updatedAt = clock.now()
