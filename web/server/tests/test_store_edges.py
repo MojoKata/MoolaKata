@@ -599,6 +599,79 @@ def test_a_session_that_names_neither_a_user_nor_why_reads_no_viewed_table(db):
         pass
 
 
+def _nested():
+    """A select of Account in each place one select can sit inside another, by name: each
+    answers the number of accounts it reads."""
+    from sqlalchemy import except_, exists, func, intersect, literal, select, union_all
+
+    from moolakata.store.entities.accounts import Account
+    from moolakata.store.entities.users import User
+
+    ids = select(Account.id)
+    one = select(literal(1))
+    return {
+        "union": select(func.count()).select_from(union_all(ids, ids).subquery()),
+        "intersect": select(func.count()).select_from(intersect(ids, ids).subquery()),
+        "except": select(func.count()).select_from(except_(ids, select(Account.id).where(
+            Account.id == "Acct_none")).subquery()),
+        "from": select(func.count()).select_from(ids.subquery()),
+        "in": select(func.count(User.id)).where(User.id.in_(select(Account.ownerId))),
+        "exists": one.where(exists(select(Account.id))),
+        "scalar": one.where(select(func.count(Account.id)).scalar_subquery() > 0),
+        "column": select(select(func.count(Account.id)).scalar_subquery()),
+        "deeper": select(func.count()).select_from(
+            select(ids.subquery().c.id).subquery()
+        ),
+    }  # fmt: skip
+
+
+def _counted(s, name: str) -> int:
+    return s.execute(_nested()[name]).scalar() or 0
+
+
+NESTED = ("union", "intersect", "except", "from", "in", "exists", "scalar", "column", "deeper")
+
+
+@pytest.mark.parametrize("name", NESTED)
+def test_a_select_inside_another_reads_only_what_the_user_may(db, name):
+    """schema.md §7.6: the user's access is woven into every select of a guarded table,
+    wherever it sits (a union's parts, a subquery in FROM, IN, EXISTS, a scalar subquery, the
+    column list, nested deeper): another's account never shows nor counts. With neither a
+    user nor a reason the read is refused; the server reads every row."""
+    from moolakata import ids
+    from moolakata.store import scoping
+    from moolakata.store.entities.accounts import Account
+
+    with db.tx(unscoped="test") as s:
+        jane, bart = new_user(s).id, new_user(s, "bart").id
+        s.add(Account(id=ids.new_id("Acct"), ownerId=bart, name="Bart's", type="checking"))
+    with db.read(user=jane) as s:
+        assert _counted(s, name) == 0
+    with db.read(unscoped="test") as s:
+        assert _counted(s, name) >= 1
+    with db.read() as s, pytest.raises(scoping.Unscoped, match="names why it reads"):
+        _counted(s, name)
+
+
+def test_a_select_inside_another_reads_what_the_user_may_see(db):
+    """schema.md §7.6: woven in, the access filters; it never hides the user's own."""
+    from sqlalchemy import func, select, union_all
+
+    from moolakata import ids
+    from moolakata.store.entities.accounts import Account
+
+    with db.tx(unscoped="test") as s:
+        jane, bart = new_user(s).id, new_user(s, "bart").id
+        s.add_all([Account(id=ids.new_id("Acct"), ownerId=o, name=n, type="checking")
+                   for o, n in ((jane, "Jane's"), (bart, "Bart's"))])  # fmt: skip
+    with db.read(user=jane) as s:
+        for name in _nested():
+            assert _counted(s, name) >= 1, name
+        both = union_all(select(Account.name), select(Account.name)).subquery()
+        assert sorted(s.scalars(select(both.c.name))) == ["Jane's", "Jane's"]
+        assert s.scalar(select(func.count()).select_from(both)) == 2
+
+
 def test_a_statement_read_as_the_server_in_a_users_session_selects_columns_only(db):
     """schema.md §7.6: what it reads is never a record that would join the user's session."""
     from sqlalchemy import select

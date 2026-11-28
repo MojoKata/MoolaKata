@@ -385,11 +385,15 @@ ever read for them.
    no migration's business.
 6. **Scoped sessions.** A session opened for a user's request names the user
    (`db.read(user=…)`, `db.tx(user=…)`), and every ORM query in it reads only what the user's
-   views give them: each table with a view that the query reads at its top level, joined
-   or aliased, gets `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId =
-   :user)` beside whatever the query asks (on the optional side of an outer join, or none
-   there); lists, a record fetched by its id and joined tables alike. A subquery only filters
-   and is left as written. Reloading a record already in the session is not scoped again.
+   views give them: each table with a view that a select reads, joined or aliased, gets
+   `EXISTS (SELECT 1 FROM <Table>Access WHERE targetId = id AND userId = :user)` beside
+   whatever that select asks (on the optional side of an outer join, or none there); lists, a
+   record fetched by its id and joined tables alike. This holds for every select in the
+   statement, wherever it sits and to any depth: a union's, intersect's or except's parts, a
+   subquery in FROM, in WHERE (`IN`, `EXISTS`, a scalar subquery) and in the column list, so
+   nothing nested reads or counts a row the user can't. A session that names neither a user
+   nor why refuses a table with a view read anywhere in the statement. Reloading a record
+   already in the session is not scoped again.
    Code that needs the permissions joins the view itself.
    The server's own work opens a session unscoped, naming why (`db.tx(unscoped="…")`): a
    sweep, a job, sign-in, a link's pull. Inside a user's session, one statement may read as
