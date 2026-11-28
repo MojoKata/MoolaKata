@@ -280,6 +280,14 @@ export const FIELDS = {
     saleFees: {"type": "money", "nullable": true},
     receiptIds: {"type": "list", "items": {"type": "ref", "prefix": "Rcpt"}, "set": true},
   },
+  LeftOutRecord: {
+    importId: {"type": "ref", "prefix": "Imprt"},
+    date: {"type": "date"},
+    kind: {"type": "text"},
+    amount: {"type": "money"},
+    payee: {"type": "text", "nullable": true},
+    reason: {"type": "text"},
+  },
   LegIn: {
     instrumentId: {"type": "text"},
     quantity: {"type": "quantity", "nullable": true},
@@ -649,6 +657,7 @@ export const CREATES = {
   Group: {"who": "code"},
   GvPln: {"who": "anyone"},
   GvShr: {"via": "targetId", "needs": "shareable"},
+  ImpLO: {"via": "importId", "needs": "writable"},
   Imprv: {"via": "itemId", "needs": "writable"},
   Item: {"via": "accountId", "needs": "writable"},
   LkCol: {"who": "own"},

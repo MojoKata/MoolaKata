@@ -151,14 +151,19 @@ def _date_of(groups, period_end: dt.date | None, fallback_year: int) -> dt.date 
 
 def _dates_in(text: str) -> list[dt.date]:
     out = []
-    for m in DATE_IN_TEXT.finditer(text):
+    pos = 0
+    while m := DATE_IN_TEXT.search(text, pos):
+        pos = m.end()
         try:
             if m.group(1):
                 y = int(m.group(3))
                 out.append(dt.date(2000 + y if y < 100 else y, int(m.group(1)), int(m.group(2))))
             else:
                 month = MONTHS.get(m.group(4).lower().rstrip("."))
-                if month and m.group(6):
+                if month is None:
+                    # A word that isn't a month (`period 09/01/26`): the date may start after it.
+                    pos = m.end(4)
+                elif m.group(6):
                     out.append(dt.date(int(m.group(6)), month, int(m.group(5))))
         except ValueError:
             continue
@@ -253,9 +258,8 @@ def parse(
         description = re.sub(r"\s{2,}", " ", description)
         ignored = next((x for x in skip if description.lower().startswith(x)), None)
         values = [parse_amount(a) for a in amounts]
+        # Each amount matched has digits: none reads as nothing.
         values = [v for v in values if v is not None]
-        if not values:
-            continue
         balance = None
         amount = values[0]
         confidence = 70

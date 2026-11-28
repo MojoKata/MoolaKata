@@ -380,6 +380,96 @@ export function LoanSummary({ a, reload }) {
           openDialog(ServicerDialog, { a }).then((ok) => ok && again())}>Type It</${Action}></div>
     </div>
     ${a.access.writable ? html`<${Candidates} a=${a} again=${again} />` : null}
+    <${LeftOut} a=${a} again=${again} />
+  `;
+}
+
+/**
+ * The rows an import left out, dated before the loan starts (S1.9.3): kept until the start is
+ * moved on or before them and they are added, or left out for good. Seen by whoever reads the
+ * loan; its fixes need write on it.
+ * @param {{ a: any, again: () => void }} p
+ */
+function LeftOut({ a, again }) {
+  const res = useList(`/accounts/${a.id}/imports`, {}, ['import']);
+  const kept = (/** @type {any[]} */ (res.data) || []).filter((i) => i.leftOut);
+  if (!kept.length) return null;
+  const done = () => {
+    res.reload();
+    again();
+  };
+  return html`
+    <div class="card"><h3>Left Out of Imports</h3>
+      ${kept.map((i) => html`<${KeptRows} key=${i.id} a=${a} i=${i} done=${done} />`)}
+    </div>
+  `;
+}
+
+/** A row an import left out (S1.9.3): added by its import's route, or deleted by a save. */
+class LeftOutRec extends Record {
+  /** @override */
+  static prefix = 'ImpLO';
+  /** @override */
+  static fields = FIELDS.LeftOutRecord;
+}
+
+/**
+ * Leave Them Out: every row the path lists (an import's rows left out) deleted in one save.
+ * @param {string} path
+ */
+export async function leaveOut(path) {
+  const page = /** @type {any} */ (await api.get(path));
+  await saveNow((d) => {
+    for (const x of page.items) d.remove(d.load(LeftOutRec, x));
+  });
+}
+
+/**
+ * One import's rows left out, with Move the Start, Add Them (those the start now lets in) and
+ * Leave Them Out.
+ * @param {{ a: any, i: any, done: () => void }} p
+ */
+function KeptRows({ a, i, done }) {
+  const res = useList(`/imports/${i.id}/left-out`, {}, ['import']);
+  const rows = /** @type {any[]} */ (res.data) || [];
+  const act = useSubmit(async (/** @type {boolean} */ add) => {
+    if (add) {
+      const ids = rows.filter((x) => x.fits).map((x) => x.id);
+      await api.post(`/imports/${i.id}/left-out`, { rows: ids });
+      toast(`${ids.length === 1 ? '1 row' : ids.length + ' rows'} added`);
+    } else {
+      await leaveOut(`/imports/${i.id}/left-out`);
+      toast('Left out');
+    }
+    res.reload();
+    done();
+  });
+  if (!rows.length) return null;
+  const why = whyRead(a);
+  return html`
+    <div class="small dim">${i.fileName} · imported ${date(i.createdAt.slice(0, 10))}</div>
+    ${rows.map((x) =>
+      html`<div class="list-item"><div class="grow">${x.payee || 'Row'}<div
+        class="small dim">${date(x.date)}${x.fits ? ' · on or after the start now' : ''}</div></div>
+        <${Amt} v=${x.amount} />${
+        x.fits ? null : html`<${StatePill} tone="warn" why=${x.reason}>Before start</${StatePill}>`
+      }</div>`
+    )}
+    <div
+      class="toolbar mt">${why
+        ? html`<${Action} class="btn sm" why=${why}>Move the Start</${Action}>`
+        : html`<a class="btn sm" href=${`/ui/accounts/${a.id}/settings`}>Move the Start</a>`}<${Action} class="btn sm" why=${why ||
+        (rows.some((x) => x.fits)
+          ? null
+          : 'Dated before the loan starts: move the start first')} disabled=${act
+        .busy} onClick=${() =>
+        act.run(true).catch((/** @type {any} */ e) =>
+          toast(e.message)
+        )}>Add Them</${Action}><${Action}
+      class="btn sm" why=${why} disabled=${act.busy} onClick=${() =>
+        act.run(false).catch((/** @type {any} */ e) =>
+          toast(e.message)
+        )}>Leave Them Out</${Action}></div>
   `;
 }
 

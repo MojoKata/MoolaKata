@@ -22,6 +22,9 @@ class AlertRow(Model):
     about: str
     link: str | None
     fix: str | None
+    # A fix made from the alert itself, beside its link: its label, and the path it deletes.
+    act: str | None
+    actPath: str | None
     icon: str
     openedAt: dt.datetime
     resolvedAt: dt.datetime | None
@@ -49,6 +52,8 @@ def list_alerts(request: Request, c: Caller = Depends(caller)):
                 about=a.about,
                 link=a.link,
                 fix=a.fix,
+                act=alerts.act(a)[0],
+                actPath=alerts.act(a)[1],
                 icon=a.icon,
                 openedAt=a.openedAt,
                 resolvedAt=a.resolvedAt,

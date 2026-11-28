@@ -589,6 +589,37 @@ def _multipart(file: bytes, meta: dict, name="schwab.ofx") -> tuple[bytes, str]:
     return body, f"multipart/form-data; boundary={boundary}"
 
 
+def test_a_posted_loan_file_leaves_out_and_keeps_rows_before_the_loan_starts(server, paired):
+    """S18.8, S1.9.3: the connector's file goes through the same import, so a loan's row dated
+    before the loan starts is left out, kept on the import with why, and alerted to its owner."""
+    from test_loans_routes import loan_ofx
+
+    from moolakata.store.entities.accounts import ImportLeftOut, Loan
+
+    jane = make_user(server, "jane").id
+    cid = connection(server, jane)
+    aid = account(server, jane, cid, name="Home", type="mortgage")
+    with server.db.tx(unscoped="test") as s:
+        s.add(Loan(id=ids.new_id("Loan"), accountId=aid, principal=300000,
+                   startDate=dt.date(2026, 1, 1), termMonths=360, rate=6))  # fmt: skip
+    data = loan_ofx(("20251215", "500.00", "p1"), ("20260101", "1798.65", "p2"))
+    body, ctype = _multipart(data, {"connectionId": cid, "format": "ofx"})
+    r = paired.call(
+        f"/connector/v1/accounts/{aid}/files", raw=body, headers={"Content-Type": ctype}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["imported"] == {"added": 1, "matched": 0, "changed": 0}
+    with server.db.read(unscoped="test") as s:
+        imp = s.query(Import).filter_by(accountId=aid).one()
+        [kept] = s.query(ImportLeftOut).filter_by(importId=imp.id).all()
+    assert (kept.date, kept.amount, kept.payee) == (dt.date(2025, 12, 15), 500, "SERVICER")
+    assert kept.reason == "A loan's payment can't be dated before it starts (Jan 1, 2026)."
+    alerts.evaluate(server)
+    c = sign_in(server, "jane")
+    got = [a for a in c.get("/ui/api/alerts").json()["open"] if a["kind"] == "import-left-out"]
+    assert [a["fix"] for a in got] == ["Move the Start"]
+
+
 def test_a_posted_file_goes_through_the_import_once(server, paired):
     jane = make_user(server, "jane").id
     cid = connection(server, jane)

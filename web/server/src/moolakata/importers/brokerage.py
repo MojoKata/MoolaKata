@@ -148,14 +148,31 @@ def _figures(text: str) -> list[Decimal]:
     return _numbers(" ".join(raws))
 
 
+BARE_RUN = re.compile(r"(?:(?<=\s)|^)(?:\(?-?\$?\d+\)?\s+)+$")
+
+
+def _figures_start(line: str) -> int:
+    """Where a position's figures begin: at its first figure written with a point or a comma,
+    with the whole numbers just before it (a quantity of whole shares). A CUSIP of digits that
+    leads the line, or a number with words after it (*Fidelity 500 Index Fund*, *2045*), is
+    part of its name. With no such figure, at its first number."""
+    lead = CUSIP.match(line)
+    after = lead.end() if lead and any(ch.isdigit() for ch in lead.group(1)) else 0
+    marks = [m for m in NUMBER.finditer(line, after) if "." in m.group(1) or "," in m.group(1)]
+    if not marks:
+        first = NUMBER.search(line, after)
+        return first.start() if first else len(line)
+    begin = marks[0].start()
+    bare = BARE_RUN.search(line, after, begin)
+    return bare.start() if bare else begin
+
+
 def _numbers(text: str) -> list[Decimal]:
     out = []
     for raw in NUMBER.findall(text):
         neg = raw.startswith("(") or raw.startswith("-")
-        try:
-            v = Decimal(raw.strip("()$-").replace("$", "").replace(",", ""))
-        except ArithmeticError:
-            continue
+        # NUMBER matched digits, so what is left is always a number.
+        v = Decimal(raw.strip("()$-").replace("$", "").replace(",", ""))
         out.append(-v if neg else v)
     return out
 
@@ -217,9 +234,9 @@ def _position(label: str, figures: list[Decimal], first: str, group: str = "") -
         qty, price, value = figures
     elif len(figures) == 2:
         qty, value = figures
-    elif figures:
+    else:  # one: _position is only given a line with figures
         value = figures[0]
-    if cash and value is not None:
+    if cash:
         qty, price = value, Decimal(1)
     return Position(label, symbol, cusip, qty, price, value, cost, cash)
 
@@ -258,10 +275,8 @@ def _activity(line: str, lead, period_end, fallback_year) -> Activity | None:
         if words.search(description):
             kind = k
             break
-    if kind in ("withdrawal", "fee"):
-        amount = -abs(amount)
-    elif kind in ("deposit", "dividend", "interest"):
-        amount = abs(amount)
+    # Money out is a withdrawal or a fee; a deposit, dividend or interest is money in.
+    amount = -abs(amount) if kind in ("withdrawal", "fee") else abs(amount)
     sym = re.search(r"\b([A-Z]{2,5})\b", description) if kind == "dividend" else None
     return Activity(day, description[:200], amount, kind, False, sym.group(1) if sym else None)
 
@@ -288,10 +303,9 @@ def parse(lines: list[str], today: dt.date, layout: dict | None = None) -> Broke
             if TOTAL.match(line):
                 pending = None
                 continue
-            figures = _figures(line)
-            marks = [m for m in NUMBER.finditer(line) if "." in m.group(1) or "," in m.group(1)]
-            first = marks[0] if marks else NUMBER.search(line)
-            label = line[: first.start()].strip() if first and figures else line
+            start = _figures_start(line)
+            figures = _figures(line[start:])
+            label = line[:start].strip() if figures else line
             if not figures:
                 pending = line[:120]
                 continue

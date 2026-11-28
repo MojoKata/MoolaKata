@@ -954,3 +954,70 @@ def test_a_payments_split_is_corrected_before_it_is_recorded(browser, household,
     assert got == sorted([principal - 10, interest + 10])
     assert problems == []
     page.close()
+
+
+def test_rows_an_import_left_out_are_shown_and_let_go(browser, household, new_loan):
+    """S1.9.3: a loan's rows an import left out, dated before it starts, are listed on its
+    Overview with why; Add Them is off until the start is on or before them, and Leave Them Out
+    lets them go."""
+    from test_accounts import wait_job
+    from test_loans_routes import loan_ofx
+
+    h = household
+    start = f"{months_back(1)}-01"
+    a = new_loan("Left-out mortgage", principal="300000", startDate=start, termMonths=360,
+                 rate="6")  # fmt: skip
+    first = months_back(2).replace("-", "")
+    r = h.c.post(
+        f"/ui/api/accounts/{a['id']}/imports",
+        files={"file": ("home.ofx", loan_ofx((f"{first}15", "500.00", "lo1")))},
+    )
+    assert r.status_code == 202, r.text
+    assert wait_job(h.c, r.json())["state"] == "done"
+    card = '.card:has(h3:text("Left Out of Imports"))'
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}", card)
+    words = f"A loan's payment can't be dated before it starts ({day(start)})."
+    assert page.locator(f"{card} .pill.warn").get_attribute("aria-description") == words
+    add = page.locator(card).get_by_role("button", name="Add Them")
+    assert add.get_attribute("data-tip") == "Dated before the loan starts: move the start first"
+    page.locator(card).get_by_role("button", name="Leave Them Out").click()
+    wait(page, card, problems, state="detached")
+    [imp] = h.c.get(f"/ui/api/accounts/{a['id']}/imports").json()["items"]
+    assert imp["leftOut"] == 0
+    assert problems == []
+    page.close()
+
+
+def test_a_loans_statement_line_before_the_start_shows_it_will_be_left_out(
+    browser, household, new_loan
+):
+    """S1.9.3, R3.12: checking a loan's statement, a line dated before the loan starts carries
+    Before start while it would be imported, its tooltip saying it is left out and
+    kept; one left unticked carries none. Saving it is the server's to allow (test_statements)."""
+    from test_reading import text_pdf
+    from test_statements import MORTGAGE
+
+    h = household
+    a = new_loan("Pill mortgage", principal="300000", startDate="2026-01-01", termMonths=360,
+                 rate="6")  # fmt: skip
+    page, problems = signed_in(browser, h, f"/ui/accounts/{a['id']}/transactions", ".toolbar")
+    page.get_by_role("button", name="Import").first.click()
+    wait(page, ".dialog input[type=file]", problems)
+    pdf = text_pdf(MORTGAGE.splitlines())
+    page.set_input_files(
+        ".dialog input[type=file]",
+        files=[{"name": "mortgage.pdf", "mimeType": "application/pdf", "buffer": pdf}],
+    )
+    page.click(".dialog footer button.primary")
+    rows = ".dialog table.t tbody tr"
+    wait(page, f"{rows} .pill.warn", problems)
+    pill = page.locator(f"{rows} .pill.warn")
+    assert pill.count() == 1 and pill.inner_text() == "Before start"
+    assert pill.get_attribute("aria-description") == (
+        "The loan starts Jan 1, 2026: this line is left out and kept with the import until "
+        "the start is moved or it is left out."
+    )
+    page.locator(rows).first.locator("input[type=checkbox]").click()
+    wait(page, f"{rows} .pill.warn", problems, state="detached")
+    assert problems == []
+    page.close()

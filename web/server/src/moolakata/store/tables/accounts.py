@@ -270,7 +270,7 @@ StatementLayout = record(
     Column("ownerId", Text, ForeignKey("User.id"), nullable=False),
     Column("institution", Text, nullable=False),
     Column("layout", Text, nullable=False, server_default=text("'{}'")),
-    seen=Seen.per_user("ownerId"),
+    seen=Seen.rule(),
 )
 unique_live(StatementLayout, "ownerId", "institution")
 
@@ -291,6 +291,23 @@ Import = record(
     _in("format", ("ofx", "csv", "statement", "kept"), "format"),
     Index("ix_Import_accountId", "accountId"),
     seen=Seen.child("accountId"),
+)
+
+# A loan's row an import left out, dated before the loan starts (S1.9.3), with why: kept until
+# it is added, once the start is on or before it, or left out for good (deleted).
+ImportLeftOut = record(
+    "ImportLeftOut",
+    "ImpLO",
+    Column("importId", Text, ForeignKey("Import.id", ondelete="CASCADE"), nullable=False),
+    Column("date", Day, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("amount", Cents, nullable=False),
+    Column("payee", Text),
+    Column("memo", Text),
+    Column("fitId", Text),
+    Column("reason", Text, nullable=False),
+    Index("ix_ImportLeftOut_importId", "importId"),
+    seen=Seen.child("importId"),
 )
 
 # A corporate action on a holding (S2.4): a split, a symbol change, a spin-off or a merger, as

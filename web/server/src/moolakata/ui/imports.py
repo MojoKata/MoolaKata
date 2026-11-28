@@ -33,6 +33,7 @@ from ..store.entities.accounts import (
     Account,
     HoldingCheck,
     Import,
+    ImportLeftOut,
     ImportMapping,
     Instrument,
     Lot,
@@ -42,7 +43,19 @@ from ..store.entities.accounts import (
 from ..store.entities.users import User
 from ..store.repos import ledger as repo
 from ..taxes import closed
-from .conventions import Deleted, ExactRoute, Gone, Loose, Model, Money, Quantity, Ratio
+from . import save
+from .conventions import (
+    Access,
+    Deleted,
+    ExactRoute,
+    Gone,
+    IdOf,
+    Loose,
+    Model,
+    Money,
+    Quantity,
+    Ratio,
+)
 from .deps import Caller, caller, server
 
 router = APIRouter(prefix="/ui/api", route_class=ExactRoute, tags=["imports"])
@@ -82,6 +95,25 @@ class JobOut(Model):
     error: dict | None
 
 
+class LeftOutRecord(Model):
+    """A loan's row an import left out, dated before the loan starts (S1.9.3), as a draft takes
+    it away (Leave Them Out): kept by its import, never made or changed here."""
+
+    importId: IdOf("Imprt")  # type: ignore[valid-type]
+    date: dt.date
+    kind: str
+    amount: Money
+    payee: str | None = None
+    reason: str  # why it was left out
+
+
+class LeftOutRow(LeftOutRecord):
+    id: str
+    version: int
+    fits: bool  # on or after the loan's start as it is now: Add Them adds it
+    access: Access
+
+
 class ImportRow(Model):
     id: str
     format: str
@@ -91,6 +123,8 @@ class ImportRow(Model):
     added: int
     matched: int
     changed: int
+    # How many of a loan's rows it left out are kept (S1.9.3): `/imports/{id}/left-out`.
+    leftOut: int
     userName: str
     createdAt: dt.datetime
 
@@ -210,6 +244,7 @@ def _run(
                 "coveredFrom": applied.coveredFrom.isoformat() if applied.coveredFrom else None,
                 "coveredTo": applied.coveredTo.isoformat() if applied.coveredTo else None,
                 "warnings": applied.warnings,
+                "leftOut": applied.leftOut,
                 "accountId": account_id,
             },
         )
@@ -439,6 +474,8 @@ def _run_statement(
             return
         st, learned = _parse(s, account, lines)
         have = _present(s, account_id)
+        # A loan's: its rows dated before it are shown as left out and kept (S1.9.3).
+        loan_start = repo.loan_start(s, account)
     if not st.rows:
         # Kept as it is instead, if the person likes (S1.3.3.6).
         upload_id = _hold(data, account_id, user_id, name, lines=lines, method=method)
@@ -468,6 +505,7 @@ def _run_statement(
             "method": method,
             "learned": learned,
             "accountId": account_id,
+            "loanStart": loan_start.isoformat() if loan_start else None,
             **_figures(st, have),
         },
     )
@@ -748,10 +786,8 @@ def save_brokerage(
     if bad is not None:
         raise refuse("rows", "row-not-cash", "Trades aren't added here: enter them as trades.")
     cash = next((p for p in body.positions if p.cash and p.marketValue is not None), None)
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
@@ -829,7 +865,7 @@ def save_brokerage(
                 cash=p.cash,
             )
         r = _keep_file(
-            s, srv, c, ready, held, [account.id], b.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, owners, b.institution, body.periodStart, body.periodEnd
         )
         key = (account.institution or b.institution or "").strip()
         if key and (body.remember or body.forget):
@@ -864,6 +900,7 @@ def save_brokerage(
             "coveredFrom": body.periodStart.isoformat(),
             "coveredTo": body.periodEnd.isoformat(),
             "warnings": applied.warnings,
+            "leftOut": applied.leftOut,
             "accountId": held.accountId,
             "receiptId": r.id,
             "snapshot": snapshot,
@@ -963,20 +1000,41 @@ def _apply(s, c: Caller, held: Held, account: Account, st, body: StatementIn, ke
     return applied
 
 
-def _keep_file(
-    s, srv, c: Caller, ready, held: Held, account_ids: list[str], institution, start, end
-):
-    """The file kept once as a receipt, named by its period, on each account it filled."""
+def _owners(srv, c: Caller, account_ids: list[str]) -> dict[str, list[str]]:
+    """The accounts a statement fills, by their owners: a statement kept on an account is its
+    owner's, whoever imports it, so it goes with a share that ends (S9.6)."""
+    out: dict[str, list[str]] = {}
+    with srv.db.read(user=c.id) as s:
+        for a in dict.fromkeys(account_ids):
+            account, _ = access.account(s, c.id, a, "write")
+            out.setdefault(account.ownerId, []).append(account.id)
+    return out
+
+
+@contextlib.contextmanager
+def _prepared(srv, held: Held, owners: dict[str, list[str]]):
+    """The file made ready as each owner's receipt, before the transaction that records it."""
+    with contextlib.ExitStack() as stack:
+        name = held.fileName or "statement.pdf"
+        yield {o: stack.enter_context(receipts.prepared(srv, o, name, held.data)) for o in owners}
+
+
+def _keep_file(s, srv, c: Caller, ready, held: Held, owners, institution, start, end):
+    """The file kept once per owner as a receipt, named by its period, on each of their accounts
+    it filled; the importer is who attached it (S9.6). The first owner's is answered."""
     from ..receipts import reading
 
-    stored = receipts.record(s, srv, c.id, ready)
-    r = stored.receipt
-    r.date = end
-    r.payee = statements.name(institution, start, end)
-    reading.kept_unread(s, r, held.lines, held.method)
-    for a in account_ids:
-        receipts.attach_account(s, c.id, r, a)
-    return r
+    kept = []
+    for owner, account_ids in owners.items():
+        r = receipts.record(s, srv, owner, ready[owner]).receipt
+        # Attached first: an importer who isn't its owner writes it through the account.
+        for a in account_ids:
+            receipts.attach_account(s, c.id, r, a)
+        r.date = end
+        r.payee = statements.name(institution, start, end)
+        reading.kept_unread(s, r, held.lines, held.method)
+        kept.append(r)
+    return kept[0]
 
 
 def _done(srv, c: Caller, result: dict, accounts: list[str]) -> JobOut:
@@ -1006,16 +1064,14 @@ def save_statement(
         present = _marked(body.rows, _present(s, held.accountId))
     kept = _checked(body, present)
     st = held.statement
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         account, _ = access.account(s, c.id, held.accountId, "write")
         applied = _apply(s, c, held, account, st, body, kept)
         r = _keep_file(
-            s, srv, c, ready, held, [account.id], st.institution, body.periodStart, body.periodEnd
+            s, srv, c, ready, held, owners, st.institution, body.periodStart, body.periodEnd
         )
     with _held_lock:
         _held.pop(upload_id, None)
@@ -1032,6 +1088,7 @@ def save_statement(
             "coveredFrom": body.periodStart.isoformat(),
             "coveredTo": body.periodEnd.isoformat(),
             "warnings": applied.warnings,
+            "leftOut": applied.leftOut,
             "accountId": held.accountId,
             "receiptId": r.id,
         },
@@ -1055,14 +1112,8 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
         return _done(srv, c, {"part": body.part, "remaining": left}, [])
     saved = [(i, d) for i, d in sorted(held.decisions.items()) if not d.leftOut]
     results, accounts = [], []
-    with (
-        (
-            receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data)
-            if saved
-            else contextlib.nullcontext()
-        ) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [d.accountId for _, d in saved])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         # Reviewed here: a filed year moved is asked, its button Import anyway (S2.8).
         closed.label(s, "Import anyway")
         for i, d in saved:
@@ -1070,7 +1121,14 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
             kept = _checked(d, _marked(d.rows, _present(s, account.id)))
             applied = _apply(s, c, held, account, held.parts[i], d, kept)
             accounts.append(account.id)
-            results.append({"part": i, "accountId": account.id, "added": applied.added})
+            results.append(
+                {
+                    "part": i,
+                    "accountId": account.id,
+                    "added": applied.added,
+                    "leftOut": applied.leftOut,
+                }
+            )
         r = None
         if saved:
             ends = [d.periodEnd for _, d in saved]
@@ -1081,7 +1139,7 @@ def _save_part(srv, c: Caller, upload_id: str, held: Held, body: StatementIn) ->
                 c,
                 ready,
                 held,
-                list(dict.fromkeys(accounts)),
+                owners,
                 held.parts[saved[0][0]].institution,
                 min(starts),
                 max(ends),
@@ -1168,10 +1226,8 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
     if body.periodEnd < body.periodStart:
         raise refuse("periodEnd", "period-backwards", "The period ends before it starts.")
     digest = hashlib.sha256(held.data).hexdigest()
-    with (
-        receipts.prepared(srv, c.id, held.fileName or "statement.pdf", held.data) as ready,
-        srv.db.tx(user=c.id) as s,
-    ):
+    owners = _owners(srv, c, [held.accountId])
+    with _prepared(srv, held, owners) as ready, srv.db.tx(user=c.id) as s:
         account, _ = access.account(s, c.id, held.accountId, "write")
         twice = s.scalars(
             select(Import).where(
@@ -1189,7 +1245,7 @@ def keep_statement(upload_id: str, body: KeepIn, request: Request, c: Caller = D
             c,
             ready,
             held,
-            [account.id],
+            owners,
             account.institution or inst,
             body.periodStart,
             body.periodEnd,
@@ -1323,18 +1379,160 @@ def list_imports(account_id: str, request: Request, c: Caller = Depends(caller))
             .where(Import.accountId == a.id, Import.deleted == false())
             .order_by(Import.createdAt.desc())
         ).all()
-        return [
-            ImportRow(
-                id=i.id,
-                format=i.format,
-                fileName=i.fileName,
-                coveredFrom=i.coveredFrom,
-                coveredTo=i.coveredTo,
-                added=i.added,
-                matched=i.matched,
-                changed=i.changed,
-                userName=names.get(i.userId, ""),
-                createdAt=i.createdAt,
-            )
-            for i in rows
-        ]
+        kept = Counter(x.importId for x in repo.left_out_of(s, [i.id for i in rows]))
+        return [_import_row(i, names, kept[i.id]) for i in rows]
+
+
+def _import_row(i: Import, names: dict, kept: int) -> ImportRow:
+    return ImportRow(
+        id=i.id,
+        format=i.format,
+        fileName=i.fileName,
+        coveredFrom=i.coveredFrom,
+        coveredTo=i.coveredTo,
+        added=i.added,
+        matched=i.matched,
+        changed=i.changed,
+        leftOut=kept,
+        userName=names.get(i.userId, ""),
+        createdAt=i.createdAt,
+    )
+
+
+def _left_out_rows(s, c: Caller, imp: Import, account: Account) -> list[LeftOutRow]:
+    start = repo.loan_start(s, account)
+    found = access.listing(
+        s,
+        ImportLeftOut,
+        c.id,
+        ImportLeftOut.importId == imp.id,
+        ImportLeftOut.deleted == false(),
+        order_by=ImportLeftOut.id,
+    )
+    return [_left_out_row(x, start, p) for x, p in found]
+
+
+def _left_out_row(x: ImportLeftOut, start: dt.date | None, p) -> LeftOutRow:
+    return LeftOutRow(
+        id=x.id,
+        version=x.version,
+        importId=x.importId,
+        date=x.date,
+        kind=x.kind,
+        amount=x.amount,
+        payee=x.payee,
+        reason=x.reason,
+        fits=start is None or x.date >= start,
+        access=Access.of(p),
+    )
+
+
+def _kept_import(s, c: Caller, import_id: str, want: str = "write") -> tuple[Import, Account]:
+    """An import and its account: its rows left out are read by whoever reads the account, and
+    added or let go by who may change it (S1.9.3)."""
+    imp = s.get(Import, import_id)
+    if imp is None or imp.deleted:
+        raise Problem(404, "not-found", "Not found")
+    account, _ = access.account(s, c.id, imp.accountId, want)
+    return imp, account
+
+
+@router.get("/imports/{import_id}/left-out", response_model=list[LeftOutRow])
+def left_out(import_id: str, request: Request, c: Caller = Depends(caller)):
+    """The rows a loan's import left out, dated before the loan starts, each with why and
+    whether the start as it is now lets it be added (S1.9.3)."""
+    with server(request).db.read(user=c.id) as s:
+        imp, account = _kept_import(s, c, import_id, "read")
+        return _left_out_rows(s, c, imp, account)
+
+
+class LeftOutIn(Model):
+    # The ids of the rows to add, of those the import left out.
+    rows: list[str] = Field(max_length=1000)
+
+
+def _cleared(s, imp: Import, resolution: str) -> None:
+    """With none of its rows left, the import's alert ends at once, whoever cleared them: the
+    alert is the account owner's, which only the server reads (S12.11.2)."""
+    from .. import alerts
+    from ..store import scoping
+
+    with scoping.as_server(s, "an import's left-out alert, its rows cleared") as srv:
+        if not repo.left_out_of(srv, [imp.id]):
+            alerts.resolve(srv, f"left-out:{imp.id}", resolution)
+
+
+@router.post("/imports/{import_id}/left-out", response_model=list[LeftOutRow])
+def add_left_out(import_id: str, body: LeftOutIn, request: Request, c: Caller = Depends(caller)):
+    """Add Them: rows a loan's import left out, added once the loan's start was moved on or
+    before each (S1.9.3); one still before it is refused at its place, in the transaction save's
+    words. The rows left are answered; with none left, its alert ends."""
+    if not body.rows:
+        raise refuse("rows", "rows-missing", "The rows to add.")
+    srv = server(request)
+    with srv.db.tx(user=c.id) as s:
+        imp, account = _kept_import(s, c, import_id)
+        repo.add_left_out(s, account, c.id, imp, body.rows)
+        _cleared(s, imp, "the rows were added")
+        out = _left_out_rows(s, c, imp, account)
+    srv.events.publish("import", {"accountId": account.id}, users=[c.id])
+    return out
+
+
+def _left_out_record(ctx, record_id: str) -> ImportLeftOut:
+    """A live row left out, of an import whose account the caller may change."""
+    x = ctx.s.get(ImportLeftOut, record_id)
+    if x is None or x.deleted:
+        raise Problem(404, "not-found", "Not found")
+    _kept_import(ctx.s, ctx.caller, x.importId)
+    return x
+
+
+def _left_out_read(ctx, record_id: str) -> LeftOutRow:
+    x = ctx.s.get(ImportLeftOut, record_id)
+    _, account = _kept_import(ctx.s, ctx.caller, x.importId, "read")
+    p = access.perms(ctx.s, ImportLeftOut, x.id, ctx.caller.id)
+    return _left_out_row(x, repo.loan_start(ctx.s, account), p)
+
+
+def _left_out_delete(ctx, x: ImportLeftOut) -> None:
+    """Leave Them Out: the row let go, never added; with none of its import's left, the alert
+    ends (S1.9.3)."""
+    x.mark_deleted(ctx.caller.id)
+    imp = ctx.s.get(Import, x.importId)
+    ctx.verify(f"left-out:{imp.id}", lambda: _cleared(ctx.s, imp, "the rows were left out"))
+    srv, account_id, user_id = server(ctx.request), imp.accountId, ctx.caller.id
+    ctx.after(
+        f"left-out:{imp.id}",
+        lambda: srv.events.publish("import", {"accountId": account_id}, users=[user_id]),
+    )
+
+
+def _left_out_kept(ctx, *_args) -> None:
+    raise refuse(None, "left-out-kept", "A row left out is kept by its import, never made here.")
+
+
+def _left_out_unchanged(ctx, *_args) -> None:
+    raise refuse(None, "left-out-unchanged", "A row left out is added or left out, never changed.")
+
+
+save.register(
+    save.Kind(
+        prefix="ImpLO",
+        entity=ImportLeftOut,
+        fields=LeftOutRecord,
+        create=_left_out_kept,
+        editable=_left_out_record,
+        current=lambda ctx, x: {
+            "importId": x.importId,
+            "date": x.date,
+            "kind": x.kind,
+            "amount": x.amount,
+            "payee": x.payee,
+            "reason": x.reason,
+        },
+        update=_left_out_unchanged,
+        delete=_left_out_delete,
+        read=_left_out_read,
+    )
+)

@@ -31,8 +31,12 @@
           days (S1.11), a loan's with its servicer's balance among them (S1.9.4), a Connection that keeps one of their accounts current needing a sign-in
           or failing (S18.5), a recorded wallet transaction the chain has dropped (S1.6.2.7),
           an option past its expiry that wasn't settled on its own (S3.6), asking what
-          happened, and a holding still valued from a stale statement (S4.3) while the account's
-          next statement isn't overdue;
+          happened, a holding still valued from a stale statement (S4.3) while the account's
+          next statement isn't overdue, and a loan's rows an import left out for being dated
+          before the loan starts (S1.9.3): *Mortgage: 2 rows of the Nov 3 import left out, dated
+          before the loan starts (Mar 1, 2020)*, with **Move the Start** and **Leave Them Out**,
+          until they are added or left out; once the start is on or before them, *Mortgage: 2
+          rows of the Nov 3 import can be added now*, with **Add Them** on the loan's Overview;
        3. **for each user**: a request to share a private person they created, which goes to
           its creator and to the admins (S10.10.3), an occasion entering its lead time
           (S7.7.3), an option expiring within a week, a pledge due (S7.9), an active projection
@@ -47,7 +51,9 @@
        the owner's alert, on screen and by email. A user can **dismiss** an open alert for
        themselves. Resolved alerts stay listed for 90 days.
     3. **The Alerts screen** lists open alerts first, newest first, then resolved ones. Each
-       shows what it is about, since when, a link to the place to fix it, and **Dismiss**.
+       shows what it is about, since when, a link to the place to fix it, a fix made from the
+       alert itself where it has one (**Leave Them Out**), and **Dismiss**. A cause a person
+       clears that way resolves its alert at once.
        Opening the screen marks the user's alerts as seen.
     4. **The badge** on the Alerts entry counts the open alerts the user has not seen. A new
        alert reaches the badge through the live stream (S12.6) without a reload, with a toast.

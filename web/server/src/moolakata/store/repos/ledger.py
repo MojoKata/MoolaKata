@@ -3,6 +3,7 @@
 
 import datetime as dt
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -24,6 +25,7 @@ from ..entities.accounts import (
     Holding,
     HoldingCheck,
     Import,
+    ImportLeftOut,
     Instrument,
     Lot,
     LotPick,
@@ -482,6 +484,8 @@ class Applied:
     coveredFrom: dt.date | None = None
     coveredTo: dt.date | None = None
     warnings: list[str] = field(default_factory=list)
+    # A loan's rows left out, dated before it starts, kept on the import (S1.9.3).
+    leftOut: list[dict] = field(default_factory=list)
 
 
 def _option(s: Session, account: Account, sec, result) -> Instrument | None:
@@ -585,6 +589,10 @@ def _apply_import(
     # savings) is the row the bank's file brings later, under the bank's payee and its own
     # day: the same amount within S1.7's days.
     typed_halves = [x for x in existing if not x.fitId and not x.deleted and x.transferId]
+    # A loan's payment or draw dated before it starts is left out and kept with why, as the
+    # transaction save refuses it (S1.9.3); one an earlier import keeps already is that row.
+    start = loan_start(s, account)
+    kept_out = Counter(_left_key(x) for x in _keeping(s, account.id, imp.id))
 
     # An option's end in the file is settled after the trades that opened it, and the stock
     # trade the broker reports with an assignment or exercise is the one settling makes.
@@ -627,6 +635,15 @@ def _apply_import(
             ends.append(row)
             continue
         if id(row) in held_back:
+            continue
+        if start is not None and row.amount != 0 and row.date < start:
+            out = left_out(imp, row, start)
+            if kept_out[_left_key(out)]:
+                kept_out[_left_key(out)] -= 1
+                result.matched += 1
+            else:
+                s.add(out)
+                result.leftOut.append(left_shown(out))
             continue
         added.append(_add_row(s, account, user_id, imp, row, inst))
     s.flush()
@@ -721,6 +738,126 @@ def _apply_import(
 
 
 OPTION_ENDS = ("expire", "assign", "exercise")
+
+
+def loan_start(s: Session, account: Account) -> dt.date | None:
+    """The day a loan starts, before which it has no payment or draw (S1.9.3); None for an
+    account that isn't a loan, or a loan without terms yet."""
+    from ... import loans
+
+    row = loans.loan_of(s, account) if loans.is_loan(account.type) else None
+    return row.startDate if row is not None else None
+
+
+def _before_start(amount: Decimal, start: dt.date) -> str:
+    from ... import loans
+
+    return loans.before_start("payment" if amount > 0 else "draw", start)
+
+
+def left_out(imp: Import, row, start: dt.date) -> ImportLeftOut:
+    """A row kept on its import, left out for being dated before the loan starts, with why in
+    the words the transaction save refuses it in (S1.9.3)."""
+    return ImportLeftOut(
+        id=ids.new_id("ImpLO"),
+        importId=imp.id,
+        date=row.date,
+        kind=row.kind,
+        amount=row.amount,
+        payee=row.payee,
+        memo=row.memo,
+        fitId=row.fitId,
+        reason=_before_start(row.amount, start),
+    )
+
+
+def left_shown(x: ImportLeftOut) -> dict:
+    """A kept row as an import's result names it, its amount written exactly (R1.9)."""
+    return {
+        "id": x.id,
+        "date": x.date.isoformat(),
+        "kind": x.kind,
+        "amount": str(x.amount),
+        "payee": x.payee,
+        "reason": x.reason,
+    }
+
+
+def _left_key(x):
+    """A kept row is the same row again by the file's id, else by date, amount and payee."""
+    return x.fitId or (x.date, money.to_cents(x.amount), x.payee)
+
+
+def left_out_of(s: Session, import_ids: list[str]) -> list[ImportLeftOut]:
+    """The live rows these imports keep left out, in the order they were kept."""
+    return list(
+        s.scalars(
+            select(ImportLeftOut)
+            .where(ImportLeftOut.importId.in_(import_ids), ImportLeftOut.deleted == false())
+            .order_by(ImportLeftOut.id)
+        )
+    )
+
+
+def _keeping(s: Session, account_id: str, but: str) -> list[ImportLeftOut]:
+    """The rows the account's other live imports keep left out."""
+    others = select(Import.id).where(
+        Import.accountId == account_id, Import.deleted == false(), Import.id != but
+    )
+    return list(
+        s.scalars(
+            select(ImportLeftOut).where(
+                ImportLeftOut.importId.in_(others), ImportLeftOut.deleted == false()
+            )
+        )
+    )
+
+
+def add_left_out(s: Session, account: Account, user_id: str, imp: Import, which: list[str]) -> int:
+    """The rows `which` names of those an import left out, added now that the loan starts on or
+    before each, and gone from what it keeps (S1.9.3); one still before the start is refused at
+    its place in `which`, in the transaction save's words. The server's work on an account the
+    caller may change, checked before."""
+    from ...errors import refuse
+    from ...importers.parsed import Row
+
+    why = "rows an import left out, added by who may change the account"
+    with scoping.as_server(s, why) as srv:
+        account, imp = srv.get(Account, account.id), srv.get(Import, imp.id)
+        kept = {x.id: x for x in left_out_of(srv, [imp.id])}
+        start = loan_start(srv, account)
+        for n, i in enumerate(which):
+            if i not in kept or i in which[:n]:
+                raise refuse(f"rows.{n}", "row-unknown", f"One of the {len(kept)} rows left out.")
+        for n, i in enumerate(which):
+            if start is not None and kept[i].date < start:
+                raise refuse(f"rows.{n}", "date-before-loan", _before_start(kept[i].amount, start))
+        added = []
+        for i in which:
+            x = kept[i]
+            row = Row(
+                date=x.date, kind=x.kind, amount=x.amount, fitId=x.fitId, payee=x.payee, memo=x.memo
+            )
+            added.append(_add_row(srv, account, user_id, imp, row, None))
+            x.mark_deleted(user_id)
+        imp.added += len(added)
+        for txn in added:
+            match_transfer(srv, txn, account.ownerId)
+        from .rules import Rules
+
+        rules = Rules(srv, user_id)
+        for txn in added if rules else ():
+            rules.apply(txn)
+        activity.record(
+            srv,
+            "account.imported",
+            actor=user_id,
+            subject_kind="account",
+            subject_id=account.id,
+            owner=account.ownerId,
+            detail={"added": len(added), "matched": 0, "changed": 0, "format": imp.format},
+        )
+        return len(added)
 
 
 def _add_row(s: Session, account: Account, user_id: str, imp: Import, row, inst) -> Transaction:

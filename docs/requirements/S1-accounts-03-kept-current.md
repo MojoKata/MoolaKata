@@ -8,7 +8,8 @@
    1. **manual**: transactions and balance snapshots typed in;
    2. **file import**: **OFX and QFX** files (the structured downloads most US banks and brokers
       offer; brokers' files also carry positions and trades), read with ofxtools; CSV, with a
-      saved column mapping per institution; and brokers' and exchanges' trade-history CSVs. The
+      saved column mapping per institution, the account owner's, which whoever imports into one
+      of the owner's accounts uses and teaches; and brokers' and exchanges' trade-history CSVs. The
       first CSV from an institution asks **which columns are which**, its guesses checked: the
       date, description, amount (or debit and credit), running balance, memo and id, and for an
       account that holds instruments the action, symbol, quantity, price and fees. A trade's
@@ -27,7 +28,8 @@
       the same amount within S1.7's days, the closest, and none when two are as close. Rows the owner deleted are
       matched too, and stay deleted: no file, nor the connector's overlapping downloads, brings
       one back. An id a file repeats is another row, kept beside the first and flagged with it
-      as a duplicate suspect (S1.11.5). An OFX file holds one account's statement: one with
+      as a duplicate suspect (S1.11.5). A loan's payment or draw dated before the loan starts
+      is left out and kept on the import, as S1.9.3 says. An OFX file holds one account's statement: one with
       several is refused, asking for one account at a time. A broker's file's positions are a
       **holdings check** on the statement's day (its as-of, whatever day their prices are from),
       as a statement's are (S1.3.3.8.2): the lots change only through transactions. Every file's
@@ -70,7 +72,8 @@
          opening balance becomes
          the account's reported balance the day before the period, the closing balance its
          balance on the last day (S1.11).
-      4. **What is learned per institution** (per owner): the sign of each section heading the
+      4. **What is learned per institution**, the account owner's, taught by whoever imports
+         into one of the owner's accounts: the sign of each section heading the
          person kept, a line kept with its description corrected told by the line it was read
          as. Lines to ignore are never learned on their own: a line the person unticks shows
          **Remember…** at its row's end, which asks *Ignore future lines starting with:*, its

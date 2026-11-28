@@ -337,6 +337,21 @@ def test_a_statement_of_two_accounts_splits_where_each_begins():
     assert [r.amount for r in savings.rows] == [Decimal("1500.00"), Decimal("2.10")]
     assert savings.difference == 0
     assert statements.split(UMB.splitlines()) == [], "one account, no header: no parts"
+    # An account's header again after another's: its lines go back to its own part.
+    back = statements.split(
+        [
+            "Checking Account Number XXXX4821",
+            "a",
+            "Savings Account Number XXXX9030",
+            "b",
+            "Account Number XXXX4821 (continued)",
+            "c",
+        ]
+    )
+    assert [(p.last4, p.lines[1:]) for p in back] == [
+        ("4821", ["a", "Account Number XXXX4821 (continued)", "c"]),
+        ("9030", ["b"]),
+    ]
 
 
 def test_a_kept_statement_is_named_by_its_period():
@@ -421,3 +436,271 @@ def test_a_statement_kept_without_reading_counts_as_arrived(server):
         json={"periodStart": "2026-09-01", "periodEnd": "2026-09-30"},
     )
     assert r.json()["code"] == "statement-kept-already"
+
+
+def test_a_statement_a_write_sharer_keeps_is_the_accounts_owners(server):
+    """S9.6: a statement kept on an account is its owner's, the importer named as who attached
+    it; seen by whoever reads the account, and gone with a share that ends."""
+    from conftest import make_user, sign_in
+    from edits import detach, drop, share
+    from sqlalchemy import select
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    from moolakata.store.entities.receipts import ReceiptLink
+
+    make_user(server, "jane")
+    make_user(server, "john")
+    jane, john = sign_in(server, "jane"), sign_in(server, "john")
+    acct = new_account(jane, institution="UMB Bank")
+    people = jane.get(f"/ui/api/shares/account/{acct['id']}").json()["users"]
+    ids = {u["displayName"]: u["id"] for u in people}
+    assert share(jane, "account", acct["id"], users={ids["John"]: "write"}).status_code == 200
+    found = _import(john, acct["id"], text_pdf(UMB.splitlines()), keep=True)["result"]
+    r = john.post(
+        f"/ui/api/imports/{found['uploadId']}/keep",
+        json={"periodStart": "2026-09-01", "periodEnd": "2026-09-30"},
+    )
+    assert r.status_code == 200, r.text
+    rid = r.json()["result"]["receiptId"]
+    mine = jane.get(f"/ui/api/receipts/{rid}").json()
+    assert mine["access"]["mine"] and mine["ownerName"] == "Jane"
+    with server.db.read(unscoped="test") as s:
+        [ln] = s.scalars(select(ReceiptLink).where(ReceiptLink.receiptId == rid)).all()
+        assert ln.linkedById == ids["John"], "the importer is named as who attached it"
+    held = john.get(f"/ui/api/receipts/{rid}").json()["access"]
+    assert held["writable"] and not held["mine"]
+    # The share ended, the statement goes with it.
+    assert share(jane, "account", acct["id"], users={ids["John"]: "none"}).status_code == 200
+    assert john.get(f"/ui/api/receipts/{rid}").status_code == 404
+    assert rid not in {x["id"] for x in john.get("/ui/api/receipts").json()["items"]}
+    # Its owner deletes it, once it is taken off the account.
+    assert detach(jane, rid, acct["id"]).status_code == 200
+    assert drop(jane, "Rcpt", f"/ui/api/receipts/{rid}").status_code == 200
+    assert jane.get(f"/ui/api/receipts/{rid}").status_code == 404
+
+
+# ---------- the parser's edges ----------
+
+
+def test_a_line_dated_by_its_months_name_and_one_whose_day_isnt_a_day():
+    """S1.3.3.1: a line led by `Sep 3` or `09/03/26` is a transaction; one led by a word that
+    isn't a month, or by a day that doesn't exist (`02/30`), is no line."""
+    st = parse(
+        "Statement Period: 09/01/26 - 09/30/26\n"
+        "Beginning Balance $100.00\n"
+        "Deposits\n"
+        "\n"
+        "Sep 3 PAYROLL 50.00\n"
+        "09/04/26 REFUND 5.00\n"
+        "Tuesday 5 NOT A LINE 7.00\n"
+        "02/30 NO SUCH DAY 9.00\n"
+        "Ending Balance $155.00"
+    )
+    assert [(r.date, r.amount) for r in st.rows] == [
+        (dt.date(2026, 9, 3), Decimal("50.00")),
+        (dt.date(2026, 9, 4), Decimal("5.00")),
+    ]
+    assert st.difference == 0
+
+
+def test_a_statement_without_its_balances_has_no_difference():
+    st = parse("09/03 COFFEE 4.50-")
+    assert (st.opening, st.closing, st.difference) == (None, None, None)
+    assert (st.periodStart, st.periodEnd) == (dt.date(2026, 9, 3), dt.date(2026, 9, 3))
+
+
+def test_a_running_balance_gives_the_sign_only_when_it_moves_by_the_amount():
+    """S1.3.3.1: with no opening balance the first line's balance is the start; a balance that
+    moves by the line's amount gives its sign; one that doesn't leaves the line to its section,
+    and a balance label without an amount is passed for the next one."""
+    st = parse(
+        "Beginning Balance (see page 2)\n"
+        "Withdrawals\n"
+        "09/02 GROCER 40.00 960.00\n"
+        "09/03 REFUND 10.00 970.00\n"
+        "09/04 MISPRINT 5.00 900.00\n"
+        "Ending Balance $900.00"
+    )
+    assert st.opening is None and st.closing == Decimal("900.00")
+    assert [(r.amount, r.confidence) for r in st.rows] == [
+        (Decimal("-40.00"), 88),
+        (Decimal("10.00"), 97),
+        (Decimal("-5.00"), 88),
+    ]
+
+
+def test_a_period_written_with_months_names_and_one_that_isnt_a_period():
+    """`September 1, 2026 - September 30, 2026` is a period; a range whose end isn't a day,
+    and dates that aren't, are none."""
+    st = parse("Statement Period: September 1, 2026 - September 30, 2026")
+    assert (st.periodStart, st.periodEnd) == (dt.date(2026, 9, 1), dt.date(2026, 9, 30))
+    # A label without a colon: the word before a date never swallows it.
+    for line in ("For the period 09/01/2026 to 09/30/2026", "Statement period 09/01/26 - 09/30/26"):
+        assert statements._period([line]) == (dt.date(2026, 9, 1), dt.date(2026, 9, 30)), line
+    assert statements._period(["Statement Period: Feb 1 - Feb 30, 2026"]) == (None, None)
+    assert statements._period(["Statement Period: 13/45/2026 - 14/50/2026"]) == (None, None)
+    assert statements._period(["Billing period: Foo 1 - Bar 9, 2026"]) == (None, None)
+
+
+def test_a_card_statements_running_balance_is_turned_to_the_accounts_side():
+    st = parse(
+        "Previous Balance $100.00\n09/03 GROCER 40.00 140.00\nNew Balance $140.00", card=True
+    )
+    [r] = st.rows
+    assert (r.amount, r.balance) == (Decimal("-40.00"), Decimal("-140.00"))
+    assert (st.opening, st.closing) == (Decimal("-100.00"), Decimal("-140.00"))
+
+
+def test_a_kept_statement_is_named_by_the_dates_it_holds_and_across_years():
+    lines = ["UMB Bank, n.a.", "Activity from 12/01/25 through 01/05/26"]
+    start, end, _ = statements.period_and_institution(lines)
+    assert (start, end) == (dt.date(2025, 12, 1), dt.date(2026, 1, 5))
+    assert statements.name("UMB", start, end) == "UMB statement, Dec 1, 2025 – Jan 5, 2026"
+    assert statements.period_and_institution(["Activity on 12/01/25"])[:2] == (None, None)
+
+
+def test_an_amount_with_no_digits_is_none():
+    assert statements.parse_amount("$.") is None
+    assert statements.parse_amount("12.00 CR") == Decimal("12.00")
+    assert statements.parse_amount("12.00 DR") == Decimal("-12.00")
+
+
+# ---------- a write sharer's import (S1.3.3, S9.6) ----------
+
+
+def _shared(server, allow="write", owner="jane", sharer="john", **account):
+    """`owner`'s new account shared with `sharer` at `allow`: their clients, the account, and
+    each one's user id by name."""
+    from conftest import make_user, sign_in
+    from edits import share
+    from test_accounts import new_account
+
+    ids = {name: make_user(server, name).id for name in (owner, sharer)}
+    mine, theirs = sign_in(server, owner), sign_in(server, sharer)
+    acct = new_account(mine, **account)
+    them = ids[sharer]
+    assert share(mine, "account", acct["id"], users={them: allow}).status_code == 200
+    return mine, theirs, acct, ids
+
+
+def _layouts(server) -> dict:
+    from sqlalchemy import select
+
+    from moolakata.store.entities.accounts import StatementLayout
+
+    with server.db.read(unscoped="test") as s:
+        rows = s.scalars(select(StatementLayout).where(StatementLayout.deleted.is_(False)))
+        return {(x.ownerId, x.institution): x.layout for x in rows}
+
+
+def test_a_write_sharer_saves_a_read_statement_and_teaches_the_owners_layout(server):
+    """S1.3.3.4: what an import learns of an institution is the account owner's, taught by
+    whoever imports into the owner's accounts; the statement is the owner's (S9.6). A read
+    sharer imports nothing."""
+    from test_reading import text_pdf
+
+    jane, john, acct, ids = _shared(server, institution="UMB Bank")
+    review = _import(john, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    body = _body(review, remember=["Online transfer"])
+    r = john.post(f"/ui/api/imports/{review['uploadId']}/statement", json=body)
+    assert r.status_code == 200, r.text
+    learned = _layouts(server)
+    assert list(learned) == [(ids["jane"], "UMB Bank")]
+    assert "online transfer" in learned[(ids["jane"], "UMB Bank")]
+    rc = jane.get(f"/ui/api/receipts/{r.json()['result']['receiptId']}").json()
+    assert rc["access"]["mine"], "the statement is the owner's"
+    # Jane's next statement reads with what John taught.
+    again = _import(jane, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    assert any(x.get("ignored") for x in again["rows"])
+
+
+def test_a_read_sharer_imports_nothing(server):
+    from test_reading import text_pdf
+
+    _, john, acct, _ = _shared(server, allow="read", institution="UMB Bank")
+    r = john.post(
+        f"/ui/api/accounts/{acct['id']}/imports",
+        files={"file": ("s.pdf", text_pdf(UMB.splitlines()), "application/pdf")},
+    )
+    assert r.status_code in (403, 404) and _layouts(server) == {}
+
+
+def test_a_statement_of_two_owners_accounts_is_kept_once_per_owner(server):
+    """S9.6: a combined statement filling Jane's checking and John's savings, which John shares
+    with her at write, is kept as Jane's receipt on her account and John's on his, each linked
+    by Jane, who imported it."""
+    from sqlalchemy import select
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    from moolakata.store.entities.receipts import Receipt, ReceiptLink
+
+    _, jane, savings, ids = _shared(
+        server,
+        owner="john",
+        sharer="jane",
+        name="Savings",
+        type="savings",
+        institution="UMB Bank",
+        mask="9030",
+    )
+    checking = new_account(jane, name="Free Checking", institution="UMB Bank", mask="4821")
+    review = _import(jane, checking["id"], text_pdf(COMBINED.splitlines()))["result"]
+    parts = review["parts"]
+    assert parts[1]["accountId"] == savings["id"], "his account, which she may write, by its number"
+    url = f"/ui/api/imports/{review['uploadId']}/statement"
+    r = jane.post(url, json=_body(parts[0], part=0, accountId=checking["id"]))
+    assert r.status_code == 200, r.text
+    r = jane.post(url, json=_body(parts[1], part=1, accountId=savings["id"]))
+    assert r.status_code == 200, r.text
+    with server.db.read(unscoped="test") as s:
+        kept = {
+            r.ownerId: {(ln.itemId, ln.linkedById) for ln in s.scalars(
+                select(ReceiptLink).where(ReceiptLink.receiptId == r.id))}
+            for r in s.scalars(select(Receipt))
+        }  # fmt: skip
+    assert kept == {
+        ids["jane"]: {(checking["id"], ids["jane"])},
+        ids["john"]: {(savings["id"], ids["jane"])},
+    }
+    rid = r.json()["result"]["receiptId"]
+    assert jane.get(f"/ui/api/receipts/{rid}").json()["access"]["mine"], "hers is answered"
+
+
+MORTGAGE = """Rocket Mortgage
+Statement Period: 12/01/25 - 01/31/26
+Beginning Balance $300,000.00
+Payments
+12/15 PAYMENT THANK YOU 500.00
+01/05 PAYMENT THANK YOU 1,798.65
+Ending Balance $297,701.35
+"""
+
+
+def test_a_loans_statement_names_its_start_and_keeps_the_lines_before_it(server):
+    """S1.9.3: a loan's statement is read with the loan's start, so the check shows a line
+    dated before it as one that will be left out; saving adds the rest and keeps it."""
+    from conftest import make_user, sign_in
+    from edits import saved, terms
+    from test_accounts import new_account
+    from test_reading import text_pdf
+
+    make_user(server, "jane")
+    c = sign_in(server, "jane")
+    loan = new_account(c, name="Home", type="mortgage", institution="Rocket Mortgage")
+    saved(terms(c, loan["id"], principal="300000", startDate="2026-01-01", termMonths=360,
+                rate="6"))  # fmt: skip
+    review = _import(c, loan["id"], text_pdf(MORTGAGE.splitlines()))["result"]
+    assert review["loanStart"] == "2026-01-01"
+    assert [x["date"] for x in review["rows"]] == ["2025-12-15", "2026-01-05"]
+    r = c.post(
+        f"/ui/api/imports/{review['uploadId']}/statement",
+        json=_body(review, acceptDifference=True),
+    )
+    assert r.status_code == 200, r.text
+    done = r.json()["result"]
+    assert done["added"] == 1 and [x["date"] for x in done["leftOut"]] == ["2025-12-15"]
+    acct = new_account(c, name="Checking", institution="UMB Bank")
+    plain = _import(c, acct["id"], text_pdf(UMB.splitlines()))["result"]
+    assert plain["loanStart"] is None, "no loan, no start"

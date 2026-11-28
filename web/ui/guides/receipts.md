@@ -34,5 +34,6 @@ A receipt is seen through what it is kept with: a transaction's by whoever can r
 transaction; a gift's through the gift plans that show the gift; a donation's by its owner and those
 who see the giving plan it counts in; one kept with a physical-asset item, a loan, a 529 expense or
 an account (a statement) by whoever can read that account; and a tax document's file by whoever can
-read the tax book. One attached to nothing is yours alone. Only you can delete your receipt, and
+read the tax book. A statement imported into an account is the account's owner's, whoever
+imported it, and goes with a share that ends. One attached to nothing is yours alone. Only you can delete your receipt, and
 only once nothing links to it.

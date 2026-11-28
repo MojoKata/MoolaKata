@@ -1893,6 +1893,42 @@ def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
     engine.dispose()
 
 
+def test_0077_keeps_a_loans_rows_an_import_left_out_beside_the_imports_made_before(tmp_path):
+    """S1.9.3: the imports made so far are as they were, keeping no rows left out; a row kept is
+    its import's, and goes with it."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    imp, acct = ids.new_id("Imprt"), ids.new_id("Acct")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0076")
+        conn.commit()
+        q = conn.exec_driver_sql
+        uid = _jane_at(conn, made)
+        q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+          "VALUES (?, ?, 'Home', 'mortgage', ?, ?)", (acct, uid, made, made))  # fmt: skip
+        q('INSERT INTO "Import" (id, "accountId", "userId", format, "fileName", "fileHash", '
+          'added, "createdAt", "updatedAt") VALUES (?, ?, ?, \'ofx\', \'h.ofx\', \'h\', 3, ?, ?)',
+          (imp, acct, uid, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        assert [tuple(r) for r in q('SELECT id, added FROM "Import"').all()] == [(imp, 3)]
+        assert q('SELECT count(*) FROM "ImportLeftOut"').scalar_one() == 0
+        q('INSERT INTO "ImportLeftOut" (id, "importId", date, kind, amount, reason, "createdAt", '
+          '"updatedAt") VALUES (?, ?, \'2025-12-15\', \'deposit\', 50000, \'before\', ?, ?)',
+          (ids.new_id("ImpLO"), imp, made, made))  # fmt: skip
+        q("PRAGMA foreign_keys = ON")
+        q('DELETE FROM "Import"')
+        assert q('SELECT count(*) FROM "ImportLeftOut"').scalar_one() == 0, "with its import"
+        assert q("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
 def test_a_failed_write_names_no_value_it_was_given(store):
     # S13.7.9: the engines hide statement parameters, so a failed write logs no value.
     from sqlalchemy.exc import IntegrityError

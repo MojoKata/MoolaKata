@@ -185,6 +185,77 @@ def test_bad_rows_name_their_row():
         csvfile.read(data, m)
 
 
+def test_a_csv_that_cant_be_read_says_why():
+    """S1.3.2: a file that isn't text, text in no encoding read here, an empty file, a file with
+    nothing below its header, a column the mapping names that isn't there, and an amount that
+    isn't one, named by its row."""
+    with pytest.raises(ReadError, match="not a text file"):
+        csvfile.decode(b"Date\x00,Amount\n")
+    with pytest.raises(ReadError, match="can't be read"):
+        csvfile.decode(b"Date,Payee\n\x81\x8d\x8f\xff\n")
+    assert csvfile.decode("Date,Payee\nCafé\n".encode("cp1252")) == "Date,Payee\nCafé\n"
+    with pytest.raises(ReadError, match="is empty"):
+        csvfile.propose(b"")
+    data = b"Date,Description,Amount\n2026-09-02,Coffee,4.50\n"
+    m = csvfile.propose(data)["mapping"]
+    with pytest.raises(ReadError, match="no rows below its header"):
+        csvfile.read(b"Account 4821\n", {**m, "skipRows": 1})
+    assert csvfile.read(b"Date,Description,Amount\n", m).rows == [], "a header alone adds nothing"
+    with pytest.raises(ReadError, match="no column called 'Amount'"):
+        csvfile.read(b"Date,Description,Total\n2026-09-02,Coffee,4.50\n", m)
+    with pytest.raises(ReadError, match=r"Row 2: 'four fifty' is not an amount"):
+        csvfile.read(b"Date,Description,Amount\n2026-09-02,Coffee,four fifty\n", m)
+    with pytest.raises(ReadError, match="Choose the date column"):
+        csvfile.read(data, {**m, "date": None})
+
+
+def test_a_mapping_names_each_column_it_lacks_at_its_field():
+    """S1.3.2, R3.11: no date column, no date format, no amount (nor debit and credit), and no
+    description (nor symbol), each refused at its field in its words."""
+    assert csvfile.check_mapping({}) == [
+        ("date", "Choose the date column."),
+        ("dateFormat", "Choose how the dates are written."),
+        ("amount", "Choose the amount column, or the debit and credit columns."),
+        ("payee", "Choose the description or payee column."),
+    ]
+    whole = {"date": "D", "dateFormat": "%Y-%m-%d", "debit": "Out", "symbol": "S"}
+    assert csvfile.check_mapping(whole) == []
+
+
+def test_a_csv_row_without_a_date_is_passed_over():
+    data = b"Date,Description,Amount\n2026-09-02,Coffee,4.50\n,Subtotal,4.50\n"
+    p = csvfile.read(data, csvfile.propose(data)["mapping"])
+    assert [r.payee for r in p.rows] == ["Coffee"]
+
+
+def test_a_csv_proposal_without_a_date_column_starts_at_the_top():
+    """No row in the first 15 names a date: the header is taken as the first row, and no
+    date column is proposed."""
+    data = b"When,Payee,Amount\n2026-09-02,Coffee,4.50\n"
+    p = csvfile.propose(data)
+    assert p["mapping"]["skipRows"] == 0 and p["mapping"]["date"] is None
+
+
+def test_a_csv_proposal_with_an_amount_column_drops_debit_and_credit():
+    data = b"Date,Description,Amount,Debit,Credit\n2026-09-02,Coffee,-4.50,4.50,\n"
+    m = csvfile.propose(data)["mapping"]
+    assert (m["amount"], m["debit"], m["credit"]) == ("Amount", None, None)
+
+
+def test_a_cash_foreign_tax_row_is_money_out():
+    data = (
+        b"Date,Action,Symbol,Description,Amount\n"
+        b"2026-06-30,Foreign Tax Paid,,Withheld,3.10\n"
+        b"2026-06-30,Foreign Tax Paid,VXUS,Withheld,2.00\n"
+    )
+    m = csvfile.propose(data, trades=True)["mapping"]
+    p = csvfile.read(data, m)
+    assert [(r.kind, r.amount) for r in p.rows] == [
+        ("foreign-tax", D("-3.10")),
+        ("foreign-tax", D("-2.00")),
+    ]
+
+
 def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
     # S2.5: a dividend row carries the income; the buy carries none, so the income panel
     # counts $100 as $100 of 1099-DIV, never $200.
@@ -270,3 +341,172 @@ def test_an_ofx_date_not_written_as_a_date_falls_back_to_ofxtools():
 
     assert _raw("20260930200000[-5:EST]") == dt.date(2026, 9, 30)
     assert _raw("") is None and _raw("2026-09") is None
+
+
+def test_an_ofx_brokers_other_actions_and_securities():
+    """S1.3.1: shares moved in and out, a return of capital, an expense and margin interest as
+    fees, a long-term gain, interest and a 2-for-1 split; a journal between sub-accounts is no
+    row. A fund named a money market is one, an option without an OCC ticker keeps the file's,
+    and a file without its institution's name has none."""
+    p = ofx.read((FIX / "actions.ofx").read_bytes())
+    assert p.institution is None and p.accountNumber == "X7654321"
+    got = [(r.kind, r.amount, r.quantity, r.dividendType) for r in p.rows]
+    assert got == [
+        ("transfer-in", D(0), D(5), None),
+        ("transfer-out", D(0), D(2), None),
+        ("return-of-capital", D("12.00"), None, None),
+        ("fee", D("-3.00"), None, None),
+        ("fee", D("-4.00"), None, None),
+        ("capital-gain", D("40.00"), None, "capital-gain"),
+        ("interest", D("2.00"), None, None),
+        ("split", D(0), None, None),
+    ]
+    assert p.rows[-1].splitRatio == D(2)
+    assert p.securities["31617H102"].instrumentClass == "money-market"
+    opt = p.securities["OPT1"]
+    assert (opt.symbol, opt.instrumentClass, opt.multiplier) == ("XYZ OPTION", "option", 100)
+    assert p.positions == [] and p.balances == []
+
+
+def test_an_ofx_file_without_its_lists_reads_as_empty():
+    """S1.3.1: a bank statement with no transaction list is its balance alone; a broker's with
+    no transaction list, or no securities list, or an empty one, has none of them."""
+    bank = (FIX / "bank.ofx").read_bytes()
+    start, end = bank.index(b"<BANKTRANLIST>"), bank.index(b"</BANKTRANLIST>")
+    p = ofx.read(bank[:start] + bank[end + len(b"</BANKTRANLIST>") :])
+    assert p.rows == [] and p.balances == [(dt.date(2026, 9, 30), D("5629.09"))]
+    assert (p.coveredFrom, p.coveredTo) == (None, None)
+    broker = (FIX / "actions.ofx").read_bytes()
+    start, end = broker.index(b"<INVTRANLIST>"), broker.index(b"</INVTRANLIST>")
+    bare = broker[:start] + broker[end + len(b"</INVTRANLIST>") :]
+    seclist = bare[bare.index(b"<SECLISTMSGSRSV1>") : bare.index(b"</OFX>")]
+    p = ofx.read(bare.replace(seclist, b""))
+    assert (p.rows, p.securities, p.accountKind) == ([], {}, "investment")
+    empty = b"<SECLISTMSGSRSV1><SECLIST></SECLIST></SECLISTMSGSRSV1>\n"
+    assert ofx.read(bare.replace(seclist, empty)).securities == {}
+
+
+def test_an_ofx_file_of_no_statement_or_of_several_is_refused():
+    """S1.3.1: one account's statement at a time."""
+    bank = (FIX / "bank.ofx").read_bytes()
+    start, end = bank.index(b"<BANKMSGSRSV1>"), bank.index(b"</OFX>")
+    with pytest.raises(ReadError, match="holds no statement"):
+        ofx.read(bank[:start] + bank[end:])
+    block = bank[start + len(b"<BANKMSGSRSV1>") : bank.index(b"</BANKMSGSRSV1>")]
+    twice = bank.replace(block, block + block.replace(b"<TRNUID>1", b"<TRNUID>2"))
+    with pytest.raises(ReadError, match="several accounts"):
+        ofx.read(twice)
+
+
+# ---------- importers.parsed: an option's ticker, and what crosses the reader's pipe ----------
+
+
+@pytest.mark.parametrize(
+    ("text", "ticker"),
+    [
+        ("O:AAPL  250117C00150000", "AAPL250117C00150000"),
+        ("aapl 01/17/25 $150 c", "AAPL250117C00150000"),
+        ("-AAPL250117C150", "AAPL250117C00150000"),
+        ("-MSFT261218P482.5", "MSFT261218P00482500"),
+        ("AAPL251317C00150000", None),  # month 13
+        ("AAPL 02/30/2025 150.00 C", None),
+        ("-AAPL250230C150", None),
+        ("AAPL", None),
+        (None, None),
+    ],
+)
+def test_an_option_is_named_by_its_occ_ticker_however_written(text, ticker):
+    """S3.2: the OCC ticker, a statement's dated form and the short form; a day that isn't
+    one, or anything else, is no option."""
+    from moolakata.importers.parsed import occ_symbol
+
+    assert occ_symbol(text) == ticker
+
+
+def _parsed(**kw) -> dict:
+    from moolakata.importers.parsed import ParsedFile, Position, Row, Security, to_json
+
+    p = ParsedFile(
+        format="ofx",
+        rows=[
+            Row(
+                date=dt.date(2026, 9, 1),
+                kind="buy",
+                amount=D("-10.00"),
+                security="X",
+                quantity=D(1),
+                price=D(10),
+            )
+        ],
+        securities={"X": Security("X", "VTI", "Total market", "etf", "922908769", None)},
+        positions=[Position("X", dt.date(2026, 9, 30), D(1), D("10.50"))],
+        balances=[(dt.date(2026, 9, 30), D("5.00"))],
+        institution="Example",
+        accountKind="investment",
+    )
+    p.cover()
+    return to_json(p) | kw
+
+
+def test_a_parsed_file_crosses_the_pipe_whole():
+    from moolakata.importers.parsed import from_json
+
+    p = from_json(_parsed())
+    assert (p.coveredFrom, p.coveredTo) == (dt.date(2026, 9, 1), dt.date(2026, 9, 1))
+    assert p.rows[0].price == D(10) and p.securities["X"].cusip == "922908769"
+    assert p.positions[0].marketValue == D("10.50") and p.balances == [(dt.date(2026, 9, 30), D(5))]
+
+
+ROW = {"date": "2026-09-01", "kind": "buy", "amount": "-10.00"}
+SEC = {"key": "X", "instrumentClass": "etf"}
+
+
+@pytest.mark.parametrize(
+    ("change", "what"),
+    [
+        ({"rows": "none"}, "a parsed file"),
+        ({"format": "pdf"}, "a parsed file"),
+        ({"rows": ["x"]}, "a row"),
+        ({"rows": [ROW | {"date": 20260901}]}, "a date"),
+        ({"rows": [ROW | {"date": "2026-13-01"}]}, "a date"),
+        ({"rows": [ROW | {"kind": None}]}, "a text field"),
+        ({"rows": [ROW | {"kind": "k" * 31}]}, "a text field"),
+        ({"rows": [ROW | {"amount": 10}]}, "a number"),
+        ({"rows": [ROW | {"amount": "1" * 41}]}, "a number"),
+        ({"rows": [ROW | {"amount": "ten"}]}, "a number"),
+        ({"rows": [ROW | {"amount": "NaN"}]}, "a number"),
+        ({"rows": [ROW | {"amount": "Infinity"}]}, "a number"),
+        ({"securities": ["X"]}, "the securities"),
+        ({"securities": {"X": "VTI"}}, "a security"),
+        ({"securities": {"X": SEC | {"multiplier": 0}}}, "a count"),
+        ({"securities": {"X": SEC | {"multiplier": True}}}, "a count"),
+        ({"securities": {"X": SEC | {"multiplier": 10_001}}}, "a count"),
+        ({"positions": ["x"]}, "a position"),
+        ({"balances": [["2026-09-30"]]}, "a balance"),
+        ({"balances": ["2026-09-30"]}, "a balance"),
+    ],
+)
+def test_what_the_reader_answers_is_refused_unless_its_every_field_is_well_formed(change, what):
+    """S9.8.4.2: a parsed file from the reader's worker is checked field by field; a field of
+    the wrong shape, a number not finite, or a count out of range refuses it whole."""
+    from moolakata.importers.parsed import Malformed, from_json
+
+    with pytest.raises(Malformed) as e:
+        from_json(_parsed(**change))
+    assert str(e.value) == what
+
+
+def test_a_parsed_file_that_isnt_one_is_refused():
+    from moolakata.importers.parsed import Malformed, from_json
+
+    for bad in (None, [], {"format": "ofx"}):
+        with pytest.raises(Malformed, match="a parsed file"):
+            from_json(bad)
+    assert from_json(_parsed(securities=None, positions=None, balances=None)).positions == []
+    assert from_json(_parsed(coveredFrom=None)).coveredFrom is None, "a file of no dates"
+    assert (
+        from_json(_parsed(rows=[ROW], securities={"X": SEC | {"multiplier": 100}}))
+        .securities["X"]
+        .multiplier
+        == 100
+    )

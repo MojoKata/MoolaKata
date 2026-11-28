@@ -61,9 +61,9 @@ answers keep the API's camelCase fields.
   - **Counted** are the tables the server writes in the background, outside a person's save
     (a scheduled task, a sync, a worker, a refresh), whatever else writes them too: `Activity`,
     `Alert`, `AlertState`, `Anchor`, `Connection`, `Connector`, `Holding`, `HoldingCheck`,
-    `Import`, `Link`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`, `OneTimeToken`, `Price`,
-    `PriceSource`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`, `Setting`,
-    `SignupRequest`, `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version
+    `Import`, `ImportLeftOut`, `Link`, `LinkFile`, `LinkSent`, `LinkedItem`, `Lot`,
+    `OneTimeToken`, `Price`, `PriceSource`, `QueuedEmail`, `RecoveryCode`, `Secret`, `Session`,
+    `Setting`, `SignupRequest`, `Transaction`, `TransferMatch`, `WalletAddress`, `WashSale`. The version
     only counts their saves, each one adding 1 in the database, and locks nothing: a write is
     never refused for it.
 - **Made in the browser.** A record a browser dialog creates (requirements S12.15.3) takes
@@ -127,6 +127,7 @@ The prefixes of the tables that exist.
 | GvShr  | GivingPlanShare  | A grant of a giving plan to a user or a group, at an access class.                                    |
 | HdChk  | HoldingCheck     | A position a brokerage statement or file shows on a day, checked against what is held then.          |
 | Hold   | Holding          | What an account holds of one instrument at a point in time.                                           |
+| ImpLO  | ImportLeftOut    | A loan's row an import left out, dated before the loan starts, with why: kept until added or deleted. |
 | Imprt  | Import           | One file imported into an account, with the dates it covers.                                          |
 | Imprv  | Improvement      | An improvement to a property, added to its cost basis.                                                |
 | Instr  | Instrument       | A thing with a price: a stock, fund, coin, option contract or currency.                               |
@@ -349,10 +350,10 @@ ever read for them.
    | Declared | Tables | Its view |
    |---|---|---|
    | root (its share kind, its share table's prefix) | `Account`, `Portfolio`, `Budget`, `GivingPlan`, `Projection` | generated: its owner holds everything; a share (S10.3) gives what its access class allows, directly or through an active group |
-   | child (its key) | the records of one record: `Transaction` (`accountId`), `Split` (`transactionId`), `BudgetLine` (`budgetId`), `Filing` (`bookId`), `Occasion` (`giftPlanId`), … | generated: seen as the record its `NOT NULL` key names is; `writable` and `deletable` are that record's `writable`, `configurable` its `configurable`, never `shareable` |
+   | child (its key) | the records of one record: `Transaction` (`accountId`), `Split` (`transactionId`), `BudgetLine` (`budgetId`), `Filing` (`bookId`), `Occasion` (`giftPlanId`), `ImportLeftOut` (`importId`), … | generated: seen as the record its `NOT NULL` key names is; `writable` and `deletable` are that record's `writable`, `configurable` its `configurable`, never `shareable` |
    | share (its share kind) | each shareable kind's share table, `<Table>Share` (`AccountShare`, …), made from its root's declaration | generated: whoever holds `shareable` on its item reads and changes it; its grantee reads it, directly or through a group |
-   | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `TaxBookFiler`, `Activity`, `User`, `Group`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
-   | per-user (its user column) | `AccessToken`, `AlertState`, `BudgetReviewViewer`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `StatementLayout`, `AssumptionSet`, `UserTimeZone`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
+   | rule (its share kind, for a root) | `TaxBook`, `Person`, `GiftPlan` (roots with rules of their own); `Receipt`, `ReceiptLink`, `Gift`, `Donation`, `Organisation`, `Reimbursement`, `TransferMatch`, `Relationship`, `WashSale`, `Alert`, `ImportMapping`, `StatementLayout`, `TaxBookFiler`, `Activity`, `User`, `Group`, `LinkedItem` | written by hand in `store/access_views.py`, one function each, citing its requirement |
+   | per-user (its user column) | `AccessToken`, `AlertState`, `BudgetReviewViewer`, `CountedAccount`, `LinkColour`, `TypedPrice`, `Tag`, `Rule`, `AssumptionSet`, `UserTimeZone`, `Connection` | generated: its user's alone, `writable` and `deletable`; `Connection` also `configurable` (its credentials) |
    | admin | `Setting`, `PriceSource`, `Connector`, `Link`, `LinkFile`, `LinkSent`, `QueuedEmail`, `SignupRequest` | generated: every admin holds everything; no one else reads it |
    | relation | the many-to-many tables (§1.2) | none: a query asks for one side's records and joins that side's view, and the other side's when it returns both |
    | household | `Category`, `Instrument`, `OptionContract`, `Price`, `TaxFigure` | none: every signed-in user reads it |
