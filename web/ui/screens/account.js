@@ -6,6 +6,7 @@ import { html } from '../app/html.js';
 import { PlansFor } from '../components/plans.js';
 import {
   AnchorRec,
+  LoanDocuments,
   LoanRec,
   LoanSummary,
   newTerms,
@@ -147,6 +148,7 @@ function Overview({ a, reload }) {
         ? html`
           <div>
             <${LoanSummary} a=${a} reload=${reload} />
+            <${LoanDocuments} a=${a} />
           </div>
         `
         : BY_TYPE[a.type]?.physical
@@ -879,7 +881,7 @@ function Settings({ a, reload }) {
     // The loan's terms, saved with the account's settings; made once typed in (S1.9).
     const terms = (await api.get(`/accounts/${a.id}/loan`)).terms;
     if (terms) draft.load(LoanRec, { ...terms, accountId: a.id });
-    else draft.add(LoanRec, newTerms(a.type, a.id), { optional: true });
+    else draft.add(LoanRec, await newTerms(a.type, a.id), { optional: true });
   }, [a.id]);
   // A receiver's Count in my totals: a record of their own (S10.7).
   const counted = useSubmit(async (/** @type {boolean} */ v) => {

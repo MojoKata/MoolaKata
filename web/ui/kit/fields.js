@@ -252,8 +252,8 @@ export function ValueInput(
  * @param {any} e @param {string} to @param {(v: string) => void} onInput
  */
 function fillIn(e, to, onInput) {
-  const field = /** @type {HTMLInputElement | null} */ (e.currentTarget.closest('.value-input')
-    ?.querySelector('input'));
+  const field = /** @type {HTMLElement | null} */ (e.currentTarget.closest('.value-input')
+    ?.querySelector('input, select'));
   onInput(to);
   field?.focus();
 }
@@ -707,12 +707,30 @@ export function CountInput({ value, onInput, max, noun, ...rest }) {
  * A list. Read, the chosen option's words in the list's place; one naming a record with a page
  * of its own (an account, a budget) is a link to it, when it is among the options, so one the
  * reader may open.
- * `clear` gives it a ×, left of its chevron, that clears it back to its blank.
+ * `clear` gives it a ×, left of its chevron, that clears it back to its blank. `reset` gives it
+ * a **default** word under it, as a typed field's (R3.11).
  * @param {{ value: any, onChange: (v: string) => void, options: ([string, string] | string)[],
- *   id?: string, readonly?: boolean, clear?: boolean, [k: string]: any }} p
+ *   id?: string, readonly?: boolean, clear?: boolean,
+ *   reset?: { value: string, label: string }, [k: string]: any }} p
  */
-export function Select({ value, onChange, options, readonly, clear, ...rest }) {
-  if (useReading(readonly)) {
+export function Select({ value, onChange, options, readonly, clear, reset, ...rest }) {
+  const reading = useReading(readonly);
+  if (reset && !reading) {
+    const words = [{
+      text: 'default',
+      value: reset.value,
+      label: `Use the default: ${reset.label}`,
+    }];
+    const inner = html`
+      <${Select} value=${value} onChange=${onChange} options=${options}
+        clear=${clear} ...${rest} />
+    `;
+    // With `clear` the list comes in its own box already.
+    return html`<span class="value-input">${
+      clear ? inner : html`<span class="value-in sel">${inner}</span>`
+    }${fillWords(words, String(value ?? ''), onChange)}</span>`;
+  }
+  if (reading) {
     const v = String(value ?? '');
     const chosen = options.map((o) => (Array.isArray(o) ? o : [o, o])).find(([x]) => x === v);
     // A blank reads as blank, whatever its option says ("None", "Choose…").

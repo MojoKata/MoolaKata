@@ -49,3 +49,4 @@ class ReceiptLink(Record):
     kind: str
     itemId: str
     linkedById: str | None = None
+    statement: bool = False  # on an account: one of its statements (S14.10.1.2)

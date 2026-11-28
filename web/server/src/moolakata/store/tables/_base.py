@@ -197,20 +197,6 @@ def pairs(name: str, *columns, **kw) -> Table:
     )
 
 
-def keyed(name: str, *columns, seen: Seen, **kw) -> Table:
-    """A table keyed by name rather than an id, with soft deletes (Settings)."""
-    return Table(
-        name,
-        metadata,
-        *columns,
-        Column("version", Integer, nullable=False, server_default=text("1")),
-        Column("updatedAt", UtcTimestamp, nullable=False),
-        *soft_delete(name),
-        info={"softDelete": True, "seen": seen},
-        **kw,
-    )
-
-
 def exception(
     name: str,
     reason: str,

@@ -37,6 +37,14 @@ payment, recorded with _From account: None_, **Pair** makes the two one transfer
 new; a transaction a few days from a payment of another amount isn't offered, as it is most likely
 that payment.
 
+## Documents {#documents}
+
+The loan's documents other than its statements: a closing disclosure, the note, a payoff letter.
+**Upload** keeps new files with the loan, and **Attach from the inbox** keeps a receipt already
+uploaded; × detaches one, back to the inbox. Each is kept while the loan is open, and from the day
+it is paid off (closed) for as long as statements are kept (Settings › Storage). Statements come by
+an import or the connector, and are listed with the account's receipts.
+
 @@ settings
 
 ## Loan Terms
@@ -110,13 +118,44 @@ PMI can be dropped on request once the balance is 80% of it, and ends by itself 
 ## In budgets {#in-budgets}
 
 How its payments count in budgets, at the bank account each comes from. **Split by the schedule**
-puts interest, escrow, PMI and fees each in its category and principal in a savings category, all
-under _Loan payments_, so a plan line on _Loan payments_ counts the whole payment. **The whole
-payment** counts it all in one category.
+puts each part of a payment in the category the loan names for it below: interest, escrow, PMI and
+fees as spending, principal as saved. A new loan starts with the shipped ones under _Loan
+payments_, so a plan line on _Loan payments_ counts the whole payment until one is changed. **The
+whole payment** counts it all in one category; the parts' categories are kept for a return to the
+split.
 
 ## Counts in {#budget-category}
 
-The category the whole payment counts in: _Loan payments_ unless you choose another.
+The category the whole payment counts in. It can't be left blank: **default** fills in _Loan
+payments_.
+
+## Interest {#interest-category}
+
+The category a payment's interest counts in, _Loan payments › Interest_ to start with. It can't be
+left blank: **default** fills in that one.
+
+## Escrow {#escrow-category}
+
+The category a payment's escrow counts in, its property tax and insurance together: _Loan payments
+› Escrow_ to start with, or _Housing › Property tax_ for a household that budgets them there. It
+can't be left blank: **default** fills in _Loan payments › Escrow_.
+
+## PMI {#pmi-category}
+
+The category a payment's private mortgage insurance counts in, _Loan payments › PMI_ to start
+with. It can't be left blank: **default** fills in that one.
+
+## Fees {#fees-category}
+
+The category a payment's fees count in, _Loan payments › Fees_ to start with. It can't be left
+blank: **default** fills in that one.
+
+## Principal {#principal-category}
+
+The savings category a payment's principal counts in as saved, an overpayment with it:
+_Loan payments › Principal_ to start with, or a savings category of your own. Only a savings
+category can hold it, and it can't be left blank: **default** fills in _Loan payments ›
+Principal_.
 
 ## New category…
 

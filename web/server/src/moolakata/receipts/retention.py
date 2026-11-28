@@ -10,7 +10,8 @@ A record's end and period, by what the file is attached to:
   its splits', and none for a transfer or an uncategorised one;
 - an account (a statement): ends with the statement's period (its date), or without one with
   the account's last transaction once closed; its period is Settings › Storage's *Keep
-  statements for*;
+  statements for*. Another document on it (a loan's closing disclosure) ends when the account
+  closes (a loan paid off), and takes the statements' period;
 - a physical-asset item ends at its sale, and has no period: it has no category, so its files
   are kept for ever (S14.10.2, G#675);
 - a qualified expense or a donation ends on its date; a gift given or received at the later of
@@ -166,11 +167,11 @@ def _link(ctx: Context, link: ReceiptLink, r: Receipt) -> tuple[dt.date | None, 
         return _transaction(ctx, s.get(Transaction, link.itemId))
     if link.kind == "account":
         # A statement ends with its period, which its date is (S1.3.3); one without a date
-        # stays while its account is open.
+        # stays while its account is open, as another document on it does (S14.10.1.2).
         a = s.get(Account, link.itemId)
         if a is None:
             return dt.date.min, ctx.statements, "Statements"
-        end = r.date if r.date is not None else a.closedOn
+        end = r.date if link.statement and r.date is not None else a.closedOn
         return _deleted(s, a, end), ctx.statements, "Statements"
     row = {
         "item": Item,

@@ -11,6 +11,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Column, ForeignKey, MetaData, Table, Text, select, text
 
 from moolakata import ids, settings
+from moolakata import loans as L
 from moolakata.config import RefuseStart
 from moolakata.keys import master
 from moolakata.keys import secrets as sealing
@@ -1767,6 +1768,139 @@ def test_0073_gives_every_tax_book_no_magi(tmp_path):
             'SELECT id, year, "carryoverShareLong", magi FROM "TaxBook"'
         ).one()
         assert tuple(got) == (book, 2026, 210000, None)
+    engine.dispose()
+
+
+def _jane_at(conn, made: str) -> str:
+    """A user written in an old revision's terms, for the rows that need an owner."""
+    person, user = ids.new_id("Persn"), ids.new_id("User")
+    conn.exec_driver_sql(
+        'INSERT INTO "Person" (id, name, sex, "createdAt", "updatedAt") '
+        "VALUES (?, 'Jane', 'female', ?, ?)",
+        (person, made, made),
+    )
+    conn.exec_driver_sql(
+        'INSERT INTO "User" (id, "personId", username, "displayName", "createdAt", '
+        "\"updatedAt\") VALUES (?, ?, 'jane', 'Jane', ?, ?)",
+        (user, person, made, made),
+    )
+    return user
+
+
+def test_0074_keeps_every_sign_up_request_and_lets_its_hash_go(tmp_path):
+    """S10.1.4.2, schema.md §4.4.1: `SignupRequest.passwordHash` takes null, each request kept
+    as it was; a decided one is then written with none."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    req = ids.new_id("Sgnup")
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0073")
+        conn.commit()
+        conn.exec_driver_sql(
+            'INSERT INTO "SignupRequest" (id, "displayName", username, email, "passwordHash", '
+            'sex, "confirmBy", "createdAt", "updatedAt") VALUES (?, \'Erin\', \'erin\', '
+            "'erin@shaw.family', 'h', 'female', ?, ?, ?)",
+            (req, made, made, made),
+        )
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = q('SELECT id, username, "passwordHash", status FROM "SignupRequest"').one()
+        assert tuple(got) == (req, "erin", "h", "confirming")
+        q('UPDATE "SignupRequest" SET "passwordHash" = NULL, status = \'rejected\'')
+        assert q('SELECT "passwordHash" FROM "SignupRequest"').scalar_one() is None
+    engine.dispose()
+
+
+def test_0075_names_each_loans_parts_in_the_shipped_categories_they_counted_in(tmp_path):
+    """S1.9.7: each loan's split parts take the shipped Loan payments categories they counted
+    in, whether it counts split or whole; one counting whole in no category named takes Loan
+    payments, which that blank meant, and one naming its own keeps it."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    shipped = {k: ids.new_id("Cat") for k in ("loans", *L.BUDGET_PARTS.values())}
+    own = ids.new_id("Cat")
+    loans = {how: ids.new_id("Loan") for how in ("split", "whole", "own")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0074")
+        conn.commit()
+        q = conn.exec_driver_sql
+        user = _jane_at(conn, made)
+        for key, cid in shipped.items():
+            kind = "savings" if key == "loans.principal" else "expense"
+            q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, ?, ?, ?)", (cid, key, kind, key, made, made))  # fmt: skip
+        # A deleted twin of a shipped one is passed over for the live one.
+        q('INSERT INTO "Category" (id, name, kind, "builtIn", "createdAt", "updatedAt", '
+          "\"deletedAt\") VALUES (?, 'old', 'expense', 'loans.escrow', ?, ?, ?)",
+          (ids.new_id("Cat"), made, made, made))  # fmt: skip
+        q('INSERT INTO "Category" (id, name, kind, "createdAt", "updatedAt") '
+          "VALUES (?, 'Car', 'expense', ?, ?)", (own, made, made))  # fmt: skip
+        for how, lid in loans.items():
+            acct = ids.new_id("Acct")
+            q('INSERT INTO "Account" (id, "ownerId", name, type, "createdAt", "updatedAt") '
+              "VALUES (?, ?, ?, 'mortgage', ?, ?)", (acct, user, how, made, made))  # fmt: skip
+            q('INSERT INTO "Loan" (id, "accountId", principal, "startDate", "termMonths", rate, '
+              '"budgetCounting", "budgetCategoryId", "createdAt", "updatedAt") '
+              "VALUES (?, ?, 100000, '2026-01-01', 360, '6', ?, ?, ?, ?)",
+              (lid, acct, "split" if how == "split" else "whole", own if how == "own" else None,
+               made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        parts = ", ".join(f'"{f}"' for f in L.BUDGET_PARTS)
+        rows = conn.exec_driver_sql(f'SELECT id, "budgetCategoryId", {parts} FROM "Loan"')
+        got = {r[0]: tuple(r[1:]) for r in rows}
+        named = tuple(shipped[k] for k in L.BUDGET_PARTS.values())
+        assert got == {
+            loans["split"]: (None, *named),
+            loans["whole"]: (shipped["loans"], *named),
+            loans["own"]: (own, *named),
+        }
+        assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    engine.dispose()
+
+
+def test_0076_marks_every_account_link_a_statement_and_no_other(tmp_path):
+    """S9.3, S14.10.1.2: the links made so far on an account are statements, which an import or
+    the connector made; a link to anything else is none, and can't be marked one."""
+    from alembic import command
+
+    engine = make_engine(tmp_path / "old.db", None)
+    made = "2026-09-01T08:00:00.000000Z"
+    rid, acct, txn = ids.new_id("Rcpt"), ids.new_id("Acct"), ids.new_id("Txn")
+    links = {"account": ids.new_id("RcLnk"), "transaction": ids.new_id("RcLnk")}
+    with engine.connect() as conn:
+        command.upgrade(migrate.alembic_config(conn), "0075")
+        conn.commit()
+        q = conn.exec_driver_sql
+        uid = _jane_at(conn, made)
+        q('INSERT INTO "Receipt" (id, "ownerId", "fileName", "mediaType", size, sha256, '
+          '"fileId", "createdAt", "updatedAt") VALUES (?, ?, \'r.pdf\', '
+          "'application/pdf', 3, 'h', 'f', ?, ?)", (rid, uid, made, made))  # fmt: skip
+        for kind, lid in links.items():
+            q('INSERT INTO "ReceiptLink" (id, "receiptId", kind, "itemId", "createdAt", '
+              '"updatedAt") VALUES (?, ?, ?, ?, ?, ?)',
+              (lid, rid, kind, acct if kind == "account" else txn, made, made))  # fmt: skip
+        conn.commit()
+
+    assert migrate.upgrade(engine, tmp_path / "old.db", None, None)
+
+    with engine.connect() as conn:
+        q = conn.exec_driver_sql
+        got = dict(q('SELECT kind, statement FROM "ReceiptLink"').all())
+        assert got == {"account": 1, "transaction": 0}
+        with pytest.raises(Exception, match="CHECK"):
+            q('UPDATE "ReceiptLink" SET statement = 1 WHERE id = ?', (links["transaction"],))
     engine.dispose()
 
 

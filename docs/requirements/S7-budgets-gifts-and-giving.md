@@ -80,7 +80,7 @@
       the plan (*Retirement: $500 planned, your plan assumes $650*).
    2. **Shipped with the rest**: *Cash* (expense: cash taken out and spent, S7.3.2),
       *Savings* (savings: *Emergency fund*, *Retirement*, *Investing*, *Education*), and
-      *Loan payments* (*Interest*, *Escrow*, *PMI and fees* as expenses, *Principal* as
+      *Loan payments* (*Interest*, *Escrow*, *PMI*, *Fees* as expenses, *Principal* as
       savings, S1.9.7).
    3. **Who changes what.** Any user adds a category, at the top level or under one, with
       any kind and tax tag, and renames any category. Its parent, kind and tax tag are its

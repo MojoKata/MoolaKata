@@ -35,10 +35,16 @@ Loan = record(
     Column("pointsPurpose", Text),
     # The property or vehicle it is secured by, for equity and loan-to-value (S1.9.5).
     Column("securedById", Text, ForeignKey("Item.id", ondelete="SET NULL")),
-    # How its payments count in budgets (S1.9.7): split by the schedule into the shipped Loan
-    # payments categories, or whole in one category (the shipped Loan payments when none).
+    # How its payments count in budgets (S1.9.7): split by the schedule, each part in the
+    # category the loan names for it (the shipped Loan payments ones when the loan is made), or
+    # whole in one category. The parts' categories are kept while it counts whole.
     Column("budgetCounting", Text, nullable=False, server_default=text("'split'")),
     Column("budgetCategoryId", Text, ForeignKey("Category.id")),
+    Column("interestCategoryId", Text, ForeignKey("Category.id")),
+    Column("escrowCategoryId", Text, ForeignKey("Category.id")),
+    Column("pmiCategoryId", Text, ForeignKey("Category.id")),
+    Column("feesCategoryId", Text, ForeignKey("Category.id")),
+    Column("principalCategoryId", Text, ForeignKey("Category.id")),
     # How a payment day with no payment recorded reads (S1.9.3): every payment is recorded
     # here, so one not recorded is missed; or they are made elsewhere, so it counts as paid as
     # scheduled. None: Automatic, recorded here once the loan has a payment or a connection.

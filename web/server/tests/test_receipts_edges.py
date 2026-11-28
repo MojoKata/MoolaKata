@@ -210,7 +210,9 @@ def test_a_receipt_names_what_it_is_kept_with_leaving_out_what_was_deleted(serve
                  ("account", statement["id"]), ("gift", gift.id)]  # fmt: skip
         kinds += [("donation", d.id) for d in gifts]
         for kind, item_id in kinds:
-            s.add(ReceiptLink(id=new_id("RcLnk"), receiptId=rid, kind=kind, itemId=item_id))
+            # The account's is a statement, as an import keeps one (S1.3.3).
+            s.add(ReceiptLink(id=new_id("RcLnk"), receiptId=rid, kind=kind, itemId=item_id,
+                              statement=kind == "account"))  # fmt: skip
     labels = [x["label"] for x in jane.get(f"/ui/api/receipts/{rid}").json()["links"]]
     assert sorted(labels) == sorted([
         "Corner Store",

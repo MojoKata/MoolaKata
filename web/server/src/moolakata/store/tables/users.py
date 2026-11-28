@@ -169,14 +169,15 @@ RecoveryCode = exception(
 )
 
 # A person's request for an account (S10.1.4): confirmed by an emailed link, then approved or
-# rejected by an admin. Approval makes the User; the request stays as the record of it.
+# rejected by an admin. Approval makes the User; the request stays as the record of it, its
+# password hash cleared once it is decided or lapses (schema.md §4.4.1).
 SignupRequest = record(
     "SignupRequest",
     "Sgnup",
     Column("displayName", Text, nullable=False),
     Column("username", Text, nullable=False),
     Column("email", Text, nullable=False),
-    Column("passwordHash", Text, nullable=False),
+    Column("passwordHash", Text),
     Column("sex", Text, nullable=False),  # for their person (S10.10.1)
     Column("status", Text, nullable=False, server_default=text("'confirming'")),
     # The emailed link's token, as its hash, until it is opened.

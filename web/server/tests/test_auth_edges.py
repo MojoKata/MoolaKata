@@ -509,6 +509,36 @@ def test_a_request_approved_into_the_admins_gets_each_alert_by_email(admin_clien
         assert u.alertEmails == "each" and accounts.group_ids(s, u.id) == [admins]
 
 
+def _request_hash(server, rid: str):
+    from moolakata.store.entities.users import SignupRequest
+
+    with server.db.read(unscoped="test") as s:
+        return s.get(SignupRequest, rid).passwordHash
+
+
+def test_an_approved_request_hands_its_password_hash_to_the_user_and_keeps_none(
+    admin_client, server
+):
+    """The request stays as the record of it, without the password (S10.1.4.2, schema.md
+    §4.4.1)."""
+    set_public_url(server)
+    rid = _waiting(server, "gail", "gail@shaw.family")
+    assert _request_hash(server, rid) is not None
+    r = admin_client.post(f"/ui/api/signup-requests/{rid}/approve", json={"groupIds": []})
+    assert r.status_code == 200, r.text
+    assert _request_hash(server, rid) is None
+    with server.db.read(unscoped="test") as s:
+        u = s.scalars(select(User).where(User.username == "gail")).one()
+        assert passwords.verify(u.passwordHash, PW)
+
+
+def test_a_rejected_request_keeps_no_password_hash(admin_client, server):
+    set_public_url(server)
+    rid = _waiting(server, "hal", "hal@shaw.family")
+    assert admin_client.post(f"/ui/api/signup-requests/{rid}/reject").status_code == 204
+    assert _request_hash(server, rid) is None
+
+
 # ---------- tokens (S10.9) ----------
 
 

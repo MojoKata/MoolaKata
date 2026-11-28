@@ -234,7 +234,8 @@ Records are never removed from the database: they are marked deleted. The except
 4. **Exceptions**, removed outright:
    1. **sessions and one-time tokens** (invitation, sign-up confirmation, reset, email
       change, a sign-in waiting for its two-step code), when used or expired, and two-step
-      recovery codes when used or replaced;
+      recovery codes when used or replaced; and a sign-up request's password hash (the field,
+      not the request) once the request is approved, rejected or its link lapses unopened;
    2. **a secret's old ciphertext** when the secret is replaced or removed, so an old API key
       or token can't be recovered from the database or a later backup;
    3. **linked copies**: another household's data, removed with the share or link it came
@@ -272,9 +273,9 @@ A test fails when:
 
 ## 6. Ended records
 
-Records are never removed (requirements S14.10). When a record ended decides when the files
-attached to it (receipts, statements) expire under their retention, and so when file pruning
-may remove them. When a record ended is worked out, never stored, so it follows the records
+Records are never removed, but for the exceptions of §4.4 (requirements S14.10). When a
+record ended decides when the files attached to it (receipts, statements) expire under their
+retention, and so when file pruning may remove them. When a record ended is worked out, never stored, so it follows the records
 as they change.
 
 1. **`endedAt`**: for each table a file can be attached to (`Transaction`, `Account`,

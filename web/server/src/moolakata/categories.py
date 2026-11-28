@@ -17,8 +17,7 @@ from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import clock, ids
-from .budgets import LOAN_PARTS
-from .loans import PARTS
+from .loans import BUDGET_PARTS, PARTS
 from .store.db import live as live_rows
 from .store.entities.accounts import Category, Loan, Rule, Split, Transaction
 from .store.entities.budgets import BudgetLine, BudgetMove
@@ -35,8 +34,23 @@ NAME_MAX = 60
 # (S1.9.7) and as its transaction is split. Merged away or deleted, what counts in them would
 # have nowhere to go; their kind is what those rules assume.
 SERVER_KEYS = frozenset(
-    {"gifts", "giving", "cash", "fees", "loans", *LOAN_PARTS.values(), *PARTS.values()}
+    {"gifts", "giving", "cash", "fees", "loans", *BUDGET_PARTS.values(), *PARTS.values()}
 )
+# A loan's fields naming a category its payments count in (S1.9.7).
+LOAN_CATEGORIES = ("budgetCategoryId", *BUDGET_PARTS)
+
+
+def loan_parts(s: Session) -> dict[str, str | None]:
+    """The shipped categories a new loan's split parts start in, by the loan's field
+    (S1.9.7.1)."""
+    keys = set(BUDGET_PARTS.values())
+    found = {
+        c.builtIn: c.id
+        for c in s.scalars(
+            select(Category).where(Category.builtIn.in_(keys), Category.deleted == false())
+        )
+    }
+    return {f: found.get(k) for f, k in BUDGET_PARTS.items()}
 
 
 def server_named(c: Category) -> bool:
@@ -102,7 +116,7 @@ def used(s: Session, cat_ids: Iterable[str]) -> set[str]:
         _rows(BudgetLine.categoryId, tb.BudgetLine),
         _rows(BudgetMove.fromCategoryId, tb.BudgetMove),
         _rows(BudgetMove.toCategoryId, tb.BudgetMove),
-        _rows(Loan.budgetCategoryId, tl.Loan),
+        *(_rows(getattr(Loan, f), tl.Loan) for f in LOAN_CATEGORIES),
         _rows(Category.parentId, ta.Category),
     ]
     for rows in probes:
@@ -162,7 +176,13 @@ def uses(s: Session, cat_id: str) -> Uses:
                 .order_by(BudgetMove.budgetId, BudgetMove.month)
             )
         ),
-        loans=list(s.scalars(_rows(Loan, tl.Loan).where(Loan.budgetCategoryId == cat_id))),
+        loans=list(
+            s.scalars(
+                _rows(Loan, tl.Loan).where(
+                    or_(*(getattr(Loan, f) == cat_id for f in LOAN_CATEGORIES))
+                )
+            )
+        ),
         children=sorted(children(s, cat_id), key=lambda x: x.name.lower()),
     )
 
@@ -361,11 +381,12 @@ def apply(s: Session, p: Plan, actor: str) -> None:
                 .where(entity.categoryId == gone.id)
                 .values(categoryId=into.id, version=entity.version + 1, updatedAt=now)
             )
-        s.execute(
-            update(Loan)
-            .where(Loan.budgetCategoryId == gone.id)
-            .values(budgetCategoryId=into.id, version=Loan.version + 1, updatedAt=now)
-        )
+        for f in LOAN_CATEGORIES:
+            s.execute(
+                update(Loan)
+                .where(getattr(Loan, f) == gone.id)
+                .values({f: into.id, "version": Loan.version + 1, "updatedAt": now})
+            )
         for col in (BudgetMove.fromCategoryId, BudgetMove.toCategoryId):
             s.execute(
                 update(BudgetMove)

@@ -80,10 +80,10 @@ export class AcctRec extends Record {
 function AccountForm({ type, close, back }) {
   const { route } = useLocation();
   const t = BY_TYPE[type];
-  const d = useDraft((draft) => {
+  const d = useDraft(async (draft) => {
     const kept = t.loan || t.physical ? ['manual'] : t.wallet ? ['bitcoin'] : ['file'];
     const a = draft.add(AcctRec, { name: '', type, keptBy: kept });
-    if (t.loan) draft.add(LoanRec, newTerms(type, a.id));
+    if (t.loan) draft.add(LoanRec, await newTerms(type, a.id));
     if (t.education) draft.add(EduPlanRec, { accountId: a.id }, { optional: true });
   }, [type]);
   const draft = d.draft;

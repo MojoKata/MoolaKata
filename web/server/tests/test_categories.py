@@ -179,7 +179,7 @@ def test_who_changes_what(people, caller, origin, used, field):
         assert before["allowed"]["change"] is _allowed(caller, origin, used, field)
 
 
-USES = ["transaction", "split", "rule", "plan line", "move", "loan", "child"]
+USES = ["transaction", "split", "rule", "plan line", "move", "loan", "loan part", "child"]
 
 
 def _put_to_use(c, cat_id: str, how: str) -> None:
@@ -237,6 +237,14 @@ def _put_to_use(c, cat_id: str, how: str) -> None:
             budgetCounting="whole",
             budgetCategoryId=cat_id,
         )
+        assert r.status_code == 200, r.text
+    elif how == "loan part":
+        # A split's part named in it, as its fees (S1.9.7.1).
+        loan = new_account(c, name="Van loan", type="auto-loan", mask="7778")
+        from edits import terms
+
+        r = terms(c, loan["id"], principal="9000.00", rate="5", termMonths=48,
+                  startDate="2026-11-01", feesCategoryId=cat_id)  # fmt: skip
         assert r.status_code == 200, r.text
     else:
         new(c, "Inside", parentId=cat_id)
@@ -797,6 +805,7 @@ KIND = {
     "plan line": "planLines",
     "move": "moves",
     "loan": "loans",
+    "loan part": "loans",
     "child": "categories",
 }
 # Who else sees each kind of use, as made in an account or budget of the maker's own: a child
@@ -842,13 +851,13 @@ def test_what_each_use_says(people):
     for how in USES:
         _put_to_use(jane, pets["id"], how)
     u = uses(jane, pets["id"])
-    assert (u["seen"], u["unseen"], u["transactions"]) == (7, 0, 2)
+    assert (u["seen"], u["unseen"], u["transactions"]) == (8, 0, 2)
     assert u["rules"] == [{"id": u["rules"][0]["id"], "payeeMatch": "toys", "position": 0}]
     assert [(x["budgetName"], x["month"]) for x in u["planLines"]] == [
         ("B plan line", "2026-10-01")
     ]
     assert [(x["budgetName"], x["month"]) for x in u["moves"]] == [("B move", "2026-10-01")]
-    assert [x["name"] for x in u["loans"]] == ["Car loan"]
+    assert sorted(x["name"] for x in u["loans"]) == ["Car loan", "Van loan"]
     assert [x["name"] for x in u["categories"]] == ["Inside"]
     budgets = {b["name"]: b["id"] for b in jane.get("/ui/api/budgets").json()["items"]}
     assert u["planLines"][0]["budgetId"] == budgets["B plan line"]
