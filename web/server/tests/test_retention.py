@@ -328,6 +328,30 @@ def test_a_statement_expires_after_its_period_and_the_storage_setting(server, fr
     )
 
 
+def test_a_pruned_file_that_cant_be_removed_is_left_as_an_orphan(
+    server, frozen, monkeypatch, caplog
+):
+    """S16.17: a removal that fails frees nothing and says so; the file stays, for Settings ›
+    Storage's orphans."""
+    from moolakata import filestore
+    from moolakata.receipts import retention
+
+    make_user(server, "jane")
+    rid = upload(sign_in(server, "jane"), png((40, 41, 42))).json()["id"]
+    with server.db.tx(unscoped="test") as s:
+        r = s.get(Receipt, rid)
+        path = retention.file_path(server.config.receipts_dir, r.fileId)
+        files = retention.mark_pruned(s, [r], r.ownerId)
+
+    def refused(self, name):
+        raise PermissionError(name)
+
+    monkeypatch.setattr(filestore.FileStore, "remove", refused)
+    assert retention.remove_pruned(server, files) == 0
+    assert path.exists()
+    assert "left as an orphan" in caplog.text
+
+
 def test_a_loans_document_is_kept_until_it_is_paid_off_then_the_statements_period(
     server, frozen, admin_client
 ):
