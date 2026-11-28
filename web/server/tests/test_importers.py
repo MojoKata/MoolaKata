@@ -185,6 +185,77 @@ def test_bad_rows_name_their_row():
         csvfile.read(data, m)
 
 
+def test_a_csv_that_cant_be_read_says_why():
+    """S1.3.2: a file that isn't text, text in no encoding read here, an empty file, a file with
+    nothing below its header, a column the mapping names that isn't there, and an amount that
+    isn't one, named by its row."""
+    with pytest.raises(ReadError, match="not a text file"):
+        csvfile.decode(b"Date\x00,Amount\n")
+    with pytest.raises(ReadError, match="can't be read"):
+        csvfile.decode(b"Date,Payee\n\x81\x8d\x8f\xff\n")
+    assert csvfile.decode("Date,Payee\nCafé\n".encode("cp1252")) == "Date,Payee\nCafé\n"
+    with pytest.raises(ReadError, match="is empty"):
+        csvfile.propose(b"")
+    data = b"Date,Description,Amount\n2026-09-02,Coffee,4.50\n"
+    m = csvfile.propose(data)["mapping"]
+    with pytest.raises(ReadError, match="no rows below its header"):
+        csvfile.read(b"Account 4821\n", {**m, "skipRows": 1})
+    assert csvfile.read(b"Date,Description,Amount\n", m).rows == [], "a header alone adds nothing"
+    with pytest.raises(ReadError, match="no column called 'Amount'"):
+        csvfile.read(b"Date,Description,Total\n2026-09-02,Coffee,4.50\n", m)
+    with pytest.raises(ReadError, match=r"Row 2: 'four fifty' is not an amount"):
+        csvfile.read(b"Date,Description,Amount\n2026-09-02,Coffee,four fifty\n", m)
+    with pytest.raises(ReadError, match="Choose the date column"):
+        csvfile.read(data, {**m, "date": None})
+
+
+def test_a_mapping_names_each_column_it_lacks_at_its_field():
+    """S1.3.2, R3.11: no date column, no date format, no amount (nor debit and credit), and no
+    description (nor symbol), each refused at its field in its words."""
+    assert csvfile.check_mapping({}) == [
+        ("date", "Choose the date column."),
+        ("dateFormat", "Choose how the dates are written."),
+        ("amount", "Choose the amount column, or the debit and credit columns."),
+        ("payee", "Choose the description or payee column."),
+    ]
+    whole = {"date": "D", "dateFormat": "%Y-%m-%d", "debit": "Out", "symbol": "S"}
+    assert csvfile.check_mapping(whole) == []
+
+
+def test_a_csv_row_without_a_date_is_passed_over():
+    data = b"Date,Description,Amount\n2026-09-02,Coffee,4.50\n,Subtotal,4.50\n"
+    p = csvfile.read(data, csvfile.propose(data)["mapping"])
+    assert [r.payee for r in p.rows] == ["Coffee"]
+
+
+def test_a_csv_proposal_without_a_date_column_starts_at_the_top():
+    """No row in the first 15 names a date: the header is taken as the first row, and no
+    date column is proposed."""
+    data = b"When,Payee,Amount\n2026-09-02,Coffee,4.50\n"
+    p = csvfile.propose(data)
+    assert p["mapping"]["skipRows"] == 0 and p["mapping"]["date"] is None
+
+
+def test_a_csv_proposal_with_an_amount_column_drops_debit_and_credit():
+    data = b"Date,Description,Amount,Debit,Credit\n2026-09-02,Coffee,-4.50,4.50,\n"
+    m = csvfile.propose(data)["mapping"]
+    assert (m["amount"], m["debit"], m["credit"]) == ("Amount", None, None)
+
+
+def test_a_cash_foreign_tax_row_is_money_out():
+    data = (
+        b"Date,Action,Symbol,Description,Amount\n"
+        b"2026-06-30,Foreign Tax Paid,,Withheld,3.10\n"
+        b"2026-06-30,Foreign Tax Paid,VXUS,Withheld,2.00\n"
+    )
+    m = csvfile.propose(data, trades=True)["mapping"]
+    p = csvfile.read(data, m)
+    assert [(r.kind, r.amount) for r in p.rows] == [
+        ("foreign-tax", D("-3.10")),
+        ("foreign-tax", D("-2.00")),
+    ]
+
+
 def test_a_reinvested_dividend_is_income_once_and_a_buy_with_none():
     # S2.5: a dividend row carries the income; the buy carries none, so the income panel
     # counts $100 as $100 of 1099-DIV, never $200.
